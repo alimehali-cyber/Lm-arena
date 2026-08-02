@@ -31,6 +31,7 @@ import com.example.domain.AppLanguage
 import com.example.ui.MainViewModel
 import com.example.ui.components.FavoritesHistoryDialog
 import com.example.ui.components.ObjectDetailModal
+import com.example.ui.components.SafeAppLogo
 import com.example.ui.components.SettingsDialog
 import com.example.ui.screens.*
 import com.example.ui.theme.REDTheme
@@ -67,12 +68,9 @@ class MainActivity : ComponentActivity() {
                         topBar = {
                             TopAppBar(
                                 title = {
-                                    Image(
-                                        painter = painterResource(id = R.drawable.red_app_logo),
-                                        contentDescription = "RED App Logo",
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(RoundedCornerShape(10.dp))
+                                    SafeAppLogo(
+                                        modifier = Modifier.size(38.dp),
+                                        cornerRadius = 10.dp
                                     )
                                 },
                                 actions = {

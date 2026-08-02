@@ -182,12 +182,9 @@ fun SettingsDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.red_app_logo),
-                            contentDescription = "RED Logo",
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                        SafeAppLogo(
+                            modifier = Modifier.size(44.dp),
+                            cornerRadius = 8.dp
                         )
                         Column {
                             Text(

@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.ui.components.SafeAppLogo
 import com.example.astro_engine.*
 import com.example.data.catalog.AstronomyCatalog
 import com.example.domain.*
@@ -714,12 +715,9 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.red_app_logo),
-                        contentDescription = "RED App Logo",
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                    SafeAppLogo(
+                        modifier = Modifier.size(56.dp),
+                        cornerRadius = 12.dp
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
