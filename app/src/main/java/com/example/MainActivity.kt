@@ -2,20 +2,26 @@ package com.example
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -59,91 +65,114 @@ class MainActivity : ComponentActivity() {
             REDTheme(themeMode = uiState.themeMode) {
                 CompositionLocalProvider(
                     LocalContext provides localizedContext,
-                    LocalLayoutDirection provides layoutDirection
+                    LocalLayoutDirection provides layoutDirection,
+                    LocalActivityResultRegistryOwner provides this@MainActivity
                 ) {
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
                             .testTag("main_scaffold"),
+                        containerColor = MaterialTheme.colorScheme.background,
                         topBar = {
-                            TopAppBar(
-                                title = {
-                                    SafeAppLogo(
-                                        modifier = Modifier.size(38.dp),
-                                        cornerRadius = 10.dp
+                            val isFa = uiState.language == com.example.domain.AppLanguage.PERSIAN
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .statusBarsPadding()
+                                    .height(64.dp)
+                                    .padding(horizontal = 20.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (uiState.selectedTab == 0) {
+                                    // Home Screen Top Bar
+                                    // Far RIGHT (Start in RTL): RED logo with pulsing glow
+                                    val infiniteTransition = rememberInfiniteTransition(label = "RedLogoGlow")
+                                    val glowOpacity by infiniteTransition.animateFloat(
+                                        initialValue = 0.0f,
+                                        targetValue = 0.15f,
+                                        animationSpec = infiniteRepeatable(
+                                            animation = tween(durationMillis = 1500, easing = LinearEasing),
+                                            repeatMode = RepeatMode.Reverse
+                                        ),
+                                        label = "GlowOpacity"
                                     )
-                                },
-                                actions = {
-                                    IconButton(
-                                        onClick = { viewModel.setShowFavoritesDialog(true) },
-                                        modifier = Modifier.testTag("top_favorites_button")
+
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.size(44.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Bookmark,
-                                            contentDescription = stringResource(R.string.favorites_and_history),
-                                            tint = Color(0xFFFFB703)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    Brush.radialGradient(
+                                                        colors = listOf(
+                                                            com.example.ui.theme.AccentPrimary.copy(alpha = glowOpacity),
+                                                            Color.Transparent
+                                                        )
+                                                    )
+                                                )
+                                        )
+                                        SafeAppLogo(
+                                            modifier = Modifier.size(32.dp),
+                                            cornerRadius = 8.dp
                                         )
                                     }
 
+                                    // Far LEFT (End in RTL): Signature text
+                                    Text(
+                                        text = "Developed by Ali Jafari",
+                                        style = androidx.compose.ui.text.TextStyle(
+                                            fontFamily = com.example.ui.theme.IranSans,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Light,
+                                            fontSize = 10.sp,
+                                            letterSpacing = 0.5.sp,
+                                            color = Color(0xFF3A3A44),
+                                            textDirection = androidx.compose.ui.text.style.TextDirection.Ltr
+                                        )
+                                    )
+                                } else {
+                                    // Other Tabs Top Bar (e.g. Moon screen)
                                     IconButton(
-                                        onClick = { viewModel.setShowSettingsDialog(true) },
-                                        modifier = Modifier.testTag("top_settings_button")
+                                        onClick = { viewModel.selectTab(0) },
+                                        modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Settings,
-                                            contentDescription = stringResource(R.string.settings),
-                                            tint = MaterialTheme.colorScheme.onSurface
+                                            imageVector = Icons.Default.ArrowForward,
+                                            contentDescription = "Back",
+                                            tint = Color(0xFF9CA3AF),
+                                            modifier = Modifier.size(24.dp)
                                         )
                                     }
-                                },
-                                colors = TopAppBarDefaults.topAppBarColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
-                                )
-                            )
+
+                                    val pageTitle = when (uiState.selectedTab) {
+                                        1 -> if (isFa) "قطب‌نما AR" else "AR Compass"
+                                        2 -> if (isFa) "ماه" else "Moon"
+                                        3 -> if (isFa) "ایستگاه فضایی" else "ISS Tracker"
+                                        else -> ""
+                                    }
+
+                                    Text(
+                                        text = pageTitle,
+                                        style = androidx.compose.ui.text.TextStyle(
+                                            fontFamily = com.example.ui.theme.IranSans,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                            fontSize = 18.sp,
+                                            color = Color(0xFFF5F5F7)
+                                        )
+                                    )
+
+                                    Spacer(modifier = Modifier.size(32.dp))
+                                }
+                            }
                         },
                         bottomBar = {
-                            NavigationBar(
-                                containerColor = MaterialTheme.colorScheme.surface,
-                                modifier = Modifier
-                                    .navigationBarsPadding()
-                                    .testTag("main_bottom_navigation")
-                            ) {
-                                NavigationBarItem(
-                                    selected = uiState.selectedTab == 0,
-                                    onClick = { viewModel.selectTab(0) },
-                                    icon = { Icon(if (uiState.selectedTab == 0) Icons.Default.Home else Icons.Outlined.Home, contentDescription = stringResource(R.string.nav_home)) },
-                                    label = { Text(text = stringResource(R.string.nav_home), fontSize = 11.sp) },
-                                    modifier = Modifier.testTag("nav_item_home")
-                                )
-                                NavigationBarItem(
-                                    selected = uiState.selectedTab == 1,
-                                    onClick = { viewModel.selectTab(1) },
-                                    icon = { Icon(if (uiState.selectedTab == 1) Icons.Default.Explore else Icons.Outlined.Explore, contentDescription = stringResource(R.string.nav_compass)) },
-                                    label = { Text(text = stringResource(R.string.nav_compass), fontSize = 11.sp) },
-                                    modifier = Modifier.testTag("nav_item_compass")
-                                )
-                                NavigationBarItem(
-                                    selected = uiState.selectedTab == 2,
-                                    onClick = { viewModel.selectTab(2) },
-                                    icon = { Icon(if (uiState.selectedTab == 2) Icons.Default.Map else Icons.Outlined.Map, contentDescription = stringResource(R.string.nav_skymap)) },
-                                    label = { Text(text = stringResource(R.string.nav_skymap), fontSize = 11.sp) },
-                                    modifier = Modifier.testTag("nav_item_skymap")
-                                )
-                                NavigationBarItem(
-                                    selected = uiState.selectedTab == 3,
-                                    onClick = { viewModel.selectTab(3) },
-                                    icon = { Icon(if (uiState.selectedTab == 3) Icons.Default.NightlightRound else Icons.Outlined.Nightlight, contentDescription = stringResource(R.string.nav_moon)) },
-                                    label = { Text(text = stringResource(R.string.nav_moon), fontSize = 11.sp) },
-                                    modifier = Modifier.testTag("nav_item_moon")
-                                )
-                                NavigationBarItem(
-                                    selected = uiState.selectedTab == 4,
-                                    onClick = { viewModel.selectTab(4) },
-                                    icon = { Icon(if (uiState.selectedTab == 4) Icons.Default.SatelliteAlt else Icons.Outlined.SatelliteAlt, contentDescription = stringResource(R.string.nav_iss)) },
-                                    label = { Text(text = stringResource(R.string.nav_iss), fontSize = 11.sp) },
-                                    modifier = Modifier.testTag("nav_item_iss")
-                                )
-                            }
+                            com.example.ui.components.FloatingBottomBar(
+                                selectedTab = uiState.selectedTab,
+                                onTabSelected = { viewModel.selectTab(it) }
+                            )
                         }
                     ) { innerPadding ->
                         Box(
@@ -165,15 +194,11 @@ class MainActivity : ComponentActivity() {
                                         uiState = uiState,
                                         viewModel = viewModel
                                     )
-                                    2 -> SkyMapScreen(
+                                    2 -> MoonScreen(
                                         uiState = uiState,
                                         viewModel = viewModel
                                     )
-                                    3 -> MoonScreen(
-                                        uiState = uiState,
-                                        viewModel = viewModel
-                                    )
-                                    4 -> ISSScreen(
+                                    3 -> ISSScreen(
                                         uiState = uiState,
                                         viewModel = viewModel
                                     )

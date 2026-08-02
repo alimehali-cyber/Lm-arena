@@ -2,47 +2,46 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Deep Space Navy Mode Palette
-val NavyBackground = Color(0xFF0C0E1A)
-val NavySurface = Color(0xFF141829)
-val NavySurfaceVariant = Color(0xFF1E2338)
-val NavyPrimary = Color(0xFFC490FF)
-val NavyOnPrimary = Color(0xFF321359)
-val NavyPrimaryContainer = Color(0xFF3B2763)
-val NavyOnPrimaryContainer = Color(0xFFF1E5FF)
-val NavyOutline = Color(0xFF333A52)
-val NavyTextPrimary = Color(0xFFF3F4F6)
-val NavyTextSecondary = Color(0xFF9CA3AF)
+// RED Space Astronomy Design System Color Tokens
+val BackgroundPrimary = Color(0xFF0A0A12)      // Deep Space Black
+val BackgroundCard = Color(0xFF13111A)         // Dark Purple-Black
+val CardSurface = Color(0x0FFFFFFF)            // rgba(255, 255, 255, 0.06)
+val CardBorder = Color(0x14FFFFFF)             // rgba(255, 255, 255, 0.08)
 
-// OLED Pitch Black Mode Palette
-val OledBackground = Color(0xFF000000)
-val OledSurface = Color(0xFF0A0A0C)
-val OledSurfaceVariant = Color(0xFF141418)
-val OledPrimary = Color(0xFFD0BCFF)
-val OledOnPrimary = Color(0xFF381E72)
-val OledPrimaryContainer = Color(0xFF2B2048)
-val OledOnPrimaryContainer = Color(0xFFEADDFF)
-val OledOutline = Color(0xFF26262B)
-val OledTextPrimary = Color(0xFFFAFAFA)
-val OledTextSecondary = Color(0xFFA1A1AA)
+val AccentPrimary = Color(0xFFA855F7)          // Soft Purple/Violet
+val AccentSecondary = Color(0xFFD946EF)        // Pink / Magenta
+val AccentTertiary = Color(0xFF6366F1)         // Indigo for gradients
 
-// Light Mode Palette
-val LightBackground = Color(0xFFF8FAFC)
-val LightSurface = Color(0xFFFFFFFF)
-val LightSurfaceVariant = Color(0xFFF1F5F9)
-val LightPrimary = Color(0xFF6366F1)
-val LightOnPrimary = Color(0xFFFFFFFF)
-val LightPrimaryContainer = Color(0xFFEEF2FF)
-val LightOnPrimaryContainer = Color(0xFF312E81)
-val LightOutline = Color(0xFFE2E8F0)
-val LightTextPrimary = Color(0xFF0F172A)
-val LightTextSecondary = Color(0xFF64748B)
+val TextPrimary = Color(0xFFF5F5F7)            // Near White
+val TextSecondary = Color(0xFF9CA3AF)          // Muted Gray
+val TextTertiary = Color(0xFF6B7280)           // Subtle Gray
 
-// Bento Grid Vibrant Upbeat Accents
-val AccentEmerald = Color(0xFF10B981)
+val StatusExcellent = Color(0xFF34D399)        // Soft Green
+val StatusGood = Color(0xFFFBBF24)             // Amber
+val StatusWarning = Color(0xFFF87171)          // Soft Red
+
+val GradientCardStart = Color(0xFF1E1533)
+val GradientCardEnd = Color(0xFF0F0D1A)
+
+val BottomNavBackground = Color(0xE60D0B14)     // #0D0B14 at ~90% opacity
+
+// Legacy color mappings for theme compatibility
+val NavyBackground = BackgroundPrimary
+val NavySurface = BackgroundCard
+val NavySurfaceVariant = Color(0xFF1A1726)
+val NavyPrimary = AccentPrimary
+val NavyOnPrimary = Color(0xFF000000)
+val NavyPrimaryContainer = Color(0x26A855F7)
+val NavyOnPrimaryContainer = TextPrimary
+val NavyOutline = CardBorder
+val NavyTextPrimary = TextPrimary
+val NavyTextSecondary = TextSecondary
+
+val AccentEmerald = StatusExcellent
 val AccentTeal = Color(0xFF14B8A6)
-val AccentAmber = Color(0xFFF59E0B)
-val AccentCyan = Color(0xFF06B6D4)
-val AccentViolet = Color(0xFF8B5CF6)
-val AccentRose = Color(0xFFF43F5E)
-val AccentBlue = Color(0xFF3B82F6)
+val AccentAmber = StatusGood
+val AccentCyan = AccentPrimary
+val AccentViolet = AccentPrimary
+val AccentRose = StatusWarning
+val AccentBlue = AccentTertiary
+

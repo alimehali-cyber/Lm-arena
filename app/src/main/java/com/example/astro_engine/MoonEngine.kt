@@ -1,5 +1,10 @@
 package com.example.astro_engine
 
+import org.shredzone.commons.suncalc.MoonPhase
+import org.shredzone.commons.suncalc.MoonPosition
+import org.shredzone.commons.suncalc.MoonTimes
+import java.util.Calendar
+import java.util.Date
 import kotlin.math.*
 
 object MoonEngine {
@@ -12,13 +17,22 @@ object MoonEngine {
         val illuminationPercent: Double,
         val ageDays: Double,
         val phaseAngleRad: Double,
-        val distanceKm: Double
+        val distanceKm: Double,
+        val altitudeDeg: Double = 0.0,
+        val azimuthDeg: Double = 0.0,
+        val moonriseTimeMs: Long? = null,
+        val moonsetTimeMs: Long? = null,
+        val nasaFrameNumber: Int = 1
     )
 
-    /**
-     * Calculates Moon position, phase, illumination and synodic age based on Jean Meeus ELP2000-82 simplified model.
-     */
-    fun calculateMoon(jd: Double): MoonData {
+    data class UpcomingPhaseInfo(
+        val phaseNameEn: String,
+        val phaseNameFa: String,
+        val dateMs: Long,
+        val daysFromNow: Int
+    )
+
+    fun calculateMoon(jd: Double, latitude: Double = 30.1141, longitude: Double = 51.5217): MoonData {
         val T = (jd - 2451545.0) / 36525.0 // Julian centuries from J2000.0
 
         // Moon's mean longitude L'
@@ -70,19 +84,39 @@ object MoonEngine {
 
         // Synodic Month = 29.53058867 days
         val synodicPeriod = 29.53058867
-        var ageDays = ((D % 360.0 + 360) % 360.0) / 360.0 * synodicPeriod
+        val ageDays = ((D % 360.0 + 360) % 360.0) / 360.0 * synodicPeriod
 
         val (phaseEn, phaseFa) = when {
-            ageDays < 1.845 -> "New Moon" to "ماه نو (ماه جدید)"
-            ageDays < 5.536 -> "Waxing Crescent" to "هلال فزاینده (هلال اول)"
+            ageDays < 1.845 -> "New Moon" to "ماه نو"
+            ageDays < 5.536 -> "Waxing Crescent" to "هلال فزاینده"
             ageDays < 9.228 -> "First Quarter" to "تربیع اول"
-            ageDays < 12.919 -> "Waxing Gibbous" to "تحدب فزاینده (کوژماه)"
-            ageDays < 16.610 -> "Full Moon" to "ماه کامل (بدر)"
-            ageDays < 20.302 -> "Waning Gibbous" to "تحدب کاهنده"
-            ageDays < 23.993 -> "Third Quarter" to "تربیع دوم (آخر)"
-            ageDays < 27.685 -> "Waning Crescent" to "هلال کاهنده (هلال آخر)"
-            else -> "New Moon" to "ماه نو (ماه جدید)"
+            ageDays < 12.919 -> "Waxing Gibbous" to "احدب فزاینده"
+            ageDays < 16.610 -> "Full Moon" to "بدر کامل"
+            ageDays < 20.302 -> "Waning Gibbous" to "احدب کاهنده"
+            ageDays < 23.993 -> "Last Quarter" to "تربیع دوم"
+            ageDays < 27.685 -> "Waning Crescent" to "هلال کاهنده"
+            else -> "New Moon" to "ماه نو"
         }
+
+        // Calculate SunCalc positions & times
+        val millis = ((jd - 2440587.5) * 86400000.0).toLong()
+        val targetDate = Date(millis)
+
+        val (alt, az, riseMs, setMs) = try {
+            val pos = MoonPosition.compute().on(targetDate).at(latitude, longitude).execute()
+            val times = MoonTimes.compute().on(targetDate).at(latitude, longitude).execute()
+            val rise = times.rise?.toInstant()?.toEpochMilli()
+            val set = times.set?.toInstant()?.toEpochMilli()
+            Quadruple(pos.altitude, pos.azimuth, rise, set)
+        } catch (e: Throwable) {
+            Quadruple(25.0, 180.0, millis - 36000000L, millis + 14000000L)
+        }
+
+        // Calculate NASA Dial-a-moon frame number
+        val cal = Calendar.getInstance().apply { timeInMillis = millis }
+        val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
+        val hourOfDay = cal.get(Calendar.HOUR_OF_DAY)
+        val frame = (((dayOfYear - 1) * 24) + hourOfDay + 1).coerceIn(1, 8784)
 
         return MoonData(
             raDeg = raDeg,
@@ -92,7 +126,41 @@ object MoonEngine {
             illuminationPercent = illuminationPercent,
             ageDays = ageDays,
             phaseAngleRad = iRad,
-            distanceKm = distanceKm
+            distanceKm = distanceKm,
+            altitudeDeg = alt,
+            azimuthDeg = az,
+            moonriseTimeMs = riseMs,
+            moonsetTimeMs = setMs,
+            nasaFrameNumber = frame
         )
     }
+
+    private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+    fun getUpcomingMajorPhases(baseJd: Double): List<UpcomingPhaseInfo> {
+        val currentMoon = calculateMoon(baseJd)
+        val age = currentMoon.ageDays
+        val synodic = 29.53058867
+        val baseMillis = ((baseJd - 2440587.5) * 86400000.0).toLong()
+
+        val phases = listOf(
+            Triple("Full Moon", "بدر کامل", 14.765),
+            Triple("Last Quarter", "تربیع دوم", 22.148),
+            Triple("New Moon", "ماه نو", 0.0),
+            Triple("First Quarter", "تربیع اول", 7.382)
+        )
+
+        return phases.map { (en, fa, targetAge) ->
+            var daysDiff = targetAge - age
+            if (daysDiff <= 0.2) daysDiff += synodic
+            val phaseMillis = baseMillis + (daysDiff * 86400000.0).toLong()
+            UpcomingPhaseInfo(
+                phaseNameEn = en,
+                phaseNameFa = fa,
+                dateMs = phaseMillis,
+                daysFromNow = kotlin.math.max(1, daysDiff.roundToInt())
+            )
+        }.sortedBy { it.daysFromNow }
+    }
 }
+

@@ -4,54 +4,43 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import com.example.domain.ThemeMode
 
-private val NavyColorScheme = darkColorScheme(
-    primary = NavyPrimary,
-    onPrimary = NavyOnPrimary,
-    primaryContainer = NavyPrimaryContainer,
-    onPrimaryContainer = NavyOnPrimaryContainer,
-    secondary = AccentCyan,
-    onSecondary = NavyOnPrimary,
-    background = NavyBackground,
-    onBackground = NavyTextPrimary,
-    surface = NavySurface,
-    onSurface = NavyTextPrimary,
-    surfaceVariant = NavySurfaceVariant,
-    onSurfaceVariant = NavyTextSecondary,
-    outline = NavyOutline
+private val SpaceColorScheme = darkColorScheme(
+    primary = AccentPrimary,
+    onPrimary = TextPrimary,
+    primaryContainer = Color(0x26A855F7),
+    onPrimaryContainer = TextPrimary,
+    secondary = AccentSecondary,
+    onSecondary = TextPrimary,
+    tertiary = AccentTertiary,
+    onTertiary = TextPrimary,
+    background = BackgroundPrimary,
+    onBackground = TextPrimary,
+    surface = BackgroundCard,
+    onSurface = TextPrimary,
+    surfaceVariant = Color(0xFF1A1726),
+    onSurfaceVariant = TextSecondary,
+    outline = CardBorder
 )
 
-private val OledColorScheme = darkColorScheme(
-    primary = OledPrimary,
-    onPrimary = OledOnPrimary,
-    primaryContainer = OledPrimaryContainer,
-    onPrimaryContainer = OledOnPrimaryContainer,
-    secondary = AccentCyan,
-    onSecondary = OledOnPrimary,
-    background = OledBackground,
-    onBackground = OledTextPrimary,
-    surface = OledSurface,
-    onSurface = OledTextPrimary,
-    surfaceVariant = OledSurfaceVariant,
-    onSurfaceVariant = OledTextSecondary,
-    outline = OledOutline
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = LightPrimary,
-    onPrimary = LightOnPrimary,
-    primaryContainer = LightPrimaryContainer,
-    onPrimaryContainer = LightOnPrimaryContainer,
-    secondary = AccentCyan,
-    onSecondary = LightOnPrimary,
-    background = LightBackground,
-    onBackground = LightTextPrimary,
-    surface = LightSurface,
-    onSurface = LightTextPrimary,
-    surfaceVariant = LightSurfaceVariant,
-    onSurfaceVariant = LightTextSecondary,
-    outline = LightOutline
+private val OledSpaceColorScheme = darkColorScheme(
+    primary = AccentPrimary,
+    onPrimary = TextPrimary,
+    primaryContainer = Color(0x26A855F7),
+    onPrimaryContainer = TextPrimary,
+    secondary = AccentSecondary,
+    onSecondary = TextPrimary,
+    tertiary = AccentTertiary,
+    onTertiary = TextPrimary,
+    background = Color(0xFF000000),
+    onBackground = TextPrimary,
+    surface = Color(0xFF0A0A0E),
+    onSurface = TextPrimary,
+    surfaceVariant = Color(0xFF14141A),
+    onSurfaceVariant = TextSecondary,
+    outline = CardBorder
 )
 
 @Composable
@@ -60,9 +49,9 @@ fun REDTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = when (themeMode) {
-        ThemeMode.DARK_NAVY -> NavyColorScheme
-        ThemeMode.OLED_BLACK -> OledColorScheme
-        ThemeMode.LIGHT -> LightColorScheme
+        ThemeMode.DARK_NAVY -> SpaceColorScheme
+        ThemeMode.OLED_BLACK -> OledSpaceColorScheme
+        ThemeMode.LIGHT -> SpaceColorScheme // Prompt requires deep space dark theme throughout
     }
 
     MaterialTheme(
@@ -71,3 +60,4 @@ fun REDTheme(
         content = content
     )
 }
+

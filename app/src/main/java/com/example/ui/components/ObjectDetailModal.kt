@@ -19,10 +19,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.astro_engine.*
-import com.example.domain.AppLanguage
-import com.example.domain.CelestialObject
-import com.example.ui.MainUiState
-import com.example.ui.MainViewModel
+import com.example.domain.*
+import com.example.ui.*
+import com.example.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,7 +70,7 @@ fun ObjectDetailModal(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color(0xFF1C1B1F),
+        containerColor = BackgroundCard,
         modifier = Modifier.testTag("object_detail_modal")
     ) {
         Column(
@@ -107,13 +106,13 @@ fun ObjectDetailModal(
                     Icon(
                         imageVector = if (uiState.isDetailFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
                         contentDescription = "Favorite",
-                        tint = if (uiState.isDetailFavorite) Color(0xFFFFB703) else Color.Gray,
+                        tint = if (uiState.isDetailFavorite) AccentPrimary else Color.Gray,
                         modifier = Modifier.size(28.dp)
                     )
                 }
             }
 
-            Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
 
             // Observability Badge Banner
             Surface(
@@ -159,8 +158,8 @@ fun ObjectDetailModal(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2930))
+                border = BorderStroke(1.dp, CardBorder),
+                colors = CardDefaults.cardColors(containerColor = Color(0x0FFFFFFF))
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -219,7 +218,7 @@ fun ObjectDetailModal(
                 Text(
                     text = if (isFa) "توضیحات علمی" else "Scientific Description",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    color = AccentPrimary
                 )
                 Text(
                     text = if (isFa) obj.descriptionFa else obj.descriptionEn,
@@ -232,7 +231,7 @@ fun ObjectDetailModal(
                 Text(
                     text = if (isFa) "راهنما و راهکار رصد" else "Observation Tip",
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color(0xFFFFB703)
+                    color = AccentSecondary
                 )
                 Text(
                     text = if (isFa) obj.observationTipFa else obj.observationTipEn,
@@ -289,7 +288,7 @@ fun ObjectDetailModal(
                                 Icon(
                                     imageVector = Icons.Default.Star,
                                     contentDescription = "Star $star",
-                                    tint = if (star <= ratingInput) Color(0xFFFFB703) else Color.Gray
+                                    tint = if (star <= ratingInput) AccentPrimary else Color.Gray
                                 )
                             }
                         }

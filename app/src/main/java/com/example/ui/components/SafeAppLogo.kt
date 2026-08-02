@@ -22,10 +22,12 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.R
 
+import androidx.compose.ui.layout.ContentScale
+
 @Composable
 fun SafeAppLogo(
     modifier: Modifier = Modifier,
-    @DrawableRes logoResId: Int = R.drawable.red_app_logo,
+    @DrawableRes logoResId: Int = R.drawable.red_app_logo_display,
     fallbackIcon: ImageVector = Icons.Default.Stars,
     cornerRadius: Dp = 10.dp
 ) {
@@ -43,6 +45,7 @@ fun SafeAppLogo(
         Image(
             painter = painterResource(id = logoResId),
             contentDescription = "RED App Logo",
+            contentScale = ContentScale.Fit,
             modifier = modifier.clip(RoundedCornerShape(cornerRadius))
         )
     } else {

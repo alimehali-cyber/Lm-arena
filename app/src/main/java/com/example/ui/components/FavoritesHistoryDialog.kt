@@ -20,6 +20,7 @@ import com.example.data.catalog.AstronomyCatalog
 import com.example.domain.AppLanguage
 import com.example.ui.MainUiState
 import com.example.ui.MainViewModel
+import com.example.ui.theme.AccentPrimary
 
 @Composable
 fun FavoritesHistoryDialog(
@@ -163,7 +164,7 @@ fun FavoritesHistoryDialog(
                                                     Icon(
                                                         imageVector = Icons.Default.Star,
                                                         contentDescription = null,
-                                                        tint = Color(0xFFFFB703),
+                                                        tint = AccentPrimary,
                                                         modifier = Modifier.size(14.dp)
                                                     )
                                                 }
