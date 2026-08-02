@@ -27,6 +27,12 @@ jobs:
       - name: Grant execute permission for gradlew (if present)
         run: chmod +x gradlew || true
 
+      - name: Restore debug.keystore if present
+        run: |
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || base64 --decode debug.keystore.base64 > debug.keystore 2>/dev/null || true
+          fi
+
       - name: Build APK with Gradle
         run: |
           if [ -f "./gradlew" ]; then
