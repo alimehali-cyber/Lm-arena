@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RED</string>
+    <string name="app_subtitle">Astronomy Companion</string>
+    
+    <!-- Navigation Tabs -->
+    <string name="nav_home">Home</string>
+    <string name="nav_compass">Compass/AR</string>
+    <string name="nav_skymap">Sky Map</string>
+    <string name="nav_moon">Moon</string>
+    <string name="nav_iss">ISS Pass</string>
+
+    <!-- Home Screen -->
+    <string name="tonights_sky">Tonight\'s Sky</string>
+    <string name="light_pollution">Light Pollution: Bortle %1$d</string>
+    <string name="bortle_class_simple">Bortle %1$d</string>
+    <string name="moon_status">Moon Status</string>
+    <string name="iss_pass">ISS Pass</string>
+    <string name="visible_targets">Tonight\'s Visible Targets</string>
+    <string name="category_all">All</string>
+    <string name="category_planets">Planets</string>
+    <string name="category_stars">Stars</string>
+    <string name="category_deepsky">Deep Sky</string>
+    <string name="category_constellations">Constellations</string>
+
+    <!-- Compass AR Screen -->
+    <string name="compass_title">Compass / AR Finder</string>
+    <string name="identify">Identify</string>
+    <string name="ar_hint">Point phone at sky or drag screen to identify objects</string>
+    <string name="azimuth_short">Az: %1$s</string>
+    <string name="altitude_short">Alt: %1$s</string>
+
+    <!-- Sky Map Screen -->
+    <string name="search_placeholder">Search stars, planets, constellations...</string>
+
+    <!-- Moon Screen -->
+    <string name="moon_phase">Moon Phase</string>
+    <string name="illumination">Illumination</string>
+    <string name="moon_age">Moon Age</string>
+    <string name="distance">Distance</string>
+    <string name="next_full_moon">Next Full Moon</string>
+    <string name="next_new_moon">Next New Moon</string>
+
+    <!-- ISS Screen -->
+    <string name="next_visible_iss_pass">Next Visible ISS Pass</string>
+    <string name="max_altitude">Max Altitude</string>
+    <string name="duration">Duration</string>
+
+    <!-- Dialogs & Settings -->
+    <string name="favorites_and_history">Favorites &amp; History</string>
+    <string name="settings">Settings</string>
+    <string name="app_settings">RED App Settings</string>
+    <string name="application_language">Application Language:</string>
+    <string name="language_persian">فارسی (Persian)</string>
+    <string name="language_english">English</string>
+    <string name="calendar_system">Calendar System:</string>
+    <string name="calendar_solar_hijri">Solar Hijri</string>
+    <string name="calendar_gregorian">Gregorian</string>
+    <string name="observation_location">Observation Location:</string>
+    <string name="bortle_class_setting">Bortle Light Pollution Class: %1$d</string>
+    <string name="select_city">Select Iran Provincial Capital</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+
+    <!-- Developer Info -->
+    <string name="developed_by">Developed by Ali Jafari</string>
+    <string name="telegram_id">Telegram: @EdisonWasAThief</string>
+
+    <!-- Object Detail Modal -->
+    <string name="add_to_favorites">Add to Favorites</string>
+    <string name="remove_from_favorites">Remove from Favorites</string>
+    <string name="add_observation_log">Add Observation Log</string>
+    <string name="log_notes_label">Notes / Sky Condition</string>
+    <string name="rating_label">Rating (1-5)</string>
+    <string name="save_log">Save Log</string>
+    <string name="favorites">Favorites</string>
+    <string name="observation_logs">Observation Logs</string>
+    <string name="no_favorites_yet">No favorite objects added yet.</string>
+    <string name="no_logs_yet">No observation logs recorded yet.</string>
+    <string name="delete">Delete</string>
+    <string name="close">Close</string>
+</resources>

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">رد</string>
+    <string name="app_subtitle">دستیار تخصصی و نقشه‌بردار نجومی</string>
+
+    <!-- Navigation Tabs -->
+    <string name="nav_home">خانه</string>
+    <string name="nav_compass">قطب‌نما/AR</string>
+    <string name="nav_skymap">نقشه آسمان</string>
+    <string name="nav_moon">ماه</string>
+    <string name="nav_iss">ایستگاه فضایی</string>
+
+    <!-- Home Screen -->
+    <string name="tonights_sky">آسمان امشب</string>
+    <string name="light_pollution">آلودگی نوری: کلاس بورتل %1$d</string>
+    <string name="bortle_class_simple">بورتل %1$d</string>
+    <string name="moon_status">وضعیت ماه</string>
+    <string name="iss_pass">ایستگاه فضایی</string>
+    <string name="visible_targets">اجرام قابل رصد امشب</string>
+    <string name="category_all">همه اجرام</string>
+    <string name="category_planets">سیارات</string>
+    <string name="category_stars">ستارگان</string>
+    <string name="category_deepsky">اجرام ژرف‌آسمان</string>
+    <string name="category_constellations">صور فلکی</string>
+
+    <!-- Compass AR Screen -->
+    <string name="compass_title">قطب‌نما و واقعیت افزوده (AR)</string>
+    <string name="identify">شناسایی جرم</string>
+    <string name="ar_hint">دستگاه را به سوی آسمان بگیرید یا برای پیمایش صفحه را لمس کنید</string>
+    <string name="azimuth_short">سمت: %1$s</string>
+    <string name="altitude_short">ارتفاع: %1$s</string>
+
+    <!-- Sky Map Screen -->
+    <string name="search_placeholder">جستجوی ستاره، سیاره، جرم ژرف‌آسمان...</string>
+
+    <!-- Moon Screen -->
+    <string name="moon_phase">گام (فاز) ماه</string>
+    <string name="illumination">درصد روشنایی</string>
+    <string name="moon_age">عمر ماه (روز)</string>
+    <string name="distance">فاصله تا زمین</string>
+    <string name="next_full_moon">ماه کامل (بدر) بعدی</string>
+    <string name="next_new_moon">ماه نو (مقارنه) بعدی</string>
+
+    <!-- ISS Screen -->
+    <string name="next_visible_iss_pass">گذر بعدی قابل مشاهده ایستگاه فضایی</string>
+    <string name="max_altitude">بیشینه ارتفاع (اوج)</string>
+    <string name="duration">مدت زمان گذر</string>
+
+    <!-- Dialogs & Settings -->
+    <string name="favorites_and_history">نشان‌شده‌ها و گزارش‌های رصد</string>
+    <string name="settings">تنظیمات</string>
+    <string name="app_settings">تنظیمات دستیار رصد RED</string>
+    <string name="application_language">زبان برنامه (Language):</string>
+    <string name="language_persian">فارسی (Persian)</string>
+    <string name="language_english">English</string>
+    <string name="calendar_system">نوع تقویم (Calendar):</string>
+    <string name="calendar_solar_hijri">هجری خورشیدی</string>
+    <string name="calendar_gregorian">میلادی</string>
+    <string name="observation_location">موقعیت جغرافیایی رصد:</string>
+    <string name="bortle_class_setting">کلاس آلودگی نوری بورتل (Bortle %1$d):</string>
+    <string name="select_city">انتخاب شهر / مرکز استان</string>
+    <string name="ok">تایید</string>
+    <string name="cancel">انصراف</string>
+    <string name="confirm">تایید</string>
+
+    <!-- Developer Info -->
+    <string name="developed_by">توسعه داده شده توسط علی جعفری</string>
+    <string name="telegram_id">تلگرام: @EdisonWasAThief</string>
+
+    <!-- Object Detail Modal -->
+    <string name="add_to_favorites">افزودن به نشان‌شده‌ها</string>
+    <string name="remove_from_favorites">حذف از نشان‌شده‌ها</string>
+    <string name="add_observation_log">ثبت گزارش و یادداشت رصدی</string>
+    <string name="log_notes_label">شرح مشاهده و کیفیت شفافیت آسمان</string>
+    <string name="rating_label">امتیاز کیفیت رصد (۱ تا ۵)</string>
+    <string name="save_log">ذخیره گزارش رصد</string>
+    <string name="favorites">نشان‌شده‌ها</string>
+    <string name="observation_logs">تاریخچه و گزارش‌های رصد</string>
+    <string name="no_favorites_yet">هنوز هیچ جرمی به فهرست نشان‌شده‌ها اضافه نشده است.</string>
+    <string name="no_logs_yet">هنوز گزارش یا یادداشت رصدی ثبت نشده است.</string>
+    <string name="delete">حذف</string>
+    <string name="close">بستن</string>
+</resources>

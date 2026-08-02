@@ -1,0 +1,6 @@
+{
+  "name": "RED",
+  "description": "Offline Astronomy Companion - Scientific sky map, real-time compass/AR identification, Moon phase calculator, ISS satellite pass tracker, and Persian/English localization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
