@@ -160,7 +160,7 @@ class MainActivity : ComponentActivity() {
                                             fontFamily = com.example.ui.theme.IranSans,
                                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                             fontSize = 18.sp,
-                                            color = Color(0xFFF5F5F7)
+                                            color = MaterialTheme.colorScheme.onBackground
                                         )
                                     )
 

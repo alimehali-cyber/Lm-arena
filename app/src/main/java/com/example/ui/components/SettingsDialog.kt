@@ -22,6 +22,7 @@ import com.example.R
 import com.example.data.catalog.AstronomyCatalog
 import com.example.domain.AppLanguage
 import com.example.domain.CalendarSystem
+import com.example.domain.SkyCanvasTheme
 import com.example.domain.ThemeMode
 import com.example.ui.MainUiState
 import com.example.ui.MainViewModel
@@ -105,7 +106,7 @@ fun SettingsDialog(
                 // Theme Mode Selection (OLED Black, Deep Navy, Light)
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = if (isFa) "پوسته و حالت نمایش (Theme):" else "Theme Mode:",
+                        text = if (isFa) "پوسته برنامه (App Theme):" else "App Theme Mode:",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -116,13 +117,13 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.DARK_NAVY,
                                 onClick = { viewModel.setThemeMode(ThemeMode.DARK_NAVY) },
-                                label = { Text(text = if (isFa) "🌌 سرمه‌ای عمیق" else "🌌 Deep Navy") },
+                                label = { Text(text = if (isFa) "🌌 سرمه‌ای" else "🌌 Deep Navy") },
                                 modifier = Modifier.weight(1f)
                             )
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.OLED_BLACK,
                                 onClick = { viewModel.setThemeMode(ThemeMode.OLED_BLACK) },
-                                label = { Text(text = if (isFa) "🖤 OLED مشکی" else "🖤 Pitch OLED") },
+                                label = { Text(text = if (isFa) "🖤 OLED" else "🖤 Pitch OLED") },
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -131,6 +132,37 @@ fun SettingsDialog(
                             onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) },
                             label = { Text(text = if (isFa) "☀️ حالت روشن" else "☀️ Light Mode") },
                             modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                // Sky Canvas Theme Section
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = if (isFa) "سبک هنری آسمان (Sky Canvas Theme):" else "Sky Canvas Theme:",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        FilterChip(
+                            selected = uiState.skyCanvasTheme == SkyCanvasTheme.CELESTIAL,
+                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.CELESTIAL) },
+                            label = { Text(text = if (isFa) "🌌 آسمانی" else "Celestial") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        FilterChip(
+                            selected = uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME,
+                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.MONOCHROME) },
+                            label = { Text(text = if (isFa) "🔳 تک‌رنگ" else "Monochrome") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        FilterChip(
+                            selected = uiState.skyCanvasTheme == SkyCanvasTheme.FUN,
+                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.FUN) },
+                            label = { Text(text = if (isFa) "🖍️ پاستلی" else "Fun (Crayon)") },
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }

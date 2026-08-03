@@ -2,12 +2,15 @@ package com.example.ui.rendering
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import com.example.astro_engine.PlanetEngine
 import com.example.astro_engine.CoordinateEngine
+import com.example.domain.SkyCanvasTheme
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -16,7 +19,8 @@ object PlanetRenderer {
     fun drawPlanets(
         drawScope: DrawScope,
         planets: List<Triple<PlanetEngine.PlanetType, PlanetEngine.PlanetPosition, CoordinateEngine.Horizontal>>,
-        frameTimeMs: Long
+        frameTimeMs: Long,
+        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
@@ -26,16 +30,115 @@ object PlanetRenderer {
             val py = (height - ((horiz.altitudeDeg + 2.0) / 92.0 * height)).toFloat()
             val center = Offset(px, py)
 
-            when (pType) {
-                PlanetEngine.PlanetType.JUPITER -> drawJupiter(drawScope, center, frameTimeMs)
-                PlanetEngine.PlanetType.SATURN -> drawSaturn(drawScope, center)
-                PlanetEngine.PlanetType.MARS -> drawMars(drawScope, center)
-                PlanetEngine.PlanetType.VENUS -> drawVenus(drawScope, center)
-                PlanetEngine.PlanetType.MERCURY -> drawMercury(drawScope, center)
-                PlanetEngine.PlanetType.URANUS -> drawUranus(drawScope, center)
-                PlanetEngine.PlanetType.NEPTUNE -> drawNeptune(drawScope, center)
-                else -> {}
+            when (theme) {
+                SkyCanvasTheme.CELESTIAL -> {
+                    when (pType) {
+                        PlanetEngine.PlanetType.JUPITER -> drawJupiter(drawScope, center, frameTimeMs)
+                        PlanetEngine.PlanetType.SATURN -> drawSaturn(drawScope, center)
+                        PlanetEngine.PlanetType.MARS -> drawMars(drawScope, center)
+                        PlanetEngine.PlanetType.VENUS -> drawVenus(drawScope, center)
+                        PlanetEngine.PlanetType.MERCURY -> drawMercury(drawScope, center)
+                        PlanetEngine.PlanetType.URANUS -> drawUranus(drawScope, center)
+                        PlanetEngine.PlanetType.NEPTUNE -> drawNeptune(drawScope, center)
+                        else -> {}
+                    }
+                }
+                SkyCanvasTheme.MONOCHROME -> drawMonochromePlanet(drawScope, pType, center)
+                SkyCanvasTheme.FUN -> drawFunPlanet(drawScope, pType, center)
             }
+        }
+    }
+
+    private fun drawMonochromePlanet(drawScope: DrawScope, pType: PlanetEngine.PlanetType, center: Offset) {
+        when (pType) {
+            PlanetEngine.PlanetType.VENUS -> {
+                drawScope.drawCircle(color = Color.White, radius = 7.5f, center = center)
+                drawScope.drawCircle(color = Color.White.copy(alpha = 0.3f), radius = 12f, center = center)
+            }
+            PlanetEngine.PlanetType.MARS -> {
+                drawScope.drawCircle(color = Color.White, radius = 6.5f, center = center, style = Stroke(width = 1.2f))
+                drawScope.drawCircle(color = Color.White, radius = 2.0f, center = center)
+            }
+            PlanetEngine.PlanetType.JUPITER -> {
+                val r = 9.0f
+                drawScope.drawCircle(color = Color.White, radius = r, center = center, style = Stroke(width = 1.2f))
+                drawScope.drawLine(color = Color.White, start = Offset(center.x - r * 0.8f, center.y - 2.5f), end = Offset(center.x + r * 0.8f, center.y - 2.5f), strokeWidth = 1.0f)
+                drawScope.drawLine(color = Color.White, start = Offset(center.x - r * 0.8f, center.y + 2.5f), end = Offset(center.x + r * 0.8f, center.y + 2.5f), strokeWidth = 1.0f)
+            }
+            PlanetEngine.PlanetType.SATURN -> {
+                val r = 7.0f
+                drawScope.drawCircle(color = Color.White, radius = r, center = center, style = Stroke(width = 1.2f))
+                drawScope.withTransform({
+                    rotate(degrees = -20f, pivot = center)
+                }) {
+                    drawScope.drawOval(
+                        color = Color.White,
+                        topLeft = Offset(center.x - 14f, center.y - 4f),
+                        size = Size(28f, 8f),
+                        style = Stroke(width = 1.2f)
+                    )
+                }
+            }
+            PlanetEngine.PlanetType.MERCURY -> {
+                drawScope.drawCircle(color = Color.White, radius = 5.0f, center = center, style = Stroke(width = 1.2f))
+            }
+            PlanetEngine.PlanetType.URANUS -> {
+                drawScope.drawCircle(color = Color.White, radius = 7.0f, center = center, style = Stroke(width = 1.0f))
+                drawScope.drawCircle(color = Color.White, radius = 4.0f, center = center, style = Stroke(width = 1.0f))
+            }
+            PlanetEngine.PlanetType.NEPTUNE -> {
+                drawScope.drawCircle(color = Color(0xFF334155), radius = 6.5f, center = center)
+                drawScope.drawCircle(color = Color.White, radius = 6.5f, center = center, style = Stroke(width = 1.0f))
+            }
+            else -> {}
+        }
+    }
+
+    private fun drawFunPlanet(drawScope: DrawScope, pType: PlanetEngine.PlanetType, center: Offset) {
+        when (pType) {
+            PlanetEngine.PlanetType.VENUS -> {
+                drawScope.drawCircle(color = Color(0xFFFEF08A), radius = 7.5f, center = center)
+                drawScope.drawCircle(color = Color(0xFFCA8A04), radius = 7.5f, center = center, style = Stroke(width = 1.5f))
+            }
+            PlanetEngine.PlanetType.MARS -> {
+                drawScope.drawCircle(color = Color(0xFFF97316), radius = 6.5f, center = center)
+                drawScope.drawCircle(color = Color(0xFFC2410C), radius = 6.5f, center = center, style = Stroke(width = 1.5f))
+            }
+            PlanetEngine.PlanetType.JUPITER -> {
+                val r = 9.0f
+                drawScope.drawCircle(color = Color(0xFFFDE047), radius = r, center = center)
+                drawScope.drawCircle(color = Color(0xFFCA8A04), radius = r, center = center, style = Stroke(width = 2.0f))
+                drawScope.drawLine(color = Color(0xFFEA580C), start = Offset(center.x - r * 0.7f, center.y - 3f), end = Offset(center.x + r * 0.7f, center.y - 3f), strokeWidth = 1.5f)
+                drawScope.drawLine(color = Color(0xFFEA580C), start = Offset(center.x - r * 0.7f, center.y + 3f), end = Offset(center.x + r * 0.7f, center.y + 3f), strokeWidth = 1.5f)
+            }
+            PlanetEngine.PlanetType.SATURN -> {
+                val r = 7.0f
+                drawScope.drawCircle(color = Color(0xFFFDE047), radius = r, center = center)
+                drawScope.drawCircle(color = Color(0xFFB45309), radius = r, center = center, style = Stroke(width = 1.5f))
+                drawScope.withTransform({
+                    rotate(degrees = -20f, pivot = center)
+                }) {
+                    drawScope.drawOval(
+                        color = Color(0xFFF97316),
+                        topLeft = Offset(center.x - 14f, center.y - 4.5f),
+                        size = Size(28f, 9f),
+                        style = Stroke(width = 2.0f)
+                    )
+                }
+            }
+            PlanetEngine.PlanetType.MERCURY -> {
+                drawScope.drawCircle(color = Color(0xFFCBD5E1), radius = 5.0f, center = center)
+                drawScope.drawCircle(color = Color(0xFF475569), radius = 5.0f, center = center, style = Stroke(width = 1.2f))
+            }
+            PlanetEngine.PlanetType.URANUS -> {
+                drawScope.drawCircle(color = Color(0xFF38BDF8), radius = 7.0f, center = center)
+                drawScope.drawCircle(color = Color(0xFF0284C7), radius = 7.0f, center = center, style = Stroke(width = 1.5f))
+            }
+            PlanetEngine.PlanetType.NEPTUNE -> {
+                drawScope.drawCircle(color = Color(0xFF3B82F6), radius = 6.5f, center = center)
+                drawScope.drawCircle(color = Color(0xFF1D4ED8), radius = 6.5f, center = center, style = Stroke(width = 1.5f))
+            }
+            else -> {}
         }
     }
 

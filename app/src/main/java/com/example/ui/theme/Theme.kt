@@ -43,6 +43,24 @@ private val OledSpaceColorScheme = darkColorScheme(
     outline = CardBorder
 )
 
+private val LightSpaceColorScheme = lightColorScheme(
+    primary = Color(0xFF7C3AED),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFEDE9FE),
+    onPrimaryContainer = Color(0xFF4C1D95),
+    secondary = Color(0xFFC026D3),
+    onSecondary = Color(0xFFFFFFFF),
+    tertiary = Color(0xFF4F46E5),
+    onTertiary = Color(0xFFFFFFFF),
+    background = Color(0xFFF1F5F9),
+    onBackground = Color(0xFF0F172A),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF0F172A),
+    surfaceVariant = Color(0xFFE2E8F0),
+    onSurfaceVariant = Color(0xFF334155),
+    outline = Color(0xFFCBD5E1)
+)
+
 @Composable
 fun REDTheme(
     themeMode: ThemeMode = ThemeMode.DARK_NAVY,
@@ -51,7 +69,7 @@ fun REDTheme(
     val colorScheme = when (themeMode) {
         ThemeMode.DARK_NAVY -> SpaceColorScheme
         ThemeMode.OLED_BLACK -> OledSpaceColorScheme
-        ThemeMode.LIGHT -> SpaceColorScheme // Prompt requires deep space dark theme throughout
+        ThemeMode.LIGHT -> LightSpaceColorScheme
     }
 
     MaterialTheme(

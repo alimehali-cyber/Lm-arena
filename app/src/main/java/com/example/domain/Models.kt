@@ -61,3 +61,9 @@ enum class ThemeMode {
     LIGHT
 }
 
+enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {
+    CELESTIAL("Celestial", "آسمانی"),
+    MONOCHROME("Monochrome", "تک‌رنگ (مینیمال)"),
+    FUN("Fun (Crayon)", "کودکانه (پاستلی)")
+}
+

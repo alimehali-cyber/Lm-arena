@@ -338,9 +338,9 @@ fun HomeScreen(
                     .testTag("home_highlights_card"),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = BackgroundCard.copy(alpha = 0.85f)
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
                 ),
-                border = BorderStroke(1.dp, CardBorder)
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
@@ -358,58 +358,64 @@ fun HomeScreen(
                             Text(
                                 text = if (isFa) "خب امشب چی داریم؟" else "Tonight's Highlights",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = TextPrimary
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Text(
                             text = if (isFa) "پیشنهادهای هوشمند رصدی بر اساس وضعیت آسمان و موقعیت جغرافیایی شما"
                             else "Smart observation recommendations based on sky conditions and location",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextTertiary
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Curated observation items
-                    val itemsList = remember {
-                        listOf(
-                            ObservationItemData(
-                                icon = "🪐",
-                                title = if (isFa) "زهره (ناهید) — قدر -۴.۳".toPersianDigits() else "Venus — Mag -4.3",
-                                subtitle = if (isFa) "درخشان‌ترین سیاره در افک غرب" else "Brightest planet in evening sky",
-                                badgeText = if (isFa) "چشم غیرمسلح" else "Naked Eye"
-                            ),
-                            ObservationItemData(
-                                icon = "🌙",
-                                title = if (isFa) "ماه و گذر درخشان ISS" else "Moon & ISS Bright Pass",
-                                subtitle = if (isFa) "بهترین رصد با چشم غیرمسلح" else "Optimal viewing with naked eye",
-                                badgeText = if (isFa) "چشم غیرمسلح" else "Naked Eye"
-                            ),
-                            ObservationItemData(
-                                icon = "🌌",
-                                title = if (isFa) "کهکشان آندرومدا (M31)" else "Andromeda Galaxy (M31)",
-                                subtitle = if (isFa) "بهترین برای دوربین دوچشمی" else "Best with binoculars",
-                                badgeText = if (isFa) "دوربین دوچشمی" else "Binoculars"
-                            ),
-                            ObservationItemData(
-                                icon = "🔭",
-                                title = if (isFa) "حلقه‌های زحل و گودال‌های ماه" else "Saturn's Rings & Moon Craters",
-                                subtitle = if (isFa) "بهترین برای تلسکوپ کوچک" else "Best with small telescope",
-                                badgeText = if (isFa) "تلسکوپ" else "Telescope"
-                            )
-                        )
+                    // Curated dynamic observation items matching real objects
+                    val highlightObjects = remember(sortedObjectsWithObs) {
+                        sortedObjectsWithObs.take(4)
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        itemsList.forEachIndexed { index, item ->
+                        highlightObjects.forEach { (obj, horiz, obs) ->
+                            val icon = when (obj.type) {
+                                ObjectType.PLANET -> "🪐"
+                                ObjectType.MOON -> "🌙"
+                                ObjectType.DEEP_SKY -> "🌌"
+                                ObjectType.STAR -> "⭐"
+                                ObjectType.SATELLITE -> "🛰️"
+                                ObjectType.SUN -> "☀️"
+                            }
+
+                            val magStr = String.format("%.1f", obj.magnitude)
+                            val titleText = if (isFa) {
+                                "${obj.nameFa} — قدر ${magStr}".toPersianDigits()
+                            } else {
+                                "${obj.nameEn} — Mag ${magStr}"
+                            }
+
+                            val altInt = horiz.altitudeDeg.toInt()
+                            val subtitleText = if (isFa) {
+                                "در ارتفاع ${altInt}° — ${obs.level.nameFa}".toPersianDigits()
+                            } else {
+                                "Alt ${altInt}° — ${obs.level.nameEn}"
+                            }
+
+                            val badgeText = when {
+                                obj.magnitude < 3.0 -> if (isFa) "چشم غیرمسلح" else "Naked Eye"
+                                obj.magnitude < 7.0 -> if (isFa) "دوربین دوچشمی" else "Binoculars"
+                                else -> if (isFa) "تلسکوپ" else "Telescope"
+                            }
+
                             ObservationItemRow(
-                                data = item,
+                                data = ObservationItemData(
+                                    icon = icon,
+                                    title = titleText,
+                                    subtitle = subtitleText,
+                                    badgeText = badgeText
+                                ),
                                 onClick = {
-                                    val matchedObj = sortedObjectsWithObs.getOrNull(index)?.first
-                                    if (matchedObj != null) {
-                                        viewModel.openObjectDetail(matchedObj)
-                                    }
+                                    viewModel.openObjectDetail(obj)
                                 }
                             )
                         }

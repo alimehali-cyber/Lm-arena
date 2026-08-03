@@ -158,8 +158,8 @@ fun ObjectDetailModal(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, CardBorder),
-                colors = CardDefaults.cardColors(containerColor = Color(0x0FFFFFFF))
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -168,7 +168,8 @@ fun ObjectDetailModal(
                     Text(
                         text = if (isFa) "مختصات و داده‌های علمی نجومی" else "Scientific Astronomical Data",
                         style = MaterialTheme.typography.titleMedium,
-                        fontSize = 16.sp
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Row(
@@ -176,17 +177,17 @@ fun ObjectDetailModal(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text(text = "RA (بعد)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                            Text(text = CoordinateEngine.formatRA(obj.raDeg), style = MaterialTheme.typography.bodyLarge)
+                            Text(text = "RA (بعد)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(text = CoordinateEngine.formatRA(obj.raDeg), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Column {
-                            Text(text = "Dec (میل)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                            Text(text = CoordinateEngine.formatDec(obj.decDeg), style = MaterialTheme.typography.bodyLarge)
+                            Text(text = "Dec (میل)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(text = CoordinateEngine.formatDec(obj.decDeg), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Column {
-                            Text(text = "Magnitude (قدر)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            Text(text = "Magnitude (قدر)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             val magStr = String.format("%.1f", obj.magnitude)
-                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(magStr) else magStr, style = MaterialTheme.typography.bodyLarge)
+                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(magStr) else magStr, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                         }
                     }
 
@@ -195,19 +196,108 @@ fun ObjectDetailModal(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text(text = if (isFa) "ارتفاع (Altitude)" else "Altitude", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            Text(text = if (isFa) "ارتفاع (Altitude)" else "Altitude", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             val altStr = String.format("%.1f°", horiz.altitudeDeg)
-                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(altStr) else altStr, style = MaterialTheme.typography.bodyLarge)
+                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(altStr) else altStr, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Column {
-                            Text(text = if (isFa) "سمت (Azimuth)" else "Azimuth", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            Text(text = if (isFa) "سمت (Azimuth)" else "Azimuth", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             val azStr = String.format("%.1f°", horiz.azimuthDeg)
-                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(azStr) else azStr, style = MaterialTheme.typography.bodyLarge)
+                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(azStr) else azStr, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Column {
-                            Text(text = if (isFa) "فاصله" else "Distance", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                            Text(text = if (isFa) "فاصله" else "Distance", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             val distStr = if (obj.distanceLightYears < 0.001) "< 1 AU" else String.format("%,.0f ly", obj.distanceLightYears)
-                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(distStr) else distStr, style = MaterialTheme.typography.bodyLarge)
+                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(distStr) else distStr, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            }
+
+            // Rise, Transit, Set Times Card
+            val riseSetTransit = remember(obj, uiState.userLocation, jd, isFa) {
+                CoordinateEngine.calculateRiseSetTransit(
+                    raDeg = obj.raDeg,
+                    decDeg = obj.decDeg,
+                    latDeg = uiState.userLocation.latitude,
+                    lonDeg = uiState.userLocation.longitude,
+                    jd = jd,
+                    isFa = isFa
+                )
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = AccentPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = if (isFa) "زمان‌بندی طلوع، اوج ارتفاع و غروب امروز" else "Rise, Transit & Set Schedule Today",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Rise
+                        Column(horizontalAlignment = Alignment.Start) {
+                            Text(
+                                text = if (isFa) "🌅 طلوع" else "🌅 Rise",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = riseSetTransit.riseTimeStr,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // Transit (Meridian Peak)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = if (isFa) "☀️ اوج ارتفاع (ترانزیت)" else "☀️ Peak Transit",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = riseSetTransit.transitTimeStr,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = AccentPrimary
+                            )
+                        }
+
+                        // Set
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = if (isFa) "🌇 غروب" else "🌇 Set",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = riseSetTransit.setTimeStr,
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                 }

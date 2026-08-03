@@ -236,4 +236,78 @@ object CoordinateEngine {
         val s = ((mFull - m) * 60.0).toInt()
         return String.format("%s%02d° %02d′ %02d″", sign, d, m, s)
     }
+
+    data class RiseSetTransit(
+        val riseTimeStr: String,
+        val transitTimeStr: String,
+        val setTimeStr: String,
+        val isCircumpolar: Boolean = false,
+        val neverRises: Boolean = false
+    )
+
+    fun calculateRiseSetTransit(
+        raDeg: Double,
+        decDeg: Double,
+        latDeg: Double,
+        lonDeg: Double,
+        jd: Double = TimeEngine.getJulianDate(),
+        isFa: Boolean = true
+    ): RiseSetTransit {
+        val latRad = Math.toRadians(latDeg)
+        val decRad = Math.toRadians(decDeg)
+
+        val h0Rad = Math.toRadians(-0.5667)
+        val cosH0 = (sin(h0Rad) - sin(latRad) * sin(decRad)) / (cos(latRad) * cos(decRad)).coerceAtLeast(1e-6)
+
+        if (cosH0 > 1.0) {
+            return RiseSetTransit(
+                riseTimeStr = if (isFa) "طلوع نمی‌کند" else "Never rises",
+                transitTimeStr = if (isFa) "طلوع نمی‌کند" else "Never rises",
+                setTimeStr = if (isFa) "غروب نمی‌کند" else "Never sets",
+                neverRises = true
+            )
+        }
+
+        if (cosH0 < -1.0) {
+            return RiseSetTransit(
+                riseTimeStr = if (isFa) "دور قطبی (همواره بالای افق)" else "Circumpolar (Always visible)",
+                transitTimeStr = if (isFa) "اوژ / اوج ارتفاع" else "Meridian Transit",
+                setTimeStr = if (isFa) "غروب نمی‌کند" else "Never sets",
+                isCircumpolar = true
+            )
+        }
+
+        val ha0Deg = Math.toDegrees(acos(cosH0))
+
+        val baseCal = java.util.Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val startOfDayMs = baseCal.timeInMillis
+        val startOfDayJd = TimeEngine.getJulianDate(startOfDayMs)
+        val lastAt0h = TimeEngine.getLAST(startOfDayJd, lonDeg)
+
+        var haAt0h = (lastAt0h - raDeg) % 360.0
+        if (haAt0h < 0) haAt0h += 360.0
+
+        val transitHoursFrom0h = ((360.0 - haAt0h) % 360.0) / 15.04107
+        val riseHoursFrom0h = ((360.0 - haAt0h - ha0Deg + 720.0) % 360.0) / 15.04107
+        val setHoursFrom0h = ((360.0 - haAt0h + ha0Deg) % 360.0) / 15.04107
+
+        val transitMs = startOfDayMs + (transitHoursFrom0h * 3600000.0).toLong()
+        val riseMs = startOfDayMs + (riseHoursFrom0h * 3600000.0).toLong()
+        val setMs = startOfDayMs + (setHoursFrom0h * 3600000.0).toLong()
+
+        val riseStr = TimeEngine.formatTime24h(riseMs, isFa)
+        val transitStr = TimeEngine.formatTime24h(transitMs, isFa)
+        val setStr = TimeEngine.formatTime24h(setMs, isFa)
+
+        return RiseSetTransit(
+            riseTimeStr = riseStr,
+            transitTimeStr = transitStr,
+            setTimeStr = setStr
+        )
+    }
 }

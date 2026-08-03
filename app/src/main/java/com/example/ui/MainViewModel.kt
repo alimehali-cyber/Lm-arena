@@ -1,6 +1,7 @@
 package com.example.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.AppRepository
@@ -15,6 +16,7 @@ data class MainUiState(
     val language: AppLanguage = AppLanguage.PERSIAN,
     val calendarSystem: CalendarSystem = CalendarSystem.SOLAR_HIJRI,
     val themeMode: ThemeMode = ThemeMode.DARK_NAVY,
+    val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
     val userLocation: UserLocation = UserLocation(),
     val selectedTab: Int = 0,
     val searchQuery: String = "",
@@ -31,8 +33,22 @@ data class MainUiState(
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppRepository(AppDatabase.getDatabase(application))
+    private val prefs = application.getSharedPreferences("astro_app_prefs", Context.MODE_PRIVATE)
 
-    private val _uiState = MutableStateFlow(MainUiState())
+    private val _uiState = MutableStateFlow(
+        MainUiState(
+            skyCanvasTheme = try {
+                SkyCanvasTheme.valueOf(prefs.getString("sky_canvas_theme", SkyCanvasTheme.CELESTIAL.name) ?: SkyCanvasTheme.CELESTIAL.name)
+            } catch (e: Exception) {
+                SkyCanvasTheme.CELESTIAL
+            },
+            themeMode = try {
+                ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.DARK_NAVY.name) ?: ThemeMode.DARK_NAVY.name)
+            } catch (e: Exception) {
+                ThemeMode.DARK_NAVY
+            }
+        )
+    )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
@@ -73,7 +89,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setThemeMode(themeMode: ThemeMode) {
+        prefs.edit().putString("theme_mode", themeMode.name).apply()
         _uiState.update { it.copy(themeMode = themeMode) }
+    }
+
+    fun setSkyCanvasTheme(theme: SkyCanvasTheme) {
+        prefs.edit().putString("sky_canvas_theme", theme.name).apply()
+        _uiState.update { it.copy(skyCanvasTheme = theme) }
     }
 
     fun setLocation(cityEn: String, cityFa: String, lat: Double, lon: Double) {

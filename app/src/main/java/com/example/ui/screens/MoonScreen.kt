@@ -518,10 +518,12 @@ private fun PhotographicMoonView(
                         val stepInnerWidth = (abs(k) * radius + offset).coerceAtLeast(0f)
                         val innerRect = Rect(center.x - stepInnerWidth, center.y - radius, center.x + stepInnerWidth, center.y + radius)
 
-                        if (k >= 0) {
-                            shadowPath.arcTo(innerRect, if (isWaxing) 270f else 90f, -sweepAngle, false)
+                        if (isWaxing) {
+                            val innerSweep = if (k >= 0) -180f else 180f
+                            shadowPath.arcTo(innerRect, 270f, innerSweep, false)
                         } else {
-                            shadowPath.arcTo(innerRect, if (isWaxing) 90f else 270f, sweepAngle, false)
+                            val innerSweep = if (k >= 0) -180f else 180f
+                            shadowPath.arcTo(innerRect, 90f, innerSweep, false)
                         }
                         shadowPath.close()
 

@@ -33,6 +33,7 @@ import com.example.astro_engine.*
 import com.example.data.catalog.AstronomyCatalog
 import com.example.domain.AppLanguage
 import com.example.domain.ObjectType
+import com.example.domain.SkyCanvasTheme
 import com.example.ui.MainUiState
 import com.example.ui.MainViewModel
 import com.example.ui.rendering.*
@@ -332,7 +333,17 @@ fun HeroSkyCanvas(
                             simulatedOffsetHoursAnim.snapTo(newOffset)
                         }
 
-                        // Emit Stardust particles along finger path
+                        // Emit Stardust particles along finger path styled by active theme
+                        val particleColor = when (uiState.skyCanvasTheme) {
+                            SkyCanvasTheme.CELESTIAL -> if (Random.nextBoolean()) Color(0xFF2DD4BF) else Color(0xFFFBBF24)
+                            SkyCanvasTheme.MONOCHROME -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
+                            SkyCanvasTheme.FUN -> when (Random.nextInt(4)) {
+                                0 -> Color(0xFFF472B6)
+                                1 -> Color(0xFF38BDF8)
+                                2 -> Color(0xFFFDE047)
+                                else -> Color(0xFF4ADE80)
+                            }
+                        }
                         repeat(3) {
                             stardustParticles.add(
                                 StardustParticle(
@@ -342,7 +353,7 @@ fun HeroSkyCanvas(
                                     vy = Random.nextFloat() * -3f - 1f,
                                     size = Random.nextFloat() * 5f + 3f,
                                     alpha = 1.0f,
-                                    color = if (Random.nextBoolean()) Color(0xFF2DD4BF) else Color(0xFFFBBF24)
+                                    color = particleColor
                                 )
                             )
                         }
@@ -355,39 +366,51 @@ fun HeroSkyCanvas(
             val canvasW = size.width
             val canvasH = size.height
 
-            // Sun Screen Position
             val sunPosPx = if (sunHoriz.altitudeDeg > -10.0) {
                 val sunX = (sunHoriz.azimuthDeg / 360.0 * canvasW).toFloat()
                 val sunY = (canvasH - ((sunHoriz.altitudeDeg + 10.0) / 100.0 * canvasH)).toFloat()
                 Offset(sunX, sunY)
             } else null
 
-            // 1. Atmosphere Renderer (Procedural Rayleigh/Mie Scattering & Gradients)
+            // 1. Atmosphere Renderer
             AtmosphereRenderer.drawAtmosphere(
                 drawScope = this,
                 lightingState = lightingState,
-                sunPosPx = sunPosPx
+                sunPosPx = sunPosPx,
+                theme = uiState.skyCanvasTheme
             )
 
-            // 2. Star Renderer (Spectral color types, independent twinkle, halos, galaxies)
+            // 2. Milky Way Renderer
+            val galacticPoints = GalacticEngine.calculateGalacticPlanePoints(simulatedJd, userLat, userLon)
+            MilkyWayRenderer.drawMilkyWay(
+                drawScope = this,
+                galacticPoints = galacticPoints,
+                lightingState = lightingState,
+                frameTimeMs = frameTimeMs,
+                theme = uiState.skyCanvasTheme
+            )
+
+            // 3. Star Renderer
             StarRenderer.drawStars(
                 drawScope = this,
                 objects = catalogStars,
                 starVisibility = lightingState.starVisibility,
-                frameTimeMs = frameTimeMs
+                frameTimeMs = frameTimeMs,
+                theme = uiState.skyCanvasTheme
             )
 
-            // 3. Sun Renderer
+            // 4. Sun Renderer
             if (sunPosPx != null) {
                 SunRenderer.drawSun(
                     drawScope = this,
                     center = sunPosPx,
                     sunAltitudeDeg = sunHoriz.altitudeDeg,
-                    frameTimeMs = frameTimeMs
+                    frameTimeMs = frameTimeMs,
+                    theme = uiState.skyCanvasTheme
                 )
             }
 
-            // 4. Moon Renderer
+            // 5. Moon Renderer
             if (moonData.altitudeDeg > -5.0) {
                 val moonX = (moonData.azimuthDeg / 360.0 * canvasW).toFloat()
                 val moonY = (canvasH - ((moonData.altitudeDeg + 5.0) / 95.0 * canvasH)).toFloat().coerceIn(50.dp.toPx(), canvasH - 40.dp.toPx())
@@ -404,7 +427,8 @@ fun HeroSkyCanvas(
                     moonPulseScale = moonPulseScale,
                     lightingState = lightingState,
                     frameTimeMs = frameTimeMs,
-                    isWaxing = (moonData.ageDays < 14.765)
+                    isWaxing = (moonData.ageDays < 14.765),
+                    theme = uiState.skyCanvasTheme
                 )
             }
 
@@ -412,20 +436,26 @@ fun HeroSkyCanvas(
             PlanetRenderer.drawPlanets(
                 drawScope = this,
                 planets = planetPositions,
-                frameTimeMs = frameTimeMs
+                frameTimeMs = frameTimeMs,
+                theme = uiState.skyCanvasTheme
             )
 
             // 7. Tapped Celestial Target Ring Overlay
             selectedCelestial?.let { sel ->
                 val pulseRing = 1.0f + 0.12f * sin(frameTimeMs * 0.005f).toFloat()
+                val ringColor = when (uiState.skyCanvasTheme) {
+                    SkyCanvasTheme.MONOCHROME -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
+                    SkyCanvasTheme.FUN -> Color(0xFFF97316)
+                    SkyCanvasTheme.CELESTIAL -> Color(0xFF38BDF8)
+                }
                 drawCircle(
-                    color = Color(0xFF38BDF8).copy(alpha = 0.5f),
+                    color = ringColor.copy(alpha = 0.5f),
                     radius = 28.dp.toPx() * pulseRing,
                     center = sel.position,
                     style = Stroke(width = 1.5.dp.toPx())
                 )
                 drawCircle(
-                    color = Color(0xFFFDE047),
+                    color = ringColor,
                     radius = 18.dp.toPx(),
                     center = sel.position,
                     style = Stroke(width = 1.8.dp.toPx())
@@ -559,7 +589,7 @@ fun HeroSkyCanvas(
             }
         }
 
-        // --- TIME BUBBLE (Glassmorphism Floating Pill) ---
+        // --- TIME BUBBLE (Floating Pill styled according to SkyCanvasTheme) ---
         if (isDragging || abs(currentOffsetHours) > 0.05f) {
             val timeText = TimeEngine.formatTime24h(simulatedTimeMs, isFa)
             val offsetText = if (abs(currentOffsetHours) > 0.1f) {
@@ -574,13 +604,54 @@ fun HeroSkyCanvas(
             val clampedBubbleX = (bubbleX - bubbleWidthPx / 2f).coerceIn(10f, with(density) { 220.dp.toPx() })
             val clampedBubbleY = (bubbleY - with(density) { 70.dp.toPx() }).coerceIn(10f, with(density) { 240.dp.toPx() })
 
+            val (bgColor, borderColor, primaryTextColor, secondaryTextColor) = when (uiState.skyCanvasTheme) {
+                SkyCanvasTheme.CELESTIAL -> Quadruple(
+                    Color(0xCC0F172A),
+                    Color(0xFF2DD4BF),
+                    Color(0xFF2DD4BF),
+                    Color.White.copy(alpha = 0.8f)
+                )
+                SkyCanvasTheme.MONOCHROME -> {
+                    val isDay = sunHoriz.altitudeDeg > 0.0
+                    if (isDay) {
+                        Quadruple(
+                            Color.White.copy(alpha = 0.95f),
+                            Color(0xFF18181B),
+                            Color(0xFF18181B),
+                            Color(0xFF52525B)
+                        )
+                    } else {
+                        Quadruple(
+                            Color(0xFF18181B).copy(alpha = 0.95f),
+                            Color(0xFFFAFAFA),
+                            Color(0xFFFAFAFA),
+                            Color(0xFFA1A1AA)
+                        )
+                    }
+                }
+                SkyCanvasTheme.FUN -> Quadruple(
+                    Color(0xFFFEF08A),
+                    Color(0xFFF97316),
+                    Color(0xFFC2410C),
+                    Color(0xFF9A3412)
+                )
+            }
+
             Box(
                 modifier = Modifier
                     .offset { IntOffset(clampedBubbleX.toInt(), clampedBubbleY.toInt()) }
-                    .shadow(12.dp, CircleShape, spotColor = Color(0xFF2DD4BF))
+                    .then(
+                        if (uiState.skyCanvasTheme == SkyCanvasTheme.CELESTIAL)
+                            Modifier.shadow(12.dp, CircleShape, spotColor = Color(0xFF2DD4BF))
+                        else Modifier
+                    )
                     .clip(CircleShape)
-                    .background(Color(0xCC0F172A))
-                    .border(1.5.dp, Color(0xFF2DD4BF), CircleShape)
+                    .background(bgColor)
+                    .border(
+                        width = if (uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME) 1.dp else 1.5.dp,
+                        color = borderColor,
+                        shape = CircleShape
+                    )
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                     .testTag("time_travel_bubble")
             ) {
@@ -594,7 +665,7 @@ fun HeroSkyCanvas(
                             fontFamily = IranSans,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
-                            color = Color(0xFF2DD4BF)
+                            color = primaryTextColor
                         )
                     )
                     if (offsetText.isNotEmpty()) {
@@ -604,7 +675,7 @@ fun HeroSkyCanvas(
                                 fontFamily = IranSans,
                                 fontWeight = FontWeight.Normal,
                                 fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.8f)
+                                color = secondaryTextColor
                             )
                         )
                     }
@@ -613,4 +684,6 @@ fun HeroSkyCanvas(
         }
     }
 }
+
+private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
