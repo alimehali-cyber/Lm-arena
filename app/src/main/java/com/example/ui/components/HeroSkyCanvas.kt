@@ -369,15 +369,7 @@ fun HeroSkyCanvas(
                 sunPosPx = sunPosPx
             )
 
-            // 2. Milky Way Renderer
-            MilkyWayRenderer.drawMilkyWay(
-                drawScope = this,
-                galacticPoints = galacticPlanePoints,
-                lightingState = lightingState,
-                frameTimeMs = frameTimeMs
-            )
-
-            // 3. Star Renderer (Spectral color types, independent twinkle, halos, galaxies)
+            // 2. Star Renderer (Spectral color types, independent twinkle, halos, galaxies)
             StarRenderer.drawStars(
                 drawScope = this,
                 objects = catalogStars,
@@ -385,15 +377,7 @@ fun HeroSkyCanvas(
                 frameTimeMs = frameTimeMs
             )
 
-            // 3.1 Constellation Renderer (Glowing constellation lines connecting stars)
-            ConstellationRenderer.drawConstellationLines(
-                drawScope = this,
-                stars = catalogStars,
-                starVisibility = lightingState.starVisibility,
-                frameTimeMs = frameTimeMs
-            )
-
-            // 4. Sun Renderer
+            // 3. Sun Renderer
             if (sunPosPx != null) {
                 SunRenderer.drawSun(
                     drawScope = this,
@@ -403,7 +387,7 @@ fun HeroSkyCanvas(
                 )
             }
 
-            // 5. Moon Renderer
+            // 4. Moon Renderer
             if (moonData.altitudeDeg > -5.0) {
                 val moonX = (moonData.azimuthDeg / 360.0 * canvasW).toFloat()
                 val moonY = (canvasH - ((moonData.altitudeDeg + 5.0) / 95.0 * canvasH)).toFloat().coerceIn(50.dp.toPx(), canvasH - 40.dp.toPx())
@@ -418,7 +402,9 @@ fun HeroSkyCanvas(
                     isLunarEclipse = isLunarEclipse,
                     isSolarEclipse = isSolarEclipse,
                     moonPulseScale = moonPulseScale,
-                    lightingState = lightingState
+                    lightingState = lightingState,
+                    frameTimeMs = frameTimeMs,
+                    isWaxing = (moonData.ageDays < 14.765)
                 )
             }
 

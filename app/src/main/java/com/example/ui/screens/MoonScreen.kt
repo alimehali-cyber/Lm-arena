@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -45,6 +47,7 @@ import com.example.util.toPersianDigits
 import java.util.Calendar
 import java.util.Random
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Composable
 fun MoonScreen(
@@ -52,10 +55,11 @@ fun MoonScreen(
     viewModel: MainViewModel
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
-    var selectedDayOffset by remember { mutableStateOf(0) }
+    var selectedDayOffsetFloat by remember { mutableStateOf(0f) }
+    val dayOffsetInt = selectedDayOffsetFloat.roundToInt()
 
     val baseJd = remember { TimeEngine.getJulianDate() }
-    val currentJd = baseJd + selectedDayOffset
+    val currentJd = baseJd + selectedDayOffsetFloat.toDouble()
 
     val moonData = remember(currentJd, uiState.userLocation) {
         MoonEngine.calculateMoon(currentJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
@@ -65,9 +69,9 @@ fun MoonScreen(
         MoonEngine.getUpcomingMajorPhases(baseJd)
     }
 
-    val selectedCalendar = remember(selectedDayOffset) {
+    val selectedCalendar = remember(dayOffsetInt) {
         val cal = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE)
-        cal.add(Calendar.DAY_OF_YEAR, selectedDayOffset)
+        cal.add(Calendar.DAY_OF_YEAR, dayOffsetInt)
         cal
     }
 
@@ -78,12 +82,12 @@ fun MoonScreen(
         contentPadding = PaddingValues(bottom = 80.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // 1. MOON HERO SECTION (~380dp height)
+        // 1. MOON HERO SECTION (~400dp height)
         item {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(380.dp)
+                    .wrapContentHeight()
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(Color(0xFF13111A), Color(0xFF0A0A12))
@@ -92,7 +96,7 @@ fun MoonScreen(
                     .testTag("moon_hero_card")
             ) {
                 // Procedural Starfield background
-                Canvas(modifier = Modifier.fillMaxSize()) {
+                Canvas(modifier = Modifier.matchParentSize()) {
                     val random = Random(42)
                     val width = size.width
                     val height = size.height
@@ -111,10 +115,10 @@ fun MoonScreen(
 
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 12.dp, bottom = 20.dp),
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 20.dp, start = 16.dp, end = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.SpaceBetween
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // Date switcher pill
                     Row(
@@ -126,7 +130,7 @@ fun MoonScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         IconButton(
-                            onClick = { selectedDayOffset -= 1 },
+                            onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat - 1f).coerceIn(-30f, 30f) },
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(Icons.Default.ChevronRight, contentDescription = "Previous Day", tint = Color(0xFFA855F7))
@@ -135,8 +139,14 @@ fun MoonScreen(
                         val dateStr = TimeEngine.formatDate(selectedCalendar.timeInMillis, uiState.calendarSystem, isFa).let {
                             if (isFa) it.toPersianDigits() else it
                         }
+                        val offsetBadge = when {
+                            dayOffsetInt == 0 -> if (isFa) "امروز — $dateStr" else "Today — $dateStr"
+                            dayOffsetInt > 0 -> if (isFa) "+${dayOffsetInt} روز — $dateStr".toPersianDigits() else "+${dayOffsetInt}d — $dateStr"
+                            else -> if (isFa) "${dayOffsetInt} روز — $dateStr".toPersianDigits() else "${dayOffsetInt}d — $dateStr"
+                        }
+
                         Text(
-                            text = if (selectedDayOffset == 0) (if (isFa) "امروز — $dateStr" else "Today — $dateStr") else dateStr,
+                            text = offsetBadge,
                             style = TextStyle(
                                 fontFamily = IranSans,
                                 fontWeight = FontWeight.Medium,
@@ -146,18 +156,61 @@ fun MoonScreen(
                         )
 
                         IconButton(
-                            onClick = { selectedDayOffset += 1 },
+                            onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat + 1f).coerceIn(-30f, 30f) },
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(Icons.Default.ChevronLeft, contentDescription = "Next Day", tint = Color(0xFFA855F7))
                         }
                     }
 
-                    // Realistic Photographic Moon Visualization
+                    // Scrubber drag instructions badge below date pill
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFA855F7).copy(alpha = 0.15f))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Default.Swipe, contentDescription = null, tint = Color(0xFFC084FC), modifier = Modifier.size(14.dp))
+                        Text(
+                            text = if (isFa) "برای تغییر روزها (۳۰- تا ۳۰+) ماه را افقی بکشید" else "Drag moon to scrub days (-30 to +30d)",
+                            style = TextStyle(
+                                fontFamily = IranSans,
+                                fontWeight = FontWeight.Normal,
+                                fontSize = 11.sp,
+                                color = Color(0xFFE9D5FF)
+                            )
+                        )
+                        if (dayOffsetInt != 0) {
+                            Surface(
+                                onClick = { selectedDayOffsetFloat = 0f },
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFA855F7).copy(alpha = 0.35f)
+                            ) {
+                                Text(
+                                    text = if (isFa) "بازنشانی" else "Reset",
+                                    style = TextStyle(
+                                        fontFamily = IranSans,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        color = Color.White
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Realistic Photographic Moon Visualization with Horizontal Scrubber Drag
                     PhotographicMoonView(
                         moonData = moonData,
                         latitude = uiState.userLocation.latitude,
-                        modifier = Modifier.size(280.dp)
+                        onDragDelta = { dragAmount ->
+                            val deltaDays = dragAmount / 15f
+                            selectedDayOffsetFloat = (selectedDayOffsetFloat + deltaDays).coerceIn(-30f, 30f)
+                        },
+                        modifier = Modifier.size(270.dp)
                     )
 
                     // Phase Name & Illumination Text below moon
@@ -367,6 +420,7 @@ fun MoonScreen(
 private fun PhotographicMoonView(
     moonData: MoonEngine.MoonData,
     latitude: Double,
+    onDragDelta: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "MoonRotation")
@@ -381,7 +435,13 @@ private fun PhotographicMoonView(
     )
 
     Box(
-        modifier = modifier,
+        modifier = modifier
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures { change, dragAmount ->
+                    change.consume()
+                    onDragDelta(dragAmount)
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         // Purple Radial Glow backdrop (320dp)
