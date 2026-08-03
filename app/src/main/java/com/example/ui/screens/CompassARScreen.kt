@@ -417,12 +417,29 @@ fun CompassARScreen(
                     end = Offset(canvasWidth, horizonY),
                     strokeWidth = 2.5f
                 )
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text = if (isFa) "افق (0°)" else "Horizon (0°)",
-                    topLeft = Offset(20f, horizonY - 30f),
-                    style = TextStyle(color = AccentPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                val horizonLabel = if (isFa) "افق (0°)" else "Horizon (0°)"
+                val horizonTextLayout = textMeasurer.measure(
+                    text = horizonLabel,
+                    style = TextStyle(color = AccentPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                    maxLines = 1,
+                    softWrap = false
                 )
+                val drawX = 20f
+                val drawY = horizonY - 30f
+
+                if (
+                    drawX.isFinite() &&
+                    drawY.isFinite() &&
+                    drawX < canvasWidth &&
+                    drawY < canvasHeight &&
+                    drawX + horizonTextLayout.size.width > 0f &&
+                    drawY + horizonTextLayout.size.height > 0f
+                ) {
+                    drawText(
+                        textLayoutResult = horizonTextLayout,
+                        topLeft = Offset(drawX, drawY)
+                    )
+                }
             }
 
             // Render Trajectory Orbit Arc for Moon
@@ -636,7 +653,9 @@ fun CompassARScreen(
                                 color = Color.White,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold
-                            )
+                            ),
+                            maxLines = 1,
+                            softWrap = false
                         )
 
                         val pillWidth = textLayout.size.width + 20f
@@ -644,17 +663,37 @@ fun CompassARScreen(
                         val pillLeft = px - pillWidth / 2f
                         val pillTop = py + radiusPx + 8f
 
-                        drawRoundRect(
-                            color = Color.Black.copy(alpha = 0.65f),
-                            topLeft = Offset(pillLeft, pillTop),
-                            size = Size(pillWidth, pillHeight),
-                            cornerRadius = CornerRadius(12f, 12f)
-                        )
+                        if (
+                            pillLeft.isFinite() &&
+                            pillTop.isFinite() &&
+                            pillLeft < canvasWidth &&
+                            pillTop < canvasHeight &&
+                            pillLeft + pillWidth > 0f &&
+                            pillTop + pillHeight > 0f
+                        ) {
+                            drawRoundRect(
+                                color = Color.Black.copy(alpha = 0.65f),
+                                topLeft = Offset(pillLeft, pillTop),
+                                size = Size(pillWidth, pillHeight),
+                                cornerRadius = CornerRadius(12f, 12f)
+                            )
 
-                        drawText(
-                            textLayoutResult = textLayout,
-                            topLeft = Offset(pillLeft + 10f, pillTop + 5f)
-                        )
+                            val textDrawX = pillLeft + 10f
+                            val textDrawY = pillTop + 5f
+                            if (
+                                textDrawX.isFinite() &&
+                                textDrawY.isFinite() &&
+                                textDrawX < canvasWidth &&
+                                textDrawY < canvasHeight &&
+                                textDrawX + textLayout.size.width > 0f &&
+                                textDrawY + textLayout.size.height > 0f
+                            ) {
+                                drawText(
+                                    textLayoutResult = textLayout,
+                                    topLeft = Offset(textDrawX, textDrawY)
+                                )
+                            }
+                        }
                     }
                 }
             }

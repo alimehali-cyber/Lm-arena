@@ -1,5 +1,7 @@
 package com.example.ui.rendering
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -17,7 +19,7 @@ object MilkyWayRenderer {
         galacticPoints: List<GalacticEngine.GalacticPlanePoint>,
         lightingState: LightingState
     ) {
-        if (galacticPoints.isEmpty() || lightingState.sunAltitudeDeg > -6.0) return
+        if (galacticPoints.size < 2 || lightingState.sunAltitudeDeg > -5.0) return
 
         val width = drawScope.size.width
         val height = drawScope.size.height
@@ -25,9 +27,11 @@ object MilkyWayRenderer {
         val mwPath = Path()
         var first = true
 
-        val baseAlpha = ((abs(lightingState.sunAltitudeDeg) - 6.0) / 12.0).coerceIn(0.0, 1.0).toFloat() * 0.38f
-        val moonDimming = (1.0f - lightingState.moonGlowIntensity * 0.5f).coerceIn(0.2f, 1.0f)
+        val baseAlpha = ((abs(lightingState.sunAltitudeDeg) - 5.0) / 13.0).coerceIn(0.0, 1.0).toFloat() * 0.45f
+        val moonDimming = (1.0f - lightingState.moonGlowIntensity * 0.55f).coerceIn(0.15f, 1.0f)
         val finalAlpha = baseAlpha * moonDimming
+
+        if (finalAlpha <= 0.02f) return
 
         for (pt in galacticPoints) {
             val px = (pt.azimuthDeg / 360.0 * width).toFloat()
@@ -40,13 +44,47 @@ object MilkyWayRenderer {
             }
         }
 
+        // --- LAYER 1: Deep Galactic Background Glow (Indigo/Purple, 50dp wide) ---
         drawScope.drawPath(
             path = mwPath,
-            color = Color(0xFFC084FC).copy(alpha = finalAlpha),
+            color = Color(0xFF312E81).copy(alpha = finalAlpha * 0.6f),
             style = Stroke(
-                width = drawScope.run { 28.dp.toPx() },
+                width = drawScope.run { 56.dp.toPx() },
+                cap = StrokeCap.Round,
+                pathEffect = PathEffect.cornerPathEffect(50f)
+            )
+        )
+
+        // --- LAYER 2: Core Galactic Cloud (Magenta/Purple, 32dp wide) ---
+        drawScope.drawPath(
+            path = mwPath,
+            color = Color(0xFFA855F7).copy(alpha = finalAlpha * 0.75f),
+            style = Stroke(
+                width = drawScope.run { 34.dp.toPx() },
                 cap = StrokeCap.Round,
                 pathEffect = PathEffect.cornerPathEffect(40f)
+            )
+        )
+
+        // --- LAYER 3: Bright Cosmic Dust Lane (Pink/Gold, 18dp wide) ---
+        drawScope.drawPath(
+            path = mwPath,
+            color = Color(0xFFEC4899).copy(alpha = finalAlpha * 0.85f),
+            style = Stroke(
+                width = drawScope.run { 18.dp.toPx() },
+                cap = StrokeCap.Round,
+                pathEffect = PathEffect.cornerPathEffect(30f)
+            )
+        )
+
+        // --- LAYER 4: Bright Core Axis (Warm Gold, 8dp wide) ---
+        drawScope.drawPath(
+            path = mwPath,
+            color = Color(0xFFFDE047).copy(alpha = finalAlpha * 0.95f),
+            style = Stroke(
+                width = drawScope.run { 8.dp.toPx() },
+                cap = StrokeCap.Round,
+                pathEffect = PathEffect.cornerPathEffect(20f)
             )
         )
     }

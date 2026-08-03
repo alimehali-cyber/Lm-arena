@@ -301,6 +301,14 @@ fun HeroSkyCanvas(
                 frameTimeMs = frameTimeMs
             )
 
+            // 3.1 Constellation Renderer (Glowing constellation lines connecting stars)
+            ConstellationRenderer.drawConstellationLines(
+                drawScope = this,
+                stars = catalogStars,
+                starVisibility = lightingState.starVisibility,
+                frameTimeMs = frameTimeMs
+            )
+
             // 4. Sun Renderer
             if (sunPosPx != null) {
                 SunRenderer.drawSun(
@@ -312,29 +320,23 @@ fun HeroSkyCanvas(
             }
 
             // 5. Moon Renderer
-            val moonX = if (moonData.altitudeDeg > -5.0) {
-                (moonData.azimuthDeg / 360.0 * canvasW).toFloat()
-            } else {
-                canvasW * 0.78f
-            }
-            val moonY = if (moonData.altitudeDeg > -5.0) {
-                (canvasH - ((moonData.altitudeDeg + 5.0) / 95.0 * canvasH)).toFloat().coerceIn(50.dp.toPx(), canvasH - 40.dp.toPx())
-            } else {
-                canvasH * 0.32f
-            }
-            val baseMoonRadius = 26.dp.toPx()
+            if (moonData.altitudeDeg > -5.0) {
+                val moonX = (moonData.azimuthDeg / 360.0 * canvasW).toFloat()
+                val moonY = (canvasH - ((moonData.altitudeDeg + 5.0) / 95.0 * canvasH)).toFloat().coerceIn(50.dp.toPx(), canvasH - 40.dp.toPx())
+                val baseMoonRadius = 26.dp.toPx()
 
-            MoonRenderer.drawMoon(
-                drawScope = this,
-                center = Offset(moonX, moonY),
-                radius = baseMoonRadius,
-                illuminationPercent = moonData.illuminationPercent,
-                phaseAngleRad = moonData.phaseAngleRad,
-                isLunarEclipse = isLunarEclipse,
-                isSolarEclipse = isSolarEclipse,
-                moonPulseScale = moonPulseScale,
-                lightingState = lightingState
-            )
+                MoonRenderer.drawMoon(
+                    drawScope = this,
+                    center = Offset(moonX, moonY),
+                    radius = baseMoonRadius,
+                    illuminationPercent = moonData.illuminationPercent,
+                    phaseAngleRad = moonData.phaseAngleRad,
+                    isLunarEclipse = isLunarEclipse,
+                    isSolarEclipse = isSolarEclipse,
+                    moonPulseScale = moonPulseScale,
+                    lightingState = lightingState
+                )
+            }
 
             // 6. Planet Renderer
             PlanetRenderer.drawPlanets(
@@ -342,7 +344,14 @@ fun HeroSkyCanvas(
                 planets = planetPositions
             )
 
-            // 7. Particle Renderer
+            // 7. Horizon Landscape Renderer (3D layered mountains with atmospheric mist & city lights)
+            LandscapeRenderer.drawHorizonLandscape(
+                drawScope = this,
+                lightingState = lightingState,
+                frameTimeMs = frameTimeMs
+            )
+
+            // 8. Particle Renderer (Stardust particles)
             ParticleRenderer.drawStardust(
                 drawScope = this,
                 particles = stardustParticles
