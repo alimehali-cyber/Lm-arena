@@ -45,3 +45,34 @@ data class ObservationLogEntity(
     val notes: String,
     val rating: Int // 1 to 5 stars
 )
+
+@Entity(tableName = "cached_celestial_objects")
+data class CelestialObjectEntity(
+    @PrimaryKey val id: String,
+    val typeName: String,
+    val nameEn: String,
+    val nameFa: String,
+    val raDeg: Double,
+    val decDeg: Double,
+    val magnitude: Double,
+    val constellationEn: String,
+    val constellationFa: String,
+    val distanceLightYears: Double,
+    val category: String,
+    val descriptionEn: String,
+    val descriptionFa: String,
+    val observationTipEn: String,
+    val observationTipFa: String,
+    val spectralType: String = "",
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "cached_constellations")
+data class ConstellationEntity(
+    @PrimaryKey val code: String,
+    val nameEn: String,
+    val nameFa: String,
+    val latinName: String,
+    val mainStarsSerialized: String,
+    val updatedAt: Long = System.currentTimeMillis()
+)

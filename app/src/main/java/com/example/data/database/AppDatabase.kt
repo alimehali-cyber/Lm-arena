@@ -11,9 +11,11 @@ import androidx.room.RoomDatabase
         SettingEntity::class,
         CityEntity::class,
         TleEntity::class,
-        ObservationLogEntity::class
+        ObservationLogEntity::class,
+        CelestialObjectEntity::class,
+        ConstellationEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,6 +24,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun settingDao(): SettingDao
     abstract fun cityDao(): CityDao
     abstract fun observationLogDao(): ObservationLogDao
+    abstract fun celestialObjectDao(): CelestialObjectDao
+    abstract fun constellationDao(): ConstellationDao
 
     companion object {
         @Volatile

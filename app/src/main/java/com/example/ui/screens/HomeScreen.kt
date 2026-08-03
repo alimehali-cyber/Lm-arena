@@ -36,6 +36,7 @@ import com.example.data.catalog.AstronomyCatalog
 import com.example.domain.*
 import com.example.ui.MainUiState
 import com.example.ui.MainViewModel
+import com.example.ui.components.HeroSkyCanvas
 import com.example.ui.theme.*
 import com.example.util.toPersianDigits
 import java.util.Calendar
@@ -114,199 +115,97 @@ fun HomeScreen(
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. HERO CARD — "آسمان امشب" (Tonight's Sky)
+        // 0. TOP APP BAR — Elevated Header Bar
         item {
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 210.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(Color(0xFF1E1533), Color(0xFF0F0D1A))
-                        )
-                    )
-                    .border(
-                        width = 1.dp,
-                        color = Color.White.copy(alpha = 0.08f),
-                        shape = RoundedCornerShape(24.dp)
-                    )
-                    .padding(24.dp)
-                    .testTag("home_header_card")
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Subtle background radial glow
-                Box(
-                    modifier = Modifier
-                        .size(180.dp)
-                        .align(Alignment.TopEnd)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    Color(0xFFA855F7).copy(alpha = 0.15f),
-                                    Color.Transparent
-                                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = if (isFa) "آسمان زنده" else "Hero Sky",
+                        style = androidx.compose.ui.text.TextStyle(
+                            fontFamily = IranSans,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 24.sp,
+                            color = Color.White
+                        )
+                    )
+
+                    val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "Location",
+                            tint = Color(0xFFA855F7),
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Text(
+                            text = locationName,
+                            style = androidx.compose.ui.text.TextStyle(
+                                fontFamily = IranSans,
+                                fontWeight = FontWeight.Normal,
+                                fontSize = 13.sp,
+                                color = Color(0xFF9CA3AF)
                             )
                         )
-                )
+                    }
+                }
 
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.SpaceBetween
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Header Title Row + Settings & Bookmark Icon Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (isFa) "آسمان امشب" else stringResource(R.string.tonights_sky),
-                                style = androidx.compose.ui.text.TextStyle(
-                                    fontFamily = IranSans,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 26.sp,
-                                    color = Color(0xFFF5F5F7)
-                                )
-                            )
-
-                            // Floating Icon Row: Bookmark + Settings (16dp spacing)
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = { viewModel.setShowFavoritesDialog(true) },
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .testTag("top_favorites_button")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Bookmark,
-                                        contentDescription = stringResource(R.string.favorites_and_history),
-                                        tint = Color(0xFFA855F7),
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = { viewModel.setShowSettingsDialog(true) },
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .testTag("top_settings_button")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Settings,
-                                        contentDescription = stringResource(R.string.settings),
-                                        tint = Color(0xFF9CA3AF),
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.LocationOn,
-                                contentDescription = "Location",
-                                tint = Color(0xFFA855F7),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = locationName,
-                                style = androidx.compose.ui.text.TextStyle(
-                                    fontFamily = IranSans,
-                                    fontWeight = FontWeight.Normal,
-                                    fontSize = 14.sp,
-                                    color = Color(0xFF9CA3AF)
-                                )
-                            )
-                        }
-
-                        // Status indicator row
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.padding(top = 4.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFFBBF24))
-                            )
-                            val statusText = if (twilight.isDaylight) {
-                                if (isFa) "روز / روشنایی" else "Daylight"
-                            } else {
-                                if (isFa) "تاریکی مطلق / شب" else "Peak Dark Night"
-                            }
-                            Text(
-                                text = statusText,
-                                style = androidx.compose.ui.text.TextStyle(
-                                    fontFamily = IranSans,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 14.sp,
-                                    color = Color(0xFFFBBF24)
-                                )
-                            )
-                        }
+                    IconButton(
+                        onClick = { viewModel.setShowFavoritesDialog(true) },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1E1533))
+                            .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape)
+                            .testTag("top_favorites_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Bookmark,
+                            contentDescription = stringResource(R.string.favorites_and_history),
+                            tint = Color(0xFFA855F7),
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Bottom section: Two pill chips side by side
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    IconButton(
+                        onClick = { viewModel.setShowSettingsDialog(true) },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1E1533))
+                            .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape)
+                            .testTag("top_settings_button")
                     ) {
-                        val dateText = TimeEngine.formatDate(System.currentTimeMillis(), uiState.calendarSystem, isFa).let {
-                            if (isFa) it.toPersianDigits() else it
-                        }
-                        // Chip 1: Date
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFA855F7).copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = dateText,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                style = androidx.compose.ui.text.TextStyle(
-                                    fontFamily = IranSans,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 12.sp,
-                                    color = Color(0xFFA855F7)
-                                )
-                            )
-                        }
-
-                        // Chip 2: Light pollution
-                        val bortleText = if (isFa) {
-                            "آلودگی نوری: ${uiState.bortleClass}".toPersianDigits()
-                        } else {
-                            "Bortle: ${uiState.bortleClass}"
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFA855F7).copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = bortleText,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                style = androidx.compose.ui.text.TextStyle(
-                                    fontFamily = IranSans,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 12.sp,
-                                    color = Color(0xFFA855F7)
-                                )
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.settings),
+                            tint = Color(0xFF9CA3AF),
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             }
+        }
+
+        // 1. HERO SKY CANVAS — Interactive Real-time Sky
+        item {
+            HeroSkyCanvas(
+                uiState = uiState,
+                viewModel = viewModel,
+                modifier = Modifier.testTag("home_header_card")
+            )
         }
 
         // 2. CONDITIONS CARD — "کجارو ببینیم؟" (Where to Look?)

@@ -6,7 +6,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-import kotlin.math.floor
+import kotlin.math.*
 
 object TimeEngine {
 
@@ -20,25 +20,96 @@ object TimeEngine {
     }
 
     /**
-     * Calculates Greenwich Mean Sidereal Time (GMST) in degrees.
+     * Calculates Delta T (TT - UT1) in seconds based on Espenak & Meeus polynomial approximations.
+     */
+    fun getDeltaTSeconds(jd: Double): Double {
+        val year = 2000.0 + (jd - 2451545.0) / 365.25
+        return when {
+            year in 2000.0..2050.0 -> {
+                val t = year - 2000.0
+                63.86 + 0.3345 * t - 0.006037 * t * t + 0.001727 * t * t * t
+            }
+            year > 2050.0 -> {
+                val t = year - 2000.0
+                62.92 + 0.32217 * t + 0.005589 * t * t
+            }
+            else -> 68.0 // Approximate default for recent years
+        }
+    }
+
+    /**
+     * Calculates Terrestrial Time (TT) Julian Ephemeris Day (JDE).
+     */
+    fun getJDE(jd: Double): Double {
+        val deltaT = getDeltaTSeconds(jd)
+        return jd + (deltaT / 86400.0)
+    }
+
+    /**
+     * Returns Julian Centuries T from J2000.0 in Universal Time (UTC).
+     */
+    fun getJulianCenturiesUTC(jd: Double): Double {
+        return (jd - 2451545.0) / 36525.0
+    }
+
+    /**
+     * Returns Julian Centuries Te from J2000.0 in Terrestrial Time (TT).
+     */
+    fun getJulianCenturiesTT(jd: Double): Double {
+        val jde = getJDE(jd)
+        return (jde - 2451545.0) / 36525.0
+    }
+
+    /**
+     * Calculates Greenwich Mean Sidereal Time (GMST) in degrees (IAU-82 formula).
      */
     fun getGMST(jd: Double): Double {
-        val d = jd - 2451545.0 // Days from J2000.0
-        var gmst = 280.46061837 + 360.98564736629 * d
+        val d = jd - 2451545.0
+        val T = d / 36525.0
+        var gmst = 280.46061837 + 360.98564736629 * d + 0.000387933 * T * T - (T * T * T) / 38710000.0
         gmst %= 360.0
         if (gmst < 0) gmst += 360.0
         return gmst
     }
 
     /**
-     * Calculates Local Apparent Sidereal Time (LAST) in degrees given longitude in degrees (+East).
+     * Calculates Greenwich Apparent Sidereal Time (GAST) in degrees including Equation of Equinoxes.
+     */
+    fun getGAST(jd: Double): Double {
+        val gmst = getGMST(jd)
+        val nutation = CoordinateEngine.calculateNutation(jd)
+        val trueObliquityRad = Math.toRadians(nutation.trueObliquityDeg)
+        val eqEquinoxesDeg = nutation.deltaPsiDeg * cos(trueObliquityRad)
+        var gast = gmst + eqEquinoxesDeg
+        gast %= 360.0
+        if (gast < 0) gast += 360.0
+        return gast
+    }
+
+    /**
+     * Calculates Local Apparent Sidereal Time (LAST) in degrees given observer longitude (+East).
      */
     fun getLAST(jd: Double, longitudeDeg: Double): Double {
-        val gmst = getGMST(jd)
-        var last = gmst + longitudeDeg
+        val gast = getGAST(jd)
+        var last = gast + longitudeDeg
         last %= 360.0
         if (last < 0) last += 360.0
         return last
+    }
+
+    /**
+     * Calculates Equation of Time (EoT) in minutes.
+     */
+    fun getEquationOfTimeMinutes(jd: Double): Double {
+        val T = getJulianCenturiesTT(jd)
+        val L0 = (280.466456 + 36000.76983 * T + 0.0003032 * T * T) % 360.0
+        val M = Math.toRadians((357.52911 + 35999.05029 * T - 0.0001537 * T * T) % 360.0)
+        val e = 0.016708634 - 0.000042037 * T
+        val y = tan(Math.toRadians(23.439291 / 2.0)).let { it * it }
+
+        val L0rad = Math.toRadians(L0)
+        val eotRad = y * sin(2 * L0rad) - 2 * e * sin(M) + 4 * e * y * sin(M) * cos(2 * L0rad) - 0.5 * y * y * sin(4 * L0rad) - 1.25 * e * e * sin(2 * M)
+        return Math.toDegrees(eotRad) * 4.0 // 1 deg = 4 minutes
     }
 
     /**
@@ -226,3 +297,4 @@ object TimeEngine {
         return if (isFa) formatPersianNumbers(formatted) else formatted
     }
 }
+

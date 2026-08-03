@@ -6,16 +6,57 @@ object CoordinateEngine {
 
     data class Equatorial(val raDeg: Double, val decDeg: Double)
     data class Horizontal(val azimuthDeg: Double, val altitudeDeg: Double)
+    data class Galactic(val lDeg: Double, val bDeg: Double)
+
+    data class Nutation(
+        val deltaPsiDeg: Double,   // Nutation in longitude (degrees)
+        val deltaEpsDeg: Double,   // Nutation in obliquity (degrees)
+        val meanObliquityDeg: Double,
+        val trueObliquityDeg: Double
+    )
+
+    /**
+     * Calculates IAU Nutation in Longitude and Obliquity for Julian Ephemeris Day (JDE).
+     */
+    fun calculateNutation(jd: Double): Nutation {
+        val T = (jd - 2451545.0) / 36525.0
+
+        // Mean longitude of Sun
+        val L = Math.toRadians((280.4665 + 36000.7698 * T) % 360.0)
+        // Mean longitude of Moon
+        val Lprime = Math.toRadians((218.3165 + 481267.8813 * T) % 360.0)
+        // Longitude of Moon's ascending node
+        val Omega = Math.toRadians((125.04452 - 1934.136261 * T + 0.0020708 * T * T) % 360.0)
+
+        // Nutation terms in arcseconds
+        val dPsiArcsec = -17.20 * sin(Omega) - 1.32 * sin(2 * L) - 0.23 * sin(2 * Lprime) + 0.21 * sin(2 * Omega)
+        val dEpsArcsec = 9.20 * cos(Omega) + 0.57 * cos(2 * L) + 0.10 * cos(2 * Lprime) - 0.09 * cos(2 * Omega)
+
+        val deltaPsiDeg = dPsiArcsec / 3600.0
+        val deltaEpsDeg = dEpsArcsec / 3600.0
+
+        val meanObliquityDeg = 23.4392911 - (46.8150 * T + 0.00059 * T * T - 0.001813 * T * T * T) / 3600.0
+        val trueObliquityDeg = meanObliquityDeg + deltaEpsDeg
+
+        return Nutation(
+            deltaPsiDeg = deltaPsiDeg,
+            deltaEpsDeg = deltaEpsDeg,
+            meanObliquityDeg = meanObliquityDeg,
+            trueObliquityDeg = trueObliquityDeg
+        )
+    }
 
     /**
      * Converts Equatorial coordinates (RA, Dec in degrees) to Horizontal coordinates (Azimuth, Altitude in degrees).
      * @param lastDeg Local Apparent Sidereal Time in degrees.
      * @param latitudeDeg Observer latitude in degrees (+North).
+     * @param observerElevationM Observer elevation above sea level in meters (default 0).
      */
     fun equatorialToHorizontal(
         equatorial: Equatorial,
         lastDeg: Double,
-        latitudeDeg: Double
+        latitudeDeg: Double,
+        observerElevationM: Double = 0.0
     ): Horizontal {
         // Hour Angle (HA) in degrees = LAST - RA
         var haDeg = lastDeg - equatorial.raDeg
@@ -26,7 +67,7 @@ object CoordinateEngine {
         val decRad = Math.toRadians(equatorial.decDeg)
         val latRad = Math.toRadians(latitudeDeg)
 
-        // Altitude
+        // True Altitude
         val sinAlt = sin(decRad) * sin(latRad) + cos(decRad) * cos(latRad) * cos(haRad)
         val altRad = asin(sinAlt.coerceIn(-1.0, 1.0))
         var altDeg = Math.toDegrees(altRad)
@@ -39,10 +80,13 @@ object CoordinateEngine {
         var azDeg = Math.toDegrees(azRad)
         if (azDeg < 0) azDeg += 360.0
 
-        // Apply Bennett formula for atmospheric refraction if above horizon
-        if (altDeg > -1.0) {
-            val R = 1.02 / tan(Math.toRadians(altDeg + 10.3 / (altDeg + 5.11))) // Bennett formula in arcminutes
-            altDeg += (R / 60.0)
+        // Atmospheric Refraction (Bennett formula adjusted for temperature and elevation pressure)
+        if (altDeg > -1.5) {
+            val pressurehPa = 1013.25 * (1.0 - 2.25577e-5 * observerElevationM).pow(5.25588)
+            val tempK = 288.15 - 0.0065 * observerElevationM
+            val R_bennett = 1.02 / tan(Math.toRadians(altDeg + 10.3 / (altDeg + 5.11))) // arcminutes
+            val refractionArcmin = R_bennett * (pressurehPa / 1010.0) * (283.15 / tempK)
+            altDeg += (refractionArcmin / 60.0)
         }
 
         return Horizontal(azimuthDeg = azDeg, altitudeDeg = altDeg)
@@ -76,6 +120,96 @@ object CoordinateEngine {
         if (raDeg < 0) raDeg += 360.0
 
         return Equatorial(raDeg = raDeg, decDeg = decDeg)
+    }
+
+    /**
+     * Corrects Geocentric Equatorial position for Topocentric Parallax (for nearby objects like the Moon).
+     */
+    fun geocentricToTopocentric(
+        geocentric: Equatorial,
+        geocentricDistanceKm: Double,
+        lastDeg: Double,
+        latitudeDeg: Double,
+        elevationM: Double = 0.0
+    ): Equatorial {
+        if (geocentricDistanceKm <= 0.0) return geocentric
+
+        val earthRadiusKm = 6378.137
+        val latRad = Math.toRadians(latitudeDeg)
+
+        // Earth oblateness factors
+        val f = 1.0 / 298.257223563
+        val u = atan((1.0 - f) * tan(latRad))
+        val hKm = elevationM / 1000.0
+        val rhoSinLat = (1.0 - f) * sin(u) + (hKm / earthRadiusKm) * sin(latRad)
+        val rhoCosLat = cos(u) + (hKm / earthRadiusKm) * cos(latRad)
+
+        val piRad = asin((earthRadiusKm / geocentricDistanceKm).coerceIn(-1.0, 1.0))
+
+        var haDeg = lastDeg - geocentric.raDeg
+        haDeg %= 360.0
+        if (haDeg < 0) haDeg += 360.0
+        val haRad = Math.toRadians(haDeg)
+        val decRad = Math.toRadians(geocentric.decDeg)
+
+        // Parallax in RA
+        val deltaRaRad = atan2(-rhoCosLat * sin(piRad) * sin(haRad), cos(decRad) - rhoCosLat * sin(piRad) * cos(haRad))
+        val topoRaDeg = (geocentric.raDeg + Math.toDegrees(deltaRaRad) + 360.0) % 360.0
+
+        // Parallax in Dec
+        val topoDecRad = atan2((sin(decRad) - rhoSinLat * sin(piRad)) * cos(deltaRaRad), cos(decRad) - rhoCosLat * sin(piRad) * cos(haRad))
+        val topoDecDeg = Math.toDegrees(topoDecRad)
+
+        return Equatorial(topoRaDeg, topoDecDeg)
+    }
+
+    /**
+     * Converts Equatorial J2000 coordinates to Galactic coordinates (l, b).
+     * Galactic North Pole J2000: RA = 192.85948°, Dec = +27.12825°, Node l_N = 32.93192°
+     */
+    fun equatorialToGalactic(eq: Equatorial): Galactic {
+        val raRad = Math.toRadians(eq.raDeg)
+        val decRad = Math.toRadians(eq.decDeg)
+
+        val raNGP = Math.toRadians(192.85948)
+        val decNGP = Math.toRadians(27.12825)
+        val lN = 32.93192
+
+        val sinB = sin(decRad) * sin(decNGP) + cos(decRad) * cos(decNGP) * cos(raRad - raNGP)
+        val bRad = asin(sinB.coerceIn(-1.0, 1.0))
+        val bDeg = Math.toDegrees(bRad)
+
+        val y = cos(decRad) * sin(raRad - raNGP)
+        val x = sin(decRad) * cos(decNGP) - cos(decRad) * sin(decNGP) * cos(raRad - raNGP)
+        var lDeg = lN + 180.0 - Math.toDegrees(atan2(y, x))
+        lDeg %= 360.0
+        if (lDeg < 0) lDeg += 360.0
+
+        return Galactic(lDeg, bDeg)
+    }
+
+    /**
+     * Converts Galactic coordinates (l, b) back to Equatorial J2000 (RA, Dec).
+     */
+    fun galacticToEquatorial(gal: Galactic): Equatorial {
+        val lRad = Math.toRadians(gal.lDeg)
+        val bRad = Math.toRadians(gal.bDeg)
+
+        val raNGP = Math.toRadians(192.85948)
+        val decNGP = Math.toRadians(27.12825)
+        val lNRad = Math.toRadians(32.93192)
+
+        val sinDec = sin(bRad) * sin(decNGP) + cos(bRad) * cos(decNGP) * cos(lRad - lNRad)
+        val decRad = asin(sinDec.coerceIn(-1.0, 1.0))
+        val decDeg = Math.toDegrees(decRad)
+
+        val y = cos(bRad) * sin(lRad - lNRad)
+        val x = cos(bRad) * sin(decNGP) * cos(lRad - lNRad) - sin(bRad) * cos(decNGP)
+        var raRad = raNGP + atan2(y, x)
+        var raDeg = Math.toDegrees(raRad) % 360.0
+        if (raDeg < 0) raDeg += 360.0
+
+        return Equatorial(raDeg, decDeg)
     }
 
     /**

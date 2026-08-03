@@ -50,3 +50,39 @@ interface ObservationLogDao {
     @Delete
     suspend fun delete(log: ObservationLogEntity)
 }
+
+@Dao
+interface CelestialObjectDao {
+    @Query("SELECT * FROM cached_celestial_objects ORDER BY magnitude ASC")
+    fun getAllObjectsFlow(): Flow<List<CelestialObjectEntity>>
+
+    @Query("SELECT * FROM cached_celestial_objects ORDER BY magnitude ASC")
+    suspend fun getAllObjectsDirect(): List<CelestialObjectEntity>
+
+    @Query("SELECT * FROM cached_celestial_objects WHERE id = :id LIMIT 1")
+    suspend fun getObjectById(id: String): CelestialObjectEntity?
+
+    @Query("SELECT COUNT(*) FROM cached_celestial_objects")
+    suspend fun getCount(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(objects: List<CelestialObjectEntity>)
+
+    @Query("DELETE FROM cached_celestial_objects")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface ConstellationDao {
+    @Query("SELECT * FROM cached_constellations ORDER BY nameEn ASC")
+    fun getAllConstellationsFlow(): Flow<List<ConstellationEntity>>
+
+    @Query("SELECT * FROM cached_constellations ORDER BY nameEn ASC")
+    suspend fun getAllConstellationsDirect(): List<ConstellationEntity>
+
+    @Query("SELECT COUNT(*) FROM cached_constellations")
+    suspend fun getCount(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(constellations: List<ConstellationEntity>)
+}

@@ -20,6 +20,11 @@ object MoonEngine {
         val distanceKm: Double,
         val altitudeDeg: Double = 0.0,
         val azimuthDeg: Double = 0.0,
+        val librationLonDeg: Double = 0.0,
+        val librationLatDeg: Double = 0.0,
+        val brightLimbAngleDeg: Double = 0.0,
+        val earthshinePercent: Double = 0.0,
+        val angularDiameterArcmin: Double = 31.0,
         val moonriseTimeMs: Long? = null,
         val moonsetTimeMs: Long? = null,
         val nasaFrameNumber: Int = 1
@@ -32,42 +37,54 @@ object MoonEngine {
         val daysFromNow: Int
     )
 
-    fun calculateMoon(jd: Double, latitude: Double = 30.1141, longitude: Double = 51.5217): MoonData {
-        val T = (jd - 2451545.0) / 36525.0 // Julian centuries from J2000.0
+    fun calculateMoon(
+        jd: Double,
+        latitude: Double = 30.1141,
+        longitude: Double = 51.5217,
+        elevationM: Double = 0.0
+    ): MoonData {
+        val T = TimeEngine.getJulianCenturiesTT(jd)
 
         // Moon's mean longitude L'
-        val Lprime = (218.3164477 + 481267.88123421 * T) % 360.0
+        val Lprime = (218.3164477 + 481267.88123421 * T - 0.0015786 * T * T) % 360.0
         // Moon's mean elongation D
-        val D = (297.8501921 + 445267.1114034 * T) % 360.0
+        val D = (297.8501921 + 445267.1114034 * T - 0.0018819 * T * T) % 360.0
         // Sun's mean anomaly M
-        val M = (357.5291092 + 35999.0502909 * T) % 360.0
+        val M = (357.5291092 + 35999.0502909 * T - 0.0001536 * T * T) % 360.0
         // Moon's mean anomaly M'
-        val Mprime = (134.9633964 + 477198.8675055 * T) % 360.0
+        val Mprime = (134.9633964 + 477198.8675055 * T + 0.0087414 * T * T) % 360.0
         // Moon's argument of latitude F
-        val F = (93.2720950 + 483202.0175233 * T) % 360.0
+        val F = (93.2720950 + 483202.0175233 * T - 0.0036539 * T * T) % 360.0
+        // Longitude of ascending node Omega
+        val Omega = (125.0445479 - 1934.1362891 * T + 0.0020754 * T * T) % 360.0
 
         val D_rad = Math.toRadians(D)
         val M_rad = Math.toRadians(M)
         val Mprime_rad = Math.toRadians(Mprime)
         val F_rad = Math.toRadians(F)
+        val Omega_rad = Math.toRadians(Omega)
 
-        // Ecliptic Longitude perturbations
+        // Ecliptic Longitude perturbations (Meeus Ch. 47)
         val lGeo = Lprime + 6.2886 * sin(Mprime_rad) + 1.2740 * sin(2 * D_rad - Mprime_rad) +
                 0.6583 * sin(2 * D_rad) + 0.2136 * sin(2 * Mprime_rad) -
-                0.1851 * sin(M_rad) - 0.1143 * sin(2 * F_rad)
+                0.1851 * sin(M_rad) - 0.1143 * sin(2 * F_rad) +
+                0.0588 * sin(2 * D_rad - 2 * Mprime_rad) + 0.0572 * sin(2 * D_rad - M_rad - Mprime_rad)
 
         // Ecliptic Latitude perturbations
         val bGeo = 5.1282 * sin(F_rad) + 0.2806 * sin(Mprime_rad + F_rad) +
-                0.2777 * sin(Mprime_rad - F_rad) + 0.1732 * sin(2 * D_rad - F_rad)
+                0.2777 * sin(Mprime_rad - F_rad) + 0.1732 * sin(2 * D_rad - F_rad) +
+                0.0554 * sin(2 * D_rad - Mprime_rad + F_rad)
 
         // Distance in km
         val distanceKm = 385001.0 - 20905.0 * cos(Mprime_rad) - 3699.0 * cos(2 * D_rad - Mprime_rad) -
-                2956.0 * cos(2 * D_rad) - 569.0 * cos(2 * Mprime_rad)
+                2956.0 * cos(2 * D_rad) - 569.0 * cos(2 * Mprime_rad) - 158.0 * cos(M_rad)
 
         val lRad = Math.toRadians(lGeo)
         val bRad = Math.toRadians(bGeo)
-        val epsRad = Math.toRadians(23.4392911)
+        val nutation = CoordinateEngine.calculateNutation(jd)
+        val epsRad = Math.toRadians(nutation.trueObliquityDeg)
 
+        // Geocentric RA / Dec
         val sinDec = sin(bRad) * cos(epsRad) + cos(bRad) * sin(epsRad) * sin(lRad)
         val decRad = asin(sinDec.coerceIn(-1.0, 1.0))
         val decDeg = Math.toDegrees(decRad)
@@ -77,6 +94,16 @@ object MoonEngine {
         var raRad = atan2(y, x)
         var raDeg = Math.toDegrees(raRad)
         if (raDeg < 0) raDeg += 360.0
+
+        // Apply Topocentric Parallax Correction for exact observer elevation & lat/lon!
+        val lastDeg = TimeEngine.getLAST(jd, longitude)
+        val topoEq = CoordinateEngine.geocentricToTopocentric(
+            geocentric = CoordinateEngine.Equatorial(raDeg, decDeg),
+            geocentricDistanceKm = distanceKm,
+            lastDeg = lastDeg,
+            latitudeDeg = latitude,
+            elevationM = elevationM
+        )
 
         // Phase angle i and illumination frac
         val iRad = Math.toRadians(180.0 - D - 6.289 * sin(Mprime_rad))
@@ -98,18 +125,58 @@ object MoonEngine {
             else -> "New Moon" to "ماه نو"
         }
 
-        // Calculate SunCalc positions & times
+        // Optical Librations in longitude & latitude (Meeus Ch. 53)
+        val W = lGeo - Omega
+        val W_rad = Math.toRadians(W)
+        val I_incl = Math.toRadians(1.54242) // Inclination of lunar equator
+        val sinb = sin(bRad)
+        val cosb = cos(bRad)
+        val sinL_O = sin(W_rad)
+        val cosL_O = cos(W_rad)
+
+        val sinbLibr = sinb * cos(I_incl) - cosb * sin(I_incl) * sinL_O
+        val librationLatDeg = Math.toDegrees(asin(sinbLibr.coerceIn(-1.0, 1.0)))
+
+        val librationLonDeg = Math.toDegrees(atan2(-sinL_O * cosb * cos(I_incl) + sinb * sin(I_incl), cosL_O * cosb))
+
+        // Position angle of bright limb chi
+        val sunPos = SunEngine.calculatePosition(jd)
+        val sunRaRad = Math.toRadians(sunPos.raDeg)
+        val sunDecRad = Math.toRadians(sunPos.decDeg)
+        val moonRaRad = Math.toRadians(topoEq.raDeg)
+        val moonDecRad = Math.toRadians(topoEq.decDeg)
+
+        val numChi = cos(sunDecRad) * sin(sunRaRad - moonRaRad)
+        val denChi = sin(sunDecRad) * cos(moonDecRad) - cos(sunDecRad) * sin(moonDecRad) * cos(sunRaRad - moonRaRad)
+        var brightLimbAngleDeg = Math.toDegrees(atan2(numChi, denChi))
+        if (brightLimbAngleDeg < 0) brightLimbAngleDeg += 360.0
+
+        // Earthshine visibility estimation (highest near crescent phases when ageDays is 1-5 or 25-28)
+        val earthshinePercent = if (illuminationPercent in 1.0..30.0) {
+            (1.0 - (illuminationPercent / 30.0)) * 85.0
+        } else 0.0
+
+        val angularDiameterArcmin = (3518.0 / (distanceKm / 384400.0)) / 60.0
+
+        // Calculate Horizontal position (Alt/Az)
+        val horiz = CoordinateEngine.equatorialToHorizontal(
+            equatorial = topoEq,
+            lastDeg = lastDeg,
+            latitudeDeg = latitude,
+            observerElevationM = elevationM
+        )
+
+        // Calculate SunCalc moonrise & moonset
         val millis = ((jd - 2440587.5) * 86400000.0).toLong()
         val targetDate = Date(millis)
 
-        val (alt, az, riseMs, setMs) = try {
-            val pos = MoonPosition.compute().on(targetDate).at(latitude, longitude).execute()
+        val (riseMs, setMs) = try {
             val times = MoonTimes.compute().on(targetDate).at(latitude, longitude).execute()
             val rise = times.rise?.toInstant()?.toEpochMilli()
             val set = times.set?.toInstant()?.toEpochMilli()
-            Quadruple(pos.altitude, pos.azimuth, rise, set)
+            Pair(rise, set)
         } catch (e: Throwable) {
-            Quadruple(25.0, 180.0, millis - 36000000L, millis + 14000000L)
+            Pair(millis - 36000000L, millis + 14000000L)
         }
 
         // Calculate NASA Dial-a-moon frame number
@@ -119,23 +186,26 @@ object MoonEngine {
         val frame = (((dayOfYear - 1) * 24) + hourOfDay + 1).coerceIn(1, 8784)
 
         return MoonData(
-            raDeg = raDeg,
-            decDeg = decDeg,
+            raDeg = topoEq.raDeg,
+            decDeg = topoEq.decDeg,
             phaseNameEn = phaseEn,
             phaseNameFa = phaseFa,
             illuminationPercent = illuminationPercent,
             ageDays = ageDays,
             phaseAngleRad = iRad,
             distanceKm = distanceKm,
-            altitudeDeg = alt,
-            azimuthDeg = az,
+            altitudeDeg = horiz.altitudeDeg,
+            azimuthDeg = horiz.azimuthDeg,
+            librationLonDeg = librationLonDeg,
+            librationLatDeg = librationLatDeg,
+            brightLimbAngleDeg = brightLimbAngleDeg,
+            earthshinePercent = earthshinePercent,
+            angularDiameterArcmin = angularDiameterArcmin,
             moonriseTimeMs = riseMs,
             moonsetTimeMs = setMs,
             nasaFrameNumber = frame
         )
     }
-
-    private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
     fun getUpcomingMajorPhases(baseJd: Double): List<UpcomingPhaseInfo> {
         val currentMoon = calculateMoon(baseJd)
@@ -163,4 +233,5 @@ object MoonEngine {
         }.sortedBy { it.daysFromNow }
     }
 }
+
 

@@ -227,6 +227,91 @@ fun ObjectDetailModal(
                 )
             }
 
+            // High Precision System Feature Badges (Jupiter Moons / Moon Libration / Planet Phase Angle)
+            if (obj.id == "planet_jupiter") {
+                val jupSystem = remember(jd) { JupiterMoonsEngine.calculateJupiterMoons(jd) }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = if (isFa) "اقمار گالیله‌ای مشتری & لکه سرخ بزرگ" else "Galilean Moons & Great Red Spot",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AccentSecondary
+                        )
+                        val grsText = if (jupSystem.isGrsVisible) {
+                            if (isFa) "لکه سرخ بزرگ (GRS): هم‌اکنون روی قرص مشتری قابل رصد است" else "Great Red Spot (GRS): Currently Visible on disk"
+                        } else {
+                            if (isFa) "لکه سرخ بزرگ (GRS): در پشت یا سمت دور مشتری قرار دارد" else "Great Red Spot (GRS): On far side of Jupiter"
+                        }
+                        Text(text = grsText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            jupSystem.moons.forEach { m ->
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(text = if (isFa) m.moon.nameFa else m.moon.nameEn, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                    val statusStr = when (m.phenomenon) {
+                                        JupiterMoonsEngine.MoonPhenomenon.VISIBLE -> if (isFa) "رصدپذیر" else "Visible"
+                                        JupiterMoonsEngine.MoonPhenomenon.IN_TRANSIT -> if (isFa) "گذر" else "Transit"
+                                        JupiterMoonsEngine.MoonPhenomenon.OCCULTED -> if (isFa) "مختفی" else "Occulted"
+                                        JupiterMoonsEngine.MoonPhenomenon.IN_ECLIPSE -> if (isFa) "خسوف" else "Eclipsed"
+                                        JupiterMoonsEngine.MoonPhenomenon.SHADOW_TRANSIT -> if (isFa) "سایه" else "Shadow"
+                                    }
+                                    Text(text = statusStr, style = MaterialTheme.typography.bodySmall, color = AccentPrimary)
+                                    Text(
+                                        text = String.format("%.1f Rj", m.xRJ),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.Gray
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (obj.id == "moon_luna") {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = if (isFa) "رخ‌گردی (Libration) و زمین‌تاب ماه" else "Lunar Libration & Earthshine",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AccentSecondary
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(text = if (isFa) "رخ‌گردی در طول" else "Lon Libration", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                Text(text = String.format("%.2f°", moonData.librationLonDeg), style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Column {
+                                Text(text = if (isFa) "رخ‌گردی در عرض" else "Lat Libration", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                Text(text = String.format("%.2f°", moonData.librationLatDeg), style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Column {
+                                Text(text = if (isFa) "روشنایی زمین‌تاب" else "Earthshine", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                Text(text = String.format("%.1f%%", moonData.earthshinePercent), style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                }
+            }
+
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     text = if (isFa) "راهنما و راهکار رصد" else "Observation Tip",

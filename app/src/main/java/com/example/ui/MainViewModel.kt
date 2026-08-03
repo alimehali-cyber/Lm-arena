@@ -36,6 +36,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
+        // Sync local database cache for offline accessibility
+        viewModelScope.launch {
+            repository.syncCelestialCatalogIfNeeded()
+        }
+
         // Observe DB favorites and observation logs
         viewModelScope.launch {
             repository.favoritesFlow.collect { favs ->

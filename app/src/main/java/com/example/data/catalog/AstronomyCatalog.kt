@@ -5,6 +5,7 @@ import com.example.astro_engine.PlanetEngine
 import com.example.astro_engine.SunEngine
 import com.example.astro_engine.TimeEngine
 import com.example.domain.CelestialObject
+import com.example.domain.ConstellationData
 import com.example.domain.ObjectType
 
 object AstronomyCatalog {
@@ -343,6 +344,23 @@ object AstronomyCatalog {
             descriptionFa = "دورترین سیاره اصلی منظومه شمسی، غول یخی لاجوردی با بادهای مافوق صوت.",
             observationTipEn = "Requires binoculars or small telescope to resolve as a tiny blue star.",
             observationTipFa = "برای رصد آن به عنوان یک ستاره آبی کوچک نیازمند دوربین دوچشمی یا تلسکوپ هستید."
+        ),
+        CelestialObject(
+            id = "planet_pluto",
+            type = ObjectType.PLANET,
+            nameEn = "Pluto",
+            nameFa = "پلوتو",
+            raDeg = 301.0,
+            decDeg = -22.0,
+            magnitude = 15.1,
+            constellationEn = "Capricornus",
+            constellationFa = "بزغاله (جدی)",
+            distanceLightYears = 0.000620,
+            category = "Dwarf Planet",
+            descriptionEn = "Famous dwarf planet in the Kuiper Belt with heart-shaped nitrogen glacier Tombaugh Regio.",
+            descriptionFa = "سیاره کوتوله معروف کمربند کایپر با یخچال نیتروژنی قلبی شکل تومبا.",
+            observationTipEn = "Requires a large aperture telescope (10\"+) and a precise star chart.",
+            observationTipFa = "برای رصد آن به تلسکوپ با دهانه بزرگ (۱۰ اینچ به بالا) و نقشه دقیق نیاز دارید."
         )
     )
 
@@ -383,7 +401,8 @@ object AstronomyCatalog {
             "planet_jupiter" to PlanetEngine.PlanetType.JUPITER,
             "planet_saturn" to PlanetEngine.PlanetType.SATURN,
             "planet_uranus" to PlanetEngine.PlanetType.URANUS,
-            "planet_neptune" to PlanetEngine.PlanetType.NEPTUNE
+            "planet_neptune" to PlanetEngine.PlanetType.NEPTUNE,
+            "planet_pluto" to PlanetEngine.PlanetType.PLUTO
         )
 
         val dynamicPlanets = PLANETS_BASE.map { p ->
@@ -403,4 +422,76 @@ object AstronomyCatalog {
 
         return listOf(dynamicSun, dynamicMoon, ISS) + dynamicPlanets + starsAndDeepSky
     }
+
+    val DEFAULT_CONSTELLATIONS = listOf(
+        ConstellationData(
+            code = "ORI",
+            nameEn = "Orion",
+            nameFa = "صورت فلکی جبار (شکارچی)",
+            latinName = "Orion",
+            mainStars = listOf(
+                88.79 to 7.40,   // Betelgeuse
+                78.63 to -8.20,  // Rigel
+                81.28 to 6.35,   // Bellatrix
+                86.93 to -9.67,  // Saiph
+                84.05 to -1.94,  // Mintaka
+                84.53 to -1.20,  // Alnilam
+                85.19 to -1.98   // Alnitak
+            )
+        ),
+        ConstellationData(
+            code = "UMA",
+            nameEn = "Ursa Major",
+            nameFa = "خرس بزرگ (دب اکبر)",
+            latinName = "Ursa Major",
+            mainStars = listOf(
+                165.93 to 61.75, // Dubhe
+                165.46 to 56.38, // Merak
+                178.46 to 53.70, // Phecda
+                183.14 to 57.03, // Megrez
+                193.51 to 55.96, // Alioth
+                206.88 to 54.92, // Mizar
+                209.80 to 49.31  // Alkaid
+            )
+        ),
+        ConstellationData(
+            code = "CAS",
+            nameEn = "Cassiopeia",
+            nameFa = "ذات‌الکرسی (خداوند اورنگ)",
+            latinName = "Cassiopeia",
+            mainStars = listOf(
+                9.88 to 59.15,   // Schedar
+                1.15 to 59.15,   // Caph
+                14.18 to 60.72,  // Gamma Cas
+                21.45 to 60.23,  // Ruchbah
+                28.60 to 63.67   // Segin
+            )
+        ),
+        ConstellationData(
+            code = "CYG",
+            nameEn = "Cygnus",
+            nameFa = "ماکیان (قو)",
+            latinName = "Cygnus",
+            mainStars = listOf(
+                310.36 to 45.28, // Deneb
+                292.68 to 27.96, // Albireo
+                305.56 to 40.26, // Sadr
+                296.24 to 33.97, // Gienah
+                311.37 to 51.73  // Delta Cyg
+            )
+        ),
+        ConstellationData(
+            code = "SCO",
+            nameEn = "Scorpius",
+            nameFa = "عقرب (کژدم)",
+            latinName = "Scorpius",
+            mainStars = listOf(
+                247.35 to -26.43, // Antares
+                240.28 to -22.62, // Graffias
+                241.36 to -19.80, // Dschubba
+                252.17 to -37.10, // Sargas
+                262.69 to -37.03  // Shaula
+            )
+        )
+    )
 }
