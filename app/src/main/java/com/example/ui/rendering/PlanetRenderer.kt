@@ -15,7 +15,8 @@ object PlanetRenderer {
 
     fun drawPlanets(
         drawScope: DrawScope,
-        planets: List<Triple<PlanetEngine.PlanetType, PlanetEngine.PlanetPosition, CoordinateEngine.Horizontal>>
+        planets: List<Triple<PlanetEngine.PlanetType, PlanetEngine.PlanetPosition, CoordinateEngine.Horizontal>>,
+        frameTimeMs: Long
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
@@ -26,7 +27,7 @@ object PlanetRenderer {
             val center = Offset(px, py)
 
             when (pType) {
-                PlanetEngine.PlanetType.JUPITER -> drawJupiter(drawScope, center)
+                PlanetEngine.PlanetType.JUPITER -> drawJupiter(drawScope, center, frameTimeMs)
                 PlanetEngine.PlanetType.SATURN -> drawSaturn(drawScope, center)
                 PlanetEngine.PlanetType.MARS -> drawMars(drawScope, center)
                 PlanetEngine.PlanetType.VENUS -> drawVenus(drawScope, center)
@@ -38,130 +39,168 @@ object PlanetRenderer {
         }
     }
 
-    private fun drawJupiter(drawScope: DrawScope, center: Offset) {
-        val r = 10f
-        // Outer Glow
-        drawScope.drawCircle(color = Color(0xFFFBBF24).copy(alpha = 0.35f), radius = r * 2.2f, center = center)
+    private fun drawJupiter(drawScope: DrawScope, center: Offset, frameTimeMs: Long) {
+        val r = 11f
+        // Soft Vector Aura
+        drawScope.drawCircle(color = Color(0xFFFBBF24).copy(alpha = 0.22f), radius = r * 2.2f, center = center)
 
-        // Gas Giant Disk
+        // Core Disk with Horizontal Bands
         drawScope.drawCircle(
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFFFEF3C7),
-                    Color(0xFFD97706), // Great Equatorial Cloud Belt
-                    Color(0xFFFEF3C7),
-                    Color(0xFFB45309), // South Equatorial Belt
-                    Color(0xFFFDE68A)
-                ),
-                startY = center.y - r,
-                endY = center.y + r
-            ),
+            color = Color(0xFFFEF3C7),
             radius = r,
             center = center
         )
 
-        // Great Red Spot
-        drawScope.drawCircle(
-            color = Color(0xFFEF4444).copy(alpha = 0.9f),
-            radius = r * 0.28f,
-            center = Offset(center.x + r * 0.3f, center.y + r * 0.2f)
+        // Minimal Horizontal Vector Band Lines
+        val band1Y = center.y - r * 0.35f
+        val band2Y = center.y + r * 0.35f
+        drawScope.drawLine(
+            color = Color(0xFFD97706).copy(alpha = 0.85f),
+            start = Offset(center.x - r * 0.85f, band1Y),
+            end = Offset(center.x + r * 0.85f, band1Y),
+            strokeWidth = 2.2f
         )
+        drawScope.drawLine(
+            color = Color(0xFFB45309).copy(alpha = 0.85f),
+            start = Offset(center.x - r * 0.85f, band2Y),
+            end = Offset(center.x + r * 0.85f, band2Y),
+            strokeWidth = 2.2f
+        )
+
+        // Vector Outline
+        drawScope.drawCircle(color = Color(0xFFF59E0B), radius = r, center = center, style = Stroke(width = 1.2f))
+
+        // --- GALILEAN MOONS (Io, Europa, Ganymede, Callisto as tiny vector dots) ---
+        val moonDistances = listOf(r * 2.4f, r * 3.6f, r * 5.2f, r * 6.8f)
+        val moonSpeeds = listOf(0.0018f, 0.0012f, 0.0008f, 0.0005f)
+        val moonColors = listOf(Color(0xFFFDE047), Color(0xFFF1F5F9), Color(0xFFFBBF24), Color(0xFFCBD5E1))
+
+        for (i in 0 until 4) {
+            val dist = moonDistances[i]
+            val speed = moonSpeeds[i]
+            val angle = frameTimeMs * speed + i * 1.57f
+            val mx = center.x + dist * cos(angle)
+            val my = center.y + (dist * 0.15f) * sin(angle) // Slightly inclined orbit
+
+            drawScope.drawCircle(
+                color = moonColors[i],
+                radius = 1.8f,
+                center = Offset(mx, my)
+            )
+        }
     }
 
     private fun drawSaturn(drawScope: DrawScope, center: Offset) {
-        val r = 8.5f
+        val r = 9f
 
-        // Outer Glow
-        drawScope.drawCircle(color = Color(0xFFFDE047).copy(alpha = 0.3f), radius = r * 2.2f, center = center)
+        // Soft Outer Aura
+        drawScope.drawCircle(color = Color(0xFFFDE047).copy(alpha = 0.2f), radius = r * 2.2f, center = center)
 
-        // Tilted Saturn Rings
-        val ringRect = Rect(center.x - r * 2.4f, center.y - r * 0.7f, center.x + r * 2.4f, center.y + r * 0.7f)
+        // Minimal Tilted Saturn Ring Oval
+        val ringRect = Rect(center.x - r * 2.5f, center.y - r * 0.7f, center.x + r * 2.5f, center.y + r * 0.7f)
         drawScope.drawOval(
-            brush = Brush.horizontalGradient(
-                colors = listOf(
-                    Color(0xFFFDE047).copy(alpha = 0.8f),
-                    Color(0xFFCA8A04).copy(alpha = 0.9f),
-                    Color(0xFFFDE047).copy(alpha = 0.8f)
-                )
-            ),
+            color = Color(0xFFFDE047),
             topLeft = ringRect.topLeft,
             size = ringRect.size,
-            style = Stroke(width = 3.5f)
+            style = Stroke(width = 2.0f)
         )
 
-        // Saturn Body Disk
+        // Saturn Core Disk
         drawScope.drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Color(0xFFFEF08A), Color(0xFFCA8A04)),
-                center = center,
-                radius = r
-            ),
+            color = Color(0xFFFEF08A),
             radius = r,
             center = center
+        )
+        drawScope.drawCircle(
+            color = Color(0xFFCA8A04),
+            radius = r,
+            center = center,
+            style = Stroke(width = 1.2f)
         )
     }
 
     private fun drawMars(drawScope: DrawScope, center: Offset) {
         val r = 7f
-        drawScope.drawCircle(color = Color(0xFFEF4444).copy(alpha = 0.35f), radius = r * 2.2f, center = center)
+        drawScope.drawCircle(color = Color(0xFFEF4444).copy(alpha = 0.25f), radius = r * 2.2f, center = center)
         drawScope.drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Color(0xFFFCA5A5), Color(0xFFDC2626), Color(0xFF991B1B)),
-                center = center,
-                radius = r
-            ),
+            color = Color(0xFFEF4444),
             radius = r,
             center = center
         )
-        // Polar Ice Cap
+        // Vector Polar Ice Cap
         drawScope.drawCircle(
-            color = Color.White.copy(alpha = 0.85f),
-            radius = r * 0.25f,
-            center = Offset(center.x, center.y - r * 0.7f)
+            color = Color.White,
+            radius = r * 0.35f,
+            center = Offset(center.x, center.y - r * 0.6f)
+        )
+        drawScope.drawCircle(
+            color = Color(0xFFB91C1C),
+            radius = r,
+            center = center,
+            style = Stroke(width = 1.0f)
         )
     }
 
     private fun drawVenus(drawScope: DrawScope, center: Offset) {
-        val r = 8f
-        drawScope.drawCircle(color = Color(0xFFFEF08A).copy(alpha = 0.45f), radius = r * 2.5f, center = center)
+        val r = 8.5f
+        drawScope.drawCircle(color = Color(0xFFFEF08A).copy(alpha = 0.35f), radius = r * 2.5f, center = center)
         drawScope.drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Color.White, Color(0xFFFEF08A), Color(0xFFFDE047)),
-                center = center,
-                radius = r
-            ),
+            color = Color.White,
             radius = r,
             center = center
+        )
+        drawScope.drawCircle(
+            color = Color(0xFFFDE047),
+            radius = r,
+            center = center,
+            style = Stroke(width = 1.2f)
         )
     }
 
     private fun drawMercury(drawScope: DrawScope, center: Offset) {
         val r = 5.5f
-        drawScope.drawCircle(color = Color(0xFFE2E8F0).copy(alpha = 0.3f), radius = r * 2.0f, center = center)
         drawScope.drawCircle(
-            color = Color(0xFFCBD5E1),
+            color = Color(0xFFE2E8F0),
             radius = r,
             center = center
+        )
+        drawScope.drawCircle(
+            color = Color(0xFF94A3B8),
+            radius = r,
+            center = center,
+            style = Stroke(width = 1.0f)
         )
     }
 
     private fun drawUranus(drawScope: DrawScope, center: Offset) {
-        val r = 6f
-        drawScope.drawCircle(color = Color(0xFF38BDF8).copy(alpha = 0.4f), radius = r * 2.0f, center = center)
+        val r = 6.5f
+        drawScope.drawCircle(color = Color(0xFF38BDF8).copy(alpha = 0.3f), radius = r * 2.0f, center = center)
         drawScope.drawCircle(
             color = Color(0xFF38BDF8),
             radius = r,
             center = center
         )
+        drawScope.drawCircle(
+            color = Color(0xFF0284C7),
+            radius = r,
+            center = center,
+            style = Stroke(width = 1.0f)
+        )
     }
 
     private fun drawNeptune(drawScope: DrawScope, center: Offset) {
-        val r = 5.5f
-        drawScope.drawCircle(color = Color(0xFF60A5FA).copy(alpha = 0.4f), radius = r * 2.0f, center = center)
+        val r = 6f
+        drawScope.drawCircle(color = Color(0xFF60A5FA).copy(alpha = 0.3f), radius = r * 2.0f, center = center)
         drawScope.drawCircle(
-            color = Color(0xFF2563EB),
+            color = Color(0xFF3B82F6),
             radius = r,
             center = center
+        )
+        drawScope.drawCircle(
+            color = Color(0xFF1D4ED8),
+            radius = r,
+            center = center,
+            style = Stroke(width = 1.0f)
         )
     }
 }

@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 import kotlin.math.sin
@@ -29,9 +30,9 @@ object MoonRenderer {
                 brush = Brush.radialGradient(
                     colors = listOf(Color.White, Color(0xFF60A5FA).copy(alpha = 0.6f), Color.Transparent),
                     center = center,
-                    radius = radius * 4.2f
+                    radius = radius * 4.0f
                 ),
-                radius = radius * 4.2f,
+                radius = radius * 4.0f,
                 center = center
             )
             drawScope.drawCircle(
@@ -39,133 +40,135 @@ object MoonRenderer {
                 radius = radius,
                 center = center
             )
+            drawScope.drawCircle(
+                color = Color(0xFF60A5FA),
+                radius = radius,
+                center = center,
+                style = Stroke(width = 1.5f)
+            )
             return
         }
 
-        // Dual-Layer Gentle Pulsing Glow Aura
-        // Outer Glow: Soft Pink (#D08AC2)
+        // 1. Dual-Layer Minimalist Vector Aura
+        // Outer Aura: Soft Cool Teal/Silver
         drawScope.drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFFD08AC2).copy(alpha = 0.35f * lightingState.bloomIntensity),
-                    Color(0xFFD08AC2).copy(alpha = 0.12f * lightingState.bloomIntensity),
+                    Color(0xFF38BDF8).copy(alpha = 0.25f * lightingState.bloomIntensity),
+                    Color(0xFF818CF8).copy(alpha = 0.10f * lightingState.bloomIntensity),
                     Color.Transparent
                 ),
                 center = center,
-                radius = radius * 2.8f * moonPulseScale
+                radius = radius * 2.6f * moonPulseScale
             ),
-            radius = radius * 2.8f * moonPulseScale,
+            radius = radius * 2.6f * moonPulseScale,
             center = center
         )
 
-        // Inner Glow: Warm Gold (#F7B731)
+        // Inner Aura: Lunar Silver
         drawScope.drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFFF7B731).copy(alpha = 0.5f * lightingState.bloomIntensity),
-                    Color(0xFFF7B731).copy(alpha = 0.18f * lightingState.bloomIntensity),
+                    Color(0xFFF1F5F9).copy(alpha = 0.40f * lightingState.bloomIntensity),
+                    Color(0xFFE2E8F0).copy(alpha = 0.15f * lightingState.bloomIntensity),
                     Color.Transparent
                 ),
                 center = center,
-                radius = radius * 1.8f * moonPulseScale
+                radius = radius * 1.6f * moonPulseScale
             ),
-            radius = radius * 1.8f * moonPulseScale,
+            radius = radius * 1.6f * moonPulseScale,
             center = center
         )
 
-        // Moon Base Tint (Blood red during lunar eclipse)
-        val moonBaseColor = if (isLunarEclipse) Color(0xFFB91C1C) else Color(0xFFE2E8F0)
+        // 2. Base Moon Disk (Silver/Cream, or Crimson Red during Lunar Eclipse)
+        val moonBaseColor = if (isLunarEclipse) Color(0xFFDC2626) else Color(0xFFF1F5F9)
 
-        // Base Moon Disk
         drawScope.drawCircle(
             color = moonBaseColor,
             radius = radius,
             center = center
         )
 
-        // Maria Basins / Crater Relief (Physical texture features)
-        val craterColor = if (isLunarEclipse) Color(0xFF7F1D1D) else Color(0xFF94A3B8)
-        drawScope.drawCircle(
-            color = craterColor.copy(alpha = 0.45f),
-            radius = radius * 0.32f,
-            center = Offset(center.x - radius * 0.25f, center.y - radius * 0.2f)
-        )
-        drawScope.drawCircle(
-            color = craterColor.copy(alpha = 0.40f),
-            radius = radius * 0.28f,
-            center = Offset(center.x + radius * 0.2f, center.y - radius * 0.3f)
-        )
-        drawScope.drawCircle(
-            color = craterColor.copy(alpha = 0.35f),
-            radius = radius * 0.38f,
-            center = Offset(center.x - radius * 0.1f, center.y + radius * 0.25f)
-        )
+        // 3. Minimalist Vector Craters (Clean geometric vector stroke rings - NO photorealistic textures)
+        val craterStrokeColor = if (isLunarEclipse) Color(0xFF991B1B).copy(alpha = 0.5f) else Color(0xFF94A3B8).copy(alpha = 0.4f)
+        val craterFillColor = if (isLunarEclipse) Color(0xFF7F1D1D).copy(alpha = 0.25f) else Color(0xFFCBD5E1).copy(alpha = 0.3f)
 
-        // Tycho crater bright ray spot
-        drawScope.drawCircle(
-            color = Color.White.copy(alpha = 0.75f),
-            radius = radius * 0.08f,
-            center = Offset(center.x + radius * 0.22f, center.y + radius * 0.4f)
-        )
+        // Mare Serenitatis vector crater
+        val c1Center = Offset(center.x - radius * 0.28f, center.y - radius * 0.22f)
+        val c1Radius = radius * 0.26f
+        drawScope.drawCircle(color = craterFillColor, radius = c1Radius, center = c1Center)
+        drawScope.drawCircle(color = craterStrokeColor, radius = c1Radius, center = c1Center, style = Stroke(width = 1.2f))
 
-        // Earthshine (faint unlit portion visibility during dark night)
-        if (illuminationPercent < 80.0 && lightingState.ambientBrightness < 0.2f) {
-            drawScope.drawCircle(
-                color = Color(0xFF38BDF8).copy(alpha = 0.08f),
-                radius = radius,
-                center = center
-            )
-        }
+        // Mare Tranquillitatis vector crater
+        val c2Center = Offset(center.x + radius * 0.24f, center.y - radius * 0.28f)
+        val c2Radius = radius * 0.22f
+        drawScope.drawCircle(color = craterFillColor, radius = c2Radius, center = c2Center)
+        drawScope.drawCircle(color = craterStrokeColor, radius = c2Radius, center = c2Center, style = Stroke(width = 1.0f))
 
-        // Phase Shadow Masking Path
+        // Mare Imbrium vector crater
+        val c3Center = Offset(center.x - radius * 0.12f, center.y + radius * 0.26f)
+        val c3Radius = radius * 0.30f
+        drawScope.drawCircle(color = craterFillColor, radius = c3Radius, center = c3Center)
+        drawScope.drawCircle(color = craterStrokeColor, radius = c3Radius, center = c3Center, style = Stroke(width = 1.2f))
+
+        // Tycho Ray Point (Tiny bright vector accent)
+        val tychoCenter = Offset(center.x + radius * 0.25f, center.y + radius * 0.42f)
+        drawScope.drawCircle(color = Color.White.copy(alpha = 0.9f), radius = radius * 0.08f, center = tychoCenter)
+
+        // 4. Accurate Phase Shadow Masking Path with Natural Feathered Terminator
         val phaseFrac = (illuminationPercent / 100.0).coerceIn(0.0, 1.0)
         if (phaseFrac < 0.98) {
-            val darkColor = Color(0xDD0F172A)
-            val shadowPath = Path()
+            val baseShadowColor = Color(0xDD0F172A)
+            val numSteps = 12
+            val stepAlpha = baseShadowColor.alpha / numSteps
+            val feather = radius * 0.10f // Soft penumbra feather width
 
-            val isWaxing = sin(phaseAngleRad) >= 0.0
-            val k = (2.0 * phaseFrac - 1.0).toFloat() // Range -1 to +1
+            for (step in 0 until numSteps) {
+                val t = (step.toFloat() / (numSteps - 1) - 0.5f) * 2f
+                val offset = t * feather
 
-            shadowPath.addArc(
-                oval = Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius),
-                startAngleDegrees = 90f,
-                sweepAngleDegrees = 180f
-            )
+                val shadowPath = Path()
+                val k = (2.0 * phaseFrac - 1.0).toFloat() // Range -1 to +1
 
-            val ovalWidth = radius * abs(k)
-            if (k > 0) {
-                // Gibbous phase shadow
-                shadowPath.arcTo(
-                    rect = Rect(center.x - ovalWidth, center.y - radius, center.x + ovalWidth, center.y + radius),
-                    startAngleDegrees = 270f,
-                    sweepAngleDegrees = -180f,
-                    forceMoveTo = false
+                shadowPath.addArc(
+                    oval = Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius),
+                    startAngleDegrees = 90f,
+                    sweepAngleDegrees = 180f
                 )
-            } else {
-                // Crescent phase shadow
-                shadowPath.arcTo(
-                    rect = Rect(center.x - ovalWidth, center.y - radius, center.x + ovalWidth, center.y + radius),
-                    startAngleDegrees = 270f,
-                    sweepAngleDegrees = 180f,
-                    forceMoveTo = false
+
+                val stepOvalWidth = (radius * abs(k) + offset).coerceAtLeast(0f)
+                if (k > 0) {
+                    // Gibbous phase shadow
+                    shadowPath.arcTo(
+                        rect = Rect(center.x - stepOvalWidth, center.y - radius, center.x + stepOvalWidth, center.y + radius),
+                        startAngleDegrees = 270f,
+                        sweepAngleDegrees = -180f,
+                        forceMoveTo = false
+                    )
+                } else {
+                    // Crescent phase shadow
+                    shadowPath.arcTo(
+                        rect = Rect(center.x - stepOvalWidth, center.y - radius, center.x + stepOvalWidth, center.y + radius),
+                        startAngleDegrees = 270f,
+                        sweepAngleDegrees = 180f,
+                        forceMoveTo = false
+                    )
+                }
+                shadowPath.close()
+
+                drawScope.drawPath(
+                    path = shadowPath,
+                    color = baseShadowColor.copy(alpha = stepAlpha)
                 )
             }
-
-            drawScope.drawPath(
-                path = shadowPath,
-                color = darkColor
-            )
         }
 
-        // 3D Sphere Specular Edge Depth
+        // 5. Delicate Perimeter Vector Contour Ring
         drawScope.drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.32f)),
-                center = center,
-                radius = radius
-            ),
+            color = Color.White.copy(alpha = 0.4f),
             radius = radius,
-            center = center
+            center = center,
+            style = Stroke(width = 1.2f)
         )
     }
 }

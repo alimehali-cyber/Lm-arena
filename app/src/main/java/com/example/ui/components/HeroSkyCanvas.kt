@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -49,6 +51,12 @@ data class StardustParticle(
     var size: Float,
     var alpha: Float,
     val color: Color
+)
+
+data class SelectedCelestialInfo(
+    val name: String,
+    val position: Offset,
+    val typeName: String? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -167,17 +175,17 @@ fun HeroSkyCanvas(
             .filter { it.altitudeDeg > -5.0 }
     }
 
-    // Catalog Stars
+    // Catalog Stars & Deep Sky Objects (Stars, Galaxies, Nebulae)
     val catalogStars = remember(simulatedJd, lastDeg, userLat) {
         AstronomyCatalog.getAllObjects(simulatedJd)
-            .filter { it.type == ObjectType.STAR && it.magnitude <= 4.5 }
-            .mapNotNull { star ->
+            .filter { (it.type == ObjectType.STAR || it.type == ObjectType.DEEP_SKY) && it.magnitude <= 4.5 }
+            .mapNotNull { celestialObj ->
                 val horiz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(star.raDeg, star.decDeg),
+                    CoordinateEngine.Equatorial(celestialObj.raDeg, celestialObj.decDeg),
                     lastDeg,
                     userLat
                 )
-                if (horiz.altitudeDeg > 0.0) Pair(star, horiz) else null
+                if (horiz.altitudeDeg > 0.0) Pair(celestialObj, horiz) else null
             }
     }
 
@@ -205,12 +213,87 @@ fun HeroSkyCanvas(
     // Auto-return job
     var autoReturnJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
+    // Selected Tapped Celestial Object
+    var selectedCelestial by remember { mutableStateOf<SelectedCelestialInfo?>(null) }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(320.dp)
             .clip(RoundedCornerShape(28.dp))
             .testTag("hero_sky_canvas_container")
+            .pointerInput(isFa, catalogStars, planetPositions, sunHoriz, moonData) {
+                detectTapGestures { tapOffset ->
+                    val canvasW = size.width.toFloat()
+                    val canvasH = size.height.toFloat()
+                    val touchRadius = 48.dp.toPx()
+
+                    var closestObj: SelectedCelestialInfo? = null
+                    var minDistance = Float.MAX_VALUE
+
+                    // Check Sun
+                    if (sunHoriz.altitudeDeg > -10.0) {
+                        val sunX = (sunHoriz.azimuthDeg / 360.0 * canvasW).toFloat()
+                        val sunY = (canvasH - ((sunHoriz.altitudeDeg + 10.0) / 100.0 * canvasH)).toFloat()
+                        val dist = hypot(tapOffset.x - sunX, tapOffset.y - sunY)
+                        if (dist < touchRadius && dist < minDistance) {
+                            minDistance = dist
+                            closestObj = SelectedCelestialInfo(
+                                name = if (isFa) "خورشید" else "Sun",
+                                position = Offset(sunX, sunY),
+                                typeName = if (isFa) "ستاره مرکزی منظومه شمسی" else "Central Star"
+                            )
+                        }
+                    }
+
+                    // Check Moon
+                    if (moonData.altitudeDeg > -5.0) {
+                        val moonX = (moonData.azimuthDeg / 360.0 * canvasW).toFloat()
+                        val moonY = (canvasH - ((moonData.altitudeDeg + 5.0) / 95.0 * canvasH)).toFloat().coerceIn(50.dp.toPx(), canvasH - 40.dp.toPx())
+                        val dist = hypot(tapOffset.x - moonX, tapOffset.y - moonY)
+                        if (dist < touchRadius && dist < minDistance) {
+                            minDistance = dist
+                            closestObj = SelectedCelestialInfo(
+                                name = if (isFa) "ماه" else "Moon",
+                                position = Offset(moonX, moonY),
+                                typeName = if (isFa) moonData.phaseNameFa else moonData.phaseNameEn
+                            )
+                        }
+                    }
+
+                    // Check Planets
+                    planetPositions.forEach { (pType, _, horiz) ->
+                        val px = (horiz.azimuthDeg / 360.0 * canvasW).toFloat()
+                        val py = (canvasH - ((horiz.altitudeDeg + 5.0) / 95.0 * canvasH)).toFloat()
+                        val dist = hypot(tapOffset.x - px, tapOffset.y - py)
+                        if (dist < touchRadius && dist < minDistance) {
+                            minDistance = dist
+                            closestObj = SelectedCelestialInfo(
+                                name = if (isFa) pType.nameFa else pType.nameEn,
+                                position = Offset(px, py),
+                                typeName = if (isFa) "سیاره" else "Planet"
+                            )
+                        }
+                    }
+
+                    // Check Catalog Stars / Deep Sky
+                    catalogStars.forEach { (celestialObj, horiz) ->
+                        val sx = (horiz.azimuthDeg / 360.0 * canvasW).toFloat()
+                        val sy = (canvasH - (horiz.altitudeDeg / 90.0 * canvasH)).toFloat()
+                        val dist = hypot(tapOffset.x - sx, tapOffset.y - sy)
+                        if (dist < touchRadius && dist < minDistance) {
+                            minDistance = dist
+                            closestObj = SelectedCelestialInfo(
+                                name = if (isFa) celestialObj.nameFa else celestialObj.nameEn,
+                                position = Offset(sx, sy),
+                                typeName = if (isFa) celestialObj.type.nameFa else celestialObj.type.nameEn
+                            )
+                        }
+                    }
+
+                    selectedCelestial = closestObj
+                }
+            }
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
                     onDragStart = { offset ->
@@ -290,13 +373,14 @@ fun HeroSkyCanvas(
             MilkyWayRenderer.drawMilkyWay(
                 drawScope = this,
                 galacticPoints = galacticPlanePoints,
-                lightingState = lightingState
+                lightingState = lightingState,
+                frameTimeMs = frameTimeMs
             )
 
-            // 3. Star Renderer (Spectral color types, independent twinkle, halos)
+            // 3. Star Renderer (Spectral color types, independent twinkle, halos, galaxies)
             StarRenderer.drawStars(
                 drawScope = this,
-                stars = catalogStars,
+                objects = catalogStars,
                 starVisibility = lightingState.starVisibility,
                 frameTimeMs = frameTimeMs
             )
@@ -341,21 +425,85 @@ fun HeroSkyCanvas(
             // 6. Planet Renderer
             PlanetRenderer.drawPlanets(
                 drawScope = this,
-                planets = planetPositions
-            )
-
-            // 7. Horizon Landscape Renderer (3D layered mountains with atmospheric mist & city lights)
-            LandscapeRenderer.drawHorizonLandscape(
-                drawScope = this,
-                lightingState = lightingState,
+                planets = planetPositions,
                 frameTimeMs = frameTimeMs
             )
+
+            // 7. Tapped Celestial Target Ring Overlay
+            selectedCelestial?.let { sel ->
+                val pulseRing = 1.0f + 0.12f * sin(frameTimeMs * 0.005f).toFloat()
+                drawCircle(
+                    color = Color(0xFF38BDF8).copy(alpha = 0.5f),
+                    radius = 28.dp.toPx() * pulseRing,
+                    center = sel.position,
+                    style = Stroke(width = 1.5.dp.toPx())
+                )
+                drawCircle(
+                    color = Color(0xFFFDE047),
+                    radius = 18.dp.toPx(),
+                    center = sel.position,
+                    style = Stroke(width = 1.8.dp.toPx())
+                )
+            }
 
             // 8. Particle Renderer (Stardust particles)
             ParticleRenderer.drawStardust(
                 drawScope = this,
                 particles = stardustParticles
             )
+        }
+
+        // --- FLOATING SELECTED CELESTIAL OBJECT NAME PILL ---
+        selectedCelestial?.let { sel ->
+            val xDp = with(LocalDensity.current) { sel.position.x.toDp() }
+            val yDp = with(LocalDensity.current) { sel.position.y.toDp() }
+
+            Surface(
+                onClick = { selectedCelestial = null },
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xEE0F172A),
+                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.7f)),
+                shadowElevation = 8.dp,
+                modifier = Modifier
+                    .offset(
+                        x = (xDp - 70.dp).coerceIn(12.dp, 200.dp),
+                        y = (yDp - 54.dp).coerceAtLeast(12.dp)
+                    )
+                    .testTag("selected_celestial_pill")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF38BDF8))
+                    )
+                    Text(
+                        text = sel.name,
+                        style = TextStyle(
+                            fontFamily = IranSans,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = Color.White
+                        )
+                    )
+                    if (sel.typeName != null) {
+                        Text(
+                            text = "• ${sel.typeName}",
+                            style = TextStyle(
+                                fontFamily = IranSans,
+                                fontWeight = FontWeight.Normal,
+                                fontSize = 11.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                        )
+                    }
+                }
+            }
         }
 
         // --- SUBTLE CANVAS FOOTER BADGES ---

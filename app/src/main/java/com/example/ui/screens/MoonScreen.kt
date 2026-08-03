@@ -434,31 +434,42 @@ private fun PhotographicMoonView(
                 val isWaxing = age < 14.765
 
                 if (ill < 0.98) {
-                    val shadowPath = Path()
-                    val sweepAngle = 180f
-                    val startAngle = if (isWaxing) 90f else -90f
+                    // Multi-pass Feathered Terminator Shadow Overlay for natural penumbra blending
+                    val targetShadowAlpha = 0.92f
+                    val numSteps = 16
+                    val stepAlpha = targetShadowAlpha / numSteps
+                    val feather = radius * 0.08f // Soft penumbra width (~22px feathering)
 
-                    shadowPath.addArc(
-                        Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius),
-                        startAngle,
-                        sweepAngle
-                    )
+                    for (step in 0 until numSteps) {
+                        val t = (step.toFloat() / (numSteps - 1) - 0.5f) * 2f
+                        val offset = t * feather
 
-                    val k = (2.0 * ill - 1.0).toFloat()
-                    val innerWidth = abs(k) * radius
-                    val innerRect = Rect(center.x - innerWidth, center.y - radius, center.x + innerWidth, center.y + radius)
+                        val shadowPath = Path()
+                        val sweepAngle = 180f
+                        val startAngle = if (isWaxing) 90f else -90f
 
-                    if (k >= 0) {
-                        shadowPath.arcTo(innerRect, if (isWaxing) 270f else 90f, -sweepAngle, false)
-                    } else {
-                        shadowPath.arcTo(innerRect, if (isWaxing) 90f else 270f, sweepAngle, false)
+                        shadowPath.addArc(
+                            Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius),
+                            startAngle,
+                            sweepAngle
+                        )
+
+                        val k = (2.0 * ill - 1.0).toFloat()
+                        val stepInnerWidth = (abs(k) * radius + offset).coerceAtLeast(0f)
+                        val innerRect = Rect(center.x - stepInnerWidth, center.y - radius, center.x + stepInnerWidth, center.y + radius)
+
+                        if (k >= 0) {
+                            shadowPath.arcTo(innerRect, if (isWaxing) 270f else 90f, -sweepAngle, false)
+                        } else {
+                            shadowPath.arcTo(innerRect, if (isWaxing) 90f else 270f, sweepAngle, false)
+                        }
+                        shadowPath.close()
+
+                        drawPath(
+                            path = shadowPath,
+                            color = Color(0xFF07070F).copy(alpha = stepAlpha)
+                        )
                     }
-                    shadowPath.close()
-
-                    drawPath(
-                        path = shadowPath,
-                        color = Color(0xFF0A0A12).copy(alpha = 0.90f)
-                    )
                 }
 
                 // Ambient Edge Limb Darkening
