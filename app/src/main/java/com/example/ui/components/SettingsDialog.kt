@@ -4,9 +4,13 @@ import android.content.Context
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
@@ -15,11 +19,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.catalog.AstronomyCatalog
 import com.example.domain.AppLanguage
@@ -203,76 +210,125 @@ fun SettingsDialog(
                     )
                 }
 
-                // Automatic ISS Pass Notifications Switch
-                var isIssAlertsEnabled by remember {
-                    mutableStateOf(
-                        context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
-                            .getBoolean("iss_auto_alerts_enabled", true)
-                    )
-                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isFa) "نوتیفیکیشن گذر ISS" else "ISS Pass Alerts",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                // Luxury Glassmorphic Developer Credit Card
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    Color(0x25FFFFFF),
+                                    Color(0x1200F0FF),
+                                    Color(0x1FA855F7)
+                                )
+                            )
                         )
-                        Text(
-                            text = if (isFa) "هشدار ۱۰ دقیقه قبل از گذرهای با چشم غیرمسلح" else "Alert 10 mins before visible passes",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        .border(
+                            border = BorderStroke(
+                                width = 1.5.dp,
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0x90FFFFFF),
+                                        Color(0x4038BDF8),
+                                        Color(0x80A855F7),
+                                        Color(0x60FFFFFF)
+                                    )
+                                )
+                            ),
+                            shape = RoundedCornerShape(20.dp)
                         )
-                    }
-
-                    Switch(
-                        checked = isIssAlertsEnabled,
-                        onCheckedChange = { checked ->
-                            isIssAlertsEnabled = checked
-                            context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
-                                .edit()
-                                .putBoolean("iss_auto_alerts_enabled", checked)
-                                .apply()
-
-                            if (checked) {
-                                com.example.notification.AstroNotificationManager.scheduleUpcomingIssPasses(context, uiState.userLocation)
-                            }
-                        }
-                    )
-                }
-
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                // Developer Credit Card
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        .padding(16.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        SafeAppLogo(
-                            modifier = Modifier.size(44.dp),
-                            cornerRadius = 8.dp
-                        )
-                        Column {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.15f),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
+                            modifier = Modifier.size(52.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                SafeAppLogo(
+                                    modifier = Modifier.size(38.dp),
+                                    cornerRadius = 10.dp
+                                )
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = if (isFa) "توسعه‌دهنده: " else "Developed by ",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                )
+                                Text(
+                                    text = "علی جعفری",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.ExtraBold,
+                                        letterSpacing = 0.5.sp
+                                    ),
+                                    color = Color(0xFF38BDF8)
+                                )
+                            }
+
                             Text(
-                                text = stringResource(R.string.developed_by),
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
+                                text = "Ali Jafari • RED Astronomy Engine",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
-                            Text(
-                                text = stringResource(R.string.telegram_id),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Telegram Glass Badge
+                            val intentContext = context
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF0088CC).copy(alpha = 0.2f),
+                                border = BorderStroke(1.dp, Color(0xFF0088CC).copy(alpha = 0.6f)),
+                                modifier = Modifier.clickable {
+                                    try {
+                                        val tgIntent = android.content.Intent(
+                                            android.content.Intent.ACTION_VIEW,
+                                            android.net.Uri.parse("https://t.me/EdisonWasAThief")
+                                        )
+                                        intentContext.startActivity(tgIntent)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "✈️",
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = "@EdisonWasAThief",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            letterSpacing = 0.3.sp
+                                        ),
+                                        color = Color(0xFF38BDF8)
+                                    )
+                                }
+                            }
                         }
                     }
                 }

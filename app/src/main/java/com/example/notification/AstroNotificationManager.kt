@@ -6,19 +6,24 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.astro_engine.ISSEngine
 import com.example.domain.CelestialObject
 import com.example.domain.UserLocation
+import java.util.concurrent.TimeUnit
 
 object AstroNotificationManager {
 
     /**
      * Calculates upcoming strictly visible ISS passes for the user's location over next 14 days
-     * and sets exact alarms 10 minutes prior to each pass. Zero false positives!
+     * and sets exact alarms 10 or 30 minutes prior to each pass.
      */
     fun scheduleUpcomingIssPasses(
         context: Context,
-        userLocation: UserLocation = UserLocation()
+        userLocation: UserLocation = UserLocation(),
+        leadMinutes: Int = 10
     ) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -42,7 +47,7 @@ object AstroNotificationManager {
         }
 
         for (pass in validPasses) {
-            val alertTimeMs = pass.startTimeMs - 10 * 60 * 1000L
+            val alertTimeMs = pass.startTimeMs - leadMinutes * 60 * 1000L
             if (alertTimeMs <= nowMs) continue
 
             val intent = Intent(context, AstroAlarmReceiver::class.java).apply {
@@ -53,9 +58,10 @@ object AstroNotificationManager {
                 putExtra(AstroAlarmReceiver.EXTRA_END_DIR, getAzimuthCardinal(pass.endAzimuthDeg))
                 putExtra(AstroAlarmReceiver.EXTRA_DURATION_SEC, pass.passDurationSec)
                 putExtra(AstroAlarmReceiver.EXTRA_CITY_NAME, userLocation.cityNameFa)
+                putExtra(AstroAlarmReceiver.EXTRA_LEAD_MINUTES, leadMinutes)
             }
 
-            val requestCode = (pass.startTimeMs / 1000).toInt()
+            val requestCode = (pass.startTimeMs / 1000).toInt() + (leadMinutes * 10)
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
                 requestCode,
@@ -73,7 +79,34 @@ object AstroNotificationManager {
                 alarmManager.set(AlarmManager.RTC_WAKEUP, alertTimeMs, pendingIntent)
             }
         }
+
+        // Also enqueue WorkManager periodic check
+        enqueueIssWorkManager(context)
     }
+
+    fun enqueueIssWorkManager(context: Context) {
+        try {
+            val workRequest = PeriodicWorkRequestBuilder<IssPassSchedulerWorker>(12, TimeUnit.HOURS)
+                .build()
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                WORK_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                workRequest
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun cancelIssWorkManager(context: Context) {
+        try {
+            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private const val WORK_NAME = "iss_pass_scheduler_work"
 
     /**
      * Schedules a custom observation notification alarm for an individual Celestial Object.

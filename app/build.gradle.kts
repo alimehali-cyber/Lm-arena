@@ -104,6 +104,7 @@ dependencies {
   // implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
+  implementation(libs.androidx.work.runtime.ktx)
   implementation(libs.coil.compose)
   implementation("org.shredzone.commons:commons-suncalc:3.7")
   implementation(libs.converter.moshi)

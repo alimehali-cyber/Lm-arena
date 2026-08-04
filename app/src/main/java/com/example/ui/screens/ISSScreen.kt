@@ -1,8 +1,14 @@
 package com.example.ui.screens
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -34,9 +40,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.astro_engine.ISSEngine
 import com.example.astro_engine.TimeEngine
 import com.example.domain.AppLanguage
+import com.example.notification.AstroNotificationManager
 import com.example.ui.MainUiState
 import com.example.ui.MainViewModel
 import com.example.util.toPersianDigits
@@ -83,6 +91,47 @@ fun ISSScreen(
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
     val context = LocalContext.current
+
+    val prefs = remember { context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE) }
+    var isAutoAlertEnabled by remember {
+        mutableStateOf(prefs.getBoolean("iss_auto_alerts_enabled", false))
+    }
+    var selectedLeadMinutes by remember {
+        mutableStateOf(prefs.getInt("iss_alert_lead_minutes", 10))
+    }
+
+    var showLeadTimeSelectionDialog by remember { mutableStateOf(false) }
+    var showPermissionRationaleDialog by remember { mutableStateOf(false) }
+    var pendingLeadMinutesChoice by remember { mutableStateOf(10) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        prefs.edit()
+            .putBoolean("iss_auto_alerts_enabled", true)
+            .putInt("iss_alert_lead_minutes", pendingLeadMinutesChoice)
+            .putFloat("user_lat", uiState.userLocation.latitude.toFloat())
+            .putFloat("user_lon", uiState.userLocation.longitude.toFloat())
+            .putString("user_city_name_fa", uiState.userLocation.cityNameFa)
+            .putString("user_city_name_en", uiState.userLocation.cityNameEn)
+            .apply()
+
+        isAutoAlertEnabled = true
+        selectedLeadMinutes = pendingLeadMinutesChoice
+
+        AstroNotificationManager.scheduleUpcomingIssPasses(
+            context = context,
+            userLocation = uiState.userLocation,
+            leadMinutes = pendingLeadMinutesChoice
+        )
+
+        Toast.makeText(
+            context,
+            if (isFa) "هشدار خودکار $pendingLeadMinutesChoice دقیقه قبل از گذرهای قابل مشاهده ISS فعال شد!"
+            else "Auto notification set for $pendingLeadMinutesChoice mins prior to visible passes!",
+            Toast.LENGTH_LONG
+        ).show()
+    }
 
     var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
     var tleData by remember { mutableStateOf(ISSEngine.TLEData()) }
@@ -166,6 +215,75 @@ fun ISSScreen(
         contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Section 0: Automatic ISS Notification Button (Placed above the Live Position Map)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("iss_auto_notification_button")
+                    .clickable {
+                        showLeadTimeSelectionDialog = true
+                    },
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = if (isAutoAlertEnabled) Color(0xFF2DC653).copy(alpha = 0.6f) else Color(0xFFA855F7).copy(alpha = 0.4f)
+                ),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isAutoAlertEnabled) Color(0xFF132A1C).copy(alpha = 0.7f) else MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isAutoAlertEnabled) Color(0xFF2DC653).copy(alpha = 0.2f) else Color(0xFFA855F7).copy(alpha = 0.2f),
+                        modifier = Modifier.size(46.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (isAutoAlertEnabled) Icons.Default.NotificationsActive else Icons.Default.NotificationsNone,
+                                contentDescription = "ISS Auto Notification",
+                                tint = if (isAutoAlertEnabled) Color(0xFF2DC653) else Color(0xFFA855F7),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isFa) "🔔 تنظیم هشدار خودکار گذرهای قابل مشاهده ISS" else "🔔 Automatic ISS Pass Notification",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isAutoAlertEnabled) {
+                                if (isFa) "✅ فعال: $selectedLeadMinutes دقیقه قبل از هر گذر قابل مشاهده با چشم غیرمسلح"
+                                else "✅ Active: $selectedLeadMinutes mins before visible passes"
+                            } else {
+                                if (isFa) "لمس کنید برای یادآوری ۱۰ یا ۳۰ دقیقه قبل از گذرهای با چشم غیرمسلح"
+                                else "Tap to schedule 10 or 30 min alerts before visible passes"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isAutoAlertEnabled) Color(0xFF2DC653) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
         // Section 1: Live ISS Position World Map / Fallback Card
         item {
             Column(
@@ -653,6 +771,281 @@ fun ISSScreen(
                 }
             }
         }
+    }
+
+    // Lead Time Selection Dialog (10 mins vs 30 mins)
+    if (showLeadTimeSelectionDialog) {
+        AlertDialog(
+            onDismissRequest = { showLeadTimeSelectionDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.NotificationsActive,
+                        contentDescription = null,
+                        tint = Color(0xFFA855F7)
+                    )
+                    Text(
+                        text = if (isFa) "زمان‌بندی هشدار خودکار ISS" else "ISS Auto Alert Schedule",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = if (isFa) 
+                            "زمان یادآوری قبل از آغاز گذرهای قابل مشاهده با چشم غیرمسلح را انتخاب کنید:"
+                        else 
+                            "Select notification lead time before visible passes:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    // Selection 1: 10 minutes
+                    OutlinedButton(
+                        onClick = {
+                            pendingLeadMinutesChoice = 10
+                            showLeadTimeSelectionDialog = false
+                            showPermissionRationaleDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, if (selectedLeadMinutes == 10 && isAutoAlertEnabled) Color(0xFF2DC653) else Color(0xFFA855F7))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(text = "⏱️", fontSize = 18.sp)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (isFa) "۱۰ دقیقه قبل از آغاز هر گذر" else "10 Minutes Before Pass",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (isFa) "هشدار ۱۰ دقیقه قبل از گذرهای قابل مشاهده با چشم غیرمسلح" else "Alert 10 mins before visible passes",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    // Selection 2: 30 minutes
+                    OutlinedButton(
+                        onClick = {
+                            pendingLeadMinutesChoice = 30
+                            showLeadTimeSelectionDialog = false
+                            showPermissionRationaleDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, if (selectedLeadMinutes == 30 && isAutoAlertEnabled) Color(0xFF2DC653) else Color(0xFFA855F7))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(text = "⏱️", fontSize = 18.sp)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = if (isFa) "۳۰ دقیقه قبل از آغاز هر گذر" else "30 Minutes Before Pass",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (isFa) "هشدار ۳۰ دقیقه قبل از گذرهای قابل مشاهده با چشم غیرمسلح" else "Alert 30 mins before visible passes",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    if (isAutoAlertEnabled) {
+                        TextButton(
+                            onClick = {
+                                prefs.edit().putBoolean("iss_auto_alerts_enabled", false).apply()
+                                isAutoAlertEnabled = false
+                                AstroNotificationManager.cancelIssWorkManager(context)
+                                showLeadTimeSelectionDialog = false
+                                Toast.makeText(context, if (isFa) "هشدار خودکار غیرفعال شد" else "Auto alerts disabled", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text(text = if (isFa) "❌ غیرفعال‌سازی هشدار خودکار" else "❌ Disable Auto Alerts")
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLeadTimeSelectionDialog = false }) {
+                    Text(text = if (isFa) "انصراف" else "Cancel")
+                }
+            }
+        )
+    }
+
+    // Permission Rationale Flow Dialog
+    if (showPermissionRationaleDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionRationaleDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(text = "🛡️", fontSize = 22.sp)
+                    Text(
+                        text = if (isFa) "دلیل نیاز به مجوز نوتیفیکیشن" else "Why Notification Permission?",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = if (isFa)
+                            "برنامه RED برای اطلاع‌رسانی دقیق گذرهای قابل مشاهده ایستگاه فضایی به مجوز نوتیفیکیشن نیاز دارد:"
+                        else
+                            "RED requires notification permission to alert you before visible ISS passes:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (isFa) "📡 ۱. محاسبه اختصاصی محلی" else "📡 1. Private Local Computation",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFA855F7)
+                            )
+                            Text(
+                                text = if (isFa) "موقعیت مکانی شما فقط درون دستگاه برای محاسبه مداری ISS استفاده می‌شود و هیچ اطلاعاتی ارسال نمی‌شود."
+                                else "Your location is processed strictly on device; no data leaves your phone.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+
+                            Text(
+                                text = if (isFa) "👁️ ۲. صرفاً گذرهای با چشم غیرمسلح" else "👁️ 2. Visible Passes Only",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2DC653)
+                            )
+                            Text(
+                                text = if (isFa) "تنها گذرهایی نوتیفیکیشن ایجاد می‌کنند که در آسمان تاریک شب و با چشم غیرمسلح کاملاً قابل رؤیت باشند."
+                                else "Only passes fully visible to the naked eye in dark skies generate notifications.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+
+                            Text(
+                                text = if (isFa) "⏰ ۳. زمان‌بندی هوشمند $pendingLeadMinutesChoice دقیقه‌ای" else "⏰ 3. Smart $pendingLeadMinutesChoice-Min Alert",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF38BDF8)
+                            )
+                            Text(
+                                text = if (isFa) "اعلان دقیقاً $pendingLeadMinutesChoice دقیقه قبل از شروع گذر ارسال شده و حتی پس از ری‌استارت گوشی به کمک WorkManager پایدار می‌ماند."
+                                else "Alert triggers $pendingLeadMinutesChoice mins prior and persists across reboot via WorkManager.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPermissionRationaleDialog = false
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            if (ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                ) != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                // Permission already granted
+                                prefs.edit()
+                                    .putBoolean("iss_auto_alerts_enabled", true)
+                                    .putInt("iss_alert_lead_minutes", pendingLeadMinutesChoice)
+                                    .putFloat("user_lat", uiState.userLocation.latitude.toFloat())
+                                    .putFloat("user_lon", uiState.userLocation.longitude.toFloat())
+                                    .putString("user_city_name_fa", uiState.userLocation.cityNameFa)
+                                    .putString("user_city_name_en", uiState.userLocation.cityNameEn)
+                                    .apply()
+
+                                isAutoAlertEnabled = true
+                                selectedLeadMinutes = pendingLeadMinutesChoice
+
+                                AstroNotificationManager.scheduleUpcomingIssPasses(
+                                    context = context,
+                                    userLocation = uiState.userLocation,
+                                    leadMinutes = pendingLeadMinutesChoice
+                                )
+
+                                Toast.makeText(
+                                    context,
+                                    if (isFa) "هشدار خودکار $pendingLeadMinutesChoice دقیقه قبل از گذرهای قابل مشاهده ISS فعال شد!"
+                                    else "Auto notification set for $pendingLeadMinutesChoice mins prior to visible passes!",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        } else {
+                            // Pre-Android 13
+                            prefs.edit()
+                                .putBoolean("iss_auto_alerts_enabled", true)
+                                .putInt("iss_alert_lead_minutes", pendingLeadMinutesChoice)
+                                .putFloat("user_lat", uiState.userLocation.latitude.toFloat())
+                                .putFloat("user_lon", uiState.userLocation.longitude.toFloat())
+                                .putString("user_city_name_fa", uiState.userLocation.cityNameFa)
+                                .putString("user_city_name_en", uiState.userLocation.cityNameEn)
+                                .apply()
+
+                            isAutoAlertEnabled = true
+                            selectedLeadMinutes = pendingLeadMinutesChoice
+
+                            AstroNotificationManager.scheduleUpcomingIssPasses(
+                                context = context,
+                                userLocation = uiState.userLocation,
+                                leadMinutes = pendingLeadMinutesChoice
+                            )
+
+                            Toast.makeText(
+                                context,
+                                if (isFa) "هشدار خودکار $pendingLeadMinutesChoice دقیقه قبل از گذرهای قابل مشاهده ISS فعال شد!"
+                                else "Auto notification set for $pendingLeadMinutesChoice mins prior to visible passes!",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                ) {
+                    Text(text = if (isFa) "متوجه شدم و موافقم" else "I Agree & Allow")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionRationaleDialog = false }) {
+                    Text(text = if (isFa) "انصراف" else "Cancel")
+                }
+            }
+        )
     }
 }
 

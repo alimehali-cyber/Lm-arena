@@ -80,7 +80,7 @@ fun HomeScreen(
 
     val sortedObjectsWithObs = remember(allObjects, lastDeg, sunHoriz, moonData, uiState.userLocation, uiState.bortleClass) {
         allObjects
-            .filter { it.id != "planet_earth" && it.type != ObjectType.SUN && it.id != "sun_sol" }
+            .filter { it.id != "planet_earth" && it.type != ObjectType.SUN && it.id != "sun_sol" && it.id != "sat_iss" && it.type != ObjectType.SATELLITE }
             .map { obj ->
                 val horiz = CoordinateEngine.equatorialToHorizontal(
                     CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg),

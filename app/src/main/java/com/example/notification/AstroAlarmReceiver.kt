@@ -34,6 +34,7 @@ class AstroAlarmReceiver : BroadcastReceiver() {
                 val endDir = intent.getStringExtra(EXTRA_END_DIR) ?: "شرق"
                 val durationSec = intent.getIntExtra(EXTRA_DURATION_SEC, 300)
                 val cityName = intent.getStringExtra(EXTRA_CITY_NAME) ?: "نورآباد ممسنی"
+                val leadMinutes = intent.getIntExtra(EXTRA_LEAD_MINUTES, 10)
 
                 showIssNotification(
                     context = context,
@@ -42,7 +43,8 @@ class AstroAlarmReceiver : BroadcastReceiver() {
                     startDir = startDir,
                     endDir = endDir,
                     durationSec = durationSec,
-                    cityName = cityName
+                    cityName = cityName,
+                    leadMinutes = leadMinutes
                 )
             }
             ACTION_TRIGGER_OBJECT_NOTIFICATION -> {
@@ -62,10 +64,11 @@ class AstroAlarmReceiver : BroadcastReceiver() {
 
     private fun rescheduleAllAlarms(context: Context) {
         val prefs = context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
-        val isIssAutoAlertEnabled = prefs.getBoolean("iss_auto_alerts_enabled", true)
+        val isIssAutoAlertEnabled = prefs.getBoolean("iss_auto_alerts_enabled", false)
+        val leadMinutes = prefs.getInt("iss_alert_lead_minutes", 10)
 
         if (isIssAutoAlertEnabled) {
-            AstroNotificationManager.scheduleUpcomingIssPasses(context)
+            AstroNotificationManager.scheduleUpcomingIssPasses(context, leadMinutes = leadMinutes)
         }
     }
 
@@ -76,16 +79,17 @@ class AstroAlarmReceiver : BroadcastReceiver() {
         startDir: String,
         endDir: String,
         durationSec: Int,
-        cityName: String
+        cityName: String,
+        leadMinutes: Int
     ) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         createChannels(notificationManager)
 
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val formattedTime = if (passTimeMs > 0) timeFormat.format(Date(passTimeMs)) else "۱۰ دقیقه دیگر"
+        val formattedTime = if (passTimeMs > 0) timeFormat.format(Date(passTimeMs)) else "$leadMinutes دقیقه دیگر"
         val durMinutes = (durationSec / 60).coerceAtLeast(1)
 
-        val title = "🛸 ایستگاه فضایی بین‌المللی — ۱۰ دقیقه دیگر!"
+        val title = "🛸 ایستگاه فضایی بین‌المللی — $leadMinutes دقیقه دیگر!"
         val contentText = "📍 شهر: $cityName | 🕐 زمان: $formattedTime | 📐 حداکثر ارتفاع: ${maxElev.toInt()}°\n🧭 مسیر: $startDir ➔ $endDir | ⏱ مدت: $durMinutes دقیقه"
 
         val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
@@ -159,6 +163,7 @@ class AstroAlarmReceiver : BroadcastReceiver() {
         const val EXTRA_END_DIR = "extra_end_dir"
         const val EXTRA_DURATION_SEC = "extra_duration_sec"
         const val EXTRA_CITY_NAME = "extra_city_name"
+        const val EXTRA_LEAD_MINUTES = "extra_lead_minutes"
 
         const val EXTRA_OBJECT_NAME = "extra_object_name"
         const val EXTRA_EVENT_TYPE = "extra_event_type"
