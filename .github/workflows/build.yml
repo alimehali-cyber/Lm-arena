@@ -41,9 +41,14 @@ jobs:
             gradle assembleDebug --no-daemon
           fi
 
+      - name: Diagnostic - List Generated APKs
+        run: |
+          echo "Generated APKs:"
+          find app/build/outputs -type f
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/**/*.apk
           if-no-files-found: warn
