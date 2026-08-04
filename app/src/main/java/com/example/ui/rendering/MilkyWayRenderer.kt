@@ -50,62 +50,8 @@ object MilkyWayRenderer {
             }
         }
 
-        when (theme) {
-            SkyCanvasTheme.CELESTIAL -> {
-                drawScope.drawPath(
-                    path = mwPath,
-                    color = Color(0xFF312E81).copy(alpha = finalAlpha * 0.5f),
-                    style = Stroke(
-                        width = drawScope.run { 50.dp.toPx() },
-                        cap = StrokeCap.Round,
-                        pathEffect = PathEffect.cornerPathEffect(45f)
-                    )
-                )
-                drawScope.drawPath(
-                    path = mwPath,
-                    color = Color(0xFF818CF8).copy(alpha = finalAlpha * 0.55f),
-                    style = Stroke(
-                        width = drawScope.run { 28.dp.toPx() },
-                        cap = StrokeCap.Round,
-                        pathEffect = PathEffect.cornerPathEffect(35f)
-                    )
-                )
-                drawScope.drawPath(
-                    path = mwPath,
-                    color = Color(0xFFFDE047).copy(alpha = finalAlpha * 0.65f),
-                    style = Stroke(
-                        width = drawScope.run { 12.dp.toPx() },
-                        cap = StrokeCap.Round,
-                        pathEffect = PathEffect.cornerPathEffect(25f)
-                    )
-                )
-                drawDustDots(drawScope, screenPoints, finalAlpha, frameTimeMs, theme)
-            }
-            SkyCanvasTheme.MONOCHROME -> {
-                drawScope.drawPath(
-                    path = mwPath,
-                    color = Color.White.copy(alpha = finalAlpha * 0.18f),
-                    style = Stroke(
-                        width = drawScope.run { 32.dp.toPx() },
-                        cap = StrokeCap.Round,
-                        pathEffect = PathEffect.cornerPathEffect(35f)
-                    )
-                )
-                drawDustDots(drawScope, screenPoints, finalAlpha, frameTimeMs, theme)
-            }
-            SkyCanvasTheme.FUN -> {
-                drawScope.drawPath(
-                    path = mwPath,
-                    color = Color(0xFFC084FC).copy(alpha = finalAlpha * 0.35f),
-                    style = Stroke(
-                        width = drawScope.run { 36.dp.toPx() },
-                        cap = StrokeCap.Round,
-                        pathEffect = PathEffect.cornerPathEffect(35f)
-                    )
-                )
-                drawDustDots(drawScope, screenPoints, finalAlpha, frameTimeMs, theme)
-            }
-        }
+        // Only draw soft ambient dust dots, no heavy squiggly path lines across the sky canvas
+        drawDustDots(drawScope, screenPoints, finalAlpha, frameTimeMs, theme)
     }
 
     private fun drawDustDots(

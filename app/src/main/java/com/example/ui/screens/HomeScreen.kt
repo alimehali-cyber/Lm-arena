@@ -108,6 +108,34 @@ fun HomeScreen(
         if (top10Avg in 1..100) top10Avg else 88
     }
 
+    // Astronomy Predictive Search State
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedPredictiveFilter by remember { mutableStateOf<String?>(null) }
+
+    // Predictive search filter logic
+    val filteredSearchResults = remember(searchQuery, selectedPredictiveFilter, sortedObjectsWithObs) {
+        val q = searchQuery.trim().lowercase()
+        sortedObjectsWithObs.filter { (obj, horiz, obs) ->
+            val matchesQuery = if (q.isEmpty()) true else {
+                obj.nameFa.lowercase().contains(q) ||
+                obj.nameEn.lowercase().contains(q) ||
+                obj.constellationFa.lowercase().contains(q) ||
+                obj.constellationEn.lowercase().contains(q) ||
+                obj.category.lowercase().contains(q)
+            }
+
+            val matchesFilter = when (selectedPredictiveFilter) {
+                "PLANET" -> obj.type == ObjectType.PLANET || obj.type == ObjectType.SUN || obj.type == ObjectType.MOON
+                "STAR" -> obj.type == ObjectType.STAR
+                "DEEP_SKY" -> obj.type == ObjectType.DEEP_SKY
+                "VISIBLE" -> horiz.altitudeDeg > 0.0
+                else -> true
+            }
+
+            matchesQuery && matchesFilter
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -208,129 +236,7 @@ fun HomeScreen(
             )
         }
 
-        // 2. CONDITIONS CARD — "کجارو ببینیم؟" (Where to Look?)
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("home_conditions_card"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = BackgroundCard.copy(alpha = 0.85f)
-                ),
-                border = BorderStroke(1.dp, CardBorder)
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Title row with Progress Ring
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (isFa) "کجارو ببینیم؟" else "Sky Conditions",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary
-                        )
-
-                        // Circular Progress Ring
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = if (isFa) "عالی" else "Excellent",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = StatusExcellent
-                                )
-                            }
-
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.size(48.dp)
-                            ) {
-                                androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                                    val strokeWidth = 5.dp.toPx()
-                                    // Track
-                                    drawCircle(
-                                        color = Color.White.copy(alpha = 0.1f),
-                                        style = Stroke(width = strokeWidth)
-                                    )
-                                    // Ring Fill
-                                    drawArc(
-                                        brush = Brush.sweepGradient(
-                                            colors = listOf(AccentPrimary, AccentSecondary, AccentPrimary)
-                                        ),
-                                        startAngle = -90f,
-                                        sweepAngle = (overallQualityPercent / 100f) * 360f,
-                                        useCenter = false,
-                                        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                                    )
-                                }
-                                Text(
-                                    text = if (isFa) "${overallQualityPercent}٪".toPersianDigits() else "$overallQualityPercent%",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = TextPrimary
-                                )
-                            }
-                        }
-                    }
-
-                    // 2x2 Grid Info Tiles
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            // Tile 1: Observation status
-                            InfoTile(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.Visibility,
-                                label = if (isFa) "آیا رصد ممکن است؟" else "Possible?",
-                                value = if (isFa) "بله — شرایط ایده‌آل" else "Yes — Ideal",
-                                valueColor = StatusExcellent
-                            )
-
-                            // Tile 2: Direction
-                            InfoTile(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.Explore,
-                                label = if (isFa) "کجا را نگاه کنم؟" else "Look Direction",
-                                value = if (isFa) "جنوب‌غربی (مشتری و ماه)" else "South-West (Jupiter)"
-                            )
-                        }
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            // Tile 3: Outdoor value
-                            InfoTile(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.DirectionsWalk,
-                                label = if (isFa) "ارزش بیرون رفتن؟" else "Worth Going Out?",
-                                value = if (isFa) "فوق‌العاده ارزش دارد" else "Highly Worth It",
-                                valueColor = StatusExcellent
-                            )
-
-                            // Tile 4: Best Time
-                            InfoTile(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.Schedule,
-                                label = if (isFa) "بهترین زمان؟" else "Peak Dark Time",
-                                value = if (isFa) peakDarkText.toPersianDigits() else peakDarkText
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. TONIGHT'S HIGHLIGHTS CARD — "خب امشب چی داریم؟" (What's Tonight?)
+        // 2. TONIGHT'S HIGHLIGHTS CARD — "خب امشب چی داریم؟" (What's Tonight?)
         item {
             Card(
                 modifier = Modifier
@@ -418,6 +324,236 @@ fun HomeScreen(
                                     viewModel.openObjectDetail(obj)
                                 }
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. INTERACTIVE ASTRONOMY SEARCH BAR WITH PREDICTIVE OPTIONS (AT BOTTOM OF HOME SCREEN)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("home_astronomy_search_card"),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // Header Title
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search Objects",
+                            tint = AccentPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = if (isFa) "جستجوی هوشمند اجرام آسمان" else "Interactive Sky Search",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // Modern Predictive Search Input
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("home_astronomy_search_input"),
+                        placeholder = {
+                            Text(
+                                text = if (isFa) "نام سیاره، ستاره یا سحابی (مثلا مشتری، شباهنگ)..." else "Search planets, stars, nebulae...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = AccentPrimary
+                            )
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentPrimary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                        )
+                    )
+
+                    // Predictive Quick Filter Chips Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val filters = if (isFa) {
+                            listOf(
+                                null to "همه",
+                                "VISIBLE" to "👀 قابل رصد",
+                                "PLANET" to "🪐 سیارات",
+                                "STAR" to "✨ ستاره‌ها",
+                                "DEEP_SKY" to "🌌 عمق آسمان"
+                            )
+                        } else {
+                            listOf(
+                                null to "All",
+                                "VISIBLE" to "👀 Visible",
+                                "PLANET" to "🪐 Planets",
+                                "STAR" to "✨ Stars",
+                                "DEEP_SKY" to "🌌 Deep Sky"
+                            )
+                        }
+
+                        filters.forEach { (key, label) ->
+                            val isSelected = selectedPredictiveFilter == key
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    selectedPredictiveFilter = if (isSelected) null else key
+                                },
+                                label = {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp)
+                                    )
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = AccentPrimary.copy(alpha = 0.25f),
+                                    selectedLabelColor = AccentPrimary
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = isSelected,
+                                    borderColor = if (isSelected) AccentPrimary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                                )
+                            )
+                        }
+                    }
+
+                    // Predictive Search Suggestion Options List
+                    val displayedPredictiveItems = remember(filteredSearchResults) {
+                        filteredSearchResults.take(6)
+                    }
+
+                    if (displayedPredictiveItems.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (isFa) "هیچ جرم متناسبی پیدا نشد." else "No matching celestial object found.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            displayedPredictiveItems.forEach { (obj, horiz, obs) ->
+                                val icon = when (obj.type) {
+                                    ObjectType.PLANET -> "🪐"
+                                    ObjectType.MOON -> "🌙"
+                                    ObjectType.DEEP_SKY -> "🌌"
+                                    ObjectType.STAR -> "⭐"
+                                    ObjectType.SATELLITE -> "🛰️"
+                                    ObjectType.SUN -> "☀️"
+                                }
+
+                                val riseSetStr = remember(obj, uiState.userLocation, jd, isFa) {
+                                    val rst = CoordinateEngine.calculateRiseSetTransit(
+                                        raDeg = obj.raDeg,
+                                        decDeg = obj.decDeg,
+                                        latDeg = uiState.userLocation.latitude,
+                                        lonDeg = uiState.userLocation.longitude,
+                                        jd = jd,
+                                        isFa = isFa
+                                    )
+                                    if (isFa) "طلوع: ${rst.riseTimeStr} | غروب: ${rst.setTimeStr}" else "Rise: ${rst.riseTimeStr} | Set: ${rst.setTimeStr}"
+                                }
+
+                                Surface(
+                                    onClick = { viewModel.openObjectDetail(obj) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("predictive_search_item_${obj.id}"),
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text(text = icon, fontSize = 20.sp)
+                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text(
+                                                    text = if (isFa) obj.nameFa else obj.nameEn,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                Text(
+                                                    text = riseSetStr,
+                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                                    color = AccentPrimary
+                                                )
+                                            }
+                                        }
+
+                                        val altInt = horiz.altitudeDeg.toInt()
+                                        val statusBadge = if (horiz.altitudeDeg > 0.0) {
+                                            if (isFa) "ارتفاع ${altInt}°".toPersianDigits() else "Alt ${altInt}°"
+                                        } else {
+                                            if (isFa) "زیر افق" else "Below Horizon"
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = if (horiz.altitudeDeg > 0.0) StatusExcellent.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f)
+                                        ) {
+                                            Text(
+                                                text = statusBadge,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                                color = if (horiz.altitudeDeg > 0.0) StatusExcellent else Color.Gray
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

@@ -62,10 +62,13 @@ fun FavoritesHistoryDialog(
             Box(modifier = Modifier.height(380.dp)) {
                 if (selectedTabState == 0) {
                     if (favoriteObjects.isEmpty()) {
-                        Box(
+                        Column(
                             modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
+                            SafeAppLogo(modifier = Modifier.size(48.dp), cornerRadius = 10.dp)
+                            Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = stringResource(R.string.no_favorites_yet),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -111,10 +114,13 @@ fun FavoritesHistoryDialog(
                     }
                 } else {
                     if (uiState.observationLogs.isEmpty()) {
-                        Box(
+                        Column(
                             modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
+                            SafeAppLogo(modifier = Modifier.size(48.dp), cornerRadius = 10.dp)
+                            Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = if (isFa) "دفترچه رصد شما خالی است." else "Observation journal is empty.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
