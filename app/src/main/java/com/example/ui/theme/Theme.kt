@@ -28,37 +28,37 @@ private val SpaceColorScheme = darkColorScheme(
 private val OledSpaceColorScheme = darkColorScheme(
     primary = AccentPrimary,
     onPrimary = TextPrimary,
-    primaryContainer = Color(0x26A855F7),
+    primaryContainer = Color(0x33A855F7),
     onPrimaryContainer = TextPrimary,
     secondary = AccentSecondary,
     onSecondary = TextPrimary,
     tertiary = AccentTertiary,
     onTertiary = TextPrimary,
     background = Color(0xFF000000),
-    onBackground = TextPrimary,
-    surface = Color(0xFF0A0A0E),
-    onSurface = TextPrimary,
-    surfaceVariant = Color(0xFF14141A),
-    onSurfaceVariant = TextSecondary,
-    outline = CardBorder
+    onBackground = Color(0xFFFFFFFF),
+    surface = Color(0xFF000000),
+    onSurface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFF080808),
+    onSurfaceVariant = Color(0xFFA1A1AA),
+    outline = Color(0xFF27272A)
 )
 
 private val LightSpaceColorScheme = lightColorScheme(
-    primary = Color(0xFF7C3AED),
+    primary = Color(0xFF6D28D9),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFEDE9FE),
-    onPrimaryContainer = Color(0xFF4C1D95),
-    secondary = Color(0xFFC026D3),
+    primaryContainer = Color(0xFFDDD6FE),
+    onPrimaryContainer = Color(0xFF2E1065),
+    secondary = Color(0xFFA21CAF),
     onSecondary = Color(0xFFFFFFFF),
-    tertiary = Color(0xFF4F46E5),
+    tertiary = Color(0xFF3730A3),
     onTertiary = Color(0xFFFFFFFF),
-    background = Color(0xFFF1F5F9),
+    background = Color(0xFFF8FAFC),
     onBackground = Color(0xFF0F172A),
     surface = Color(0xFFFFFFFF),
     onSurface = Color(0xFF0F172A),
     surfaceVariant = Color(0xFFE2E8F0),
     onSurfaceVariant = Color(0xFF334155),
-    outline = Color(0xFFCBD5E1)
+    outline = Color(0xFF94A3B8)
 )
 
 @Composable

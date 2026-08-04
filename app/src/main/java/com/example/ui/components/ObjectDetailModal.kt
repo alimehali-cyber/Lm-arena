@@ -1,12 +1,18 @@
 package com.example.ui.components
 
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,12 +20,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.astro_engine.*
+import com.example.data.catalog.PhysicalData
 import com.example.domain.*
+import com.example.notification.AstroNotificationManager
 import com.example.ui.*
 import com.example.ui.theme.*
 
@@ -31,6 +40,7 @@ fun ObjectDetailModal(
     viewModel: MainViewModel,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     val isFa = uiState.language == AppLanguage.PERSIAN
 
     val jd = remember { TimeEngine.getJulianDate() }
@@ -59,377 +69,438 @@ fun ObjectDetailModal(
             sunAltitudeDeg = sunHoriz.altitudeDeg,
             moonIlluminationPercent = moonData.illuminationPercent,
             objectMagnitude = obj.magnitude,
-            bortleClass = uiState.bortleClass
+            bortleClass = uiState.bortleClass,
+            objectType = obj.type,
+            objectId = obj.id
+        )
+    }
+
+    val physicalProps = remember(obj) { PhysicalData.getPhysicalProperties(obj) }
+    val coolFacts = remember(obj) { PhysicalData.getCoolFactsFa(obj) }
+
+    val riseSetTransit = remember(obj, uiState.userLocation, jd, isFa) {
+        CoordinateEngine.calculateRiseSetTransit(
+            raDeg = obj.raDeg,
+            decDeg = obj.decDeg,
+            latDeg = uiState.userLocation.latitude,
+            lonDeg = uiState.userLocation.longitude,
+            jd = jd,
+            isFa = isFa
         )
     }
 
     var showAddLogDialog by remember { mutableStateOf(false) }
+    var showNotificationSheet by remember { mutableStateOf(false) }
+    var showScientificCoords by remember { mutableStateOf(false) }
+
     var notesInput by remember { mutableStateOf("") }
     var ratingInput by remember { mutableStateOf(5) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = BackgroundCard,
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = Modifier.testTag("object_detail_modal")
     ) {
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
+                .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Header Row: Name & Favorite Button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (isFa) obj.nameFa else obj.nameEn,
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    val constName = if (isFa) obj.constellationFa else obj.constellationEn
-                    Text(
-                        text = "$constName • ${obj.category}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                IconButton(
-                    onClick = { viewModel.toggleCurrentDetailFavorite() },
-                    modifier = Modifier.testTag("modal_favorite_button")
-                ) {
-                    Icon(
-                        imageVector = if (uiState.isDetailFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
-                        contentDescription = "Favorite",
-                        tint = if (uiState.isDetailFavorite) AccentPrimary else Color.Gray,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
-
-            // Observability Badge Banner
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = obs.level.color.copy(alpha = 0.15f),
-                border = ButtonDefaults.outlinedButtonBorder
-            ) {
+            item {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (isFa) "امتیاز و وضعیت رصدپذیری" else "Observability Status",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = obs.level.color
-                        )
-                        Text(
-                            text = if (isFa) obs.level.nameFa else obs.level.nameEn,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = obs.level.color
-                        )
-                        Text(
-                            text = if (isFa) obs.bestObservationTimeFa else obs.bestObservationTimeEn,
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = if (isFa) obj.nameFa else obj.nameEn,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
+                        val constName = if (isFa) obj.constellationFa else obj.constellationEn
+                        Text(
+                            text = "$constName • ${obj.category}",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
-                    Text(
-                        text = "${obs.scorePercent}%",
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                        color = obs.level.color
-                    )
-                }
-            }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        IconButton(
+                            onClick = { showNotificationSheet = true },
+                            modifier = Modifier.testTag("modal_notification_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Notifications,
+                                contentDescription = "Set Observation Notification",
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
 
-            // Equatorial & Horizontal Scientific Data Matrix
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = if (isFa) "مختصات و داده‌های علمی نجومی" else "Scientific Astronomical Data",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(text = "RA (بعد)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(text = CoordinateEngine.formatRA(obj.raDeg), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                        }
-                        Column {
-                            Text(text = "Dec (میل)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(text = CoordinateEngine.formatDec(obj.decDeg), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                        }
-                        Column {
-                            Text(text = "Magnitude (قدر)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            val magStr = String.format("%.1f", obj.magnitude)
-                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(magStr) else magStr, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(text = if (isFa) "ارتفاع (Altitude)" else "Altitude", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            val altStr = String.format("%.1f°", horiz.altitudeDeg)
-                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(altStr) else altStr, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                        }
-                        Column {
-                            Text(text = if (isFa) "سمت (Azimuth)" else "Azimuth", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            val azStr = String.format("%.1f°", horiz.azimuthDeg)
-                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(azStr) else azStr, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                        }
-                        Column {
-                            Text(text = if (isFa) "فاصله" else "Distance", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            val distStr = if (obj.distanceLightYears < 0.001) "< 1 AU" else String.format("%,.0f ly", obj.distanceLightYears)
-                            Text(text = if (isFa) TimeEngine.formatPersianNumbers(distStr) else distStr, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                        IconButton(
+                            onClick = { viewModel.toggleCurrentDetailFavorite() },
+                            modifier = Modifier.testTag("modal_favorite_button")
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isDetailFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
+                                contentDescription = "Favorite",
+                                tint = if (uiState.isDetailFavorite) AccentPrimary else Color.Gray,
+                                modifier = Modifier.size(28.dp)
+                            )
                         }
                     }
                 }
             }
 
-            // Rise, Transit, Set Times Card
-            val riseSetTransit = remember(obj, uiState.userLocation, jd, isFa) {
-                CoordinateEngine.calculateRiseSetTransit(
-                    raDeg = obj.raDeg,
-                    decDeg = obj.decDeg,
-                    latDeg = uiState.userLocation.latitude,
-                    lonDeg = uiState.userLocation.longitude,
-                    jd = jd,
-                    isFa = isFa
-                )
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+            // Observability Badge Banner
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    color = obs.level.color.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, obs.level.color.copy(alpha = 0.3f))
                 ) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Schedule,
-                            contentDescription = null,
-                            tint = AccentPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = if (isFa) "زمان‌بندی طلوع، اوج ارتفاع و غروب امروز" else "Rise, Transit & Set Schedule Today",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontSize = 15.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // Rise
-                        Column(horizontalAlignment = Alignment.Start) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                text = if (isFa) "🌅 طلوع" else "🌅 Rise",
+                                text = if (isFa) "امتیاز رصدپذیری لحظه‌ای" else "Live Observability Score",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = obs.level.color
                             )
                             Text(
-                                text = riseSetTransit.riseTimeStr,
+                                text = if (isFa) obs.level.nameFa else obs.level.nameEn,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = obs.level.color
+                            )
+                            Text(
+                                text = if (isFa) obs.bestObservationTimeFa else obs.bestObservationTimeEn,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
 
-                        // Transit (Meridian Peak)
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = if (isFa) "☀️ اوج ارتفاع (ترانزیت)" else "☀️ Peak Transit",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = riseSetTransit.transitTimeStr,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = AccentPrimary
-                            )
-                        }
-
-                        // Set
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = if (isFa) "🌇 غروب" else "🌇 Set",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = riseSetTransit.setTimeStr,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        Text(
+                            text = "${obs.scorePercent}%",
+                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                            color = obs.level.color
+                        )
                     }
                 }
             }
 
-            // Description & Observation Tips
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = if (isFa) "توضیحات علمی" else "Scientific Description",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = AccentPrimary
-                )
-                Text(
-                    text = if (isFa) obj.descriptionFa else obj.descriptionEn,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            // High Precision System Feature Badges (Jupiter Moons / Moon Libration / Planet Phase Angle)
-            if (obj.id == "planet_jupiter") {
-                val jupSystem = remember(jd) { JupiterMoonsEngine.calculateJupiterMoons(jd) }
+            // MATHEMATICALLY DERIVED PHYSICAL PROPERTIES CARD
+            item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                 ) {
                     Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = if (isFa) "اقمار گالیله‌ای مشتری & لکه سرخ بزرگ" else "Galilean Moons & Great Red Spot",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = AccentSecondary
-                        )
-                        val grsText = if (jupSystem.isGrsVisible) {
-                            if (isFa) "لکه سرخ بزرگ (GRS): هم‌اکنون روی قرص مشتری قابل رصد است" else "Great Red Spot (GRS): Currently Visible on disk"
-                        } else {
-                            if (isFa) "لکه سرخ بزرگ (GRS): در پشت یا سمت دور مشتری قرار دارد" else "Great Red Spot (GRS): On far side of Jupiter"
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(text = "🌐", fontSize = 18.sp)
+                            Text(
+                                text = if (isFa) "مشخصات فیزیکی و محاسباتی مراجع" else "Derived Physical Properties",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
-                        Text(text = grsText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PropertyRow(
+                                label = if (isFa) "📏 ابعاد و قطر" else "📏 Size / Diameter",
+                                value = if (isFa) physicalProps.diameterDisplayFa else physicalProps.diameterDisplayEn
+                            )
+                            PropertyRow(
+                                label = if (isFa) "⚖️ جرم تقریبی" else "⚖️ Approximate Mass",
+                                value = if (isFa) physicalProps.massKgDisplayFa else physicalProps.massKgDisplayEn
+                            )
+                            PropertyRow(
+                                label = if (isFa) "🌍 گرانش سطحی" else "🌍 Surface Gravity",
+                                value = if (isFa) physicalProps.gravityMssDisplayFa else physicalProps.gravityMssDisplayEn
+                            )
+                            PropertyRow(
+                                label = if (isFa) "📡 فاصله از زمین" else "📡 Distance from Earth",
+                                value = if (isFa) physicalProps.distanceDisplayFa else physicalProps.distanceDisplayEn
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Rise, Transit, Set Schedule Card
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = if (isFa) "زمان‌بندی دقیق طلوع، ترانزیت و غروب" else "Precise Schedule Today",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            jupSystem.moons.forEach { m ->
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(text = if (isFa) m.moon.nameFa else m.moon.nameEn, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                                    val statusStr = when (m.phenomenon) {
-                                        JupiterMoonsEngine.MoonPhenomenon.VISIBLE -> if (isFa) "رصدپذیر" else "Visible"
-                                        JupiterMoonsEngine.MoonPhenomenon.IN_TRANSIT -> if (isFa) "گذر" else "Transit"
-                                        JupiterMoonsEngine.MoonPhenomenon.OCCULTED -> if (isFa) "مختفی" else "Occulted"
-                                        JupiterMoonsEngine.MoonPhenomenon.IN_ECLIPSE -> if (isFa) "خسوف" else "Eclipsed"
-                                        JupiterMoonsEngine.MoonPhenomenon.SHADOW_TRANSIT -> if (isFa) "سایه" else "Shadow"
-                                    }
-                                    Text(text = statusStr, style = MaterialTheme.typography.bodySmall, color = AccentPrimary)
-                                    Text(
-                                        text = String.format("%.1f Rj", m.xRJ),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color.Gray
-                                    )
+                            Column(horizontalAlignment = Alignment.Start) {
+                                Text(
+                                    text = if (isFa) "🌅 طلوع" else "🌅 Rise",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = riseSetTransit.riseTimeStr,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = if (isFa) "☀️ اوج ارتفاع (ترانزیت)" else "☀️ Peak Transit",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = riseSetTransit.transitTimeStr,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = AccentPrimary
+                                )
+                            }
+
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = if (isFa) "🌇 غروب" else "🌇 Set",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = riseSetTransit.setTimeStr,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5 VERIFIED COOL FACTS IN FARSI
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(text = "💡", fontSize = 18.sp)
+                            Text(
+                                text = if (isFa) "۵ حقیقت شگفت‌انگیز و علمی" else "5 Verified Facts & Stories",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = AccentPrimary
+                            )
+                        }
+
+                        coolFacts.forEachIndexed { index, fact ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text(
+                                    text = "${index + 1}.",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = AccentPrimary
+                                )
+                                Text(
+                                    text = fact,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Description
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = if (isFa) "توضیحات تکمیلی" else "Description",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = AccentPrimary
+                    )
+                    Text(
+                        text = if (isFa) obj.descriptionFa else obj.descriptionEn,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            // Scientific Coordinates (Collapsible Section - Hidden by default)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showScientificCoords = !showScientificCoords },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isFa) "مختصات علمی نجومی (RA / Dec)" else "Astronomical Coordinates",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Icon(
+                                imageVector = if (showScientificCoords) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = "Toggle Coords",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        if (showScientificCoords) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(text = "RA (بعد)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                    Text(text = CoordinateEngine.formatRA(obj.raDeg), style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Column {
+                                    Text(text = "Dec (میل)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                    Text(text = CoordinateEngine.formatDec(obj.decDeg), style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Column {
+                                    Text(text = "Magnitude (قدر)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                    Text(text = String.format("%.1f", obj.magnitude), style = MaterialTheme.typography.bodyMedium)
                                 }
                             }
                         }
                     }
                 }
-            } else if (obj.id == "moon_luna") {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            }
+
+            // Observation Log Button & Spacing
+            item {
+                Button(
+                    onClick = { showAddLogDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("add_log_button"),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = if (isFa) "رخ‌گردی (Libration) و زمین‌تاب ماه" else "Lunar Libration & Earthshine",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = AccentSecondary
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(text = if (isFa) "رخ‌گردی در طول" else "Lon Libration", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                Text(text = String.format("%.2f°", moonData.librationLonDeg), style = MaterialTheme.typography.bodyMedium)
-                            }
-                            Column {
-                                Text(text = if (isFa) "رخ‌گردی در عرض" else "Lat Libration", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                Text(text = String.format("%.2f°", moonData.librationLatDeg), style = MaterialTheme.typography.bodyMedium)
-                            }
-                            Column {
-                                Text(text = if (isFa) "روشنایی زمین‌تاب" else "Earthshine", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                Text(text = String.format("%.1f%%", moonData.earthshinePercent), style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                    }
+                    Icon(Icons.Default.EditNote, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = if (isFa) "ثبت در دفترچه رصد" else "Add to Observation Log")
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = if (isFa) "راهنما و راهکار رصد" else "Observation Tip",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = AccentSecondary
-                )
-                Text(
-                    text = if (isFa) obj.observationTipFa else obj.observationTipEn,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            item {
+                Spacer(modifier = Modifier.height(32.dp))
             }
-
-            // Add to Observation Log Button
-            Button(
-                onClick = { showAddLogDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("add_log_button"),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.EditNote, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = if (isFa) "ثبت در دفترچه رصد (Observation Log)" else "Add to Observation Log")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    // Observation Alert Modal Sheet
+    if (showNotificationSheet) {
+        AlertDialog(
+            onDismissRequest = { showNotificationSheet = false },
+            title = {
+                Text(text = if (isFa) "🔔 تنظیم هشدار رصد ${obj.nameFa}" else "🔔 Set Observation Alert for ${obj.nameEn}")
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = if (isFa) "زمان‌بندی ترانزیت (اوج ارتفاع): ${riseSetTransit.transitTimeStr}"
+                        else "Transit Time: ${riseSetTransit.transitTimeStr}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Button(
+                        onClick = {
+                            AstroNotificationManager.scheduleObjectNotification(
+                                context = context,
+                                obj = obj,
+                                targetTimeMs = System.currentTimeMillis() + 3600000L, // 1 hr test/schedule
+                                eventTypeFa = "اوج ارتفاع (ترانزیت)",
+                                timeStr = riseSetTransit.transitTimeStr,
+                                leadTenMinutesBefore = true
+                            )
+                            Toast.makeText(context, if (isFa) "هشدار با موفقیت تنظیم شد!" else "Notification scheduled!", Toast.LENGTH_SHORT).show()
+                            showNotificationSheet = false
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = if (isFa) "تأیید و تنظیم هشدار (۱۰ دقیقه قبل)" else "Confirm Alert (10 min prior)")
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showNotificationSheet = false }) {
+                    Text(text = if (isFa) "انصراف" else "Cancel")
+                }
+            }
+        )
     }
 
     // Add Observation Dialog
@@ -450,14 +521,14 @@ fun ObjectDetailModal(
                         value = notesInput,
                         onValueChange = { notesInput = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(text = if (isFa) "شرایط جوی، تجهیزات رصدی، شفافیت آسمان..." else "Weather, telescope, clarity...") }
+                        placeholder = { Text(text = if (isFa) "شرایط جوی، تجهیزات رصدی..." else "Weather, telescope...") }
                     )
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(text = if (isFa) "امتیاز کیفیت رصد:" else "Rating:")
+                        Text(text = if (isFa) "امتیاز رصد:" else "Rating:")
                         for (star in 1..5) {
                             IconButton(onClick = { ratingInput = star }) {
                                 Icon(
@@ -485,6 +556,22 @@ fun ObjectDetailModal(
                     Text(text = if (isFa) "انصراف" else "Cancel")
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun PropertyRow(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }

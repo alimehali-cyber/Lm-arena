@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import android.content.Context
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -34,6 +36,7 @@ fun SettingsDialog(
     viewModel: MainViewModel,
     onDismiss: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val isFa = uiState.language == AppLanguage.PERSIAN
     var showCityPicker by remember { mutableStateOf(false) }
 
@@ -197,6 +200,47 @@ fun SettingsDialog(
                         onValueChange = { viewModel.setBortleClass(it.toInt()) },
                         valueRange = 1f..9f,
                         steps = 7
+                    )
+                }
+
+                // Automatic ISS Pass Notifications Switch
+                var isIssAlertsEnabled by remember {
+                    mutableStateOf(
+                        context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
+                            .getBoolean("iss_auto_alerts_enabled", true)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isFa) "نوتیفیکیشن گذر ISS" else "ISS Pass Alerts",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            text = if (isFa) "هشدار ۱۰ دقیقه قبل از گذرهای با چشم غیرمسلح" else "Alert 10 mins before visible passes",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Switch(
+                        checked = isIssAlertsEnabled,
+                        onCheckedChange = { checked ->
+                            isIssAlertsEnabled = checked
+                            context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
+                                .edit()
+                                .putBoolean("iss_auto_alerts_enabled", checked)
+                                .apply()
+
+                            if (checked) {
+                                com.example.notification.AstroNotificationManager.scheduleUpcomingIssPasses(context, uiState.userLocation)
+                            }
+                        }
                     )
                 }
 

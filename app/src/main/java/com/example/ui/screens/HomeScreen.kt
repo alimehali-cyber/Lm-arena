@@ -80,7 +80,7 @@ fun HomeScreen(
 
     val sortedObjectsWithObs = remember(allObjects, lastDeg, sunHoriz, moonData, uiState.userLocation, uiState.bortleClass) {
         allObjects
-            .filter { it.id != "planet_earth" }
+            .filter { it.id != "planet_earth" && it.type != ObjectType.SUN && it.id != "sun_sol" }
             .map { obj ->
                 val horiz = CoordinateEngine.equatorialToHorizontal(
                     CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg),
@@ -110,29 +110,18 @@ fun HomeScreen(
 
     // Astronomy Predictive Search State
     var searchQuery by remember { mutableStateOf("") }
-    var selectedPredictiveFilter by remember { mutableStateOf<String?>(null) }
 
-    // Predictive search filter logic
-    val filteredSearchResults = remember(searchQuery, selectedPredictiveFilter, sortedObjectsWithObs) {
+    // Predictive search filter logic across all categories simultaneously
+    val filteredSearchResults = remember(searchQuery, sortedObjectsWithObs) {
         val q = searchQuery.trim().lowercase()
-        sortedObjectsWithObs.filter { (obj, horiz, obs) ->
-            val matchesQuery = if (q.isEmpty()) true else {
+        sortedObjectsWithObs.filter { (obj, _, _) ->
+            if (q.isEmpty()) true else {
                 obj.nameFa.lowercase().contains(q) ||
                 obj.nameEn.lowercase().contains(q) ||
                 obj.constellationFa.lowercase().contains(q) ||
                 obj.constellationEn.lowercase().contains(q) ||
                 obj.category.lowercase().contains(q)
             }
-
-            val matchesFilter = when (selectedPredictiveFilter) {
-                "PLANET" -> obj.type == ObjectType.PLANET || obj.type == ObjectType.SUN || obj.type == ObjectType.MOON
-                "STAR" -> obj.type == ObjectType.STAR
-                "DEEP_SKY" -> obj.type == ObjectType.DEEP_SKY
-                "VISIBLE" -> horiz.altitudeDeg > 0.0
-                else -> true
-            }
-
-            matchesQuery && matchesFilter
         }
     }
 
@@ -406,56 +395,6 @@ fun HomeScreen(
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
                         )
                     )
-
-                    // Predictive Quick Filter Chips Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val filters = if (isFa) {
-                            listOf(
-                                null to "همه",
-                                "VISIBLE" to "👀 قابل رصد",
-                                "PLANET" to "🪐 سیارات",
-                                "STAR" to "✨ ستاره‌ها",
-                                "DEEP_SKY" to "🌌 عمق آسمان"
-                            )
-                        } else {
-                            listOf(
-                                null to "All",
-                                "VISIBLE" to "👀 Visible",
-                                "PLANET" to "🪐 Planets",
-                                "STAR" to "✨ Stars",
-                                "DEEP_SKY" to "🌌 Deep Sky"
-                            )
-                        }
-
-                        filters.forEach { (key, label) ->
-                            val isSelected = selectedPredictiveFilter == key
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    selectedPredictiveFilter = if (isSelected) null else key
-                                },
-                                label = {
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp)
-                                    )
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = AccentPrimary.copy(alpha = 0.25f),
-                                    selectedLabelColor = AccentPrimary
-                                ),
-                                border = FilterChipDefaults.filterChipBorder(
-                                    enabled = true,
-                                    selected = isSelected,
-                                    borderColor = if (isSelected) AccentPrimary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                                )
-                            )
-                        }
-                    }
 
                     // Predictive Search Suggestion Options List
                     val displayedPredictiveItems = remember(filteredSearchResults) {
