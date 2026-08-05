@@ -153,31 +153,44 @@ fun SettingsDialog(
                 // Sky Canvas Theme Section
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = if (isFa) "سبک هنری آسمان (Sky Canvas Theme):" else "Sky Canvas Theme:",
+                        text = if (isFa) "سبک هنری آسمان (RMAE Theme):" else "Sky Canvas Theme:",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        FilterChip(
-                            selected = uiState.skyCanvasTheme == SkyCanvasTheme.CELESTIAL,
-                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.CELESTIAL) },
-                            label = { Text(text = if (isFa) "🌌 آسمانی" else "Celestial") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME,
-                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.MONOCHROME) },
-                            label = { Text(text = if (isFa) "🔳 تک‌رنگ" else "Monochrome") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = uiState.skyCanvasTheme == SkyCanvasTheme.FUN,
-                            onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.FUN) },
-                            label = { Text(text = if (isFa) "🖍️ پاستلی" else "Fun (Crayon)") },
-                            modifier = Modifier.weight(1f)
-                        )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            FilterChip(
+                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.COSMIC_PREMIUM,
+                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.COSMIC_PREMIUM) },
+                                label = { Text(text = if (isFa) "✨ کیهانی" else "Cosmic") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
+                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME_SCIENTIFIC,
+                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.MONOCHROME_SCIENTIFIC) },
+                                label = { Text(text = if (isFa) "🔳 تک‌رنگ" else "Monochrome") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            FilterChip(
+                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.BLUEPRINT,
+                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.BLUEPRINT) },
+                                label = { Text(text = if (isFa) "📐 بلوپرینت" else "Blueprint") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
+                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.OBSERVATORY,
+                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.OBSERVATORY) },
+                                label = { Text(text = if (isFa) "🔴 رصدخانه" else "Observatory") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
 

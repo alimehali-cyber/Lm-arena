@@ -24,14 +24,15 @@ object StarRenderer {
         objects: List<Pair<CelestialObject, CoordinateEngine.Horizontal>>,
         starVisibility: Float,
         frameTimeMs: Long,
-        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL
+        theme: SkyCanvasTheme = SkyCanvasTheme.COSMIC_PREMIUM
     ) {
         if (starVisibility <= 0.05f) return
 
         when (theme) {
-            SkyCanvasTheme.CELESTIAL -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs)
-            SkyCanvasTheme.MONOCHROME -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
-            SkyCanvasTheme.FUN -> drawFunStars(drawScope, objects, starVisibility, frameTimeMs)
+            SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs)
+            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
+            SkyCanvasTheme.BLUEPRINT -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
+            SkyCanvasTheme.OBSERVATORY -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
         }
     }
 

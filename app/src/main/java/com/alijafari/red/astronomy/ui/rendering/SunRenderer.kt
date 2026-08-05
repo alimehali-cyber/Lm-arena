@@ -24,9 +24,10 @@ object SunRenderer {
         if (sunAltitudeDeg < -5.0) return
 
         when (theme) {
-            SkyCanvasTheme.CELESTIAL -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-            SkyCanvasTheme.MONOCHROME -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-            SkyCanvasTheme.FUN -> drawFunSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+            SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+            SkyCanvasTheme.BLUEPRINT -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+            SkyCanvasTheme.OBSERVATORY -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
         }
     }
 

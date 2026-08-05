@@ -335,14 +335,10 @@ fun HeroSkyCanvas(
 
                         // Emit Stardust particles along finger path styled by active theme
                         val particleColor = when (uiState.skyCanvasTheme) {
-                            SkyCanvasTheme.CELESTIAL -> if (Random.nextBoolean()) Color(0xFF2DD4BF) else Color(0xFFFBBF24)
-                            SkyCanvasTheme.MONOCHROME -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
-                            SkyCanvasTheme.FUN -> when (Random.nextInt(4)) {
-                                0 -> Color(0xFFF472B6)
-                                1 -> Color(0xFF38BDF8)
-                                2 -> Color(0xFFFDE047)
-                                else -> Color(0xFF4ADE80)
-                            }
+                            SkyCanvasTheme.COSMIC_PREMIUM -> if (Random.nextBoolean()) Color(0xFF2DD4BF) else Color(0xFFFBBF24)
+                            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
+                            SkyCanvasTheme.BLUEPRINT -> Color(0xFF38BDF8)
+                            SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
                         }
                         repeat(3) {
                             stardustParticles.add(
@@ -444,9 +440,10 @@ fun HeroSkyCanvas(
             selectedCelestial?.let { sel ->
                 val pulseRing = 1.0f + 0.12f * sin(frameTimeMs * 0.005f).toFloat()
                 val ringColor = when (uiState.skyCanvasTheme) {
-                    SkyCanvasTheme.MONOCHROME -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
-                    SkyCanvasTheme.FUN -> Color(0xFFF97316)
-                    SkyCanvasTheme.CELESTIAL -> Color(0xFF38BDF8)
+                    SkyCanvasTheme.COSMIC_PREMIUM -> Color(0xFF38BDF8)
+                    SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
+                    SkyCanvasTheme.BLUEPRINT -> Color(0xFF38BDF8)
+                    SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
                 }
                 drawCircle(
                     color = ringColor.copy(alpha = 0.5f),
@@ -605,13 +602,13 @@ fun HeroSkyCanvas(
             val clampedBubbleY = (bubbleY - with(density) { 70.dp.toPx() }).coerceIn(10f, with(density) { 240.dp.toPx() })
 
             val (bgColor, borderColor, primaryTextColor, secondaryTextColor) = when (uiState.skyCanvasTheme) {
-                SkyCanvasTheme.CELESTIAL -> Quadruple(
+                SkyCanvasTheme.COSMIC_PREMIUM -> Quadruple(
                     Color(0xCC0F172A),
                     Color(0xFF2DD4BF),
                     Color(0xFF2DD4BF),
                     Color.White.copy(alpha = 0.8f)
                 )
-                SkyCanvasTheme.MONOCHROME -> {
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> {
                     val isDay = sunHoriz.altitudeDeg > 0.0
                     if (isDay) {
                         Quadruple(
@@ -629,11 +626,17 @@ fun HeroSkyCanvas(
                         )
                     }
                 }
-                SkyCanvasTheme.FUN -> Quadruple(
-                    Color(0xFFFEF08A),
-                    Color(0xFFF97316),
-                    Color(0xFFC2410C),
-                    Color(0xFF9A3412)
+                SkyCanvasTheme.BLUEPRINT -> Quadruple(
+                    Color(0xCC0F172A),
+                    Color(0xFF38BDF8),
+                    Color(0xFF38BDF8),
+                    Color.White.copy(alpha = 0.8f)
+                )
+                SkyCanvasTheme.OBSERVATORY -> Quadruple(
+                    Color(0xCC1A0000),
+                    Color(0xFFEF4444),
+                    Color(0xFFEF4444),
+                    Color.White.copy(alpha = 0.8f)
                 )
             }
 
@@ -641,14 +644,14 @@ fun HeroSkyCanvas(
                 modifier = Modifier
                     .offset { IntOffset(clampedBubbleX.toInt(), clampedBubbleY.toInt()) }
                     .then(
-                        if (uiState.skyCanvasTheme == SkyCanvasTheme.CELESTIAL)
+                        if (uiState.skyCanvasTheme == SkyCanvasTheme.COSMIC_PREMIUM)
                             Modifier.shadow(12.dp, CircleShape, spotColor = Color(0xFF2DD4BF))
                         else Modifier
                     )
                     .clip(CircleShape)
                     .background(bgColor)
                     .border(
-                        width = if (uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME) 1.dp else 1.5.dp,
+                        width = if (uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME_SCIENTIFIC) 1.dp else 1.5.dp,
                         color = borderColor,
                         shape = CircleShape
                     )

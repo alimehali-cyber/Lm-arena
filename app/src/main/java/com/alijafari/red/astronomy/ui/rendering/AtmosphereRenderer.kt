@@ -16,12 +16,13 @@ object AtmosphereRenderer {
         drawScope: DrawScope,
         lightingState: LightingState,
         sunPosPx: Offset?,
-        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL
+        theme: SkyCanvasTheme = SkyCanvasTheme.COSMIC_PREMIUM
     ) {
         when (theme) {
-            SkyCanvasTheme.CELESTIAL -> drawCelestialAtmosphere(drawScope, lightingState, sunPosPx)
-            SkyCanvasTheme.MONOCHROME -> drawMonochromeAtmosphere(drawScope, lightingState, sunPosPx)
-            SkyCanvasTheme.FUN -> drawFunAtmosphere(drawScope, lightingState, sunPosPx)
+            SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialAtmosphere(drawScope, lightingState, sunPosPx)
+            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeAtmosphere(drawScope, lightingState, sunPosPx)
+            SkyCanvasTheme.BLUEPRINT -> drawBlueprintAtmosphere(drawScope, lightingState, sunPosPx)
+            SkyCanvasTheme.OBSERVATORY -> drawObservatoryAtmosphere(drawScope, lightingState, sunPosPx)
         }
     }
 
@@ -135,55 +136,70 @@ object AtmosphereRenderer {
         }
     }
 
-    private fun drawFunAtmosphere(
+    private fun drawBlueprintAtmosphere(
         drawScope: DrawScope,
         lightingState: LightingState,
         sunPosPx: Offset?
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
-        val sunAlt = lightingState.sunAltitudeDeg
 
-        // 1. Crayon paper background sky colors
-        val (topColor, bottomColor) = when {
-            sunAlt > 6.0 -> Pair(Color(0xFF38BDF8), Color(0xFFBAE6FD))  // Bright Crayon Sky Blue
-            sunAlt > 0.0 -> Pair(Color(0xFFFB923C), Color(0xFFFDE047))  // Warm Orange/Yellow Sunset Crayon
-            sunAlt > -6.0 -> Pair(Color(0xFFF472B6), Color(0xFFFB923C)) // Soft Magenta to Orange Dusk Crayon
-            else -> Pair(Color(0xFF1E1B4B), Color(0xFF312E81))          // Deep Crayon Night Indigo
-        }
-
+        // Deep engineering blueprint navy
         drawScope.drawRect(
-            brush = Brush.verticalGradient(colors = listOf(topColor, bottomColor)),
+            brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFF0F172A), Color(0xFF0284C7).copy(alpha = 0.3f), Color(0xFF0F172A))
+            ),
             size = drawScope.size
         )
 
-        // 2. Layered Kid Crayon Diagonal Scribble Lines (Texture simulating wax crayon strokes on paper)
-        val crayonStrokeColor = if (sunAlt > 0.0) Color.White.copy(alpha = 0.09f) else Color.White.copy(alpha = 0.06f)
-        val scribbleStep = 18f
-        var diag = -height
-        while (diag < width + height) {
-            val strokePath = Path().apply {
-                moveTo(diag, 0f)
-                lineTo(diag + height * 0.7f, height)
-            }
-            drawScope.drawPath(
-                path = strokePath,
-                color = crayonStrokeColor,
-                style = Stroke(width = 3.5f, cap = StrokeCap.Round)
+        // Fine cyan coordinate grid lines (Blueprint style)
+        val gridStep = 40f
+        val gridColor = Color(0xFF38BDF8).copy(alpha = 0.12f)
+        var x = 0f
+        while (x < width) {
+            drawScope.drawLine(
+                color = gridColor,
+                start = Offset(x, 0f),
+                end = Offset(x, height),
+                strokeWidth = 0.8f
             )
-            diag += scribbleStep
+            x += gridStep
         }
+        var y = 0f
+        while (y < height) {
+            drawScope.drawLine(
+                color = gridColor,
+                start = Offset(0f, y),
+                end = Offset(width, y),
+                strokeWidth = 0.8f
+            )
+            y += gridStep
+        }
+    }
 
-        // 3. Whimsical Hand-Drawn Crayon Doodle Clouds (during daylight & sunset)
-        if (sunAlt > -4.0) {
-            val cloudColor = Color.White.copy(alpha = 0.85f)
-            val cloudOutline = Color(0xFF0284C7).copy(alpha = 0.6f)
+    private fun drawObservatoryAtmosphere(
+        drawScope: DrawScope,
+        lightingState: LightingState,
+        sunPosPx: Offset?
+    ) {
+        // Deep astronomical night vision preserving red mode
+        drawScope.drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(Color(0xFF1F0000), Color(0xFF0D0000))
+            ),
+            size = drawScope.size
+        )
 
-            // Cloud 1 (Top Left)
-            drawCrayonDoodleCloud(drawScope, Offset(width * 0.22f, height * 0.25f), scale = 1.0f, cloudColor, cloudOutline)
-
-            // Cloud 2 (Top Right)
-            drawCrayonDoodleCloud(drawScope, Offset(width * 0.78f, height * 0.32f), scale = 0.82f, cloudColor, cloudOutline)
+        if (sunPosPx != null && lightingState.sunAltitudeDeg > -10.0) {
+            drawScope.drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFFDC2626).copy(alpha = 0.25f), Color.Transparent),
+                    center = sunPosPx,
+                    radius = 200f
+                ),
+                radius = 200f,
+                center = sunPosPx
+            )
         }
     }
 

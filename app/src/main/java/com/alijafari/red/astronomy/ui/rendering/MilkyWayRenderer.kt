@@ -71,18 +71,14 @@ object MilkyWayRenderer {
             val dotRadius = 1.2f + (hash % 3) * 0.6f
 
             val dotColor = when (theme) {
-                SkyCanvasTheme.CELESTIAL -> when (hash % 3) {
+                SkyCanvasTheme.COSMIC_PREMIUM -> when (hash % 3) {
                     0 -> Color(0xFFC084FC)
                     1 -> Color(0xFF38BDF8)
                     else -> Color(0xFFFDE047)
                 }
-                SkyCanvasTheme.MONOCHROME -> Color(0xFF94A3B8)
-                SkyCanvasTheme.FUN -> when (hash % 4) {
-                    0 -> Color(0xFFF472B6)
-                    1 -> Color(0xFF38BDF8)
-                    2 -> Color(0xFFFDE047)
-                    else -> Color(0xFFC084FC)
-                }
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color(0xFF94A3B8)
+                SkyCanvasTheme.BLUEPRINT -> Color(0xFF38BDF8)
+                SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
             }
 
             drawScope.drawCircle(

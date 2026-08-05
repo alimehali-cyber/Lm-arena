@@ -423,7 +423,7 @@ fun PremiumSplashScreen(
                         }
                 ) {
                     Text(
-                        text = "DESIGNED AND DEVELOPED BY:",
+                        text = "Designed and Developed by:",
                         style = TextStyle(
                             fontWeight = FontWeight.Normal,
                             fontSize = 11.sp,
