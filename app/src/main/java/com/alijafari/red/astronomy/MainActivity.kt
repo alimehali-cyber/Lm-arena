@@ -234,15 +234,15 @@ class MainActivity : ComponentActivity() {
                                 onDismiss = { viewModel.setShowSettingsDialog(false) }
                             )
                         }
-
-                        if (showSplashScreen) {
-                            com.alijafari.red.astronomy.ui.components.PremiumSplashScreen(
-                                onSplashComplete = {
-                                    showSplashScreen = false
-                                }
-                            )
-                        }
                     }
+                }
+
+                if (showSplashScreen) {
+                    com.alijafari.red.astronomy.ui.components.PremiumSplashScreen(
+                        onSplashComplete = {
+                            showSplashScreen = false
+                        }
+                    )
                 }
             }
         }

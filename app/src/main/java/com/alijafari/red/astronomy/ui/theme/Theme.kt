@@ -44,21 +44,21 @@ private val OledSpaceColorScheme = darkColorScheme(
 )
 
 private val LightSpaceColorScheme = lightColorScheme(
-    primary = Color(0xFF6D28D9),
+    primary = OldMoneyBurgundy,
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFDDD6FE),
-    onPrimaryContainer = Color(0xFF2E1065),
-    secondary = Color(0xFFA21CAF),
+    primaryContainer = SoftCreamVariant,
+    onPrimaryContainer = OldMoneyBurgundy,
+    secondary = OldMoneyChampagneGold,
     onSecondary = Color(0xFFFFFFFF),
-    tertiary = Color(0xFF3730A3),
+    tertiary = OldMoneyNavy,
     onTertiary = Color(0xFFFFFFFF),
-    background = Color(0xFFF8FAFC),
-    onBackground = Color(0xFF0F172A),
-    surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF0F172A),
-    surfaceVariant = Color(0xFFE2E8F0),
-    onSurfaceVariant = Color(0xFF334155),
-    outline = Color(0xFF94A3B8)
+    background = PureWhiteBackground,
+    onBackground = OldMoneySlate,
+    surface = SoftCreamSurface,
+    onSurface = OldMoneySlate,
+    surfaceVariant = Color(0xFFF3EFE6),
+    onSurfaceVariant = OldMoneySlateMuted,
+    outline = SoftCreamCardBorder
 )
 
 @Composable

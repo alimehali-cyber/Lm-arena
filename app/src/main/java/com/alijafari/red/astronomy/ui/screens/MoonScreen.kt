@@ -90,12 +90,16 @@ fun MoonScreen(
                     .wrapContentHeight()
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(Color(0xFF13111A), Color(0xFF0A0A12))
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surface,
+                                MaterialTheme.colorScheme.background
+                            )
                         )
                     )
                     .testTag("moon_hero_card")
             ) {
                 // Procedural Starfield background
+                val starColor = MaterialTheme.colorScheme.onBackground
                 Canvas(modifier = Modifier.matchParentSize()) {
                     val random = Random(42)
                     val width = size.width
@@ -106,7 +110,7 @@ fun MoonScreen(
                         val alpha = 0.10f + random.nextFloat() * 0.20f
                         val radius = 0.8f + random.nextFloat() * 1.5f
                         drawCircle(
-                            color = Color.White.copy(alpha = alpha),
+                            color = starColor.copy(alpha = alpha),
                             radius = radius,
                             center = Offset(x, y)
                         )
@@ -124,7 +128,8 @@ fun MoonScreen(
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Color.White.copy(alpha = 0.06f))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
                             .padding(horizontal = 12.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -133,7 +138,7 @@ fun MoonScreen(
                             onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat - 1f).coerceIn(-30f, 30f) },
                             modifier = Modifier.size(28.dp)
                         ) {
-                            Icon(Icons.Default.ChevronRight, contentDescription = "Previous Day", tint = Color(0xFFA855F7))
+                            Icon(Icons.Default.ChevronRight, contentDescription = "Previous Day", tint = MaterialTheme.colorScheme.primary)
                         }
 
                         val dateStr = TimeEngine.formatDate(selectedCalendar.timeInMillis, uiState.calendarSystem, isFa).let {
@@ -149,9 +154,9 @@ fun MoonScreen(
                             text = offsetBadge,
                             style = TextStyle(
                                 fontFamily = IranSans,
-                                fontWeight = FontWeight.Medium,
+                                fontWeight = FontWeight.SemiBold,
                                 fontSize = 12.sp,
-                                color = Color(0xFFF5F5F7)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         )
 
@@ -159,7 +164,7 @@ fun MoonScreen(
                             onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat + 1f).coerceIn(-30f, 30f) },
                             modifier = Modifier.size(28.dp)
                         ) {
-                            Icon(Icons.Default.ChevronLeft, contentDescription = "Next Day", tint = Color(0xFFA855F7))
+                            Icon(Icons.Default.ChevronLeft, contentDescription = "Next Day", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
 
@@ -167,26 +172,26 @@ fun MoonScreen(
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFA855F7).copy(alpha = 0.15f))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
                             .padding(horizontal = 10.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(Icons.Default.Swipe, contentDescription = null, tint = Color(0xFFC084FC), modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Swipe, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
                         Text(
                             text = if (isFa) "برای تغییر روزها (۳۰- تا ۳۰+) ماه را افقی بکشید" else "Drag moon to scrub days (-30 to +30d)",
                             style = TextStyle(
                                 fontFamily = IranSans,
                                 fontWeight = FontWeight.Normal,
                                 fontSize = 11.sp,
-                                color = Color(0xFFE9D5FF)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         )
                         if (dayOffsetInt != 0) {
                             Surface(
                                 onClick = { selectedDayOffsetFloat = 0f },
                                 shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFFA855F7).copy(alpha = 0.35f)
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                             ) {
                                 Text(
                                     text = if (isFa) "بازنشانی" else "Reset",
@@ -194,7 +199,7 @@ fun MoonScreen(
                                         fontFamily = IranSans,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 10.sp,
-                                        color = Color.White
+                                        color = MaterialTheme.colorScheme.primary
                                     ),
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
@@ -224,7 +229,7 @@ fun MoonScreen(
                                 fontFamily = IranSans,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 22.sp,
-                                color = Color(0xFFF5F5F7)
+                                color = MaterialTheme.colorScheme.onBackground
                             ),
                             textAlign = TextAlign.Center
                         )
@@ -236,9 +241,9 @@ fun MoonScreen(
                             text = illFormatted,
                             style = TextStyle(
                                 fontFamily = IranSans,
-                                fontWeight = FontWeight.Medium,
+                                fontWeight = FontWeight.SemiBold,
                                 fontSize = 14.sp,
-                                color = Color(0xFFA855F7)
+                                color = MaterialTheme.colorScheme.primary
                             ),
                             textAlign = TextAlign.Center
                         )
@@ -256,9 +261,9 @@ fun MoonScreen(
                     .testTag("moon_details_card"),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF13111A).copy(alpha = 0.70f)
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
@@ -270,7 +275,7 @@ fun MoonScreen(
                             fontFamily = IranSans,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp,
-                            color = Color(0xFFF5F5F7)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     )
 
@@ -342,9 +347,9 @@ fun MoonScreen(
                     .testTag("moon_upcoming_card"),
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF13111A).copy(alpha = 0.70f)
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
@@ -356,7 +361,7 @@ fun MoonScreen(
                             fontFamily = IranSans,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp,
-                            color = Color(0xFFF5F5F7)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     )
 
@@ -372,7 +377,7 @@ fun MoonScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color.White.copy(alpha = 0.04f))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
                                     .padding(horizontal = 14.dp, vertical = 10.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
@@ -384,7 +389,7 @@ fun MoonScreen(
                                     Icon(
                                         imageVector = Icons.Default.Brightness2,
                                         contentDescription = null,
-                                        tint = Color(0xFFA855F7),
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Text(
@@ -393,7 +398,7 @@ fun MoonScreen(
                                             fontFamily = IranSans,
                                             fontWeight = FontWeight.Medium,
                                             fontSize = 14.sp,
-                                            color = Color(0xFFF5F5F7)
+                                            color = MaterialTheme.colorScheme.onSurface
                                         )
                                     )
                                 }
@@ -404,7 +409,7 @@ fun MoonScreen(
                                         fontFamily = IranSans,
                                         fontWeight = FontWeight.Normal,
                                         fontSize = 12.sp,
-                                        color = Color(0xFF9CA3AF)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 )
                             }
@@ -561,9 +566,9 @@ private fun MoonTile(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        color = Color.White.copy(alpha = 0.05f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f))
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -574,13 +579,13 @@ private fun MoonTile(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFA855F7).copy(alpha = 0.15f)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
-                    tint = Color(0xFFA855F7),
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -592,7 +597,7 @@ private fun MoonTile(
                         fontFamily = IranSans,
                         fontWeight = FontWeight.Normal,
                         fontSize = 11.sp,
-                        color = Color(0xFF9CA3AF)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 )
                 Text(
@@ -601,7 +606,7 @@ private fun MoonTile(
                         fontFamily = IranSans,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
-                        color = Color(0xFFF5F5F7)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 )
             }

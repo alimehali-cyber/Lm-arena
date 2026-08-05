@@ -64,19 +64,19 @@ fun FloatingBottomBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
+                .height(66.dp)
                 .shadow(
-                    elevation = 16.dp,
-                    shape = RoundedCornerShape(24.dp),
-                    ambientColor = AccentPrimary.copy(alpha = 0.15f),
-                    spotColor = AccentPrimary.copy(alpha = 0.25f)
+                    elevation = 12.dp,
+                    shape = RoundedCornerShape(26.dp),
+                    ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
                 )
-                .clip(RoundedCornerShape(24.dp))
-                .background(BottomNavBackground)
+                .clip(RoundedCornerShape(26.dp))
+                .background(MaterialTheme.colorScheme.surface)
                 .border(
                     width = 1.dp,
-                    color = CardBorder,
-                    shape = RoundedCornerShape(24.dp)
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(26.dp)
                 )
         ) {
             Row(
@@ -87,7 +87,7 @@ fun FloatingBottomBar(
                 navItems.forEachIndexed { index, item ->
                     val isSelected = selectedTab == index
                     val activeColor by animateColorAsState(
-                        targetValue = if (isSelected) AccentPrimary else TextTertiary,
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         label = "NavColor"
                     )
 
@@ -115,7 +115,7 @@ fun FloatingBottomBar(
                                         .background(
                                             Brush.radialGradient(
                                                 colors = listOf(
-                                                    AccentPrimary.copy(alpha = 0.25f),
+                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
                                                     Color.Transparent
                                                 )
                                             )
@@ -145,7 +145,7 @@ fun FloatingBottomBar(
                                 modifier = Modifier
                                     .size(4.dp)
                                     .clip(CircleShape)
-                                    .background(AccentPrimary)
+                                    .background(MaterialTheme.colorScheme.primary)
                             )
                         } else {
                             Spacer(modifier = Modifier.height(6.dp))

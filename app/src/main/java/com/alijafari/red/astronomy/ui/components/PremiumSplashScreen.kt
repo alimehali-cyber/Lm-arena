@@ -265,13 +265,11 @@ fun PremiumSplashScreen(
                     .fillMaxSize()
                     .padding(horizontal = 24.dp)
             ) {
-                Spacer(modifier = Modifier.weight(1f))
-
                 // Central Hero Visual: Mars Planet with Radial Shading + Tilted Ring + Orbiting Satellite
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(160.dp)
+                        .size(150.dp)
                         .graphicsLayer {
                             scaleX = planetScale.value
                             scaleY = planetScale.value
@@ -281,7 +279,7 @@ fun PremiumSplashScreen(
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         val cX = size.width / 2f
                         val cY = size.height / 2f
-                        val planetRadius = 40.dp.toPx() // 80dp diameter
+                        val planetRadius = 38.dp.toPx() // 76dp diameter
 
                         // Outer Soft Red Corona Halo
                         drawCircle(
@@ -298,7 +296,7 @@ fun PremiumSplashScreen(
                             radius = planetRadius * 1.8f
                         )
 
-                        // Mars-like Planet Sphere with Realistic Gradient (Highlight Top-Left, Shadow Bottom-Right)
+                        // Mars-like Planet Sphere with Realistic Gradient
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colors = listOf(
@@ -355,7 +353,7 @@ fun PremiumSplashScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 // App Title "RED" (Cinematic Space Grotesk / High-Tracking Typography)
                 Box(
@@ -370,8 +368,8 @@ fun PremiumSplashScreen(
                         text = "RED",
                         style = TextStyle(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 50.sp,
-                            letterSpacing = 20.sp,
+                            fontSize = 48.sp,
+                            letterSpacing = 18.sp,
                             color = Color(0xFFE11D48).copy(alpha = 0.4f)
                         )
                     )
@@ -380,14 +378,14 @@ fun PremiumSplashScreen(
                         text = "RED",
                         style = TextStyle(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 50.sp,
-                            letterSpacing = 20.sp,
+                            fontSize = 48.sp,
+                            letterSpacing = 18.sp,
                             color = Color.White
                         )
                     )
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Thin 60dp Accent Line (Expanding horizontally from 0 to 60dp)
                 Box(
@@ -409,34 +407,32 @@ fun PremiumSplashScreen(
                         )
                 )
 
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                // Developer Information (MANDATORY EXACT SPECIFICATION)
+                // Developer Information (Brought up directly under the RED logo & line)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier
-                        .padding(bottom = 64.dp) // At least 60dp from bottom
-                        .graphicsLayer {
-                            alpha = creditAlpha.value
-                            translationY = creditOffsetY.value
-                        }
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.graphicsLayer {
+                        alpha = creditAlpha.value
+                        translationY = creditOffsetY.value
+                    }
                 ) {
                     Text(
                         text = "Designed and Developed by:",
                         style = TextStyle(
                             fontWeight = FontWeight.Normal,
-                            fontSize = 11.sp,
-                            letterSpacing = 2.2.sp,
-                            color = Color(0xFF9CA3AF),
+                            fontSize = 12.sp,
+                            letterSpacing = 1.8.sp,
+                            color = Color(0xFFD1D5DB),
                             textAlign = TextAlign.Center
                         )
                     )
                     Text(
                         text = "Ali Jafari",
                         style = TextStyle(
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
                             letterSpacing = 1.2.sp,
                             color = Color(0xFFFFFFFF),
                             textAlign = TextAlign.Center

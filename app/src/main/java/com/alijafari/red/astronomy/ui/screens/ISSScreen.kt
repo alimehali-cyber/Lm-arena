@@ -1216,8 +1216,8 @@ private fun IssUnavailableCard(
             .fillMaxWidth()
             .height(240.dp),
         shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF13111A).copy(alpha = 0.70f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
             modifier = Modifier
@@ -1229,7 +1229,7 @@ private fun IssUnavailableCard(
             Icon(
                 imageVector = Icons.Default.PublicOff,
                 contentDescription = null,
-                tint = Color(0xFF6B7280),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(32.dp)
             )
 
@@ -1238,7 +1238,7 @@ private fun IssUnavailableCard(
             Text(
                 text = "موقعیت زنده ایستگاه در دسترس نیست",
                 style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium),
-                color = Color(0xFF9CA3AF)
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -1246,18 +1246,18 @@ private fun IssUnavailableCard(
             Text(
                 text = "برای نمایش موقعیت لحظه‌ای به اینترنت نیاز است",
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                color = Color(0xFF6B7280)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             TextButton(
                 onClick = onRetry,
-                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFA855F7))
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
             ) {
                 Text(
                     text = "تلاش مجدد",
-                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 )
             }
         }
@@ -1271,8 +1271,8 @@ private fun IssLoadingCard() {
             .fillMaxWidth()
             .height(240.dp)
             .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF0F0D18))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp)),
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(20.dp)),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -1280,14 +1280,14 @@ private fun IssLoadingCard() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             CircularProgressIndicator(
-                color = Color(0xFFA855F7),
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(28.dp),
                 strokeWidth = 2.5.dp
             )
             Text(
                 text = "در حال دریافت موقعیت زنده...",
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFF9CA3AF)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

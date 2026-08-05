@@ -148,7 +148,7 @@ fun HomeScreen(
                             fontFamily = IranSans,
                             fontWeight = FontWeight.Bold,
                             fontSize = 24.sp,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onBackground
                         )
                     )
 
@@ -160,7 +160,7 @@ fun HomeScreen(
                         Icon(
                             imageVector = Icons.Default.LocationOn,
                             contentDescription = "Location",
-                            tint = Color(0xFFA855F7),
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(15.dp)
                         )
                         Text(
@@ -169,7 +169,7 @@ fun HomeScreen(
                                 fontFamily = IranSans,
                                 fontWeight = FontWeight.Normal,
                                 fontSize = 13.sp,
-                                color = Color(0xFF9CA3AF)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                     }
@@ -182,16 +182,16 @@ fun HomeScreen(
                     IconButton(
                         onClick = { viewModel.setShowFavoritesDialog(true) },
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E1533))
-                            .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), CircleShape)
                             .testTag("top_favorites_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Bookmark,
                             contentDescription = stringResource(R.string.favorites_and_history),
-                            tint = Color(0xFFA855F7),
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -199,16 +199,16 @@ fun HomeScreen(
                     IconButton(
                         onClick = { viewModel.setShowSettingsDialog(true) },
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E1533))
-                            .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), CircleShape)
                             .testTag("top_settings_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = stringResource(R.string.settings),
-                            tint = Color(0xFF9CA3AF),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -612,9 +612,9 @@ private fun ObservationItemRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        color = Color(0x0AFFFFFF), // rgba(255,255,255,0.04)
-        border = BorderStroke(1.dp, CardBorder)
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -635,8 +635,8 @@ private fun ObservationItemRow(
                         .background(
                             Brush.linearGradient(
                                 colors = listOf(
-                                    AccentPrimary.copy(alpha = 0.2f),
-                                    AccentTertiary.copy(alpha = 0.2f)
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
                                 )
                             )
                         )
@@ -650,13 +650,13 @@ private fun ObservationItemRow(
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = data.title,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                        color = TextPrimary
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = data.subtitle,
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -666,13 +666,13 @@ private fun ObservationItemRow(
             // Equipment Badge
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = AccentPrimary.copy(alpha = 0.12f)
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
             ) {
                 Text(
                     text = data.badgeText,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium),
-                    color = AccentPrimary
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -689,14 +689,14 @@ private fun QuickAccessButton(
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessHigh),
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioLowBouncy),
         label = "BtnScale"
     )
 
     Surface(
         modifier = modifier
-            .height(56.dp)
+            .height(58.dp)
             .scale(scale)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -704,9 +704,9 @@ private fun QuickAccessButton(
                 onClick = onClick
             )
             .testTag(testTag),
-        shape = RoundedCornerShape(16.dp),
-        color = Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
-        border = BorderStroke(1.dp, CardBorder)
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -720,8 +720,8 @@ private fun QuickAccessButton(
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = TextPrimary
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
