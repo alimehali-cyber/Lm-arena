@@ -68,11 +68,14 @@ class MainActivity : ComponentActivity() {
                     LocalLayoutDirection provides layoutDirection,
                     LocalActivityResultRegistryOwner provides this@MainActivity
                 ) {
-                    Scaffold(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("main_scaffold"),
-                        containerColor = MaterialTheme.colorScheme.background,
+                    var showSplashScreen by remember { mutableStateOf(true) }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Scaffold(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("main_scaffold"),
+                            containerColor = MaterialTheme.colorScheme.background,
                         topBar = {
                             val isFa = uiState.language == com.example.domain.AppLanguage.PERSIAN
                             Row(
@@ -231,9 +234,18 @@ class MainActivity : ComponentActivity() {
                                 onDismiss = { viewModel.setShowSettingsDialog(false) }
                             )
                         }
+
+                        if (showSplashScreen) {
+                            com.example.ui.components.PremiumSplashScreen(
+                                onSplashComplete = {
+                                    showSplashScreen = false
+                                }
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
 }
