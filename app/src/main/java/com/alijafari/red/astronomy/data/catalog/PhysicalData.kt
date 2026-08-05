@@ -241,6 +241,61 @@ object PhysicalData {
             gravityMssDisplayEn = "Supermassive black hole core (Sagittarius A*, 4M Solar Masses)",
             distanceDisplayFa = "۲۶,۰۰۰ سال نوری فاصله منظومه شمسی تا هسته مرکز کهکشان",
             distanceDisplayEn = "26,000 light-years from Solar System to Galactic Core"
+        ),
+        "galilean_moon_io" to PhysicalProperties(
+            diameterKm = 3643.2,
+            diameterDisplayFa = "۳,۶۴۳ کیلومتر (۰.۲۸۶ برابر قطر زمین / قمر آتشفشانی)",
+            diameterDisplayEn = "3,643 km (0.286× Earth / Volcanic Moon)",
+            massKgDisplayFa = "۸.۹۳ × ۱۰²² کیلوگرم (۰.۰۱۵ برابر زمین)",
+            massKgDisplayEn = "8.93 × 10²² kg (0.015× Earth)",
+            gravityMssDisplayFa = "۱.۷۹۶ متر بر مجذور ثانیه (۰.۱۸۳ برابر زمین)",
+            gravityMssDisplayEn = "1.796 m/s² (0.183× Earth)",
+            distanceDisplayFa = "۴۲۱,۷۰۰ کیلومتر از مرکز مشتری (۵.۹ شعاع مشتری)",
+            distanceDisplayEn = "421,700 km from Jupiter center (5.9 R_J)"
+        ),
+        "galilean_moon_europa" to PhysicalProperties(
+            diameterKm = 3121.6,
+            diameterDisplayFa = "۳,۱۲۱.۶ کیلومتر (۰.۲۴۵ برابر قطر زمین / اقیانوس زیرسطحی)",
+            diameterDisplayEn = "3,121.6 km (0.245× Earth / Subsurface Ocean)",
+            massKgDisplayFa = "۴.۸۰ × ۱۰²² کیلوگرم (۰.۰۰۸ برابر زمین)",
+            massKgDisplayEn = "4.80 × 10²² kg (0.008× Earth)",
+            gravityMssDisplayFa = "۱.۳۱۵ متر بر مجذور ثانیه (۰.۱۳۴ برابر زمین)",
+            gravityMssDisplayEn = "1.315 m/s² (0.134× Earth)",
+            distanceDisplayFa = "۶۷۰,۹۰۰ کیلومتر از مرکز مشتری (۹.۴ شعاع مشتری)",
+            distanceDisplayEn = "670,900 km from Jupiter center (9.4 R_J)"
+        ),
+        "galilean_moon_ganymede" to PhysicalProperties(
+            diameterKm = 5268.2,
+            diameterDisplayFa = "۵,۲۶۸.۲ کیلومتر (۰.۴۱۳ برابر زمین / بزرگ‌تر از عطارد)",
+            diameterDisplayEn = "5,268.2 km (0.413× Earth / Larger than Mercury)",
+            massKgDisplayFa = "۱.۴۸ × ۱۰²۳ کیلوگرم (۰.۰۲۵ برابر زمین)",
+            massKgDisplayEn = "1.48 × 10²³ kg (0.025× Earth)",
+            gravityMssDisplayFa = "۱.۴۲۸ متر بر مجذور ثانیه (۰.1۴۶ برابر زمین)",
+            gravityMssDisplayEn = "1.428 m/s² (0.146× Earth)",
+            distanceDisplayFa = "۱,۰۷۰,۴۰۰ کیلومتر از مرکز مشتری (۱۵.۰ شعاع مشتری)",
+            distanceDisplayEn = "1,070,400 km from Jupiter center (15.0 R_J)"
+        ),
+        "galilean_moon_callisto" to PhysicalProperties(
+            diameterKm = 4820.6,
+            diameterDisplayFa = "۴,۸۲۰.۶ کیلومتر (۰.۳۷۸ برابر قطر زمین / پردهانه‌ترین سطح)",
+            diameterDisplayEn = "4,820.6 km (0.378× Earth / Heavily Cratered)",
+            massKgDisplayFa = "۱.۰۸ × ۱۰²۳ کیلوگرم (۰.۰۱۸ برابر زمین)",
+            massKgDisplayEn = "1.08 × 10²³ kg (0.018× Earth)",
+            gravityMssDisplayFa = "۱.۲۳۵ متر بر مجذور ثانیه (۰.۱۲۶ برابر زمین)",
+            gravityMssDisplayEn = "1.235 m/s² (0.126× Earth)",
+            distanceDisplayFa = "۱,۸۸۲,۷۰۰ کیلومتر از مرکز مشتری (۲۶.۴ شعاع مشتری)",
+            distanceDisplayEn = "1,882,700 km from Jupiter center (26.4 R_J)"
+        ),
+        "galilean_moon_elara" to PhysicalProperties(
+            diameterKm = 86.0,
+            diameterDisplayFa = "۸۶ کیلومتر قطر (قمر نامنظم هیپالیا)",
+            diameterDisplayEn = "86 km diameter (Irregular Himalia Group)",
+            massKgDisplayFa = "۸.۷ × ۱۰¹۷ کیلوگرم (سیارک کربنی به دام افتاده)",
+            massKgDisplayEn = "8.7 × 10¹⁷ kg (Captured carbonaceous asteroid)",
+            gravityMssDisplayFa = "۰.۰۳۱ متر بر مجذور ثانیه (گرانش بسیار ناچیز)",
+            gravityMssDisplayEn = "0.031 m/s² (Microgravity)",
+            distanceDisplayFa = "۱۱,۷۴۰,۰۰۰ کیلومتر از مرکز مشتری (۱۶۴.۲ شعاع مشتری)",
+            distanceDisplayEn = "11,740,000 km from Jupiter center (164.2 R_J)"
         )
     )
 
@@ -384,6 +439,79 @@ object PhysicalData {
             "منظومه شمسی هر ۲۳۰ میلیون سال یک‌بار مدار کامل خود به دور مرکز کهکشان را طی می‌کند (یک سال کیهانی).",
             "نوار روشن راه شیری در آسمان شب، مقطع عرضی دیسک کهکشان خودمان است که از داخل آن را تماشا می‌کنیم.",
             "کهکشان راه شیری بخشی از ابرخوشه کهکشانی عظیم «لانیاکئا» شامل بیش از ۱۰Node هزار کهکشان است."
+        ),
+        "galilean_moon_io" to listOf(
+            "آیو فعال‌ترین جرم از نظر آتشفشانی در تمام منظومه شمسی است که فوران‌های گوگردی آن تا ارتفاع ۵۰۰ کیلومتری به فضا پرتاب می‌شوند.",
+            "علت اصلی آتشفشان‌های شدید آیو، جزر و مد گرانشی ناشی از رزونانس مداری ۴:۲:۱ با مشتری، اروپا و گانی‌مید است.",
+            "سطح آیو دائماً با گدازه‌های تازه پوشانده می‌شود و ظاهر زرد، قرمز و سیاهی شبیه به پیتزا به آن می‌دهد.",
+            "حرکت آیو در کمربند تشعشعی مشتری، یک توروس پلاسمایی عظیم ایجاد می‌کند که میلیون‌ها آمپر جریان الکتریکی تولید می‌کند.",
+            "برخلاف بیشتر قمرهای یخ‌زده خارجی، آیو عمدتاً از سنگ‌های سیلیکاتی و هسته آهنی مذاب تشکیل شده است."
+        ),
+        "galilean_moon_europa" to listOf(
+            "اروپا دارای اقیانوسی جهانی از آب مایع زیر پوسته یخی خود است که حجم آب آن بیش از دو برابر تمام اقیانوس‌های زمین است.",
+            "پوسته یخی اروپا بسیار صاف بوده و خطوط رگه‌مانند قهوه‌ای‌رنگی به نام «خطوارگی» (Lineae) سطح آن را پوشانده است.",
+            "اقیانوس زیرسطحی اروپا به عنوان یکی از امیدوارکننده‌ترین جاها برای یافتن حیات فرازمینی توسط مأموریت‌های Clipper و JUICE بررسی می‌شود.",
+            "آب‌فشان‌های عظیمی از بخار آب در قطب جنوب اروپا شناسایی شده‌اند که از فوران‌های اقیانوس زیرسطحی سرچشمه می‌گیرند.",
+            "نیروی جزر و مدی مشتری باعث انقباض و انبساط مداوم هسته اروپا و تولید گرمای هیدروترمال برای مایع ماندن اقیانوس می‌شود."
+        ),
+        "galilean_moon_ganymede" to listOf(
+            "گانی‌مید بزرگ‌ترین قمر در تمام منظومه شمسی است و ابعاد آن از سیاره عطارد و سیاره کوتوله پلوتو نیز بزرگ‌تر است.",
+            "گانی‌مید تنها قمر شناخته‌شده در کیهان است که دارای میدان مغناطیسی اختصاصی (مگنوسفر) ناشی از هسته آهنی مذاب است.",
+            "تعامل میدان مغناطیسی گانی‌مید با مشتری باعث ایجاد شفق‌های قطبی درخشان در قطب‌های این قمر می‌شود.",
+            "در زیر پوسته ضخیم یخی گانی‌مید، اقیانوس عمیق چندلایه‌ای از آب مایع ساندویچ‌شده بین لایه‌های یخ وجود دارد.",
+            "سطح گانی‌مید شامل دهانه‌های برخوردی ۴ میلیارد ساله تاریک و شیارهای روشن جوان‌تر ناشی از گسل‌های تکتونیکی است."
+        ),
+        "galilean_moon_callisto" to listOf(
+            "کالیستو پردهانه‌ترین و دست‌نخورده‌ترین جرم منظومه شمسی است که سطح یخی آن بیش از ۴ میلیارد سال قدمت دارد.",
+            "بزرگ‌ترین عارضه برخوردی کالیستو، دهانه چندحلقه‌ای «والهالا» با قطری بیش از ۳,۸۰۰ کیلومتر است.",
+            "کالیستو خارج از کمربند تشعشعی خطرناک مشتری گردش می‌کند و بهترین گزینه برای پایگاه‌های انسانی آینده است.",
+            "این قمر فاقد فعالیت‌های آتشفشانی یا تکتونیکی بوده و تاریخچه اولیه منظومه شمسی را به صورت بکر حفظ کرده است.",
+            "کالیستو ترکیبی ۵۰/۵۰ از سنگ و یخ است و احتمالاً دارای اقیانوسی شور در عمق ۱۰۰ تا ۲۵۰ کیلومتری می‌باشد."
+        ),
+        "galilean_moon_elara" to listOf(
+            "این قمر نامنظم مشتری در سال ۱۹۰۵ توسط چارلز دیلون پرین در رصدخانه الیک کشف شد.",
+            "پیش از نام‌گذاری رسمی در سال ۱۹۷۵، این قمر در برخی فرهنگ‌ها و متون نجومی غیررسمی با نام‌های «دیانز» (Dianz) یا «گوجه سبز» (Green Tomato) نیز شناخته می‌شد.",
+            "الارا متعلق به گروه هیپالیا از قمرهای نامنظم مشتری است که مداری موافق و دوردست در فاصله ۱۱.۷ میلیون کیلومتری دارند.",
+            "سطح الارا بسیار تاریک و خاکستری‌رنگ (از نوع کربنی C) است که نشان می‌دهد احتمالاً سیارکی بوده که توسط گرانش مشتری به دام افتاده است.",
+            "یک دور گردش کامل الارا به دور مشتری حدود ۲۵۹.۶ روز زمین به طول می‌انجامد."
+        )
+    )
+
+    private val coolFactsMapEn = mapOf(
+        "galilean_moon_io" to listOf(
+            "Io is the most volcanically active body in the Solar System with over 400 active sulfur volcanoes.",
+            "Tidal heating from gravitational interaction with Jupiter, Europa, and Ganymede powers Io's intense volcanic activity.",
+            "Continuous lava flows resurface Io, giving it a vibrant colorful yellow, black, and red 'pizza' appearance.",
+            "Io's movement through Jupiter's magnetosphere generates a 1-million-ampere electric current ring.",
+            "Unlike icy outer moons, Io consists primarily of silicate rock surrounding a molten iron core."
+        ),
+        "galilean_moon_europa" to listOf(
+            "Europa holds a vast subsurface liquid water ocean containing more water than all Earth's oceans combined.",
+            "Its smooth ice shell is crisscrossed by dark reddish fractures called lineae formed by tidal stresses.",
+            "Europa is a top target in astrobiology and the search for extraterrestrial habitability.",
+            "Plumes of water vapor erupting scores of kilometers into space have been detected near its south pole.",
+            "Tidal flexing from Jupiter generates internal hydrothermal heat that keeps its ocean liquid."
+        ),
+        "galilean_moon_ganymede" to listOf(
+            "Ganymede is the largest moon in the Solar System (5,268 km diameter)—bigger than Mercury and Pluto.",
+            "It is the only moon known to generate its own intrinsic magnetic field via a liquid iron core.",
+            "Magnetic interactions with Jupiter generate glowing auroral ovals around Ganymede's polar regions.",
+            "A deep subsurface saltwater ocean containing more water than Earth lies buried beneath its icy crust.",
+            "Its surface features ancient dark cratered regions alongside younger, grooved tectonic terrain."
+        ),
+        "galilean_moon_callisto" to listOf(
+            "Callisto is the most heavily cratered object in the Solar System, preserving a 4-billion-year-old surface.",
+            "Its surface features colossal multi-ring impact basins, including Valhalla spanning 3,800 km.",
+            "Orbiting outside Jupiter's main radiation belt makes Callisto ideal for future human space exploration bases.",
+            "Lack of active geological processes leaves its pristine ancient planetary history perfectly preserved.",
+            "Callisto consists of equal parts rock and ice and likely harbors a salty subsurface ocean."
+        ),
+        "galilean_moon_elara" to listOf(
+            "Elara is an irregular Jovian satellite discovered in 1905 by astronomer Charles Dillon Perrine.",
+            "Before its official naming in 1975, Elara was informally called Jupiter VII and was also colloquially referred to as 'Dianz' (دیانز) or 'Green Tomato' (گوجه سبز).",
+            "It belongs to the Himalia group of prograde irregular moons orbiting nearly 12 million kilometers from Jupiter.",
+            "Elara has an extremely dark C-type carbonaceous surface (albedo 0.04), indicating it is a captured asteroid.",
+            "It takes Elara approximately 259.6 Earth days to complete one orbit around Jupiter."
         )
     )
 
@@ -528,6 +656,8 @@ object PhysicalData {
     }
 
     fun getCoolFactsEn(obj: CelestialObject): List<String> {
+        coolFactsMapEn[obj.id]?.let { return it }
+
         return listOf(
             "Apparent magnitude of ${String.format("%.1f", obj.magnitude)} in constellation ${obj.constellationEn}.",
             "Estimated distance from Earth is approximately ${String.format("%,.0f", obj.distanceLightYears)} light-years.",

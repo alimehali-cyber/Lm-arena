@@ -14,7 +14,8 @@ object JupiterMoonsEngine {
         IO("Io", "آیو", 1821.6, 1.7691377, 5.90),
         EUROPA("Europa", "اروپا", 1560.8, 3.5511810, 9.40),
         GANYMEDE("Ganymede", "گانیمد", 2634.1, 7.1545530, 14.99),
-        CALLISTO("Callisto", "کالیستو", 2410.3, 16.6890180, 26.37)
+        CALLISTO("Callisto", "کالیستو", 2410.3, 16.6890180, 26.37),
+        ELARA("Elara", "الارا", 43.0, 259.65, 164.2)
     }
 
     enum class MoonPhenomenon {
@@ -59,6 +60,7 @@ object JupiterMoonsEngine {
         val J2_mean = (358.4108 + 101.3747231 * d) % 360.0
         val J3_mean = (5.7129 + 50.3176081 * d) % 360.0
         val J4_mean = (224.8169 + 21.5710715 * d) % 360.0
+        val J5_mean = (110.0 + 1.3863 * d) % 360.0
 
         val rJupKm = 71492.0
         val jupAngularRadiusArcsec = jupPos.angularDiameterArcsec / 2.0
@@ -70,6 +72,7 @@ object JupiterMoonsEngine {
                 GalileanMoon.EUROPA -> J2_mean
                 GalileanMoon.GANYMEDE -> J3_mean
                 GalileanMoon.CALLISTO -> J4_mean
+                GalileanMoon.ELARA -> J5_mean
             }
             val uRad = Math.toRadians(uDeg)
 

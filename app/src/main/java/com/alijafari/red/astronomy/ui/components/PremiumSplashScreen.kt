@@ -9,10 +9,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -22,82 +24,166 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.random.Random
 
 /**
- * Ultra-Premium, Minimalist Apple-Grade Animated Splash Screen
- * Runs smoothly for a maximum of 2.2 seconds (total timeline <= 2.2s).
- * Features developer attribution:
- * "Designed and Developed by:
- * Ali Jafari"
+ * Ultra-Premium Apple/Linear/Vercel-Grade Animated Full-Screen Splash Screen for "RED".
+ * Total duration: MAXIMUM 2.5 seconds (2450ms).
+ *
+ * Developer Credit (Mandatory):
+ * Designed and Developed by:
+ * Ali Jafari
  */
 @Composable
 fun PremiumSplashScreen(
     onSplashComplete: () -> Unit
 ) {
-    // Animatable states for hardware-accelerated GPU animation
-    val logoScale = remember { Animatable(0.85f) }
-    val logoAlpha = remember { Animatable(0f) }
-    val textAlpha = remember { Animatable(0f) }
-    val textOffsetY = remember { Animatable(14f) }
-    val lineScale = remember { Animatable(0f) }
-    val containerAlpha = remember { Animatable(1.0f) }
+    // Animatable properties for 60fps GPU acceleration
+    val bgGlowAlpha = remember { Animatable(0f) }
+    val starsAlpha = remember { Animatable(0f) }
+    val planetScale = remember { Animatable(0.3f) }
+    val planetAlpha = remember { Animatable(0f) }
+    val titleAlpha = remember { Animatable(0f) }
+    val titleOffsetY = remember { Animatable(20f) }
+    val lineScaleX = remember { Animatable(0f) }
+    val creditAlpha = remember { Animatable(0f) }
+    val creditOffsetY = remember { Animatable(16f) }
+    val splashContainerAlpha = remember { Animatable(1f) }
 
+    // Satellite orbital phase animation
+    val infiniteTransition = rememberInfiniteTransition(label = "OrbitalDot")
+    val orbitAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "OrbitAngle"
+    )
+
+    // Twinkle animation for stars
+    val starTwinkle by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "StarTwinkle"
+    )
+
+    // Pre-generated deterministic star positions & sizes
+    val starPositions = remember {
+        val rand = Random(42)
+        List(50) {
+            Triple(
+                rand.nextFloat(), // x % (0..1)
+                rand.nextFloat(), // y % (0..1)
+                rand.nextFloat() * 1.5f + 0.5f // size in px
+            )
+        }
+    }
+
+    // Pre-generated floating ambient particles
+    val particlePositions = remember {
+        val rand = Random(108)
+        List(12) {
+            Triple(
+                rand.nextFloat(), // x %
+                rand.nextFloat(), // y %
+                rand.nextFloat() * 2.5f + 1.0f // size
+            )
+        }
+    }
+
+    // Strict Timeline Choreography (Total <= 2.5 seconds)
     LaunchedEffect(Unit) {
-        // Step 1: Smooth Apple ease-out reveal for logo emblem (0 to 600ms)
+        // 0.0s - 0.2s: Background gradient and glow fade in
         launch {
-            logoScale.animateTo(
+            bgGlowAlpha.animateTo(
+                targetValue = 1.0f,
+                animationSpec = tween(durationMillis = 300, easing = LinearOutSlowInEasing)
+            )
+        }
+
+        // 0.3s - 0.5s: Star field fades in
+        delay(300)
+        launch {
+            starsAlpha.animateTo(
+                targetValue = 1.0f,
+                animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing)
+            )
+        }
+
+        // 0.3s - 1.1s: Central Mars planet scales up from 0.3 -> 1.0 with Apple cubic-bezier
+        launch {
+            planetAlpha.animateTo(
+                targetValue = 1.0f,
+                animationSpec = tween(durationMillis = 500, easing = LinearOutSlowInEasing)
+            )
+            planetScale.animateTo(
                 targetValue = 1.0f,
                 animationSpec = tween(
-                    durationMillis = 700,
+                    durationMillis = 750,
                     easing = CubicBezierEasing(0.16f, 1.0f, 0.3f, 1.0f)
                 )
             )
         }
-        launch {
-            logoAlpha.animateTo(
-                targetValue = 1.0f,
-                animationSpec = tween(
-                    durationMillis = 650,
-                    easing = FastOutSlowInEasing
-                )
-            )
-        }
 
-        // Step 2: Line reveal & Typography slide-up (250ms to 850ms)
-        delay(250)
+        // 0.6s - 1.3s: "RED" text slides up from 20dp below with fade-in
+        delay(300) // (600ms total)
         launch {
-            lineScale.animateTo(
+            titleAlpha.animateTo(
                 targetValue = 1.0f,
-                animationSpec = tween(
-                    durationMillis = 600,
-                    easing = FastOutSlowInEasing
-                )
+                animationSpec = tween(durationMillis = 500, easing = LinearOutSlowInEasing)
             )
         }
         launch {
-            textOffsetY.animateTo(
+            titleOffsetY.animateTo(
                 targetValue = 0f,
                 animationSpec = tween(
-                    durationMillis = 600,
+                    durationMillis = 650,
                     easing = CubicBezierEasing(0.16f, 1.0f, 0.3f, 1.0f)
                 )
             )
         }
+
+        // 1.0s - 1.5s: Accent line expands from 0 to 60dp width
+        delay(400) // (1000ms total)
         launch {
-            textAlpha.animateTo(
+            lineScaleX.animateTo(
                 targetValue = 1.0f,
                 animationSpec = tween(
-                    durationMillis = 550,
-                    easing = LinearOutSlowInEasing
+                    durationMillis = 500,
+                    easing = CubicBezierEasing(0.16f, 1.0f, 0.3f, 1.0f)
                 )
             )
         }
 
-        // Step 3: Hold steady phase (850ms to 1700ms)
-        delay(1250)
+        // 1.3s - 1.9s: Developer credit fades in from below
+        delay(300) // (1300ms total)
+        launch {
+            creditAlpha.animateTo(
+                targetValue = 1.0f,
+                animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
+            )
+        }
+        launch {
+            creditOffsetY.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(
+                    durationMillis = 550,
+                    easing = CubicBezierEasing(0.16f, 1.0f, 0.3f, 1.0f)
+                )
+            )
+        }
 
-        // Step 4: Ultra-smooth cross-dissolve exit to app (1700ms to 2150ms)
-        containerAlpha.animateTo(
+        // 2.0s - 2.5s: Entire splash screen fades out with smooth opacity exit
+        delay(700) // (2000ms total)
+        splashContainerAlpha.animateTo(
             targetValue = 0f,
             animationSpec = tween(
                 durationMillis = 450,
@@ -105,37 +191,71 @@ fun PremiumSplashScreen(
             )
         )
 
+        // 2.45s: Complete transition to main app UI
         onSplashComplete()
     }
 
-    if (containerAlpha.value > 0f) {
+    if (splashContainerAlpha.value > 0f) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    alpha = containerAlpha.value
+                    alpha = splashContainerAlpha.value
                 }
-                .background(Color(0xFF090A0F))
+                .background(Color(0xFF000000))
                 .testTag("premium_splash_screen"),
             contentAlignment = Alignment.Center
         ) {
-            // Ambient soft background glow (Apple-style subtle radial halo)
+            // Background Layer: Deep Crimson Mars Radial Glow & Star Field
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val center = Offset(size.width / 2f, size.height / 2f)
-                val glowRadius = size.minDimension * 0.55f
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Color(0xFFE11D48).copy(alpha = 0.12f * logoAlpha.value),
-                            Color(0xFF8B5CF6).copy(alpha = 0.06f * logoAlpha.value),
-                            Color.Transparent
+                val cX = size.width / 2f
+                val cY = size.height / 2f
+
+                // Central Deep Crimson/Mars-Red Glow
+                if (bgGlowAlpha.value > 0f) {
+                    val glowRadius = size.minDimension * 0.65f
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFFB41E14).copy(alpha = 0.22f * bgGlowAlpha.value),
+                                Color(0xFFE11D48).copy(alpha = 0.10f * bgGlowAlpha.value),
+                                Color(0xFF1E0A10).copy(alpha = 0.04f * bgGlowAlpha.value),
+                                Color.Transparent
+                            ),
+                            center = Offset(cX, cY),
+                            radius = glowRadius
                         ),
-                        center = center,
+                        center = Offset(cX, cY),
                         radius = glowRadius
-                    ),
-                    center = center,
-                    radius = glowRadius
-                )
+                    )
+                }
+
+                // Faint Star Field with Twinkle Effect
+                if (starsAlpha.value > 0f) {
+                    starPositions.forEachIndexed { idx, (xFrac, yFrac, starSize) ->
+                        val px = xFrac * size.width
+                        val py = yFrac * size.height
+                        val currentTwinkle = if (idx % 2 == 0) starTwinkle else (1.4f - starTwinkle)
+                        val alpha = (0.25f + 0.65f * currentTwinkle).coerceIn(0f, 1f) * starsAlpha.value
+
+                        drawCircle(
+                            color = Color.White.copy(alpha = alpha),
+                            radius = starSize.dp.toPx(),
+                            center = Offset(px, py)
+                        )
+                    }
+
+                    // Ambient Slow Floating Particles
+                    particlePositions.forEach { (xFrac, yFrac, pSize) ->
+                        val px = xFrac * size.width
+                        val py = yFrac * size.height
+                        drawCircle(
+                            color = Color(0xFFFB7185).copy(alpha = 0.20f * starsAlpha.value),
+                            radius = pSize.dp.toPx(),
+                            center = Offset(px, py)
+                        )
+                    }
+                }
             }
 
             Column(
@@ -143,96 +263,146 @@ fun PremiumSplashScreen(
                 verticalArrangement = Arrangement.Center,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 32.dp)
+                    .padding(horizontal = 24.dp)
             ) {
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Apple-Inspired Minimalist Vector Celestial Emblem
+                // Central Hero Visual: Mars Planet with Radial Shading + Tilted Ring + Orbiting Satellite
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(120.dp)
+                        .size(160.dp)
                         .graphicsLayer {
-                            scaleX = logoScale.value
-                            scaleY = logoScale.value
-                            alpha = logoAlpha.value
+                            scaleX = planetScale.value
+                            scaleY = planetScale.value
+                            alpha = planetAlpha.value
                         }
                 ) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         val cX = size.width / 2f
                         val cY = size.height / 2f
-                        val baseR = size.width * 0.38f
+                        val planetRadius = 40.dp.toPx() // 80dp diameter
 
-                        // Outer thin orbital ring
+                        // Outer Soft Red Corona Halo
                         drawCircle(
-                            color = Color.White.copy(alpha = 0.15f),
-                            radius = baseR,
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFFF43F5E).copy(alpha = 0.35f),
+                                    Color(0xFF9F1239).copy(alpha = 0.12f),
+                                    Color.Transparent
+                                ),
+                                center = Offset(cX, cY),
+                                radius = planetRadius * 1.8f
+                            ),
                             center = Offset(cX, cY),
-                            style = Stroke(width = 1.2.dp.toPx())
+                            radius = planetRadius * 1.8f
                         )
 
-                        // Elliptical inclined orbit ring (Apple minimalist aesthetic)
-                        val orbitPath = Path()
-                        val rx = baseR * 1.18f
-                        val ry = baseR * 0.42f
-                        orbitPath.addOval(
-                            androidx.compose.ui.geometry.Rect(
-                                cX - rx, cY - ry,
-                                cX + rx, cY + ry
+                        // Mars-like Planet Sphere with Realistic Gradient (Highlight Top-Left, Shadow Bottom-Right)
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFFFDA4AF), // Top-left specular highlight
+                                    Color(0xFFE11D48), // Main rich crimson body
+                                    Color(0xFF881337), // Shadow side
+                                    Color(0xFF1F040A)  // Deep limb darkness
+                                ),
+                                center = Offset(cX - planetRadius * 0.35f, cY - planetRadius * 0.35f),
+                                radius = planetRadius * 1.35f
+                            ),
+                            center = Offset(cX, cY),
+                            radius = planetRadius
+                        )
+
+                        // Thin Orbital Ring (Tilted at 75°)
+                        val ringRx = planetRadius * 1.75f
+                        val ringRy = planetRadius * 0.48f
+
+                        rotate(degrees = -20f, pivot = Offset(cX, cY)) {
+                            // Ring Path
+                            val ringPath = Path().apply {
+                                addOval(
+                                    androidx.compose.ui.geometry.Rect(
+                                        cX - ringRx, cY - ringRy,
+                                        cX + ringRx, cY + ringRy
+                                    )
+                                )
+                            }
+                            drawPath(
+                                path = ringPath,
+                                color = Color(0xFFFB7185).copy(alpha = 0.60f),
+                                style = Stroke(width = 1.6.dp.toPx())
                             )
-                        )
-                        drawPath(
-                            path = orbitPath,
-                            color = Color(0xFFF43F5E).copy(alpha = 0.65f),
-                            style = Stroke(width = 1.5.dp.toPx())
-                        )
 
-                        // Inner core glowing point
-                        drawCircle(
-                            color = Color(0xFFFB7185).copy(alpha = 0.35f),
-                            radius = 16.dp.toPx(),
-                            center = Offset(cX, cY)
-                        )
-                        drawCircle(
-                            color = Color.White,
-                            radius = 6.dp.toPx(),
-                            center = Offset(cX, cY)
-                        )
+                            // Orbiting Satellite Glowing Dot along the Elliptic Ring
+                            val rad = Math.toRadians(orbitAngle.toDouble())
+                            val dotX = cX + ringRx * cos(rad).toFloat()
+                            val dotY = cY + ringRy * sin(rad).toFloat()
+
+                            // Satellite Outer Glow
+                            drawCircle(
+                                color = Color(0xFFFB7185).copy(alpha = 0.45f),
+                                radius = 6.dp.toPx(),
+                                center = Offset(dotX, dotY)
+                            )
+                            // Satellite Core Dot
+                            drawCircle(
+                                color = Color.White,
+                                radius = 2.8.dp.toPx(),
+                                center = Offset(dotX, dotY)
+                            )
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // App Title "RED" with luxurious tracking
-                Text(
-                    text = "RED",
-                    style = TextStyle(
-                        fontWeight = FontWeight.Light,
-                        fontSize = 32.sp,
-                        letterSpacing = 8.sp,
-                        color = Color.White
-                    ),
+                // App Title "RED" (Cinematic Space Grotesk / High-Tracking Typography)
+                Box(
+                    contentAlignment = Alignment.Center,
                     modifier = Modifier.graphicsLayer {
-                        alpha = logoAlpha.value
+                        alpha = titleAlpha.value
+                        translationY = titleOffsetY.value
                     }
-                )
+                ) {
+                    // Glow blur behind "RED"
+                    Text(
+                        text = "RED",
+                        style = TextStyle(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 50.sp,
+                            letterSpacing = 20.sp,
+                            color = Color(0xFFE11D48).copy(alpha = 0.4f)
+                        )
+                    )
+                    // Crisp pure white "RED"
+                    Text(
+                        text = "RED",
+                        style = TextStyle(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 50.sp,
+                            letterSpacing = 20.sp,
+                            color = Color.White
+                        )
+                    )
+                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // Delicate Accent Line
+                // Thin 60dp Accent Line (Expanding horizontally from 0 to 60dp)
                 Box(
                     modifier = Modifier
-                        .width(40.dp)
-                        .height(1.dp)
+                        .width(60.dp)
+                        .height(1.5.dp)
                         .graphicsLayer {
-                            scaleX = lineScale.value
-                            alpha = lineScale.value * 0.5f
+                            scaleX = lineScaleX.value
+                            alpha = lineScaleX.value * 0.8f
                         }
                         .background(
                             Brush.horizontalGradient(
-                                listOf(
+                                colors = listOf(
                                     Color.Transparent,
-                                    Color(0xFFFB7185),
+                                    Color(0xFFF43F5E),
                                     Color.Transparent
                                 )
                             )
@@ -241,23 +411,23 @@ fun PremiumSplashScreen(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Developer's Information (Mandatory verbatim text block)
+                // Developer Information (MANDATORY EXACT SPECIFICATION)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier
-                        .padding(bottom = 56.dp)
+                        .padding(bottom = 64.dp) // At least 60dp from bottom
                         .graphicsLayer {
-                            alpha = textAlpha.value
-                            translationY = textOffsetY.value
+                            alpha = creditAlpha.value
+                            translationY = creditOffsetY.value
                         }
                 ) {
                     Text(
-                        text = "Designed and Developed by:",
+                        text = "DESIGNED AND DEVELOPED BY:",
                         style = TextStyle(
-                            fontWeight = FontWeight.Light,
+                            fontWeight = FontWeight.Normal,
                             fontSize = 11.sp,
-                            letterSpacing = 1.2.sp,
+                            letterSpacing = 2.2.sp,
                             color = Color(0xFF9CA3AF),
                             textAlign = TextAlign.Center
                         )
@@ -266,9 +436,9 @@ fun PremiumSplashScreen(
                         text = "Ali Jafari",
                         style = TextStyle(
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp,
-                            letterSpacing = 0.8.sp,
-                            color = Color(0xFFF3F4F6),
+                            fontSize = 16.sp,
+                            letterSpacing = 1.2.sp,
+                            color = Color(0xFFFFFFFF),
                             textAlign = TextAlign.Center
                         )
                     )

@@ -7,6 +7,13 @@ import com.alijafari.red.astronomy.astro_engine.SunEngine
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.domain.ObjectType
 
+data class Quadruple<out A, out B, out C, out D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D
+)
+
 object SolarSystemCatalog {
 
     fun getSun(jd: Double): CelestialObject {
@@ -175,20 +182,53 @@ object SolarSystemCatalog {
                 JupiterMoonsEngine.MoonPhenomenon.SHADOW_TRANSIT -> "عبور سایه قمر روی مشتری"
             }
 
+            val (descEn, descFa, cat, mag) = when (moonPos.moon) {
+                JupiterMoonsEngine.GalileanMoon.IO -> Quadruple(
+                    "The most volcanically active body in the Solar System, with hundreds of active volcanoes driven by intense tidal heating from Jupiter, Europa, and Ganymede.",
+                    "فعال‌ترین جرم آتشفشانی در منظومه شمسی با بیش از ۴۰۰ آتشفشان فعال ناشی از گرمایش جزر و مدی شدید گرانشی مشتری.",
+                    "Galilean Satellite (Volcanic)",
+                    5.0
+                )
+                JupiterMoonsEngine.GalileanMoon.EUROPA -> Quadruple(
+                    "A smooth icy moon harboring a global subsurface liquid water ocean beneath its fractured shell, holding twice as much water as all Earth's oceans combined.",
+                    "قمری یخ‌زده با اقیانوسی پهناور از آب مایع در زیر پوسته خود که حجم آب آن بیش از دو برابر تمام اقیانوس‌های زمین است و هدف اصلی کشف حیات می‌باشد.",
+                    "Galilean Satellite (Ocean World)",
+                    5.3
+                )
+                JupiterMoonsEngine.GalileanMoon.GANYMEDE -> Quadruple(
+                    "The largest moon in the Solar System—larger than Mercury and Pluto—and the only moon known to generate its own magnetic field, harboring a deep subsurface ocean.",
+                    "بزرگ‌ترین قمر منظومه شمسی (بزرگ‌تر از سیاره عطارد) و تنها قمر دارای میدان مغناطیسی اختصاصی به همراه اقیانوس زیرسطحی عمیق.",
+                    "Galilean Satellite (Magnetized)",
+                    4.6
+                )
+                JupiterMoonsEngine.GalileanMoon.CALLISTO -> Quadruple(
+                    "The most heavily cratered object in the Solar System, preserving an ancient 4-billion-year-old icy crust and orbiting safely outside Jupiter's main radiation belts.",
+                    "پردهانه‌ترین و کهن‌ترین جرم منظومه شمسی با پوسته‌ای یخ‌زده متعلق به ۴ میلیارد سال پیش که خارج از کمربند تشعشعی شدید مشتری گردش می‌کند.",
+                    "Galilean Satellite (Ancient Crust)",
+                    5.6
+                )
+                JupiterMoonsEngine.GalileanMoon.ELARA -> Quadruple(
+                    "An irregular Jovian satellite discovered in 1905. Historically, before its official naming in 1975, it was informally called Jupiter VII and colloquially referred to as 'Dianz' (دیانز) or 'Green Tomato' (گوجه سبز).",
+                    "قمر نامنظم و تیره‌رنگ مشتری کشف‌شده در سال ۱۹۰۵. این قمر پیش از نام‌گذاری رسمی در سال ۱۹۷۵ با نام‌های «دیانز» (Dianz) یا «گوجه سبز» (Green Tomato) نیز شناخته می‌شد.",
+                    "Irregular Jovian Satellite (Himalia Group)",
+                    9.8
+                )
+            }
+
             CelestialObject(
                 id = "galilean_moon_${moonPos.moon.name.lowercase()}",
                 type = ObjectType.MOON,
                 nameEn = "${moonPos.moon.nameEn} (Jupiter Moon)",
-                nameFa = "قمر گالیله‌ای ${moonPos.moon.nameFa} (مشتری)",
+                nameFa = "قمر ${moonPos.moon.nameFa} (مشتری)",
                 raDeg = raDeg,
                 decDeg = decDeg,
-                magnitude = 5.0, // Naked eye visible under ideal conditions or small optics
+                magnitude = mag,
                 constellationEn = "Jupiter Orbit",
                 constellationFa = "مدار مشتری",
                 distanceLightYears = (jupPos.distanceAU * 149597870.7) / (9.461e12),
-                category = "Galilean Satellite",
-                descriptionEn = "One of the 4 major moons of Jupiter discovered by Galileo Galilei in 1610.",
-                descriptionFa = "یکی از ۴ قمر بزرگ گالیله‌ای مشتری که در سال ۱۶۱۰ کشف شد.",
+                category = cat,
+                descriptionEn = descEn,
+                descriptionFa = descFa,
                 observationTipEn = "Offset from Jupiter: ${String.format("%.1f", moonPos.xRJ)} RJ ($statusEn)",
                 observationTipFa = "فاصله از مشتری: ${String.format("%.1f", moonPos.xRJ)} شعاع مشتری ($statusFa)"
             )

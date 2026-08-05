@@ -55,8 +55,7 @@ object AstronomyCatalog {
     val BETELGEUSE = StarCatalog.getStars().first { it.id == "star_ori_betelgeuse" }
     val POLARIS = StarCatalog.getStars().first { it.id == "star_umi_polaris" }
 
-    val IRAN_CITIES = listOf(
-        Triple("Safashahr (Fars)", "صفاشهر (فارس)", 30.6158 to 53.1956),
+    private val RAW_IRAN_CITIES = listOf(
         Triple("Nurabad City (NC)", "نورآباد ممسنی (NC)", 30.1141 to 51.5217),
         Triple("Tehran", "تهران", 35.6892 to 51.3890),
         Triple("Shiraz", "شیراز", 29.5918 to 52.5837),
@@ -72,8 +71,17 @@ object AstronomyCatalog {
         Triple("Zahedan", "زاهدان", 29.4963 to 60.8629),
         Triple("Bandar Abbas", "بندرعباس", 27.1832 to 56.2666),
         Triple("Sanandaj", "سنندج", 35.3144 to 46.9923),
-        Triple("Bushehr", "بوشهر", 28.9234 to 50.8382)
+        Triple("Bushehr", "بوشهر", 28.9234 to 50.8382),
+        Triple("Safashahr (Fars)", "صفاشهر (فارس)", 30.6158 to 53.1956)
     )
+
+    val IRAN_CITIES: List<Triple<String, String, Pair<Double, Double>>>
+        get() {
+            val nurabad = RAW_IRAN_CITIES.firstOrNull { it.first.contains("Nurabad", ignoreCase = true) }
+            val safashahr = RAW_IRAN_CITIES.firstOrNull { it.first.contains("Safashahr", ignoreCase = true) }
+            val others = RAW_IRAN_CITIES.filter { it != nurabad && it != safashahr }
+            return listOfNotNull(nurabad) + others + listOfNotNull(safashahr)
+        }
 
     val DEFAULT_CONSTELLATIONS = ConstellationCatalog.getConstellations()
 
