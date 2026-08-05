@@ -478,7 +478,7 @@ private fun PhotographicMoonView(
         ) {
             // High-Res Photographic Moon Asset (Bundled, 100% offline ready, photorealistic astrophotography)
             Image(
-                painter = painterResource(id = R.drawable.img_full_moon_photo),
+                painter = painterResource(id = R.drawable.img_full_moon_photo_1785673146290),
                 contentDescription = moonData.phaseNameFa,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()

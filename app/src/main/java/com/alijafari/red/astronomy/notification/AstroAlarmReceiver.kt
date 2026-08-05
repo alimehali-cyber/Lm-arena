@@ -101,7 +101,7 @@ class AstroAlarmReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ISS)
-            .setSmallIcon(R.drawable.red_app_logo)
+            .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentTitle(title)
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
@@ -136,7 +136,7 @@ class AstroAlarmReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_OBJECTS)
-            .setSmallIcon(R.drawable.red_app_logo)
+            .setSmallIcon(android.R.drawable.ic_menu_search)
             .setContentTitle(title)
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
