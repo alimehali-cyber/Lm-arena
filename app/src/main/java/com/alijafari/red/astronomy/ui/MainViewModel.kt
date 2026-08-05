@@ -27,7 +27,8 @@ data class MainUiState(
     val showObservationLogDialog: Boolean = false,
     val bortleClass: Int = 3,
     val favoritesList: List<String> = emptyList(),
-    val observationLogs: List<ObservationLogEntity> = emptyList()
+    val observationLogs: List<ObservationLogEntity> = emptyList(),
+    val timeMachineState: TimeMachineState = TimeMachineState()
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -175,6 +176,100 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteObservationLog(log: ObservationLogEntity) {
         viewModelScope.launch {
             repository.deleteObservationLog(log)
+        }
+    }
+
+    // Time Machine Functions
+    fun setSimulatedTime(timeMs: Long, eventName: String? = null, isBirthday: Boolean = false) {
+        val clamped = timeMs.coerceIn(TimeMachineState.MIN_TIMESTAMP_MS, TimeMachineState.MAX_TIMESTAMP_MS)
+        _uiState.update {
+            it.copy(
+                timeMachineState = it.timeMachineState.copy(
+                    mode = TimeMachineMode.SIMULATION,
+                    simulationTimeMs = clamped,
+                    eventName = eventName,
+                    isBirthdayMode = isBirthday
+                )
+            )
+        }
+    }
+
+    fun setTimeMachineMode(mode: TimeMachineMode) {
+        _uiState.update {
+            val currentSimTime = if (mode == TimeMachineMode.SIMULATION && it.timeMachineState.mode == TimeMachineMode.LIVE) {
+                System.currentTimeMillis()
+            } else {
+                it.timeMachineState.simulationTimeMs
+            }
+            it.copy(
+                timeMachineState = it.timeMachineState.copy(
+                    mode = mode,
+                    simulationTimeMs = currentSimTime
+                )
+            )
+        }
+    }
+
+    fun toggleTimeMachinePlaying() {
+        _uiState.update {
+            it.copy(
+                timeMachineState = it.timeMachineState.copy(
+                    isPlaying = !it.timeMachineState.isPlaying
+                )
+            )
+        }
+    }
+
+    fun setTimeMachinePlaying(playing: Boolean) {
+        _uiState.update {
+            it.copy(
+                timeMachineState = it.timeMachineState.copy(isPlaying = playing)
+            )
+        }
+    }
+
+    fun setTimeMachineSpeed(speed: TimeSimulationSpeed) {
+        _uiState.update {
+            it.copy(
+                timeMachineState = it.timeMachineState.copy(speed = speed)
+            )
+        }
+    }
+
+    fun toggleTimeMachineReverse() {
+        _uiState.update {
+            it.copy(
+                timeMachineState = it.timeMachineState.copy(isReverse = !it.timeMachineState.isReverse)
+            )
+        }
+    }
+
+    fun toggleTimeMachineExpanded() {
+        _uiState.update {
+            it.copy(
+                timeMachineState = it.timeMachineState.copy(isExpanded = !it.timeMachineState.isExpanded)
+            )
+        }
+    }
+
+    fun setTimeMachineExpanded(expanded: Boolean) {
+        _uiState.update {
+            it.copy(
+                timeMachineState = it.timeMachineState.copy(isExpanded = expanded)
+            )
+        }
+    }
+
+    fun returnToLiveTime() {
+        _uiState.update {
+            it.copy(
+                timeMachineState = it.timeMachineState.copy(
+                    mode = TimeMachineMode.LIVE,
+                    isPlaying = false,
+                    eventName = null,
+                    isBirthdayMode = false
+                )
+            )
         }
     }
 }

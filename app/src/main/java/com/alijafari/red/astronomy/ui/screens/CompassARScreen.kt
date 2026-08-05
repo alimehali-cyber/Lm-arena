@@ -66,8 +66,10 @@ import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.components.TimeMachineControlBar
 import com.alijafari.red.astronomy.ui.theme.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -223,8 +225,68 @@ fun CompassARScreen(
         }
     }
 
+    // Time Machine State & Ticking Handlers
+    val timeMachineState = uiState.timeMachineState
+    val coroutineScope = rememberCoroutineScope()
+
+    // Smooth playback ticking loop when simulation mode is active and playing
+    LaunchedEffect(timeMachineState.mode, timeMachineState.isPlaying, timeMachineState.speed, timeMachineState.isReverse) {
+        if (timeMachineState.mode == TimeMachineMode.SIMULATION && timeMachineState.isPlaying) {
+            var lastFrameMs = System.currentTimeMillis()
+            while (true) {
+                delay(33L)
+                val nowMs = System.currentTimeMillis()
+                val deltaRealSec = (nowMs - lastFrameMs) / 1000.0
+                lastFrameMs = nowMs
+
+                val multiplier = timeMachineState.speed.multiplier
+                val direction = if (timeMachineState.isReverse) -1.0 else 1.0
+                val deltaSimMs = (deltaRealSec * multiplier * direction * 1000.0).toLong()
+
+                val newTime = timeMachineState.simulationTimeMs + deltaSimMs
+                viewModel.setSimulatedTime(newTime, timeMachineState.eventName, timeMachineState.isBirthdayMode)
+            }
+        }
+    }
+
+    // Ticking loop when in LIVE mode to keep real-time sky moving
+    var liveTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(timeMachineState.mode) {
+        if (timeMachineState.mode == TimeMachineMode.LIVE) {
+            while (true) {
+                liveTimeMs = System.currentTimeMillis()
+                delay(1000L)
+            }
+        }
+    }
+
+    // Coroutine for smooth ~1s animated transition back to LIVE mode
+    val handleReturnToLive = {
+        coroutineScope.launch {
+            val startSimMs = timeMachineState.simulationTimeMs
+            val targetLiveMs = System.currentTimeMillis()
+            val animDurationMs = 1000L
+            val startTime = System.currentTimeMillis()
+
+            while (true) {
+                val elapsed = System.currentTimeMillis() - startTime
+                if (elapsed >= animDurationMs) {
+                    viewModel.returnToLiveTime()
+                    break
+                }
+                val fraction = elapsed.toFloat() / animDurationMs.toFloat()
+                val easedFraction = (1.0 - cos(fraction * PI)) / 2.0
+                val currentSim = (startSimMs + (targetLiveMs - startSimMs) * easedFraction).toLong()
+                viewModel.setSimulatedTime(currentSim, timeMachineState.eventName, timeMachineState.isBirthdayMode)
+                delay(16L)
+            }
+        }
+    }
+
+    val activeTimeMs = if (timeMachineState.mode == TimeMachineMode.LIVE) liveTimeMs else timeMachineState.simulationTimeMs
+
     // Astronomy Calculations
-    val jd = remember { TimeEngine.getJulianDate() }
+    val jd = remember(activeTimeMs) { TimeEngine.getJulianDate(activeTimeMs) }
     val lastDeg = remember(uiState.userLocation, jd) {
         TimeEngine.getLAST(jd, uiState.userLocation.longitude)
     }
@@ -1133,6 +1195,23 @@ fun CompassARScreen(
                     }
                 }
             }
+
+            // Time Machine Floating Pill Control Bar directly underneath top AR information band
+            Spacer(modifier = Modifier.height(6.dp))
+            TimeMachineControlBar(
+                state = timeMachineState,
+                isFa = isFa,
+                calendarSystem = uiState.calendarSystem,
+                onSimulatedTimeChange = { timeMs, eventName, isBirthday ->
+                    viewModel.setSimulatedTime(timeMs, eventName, isBirthday)
+                },
+                onModeChange = { mode -> viewModel.setTimeMachineMode(mode) },
+                onTogglePlay = { viewModel.toggleTimeMachinePlaying() },
+                onSpeedChange = { speed -> viewModel.setTimeMachineSpeed(speed) },
+                onToggleReverse = { viewModel.toggleTimeMachineReverse() },
+                onToggleExpanded = { viewModel.toggleTimeMachineExpanded() },
+                onReturnToLive = { handleReturnToLive() }
+            )
         }
 
         // Calibration Warning Banner (if sensor uncalibrated)
