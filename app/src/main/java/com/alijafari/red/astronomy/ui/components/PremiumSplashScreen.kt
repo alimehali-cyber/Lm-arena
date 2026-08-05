@@ -10,6 +10,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -125,6 +127,43 @@ fun PremiumSplashScreen(
                         scaleY = imageScale.value
                     }
             )
+
+            // Centered Title and Developer Credit Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = androidx.compose.ui.Alignment.BottomCenter
+            ) {
+                androidx.compose.foundation.layout.Column(
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .padding(bottom = 48.dp)
+                        .graphicsLayer {
+                            alpha = imageAlpha.value
+                        }
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.red_app_logo_display),
+                        contentDescription = "RED Logo",
+                        modifier = Modifier.size(72.dp)
+                    )
+                    androidx.compose.material3.Text(
+                        text = "RED ASTRONOMY",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        letterSpacing = 3.sp
+                    )
+                    androidx.compose.material3.Text(
+                        text = "Designed and Developed by Ali Jafari",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 12.sp,
+                        letterSpacing = 1.sp
+                    )
+                }
+            }
 
             // Pure black background overlay during initial fade-in
             if (imageAlpha.value < 1.0f) {
