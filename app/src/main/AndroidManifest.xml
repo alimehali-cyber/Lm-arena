@@ -48,9 +48,9 @@
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-                <action android:name="com.example.ACTION_RESCHEDULE_ALL" />
-                <action android:name="com.example.ACTION_TRIGGER_ISS_NOTIFICATION" />
-                <action android:name="com.example.ACTION_TRIGGER_OBJECT_NOTIFICATION" />
+                <action android:name="com.alijafari.red.astronomy.ACTION_RESCHEDULE_ALL" />
+                <action android:name="com.alijafari.red.astronomy.ACTION_TRIGGER_ISS_NOTIFICATION" />
+                <action android:name="com.alijafari.red.astronomy.ACTION_TRIGGER_OBJECT_NOTIFICATION" />
             </intent-filter>
         </receiver>
     </application>

@@ -1,0 +1,313 @@
+package com.alijafari.red.astronomy.astro_engine
+
+import kotlin.math.*
+
+object CoordinateEngine {
+
+    data class Equatorial(val raDeg: Double, val decDeg: Double)
+    data class Horizontal(val azimuthDeg: Double, val altitudeDeg: Double)
+    data class Galactic(val lDeg: Double, val bDeg: Double)
+
+    data class Nutation(
+        val deltaPsiDeg: Double,   // Nutation in longitude (degrees)
+        val deltaEpsDeg: Double,   // Nutation in obliquity (degrees)
+        val meanObliquityDeg: Double,
+        val trueObliquityDeg: Double
+    )
+
+    /**
+     * Calculates IAU Nutation in Longitude and Obliquity for Julian Ephemeris Day (JDE).
+     */
+    fun calculateNutation(jd: Double): Nutation {
+        val T = (jd - 2451545.0) / 36525.0
+
+        // Mean longitude of Sun
+        val L = Math.toRadians((280.4665 + 36000.7698 * T) % 360.0)
+        // Mean longitude of Moon
+        val Lprime = Math.toRadians((218.3165 + 481267.8813 * T) % 360.0)
+        // Longitude of Moon's ascending node
+        val Omega = Math.toRadians((125.04452 - 1934.136261 * T + 0.0020708 * T * T) % 360.0)
+
+        // Nutation terms in arcseconds
+        val dPsiArcsec = -17.20 * sin(Omega) - 1.32 * sin(2 * L) - 0.23 * sin(2 * Lprime) + 0.21 * sin(2 * Omega)
+        val dEpsArcsec = 9.20 * cos(Omega) + 0.57 * cos(2 * L) + 0.10 * cos(2 * Lprime) - 0.09 * cos(2 * Omega)
+
+        val deltaPsiDeg = dPsiArcsec / 3600.0
+        val deltaEpsDeg = dEpsArcsec / 3600.0
+
+        val meanObliquityDeg = 23.4392911 - (46.8150 * T + 0.00059 * T * T - 0.001813 * T * T * T) / 3600.0
+        val trueObliquityDeg = meanObliquityDeg + deltaEpsDeg
+
+        return Nutation(
+            deltaPsiDeg = deltaPsiDeg,
+            deltaEpsDeg = deltaEpsDeg,
+            meanObliquityDeg = meanObliquityDeg,
+            trueObliquityDeg = trueObliquityDeg
+        )
+    }
+
+    /**
+     * Converts Equatorial coordinates (RA, Dec in degrees) to Horizontal coordinates (Azimuth, Altitude in degrees).
+     * @param lastDeg Local Apparent Sidereal Time in degrees.
+     * @param latitudeDeg Observer latitude in degrees (+North).
+     * @param observerElevationM Observer elevation above sea level in meters (default 0).
+     */
+    fun equatorialToHorizontal(
+        equatorial: Equatorial,
+        lastDeg: Double,
+        latitudeDeg: Double,
+        observerElevationM: Double = 0.0
+    ): Horizontal {
+        // Hour Angle (HA) in degrees = LAST - RA
+        var haDeg = lastDeg - equatorial.raDeg
+        haDeg %= 360.0
+        if (haDeg < 0) haDeg += 360.0
+
+        val haRad = Math.toRadians(haDeg)
+        val decRad = Math.toRadians(equatorial.decDeg)
+        val latRad = Math.toRadians(latitudeDeg)
+
+        // True Altitude
+        val sinAlt = sin(decRad) * sin(latRad) + cos(decRad) * cos(latRad) * cos(haRad)
+        val altRad = asin(sinAlt.coerceIn(-1.0, 1.0))
+        var altDeg = Math.toDegrees(altRad)
+
+        // Azimuth (measured from North = 0, East = 90)
+        val cosAz = (sin(decRad) - sin(latRad) * sin(altRad)) / (cos(latRad) * cos(altRad)).coerceAtLeast(1e-6)
+        val sinAz = -cos(decRad) * sin(haRad) / cos(altRad).coerceAtLeast(1e-6)
+
+        var azRad = atan2(sinAz, cosAz)
+        var azDeg = Math.toDegrees(azRad)
+        if (azDeg < 0) azDeg += 360.0
+
+        // Atmospheric Refraction (Bennett formula adjusted for temperature and elevation pressure)
+        if (altDeg > -1.5) {
+            val pressurehPa = 1013.25 * (1.0 - 2.25577e-5 * observerElevationM).pow(5.25588)
+            val tempK = 288.15 - 0.0065 * observerElevationM
+            val R_bennett = 1.02 / tan(Math.toRadians(altDeg + 10.3 / (altDeg + 5.11))) // arcminutes
+            val refractionArcmin = R_bennett * (pressurehPa / 1010.0) * (283.15 / tempK)
+            altDeg += (refractionArcmin / 60.0)
+        }
+
+        return Horizontal(azimuthDeg = azDeg, altitudeDeg = altDeg)
+    }
+
+    /**
+     * Converts Horizontal (Azimuth, Altitude) back to Equatorial (RA, Dec).
+     */
+    fun horizontalToEquatorial(
+        horizontal: Horizontal,
+        lastDeg: Double,
+        latitudeDeg: Double
+    ): Equatorial {
+        val azRad = Math.toRadians(horizontal.azimuthDeg)
+        val altRad = Math.toRadians(horizontal.altitudeDeg)
+        val latRad = Math.toRadians(latitudeDeg)
+
+        val sinDec = sin(altRad) * sin(latRad) + cos(altRad) * cos(latRad) * cos(azRad)
+        val decRad = asin(sinDec.coerceIn(-1.0, 1.0))
+        val decDeg = Math.toDegrees(decRad)
+
+        val sinHA = -sin(azRad) * cos(altRad) / cos(decRad).coerceAtLeast(1e-6)
+        val cosHA = (sin(altRad) - sin(latRad) * sin(decRad)) / (cos(latRad) * cos(decRad)).coerceAtLeast(1e-6)
+
+        val haRad = atan2(sinHA, cosHA)
+        var haDeg = Math.toDegrees(haRad)
+        if (haDeg < 0) haDeg += 360.0
+
+        var raDeg = lastDeg - haDeg
+        raDeg %= 360.0
+        if (raDeg < 0) raDeg += 360.0
+
+        return Equatorial(raDeg = raDeg, decDeg = decDeg)
+    }
+
+    /**
+     * Corrects Geocentric Equatorial position for Topocentric Parallax (for nearby objects like the Moon).
+     */
+    fun geocentricToTopocentric(
+        geocentric: Equatorial,
+        geocentricDistanceKm: Double,
+        lastDeg: Double,
+        latitudeDeg: Double,
+        elevationM: Double = 0.0
+    ): Equatorial {
+        if (geocentricDistanceKm <= 0.0) return geocentric
+
+        val earthRadiusKm = 6378.137
+        val latRad = Math.toRadians(latitudeDeg)
+
+        // Earth oblateness factors
+        val f = 1.0 / 298.257223563
+        val u = atan((1.0 - f) * tan(latRad))
+        val hKm = elevationM / 1000.0
+        val rhoSinLat = (1.0 - f) * sin(u) + (hKm / earthRadiusKm) * sin(latRad)
+        val rhoCosLat = cos(u) + (hKm / earthRadiusKm) * cos(latRad)
+
+        val piRad = asin((earthRadiusKm / geocentricDistanceKm).coerceIn(-1.0, 1.0))
+
+        var haDeg = lastDeg - geocentric.raDeg
+        haDeg %= 360.0
+        if (haDeg < 0) haDeg += 360.0
+        val haRad = Math.toRadians(haDeg)
+        val decRad = Math.toRadians(geocentric.decDeg)
+
+        // Parallax in RA
+        val deltaRaRad = atan2(-rhoCosLat * sin(piRad) * sin(haRad), cos(decRad) - rhoCosLat * sin(piRad) * cos(haRad))
+        val topoRaDeg = (geocentric.raDeg + Math.toDegrees(deltaRaRad) + 360.0) % 360.0
+
+        // Parallax in Dec
+        val topoDecRad = atan2((sin(decRad) - rhoSinLat * sin(piRad)) * cos(deltaRaRad), cos(decRad) - rhoCosLat * sin(piRad) * cos(haRad))
+        val topoDecDeg = Math.toDegrees(topoDecRad)
+
+        return Equatorial(topoRaDeg, topoDecDeg)
+    }
+
+    /**
+     * Converts Equatorial J2000 coordinates to Galactic coordinates (l, b).
+     * Galactic North Pole J2000: RA = 192.85948°, Dec = +27.12825°, Node l_N = 32.93192°
+     */
+    fun equatorialToGalactic(eq: Equatorial): Galactic {
+        val raRad = Math.toRadians(eq.raDeg)
+        val decRad = Math.toRadians(eq.decDeg)
+
+        val raNGP = Math.toRadians(192.85948)
+        val decNGP = Math.toRadians(27.12825)
+        val lN = 32.93192
+
+        val sinB = sin(decRad) * sin(decNGP) + cos(decRad) * cos(decNGP) * cos(raRad - raNGP)
+        val bRad = asin(sinB.coerceIn(-1.0, 1.0))
+        val bDeg = Math.toDegrees(bRad)
+
+        val y = cos(decRad) * sin(raRad - raNGP)
+        val x = sin(decRad) * cos(decNGP) - cos(decRad) * sin(decNGP) * cos(raRad - raNGP)
+        var lDeg = lN + 180.0 - Math.toDegrees(atan2(y, x))
+        lDeg %= 360.0
+        if (lDeg < 0) lDeg += 360.0
+
+        return Galactic(lDeg, bDeg)
+    }
+
+    /**
+     * Converts Galactic coordinates (l, b) back to Equatorial J2000 (RA, Dec).
+     */
+    fun galacticToEquatorial(gal: Galactic): Equatorial {
+        val lRad = Math.toRadians(gal.lDeg)
+        val bRad = Math.toRadians(gal.bDeg)
+
+        val raNGP = Math.toRadians(192.85948)
+        val decNGP = Math.toRadians(27.12825)
+        val lNRad = Math.toRadians(32.93192)
+
+        val sinDec = sin(bRad) * sin(decNGP) + cos(bRad) * cos(decNGP) * cos(lRad - lNRad)
+        val decRad = asin(sinDec.coerceIn(-1.0, 1.0))
+        val decDeg = Math.toDegrees(decRad)
+
+        val y = cos(bRad) * sin(lRad - lNRad)
+        val x = cos(bRad) * sin(decNGP) * cos(lRad - lNRad) - sin(bRad) * cos(decNGP)
+        var raRad = raNGP + atan2(y, x)
+        var raDeg = Math.toDegrees(raRad) % 360.0
+        if (raDeg < 0) raDeg += 360.0
+
+        return Equatorial(raDeg, decDeg)
+    }
+
+    /**
+     * Formats RA in Hours:Minutes:Seconds.
+     */
+    fun formatRA(raDeg: Double): String {
+        val raHours = raDeg / 15.0
+        val h = floor(raHours).toInt()
+        val mFull = (raHours - h) * 60.0
+        val m = floor(mFull).toInt()
+        val s = ((mFull - m) * 60.0).toInt()
+        return String.format("%02dh %02dm %02ds", h, m, s)
+    }
+
+    /**
+     * Formats Dec in Degrees:Minutes:Seconds.
+     */
+    fun formatDec(decDeg: Double): String {
+        val sign = if (decDeg >= 0) "+" else "-"
+        val absD = abs(decDeg)
+        val d = floor(absD).toInt()
+        val mFull = (absD - d) * 60.0
+        val m = floor(mFull).toInt()
+        val s = ((mFull - m) * 60.0).toInt()
+        return String.format("%s%02d° %02d′ %02d″", sign, d, m, s)
+    }
+
+    data class RiseSetTransit(
+        val riseTimeStr: String,
+        val transitTimeStr: String,
+        val setTimeStr: String,
+        val isCircumpolar: Boolean = false,
+        val neverRises: Boolean = false
+    )
+
+    fun calculateRiseSetTransit(
+        raDeg: Double,
+        decDeg: Double,
+        latDeg: Double,
+        lonDeg: Double,
+        jd: Double = TimeEngine.getJulianDate(),
+        isFa: Boolean = true
+    ): RiseSetTransit {
+        val latRad = Math.toRadians(latDeg)
+        val decRad = Math.toRadians(decDeg)
+
+        val h0Rad = Math.toRadians(-0.5667)
+        val cosH0 = (sin(h0Rad) - sin(latRad) * sin(decRad)) / (cos(latRad) * cos(decRad)).coerceAtLeast(1e-6)
+
+        if (cosH0 > 1.0) {
+            return RiseSetTransit(
+                riseTimeStr = if (isFa) "طلوع نمی‌کند" else "Never rises",
+                transitTimeStr = if (isFa) "طلوع نمی‌کند" else "Never rises",
+                setTimeStr = if (isFa) "غروب نمی‌کند" else "Never sets",
+                neverRises = true
+            )
+        }
+
+        if (cosH0 < -1.0) {
+            return RiseSetTransit(
+                riseTimeStr = if (isFa) "دور قطبی (همواره بالای افق)" else "Circumpolar (Always visible)",
+                transitTimeStr = if (isFa) "اوژ / اوج ارتفاع" else "Meridian Transit",
+                setTimeStr = if (isFa) "غروب نمی‌کند" else "Never sets",
+                isCircumpolar = true
+            )
+        }
+
+        val ha0Deg = Math.toDegrees(acos(cosH0))
+
+        val baseCal = java.util.Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val startOfDayMs = baseCal.timeInMillis
+        val startOfDayJd = TimeEngine.getJulianDate(startOfDayMs)
+        val lastAt0h = TimeEngine.getLAST(startOfDayJd, lonDeg)
+
+        var haAt0h = (lastAt0h - raDeg) % 360.0
+        if (haAt0h < 0) haAt0h += 360.0
+
+        val transitHoursFrom0h = ((360.0 - haAt0h) % 360.0) / 15.04107
+        val riseHoursFrom0h = ((360.0 - haAt0h - ha0Deg + 720.0) % 360.0) / 15.04107
+        val setHoursFrom0h = ((360.0 - haAt0h + ha0Deg) % 360.0) / 15.04107
+
+        val transitMs = startOfDayMs + (transitHoursFrom0h * 3600000.0).toLong()
+        val riseMs = startOfDayMs + (riseHoursFrom0h * 3600000.0).toLong()
+        val setMs = startOfDayMs + (setHoursFrom0h * 3600000.0).toLong()
+
+        val riseStr = TimeEngine.formatTime24h(riseMs, isFa)
+        val transitStr = TimeEngine.formatTime24h(transitMs, isFa)
+        val setStr = TimeEngine.formatTime24h(setMs, isFa)
+
+        return RiseSetTransit(
+            riseTimeStr = riseStr,
+            transitTimeStr = transitStr,
+            setTimeStr = setStr
+        )
+    }
+}

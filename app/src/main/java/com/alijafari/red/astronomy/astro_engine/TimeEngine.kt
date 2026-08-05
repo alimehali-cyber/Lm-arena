@@ -1,0 +1,300 @@
+package com.alijafari.red.astronomy.astro_engine
+
+import com.alijafari.red.astronomy.domain.CalendarSystem
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import kotlin.math.*
+
+object TimeEngine {
+
+    val TEHRAN_TIME_ZONE: TimeZone = TimeZone.getTimeZone("Asia/Tehran")
+
+    /**
+     * Converts a UTC timestamp (ms) to Julian Date (JD).
+     */
+    fun getJulianDate(timestampMs: Long = System.currentTimeMillis()): Double {
+        return (timestampMs / 86400000.0) + 2440587.5
+    }
+
+    /**
+     * Calculates Delta T (TT - UT1) in seconds based on Espenak & Meeus polynomial approximations.
+     */
+    fun getDeltaTSeconds(jd: Double): Double {
+        val year = 2000.0 + (jd - 2451545.0) / 365.25
+        return when {
+            year in 2000.0..2050.0 -> {
+                val t = year - 2000.0
+                63.86 + 0.3345 * t - 0.006037 * t * t + 0.001727 * t * t * t
+            }
+            year > 2050.0 -> {
+                val t = year - 2000.0
+                62.92 + 0.32217 * t + 0.005589 * t * t
+            }
+            else -> 68.0 // Approximate default for recent years
+        }
+    }
+
+    /**
+     * Calculates Terrestrial Time (TT) Julian Ephemeris Day (JDE).
+     */
+    fun getJDE(jd: Double): Double {
+        val deltaT = getDeltaTSeconds(jd)
+        return jd + (deltaT / 86400.0)
+    }
+
+    /**
+     * Returns Julian Centuries T from J2000.0 in Universal Time (UTC).
+     */
+    fun getJulianCenturiesUTC(jd: Double): Double {
+        return (jd - 2451545.0) / 36525.0
+    }
+
+    /**
+     * Returns Julian Centuries Te from J2000.0 in Terrestrial Time (TT).
+     */
+    fun getJulianCenturiesTT(jd: Double): Double {
+        val jde = getJDE(jd)
+        return (jde - 2451545.0) / 36525.0
+    }
+
+    /**
+     * Calculates Greenwich Mean Sidereal Time (GMST) in degrees (IAU-82 formula).
+     */
+    fun getGMST(jd: Double): Double {
+        val d = jd - 2451545.0
+        val T = d / 36525.0
+        var gmst = 280.46061837 + 360.98564736629 * d + 0.000387933 * T * T - (T * T * T) / 38710000.0
+        gmst %= 360.0
+        if (gmst < 0) gmst += 360.0
+        return gmst
+    }
+
+    /**
+     * Calculates Greenwich Apparent Sidereal Time (GAST) in degrees including Equation of Equinoxes.
+     */
+    fun getGAST(jd: Double): Double {
+        val gmst = getGMST(jd)
+        val nutation = CoordinateEngine.calculateNutation(jd)
+        val trueObliquityRad = Math.toRadians(nutation.trueObliquityDeg)
+        val eqEquinoxesDeg = nutation.deltaPsiDeg * cos(trueObliquityRad)
+        var gast = gmst + eqEquinoxesDeg
+        gast %= 360.0
+        if (gast < 0) gast += 360.0
+        return gast
+    }
+
+    /**
+     * Calculates Local Apparent Sidereal Time (LAST) in degrees given observer longitude (+East).
+     */
+    fun getLAST(jd: Double, longitudeDeg: Double): Double {
+        val gast = getGAST(jd)
+        var last = gast + longitudeDeg
+        last %= 360.0
+        if (last < 0) last += 360.0
+        return last
+    }
+
+    /**
+     * Calculates Equation of Time (EoT) in minutes.
+     */
+    fun getEquationOfTimeMinutes(jd: Double): Double {
+        val T = getJulianCenturiesTT(jd)
+        val L0 = (280.466456 + 36000.76983 * T + 0.0003032 * T * T) % 360.0
+        val M = Math.toRadians((357.52911 + 35999.05029 * T - 0.0001537 * T * T) % 360.0)
+        val e = 0.016708634 - 0.000042037 * T
+        val y = tan(Math.toRadians(23.439291 / 2.0)).let { it * it }
+
+        val L0rad = Math.toRadians(L0)
+        val eotRad = y * sin(2 * L0rad) - 2 * e * sin(M) + 4 * e * y * sin(M) * cos(2 * L0rad) - 0.5 * y * y * sin(4 * L0rad) - 1.25 * e * e * sin(2 * M)
+        return Math.toDegrees(eotRad) * 4.0 // 1 deg = 4 minutes
+    }
+
+    /**
+     * Simple Persian (Solar Hijri) Date representation.
+     */
+    data class SolarHijriDate(
+        val year: Int,
+        val month: Int,
+        val day: Int,
+        val monthNameFa: String,
+        val monthNameEn: String
+    )
+
+    private val PERSIAN_MONTHS_FA = arrayOf(
+        "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
+        "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
+    )
+
+    private val PERSIAN_MONTHS_EN = arrayOf(
+        "Farvardin", "Ordibehesht", "Khordad", "Tir", "Mordad", "Shahrivar",
+        "Mehr", "Aban", "Azar", "Dey", "Bahman", "Esfand"
+    )
+
+    /**
+     * Converts Gregorian Year, Month (1-12), Day (1-31) to Solar Hijri (Jalali) date.
+     */
+    fun toSolarHijri(year: Int, month: Int, day: Int): SolarHijriDate {
+        val gDaysInMonth = intArrayOf(0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+        var gy = year
+        if (gy % 4 == 0 && (gy % 100 != 0 || gy % 400 == 0)) {
+            gDaysInMonth[2] = 29
+        }
+
+        var gDayNo = 0
+        for (i in 1 until month) {
+            gDayNo += gDaysInMonth[i]
+        }
+        gDayNo += day - 1
+
+        var jy = gy - 621
+        val gDayNoJ21 = if ((gy % 4 == 0 && gy % 100 != 0) || gy % 400 == 0) 79 else 80
+
+        var jDayNo: Int
+        if (gDayNo >= gDayNoJ21) {
+            jDayNo = gDayNo - gDayNoJ21
+        } else {
+            jy -= 1
+            jDayNo = gDayNo + 365 + (if ((gy - 1) % 4 == 0 && ((gy - 1) % 100 != 0 || (gy - 1) % 400 == 0)) 1 else 0) - gDayNoJ21
+        }
+
+        var jm = 0
+        var jd = 0
+        if (jDayNo < 186) {
+            jm = 1 + (jDayNo / 31)
+            jd = 1 + (jDayNo % 31)
+        } else {
+            jDayNo -= 186
+            jm = 7 + (jDayNo / 30)
+            jd = 1 + (jDayNo % 30)
+        }
+
+        val monthIdx = (jm - 1).coerceIn(0, 11)
+        return SolarHijriDate(
+            year = jy,
+            month = jm,
+            day = jd,
+            monthNameFa = PERSIAN_MONTHS_FA[monthIdx],
+            monthNameEn = PERSIAN_MONTHS_EN[monthIdx]
+        )
+    }
+
+    /**
+     * Converts Persian digits to English digits if needed or vice-versa.
+     */
+    fun formatPersianNumbers(str: String): String {
+        val faDigits = charArrayOf('۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹')
+        val sb = StringBuilder()
+        for (ch in str) {
+            if (ch in '0'..'9') {
+                sb.append(faDigits[ch - '0'])
+            } else {
+                sb.append(ch)
+            }
+        }
+        return sb.toString()
+    }
+
+    /**
+     * Formats timestamp in 24-hour HH:mm format in Iran Time (Asia/Tehran).
+     */
+    fun formatTime24h(timestampMs: Long = System.currentTimeMillis(), isFa: Boolean = false): String {
+        val sdf = SimpleDateFormat("HH:mm", Locale.US).apply {
+            timeZone = TEHRAN_TIME_ZONE
+        }
+        val formatted = sdf.format(Date(timestampMs))
+        return if (isFa) formatPersianNumbers(formatted) else formatted
+    }
+
+    /**
+     * Formats timestamp in 24-hour HH:mm:ss format in Iran Time (Asia/Tehran).
+     */
+    fun formatTimeWithSeconds24h(timestampMs: Long = System.currentTimeMillis(), isFa: Boolean = false): String {
+        val sdf = SimpleDateFormat("HH:mm:ss", Locale.US).apply {
+            timeZone = TEHRAN_TIME_ZONE
+        }
+        val formatted = sdf.format(Date(timestampMs))
+        return if (isFa) formatPersianNumbers(formatted) else formatted
+    }
+
+    /**
+     * Formats timestamp into full date (e.g. 11 Mordad 1405 or 1 August 2026) obeying calendarSystem and isFa.
+     */
+    fun formatDate(
+        timestampMs: Long = System.currentTimeMillis(),
+        calendarSystem: CalendarSystem = CalendarSystem.SOLAR_HIJRI,
+        isFa: Boolean = false
+    ): String {
+        val cal = Calendar.getInstance(TEHRAN_TIME_ZONE).apply { timeInMillis = timestampMs }
+        return if (calendarSystem == CalendarSystem.SOLAR_HIJRI) {
+            val sh = toSolarHijri(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH))
+            if (isFa) {
+                "${formatPersianNumbers(sh.day.toString())} ${sh.monthNameFa} ${formatPersianNumbers(sh.year.toString())}"
+            } else {
+                "${sh.day} ${sh.monthNameEn} ${sh.year}"
+            }
+        } else {
+            val sdf = SimpleDateFormat("d MMMM yyyy", if (isFa) Locale("fa") else Locale.ENGLISH).apply {
+                timeZone = TEHRAN_TIME_ZONE
+            }
+            val formatted = sdf.format(Date(timestampMs))
+            if (isFa) formatPersianNumbers(formatted) else formatted
+        }
+    }
+
+    /**
+     * Formats timestamp as 24-hour EEE, dd MMM • HH:mm in Iran Time (Asia/Tehran).
+     */
+    fun formatDateTime24h(timestampMs: Long, isFa: Boolean = false): String {
+        return formatDateTime24h(timestampMs, CalendarSystem.SOLAR_HIJRI, isFa)
+    }
+
+    /**
+     * Formats timestamp as 24-hour EEE, dd MMM • HH:mm obeying calendarSystem and isFa.
+     */
+    fun formatDateTime24h(
+        timestampMs: Long,
+        calendarSystem: CalendarSystem,
+        isFa: Boolean = false
+    ): String {
+        val cal = Calendar.getInstance(TEHRAN_TIME_ZONE).apply { timeInMillis = timestampMs }
+        val timePart = SimpleDateFormat("HH:mm", Locale.US).apply { timeZone = TEHRAN_TIME_ZONE }.format(Date(timestampMs))
+        val timeFormatted = if (isFa) formatPersianNumbers(timePart) else timePart
+
+        val datePart = if (calendarSystem == CalendarSystem.SOLAR_HIJRI) {
+            val sh = toSolarHijri(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH))
+            if (isFa) {
+                "${formatPersianNumbers(sh.day.toString())} ${sh.monthNameFa}"
+            } else {
+                "${sh.day} ${sh.monthNameEn}"
+            }
+        } else {
+            val sdf = SimpleDateFormat("dd MMM", if (isFa) Locale("fa") else Locale.ENGLISH).apply {
+                timeZone = TEHRAN_TIME_ZONE
+            }
+            val formatted = sdf.format(Date(timestampMs))
+            if (isFa) formatPersianNumbers(formatted) else formatted
+        }
+
+        val dayOfWeek = SimpleDateFormat("EEE", if (isFa) Locale("fa") else Locale.ENGLISH).apply {
+            timeZone = TEHRAN_TIME_ZONE
+        }.format(Date(timestampMs))
+        val dowFormatted = if (isFa) formatPersianNumbers(dayOfWeek) else dayOfWeek
+
+        return "$dowFormatted، $datePart • $timeFormatted"
+    }
+
+    /**
+     * Formats timestamp as 24-hour yyyy/MM/dd HH:mm in Iran Time (Asia/Tehran).
+     */
+    fun formatFullDateTime24h(timestampMs: Long, isFa: Boolean = false): String {
+        val sdf = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).apply {
+            timeZone = TEHRAN_TIME_ZONE
+        }
+        val formatted = sdf.format(Date(timestampMs))
+        return if (isFa) formatPersianNumbers(formatted) else formatted
+    }
+}
+
