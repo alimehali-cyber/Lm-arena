@@ -226,7 +226,7 @@ class OrientationProvider(
 
         _orientation.value = SkyOrientation(
             azimuth = smoothAzimuth,
-            pitch = smoothPitch.coerceIn(-10f, 90f),
+            pitch = smoothPitch.coerceIn(-90f, 90f),
             roll = smoothRoll
         )
     }

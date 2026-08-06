@@ -48,9 +48,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -61,16 +65,62 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.alijafari.red.astronomy.astro_engine.*
 import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.TimeMachineControlBar
+import com.alijafari.red.astronomy.ui.rendering.*
 import com.alijafari.red.astronomy.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.*
+
+enum class ArExpandedPanel {
+    SEARCH, TIME_MACHINE, SENSORS
+}
+
+@Composable
+private fun ArSmartPill(
+    icon: ImageVector,
+    label: String,
+    isActive: Boolean,
+    isHighlighted: Boolean = false,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = if (isActive) AccentPrimary else if (isHighlighted) AccentSecondary.copy(alpha = 0.88f) else BackgroundCard.copy(alpha = 0.85f),
+        border = BorderStroke(
+            1.dp,
+            if (isActive) Color.White.copy(alpha = 0.6f) else if (isHighlighted) AccentSecondary else CardBorder
+        ),
+        shadowElevation = 6.dp,
+        modifier = Modifier.height(38.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (isActive || isHighlighted) Color.White else TextPrimary,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (isActive || isHighlighted) FontWeight.Bold else FontWeight.Medium,
+                color = if (isActive || isHighlighted) Color.White else TextPrimary
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -374,8 +424,14 @@ fun CompassARScreen(
         }
     }
 
-    // Closest object near reticle for tap / lock
-    val targetedObject = remember(currentAzimuth, currentAltitude, lastDeg, uiState.userLocation, allCatalog) {
+    // Focus Mode Smart Panel State
+    var activeExpandedPanel by remember { mutableStateOf<ArExpandedPanel?>(null) }
+
+    // Closest object near reticle for tap / lock (sampled at 0.2 deg steps to eliminate micro-jitter calculations)
+    val stepAzimuth = remember(currentAzimuth) { (currentAzimuth * 5).roundToInt() / 5.0 }
+    val stepAltitude = remember(currentAltitude) { (currentAltitude * 5).roundToInt() / 5.0 }
+
+    val targetedObject = remember(stepAzimuth, stepAltitude, lastDeg, uiState.userLocation, allCatalog) {
         var closestObj: CelestialObject? = null
         var minDistance = 12.0 // deg
 
@@ -402,13 +458,20 @@ fun CompassARScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF060810))
+            .pointerInput(activeExpandedPanel) {
+                detectTapGestures {
+                    if (activeExpandedPanel != null) {
+                        activeExpandedPanel = null
+                    }
+                }
+            }
             .pointerInput(isSensorActive) {
                 if (!isSensorActive) {
                     detectDragGestures { change, dragAmount ->
                         change.consume()
                         manualAzimuthOffset = (manualAzimuthOffset - dragAmount.x * 0.2) % 360.0
                         if (manualAzimuthOffset < 0) manualAzimuthOffset += 360.0
-                        manualPitchOffset = (manualPitchOffset + dragAmount.y * 0.2).coerceIn(-10.0, 90.0)
+                        manualPitchOffset = (manualPitchOffset + dragAmount.y * 0.2).coerceIn(-90.0, 90.0)
                     }
                 }
             }
@@ -887,338 +950,471 @@ fun CompassARScreen(
             }
         }
 
-        // Layer 4: Top Header Ribbon & Search Bar (positioned right at top)
+        // Layer 4: Focus Mode Top Header Ribbon & Smart Floating Pills Row
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
-                .padding(top = 4.dp, start = 14.dp, end = 14.dp)
+                .padding(top = 4.dp, start = 12.dp, end = 12.dp)
                 .fillMaxWidth()
         ) {
-            // AR / قطب‌نما Header Ribbon
+            // AR / Compass Compact Status Ribbon
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = BackgroundCard.copy(alpha = 0.95f),
+                shape = RoundedCornerShape(18.dp),
+                color = BackgroundCard.copy(alpha = 0.88f),
                 border = BorderStroke(1.dp, CardBorder),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 6.dp)
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Explore,
-                            contentDescription = "AR Compass Ribbon",
+                            contentDescription = "AR Ribbon",
                             tint = AccentPrimary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                         Text(
-                            text = if (isFa) "AR / قطب‌نما" else "AR / Compass",
+                            text = if (isFa) "آسمان‌نما AR" else "AR Sky View",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
+                        if (timeMachineState.mode == TimeMachineMode.SIMULATION) {
+                            Surface(
+                                shape = CircleShape,
+                                color = AccentSecondary.copy(alpha = 0.2f),
+                                border = BorderStroke(1.dp, AccentSecondary)
+                            ) {
+                                Text(
+                                    text = if (isFa) "ماشین زمان" else "Time Machine",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AccentSecondary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
                     }
 
+                    // Quick Status Indicators
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // GPS Toggle Button
-                        IconButton(
-                            onClick = {
-                                if (!hasLocationPermission) {
-                                    locationPermissionLauncher.launch(
-                                        arrayOf(
-                                            Manifest.permission.ACCESS_FINE_LOCATION,
-                                            Manifest.permission.ACCESS_COARSE_LOCATION
-                                        )
-                                    )
-                                }
-                                isGpsActive = !isGpsActive
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
+                        if (isGpsActive) {
                             Icon(
-                                imageVector = if (isGpsActive) Icons.Default.GpsFixed else Icons.Default.GpsOff,
-                                contentDescription = "GPS Toggle",
-                                tint = if (isGpsActive) StatusGood else Color.Gray,
-                                modifier = Modifier.size(20.dp)
+                                imageVector = Icons.Default.GpsFixed,
+                                contentDescription = "GPS Active",
+                                tint = StatusGood,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
-
-                        // Sensor Fusion Toggle Button
-                        IconButton(
-                            onClick = { isSensorActive = !isSensorActive },
-                            modifier = Modifier.size(36.dp)
-                        ) {
+                        if (isSensorActive) {
                             Icon(
-                                imageVector = if (isSensorActive) Icons.Default.Sensors else Icons.Default.SensorsOff,
-                                contentDescription = "Sensors Toggle",
-                                tint = if (isSensorActive) StatusGood else Color.Gray,
-                                modifier = Modifier.size(20.dp)
+                                imageVector = Icons.Default.Sensors,
+                                contentDescription = "Sensors Active",
+                                tint = StatusGood,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
-
-                        // Camera Feed Toggle Button
-                        IconButton(
-                            onClick = {
-                                if (!hasCameraPermission) {
-                                    permissionLauncher.launch(Manifest.permission.CAMERA)
-                                }
-                                isCameraEnabled = !isCameraEnabled
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
+                        if (selectedTarget != null) {
                             Icon(
-                                imageVector = if (isCameraEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                                contentDescription = "Camera Toggle",
-                                tint = if (isCameraEnabled) AccentPrimary else Color.Gray,
-                                modifier = Modifier.size(20.dp)
+                                imageVector = Icons.Default.GpsFixed,
+                                contentDescription = "Target Locked",
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
                 }
             }
 
-            // Search Bar right under the AR / قطب‌نما Ribbon
-            Surface(
-                shape = RoundedCornerShape(22.dp),
-                color = BackgroundCard.copy(alpha = 0.92f),
-                border = BorderStroke(1.dp, CardBorder),
-                modifier = Modifier.fillMaxWidth()
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // SMART FLOATING PILLS ROW (Directly below status ribbon)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = AccentPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TextField(
-                            value = searchQuery,
-                            onValueChange = {
-                                searchQuery = it
-                                isSearchFocused = true
-                            },
-                            placeholder = {
-                                Text(
-                                    text = if (isFa) "جستجوی جرم (ماه، مریخ، شباهنگ...)" else "Search target (Moon, Mars, Sirius...)",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TextSecondary
-                                )
-                            },
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("ar_search_input")
-                        )
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(
-                                onClick = { searchQuery = "" },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = "Clear search",
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
+                // Pill 1: Search
+                ArSmartPill(
+                    icon = Icons.Default.Search,
+                    label = if (isFa) "جستجو" else "Search",
+                    isActive = activeExpandedPanel == ArExpandedPanel.SEARCH,
+                    isHighlighted = selectedTarget != null,
+                    onClick = {
+                        activeExpandedPanel = if (activeExpandedPanel == ArExpandedPanel.SEARCH) null else ArExpandedPanel.SEARCH
                     }
+                )
 
-                    // Live GPS Status Indicator
-                    if (isGpsActive) {
-                        HorizontalDivider(color = CardBorder, thickness = 0.5.dp)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val accStr = gpsAccuracyMeters?.let { String.format("%.0fm", it) } ?: "دقیق"
-                            Text(
-                                text = if (isFa) "🛰️ GPS زنده دائم (دقت: ${TimeEngine.formatPersianNumbers(accStr)})"
-                                else "🛰️ Live GPS (Acc: $accStr)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = StatusGood
-                            )
-                            Text(
-                                text = if (isFa) "موقعیت: ${TimeEngine.formatPersianNumbers(String.format("%.2f°", uiState.userLocation.latitude))}, ${TimeEngine.formatPersianNumbers(String.format("%.2f°", uiState.userLocation.longitude))}"
-                                else "Loc: ${String.format("%.2f°", uiState.userLocation.latitude)}, ${String.format("%.2f°", uiState.userLocation.longitude)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary
-                            )
-                        }
+                // Pill 2: Time Machine
+                ArSmartPill(
+                    icon = Icons.Default.Schedule,
+                    label = if (isFa) "ماشین زمان" else "Time Machine",
+                    isActive = activeExpandedPanel == ArExpandedPanel.TIME_MACHINE,
+                    isHighlighted = timeMachineState.mode == TimeMachineMode.SIMULATION,
+                    onClick = {
+                        activeExpandedPanel = if (activeExpandedPanel == ArExpandedPanel.TIME_MACHINE) null else ArExpandedPanel.TIME_MACHINE
                     }
+                )
 
-                    // Active Target Pill if target locked
-                    selectedTarget?.let { target ->
-                        HorizontalDivider(color = CardBorder, thickness = 1.dp)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.GpsFixed,
-                                    contentDescription = "Active Target",
-                                    tint = AccentPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = if (isFa) "در حال پیدا کردن: ${target.nameFa}" else "Finding: ${target.nameEn}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = AccentPrimary
-                                )
-                            }
-                            IconButton(
-                                onClick = { selectedTarget = null },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Clear Target",
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
+                // Pill 3: Sensors / GPS
+                ArSmartPill(
+                    icon = Icons.Default.Sensors,
+                    label = if (isFa) "حسگرها / GPS" else "Camera / GPS",
+                    isActive = activeExpandedPanel == ArExpandedPanel.SENSORS,
+                    isHighlighted = isGpsActive && isSensorActive,
+                    onClick = {
+                        activeExpandedPanel = if (activeExpandedPanel == ArExpandedPanel.SENSORS) null else ArExpandedPanel.SENSORS
                     }
-                }
+                )
             }
 
-            // Quick Suggestion Chips when search active or query typed
-            if (searchQuery.isNotEmpty() || isSearchFocused) {
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // EXPANDED PANEL CONTAINER (Renders only ONE expanded panel at a time)
+            AnimatedVisibility(
+                visible = activeExpandedPanel != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
                 Surface(
-                    shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
-                    color = BackgroundCard.copy(alpha = 0.95f),
+                    shape = RoundedCornerShape(22.dp),
+                    color = BackgroundCard.copy(alpha = 0.94f),
                     border = BorderStroke(1.dp, CardBorder),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp)
+                    shadowElevation = 12.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        if (searchResults.isNotEmpty()) {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .heightIn(max = 220.dp)
-                                    .fillMaxWidth()
-                            ) {
-                                items(searchResults) { result ->
-                                    Row(
+                    when (activeExpandedPanel) {
+                        ArExpandedPanel.SEARCH -> {
+                            // Search Panel Content
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = "Search",
+                                        tint = AccentPrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    TextField(
+                                        value = searchQuery,
+                                        onValueChange = { searchQuery = it },
+                                        placeholder = {
+                                            Text(
+                                                text = if (isFa) "جستجوی جرم (ماه، مریخ، شباهنگ...)" else "Search target (Moon, Mars, Sirius...)",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = TextSecondary
+                                            )
+                                        },
+                                        singleLine = true,
+                                        colors = TextFieldDefaults.colors(
+                                            focusedContainerColor = Color.Transparent,
+                                            unfocusedContainerColor = Color.Transparent,
+                                            focusedIndicatorColor = Color.Transparent,
+                                            unfocusedIndicatorColor = Color.Transparent
+                                        ),
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                selectedTarget = result.celestialObject
-                                                searchQuery = ""
-                                                isSearchFocused = false
-                                            }
-                                            .padding(vertical = 8.dp, horizontal = 4.dp),
+                                            .weight(1f)
+                                            .testTag("ar_search_input")
+                                    )
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(
+                                            onClick = { searchQuery = "" },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Clear,
+                                                contentDescription = "Clear",
+                                                tint = TextSecondary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Active Target Chip Banner
+                                selectedTarget?.let { target ->
+                                    HorizontalDivider(color = CardBorder, thickness = 1.dp, modifier = Modifier.padding(vertical = 6.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Column {
-                                            Text(
-                                                text = if (isFa) result.celestialObject.nameFa else result.celestialObject.nameEn,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = TextPrimary
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.GpsFixed,
+                                                contentDescription = "Target",
+                                                tint = AccentPrimary,
+                                                modifier = Modifier.size(18.dp)
                                             )
                                             Text(
-                                                text = if (isFa) result.celestialObject.constellationFa else result.celestialObject.constellationEn,
+                                                text = if (isFa) "هدف قفل‌شده: ${target.nameFa}" else "Locked Target: ${target.nameEn}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = AccentPrimary
+                                            )
+                                        }
+                                        TextButton(
+                                            onClick = { selectedTarget = null },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isFa) "حذف هدف" else "Clear Target",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = TextSecondary
                                             )
                                         }
+                                    }
+                                }
 
-                                        Surface(
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = if (result.isVisibleNow) StatusGood.copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.2f),
-                                            border = BorderStroke(1.dp, if (result.isVisibleNow) StatusGood else Color.Gray)
-                                        ) {
-                                            Text(
-                                                text = if (isFa) result.statusFa else result.statusEn,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = if (result.isVisibleNow) StatusGood else TextSecondary,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                // Search Results or Quick Suggestions
+                                if (searchResults.isNotEmpty()) {
+                                    HorizontalDivider(color = CardBorder, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+                                    LazyColumn(modifier = Modifier.heightIn(max = 200.dp).fillMaxWidth()) {
+                                        items(searchResults) { result ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        selectedTarget = result.celestialObject
+                                                        searchQuery = ""
+                                                        activeExpandedPanel = null // Collapse panel on target select
+                                                    }
+                                                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column {
+                                                    Text(
+                                                        text = if (isFa) result.celestialObject.nameFa else result.celestialObject.nameEn,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = TextPrimary
+                                                    )
+                                                    Text(
+                                                        text = if (isFa) result.celestialObject.constellationFa else result.celestialObject.constellationEn,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = TextSecondary
+                                                    )
+                                                }
+                                                Surface(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = if (result.isVisibleNow) StatusGood.copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.2f),
+                                                    border = BorderStroke(1.dp, if (result.isVisibleNow) StatusGood else Color.Gray)
+                                                ) {
+                                                    Text(
+                                                        text = if (isFa) result.statusFa else result.statusEn,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = if (result.isVisibleNow) StatusGood else TextSecondary,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    HorizontalDivider(color = CardBorder, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+                                    Text(
+                                        text = if (isFa) "پیشنهادهای سریع:" else "Quick Suggestions:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextSecondary,
+                                        modifier = Modifier.padding(bottom = 6.dp)
+                                    )
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        items(CelestialSearchEngine.getQuickSuggestions()) { sug ->
+                                            SuggestionChip(
+                                                onClick = { searchQuery = sug },
+                                                label = { Text(sug) },
+                                                colors = SuggestionChipDefaults.suggestionChipColors(containerColor = NavyBackground)
                                             )
                                         }
                                     }
                                 }
                             }
-                        } else {
-                            Text(
-                                text = if (isFa) "پیشنهادهای سریع:" else "Quick Suggestions:",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary,
-                                modifier = Modifier.padding(bottom = 6.dp)
+                        }
+
+                        ArExpandedPanel.TIME_MACHINE -> {
+                            // Time Machine Controls Panel Content
+                            TimeMachineControlBar(
+                                state = timeMachineState,
+                                isFa = isFa,
+                                calendarSystem = uiState.calendarSystem,
+                                onSimulatedTimeChange = { timeMs, eventName, isBirthday ->
+                                    viewModel.setSimulatedTime(timeMs, eventName, isBirthday)
+                                },
+                                onModeChange = { mode -> viewModel.setTimeMachineMode(mode) },
+                                onTogglePlay = { viewModel.toggleTimeMachinePlaying() },
+                                onSpeedChange = { speed -> viewModel.setTimeMachineSpeed(speed) },
+                                onToggleReverse = { viewModel.toggleTimeMachineReverse() },
+                                onToggleExpanded = { viewModel.toggleTimeMachineExpanded() },
+                                onReturnToLive = { handleReturnToLive() }
                             )
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(CelestialSearchEngine.getQuickSuggestions()) { sug ->
-                                    SuggestionChip(
+                        }
+
+                        ArExpandedPanel.SENSORS -> {
+                            // Sensors & GPS Control Panel Content
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    text = if (isFa) "مدیریت حسگرها و موقعیت‌یاب" else "Sensors & Telemetry Control",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+
+                                // Sensor Toggles Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // GPS Toggle
+                                    FilterChip(
+                                        selected = isGpsActive,
                                         onClick = {
-                                            searchQuery = sug
+                                            if (!hasLocationPermission) {
+                                                locationPermissionLauncher.launch(
+                                                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+                                                )
+                                            }
+                                            isGpsActive = !isGpsActive
                                         },
-                                        label = { Text(sug) },
-                                        colors = SuggestionChipDefaults.suggestionChipColors(
-                                            containerColor = NavyBackground
-                                        )
+                                        label = { Text(if (isFa) "GPS دائم" else "Live GPS") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = if (isGpsActive) Icons.Default.GpsFixed else Icons.Default.GpsOff,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
                                     )
+
+                                    // Sensors Toggle
+                                    FilterChip(
+                                        selected = isSensorActive,
+                                        onClick = { isSensorActive = !isSensorActive },
+                                        label = { Text(if (isFa) "ژیروسکوپ / قطب‌نما" else "Sensor Fusion") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = if (isSensorActive) Icons.Default.Sensors else Icons.Default.SensorsOff,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    )
+
+                                    // Camera Toggle
+                                    FilterChip(
+                                        selected = isCameraEnabled,
+                                        onClick = {
+                                            if (!hasCameraPermission) {
+                                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                                            }
+                                            isCameraEnabled = !isCameraEnabled
+                                        },
+                                        label = { Text(if (isFa) "دوربین AR" else "Camera Feed") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = if (isCameraEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    )
+                                }
+
+                                // Operational Status Summary Card
+                                var showDetailsAccordion by remember { mutableStateOf(false) }
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = StatusGood.copy(alpha = 0.12f),
+                                    border = BorderStroke(1.dp, StatusGood.copy(alpha = 0.4f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.VerifiedUser,
+                                                    contentDescription = "Status",
+                                                    tint = StatusGood,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Text(
+                                                    text = if (isFa) "تمامی حسگرها فعال و آماده رصد هستند" else "All Systems Operational",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = StatusGood
+                                                )
+                                            }
+
+                                            TextButton(
+                                                onClick = { showDetailsAccordion = !showDetailsAccordion },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (showDetailsAccordion) (if (isFa) "بستن جزئیات" else "Hide Details")
+                                                    else (if (isFa) "جزئیات تلمتری" else "Telemetry"),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = AccentPrimary
+                                                )
+                                            }
+                                        }
+
+                                        if (showDetailsAccordion) {
+                                            HorizontalDivider(color = StatusGood.copy(alpha = 0.3f), thickness = 0.5.dp)
+                                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                val accStr = gpsAccuracyMeters?.let { String.format("%.0fm", it) } ?: "دقیق"
+                                                Text(
+                                                    text = if (isFa) "• دقت GPS: ${TimeEngine.formatPersianNumbers(accStr)}" else "• GPS Accuracy: $accStr",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = TextPrimary
+                                                )
+                                                Text(
+                                                    text = if (isFa) "• موقعیت: ${TimeEngine.formatPersianNumbers(String.format("%.2f°", uiState.userLocation.latitude))}, ${TimeEngine.formatPersianNumbers(String.format("%.2f°", uiState.userLocation.longitude))}"
+                                                    else "• Location: ${String.format("%.2f°", uiState.userLocation.latitude)}, ${String.format("%.2f°", uiState.userLocation.longitude)}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = TextPrimary
+                                                )
+                                                Text(
+                                                    text = if (isFa) "• وضعیت کالیبراسیون: ${calibrationState.name}" else "• Calibration: ${calibrationState.name}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = TextPrimary
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
+
+                        else -> {}
                     }
                 }
             }
-
-            // Time Machine Floating Pill Control Bar directly underneath top AR information band
-            Spacer(modifier = Modifier.height(6.dp))
-            TimeMachineControlBar(
-                state = timeMachineState,
-                isFa = isFa,
-                calendarSystem = uiState.calendarSystem,
-                onSimulatedTimeChange = { timeMs, eventName, isBirthday ->
-                    viewModel.setSimulatedTime(timeMs, eventName, isBirthday)
-                },
-                onModeChange = { mode -> viewModel.setTimeMachineMode(mode) },
-                onTogglePlay = { viewModel.toggleTimeMachinePlaying() },
-                onSpeedChange = { speed -> viewModel.setTimeMachineSpeed(speed) },
-                onToggleReverse = { viewModel.toggleTimeMachineReverse() },
-                onToggleExpanded = { viewModel.toggleTimeMachineExpanded() },
-                onReturnToLive = { handleReturnToLive() }
-            )
         }
 
         // Calibration Warning Banner (if sensor uncalibrated)

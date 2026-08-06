@@ -202,6 +202,41 @@ fun ObjectDetailModal(
                 }
             }
 
+            // Locate Target in Live AR Sky Button
+            item {
+                Button(
+                    onClick = {
+                        viewModel.locateObjectInAR(obj)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("locate_in_ar_button"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentPrimary
+                    )
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Explore,
+                            contentDescription = "Locate in AR",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = if (isFa) "ردیابی این جرم در آسمان‌نما (AR)" else "Locate Object in Live Sky (AR)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+
             // MATHEMATICALLY DERIVED PHYSICAL PROPERTIES CARD
             item {
                 Card(
