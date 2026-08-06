@@ -51,7 +51,7 @@ object AstronomyRenderer {
         )
 
         // 2. Coordinate Grid (if enabled)
-        if (drawGrid || theme == SkyCanvasTheme.BLUEPRINT) {
+        if (drawGrid) {
             drawCoordinateGrid(drawScope, theme)
         }
 
@@ -139,7 +139,7 @@ object AstronomyRenderer {
         val height = drawScope.size.height
 
         val gridColor = when (theme) {
-            SkyCanvasTheme.BLUEPRINT -> Color(0xFF38BDF8).copy(alpha = 0.25f)
+            SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1).copy(alpha = 0.25f)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color.White.copy(alpha = 0.15f)
             SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444).copy(alpha = 0.20f)
             else -> Color.White.copy(alpha = 0.10f)
@@ -173,7 +173,7 @@ object AstronomyRenderer {
         val ringColor = when (theme) {
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color.White
             SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
-            SkyCanvasTheme.BLUEPRINT -> Color(0xFF38BDF8)
+            SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
             else -> Color(0xFF38BDF8)
         }
 

@@ -31,7 +31,7 @@ object StarRenderer {
         when (theme) {
             SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
-            SkyCanvasTheme.BLUEPRINT -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
+            SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs)
             SkyCanvasTheme.OBSERVATORY -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
         }
     }

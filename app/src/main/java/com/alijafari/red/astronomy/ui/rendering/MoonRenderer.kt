@@ -38,7 +38,7 @@ object MoonRenderer {
         when (theme) {
             SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
-            SkyCanvasTheme.BLUEPRINT -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
+            SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
             SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
         }
     }

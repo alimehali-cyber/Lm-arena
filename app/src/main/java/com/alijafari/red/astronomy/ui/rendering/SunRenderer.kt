@@ -26,7 +26,7 @@ object SunRenderer {
         when (theme) {
             SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-            SkyCanvasTheme.BLUEPRINT -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+            SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
             SkyCanvasTheme.OBSERVATORY -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
         }
     }

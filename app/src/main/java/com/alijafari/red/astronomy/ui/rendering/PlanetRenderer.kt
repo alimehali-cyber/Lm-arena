@@ -44,7 +44,18 @@ object PlanetRenderer {
                     }
                 }
                 SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromePlanet(drawScope, pType, center)
-                SkyCanvasTheme.BLUEPRINT -> drawMonochromePlanet(drawScope, pType, center)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> {
+                    when (pType) {
+                        PlanetEngine.PlanetType.JUPITER -> drawJupiter(drawScope, center, frameTimeMs)
+                        PlanetEngine.PlanetType.SATURN -> drawSaturn(drawScope, center)
+                        PlanetEngine.PlanetType.MARS -> drawMars(drawScope, center)
+                        PlanetEngine.PlanetType.VENUS -> drawVenus(drawScope, center)
+                        PlanetEngine.PlanetType.MERCURY -> drawMercury(drawScope, center)
+                        PlanetEngine.PlanetType.URANUS -> drawUranus(drawScope, center)
+                        PlanetEngine.PlanetType.NEPTUNE -> drawNeptune(drawScope, center)
+                        else -> {}
+                    }
+                }
                 SkyCanvasTheme.OBSERVATORY -> drawMonochromePlanet(drawScope, pType, center)
             }
         }
