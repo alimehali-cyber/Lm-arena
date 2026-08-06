@@ -44,6 +44,17 @@ object PhysicalData {
             distanceDisplayFa = "۳۸۴,۴۰۰ کیلومتر | ۰.۰۰۰۰۰۰۰۴ سال نوری",
             distanceDisplayEn = "384,400 km | 0.00000004 light-years"
         ),
+        "moon_main" to PhysicalProperties(
+            diameterKm = 3474.8,
+            diameterDisplayFa = "۳,۴۷۵ کیلومتر (۰.۲۷۳ برابر زمین)",
+            diameterDisplayEn = "3,475 km (0.273× Earth)",
+            massKgDisplayFa = "۷.۳۴۲ × ۱۰²² کیلوگرم (۰.۰۱۲۳ برابر زمین)",
+            massKgDisplayEn = "7.342 × 10²² kg (0.0123× Earth)",
+            gravityMssDisplayFa = "۱.۶۲ متر بر مجذور ثانیه (۰.۱۶۵ برابر زمین)",
+            gravityMssDisplayEn = "1.62 m/s² (0.165× Earth)",
+            distanceDisplayFa = "۳۸۴,۴۰۰ کیلومتر | ۰.۰۰۰۰۰۰۰۴ سال نوری",
+            distanceDisplayEn = "384,400 km | 0.00000004 light-years"
+        ),
         "sat_iss" to PhysicalProperties(
             diameterKm = 0.109,
             diameterDisplayFa = "۱۰۹ متر (اندازه یک زمین فوتبال)",
@@ -308,11 +319,18 @@ object PhysicalData {
             "خورشید یک ستاره رشته اصلی از نوع طیفی G2V یا زرد کوچک است که حدود ۴.۶ میلیارد سال سن دارد."
         ),
         "moon_luna" to listOf(
-            "ماه با سرعت ۳.۸ سانتی‌متر در سال در حال دور شدن تدریجی از زمین است.",
-            "به دلیل قفل جزر و مدی، دوره چرخش ماه به دور خود با دوره گردش آن به دور زمین یکسان (۲۷.۳ روز) است و ما همیشه یک سمت آن را می‌بینیم.",
-            "دمای سطح ماه در روز به ۱۲۰ درجه سانتی‌گراد بالای صفر و در شب به ۱۳۰- درجه سانتی‌گراد زیر صفر می‌رسد.",
-            "تاریک‌ترین گودال‌های قطب جنوب ماه حاوی میلیاردها تن یخ آب دست‌نخورده هستند.",
-            "نیروی گرانش ماه باعث ایجاد جزر و مد در اقیانوس‌های زمین و کند شدن تدریجی سرعت دوران زمین می‌شود."
+            "ماه با سرعت ۳.۸ سانتی‌متر در سال به دلیل انتقال گشتاور جزر و مدی در حال دور شدن تدریجی از زمین است.",
+            "به دلیل قفل همگام (جزر و مدی)، دوره چرخش ماه به دور خود با دوره گردش آن به دور زمین یکسان (۲۷.۳ روز) است و همواره یک سمت آن دیده می‌شود.",
+            "چرخه کامل فازهای ماه (از ماه نو تا ماه نو بعدی) یا ماه هلالی (Synodic Month) برابر ۲۹.۵۳ روز به طول می‌انجامد.",
+            "دمای سطح ماه نوسان شدیدی دارد: از ۱۲۰+ درجه سانتی‌گراد در نیمروز ماه تا ۱۳۰- درجه زیر صفر در شب و ۲۴۶- درجه زیر صفر در گودال‌های تاریک قطبی.",
+            "نیروی گرانش ماه (۱.۶۲ متر بر مجذور ثانیه) ششم گرانش زمین است و عامل اصلی ایجاد جزر و مد در اقیانوس‌های زمین می‌باشد."
+        ),
+        "moon_main" to listOf(
+            "ماه با سرعت ۳.۸ سانتی‌متر در سال به دلیل انتقال گشتاور جزر و مدی در حال دور شدن تدریجی از زمین است.",
+            "به دلیل قفل همگام (جزر و مدی)، دوره چرخش ماه به دور خود با دوره گردش آن به دور زمین یکسان (۲۷.۳ روز) است و همواره یک سمت آن دیده می‌شود.",
+            "چرخه کامل فازهای ماه (از ماه نو تا ماه نو بعدی) یا ماه هلالی (Synodic Month) برابر ۲۹.۵۳ روز به طول می‌انجامد.",
+            "دمای سطح ماه نوسان شدیدی دارد: از ۱۲۰+ درجه سانتی‌گراد در نیمروز ماه تا ۱۳۰- درجه زیر صفر در شب و ۲۴۶- درجه زیر صفر در گودال‌های تاریک قطبی.",
+            "نیروی گرانش ماه (۱.۶۲ متر بر مجذور ثانیه) ششم گرانش زمین است و عامل اصلی ایجاد جزر و مد در اقیانوس‌های زمین می‌باشد."
         ),
         "sat_iss" to listOf(
             "ایستگاه فضایی بین‌المللی با سرعت ۲۷,۶۰۰ کیلومتر بر ساعت، هر ۹۰ دقیقه یک‌بار زمین را دور می‌زند.",
@@ -478,6 +496,20 @@ object PhysicalData {
     )
 
     private val coolFactsMapEn = mapOf(
+        "moon_luna" to listOf(
+            "The Moon is Earth's only natural satellite, with a mean diameter of 3,474.8 km (0.273× Earth) and mass of 7.342 × 10²² kg.",
+            "Its average distance from Earth is 384,400 km (~30 Earth diameters), taking light just 1.28 seconds to reach us.",
+            "Due to tidal locking, the Moon's rotation period equals its orbital period (27.32 days), keeping the same side permanently facing Earth.",
+            "The lunar synodic month (time from New Moon to New Moon) is 29.53 days, governing the full lunar phase cycle.",
+            "Laser reflectors left by Apollo missions show the Moon is receding from Earth at 3.8 cm (1.5 in) per year."
+        ),
+        "moon_main" to listOf(
+            "The Moon is Earth's only natural satellite, with a mean diameter of 3,474.8 km (0.273× Earth) and mass of 7.342 × 10²² kg.",
+            "Its average distance from Earth is 384,400 km (~30 Earth diameters), taking light just 1.28 seconds to reach us.",
+            "Due to tidal locking, the Moon's rotation period equals its orbital period (27.32 days), keeping the same side permanently facing Earth.",
+            "The lunar synodic month (time from New Moon to New Moon) is 29.53 days, governing the full lunar phase cycle.",
+            "Laser reflectors left by Apollo missions show the Moon is receding from Earth at 3.8 cm (1.5 in) per year."
+        ),
         "galilean_moon_io" to listOf(
             "Io is the most volcanically active body in the Solar System with over 400 active sulfur volcanoes.",
             "Tidal heating from gravitational interaction with Jupiter, Europa, and Ganymede powers Io's intense volcanic activity.",

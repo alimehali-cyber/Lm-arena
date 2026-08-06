@@ -74,8 +74,11 @@ import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.TimeMachineControlBar
 import com.alijafari.red.astronomy.ui.rendering.*
 import com.alijafari.red.astronomy.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.ui.graphics.PathEffect
 import kotlin.math.*
 
 enum class ArExpandedPanel {
@@ -352,6 +355,48 @@ fun CompassARScreen(
             lastDeg,
             uiState.userLocation.latitude
         )
+    }
+
+    // Live TLE background fetch for ISS orbital precision
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            ISSEngine.fetchLatestTLE()
+        }
+    }
+
+    // Real-Time ISS Topocentric Position
+    val issTopocentric = remember(activeTimeMs, uiState.userLocation) {
+        ISSEngine.calculateTopocentricPos(
+            timestampMs = activeTimeMs,
+            userLatDeg = uiState.userLocation.latitude,
+            userLonDeg = uiState.userLocation.longitude,
+            userAltMeters = uiState.userLocation.elevationMeters
+        )
+    }
+
+    val issHoriz = remember(issTopocentric) {
+        CoordinateEngine.Horizontal(
+            altitudeDeg = issTopocentric.elevationDeg,
+            azimuthDeg = issTopocentric.azimuthDeg
+        )
+    }
+
+    // Real-Time ISS Orbital Trajectory Points (Sampled across current pass window)
+    val issTrajectoryPoints = remember(activeTimeMs / 10000L, uiState.userLocation) {
+        val points = mutableListOf<CoordinateEngine.Horizontal>()
+        for (offsetSec in -600..600 step 20) {
+            val t = activeTimeMs + (offsetSec * 1000L)
+            val pos = ISSEngine.calculateTopocentricPos(
+                timestampMs = t,
+                userLatDeg = uiState.userLocation.latitude,
+                userLonDeg = uiState.userLocation.longitude,
+                userAltMeters = uiState.userLocation.elevationMeters
+            )
+            if (pos.elevationDeg > -10.0) {
+                points.add(CoordinateEngine.Horizontal(altitudeDeg = pos.elevationDeg, azimuthDeg = pos.azimuthDeg))
+            }
+        }
+        points
     }
 
     val allCatalog = remember(jd) { AstronomyCatalog.getAllObjects(jd) }
@@ -642,11 +687,50 @@ fun CompassARScreen(
             val cosR = cos(rollRad).toFloat()
             val sinR = sin(rollRad).toFloat()
 
+            // Render ISS Real-Time Orbital Trajectory Pass Line
+            if (issTrajectoryPoints.size >= 2) {
+                val issPath = Path()
+                var issFirst = true
+                for (pt in issTrajectoryPoints) {
+                    var dAzI = pt.azimuthDeg - currentAzimuth
+                    if (dAzI > 180) dAzI -= 360
+                    if (dAzI < -180) dAzI += 360
+                    val dAltI = pt.altitudeDeg - currentAltitude
+
+                    val rawX = (dAzI * pixelsPerDegree).toFloat()
+                    val rawY = -(dAltI * pixelsPerDegree).toFloat()
+
+                    val ix = centerX + (rawX * cosR - rawY * sinR)
+                    val iy = centerY + (rawX * sinR + rawY * cosR)
+
+                    if (ix in -400f..(canvasWidth + 400f) && iy in -400f..(canvasHeight + 400f)) {
+                        if (issFirst) {
+                            issPath.moveTo(ix, iy)
+                            issFirst = false
+                        } else {
+                            issPath.lineTo(ix, iy)
+                        }
+                    }
+                }
+                if (!issFirst) {
+                    drawPath(
+                        path = issPath,
+                        color = Color(0xFFFF9E00).copy(alpha = 0.75f),
+                        style = Stroke(
+                            width = 3f * density,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f * density, 8f * density), 0f)
+                        )
+                    )
+                }
+            }
+
             for (obj in allCatalog) {
                 val horiz = if (obj.type == ObjectType.SUN) {
                     sunHoriz
                 } else if (obj.type == ObjectType.MOON) {
                     moonHoriz
+                } else if (obj.id == "sat_iss" || obj.type == ObjectType.SATELLITE) {
+                    issHoriz
                 } else {
                     CoordinateEngine.equatorialToHorizontal(
                         CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg),
@@ -950,7 +1034,7 @@ fun CompassARScreen(
             }
         }
 
-        // Layer 4: Focus Mode Top Header Ribbon & Smart Floating Pills Row
+        // Layer 4: Focus Mode Smart Floating Pills Row (Positioned at top)
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -958,88 +1042,7 @@ fun CompassARScreen(
                 .padding(top = 4.dp, start = 12.dp, end = 12.dp)
                 .fillMaxWidth()
         ) {
-            // AR / Compass Compact Status Ribbon
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = BackgroundCard.copy(alpha = 0.88f),
-                border = BorderStroke(1.dp, CardBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Explore,
-                            contentDescription = "AR Ribbon",
-                            tint = AccentPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            text = if (isFa) "آسمان‌نما AR" else "AR Sky View",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        if (timeMachineState.mode == TimeMachineMode.SIMULATION) {
-                            Surface(
-                                shape = CircleShape,
-                                color = AccentSecondary.copy(alpha = 0.2f),
-                                border = BorderStroke(1.dp, AccentSecondary)
-                            ) {
-                                Text(
-                                    text = if (isFa) "ماشین زمان" else "Time Machine",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = AccentSecondary,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Quick Status Indicators
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (isGpsActive) {
-                            Icon(
-                                imageVector = Icons.Default.GpsFixed,
-                                contentDescription = "GPS Active",
-                                tint = StatusGood,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        if (isSensorActive) {
-                            Icon(
-                                imageVector = Icons.Default.Sensors,
-                                contentDescription = "Sensors Active",
-                                tint = StatusGood,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        if (selectedTarget != null) {
-                            Icon(
-                                imageVector = Icons.Default.GpsFixed,
-                                contentDescription = "Target Locked",
-                                tint = AccentPrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // SMART FLOATING PILLS ROW (Directly below status ribbon)
+            // SMART FLOATING PILLS ROW
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),

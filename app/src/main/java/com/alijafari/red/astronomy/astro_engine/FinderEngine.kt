@@ -30,11 +30,21 @@ object FinderEngine {
         jd: Double = TimeEngine.getJulianDate()
     ): FinderData {
         val lastDeg = TimeEngine.getLAST(jd, userLon)
-        val horiz = CoordinateEngine.equatorialToHorizontal(
-            CoordinateEngine.Equatorial(target.raDeg, target.decDeg),
-            lastDeg,
-            userLat
-        )
+        val horiz = if (target.id == "sat_iss" || target.type == com.alijafari.red.astronomy.domain.ObjectType.SATELLITE) {
+            val timestampMs = ((jd - 2440587.5) * 86400000.0).toLong()
+            val pos = ISSEngine.calculateTopocentricPos(
+                timestampMs = timestampMs,
+                userLatDeg = userLat,
+                userLonDeg = userLon
+            )
+            CoordinateEngine.Horizontal(azimuthDeg = pos.azimuthDeg, altitudeDeg = pos.elevationDeg)
+        } else {
+            CoordinateEngine.equatorialToHorizontal(
+                CoordinateEngine.Equatorial(target.raDeg, target.decDeg),
+                lastDeg,
+                userLat
+            )
+        }
 
         val targetAz = horiz.azimuthDeg
         val targetAlt = horiz.altitudeDeg
