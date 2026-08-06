@@ -441,12 +441,38 @@ fun ObjectDetailModal(
                 }
             }
 
-            // Observation Log Button & Spacing
+            // Locate in Live Sky / AR Button
             item {
                 Button(
+                    onClick = {
+                        viewModel.locateObjectInAR(obj)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .testTag("locate_in_ar_button"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Icon(Icons.Default.Explore, contentDescription = null, modifier = Modifier.size(22.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = if (isFa) "🎯 ردیابی زنده در آسمان و قطب‌نما (AR)" else "🎯 Locate in Live AR Sky",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
+            }
+
+            // Observation Log Button & Spacing
+            item {
+                OutlinedButton(
                     onClick = { showAddLogDialog = true },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(48.dp)
                         .testTag("add_log_button"),
                     shape = RoundedCornerShape(14.dp)
                 ) {

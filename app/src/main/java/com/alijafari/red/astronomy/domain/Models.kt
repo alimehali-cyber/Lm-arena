@@ -90,13 +90,13 @@ enum class ThemeMode {
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {
     COSMIC_PREMIUM("Cosmic Premium", "کیهانی پرمیوم"),
     MONOCHROME_SCIENTIFIC("Monochrome Scientific", "تک‌رنگ علمی (سوئیسی)"),
-    BLUEPRINT("Blueprint", "نقشه‌کشی (بلوپرینت)"),
+    KIDS_WATERCOLOR("Kids WaterColor", "آبرنگ جادویی کودکانه"),
     OBSERVATORY("Observatory Night", "شب رصدخانه (سرخ)");
 
     companion object {
         val CELESTIAL get() = COSMIC_PREMIUM
         val MONOCHROME get() = MONOCHROME_SCIENTIFIC
-        val FUN get() = BLUEPRINT
+        val FUN get() = KIDS_WATERCOLOR
     }
 }
 

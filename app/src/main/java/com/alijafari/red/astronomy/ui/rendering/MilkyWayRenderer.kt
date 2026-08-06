@@ -77,7 +77,7 @@ object MilkyWayRenderer {
                     else -> Color(0xFFFDE047)
                 }
                 SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color(0xFF94A3B8)
-                SkyCanvasTheme.BLUEPRINT -> Color(0xFF38BDF8)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
                 SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
             }
 

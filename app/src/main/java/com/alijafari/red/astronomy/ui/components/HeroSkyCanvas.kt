@@ -337,7 +337,7 @@ fun HeroSkyCanvas(
                         val particleColor = when (uiState.skyCanvasTheme) {
                             SkyCanvasTheme.COSMIC_PREMIUM -> if (Random.nextBoolean()) Color(0xFF2DD4BF) else Color(0xFFFBBF24)
                             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
-                            SkyCanvasTheme.BLUEPRINT -> Color(0xFF38BDF8)
+                            SkyCanvasTheme.KIDS_WATERCOLOR -> if (Random.nextBoolean()) Color(0xFFFF85A1) else Color(0xFF70D6FF)
                             SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
                         }
                         repeat(3) {
@@ -442,7 +442,7 @@ fun HeroSkyCanvas(
                 val ringColor = when (uiState.skyCanvasTheme) {
                     SkyCanvasTheme.COSMIC_PREMIUM -> Color(0xFF38BDF8)
                     SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
-                    SkyCanvasTheme.BLUEPRINT -> Color(0xFF38BDF8)
+                    SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
                     SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
                 }
                 drawCircle(
@@ -626,11 +626,11 @@ fun HeroSkyCanvas(
                         )
                     }
                 }
-                SkyCanvasTheme.BLUEPRINT -> Quadruple(
-                    Color(0xCC0F172A),
-                    Color(0xFF38BDF8),
-                    Color(0xFF38BDF8),
-                    Color.White.copy(alpha = 0.8f)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> Quadruple(
+                    Color(0xFFFFF0F5).copy(alpha = 0.95f),
+                    Color(0xFFFF6B8B),
+                    Color(0xFF4A4E69),
+                    Color(0xFF6C5CE7)
                 )
                 SkyCanvasTheme.OBSERVATORY -> Quadruple(
                     Color(0xCC1A0000),

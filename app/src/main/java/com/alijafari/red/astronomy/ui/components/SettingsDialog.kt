@@ -179,9 +179,9 @@ fun SettingsDialog(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             FilterChip(
-                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.BLUEPRINT,
-                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.BLUEPRINT) },
-                                label = { Text(text = if (isFa) "📐 بلوپرینت" else "Blueprint") },
+                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.KIDS_WATERCOLOR,
+                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.KIDS_WATERCOLOR) },
+                                label = { Text(text = if (isFa) "🎨 آبرنگ کودکانه" else "WaterColor") },
                                 modifier = Modifier.weight(1f)
                             )
                             FilterChip(

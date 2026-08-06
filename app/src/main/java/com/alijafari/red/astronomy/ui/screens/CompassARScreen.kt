@@ -313,6 +313,13 @@ fun CompassARScreen(
     var showArrivalDialog by remember { mutableStateOf(false) }
     var hasVibratedForArrival by remember { mutableStateOf(false) }
 
+    LaunchedEffect(uiState.selectedTargetObject) {
+        uiState.selectedTargetObject?.let { target ->
+            selectedTarget = target
+            hasVibratedForArrival = false
+        }
+    }
+
     val searchResults = remember(searchQuery, uiState.userLocation, jd) {
         if (searchQuery.isNotBlank()) {
             CelestialSearchEngine.search(

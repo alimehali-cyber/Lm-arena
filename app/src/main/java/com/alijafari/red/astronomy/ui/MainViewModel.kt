@@ -28,7 +28,8 @@ data class MainUiState(
     val bortleClass: Int = 3,
     val favoritesList: List<String> = emptyList(),
     val observationLogs: List<ObservationLogEntity> = emptyList(),
-    val timeMachineState: TimeMachineState = TimeMachineState()
+    val timeMachineState: TimeMachineState = TimeMachineState(),
+    val selectedTargetObject: CelestialObject? = null
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -270,6 +271,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     isBirthdayMode = false
                 )
             )
+        }
+    }
+
+    fun locateObjectInAR(obj: CelestialObject) {
+        _uiState.update {
+            it.copy(
+                selectedTargetObject = obj,
+                selectedObjectForDetail = null,
+                selectedTab = 1
+            )
+        }
+    }
+
+    fun clearTargetObject() {
+        _uiState.update {
+            it.copy(selectedTargetObject = null)
         }
     }
 }

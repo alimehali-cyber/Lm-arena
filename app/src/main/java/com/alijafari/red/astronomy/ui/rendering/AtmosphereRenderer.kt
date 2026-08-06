@@ -21,7 +21,7 @@ object AtmosphereRenderer {
         when (theme) {
             SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeAtmosphere(drawScope, lightingState, sunPosPx)
-            SkyCanvasTheme.BLUEPRINT -> drawBlueprintAtmosphere(drawScope, lightingState, sunPosPx)
+            SkyCanvasTheme.KIDS_WATERCOLOR -> drawKidsWatercolorAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.OBSERVATORY -> drawObservatoryAtmosphere(drawScope, lightingState, sunPosPx)
         }
     }
@@ -136,7 +136,7 @@ object AtmosphereRenderer {
         }
     }
 
-    private fun drawBlueprintAtmosphere(
+    private fun drawKidsWatercolorAtmosphere(
         drawScope: DrawScope,
         lightingState: LightingState,
         sunPosPx: Offset?
@@ -144,37 +144,40 @@ object AtmosphereRenderer {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
-        // Deep engineering blueprint navy
+        // Whimsical child-like watercolor background gradient
+        val sunAlt = lightingState.sunAltitudeDeg
+        val isDay = sunAlt > 0.0
+
+        val skyColors = if (isDay) {
+            listOf(
+                Color(0xFF70D6FF), // Soft sky cyan
+                Color(0xFFFFD670), // Warm pastel sun yellow
+                Color(0xFFFF85A1)  // Soft pink horizon wash
+            )
+        } else {
+            listOf(
+                Color(0xFF1A1B4B), // Deep indigo ink
+                Color(0xFF2E2A72), // Soft violet wash
+                Color(0xFF3B1F52)  // Deep plum horizon
+            )
+        }
+
         drawScope.drawRect(
-            brush = Brush.verticalGradient(
-                colors = listOf(Color(0xFF0F172A), Color(0xFF0284C7).copy(alpha = 0.3f), Color(0xFF0F172A))
-            ),
+            brush = Brush.verticalGradient(colors = skyColors),
             size = drawScope.size
         )
 
-        // Fine cyan coordinate grid lines (Blueprint style)
-        val gridStep = 40f
-        val gridColor = Color(0xFF38BDF8).copy(alpha = 0.12f)
-        var x = 0f
-        while (x < width) {
-            drawScope.drawLine(
-                color = gridColor,
-                start = Offset(x, 0f),
-                end = Offset(x, height),
-                strokeWidth = 0.8f
-            )
-            x += gridStep
-        }
-        var y = 0f
-        while (y < height) {
-            drawScope.drawLine(
-                color = gridColor,
-                start = Offset(0f, y),
-                end = Offset(width, y),
-                strokeWidth = 0.8f
-            )
-            y += gridStep
-        }
+        // Soft animated watercolor wash blobs
+        val washColor = if (isDay) Color(0xFFFFC6FF).copy(alpha = 0.25f) else Color(0xFF6C5CE7).copy(alpha = 0.2f)
+        drawScope.drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(washColor, Color.Transparent),
+                center = Offset(width * 0.3f, height * 0.4f),
+                radius = width * 0.6f
+            ),
+            radius = width * 0.6f,
+            center = Offset(width * 0.3f, height * 0.4f)
+        )
     }
 
     private fun drawObservatoryAtmosphere(
