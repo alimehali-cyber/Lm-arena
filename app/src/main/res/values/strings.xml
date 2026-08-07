@@ -5,7 +5,7 @@
     
     <!-- Navigation Tabs -->
     <string name="nav_home">Home</string>
-    <string name="nav_compass">AR</string>
+    <string name="nav_compass">Compass/AR</string>
     <string name="nav_skymap">Sky Map</string>
     <string name="nav_moon">Moon</string>
     <string name="nav_iss">ISS Pass</string>
@@ -24,7 +24,7 @@
     <string name="category_constellations">Constellations</string>
 
     <!-- Compass AR Screen -->
-    <string name="compass_title">AR Sky View</string>
+    <string name="compass_title">Compass / AR Finder</string>
     <string name="identify">Identify</string>
     <string name="ar_hint">Point phone at sky or drag screen to identify objects</string>
     <string name="azimuth_short">Az: %1$s</string>

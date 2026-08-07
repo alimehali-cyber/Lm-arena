@@ -151,7 +151,7 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     val pageTitle = when (uiState.selectedTab) {
-                                        1 -> if (isFa) "واقعیت افزوده" else "AR"
+                                        1 -> if (isFa) "قطب‌نما AR" else "AR Compass"
                                         2 -> if (isFa) "ماه" else "Moon"
                                         3 -> if (isFa) "ایستگاه فضایی" else "ISS Tracker"
                                         else -> ""

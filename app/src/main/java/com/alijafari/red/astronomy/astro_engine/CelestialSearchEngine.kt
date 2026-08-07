@@ -83,6 +83,6 @@ object CelestialSearchEngine {
      * Gets default suggestion chips for quick access when search bar is focused.
      */
     fun getQuickSuggestions(): List<String> {
-        return listOf("ماه", "خورشید", "مریخ", "زهره", "مشتری", "اروپا", "آیو", "استارلینک", "ISS", "مَدّ و جزر", "گرانش", "کسوف")
+        return listOf("ماه", "خورشید", "مریخ", "زهره", "مشتری", "زحل", "شباهنگ", "آندرومدا", "جبار", "ISS")
     }
 }
