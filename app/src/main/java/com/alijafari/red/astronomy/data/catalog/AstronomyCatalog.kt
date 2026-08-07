@@ -28,6 +28,60 @@ object AstronomyCatalog {
         observationTipFa = "مانند یک نقطه بسیار پرنور بدون چشمک‌زدن با سرعت بالای افق حرکت می‌کند."
     )
 
+    val STARLINK_TRAIN = CelestialObject(
+        id = "sat_starlink",
+        type = ObjectType.SATELLITE,
+        nameEn = "Starlink Train (SpaceX)",
+        nameFa = "قطار ماهواره‌ای استارلینک (SpaceX)",
+        raDeg = 125.0,
+        decDeg = 20.0,
+        magnitude = 1.5,
+        constellationEn = "Low Earth Orbit",
+        constellationFa = "مدار زمین",
+        distanceLightYears = 0.00000006,
+        category = "Satellite Constellation",
+        descriptionEn = "A dense line of newly launched SpaceX internet satellites shining in a train pattern.",
+        descriptionFa = "خط متراکم ماهواره‌های اینترنتی استارلینک اسپیس‌ایکس که مانند قطاری نورانی حرکت می‌کنند.",
+        observationTipEn = "Best visible shortly after orbit insertion in clear twilight skies.",
+        observationTipFa = "بهترین زمان رصد، دقایقی پس از پرتاب در آسمان گرگ‌ومیش است."
+    )
+
+    val HUBBLE = CelestialObject(
+        id = "sat_hubble",
+        type = ObjectType.SATELLITE,
+        nameEn = "Hubble Space Telescope (HST)",
+        nameFa = "تلسکوپ فضایی هابل (HST)",
+        raDeg = 210.0,
+        decDeg = -10.0,
+        magnitude = 1.8,
+        constellationEn = "Low Earth Orbit",
+        constellationFa = "مدار زمین",
+        distanceLightYears = 0.00000005,
+        category = "Space Telescope",
+        descriptionEn = "Legendary space telescope deployed in 1990 orbiting at 535 km altitude.",
+        descriptionFa = "تلسکوپ فضایی افسانه‌ای هابل پرتاب‌شده در سال ۱۹۹۰ در ارتفاع ۵۳۵ کیلومتری.",
+        observationTipEn = "Visible with binoculars in southern sky passes.",
+        observationTipFa = "در گذرهای جنوبی با دوربین دوچشمی قابل مشاهده است."
+    )
+
+    val JWST = CelestialObject(
+        id = "sat_jwst",
+        type = ObjectType.SATELLITE,
+        nameEn = "James Webb Space Telescope (JWST)",
+        nameFa = "تلسکوپ فضایی جیمز وب (JWST)",
+        raDeg = 95.0,
+        decDeg = 22.0,
+        magnitude = 14.0,
+        constellationEn = "Sun-Earth L2 Halo Orbit",
+        constellationFa = "نقطه لاگرانژی L2",
+        distanceLightYears = 0.00015,
+        category = "Deep Infrared Space Observatory",
+        descriptionEn = "Premier infrared space observatory stationed 1.5 million km from Earth at Sun-Earth L2.",
+        descriptionFa = "پیشرفته‌ترین رصدخانه فروسرخ جهان مستقر در فاصله ۱.۵ میلیون کیلومتری زمین در نقطه L2.",
+        observationTipEn = "Requires large astronomical telescope for optical verification due to distance.",
+        observationTipFa = "به دلیل فاصله ۱.۵ میلیون کیلومتری نیاز به تلسکوپ‌های بزرگ رصدخانه‌ای دارد."
+    )
+
     val MILKY_WAY = CelestialObject(
         id = "galaxy_milky_way",
         type = ObjectType.GALAXY,
@@ -160,7 +214,7 @@ object AstronomyCatalog {
             )
         )
 
-        return listOf(sun, moon, ISS, MILKY_WAY) + planets + galileanMoons + stars + deepSky + meteorShowers + asterisms + constellationsAsObjects + referencePoints
+        return listOf(sun, moon, ISS, STARLINK_TRAIN, HUBBLE, JWST, MILKY_WAY) + planets + galileanMoons + stars + deepSky + meteorShowers + asterisms + constellationsAsObjects + referencePoints
     }
 
     fun getConstellations(): List<ConstellationData> {
