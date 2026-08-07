@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.astro_engine.DistanceUnit
 import com.alijafari.red.astronomy.astro_engine.RelativisticEngine
 import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
 import com.alijafari.red.astronomy.domain.AppLanguage
@@ -37,6 +39,7 @@ import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.theme.AccentPrimary
 import com.alijafari.red.astronomy.ui.theme.IranSans
 import com.alijafari.red.astronomy.util.toPersianDigits
+import java.util.Locale
 
 enum class SpeedUnit(val labelEn: String, val labelFa: String) {
     PERCENT_C("% c", "درصد سرعت نور (% c)"),
@@ -75,6 +78,9 @@ fun TimeDilationCalculatorScreen(
     // Object Selector Dialog State
     var selectingForStart by remember { mutableStateOf<Boolean?>(null) } // true for start, false for dest, null for closed
 
+    // Distance Display Unit
+    var distanceUnit by remember { mutableStateOf(DistanceUnit.AUTO) }
+
     // Speed Controls
     var speedUnit by remember { mutableStateOf(SpeedUnit.PERCENT_C) }
     var rawSpeedInput by remember { mutableStateOf("90") } // Default 90% c
@@ -97,7 +103,7 @@ fun TimeDilationCalculatorScreen(
 
     // Convert raw input to m/s based on unit
     val speedInMs = remember(rawSpeedInput, speedUnit) {
-        val num = rawSpeedInput.toDoubleOrNull() ?: 0.0
+        val num = RelativisticEngine.parseLocalizedDouble(rawSpeedInput) ?: 0.0
         when (speedUnit) {
             SpeedUnit.PERCENT_C -> (num / 100.0) * RelativisticEngine.SPEED_OF_LIGHT_MS
             SpeedUnit.KM_H -> num * 1000.0 / 3600.0
@@ -115,7 +121,7 @@ fun TimeDilationCalculatorScreen(
 
     // Convert acceleration input to m/s^2
     val accelInMs2 = remember(accelerationValueInG) {
-        val numG = accelerationValueInG.toDoubleOrNull() ?: 1.0
+        val numG = RelativisticEngine.parseLocalizedDouble(accelerationValueInG) ?: 1.0
         numG * RelativisticEngine.STANDARD_G_MS2
     }
 
@@ -138,29 +144,27 @@ fun TimeDilationCalculatorScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding(),
+                modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                tonalElevation = 4.dp,
+                tonalElevation = 2.dp,
                 border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(60.dp)
-                        .padding(horizontal = 16.dp),
+                        .height(52.dp)
+                        .padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         IconButton(
                             onClick = onBackToLab,
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .testTag("time_dilation_back_button")
@@ -189,7 +193,7 @@ fun TimeDilationCalculatorScreen(
                     IconButton(
                         onClick = { showHowItWorksDialog = true },
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
                             .background(AccentPrimary.copy(alpha = 0.15f))
                             .testTag("time_dilation_info_button")
@@ -198,7 +202,7 @@ fun TimeDilationCalculatorScreen(
                             imageVector = Icons.Default.HelpOutline,
                             contentDescription = "How it works",
                             tint = AccentPrimary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -209,8 +213,8 @@ fun TimeDilationCalculatorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // STEP 1 & 2: OBJECT SELECTORS (START & DESTINATION)
             item {
@@ -223,8 +227,8 @@ fun TimeDilationCalculatorScreen(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
                 ) {
                     Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
                             text = if (isFa) "۱. انتخاب مبدأ و مقصد سفر" else "1. Select Route (Origin & Destination)",
@@ -249,7 +253,7 @@ fun TimeDilationCalculatorScreen(
                             )
 
                             Icon(
-                                imageVector = Icons.Default.East,
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = "To",
                                 tint = AccentPrimary,
                                 modifier = Modifier.size(20.dp)
@@ -294,7 +298,7 @@ fun TimeDilationCalculatorScreen(
                             }
                         }
 
-                        // Distance Card
+                        // Distance Card with Unit Selector Carousel
                         val distRes = journeyResult.distance
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
@@ -304,7 +308,7 @@ fun TimeDilationCalculatorScreen(
                         ) {
                             Column(
                                 modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
@@ -323,8 +327,32 @@ fun TimeDilationCalculatorScreen(
                                     )
                                 }
 
+                                // Distance Unit Selector Carousel
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    items(DistanceUnit.entries) { unit ->
+                                        val isSelected = distanceUnit == unit
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = { distanceUnit = unit },
+                                            label = {
+                                                Text(
+                                                    text = if (isFa) unit.labelFa else unit.labelEn,
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = AccentPrimary,
+                                                selectedLabelColor = Color.White
+                                            )
+                                        )
+                                    }
+                                }
+
                                 Text(
-                                    text = RelativisticEngine.formatDistance(distRes.distanceMeters, isFa),
+                                    text = RelativisticEngine.formatDistance(distRes.distanceMeters, unit = distanceUnit, isFa = isFa),
                                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                                     color = AccentPrimary
                                 )
@@ -361,12 +389,12 @@ fun TimeDilationCalculatorScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        // Unit Selector Tabs
-                        Row(
+                        // Unit Selector Tabs (LazyRow prevents vertical stretching / wrapping in Persian)
+                        LazyRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            SpeedUnit.entries.forEach { unit ->
+                            items(SpeedUnit.entries) { unit ->
                                 val isSelected = speedUnit == unit
                                 FilterChip(
                                     selected = isSelected,
@@ -380,7 +408,10 @@ fun TimeDilationCalculatorScreen(
                                         }
                                     },
                                     label = {
-                                        Text(text = if (isFa) unit.labelFa else unit.labelEn)
+                                        Text(
+                                            text = if (isFa) unit.labelFa else unit.labelEn,
+                                            maxLines = 1
+                                        )
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = AccentPrimary,
@@ -407,14 +438,14 @@ fun TimeDilationCalculatorScreen(
                                         when (speedUnit) {
                                             SpeedUnit.PERCENT_C -> {
                                                 val pct = (preset.speedMs / RelativisticEngine.SPEED_OF_LIGHT_MS) * 100.0
-                                                rawSpeedInput = if (pct >= 1.0) String.format("%.0f", pct) else String.format("%.6f", pct)
+                                                rawSpeedInput = if (pct >= 1.0) String.format(Locale.US, "%.0f", pct) else String.format(Locale.US, "%.6f", pct)
                                             }
                                             SpeedUnit.KM_H -> {
                                                 val kmh = preset.speedMs * 3.6
-                                                rawSpeedInput = String.format("%.0f", kmh)
+                                                rawSpeedInput = String.format(Locale.US, "%.0f", kmh)
                                             }
                                             SpeedUnit.M_S -> {
-                                                rawSpeedInput = String.format("%.0f", preset.speedMs)
+                                                rawSpeedInput = String.format(Locale.US, "%.0f", preset.speedMs)
                                             }
                                         }
                                     },
@@ -609,8 +640,10 @@ fun TimeDilationCalculatorScreen(
                                             style = MaterialTheme.typography.labelMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
+                                        val maxVelVal = String.format(Locale.US, "%.2f", journeyResult.maxVelocityFractionOfC * 100)
+                                        val maxVelFormatted = if (isFa) "$maxVelVal٪ c".toPersianDigits() else "$maxVelVal% c"
                                         Text(
-                                            text = "${String.format("%.2f", journeyResult.maxVelocityFractionOfC * 100)}% c",
+                                            text = maxVelFormatted,
                                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                             color = AccentPrimary
                                         )
@@ -756,9 +789,10 @@ fun TimeDilationCalculatorScreen(
                                         highlight = true
                                     )
 
-                                    val gammaStr = if (journeyResult.lorentzFactorPeak.isInfinite()) "∞"
+                                    val gammaRaw = if (journeyResult.lorentzFactorPeak.isInfinite()) "∞"
                                     else if (journeyResult.lorentzFactorPeak.isNaN()) "—"
-                                    else String.format("%.4f", journeyResult.lorentzFactorPeak)
+                                    else String.format(Locale.US, "%.4f", journeyResult.lorentzFactorPeak)
+                                    val gammaStr = if (isFa) gammaRaw.toPersianDigits() else gammaRaw
 
                                     MetricRow(
                                         label = if (isFa) "عامل لورنتس (Lorentz Factor γ):" else "Lorentz Factor (γ):",
@@ -766,8 +800,9 @@ fun TimeDilationCalculatorScreen(
                                         highlight = false
                                     )
 
-                                    val pctStr = if (journeyResult.percentageTimeDifference.isNaN()) "0%"
-                                    else String.format("%.2f%%", journeyResult.percentageTimeDifference)
+                                    val pctRaw = if (journeyResult.percentageTimeDifference.isNaN()) "0%"
+                                    else String.format(Locale.US, "%.2f%%", journeyResult.percentageTimeDifference)
+                                    val pctStr = if (isFa) pctRaw.toPersianDigits() else pctRaw
 
                                     MetricRow(
                                         label = if (isFa) "درصد انقباض زمان نسبت به زمین:" else "Percentage Time Dilation:",
@@ -776,7 +811,11 @@ fun TimeDilationCalculatorScreen(
                                     )
 
                                     if (isLengthContractionOn) {
-                                        val contractedLyStr = RelativisticEngine.formatDistance(journeyResult.contractedDistanceMeters, isFa)
+                                        val contractedLyStr = RelativisticEngine.formatDistance(
+                                            journeyResult.contractedDistanceMeters,
+                                            unit = distanceUnit,
+                                            isFa = isFa
+                                        )
                                         MetricRow(
                                             label = if (isFa) "طول انقباض یافته از دید مسافر:" else "Contracted Distance (Traveller):",
                                             value = contractedLyStr,

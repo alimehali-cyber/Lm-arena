@@ -1,7 +1,17 @@
 package com.alijafari.red.astronomy.astro_engine
 
 import com.alijafari.red.astronomy.domain.CelestialObject
+import com.alijafari.red.astronomy.util.toPersianDigits
+import java.util.Locale
 import kotlin.math.*
+
+enum class DistanceUnit(val labelEn: String, val labelFa: String) {
+    AUTO("Auto", "خودکار"),
+    LIGHT_YEARS("Light Years", "سال نوری"),
+    AU("AU", "واحد نجومی (AU)"),
+    KM("Kilometers", "کیلومتر"),
+    METERS("Meters", "متر")
+}
 
 object RelativisticEngine {
 
@@ -10,6 +20,32 @@ object RelativisticEngine {
     const val METERS_PER_AU = 149597870700.0 // meters
     const val AU_PER_LY = 63241.077
     const val STANDARD_G_MS2 = 9.80665 // m/s^2
+
+    /**
+     * Parses localized numbers (Persian/Arabic digits, commas, Persian decimal separators)
+     * into standard Double values safely in a locale-independent manner.
+     */
+    fun parseLocalizedDouble(input: String?): Double? {
+        if (input.isNullOrBlank()) return null
+        val sb = StringBuilder()
+        for (ch in input.trim()) {
+            when (ch) {
+                '۰', '٠' -> sb.append('0')
+                '۱', '١' -> sb.append('1')
+                '۲', '٢' -> sb.append('2')
+                '۳', '٣' -> sb.append('3')
+                '۴', '٤' -> sb.append('4')
+                '۵', '٥' -> sb.append('5')
+                '۶', '٦' -> sb.append('6')
+                '۷', '٧' -> sb.append('7')
+                '۸', '٨' -> sb.append('8')
+                '۹', '٩' -> sb.append('9')
+                '٫', ',' -> sb.append('.')
+                else -> sb.append(ch)
+            }
+        }
+        return sb.toString().toDoubleOrNull()
+    }
 
     data class DistanceResult(
         val distanceMeters: Double,
@@ -398,21 +434,21 @@ object RelativisticEngine {
     }
 
     /**
-     * Formats duration in seconds into human readable time string.
+     * Formats duration in seconds into human readable time string in a locale-safe manner.
      */
     fun formatDuration(seconds: Double, isFa: Boolean = false): String {
         if (seconds.isNaN()) return "—"
         if (seconds.isInfinite()) return if (isFa) "بی‌نهایت" else "Infinite"
-        if (seconds <= 0) return if (isFa) "۰ ثانیه" else "0 seconds"
+        if (seconds <= 0) return if (isFa) "۰ ثانیه".toPersianDigits() else "0 seconds"
 
         val secInMin = 60.0
         val secInHour = 3600.0
         val secInDay = 86400.0
         val secInYear = 31557600.0 // Julian year (365.25 days)
 
-        return when {
+        val rawStr = when {
             seconds < 60.0 -> {
-                val valStr = String.format("%.2f", seconds)
+                val valStr = String.format(Locale.US, "%.2f", seconds)
                 if (isFa) "$valStr ثانیه" else "$valStr sec"
             }
             seconds < secInHour -> {
@@ -437,41 +473,76 @@ object RelativisticEngine {
             }
             seconds < 10000.0 * secInYear -> {
                 val yrs = seconds / secInYear
-                val valStr = String.format("%.1f", yrs)
+                val valStr = String.format(Locale.US, "%.1f", yrs)
                 if (isFa) "$valStr سال" else "$valStr years"
             }
             seconds < 1e6 * secInYear -> {
                 val centuries = seconds / (100.0 * secInYear)
-                val valStr = String.format("%.1f", centuries)
+                val valStr = String.format(Locale.US, "%.1f", centuries)
                 if (isFa) "$valStr قرن" else "$valStr centuries"
             }
             else -> {
                 val myr = seconds / (1e6 * secInYear)
-                val valStr = String.format("%.2f", myr)
+                val valStr = String.format(Locale.US, "%.2f", myr)
                 if (isFa) "$valStr میلیون سال" else "$valStr Million years"
             }
         }
+
+        return if (isFa) rawStr.toPersianDigits() else rawStr
     }
 
-    fun formatDistance(meters: Double, isFa: Boolean = false): String {
+    fun formatDistance(
+        meters: Double,
+        unit: DistanceUnit = DistanceUnit.AUTO,
+        isFa: Boolean = false
+    ): String {
         if (meters.isNaN()) return "—"
         val ly = meters / METERS_PER_LY
         val au = meters / METERS_PER_AU
         val km = meters / 1000.0
 
-        return when {
-            ly >= 0.01 -> {
-                val valStr = if (ly >= 100) String.format("%,.0f", ly) else String.format("%.3f", ly)
-                if (isFa) "$valStr سال نوری" else "$valStr light-years"
+        val (formattedVal, unitFa, unitEn) = when (unit) {
+            DistanceUnit.AUTO -> {
+                when {
+                    ly >= 0.01 -> Triple(
+                        if (ly >= 100) String.format(Locale.US, "%,.0f", ly) else String.format(Locale.US, "%.3f", ly),
+                        "سال نوری", "light-years"
+                    )
+                    au >= 0.01 -> Triple(
+                        String.format(Locale.US, "%.3f", au),
+                        "واحد نجومی (AU)", "AU"
+                    )
+                    else -> Triple(
+                        String.format(Locale.US, "%,.0f", km),
+                        "کیلومتر", "km"
+                    )
+                }
             }
-            au >= 0.01 -> {
-                val valStr = String.format("%.3f", au)
-                if (isFa) "$valStr واحد نجومی (AU)" else "$valStr AU"
-            }
-            else -> {
-                val valStr = String.format("%,.0f", km)
-                if (isFa) "$valStr کیلومتر" else "$valStr km"
-            }
+            DistanceUnit.LIGHT_YEARS -> Triple(
+                if (ly < 0.0001 && ly > 0) String.format(Locale.US, "%.6f", ly)
+                else if (ly >= 100) String.format(Locale.US, "%,.1f", ly)
+                else String.format(Locale.US, "%.4f", ly),
+                "سال نوری", "light-years"
+            )
+            DistanceUnit.AU -> Triple(
+                if (au < 0.001 && au > 0) String.format(Locale.US, "%.6f", au)
+                else if (au >= 1000) String.format(Locale.US, "%,.1f", au)
+                else String.format(Locale.US, "%.3f", au),
+                "واحد نجومی (AU)", "AU"
+            )
+            DistanceUnit.KM -> Triple(
+                if (km >= 1e9) String.format(Locale.US, "%.3e", km)
+                else String.format(Locale.US, "%,.0f", km),
+                "کیلومتر", "km"
+            )
+            DistanceUnit.METERS -> Triple(
+                if (meters >= 1e9) String.format(Locale.US, "%.3e", meters)
+                else String.format(Locale.US, "%,.0f", meters),
+                "متر", "m"
+            )
         }
+
+        val rawStr = if (isFa) "$formattedVal $unitFa" else "$formattedVal $unitEn"
+        return if (isFa) rawStr.toPersianDigits() else rawStr
     }
 }
