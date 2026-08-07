@@ -5,17 +5,20 @@
 
     <!-- Navigation Tabs -->
     <string name="nav_home">خانه</string>
-    <string name="nav_compass">قطب‌نما/AR</string>
+    <string name="nav_compass">آسمان AR</string>
     <string name="nav_skymap">نقشه آسمان</string>
     <string name="nav_moon">ماه</string>
-    <string name="nav_iss">ایستگاه فضایی</string>
+    <string name="nav_iss">ماهواره‌ها</string>
+    <string name="nav_lab">آزمایشگاه</string>
+    <string name="nav_satellites">ماهواره‌ها</string>
+    <string name="nav_arsky">آسمان AR</string>
 
     <!-- Home Screen -->
     <string name="tonights_sky">آسمان امشب</string>
     <string name="light_pollution">آلودگی نوری: کلاس بورتل %1$d</string>
     <string name="bortle_class_simple">بورتل %1$d</string>
     <string name="moon_status">وضعیت ماه</string>
-    <string name="iss_pass">ایستگاه فضایی</string>
+    <string name="iss_pass">ماهواره‌ها</string>
     <string name="visible_targets">اجرام قابل رصد امشب</string>
     <string name="category_all">همه اجرام</string>
     <string name="category_planets">سیارات</string>
@@ -24,7 +27,7 @@
     <string name="category_constellations">صور فلکی</string>
 
     <!-- Compass AR Screen -->
-    <string name="compass_title">قطب‌نما و واقعیت افزوده (AR)</string>
+    <string name="compass_title">آسمان AR و قطب‌نما</string>
     <string name="identify">شناسایی جرم</string>
     <string name="ar_hint">دستگاه را به سوی آسمان بگیرید یا برای پیمایش صفحه را لمس کنید</string>
     <string name="azimuth_short">سمت: %1$s</string>

@@ -87,7 +87,7 @@ class MainActivity : ComponentActivity() {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (uiState.selectedTab == 0) {
+                                if (uiState.selectedTab == 4) {
                                     // Home Screen Top Bar
                                     // Far RIGHT (Start in RTL): RED logo with pulsing glow
                                     val infiniteTransition = rememberInfiniteTransition(label = "RedLogoGlow")
@@ -139,7 +139,7 @@ class MainActivity : ComponentActivity() {
                                 } else {
                                     // Other Tabs Top Bar (e.g. Moon screen)
                                     IconButton(
-                                        onClick = { viewModel.selectTab(0) },
+                                        onClick = { viewModel.selectTab(4) },
                                         modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
@@ -151,9 +151,10 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     val pageTitle = when (uiState.selectedTab) {
-                                        1 -> if (isFa) "قطب‌نما AR" else "AR Compass"
+                                        0 -> if (isFa) "آزمایشگاه" else "Lab"
+                                        1 -> if (isFa) "ماهواره‌ها" else "Satellites"
                                         2 -> if (isFa) "ماه" else "Moon"
-                                        3 -> if (isFa) "ایستگاه فضایی" else "ISS Tracker"
+                                        3 -> if (isFa) "آسمان AR" else "AR Sky"
                                         else -> ""
                                     }
 
@@ -188,12 +189,11 @@ class MainActivity : ComponentActivity() {
                                 label = "TabSwitch"
                             ) { tab ->
                                 when (tab) {
-                                    0 -> HomeScreen(
+                                    0 -> LabScreen(
                                         uiState = uiState,
-                                        viewModel = viewModel,
-                                        onNavigateToTab = { viewModel.selectTab(it) }
+                                        viewModel = viewModel
                                     )
-                                    1 -> CompassARScreen(
+                                    1 -> ISSScreen(
                                         uiState = uiState,
                                         viewModel = viewModel
                                     )
@@ -201,9 +201,14 @@ class MainActivity : ComponentActivity() {
                                         uiState = uiState,
                                         viewModel = viewModel
                                     )
-                                    3 -> ISSScreen(
+                                    3 -> CompassARScreen(
                                         uiState = uiState,
                                         viewModel = viewModel
+                                    )
+                                    4 -> HomeScreen(
+                                        uiState = uiState,
+                                        viewModel = viewModel,
+                                        onNavigateToTab = { viewModel.selectTab(it) }
                                     )
                                 }
                             }

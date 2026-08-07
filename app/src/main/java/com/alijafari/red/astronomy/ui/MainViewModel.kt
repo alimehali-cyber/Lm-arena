@@ -18,7 +18,7 @@ data class MainUiState(
     val themeMode: ThemeMode = ThemeMode.DARK_NAVY,
     val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
     val userLocation: UserLocation = UserLocation(),
-    val selectedTab: Int = 0,
+    val selectedTab: Int = 4,
     val searchQuery: String = "",
     val selectedObjectForDetail: CelestialObject? = null,
     val isDetailFavorite: Boolean = false,
@@ -279,7 +279,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 selectedTargetObject = obj,
                 selectedObjectForDetail = null,
-                selectedTab = 1
+                selectedTab = 3
             )
         }
     }

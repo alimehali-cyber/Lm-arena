@@ -5,17 +5,20 @@
     
     <!-- Navigation Tabs -->
     <string name="nav_home">Home</string>
-    <string name="nav_compass">Compass/AR</string>
+    <string name="nav_compass">AR Sky</string>
     <string name="nav_skymap">Sky Map</string>
     <string name="nav_moon">Moon</string>
-    <string name="nav_iss">ISS Pass</string>
+    <string name="nav_iss">Satellites</string>
+    <string name="nav_lab">Lab</string>
+    <string name="nav_satellites">Satellites</string>
+    <string name="nav_arsky">AR Sky</string>
 
     <!-- Home Screen -->
     <string name="tonights_sky">Tonight\'s Sky</string>
     <string name="light_pollution">Light Pollution: Bortle %1$d</string>
     <string name="bortle_class_simple">Bortle %1$d</string>
     <string name="moon_status">Moon Status</string>
-    <string name="iss_pass">ISS Pass</string>
+    <string name="iss_pass">Satellites</string>
     <string name="visible_targets">Tonight\'s Visible Targets</string>
     <string name="category_all">All</string>
     <string name="category_planets">Planets</string>
@@ -24,7 +27,7 @@
     <string name="category_constellations">Constellations</string>
 
     <!-- Compass AR Screen -->
-    <string name="compass_title">Compass / AR Finder</string>
+    <string name="compass_title">AR Sky</string>
     <string name="identify">Identify</string>
     <string name="ar_hint">Point phone at sky or drag screen to identify objects</string>
     <string name="azimuth_short">Az: %1$s</string>

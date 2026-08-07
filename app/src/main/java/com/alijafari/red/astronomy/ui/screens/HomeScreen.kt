@@ -505,40 +505,57 @@ fun HomeScreen(
             }
         }
 
-        // 4. QUICK ACCESS ROW — Moon & ISS buttons
+        // 4. QUICK ACCESS ROW — Lab, Satellites, Moon & AR Sky buttons
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("home_quick_access_row"),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Button 1: AR Compass
-                QuickAccessButton(
-                    modifier = Modifier.weight(1f),
-                    icon = "🧭",
-                    label = if (isFa) "قطب‌نما AR" else stringResource(R.string.nav_compass),
-                    testTag = "quick_access_compass",
-                    onClick = { onNavigateToTab(1) }
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("home_quick_access_row_1"),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Button 1: Lab
+                    QuickAccessButton(
+                        modifier = Modifier.weight(1f),
+                        icon = "🧪",
+                        label = if (isFa) "آزمایشگاه" else stringResource(R.string.nav_lab),
+                        testTag = "quick_access_lab",
+                        onClick = { onNavigateToTab(0) }
+                    )
 
-                // Button 2: Moon
-                QuickAccessButton(
-                    modifier = Modifier.weight(1f),
-                    icon = "🌙",
-                    label = if (isFa) "وضعیت ماه" else stringResource(R.string.nav_moon),
-                    testTag = "quick_access_moon",
-                    onClick = { onNavigateToTab(2) }
-                )
+                    // Button 2: Satellites
+                    QuickAccessButton(
+                        modifier = Modifier.weight(1f),
+                        icon = "🛰",
+                        label = if (isFa) "ماهواره‌ها" else stringResource(R.string.nav_satellites),
+                        testTag = "quick_access_satellites",
+                        onClick = { onNavigateToTab(1) }
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("home_quick_access_row_2"),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Button 3: Moon
+                    QuickAccessButton(
+                        modifier = Modifier.weight(1f),
+                        icon = "🌙",
+                        label = if (isFa) "وضعیت ماه" else stringResource(R.string.nav_moon),
+                        testTag = "quick_access_moon",
+                        onClick = { onNavigateToTab(2) }
+                    )
 
-                // Button 3: ISS
-                QuickAccessButton(
-                    modifier = Modifier.weight(1f),
-                    icon = "🛰",
-                    label = if (isFa) "ایستگاه فضایی" else stringResource(R.string.nav_iss),
-                    testTag = "quick_access_iss",
-                    onClick = { onNavigateToTab(3) }
-                )
+                    // Button 4: AR Sky
+                    QuickAccessButton(
+                        modifier = Modifier.weight(1f),
+                        icon = "🧭",
+                        label = if (isFa) "آسمان AR" else stringResource(R.string.nav_arsky),
+                        testTag = "quick_access_arsky",
+                        onClick = { onNavigateToTab(3) }
+                    )
+                }
             }
         }
 

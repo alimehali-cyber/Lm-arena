@@ -10,6 +10,24 @@ object AstronomyCatalog {
     val SUN = SolarSystemCatalog.getSun(TimeEngine.getJulianDate())
     val MOON = SolarSystemCatalog.getMoon(TimeEngine.getJulianDate())
 
+    val EARTH = CelestialObject(
+        id = "planet_earth",
+        type = ObjectType.PLANET,
+        nameEn = "Earth (Terra)",
+        nameFa = "زمین (کره خاک)",
+        raDeg = 0.0,
+        decDeg = 0.0,
+        magnitude = -3.8,
+        constellationEn = "Solar System",
+        constellationFa = "منظومه شمسی",
+        distanceLightYears = 0.0,
+        category = "Terrestrial Planet (Home)",
+        descriptionEn = "Our home planet, third planet from the Sun and starting origin for celestial observations.",
+        descriptionFa = "سیاره مادری ما، سومین سیاره منظومه شمسی و مبدأ مرجع رصدها و سفرهای فضایی.",
+        observationTipEn = "Origin reference for all astronomical calculations.",
+        observationTipFa = "مبدأ مرجع تمامی محاسبات نجومی و سفرهای فضایی."
+    )
+
     val ISS = CelestialObject(
         id = "sat_iss",
         type = ObjectType.SATELLITE,
@@ -160,7 +178,7 @@ object AstronomyCatalog {
             )
         )
 
-        return listOf(sun, moon, ISS, MILKY_WAY) + planets + galileanMoons + stars + deepSky + meteorShowers + asterisms + constellationsAsObjects + referencePoints
+        return listOf(EARTH, sun, moon, ISS, MILKY_WAY) + planets + galileanMoons + stars + deepSky + meteorShowers + asterisms + constellationsAsObjects + referencePoints
     }
 
     fun getConstellations(): List<ConstellationData> {

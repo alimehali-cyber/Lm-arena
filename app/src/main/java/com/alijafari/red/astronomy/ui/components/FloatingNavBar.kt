@@ -48,10 +48,11 @@ fun FloatingBottomBar(
     modifier: Modifier = Modifier
 ) {
     val navItems = listOf(
-        NavItem(R.string.nav_home, Icons.Default.Home, Icons.Outlined.Home, "nav_item_home"),
-        NavItem(R.string.nav_compass, Icons.Default.Explore, Icons.Outlined.Explore, "nav_item_compass"),
+        NavItem(R.string.nav_lab, Icons.Default.Science, Icons.Outlined.Science, "nav_item_lab"),
+        NavItem(R.string.nav_satellites, Icons.Default.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
         NavItem(R.string.nav_moon, Icons.Default.NightlightRound, Icons.Outlined.Nightlight, "nav_item_moon"),
-        NavItem(R.string.nav_iss, Icons.Default.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_iss")
+        NavItem(R.string.nav_arsky, Icons.Default.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
+        NavItem(R.string.nav_home, Icons.Default.Home, Icons.Outlined.Home, "nav_item_home")
     )
 
     Box(
