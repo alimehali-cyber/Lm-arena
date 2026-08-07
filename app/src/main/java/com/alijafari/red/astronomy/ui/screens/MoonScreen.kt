@@ -1,6 +1,5 @@
 package com.alijafari.red.astronomy.ui.screens
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -56,464 +55,367 @@ fun MoonScreen(
     viewModel: MainViewModel
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
-    var selectedSubTab by remember { mutableStateOf(0) } // 0 = Moon, 1 = Earth
+    var selectedDayOffsetFloat by remember { mutableStateOf(0f) }
+    val dayOffsetInt = selectedDayOffsetFloat.roundToInt()
 
-    Column(
+    val baseJd = remember { TimeEngine.getJulianDate() }
+    val currentJd = baseJd + selectedDayOffsetFloat.toDouble()
+
+    val moonData = remember(currentJd, uiState.userLocation) {
+        MoonEngine.calculateMoon(currentJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+    }
+
+    val upcomingPhases = remember(baseJd) {
+        MoonEngine.getUpcomingMajorPhases(baseJd)
+    }
+
+    val selectedCalendar = remember(dayOffsetInt) {
+        val cal = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE)
+        cal.add(Calendar.DAY_OF_YEAR, dayOffsetInt)
+        cal
+    }
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .testTag("moon_earth_container")
+            .testTag("moon_screen"),
+        contentPadding = PaddingValues(bottom = 80.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // TOP SUB-TAB SWITCHER (Moon | Earth)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
-                .padding(4.dp)
-                .testTag("moon_earth_tab_row"),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Tab 0: Moon
-            Surface(
-                onClick = { selectedSubTab = 0 },
+        // 1. MOON HERO SECTION (~400dp height)
+        item {
+            Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .height(42.dp)
-                    .testTag("moon_tab_button"),
-                shape = RoundedCornerShape(20.dp),
-                color = if (selectedSubTab == 0) MaterialTheme.colorScheme.primary else Color.Transparent
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "🌙 ",
-                        fontSize = 15.sp
-                    )
-                    Text(
-                        text = if (isFa) "ماه" else "Moon",
-                        style = TextStyle(
-                            fontFamily = IranSans,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = if (selectedSubTab == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surface,
+                                MaterialTheme.colorScheme.background
+                            )
                         )
                     )
+                    .testTag("moon_hero_card")
+            ) {
+                // Procedural Starfield background
+                val starColor = MaterialTheme.colorScheme.onBackground
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    val random = Random(42)
+                    val width = size.width
+                    val height = size.height
+                    for (i in 0..75) {
+                        val x = random.nextFloat() * width
+                        val y = random.nextFloat() * height
+                        val alpha = 0.10f + random.nextFloat() * 0.20f
+                        val radius = 0.8f + random.nextFloat() * 1.5f
+                        drawCircle(
+                            color = starColor.copy(alpha = alpha),
+                            radius = radius,
+                            center = Offset(x, y)
+                        )
+                    }
                 }
-            }
 
-            // Tab 1: Earth
-            Surface(
-                onClick = { selectedSubTab = 1 },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(42.dp)
-                    .testTag("earth_tab_button"),
-                shape = RoundedCornerShape(20.dp),
-                color = if (selectedSubTab == 1) MaterialTheme.colorScheme.primary else Color.Transparent
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 20.dp, start = 16.dp, end = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "🌍 ",
-                        fontSize = 15.sp
-                    )
-                    Text(
-                        text = if (isFa) "زمین" else "Earth",
-                        style = TextStyle(
-                            fontFamily = IranSans,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = if (selectedSubTab == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    // Date switcher pill
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        IconButton(
+                            onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat - 1f).coerceIn(-30f, 30f) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.ChevronRight, contentDescription = "Previous Day", tint = MaterialTheme.colorScheme.primary)
+                        }
+
+                        val dateStr = TimeEngine.formatDate(selectedCalendar.timeInMillis, uiState.calendarSystem, isFa).let {
+                            if (isFa) it.toPersianDigits() else it
+                        }
+                        val offsetBadge = when {
+                            dayOffsetInt == 0 -> if (isFa) "امروز — $dateStr" else "Today — $dateStr"
+                            dayOffsetInt > 0 -> if (isFa) "+${dayOffsetInt} روز — $dateStr".toPersianDigits() else "+${dayOffsetInt}d — $dateStr"
+                            else -> if (isFa) "${dayOffsetInt} روز — $dateStr".toPersianDigits() else "${dayOffsetInt}d — $dateStr"
+                        }
+
+                        Text(
+                            text = offsetBadge,
+                            style = TextStyle(
+                                fontFamily = IranSans,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         )
+
+                        IconButton(
+                            onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat + 1f).coerceIn(-30f, 30f) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Default.ChevronLeft, contentDescription = "Next Day", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+
+                    // Scrubber drag instructions badge below date pill
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Default.Swipe, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                        Text(
+                            text = if (isFa) "برای تغییر روزها (۳۰- تا ۳۰+) ماه را افقی بکشید" else "Drag moon to scrub days (-30 to +30d)",
+                            style = TextStyle(
+                                fontFamily = IranSans,
+                                fontWeight = FontWeight.Normal,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                        if (dayOffsetInt != 0) {
+                            Surface(
+                                onClick = { selectedDayOffsetFloat = 0f },
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                            ) {
+                                Text(
+                                    text = if (isFa) "بازنشانی" else "Reset",
+                                    style = TextStyle(
+                                        fontFamily = IranSans,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Realistic Photographic Moon Visualization with Horizontal Scrubber Drag
+                    PhotographicMoonView(
+                        moonData = moonData,
+                        latitude = uiState.userLocation.latitude,
+                        onDragDelta = { dragAmount ->
+                            val deltaDays = dragAmount / 15f
+                            selectedDayOffsetFloat = (selectedDayOffsetFloat + deltaDays).coerceIn(-30f, 30f)
+                        },
+                        modifier = Modifier.size(270.dp)
                     )
+
+                    // Phase Name & Illumination Text below moon
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = if (isFa) moonData.phaseNameFa else moonData.phaseNameEn,
+                            style = TextStyle(
+                                fontFamily = IranSans,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 22.sp,
+                                color = MaterialTheme.colorScheme.onBackground
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+
+                        val illFormatted = String.format("%.0f", moonData.illuminationPercent).let {
+                            if (isFa) "${it}٪ روشن".toPersianDigits() else "$it% Illuminated"
+                        }
+                        Text(
+                            text = illFormatted,
+                            style = TextStyle(
+                                fontFamily = IranSans,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }
 
-        // CONTENT CROSSFADE SWITCHER
-        Crossfade(
-            targetState = selectedSubTab,
-            label = "MoonEarthTabSwitch",
-            modifier = Modifier.weight(1f)
-        ) { tab ->
-            if (tab == 0) {
-                var selectedDayOffsetFloat by remember { mutableStateOf(0f) }
-                val dayOffsetInt = selectedDayOffsetFloat.roundToInt()
-
-                val baseJd = remember { TimeEngine.getJulianDate() }
-                val currentJd = baseJd + selectedDayOffsetFloat.toDouble()
-
-                val moonData = remember(currentJd, uiState.userLocation) {
-                    MoonEngine.calculateMoon(currentJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
-                }
-
-                val upcomingPhases = remember(baseJd) {
-                    MoonEngine.getUpcomingMajorPhases(baseJd)
-                }
-
-                val selectedCalendar = remember(dayOffsetInt) {
-                    val cal = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE)
-                    cal.add(Calendar.DAY_OF_YEAR, dayOffsetInt)
-                    cal
-                }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("moon_screen"),
-                    contentPadding = PaddingValues(bottom = 80.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
+        // 2. DETAILS CARD (Glassmorphism 2x2 grid)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .testTag("moon_details_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 1. MOON HERO SECTION (~400dp height)
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .wrapContentHeight()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(
-                                            MaterialTheme.colorScheme.surface,
-                                            MaterialTheme.colorScheme.background
-                                        )
-                                    )
-                                )
-                                .testTag("moon_hero_card")
-                        ) {
-                            // Procedural Starfield background
-                            val starColor = MaterialTheme.colorScheme.onBackground
-                            Canvas(modifier = Modifier.matchParentSize()) {
-                                val random = Random(42)
-                                val width = size.width
-                                val height = size.height
-                                for (i in 0..75) {
-                                    val x = random.nextFloat() * width
-                                    val y = random.nextFloat() * height
-                                    val alpha = 0.10f + random.nextFloat() * 0.20f
-                                    val radius = 0.8f + random.nextFloat() * 1.5f
-                                    drawCircle(
-                                        color = starColor.copy(alpha = alpha),
-                                        radius = radius,
-                                        center = Offset(x, y)
-                                    )
-                                }
-                            }
+                    Text(
+                        text = if (isFa) "جزئیات موقعیت و فاز" else "Position & Phase Details",
+                        style = TextStyle(
+                            fontFamily = IranSans,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
 
-                            Column(
+                    val riseStr = moonData.moonriseTimeMs?.let {
+                        TimeEngine.formatTime24h(it, isFa)
+                    } ?: if (isFa) "۱۹:۴۲" else "19:42"
+
+                    val setStr = moonData.moonsetTimeMs?.let {
+                        TimeEngine.formatTime24h(it, isFa)
+                    } ?: if (isFa) "۰۵:۱۸" else "05:18"
+
+                    val distStr = String.format("%,d", moonData.distanceKm.toInt()).let {
+                        if (isFa) "$it کیلومتر".toPersianDigits() else "$it km"
+                    }
+
+                    val altStr = String.format("%.0f", moonData.altitudeDeg).let {
+                        if (isFa) "$it° بالای افق".toPersianDigits() else "$it° Above Horizon"
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            MoonTile(
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.WbSunny,
+                                label = if (isFa) "طلوع ماه" else "Moonrise",
+                                value = if (isFa) riseStr.toPersianDigits() else riseStr
+                            )
+
+                            MoonTile(
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.NightsStay,
+                                label = if (isFa) "غروب ماه" else "Moonset",
+                                value = if (isFa) setStr.toPersianDigits() else setStr
+                            )
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            MoonTile(
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.Straighten,
+                                label = if (isFa) "فاصله از زمین" else "Distance",
+                                value = distStr
+                            )
+
+                            MoonTile(
+                                modifier = Modifier.weight(1f),
+                                icon = Icons.Default.Navigation,
+                                label = if (isFa) "ارتفاع فعلی" else "Current Altitude",
+                                value = altStr
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. UPCOMING PHASES CARD
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .testTag("moon_upcoming_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = if (isFa) "فازهای آینده" else "Upcoming Phases",
+                        style = TextStyle(
+                            fontFamily = IranSans,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        upcomingPhases.forEach { phase ->
+                            val name = if (isFa) phase.phaseNameFa else phase.phaseNameEn
+                            val dateText = TimeEngine.formatDate(phase.dateMs, uiState.calendarSystem, isFa).let {
+                                if (isFa) it.toPersianDigits() else it
+                            }
+                            val daysText = if (isFa) "${phase.daysFromNow} روز دیگر".toPersianDigits() else "in ${phase.daysFromNow} days"
+
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 12.dp, bottom = 20.dp, start = 16.dp, end = 16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Date switcher pill
                                 Row(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                                        .padding(horizontal = 12.dp, vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    IconButton(
-                                        onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat - 1f).coerceIn(-30f, 30f) },
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(Icons.Default.ChevronRight, contentDescription = "Previous Day", tint = MaterialTheme.colorScheme.primary)
-                                    }
-
-                                    val dateStr = TimeEngine.formatDate(selectedCalendar.timeInMillis, uiState.calendarSystem, isFa).let {
-                                        if (isFa) it.toPersianDigits() else it
-                                    }
-                                    val offsetBadge = when {
-                                        dayOffsetInt == 0 -> if (isFa) "امروز — $dateStr" else "Today — $dateStr"
-                                        dayOffsetInt > 0 -> if (isFa) "+${dayOffsetInt} روز — $dateStr".toPersianDigits() else "+${dayOffsetInt}d — $dateStr"
-                                        else -> if (isFa) "${dayOffsetInt} روز — $dateStr".toPersianDigits() else "${dayOffsetInt}d — $dateStr"
-                                    }
-
-                                    Text(
-                                        text = offsetBadge,
-                                        style = TextStyle(
-                                            fontFamily = IranSans,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
+                                    Icon(
+                                        imageVector = Icons.Default.Brightness2,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
                                     )
-
-                                    IconButton(
-                                        onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat + 1f).coerceIn(-30f, 30f) },
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(Icons.Default.ChevronLeft, contentDescription = "Next Day", tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                }
-
-                                // Scrubber drag instructions badge below date pill
-                                Row(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(Icons.Default.Swipe, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
                                     Text(
-                                        text = if (isFa) "برای تغییر روزها (۳۰- تا ۳۰+) ماه را افقی بکشید" else "Drag moon to scrub days (-30 to +30d)",
+                                        text = "$name — $dateText",
                                         style = TextStyle(
                                             fontFamily = IranSans,
-                                            fontWeight = FontWeight.Normal,
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    )
-                                    if (dayOffsetInt != 0) {
-                                        Surface(
-                                            onClick = { selectedDayOffsetFloat = 0f },
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                                        ) {
-                                            Text(
-                                                text = if (isFa) "بازنشانی" else "Reset",
-                                                style = TextStyle(
-                                                    fontFamily = IranSans,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 10.sp,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                ),
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-                                }
-
-                                // Realistic Photographic Moon Visualization with Horizontal Scrubber Drag
-                                PhotographicMoonView(
-                                    moonData = moonData,
-                                    latitude = uiState.userLocation.latitude,
-                                    onDragDelta = { dragAmount ->
-                                        val deltaDays = dragAmount / 15f
-                                        selectedDayOffsetFloat = (selectedDayOffsetFloat + deltaDays).coerceIn(-30f, 30f)
-                                    },
-                                    modifier = Modifier.size(270.dp)
-                                )
-
-                                // Phase Name & Illumination Text below moon
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(
-                                        text = if (isFa) moonData.phaseNameFa else moonData.phaseNameEn,
-                                        style = TextStyle(
-                                            fontFamily = IranSans,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 22.sp,
-                                            color = MaterialTheme.colorScheme.onBackground
-                                        ),
-                                        textAlign = TextAlign.Center
-                                    )
-
-                                    val illFormatted = String.format("%.0f", moonData.illuminationPercent).let {
-                                        if (isFa) "${it}٪ روشن".toPersianDigits() else "$it% Illuminated"
-                                    }
-                                    Text(
-                                        text = illFormatted,
-                                        style = TextStyle(
-                                            fontFamily = IranSans,
-                                            fontWeight = FontWeight.SemiBold,
+                                            fontWeight = FontWeight.Medium,
                                             fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.primary
-                                        ),
-                                        textAlign = TextAlign.Center
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
                                     )
                                 }
-                            }
-                        }
-                    }
 
-                    // 2. DETAILS CARD (Glassmorphism 2x2 grid)
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp)
-                                .testTag("moon_details_card"),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(20.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
                                 Text(
-                                    text = if (isFa) "جزئیات موقعیت و فاز" else "Position & Phase Details",
+                                    text = daysText,
                                     style = TextStyle(
                                         fontFamily = IranSans,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        fontWeight = FontWeight.Normal,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 )
-
-                                val riseStr = moonData.moonriseTimeMs?.let {
-                                    TimeEngine.formatTime24h(it, isFa)
-                                } ?: if (isFa) "۱۹:۴۲" else "19:42"
-
-                                val setStr = moonData.moonsetTimeMs?.let {
-                                    TimeEngine.formatTime24h(it, isFa)
-                                } ?: if (isFa) "۰۵:۱۸" else "05:18"
-
-                                val distStr = String.format("%,d", moonData.distanceKm.toInt()).let {
-                                    if (isFa) "$it کیلومتر".toPersianDigits() else "$it km"
-                                }
-
-                                val altStr = String.format("%.0f", moonData.altitudeDeg).let {
-                                    if (isFa) "$it° بالای افق".toPersianDigits() else "$it° Above Horizon"
-                                }
-
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        MoonTile(
-                                            modifier = Modifier.weight(1f),
-                                            icon = Icons.Default.WbSunny,
-                                            label = if (isFa) "طلوع ماه" else "Moonrise",
-                                            value = if (isFa) riseStr.toPersianDigits() else riseStr
-                                        )
-
-                                        MoonTile(
-                                            modifier = Modifier.weight(1f),
-                                            icon = Icons.Default.NightsStay,
-                                            label = if (isFa) "غروب ماه" else "Moonset",
-                                            value = if (isFa) setStr.toPersianDigits() else setStr
-                                        )
-                                    }
-
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        MoonTile(
-                                            modifier = Modifier.weight(1f),
-                                            icon = Icons.Default.Straighten,
-                                            label = if (isFa) "فاصله از زمین" else "Distance",
-                                            value = distStr
-                                        )
-
-                                        MoonTile(
-                                            modifier = Modifier.weight(1f),
-                                            icon = Icons.Default.Navigation,
-                                            label = if (isFa) "ارتفاع فعلی" else "Current Altitude",
-                                            value = altStr
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // 3. UPCOMING PHASES CARD
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp)
-                                .testTag("moon_upcoming_card"),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(20.dp),
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
-                                Text(
-                                    text = if (isFa) "فازهای آینده" else "Upcoming Phases",
-                                    style = TextStyle(
-                                        fontFamily = IranSans,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                )
-
-                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    upcomingPhases.forEach { phase ->
-                                        val name = if (isFa) phase.phaseNameFa else phase.phaseNameEn
-                                        val dateText = TimeEngine.formatDate(phase.dateMs, uiState.calendarSystem, isFa).let {
-                                            if (isFa) it.toPersianDigits() else it
-                                        }
-                                        val daysText = if (isFa) "${phase.daysFromNow} روز دیگر".toPersianDigits() else "in ${phase.daysFromNow} days"
-
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(12.dp))
-                                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Brightness2,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                                Text(
-                                                    text = "$name — $dateText",
-                                                    style = TextStyle(
-                                                        fontFamily = IranSans,
-                                                        fontWeight = FontWeight.Medium,
-                                                        fontSize = 14.sp,
-                                                        color = MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                )
-                                            }
-
-                                            Text(
-                                                text = daysText,
-                                                style = TextStyle(
-                                                    fontFamily = IranSans,
-                                                    fontWeight = FontWeight.Normal,
-                                                    fontSize = 12.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
                 }
-            } else {
-                // Earth 3D View Screen
-                EarthScreen(
-                    uiState = uiState,
-                    viewModel = viewModel
-                )
             }
         }
     }
