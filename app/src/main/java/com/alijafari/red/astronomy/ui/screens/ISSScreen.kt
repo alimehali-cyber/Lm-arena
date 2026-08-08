@@ -883,37 +883,63 @@ fun ISSScreen(
                 }
             }
 
-            // 4. UPCOMING VISIBLE PASSES PREDICTIONS
-            val targetSat = selectedSatItem ?: com.alijafari.red.astronomy.astro_engine.SatelliteCatalog.satellites.first()
+            // 4. UPCOMING VISIBLE PASSES PREDICTIONS (ALL Satellites, Next 3 Days, Chronological)
             Text(
-                text = if (isFa) "گذرهای قابل مشاهده بعدی (${if (isFa) targetSat.nameFa else targetSat.nameEn})"
-                else "Upcoming Visible Passes (${targetSat.nameEn})",
+                text = if (isFa) "گذرهای قابل مشاهده بعدی (۳ روز آینده - همه ماهواره‌ها)"
+                else "Upcoming Visible Passes (Next 3 Days - All Satellites)",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            var upcomingPasses by remember(currentSimulationMs, uiState.userLocation, targetSat.id) {
-                mutableStateOf<List<ISSEngine.ISSPass>>(emptyList())
+            val roundedStartMs = remember(currentSimulationMs) {
+                (currentSimulationMs / 60_000L) * 60_000L
             }
 
-            LaunchedEffect(currentSimulationMs, uiState.userLocation, targetSat.id) {
+            var allUpcomingPasses by remember {
+                mutableStateOf<List<Pair<com.alijafari.red.astronomy.astro_engine.SatelliteItem, ISSEngine.ISSPass>>?>(null)
+            }
+
+            LaunchedEffect(uiState.userLocation, roundedStartMs) {
                 withContext(Dispatchers.Default) {
-                    val result = ISSEngine.predictPasses(
-                        userLatDeg = uiState.userLocation.latitude,
-                        userLonDeg = uiState.userLocation.longitude,
-                        startTimestampMs = currentSimulationMs,
-                        tle = targetSat.defaultTle,
-                        scanDays = 3,
-                        visibleOnly = true,
-                        standardMag = targetSat.standardMagnitude
-                    )
+                    val allSats = com.alijafari.red.astronomy.astro_engine.SatelliteCatalog.satellites
+                    val combined = mutableListOf<Pair<com.alijafari.red.astronomy.astro_engine.SatelliteItem, ISSEngine.ISSPass>>()
+                    for (sat in allSats) {
+                        val passes = ISSEngine.predictPasses(
+                            userLatDeg = uiState.userLocation.latitude,
+                            userLonDeg = uiState.userLocation.longitude,
+                            startTimestampMs = roundedStartMs,
+                            tle = sat.defaultTle,
+                            scanDays = 3,
+                            visibleOnly = true,
+                            standardMag = sat.standardMagnitude
+                        )
+                        for (p in passes) {
+                            combined.add(Pair(sat, p))
+                        }
+                    }
+                    val sorted = combined.sortedBy { it.second.startTimeMs }
                     withContext(Dispatchers.Main) {
-                        upcomingPasses = result
+                        allUpcomingPasses = sorted
                     }
                 }
             }
 
-            if (upcomingPasses.isEmpty()) {
+            val currentAllPasses = allUpcomingPasses
+            if (currentAllPasses == null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                ) {
+                    Text(
+                        text = if (isFa) "در حال محاسبه گذرهای ماهواره‌ها..." else "Calculating satellite passes...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(14.dp)
+                    )
+                }
+            } else if (currentAllPasses.isEmpty()) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
@@ -930,16 +956,16 @@ fun ISSScreen(
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    upcomingPasses.take(2).forEach { pass ->
+                    currentAllPasses.forEach { (sat, pass) ->
                         DetailedVisiblePassCard(
-                            satName = if (isFa) targetSat.nameFa else targetSat.nameEn,
+                            satName = if (isFa) sat.nameFa else sat.nameEn,
                             pass = pass,
                             cityName = uiState.userLocation.cityNameFa,
                             isFa = isFa,
                             onSchedulePassReminder = { leadMins ->
                                 AstroNotificationManager.scheduleSpecificPassAlarm(
                                     context = context,
-                                    satName = if (isFa) targetSat.nameFa else targetSat.nameEn,
+                                    satName = if (isFa) sat.nameFa else sat.nameEn,
                                     pass = pass,
                                     cityName = uiState.userLocation.cityNameFa,
                                     leadMinutes = leadMins

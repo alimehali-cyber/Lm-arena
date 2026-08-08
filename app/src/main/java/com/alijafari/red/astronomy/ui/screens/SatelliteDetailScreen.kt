@@ -73,16 +73,20 @@ fun SatelliteDetailScreen(
         )
     }
 
-    var passes by remember(satelliteItem.id, userLocation, simulationTimestampMs) {
-        mutableStateOf<List<ISSEngine.ISSPass>>(emptyList())
+    val roundedStartMs = remember(simulationTimestampMs) {
+        (simulationTimestampMs / 60_000L) * 60_000L
     }
 
-    LaunchedEffect(satelliteItem.id, userLocation, simulationTimestampMs) {
+    var passes by remember {
+        mutableStateOf<List<ISSEngine.ISSPass>?>(null)
+    }
+
+    LaunchedEffect(satelliteItem.id, userLocation, roundedStartMs) {
         withContext(Dispatchers.Default) {
             val result = ISSEngine.predictPasses(
                 userLatDeg = userLocation.latitude,
                 userLonDeg = userLocation.longitude,
-                startTimestampMs = simulationTimestampMs,
+                startTimestampMs = roundedStartMs,
                 tle = satelliteItem.defaultTle,
                 scanDays = 7,
                 visibleOnly = true,
@@ -262,7 +266,22 @@ fun SatelliteDetailScreen(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            if (passes.isEmpty()) {
+            val currentPasses = passes
+            if (currentPasses == null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                ) {
+                    Text(
+                        text = if (isFa) "در حال محاسبه گذرهای ماهواره..." else "Calculating satellite passes...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            } else if (currentPasses.isEmpty()) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
@@ -279,7 +298,7 @@ fun SatelliteDetailScreen(
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    passes.forEach { pass ->
+                    currentPasses.forEach { pass ->
                         DetailedVisiblePassCard(
                             satName = if (isFa) satelliteItem.nameFa else satelliteItem.nameEn,
                             pass = pass,
