@@ -79,10 +79,48 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.graphics.drawscope.rotate
+import java.util.Locale
 import kotlin.math.*
 
 enum class ArExpandedPanel {
-    SEARCH, TIME_MACHINE, SENSORS
+    SEARCH, TIME_MACHINE, FILTERS, SENSORS
+}
+
+private fun formatObjectDistance(obj: CelestialObject, isFa: Boolean): String {
+    return when (obj.type) {
+        ObjectType.SUN -> if (isFa) "۱۴۹٫۶ میلیون کیلومتر" else "149.6 million km (~1 AU)"
+        ObjectType.MOON -> if (isFa) "۳۸۴,۴۰۰ کیلومتر" else "384,400 km"
+        ObjectType.SATELLITE -> if (isFa) "۴۱۵ کیلومتر" else "415 km"
+        ObjectType.PLANET -> {
+            when (obj.id) {
+                "planet_mercury" -> if (isFa) "۹۱٫۷ میلیون کیلومتر" else "91.7 million km"
+                "planet_venus" -> if (isFa) "۱۰۸٫۲ میلیون کیلومتر" else "108.2 million km"
+                "planet_mars" -> if (isFa) "۲۲۵٫۰ میلیون کیلومتر" else "225.0 million km"
+                "planet_jupiter" -> if (isFa) "۶۱۲٫۴ میلیون کیلومتر" else "612.4 million km"
+                "planet_saturn" -> if (isFa) "۱٫۴۲ میلیارد کیلومتر" else "1.42 billion km"
+                "planet_uranus" -> if (isFa) "۲٫۸۷ میلیارد کیلومتر" else "2.87 billion km"
+                "planet_neptune" -> if (isFa) "۴٫۵۰ میلیارد کیلومتر" else "4.50 billion km"
+                else -> if (isFa) "۶۱۲٫۴ میلیون کیلومتر" else "612.4 million km"
+            }
+        }
+        else -> {
+            val ly = obj.distanceLightYears
+            if (ly >= 1_000_000.0) {
+                val mly = ly / 1_000_000.0
+                val str = String.format(Locale.US, "%.2f", mly)
+                if (isFa) "${TimeEngine.formatPersianNumbers(str)} میلیون سال نوری" else "$str million light-years"
+            } else if (ly >= 1000.0) {
+                val kly = String.format(Locale.US, "%.0f", ly)
+                if (isFa) "${TimeEngine.formatPersianNumbers(kly)} سال نوری" else "$kly light-years"
+            } else {
+                val formatted = String.format(Locale.US, "%.1f", ly)
+                if (isFa) "${TimeEngine.formatPersianNumbers(formatted)} سال نوری" else "$formatted light-years"
+            }
+        }
+    }
 }
 
 @Composable
@@ -472,41 +510,63 @@ fun CompassARScreen(
     // Focus Mode Smart Panel State
     var activeExpandedPanel by remember { mutableStateOf<ArExpandedPanel?>(null) }
 
-    // Closest object near reticle for tap / lock (sampled at 0.2 deg steps to eliminate micro-jitter calculations)
-    val stepAzimuth = remember(currentAzimuth) { (currentAzimuth * 5).roundToInt() / 5.0 }
-    val stepAltitude = remember(currentAltitude) { (currentAltitude * 5).roundToInt() / 5.0 }
+    // AR Object Visibility Filters Persistence
+    val prefs = remember { context.getSharedPreferences("ar_filters_prefs", Context.MODE_PRIVATE) }
+    var filterStars by remember { mutableStateOf(prefs.getBoolean("filter_stars", true)) }
+    var filterConstellations by remember { mutableStateOf(prefs.getBoolean("filter_constellations", true)) }
+    var filterPlanets by remember { mutableStateOf(prefs.getBoolean("filter_planets", true)) }
+    var filterMoons by remember { mutableStateOf(prefs.getBoolean("filter_moons", true)) }
+    var filterSun by remember { mutableStateOf(prefs.getBoolean("filter_sun", true)) }
+    var filterDeepSky by remember { mutableStateOf(prefs.getBoolean("filter_deepsky", true)) }
+    var filterSatellites by remember { mutableStateOf(prefs.getBoolean("filter_satellites", true)) }
 
-    val targetedObject = remember(stepAzimuth, stepAltitude, lastDeg, uiState.userLocation, allCatalog) {
-        var closestObj: CelestialObject? = null
-        var minDistance = 12.0 // deg
-
-        for (obj in allCatalog) {
-            val horiz = CoordinateEngine.equatorialToHorizontal(
-                CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg),
-                lastDeg,
-                uiState.userLocation.latitude
-            )
-            var dAz = horiz.azimuthDeg - currentAzimuth
-            if (dAz > 180) dAz -= 360
-            if (dAz < -180) dAz += 360
-            val dAlt = horiz.altitudeDeg - currentAltitude
-            val dist = sqrt(dAz * dAz + dAlt * dAlt)
-            if (dist < minDistance) {
-                minDistance = dist
-                closestObj = obj
-            }
-        }
-        closestObj
+    fun updateFilter(key: String, value: Boolean, setter: (Boolean) -> Unit) {
+        setter(value)
+        prefs.edit().putBoolean(key, value).apply()
     }
+
+    fun setAllFilters(value: Boolean) {
+        filterStars = value
+        filterConstellations = value
+        filterPlanets = value
+        filterMoons = value
+        filterSun = value
+        filterDeepSky = value
+        filterSatellites = value
+        prefs.edit()
+            .putBoolean("filter_stars", value)
+            .putBoolean("filter_constellations", value)
+            .putBoolean("filter_planets", value)
+            .putBoolean("filter_moons", value)
+            .putBoolean("filter_sun", value)
+            .putBoolean("filter_deepsky", value)
+            .putBoolean("filter_satellites", value)
+            .apply()
+    }
+
+    // AR Sky Zoom State
+    var zoomFactor by remember { mutableFloatStateOf(1.0f) }
+    var showZoomIndicator by remember { mutableStateOf(false) }
+
+    LaunchedEffect(zoomFactor) {
+        if (zoomFactor != 1.0f) {
+            showZoomIndicator = true
+            delay(1500L)
+            showZoomIndicator = false
+        }
+    }
+
+    // AR Long-press Object State
+    var longPressObject by remember { mutableStateOf<CelestialObject?>(null) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF060810))
-            .pointerInput(activeExpandedPanel) {
-                detectTapGestures {
-                    if (activeExpandedPanel != null) {
-                        activeExpandedPanel = null
+            .pointerInput(Unit) {
+                detectTransformGestures { _, _, zoom, _ ->
+                    if (zoom != 1.0f) {
+                        zoomFactor = (zoomFactor * zoom).coerceIn(0.75f, 4.0f)
                     }
                 }
             }
@@ -553,13 +613,75 @@ fun CompassARScreen(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures { tapOffset ->
-                        // Tap to identify
-                        targetedObject?.let { obj ->
-                            selectedTarget = obj
+                .pointerInput(allCatalog, currentAzimuth, currentAltitude, zoomFactor, filterStars, filterSun, filterMoons, filterPlanets, filterSatellites, filterDeepSky) {
+                    detectTapGestures(
+                        onPress = {
+                            val released = tryAwaitRelease()
+                            if (released) {
+                                longPressObject = null
+                            }
+                        },
+                        onLongPress = { touchOffset ->
+                            val canvasWidth = size.width.toFloat()
+                            val canvasHeight = size.height.toFloat()
+                            val centerX = canvasWidth / 2f
+                            val centerY = canvasHeight / 2f
+                            val fovX = 60.0 / zoomFactor
+                            val pixelsPerDegree = canvasWidth / fovX
+                            val rollRad = Math.toRadians(-skyOrientation.roll.toDouble())
+                            val cosR = cos(rollRad).toFloat()
+                            val sinR = sin(rollRad).toFloat()
+
+                            var bestMatch: CelestialObject? = null
+                            var bestDistPx = 70.0f * density
+
+                            for (obj in allCatalog) {
+                                val isVisibleByFilter = when (obj.type) {
+                                    ObjectType.STAR, ObjectType.ASTERISM -> filterStars
+                                    ObjectType.SUN -> filterSun
+                                    ObjectType.MOON -> filterMoons
+                                    ObjectType.PLANET -> filterPlanets
+                                    ObjectType.SATELLITE -> filterSatellites
+                                    ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA,
+                                    ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> filterDeepSky
+                                    else -> true
+                                }
+                                if (!isVisibleByFilter) continue
+
+                                val horiz = if (obj.type == ObjectType.SUN) sunHoriz
+                                else if (obj.type == ObjectType.MOON) moonHoriz
+                                else if (obj.id == "sat_iss" || obj.type == ObjectType.SATELLITE) issHoriz
+                                else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), lastDeg, uiState.userLocation.latitude)
+
+                                var dAz = horiz.azimuthDeg - currentAzimuth
+                                if (dAz > 180) dAz -= 360
+                                if (dAz < -180) dAz += 360
+                                val dAlt = horiz.altitudeDeg - currentAltitude
+
+                                val rawX = (dAz * pixelsPerDegree).toFloat()
+                                val rawY = -(dAlt * pixelsPerDegree).toFloat()
+
+                                val px = centerX + (rawX * cosR - rawY * sinR)
+                                val py = centerY + (rawX * sinR + rawY * cosR)
+
+                                val dist = hypot(touchOffset.x - px, touchOffset.y - py)
+                                if (dist < bestDistPx) {
+                                    bestDistPx = dist
+                                    bestMatch = obj
+                                }
+                            }
+
+                            if (bestMatch != null) {
+                                longPressObject = bestMatch
+                            }
+                        },
+                        onTap = {
+                            longPressObject = null
+                            if (activeExpandedPanel != null) {
+                                activeExpandedPanel = null
+                            }
                         }
-                    }
+                    )
                 }
         ) {
             val canvasWidth = size.width
@@ -567,7 +689,7 @@ fun CompassARScreen(
             val centerX = canvasWidth / 2f
             val centerY = canvasHeight / 2f
 
-            val fovX = 60.0
+            val fovX = 60.0 / zoomFactor
             val pixelsPerDegree = canvasWidth / fovX
 
             // Starry night background if camera disabled
@@ -619,76 +741,80 @@ fun CompassARScreen(
                 }
             }
 
-            // Render Trajectory Orbit Arc for Moon
-            val moonOrbitPath = Path()
-            var firstPoint = true
-            for (hourOffset in -6..6) {
-                val hourJd = jd + (hourOffset / 24.0)
-                val hourLast = TimeEngine.getLAST(hourJd, uiState.userLocation.longitude)
-                val hourMoon = MoonEngine.calculateMoon(hourJd)
-                val hourHoriz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(hourMoon.raDeg, hourMoon.decDeg),
-                    hourLast,
-                    uiState.userLocation.latitude
+            // Render Trajectory Orbit Arc for Moon (if Moon filter enabled)
+            if (filterMoons) {
+                val moonOrbitPath = Path()
+                var firstPoint = true
+                for (hourOffset in -6..6) {
+                    val hourJd = jd + (hourOffset / 24.0)
+                    val hourLast = TimeEngine.getLAST(hourJd, uiState.userLocation.longitude)
+                    val hourMoon = MoonEngine.calculateMoon(hourJd)
+                    val hourHoriz = CoordinateEngine.equatorialToHorizontal(
+                        CoordinateEngine.Equatorial(hourMoon.raDeg, hourMoon.decDeg),
+                        hourLast,
+                        uiState.userLocation.latitude
+                    )
+                    var dAzH = hourHoriz.azimuthDeg - currentAzimuth
+                    if (dAzH > 180) dAzH -= 360
+                    if (dAzH < -180) dAzH += 360
+                    val dAltH = hourHoriz.altitudeDeg - currentAltitude
+
+                    val ox = (centerX + (dAzH * pixelsPerDegree)).toFloat()
+                    val oy = (centerY - (dAltH * pixelsPerDegree)).toFloat()
+
+                    if (firstPoint) {
+                        moonOrbitPath.moveTo(ox, oy)
+                        firstPoint = false
+                    } else {
+                        moonOrbitPath.lineTo(ox, oy)
+                    }
+                }
+                drawPath(
+                    path = moonOrbitPath,
+                    color = AccentPrimary.copy(alpha = 0.35f),
+                    style = Stroke(width = 2f)
                 )
-                var dAzH = hourHoriz.azimuthDeg - currentAzimuth
-                if (dAzH > 180) dAzH -= 360
-                if (dAzH < -180) dAzH += 360
-                val dAltH = hourHoriz.altitudeDeg - currentAltitude
-
-                val ox = (centerX + (dAzH * pixelsPerDegree)).toFloat()
-                val oy = (centerY - (dAltH * pixelsPerDegree)).toFloat()
-
-                if (firstPoint) {
-                    moonOrbitPath.moveTo(ox, oy)
-                    firstPoint = false
-                } else {
-                    moonOrbitPath.lineTo(ox, oy)
-                }
             }
-            drawPath(
-                path = moonOrbitPath,
-                color = AccentPrimary.copy(alpha = 0.35f),
-                style = Stroke(width = 2f)
-            )
 
-            // Render Galactic Equator Plane (Milky Way Arch)
-            val galPoints = GalacticEngine.calculateGalacticPlanePoints(
-                jd = jd,
-                userLatDeg = uiState.userLocation.latitude,
-                userLonDeg = uiState.userLocation.longitude
-            )
-            val galPath = Path()
-            var galFirst = true
-            for (gp in galPoints) {
-                var dAzG = gp.azimuthDeg - currentAzimuth
-                if (dAzG > 180) dAzG -= 360
-                if (dAzG < -180) dAzG += 360
-                val dAltG = gp.altitudeDeg - currentAltitude
+            // Render Galactic Equator Plane / Constellation lines (if Constellations filter enabled)
+            if (filterConstellations) {
+                val galPoints = GalacticEngine.calculateGalacticPlanePoints(
+                    jd = jd,
+                    userLatDeg = uiState.userLocation.latitude,
+                    userLonDeg = uiState.userLocation.longitude
+                )
+                val galPath = Path()
+                var galFirst = true
+                for (gp in galPoints) {
+                    var dAzG = gp.azimuthDeg - currentAzimuth
+                    if (dAzG > 180) dAzG -= 360
+                    if (dAzG < -180) dAzG += 360
+                    val dAltG = gp.altitudeDeg - currentAltitude
 
-                val gx = (centerX + (dAzG * pixelsPerDegree)).toFloat()
-                val gy = (centerY - (dAltG * pixelsPerDegree)).toFloat()
+                    val gx = (centerX + (dAzG * pixelsPerDegree)).toFloat()
+                    val gy = (centerY - (dAltG * pixelsPerDegree)).toFloat()
 
-                if (galFirst) {
-                    galPath.moveTo(gx, gy)
-                    galFirst = false
-                } else {
-                    galPath.lineTo(gx, gy)
+                    if (galFirst) {
+                        galPath.moveTo(gx, gy)
+                        galFirst = false
+                    } else {
+                        galPath.lineTo(gx, gy)
+                    }
                 }
+                drawPath(
+                    path = galPath,
+                    color = Color(0xFFC084FC).copy(alpha = 0.4f),
+                    style = Stroke(width = 2.5f)
+                )
             }
-            drawPath(
-                path = galPath,
-                color = Color(0xFFC084FC).copy(alpha = 0.4f),
-                style = Stroke(width = 2.5f)
-            )
 
             // Render All Catalog Objects (including Sun, Moon, Planets, Stars, Satellites)
             val rollRad = Math.toRadians(-skyOrientation.roll.toDouble())
             val cosR = cos(rollRad).toFloat()
             val sinR = sin(rollRad).toFloat()
 
-            // Render ISS Real-Time Orbital Trajectory Pass Line
-            if (issTrajectoryPoints.size >= 2) {
+            // Render ISS Real-Time Orbital Trajectory Pass Line (if Satellites filter enabled)
+            if (filterSatellites && issTrajectoryPoints.size >= 2) {
                 val issPath = Path()
                 var issFirst = true
                 for (pt in issTrajectoryPoints) {
@@ -725,6 +851,18 @@ fun CompassARScreen(
             }
 
             for (obj in allCatalog) {
+                val isVisibleByFilter = when (obj.type) {
+                    ObjectType.STAR, ObjectType.ASTERISM -> filterStars
+                    ObjectType.SUN -> filterSun
+                    ObjectType.MOON -> filterMoons
+                    ObjectType.PLANET -> filterPlanets
+                    ObjectType.SATELLITE -> filterSatellites
+                    ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA,
+                    ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> filterDeepSky
+                    else -> true
+                }
+                if (!isVisibleByFilter) continue
+
                 val horiz = if (obj.type == ObjectType.SUN) {
                     sunHoriz
                 } else if (obj.type == ObjectType.MOON) {
@@ -753,7 +891,6 @@ fun CompassARScreen(
                 // Padding boundary check
                 if (px in -150f..(canvasWidth + 150f) && py in -150f..(canvasHeight + 150f)) {
                     val isSelected = obj.id == selectedTarget?.id
-                    val isTargetedNearReticle = obj.id == targetedObject?.id
 
                     // Calculate Center Proximity Scale (1.0x to 2.5x)
                     val proximityScale = CelestialObjectSizes.calculateProximityScale(
@@ -767,28 +904,28 @@ fun CompassARScreen(
 
                     when (obj.type) {
                         ObjectType.SUN -> {
-                            // Multi-layer corona radial glow
+                            // Solar Corona & Disk
                             drawCircle(
-                                color = Color(0xFFFF8800).copy(alpha = 0.3f),
+                                color = Color(0xFFFF8800).copy(alpha = 0.2f),
                                 radius = radiusPx * 2.2f,
                                 center = Offset(px, py)
                             )
                             drawCircle(
-                                color = Color(0xFFFFDD44).copy(alpha = 0.6f),
+                                color = Color(0xFFFFCC00).copy(alpha = 0.45f),
                                 radius = radiusPx * 1.5f,
                                 center = Offset(px, py)
                             )
                             drawCircle(
-                                color = Color(0xFFFFFFFF),
+                                color = Color(0xFFFFFBEB),
                                 radius = radiusPx,
                                 center = Offset(px, py)
                             )
                         }
                         ObjectType.MOON -> {
-                            // Moon halo & Disc
+                            // Lunar Halo & Phase-aware Disc
                             drawCircle(
-                                color = AccentPrimary.copy(alpha = 0.35f),
-                                radius = radiusPx * 1.8f,
+                                color = Color(0xFFE2E8F0).copy(alpha = 0.25f),
+                                radius = radiusPx * 1.7f,
                                 center = Offset(px, py)
                             )
                             drawCircle(
@@ -796,62 +933,188 @@ fun CompassARScreen(
                                 radius = radiusPx,
                                 center = Offset(px, py)
                             )
-                            val illumFrac = (moonData.illuminationPercent / 100.0).toFloat()
-                            drawCircle(
-                                color = AccentSecondary.copy(alpha = 0.75f),
-                                radius = radiusPx * illumFrac,
-                                center = Offset(px, py)
-                            )
+                            val illumFrac = (moonData.illuminationPercent / 100.0).coerceIn(0.0, 1.0).toFloat()
+                            if (illumFrac < 0.95f) {
+                                drawCircle(
+                                    color = Color(0xFF0F172A).copy(alpha = 0.75f),
+                                    radius = radiusPx * (1f - illumFrac * 0.8f),
+                                    center = Offset(px + radiusPx * (0.3f - illumFrac * 0.3f), py)
+                                )
+                            }
                         }
                         ObjectType.PLANET -> {
-                            drawCircle(
-                                color = Color(0xFFFFD166).copy(alpha = 0.35f),
-                                radius = radiusPx * 2.0f,
-                                center = Offset(px, py)
-                            )
-                            drawCircle(
-                                color = Color(0xFFFFD166),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
+                            if (obj.id == "planet_jupiter") {
+                                // Jupiter: Cream disk with 2 horizontal bands
+                                drawCircle(
+                                    color = Color(0xFFE2D1A6),
+                                    radius = radiusPx,
+                                    center = Offset(px, py)
+                                )
+                                drawLine(
+                                    color = Color(0xFFC0703B),
+                                    start = Offset(px - radiusPx * 0.8f, py - radiusPx * 0.35f),
+                                    end = Offset(px + radiusPx * 0.8f, py - radiusPx * 0.35f),
+                                    strokeWidth = 2.5f * density
+                                )
+                                drawLine(
+                                    color = Color(0xFFC0703B),
+                                    start = Offset(px - radiusPx * 0.8f, py + radiusPx * 0.35f),
+                                    end = Offset(px + radiusPx * 0.8f, py + radiusPx * 0.35f),
+                                    strokeWidth = 2.5f * density
+                                )
+                            } else if (obj.id == "planet_saturn") {
+                                // Saturn: Golden disk + tiny ring system
+                                drawCircle(
+                                    color = Color(0xFFFDE047),
+                                    radius = radiusPx,
+                                    center = Offset(px, py)
+                                )
+                                drawOval(
+                                    color = Color(0xFFFACC15).copy(alpha = 0.85f),
+                                    topLeft = Offset(px - radiusPx * 2.2f, py - radiusPx * 0.7f),
+                                    size = Size(radiusPx * 4.4f, radiusPx * 1.4f),
+                                    style = Stroke(width = 2.5f * density)
+                                )
+                            } else if (obj.id == "planet_mars") {
+                                // Mars: Warm reddish-orange disk
+                                drawCircle(
+                                    color = Color(0xFFEF4444).copy(alpha = 0.3f),
+                                    radius = radiusPx * 1.8f,
+                                    center = Offset(px, py)
+                                )
+                                drawCircle(
+                                    color = Color(0xFFEF4444),
+                                    radius = radiusPx,
+                                    center = Offset(px, py)
+                                )
+                            } else if (obj.id == "planet_venus") {
+                                // Venus: Brilliant golden-white disk
+                                drawCircle(
+                                    color = Color(0xFFFEF08A).copy(alpha = 0.4f),
+                                    radius = radiusPx * 2.0f,
+                                    center = Offset(px, py)
+                                )
+                                drawCircle(
+                                    color = Color(0xFFFEF08A),
+                                    radius = radiusPx,
+                                    center = Offset(px, py)
+                                )
+                            } else if (obj.id == "planet_uranus" || obj.id == "planet_neptune") {
+                                // Blue-green disks
+                                drawCircle(
+                                    color = Color(0xFF38BDF8),
+                                    radius = radiusPx,
+                                    center = Offset(px, py)
+                                )
+                            } else {
+                                // Slate / default planet
+                                drawCircle(
+                                    color = Color(0xFFFFD166).copy(alpha = 0.35f),
+                                    radius = radiusPx * 1.8f,
+                                    center = Offset(px, py)
+                                )
+                                drawCircle(
+                                    color = Color(0xFFFFD166),
+                                    radius = radiusPx,
+                                    center = Offset(px, py)
+                                )
+                            }
                         }
                         ObjectType.SATELLITE -> {
-                            drawCircle(
-                                color = StatusWarning.copy(alpha = 0.5f),
-                                radius = radiusPx * 1.8f,
-                                center = Offset(px, py)
+                            // Satellite minimal glyph: center body + 2 solar panel wings
+                            drawRect(
+                                color = Color(0xFF38BDF8),
+                                topLeft = Offset(px - radiusPx * 2.0f, py - radiusPx * 0.4f),
+                                size = Size(radiusPx * 4.0f, radiusPx * 0.8f)
                             )
-                            drawCircle(
-                                color = StatusWarning,
-                                radius = radiusPx,
-                                center = Offset(px, py)
+                            drawRect(
+                                color = Color(0xFFF59E0B),
+                                topLeft = Offset(px - radiusPx * 0.6f, py - radiusPx * 0.6f),
+                                size = Size(radiusPx * 1.2f, radiusPx * 1.2f)
                             )
                         }
-                        ObjectType.DEEP_SKY -> {
-                            drawCircle(
-                                color = Color(0xFFC77DFF).copy(alpha = 0.4f),
-                                radius = radiusPx * 1.6f,
-                                center = Offset(px, py)
-                            )
-                            drawCircle(
-                                color = Color(0xFFE0AAFF),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
+                        ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA,
+                        ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> {
+                            if (obj.type == ObjectType.GALAXY || obj.id.contains("m31") || obj.category.contains("Galaxy", ignoreCase = true)) {
+                                // Galaxy: tiny elliptical glow + bright core
+                                drawOval(
+                                    color = Color(0xFFC084FC).copy(alpha = 0.45f),
+                                    topLeft = Offset(px - radiusPx * 1.8f, py - radiusPx * 0.9f),
+                                    size = Size(radiusPx * 3.6f, radiusPx * 1.8f)
+                                )
+                                drawCircle(
+                                    color = Color.White,
+                                    radius = radiusPx * 0.4f,
+                                    center = Offset(px, py)
+                                )
+                            } else if (obj.type == ObjectType.NEBULA || obj.category.contains("Nebula", ignoreCase = true)) {
+                                // Nebula: faint diffuse cloud
+                                drawCircle(
+                                    color = Color(0xFFF472B6).copy(alpha = 0.35f),
+                                    radius = radiusPx * 1.8f,
+                                    center = Offset(px, py)
+                                )
+                                drawCircle(
+                                    color = Color(0xFF38BDF8).copy(alpha = 0.3f),
+                                    radius = radiusPx * 1.1f,
+                                    center = Offset(px - radiusPx * 0.3f, py + radiusPx * 0.2f)
+                                )
+                            } else if (obj.type == ObjectType.GLOBULAR_CLUSTER) {
+                                // Globular cluster: compact soft glow
+                                drawCircle(
+                                    color = Color(0xFFE2E8F0).copy(alpha = 0.5f),
+                                    radius = radiusPx * 1.4f,
+                                    center = Offset(px, py)
+                                )
+                                drawCircle(
+                                    color = Color.White,
+                                    radius = radiusPx * 0.3f,
+                                    center = Offset(px, py)
+                                )
+                            } else {
+                                // Star cluster
+                                drawCircle(
+                                    color = Color(0xFFC77DFF).copy(alpha = 0.4f),
+                                    radius = radiusPx * 1.6f,
+                                    center = Offset(px, py)
+                                )
+                                drawCircle(
+                                    color = Color(0xFFE0AAFF),
+                                    radius = radiusPx,
+                                    center = Offset(px, py)
+                                )
+                            }
                         }
                         else -> {
                             // Star
-                            val starColor = if (obj.magnitude <= 1.0) Color(0xFF90E0EF) else Color.White
+                            val starRadius = ((4.0 - obj.magnitude).coerceIn(1.2, 5.0) * density).toFloat() * proximityScale
+                            val starColor = if (obj.magnitude <= 0.5) Color(0xFFA5F3FC) else if (obj.magnitude <= 2.5) Color(0xFFE2E8F0) else Color(0xFF94A3B8)
                             drawCircle(
                                 color = starColor,
-                                radius = radiusPx,
+                                radius = starRadius,
                                 center = Offset(px, py)
                             )
+                            // Soft 4-point diffraction cross for brightest stars (mag <= 0.5)
+                            if (obj.magnitude <= 0.5) {
+                                val spikeLen = starRadius * 2.5f
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.35f),
+                                    start = Offset(px - spikeLen, py),
+                                    end = Offset(px + spikeLen, py),
+                                    strokeWidth = 1.5f
+                                )
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.35f),
+                                    start = Offset(px, py - spikeLen),
+                                    end = Offset(px, py + spikeLen),
+                                    strokeWidth = 1.5f
+                                )
+                            }
                         }
                     }
 
-                    // Selected / Centered pulsing ring
-                    if (isSelected || isTargetedNearReticle) {
+                    // Selected target ring
+                    if (isSelected) {
                         drawCircle(
                             color = AccentPrimary,
                             radius = radiusPx + 14f,
@@ -860,7 +1123,7 @@ fun CompassARScreen(
                         )
                     }
 
-                    // Label with dark backing pill (if bright star or selected or planet)
+                    // Label with dark backing pill
                     if (obj.magnitude <= CelestialObjectSizes.LABEL_SHOW_MAGNITUDE_THRESHOLD || isSelected || obj.type != ObjectType.STAR) {
                         val labelText = if (isFa) obj.nameFa else obj.nameEn
                         val textLayout = textMeasurer.measure(
@@ -1045,7 +1308,7 @@ fun CompassARScreen(
             // SMART FLOATING PILLS ROW
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Pill 1: Search
@@ -1062,7 +1325,7 @@ fun CompassARScreen(
                 // Pill 2: Time Machine
                 ArSmartPill(
                     icon = Icons.Default.Schedule,
-                    label = if (isFa) "ماشین زمان" else "Time Machine",
+                    label = if (isFa) "زمان" else "Time",
                     isActive = activeExpandedPanel == ArExpandedPanel.TIME_MACHINE,
                     isHighlighted = timeMachineState.mode == TimeMachineMode.SIMULATION,
                     onClick = {
@@ -1070,10 +1333,21 @@ fun CompassARScreen(
                     }
                 )
 
-                // Pill 3: Sensors / GPS
+                // Pill 3: Object Filters
+                ArSmartPill(
+                    icon = Icons.Default.FilterList,
+                    label = if (isFa) "فیلترها" else "Filters",
+                    isActive = activeExpandedPanel == ArExpandedPanel.FILTERS,
+                    isHighlighted = !(filterStars && filterConstellations && filterPlanets && filterMoons && filterSun && filterDeepSky && filterSatellites),
+                    onClick = {
+                        activeExpandedPanel = if (activeExpandedPanel == ArExpandedPanel.FILTERS) null else ArExpandedPanel.FILTERS
+                    }
+                )
+
+                // Pill 4: Sensors / GPS
                 ArSmartPill(
                     icon = Icons.Default.Sensors,
-                    label = if (isFa) "حسگرها / GPS" else "Camera / GPS",
+                    label = if (isFa) "حسگرها" else "Sensors",
                     isActive = activeExpandedPanel == ArExpandedPanel.SENSORS,
                     isHighlighted = isGpsActive && isSensorActive,
                     onClick = {
@@ -1270,6 +1544,98 @@ fun CompassARScreen(
                             )
                         }
 
+                        ArExpandedPanel.FILTERS -> {
+                            // Sky Object Visibility Filters Panel Content
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (isFa) "فیلترهای نمایش اجرام آسمان" else "Sky Object Visibility",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        TextButton(
+                                            onClick = { setAllFilters(true) },
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(if (isFa) "نمایش همه" else "Show All", style = MaterialTheme.typography.labelSmall, color = AccentPrimary)
+                                        }
+                                        TextButton(
+                                            onClick = { setAllFilters(false) },
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(if (isFa) "پنهان همه" else "Hide All", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                        }
+                                    }
+                                }
+
+                                HorizontalDivider(color = CardBorder, thickness = 0.5.dp)
+
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    item {
+                                        FilterChip(
+                                            selected = filterStars,
+                                            onClick = { updateFilter("filter_stars", !filterStars) { filterStars = it } },
+                                            label = { Text(if (isFa) "⭐ ستارگان" else "⭐ Stars") }
+                                        )
+                                    }
+                                    item {
+                                        FilterChip(
+                                            selected = filterConstellations,
+                                            onClick = { updateFilter("filter_constellations", !filterConstellations) { filterConstellations = it } },
+                                            label = { Text(if (isFa) "✨ صور فلکی" else "✨ Constellations") }
+                                        )
+                                    }
+                                    item {
+                                        FilterChip(
+                                            selected = filterPlanets,
+                                            onClick = { updateFilter("filter_planets", !filterPlanets) { filterPlanets = it } },
+                                            label = { Text(if (isFa) "🪐 سیارات" else "🪐 Planets") }
+                                        )
+                                    }
+                                    item {
+                                        FilterChip(
+                                            selected = filterMoons,
+                                            onClick = { updateFilter("filter_moons", !filterMoons) { filterMoons = it } },
+                                            label = { Text(if (isFa) "🌙 ماه" else "🌙 Moon") }
+                                        )
+                                    }
+                                    item {
+                                        FilterChip(
+                                            selected = filterSun,
+                                            onClick = { updateFilter("filter_sun", !filterSun) { filterSun = it } },
+                                            label = { Text(if (isFa) "☀️ خورشید" else "☀️ Sun") }
+                                        )
+                                    }
+                                    item {
+                                        FilterChip(
+                                            selected = filterDeepSky,
+                                            onClick = { updateFilter("filter_deepsky", !filterDeepSky) { filterDeepSky = it } },
+                                            label = { Text(if (isFa) "🌌 اعماق فضا" else "🌌 Deep Sky") }
+                                        )
+                                    }
+                                    item {
+                                        FilterChip(
+                                            selected = filterSatellites,
+                                            onClick = { updateFilter("filter_satellites", !filterSatellites) { filterSatellites = it } },
+                                            label = { Text(if (isFa) "🛰 ماهواره‌ها" else "🛰 Satellites") }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         ArExpandedPanel.SENSORS -> {
                             // Sensors & GPS Control Panel Content
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1420,93 +1786,129 @@ fun CompassARScreen(
             }
         }
 
-        // Calibration Warning Banner (if sensor uncalibrated)
-        if (calibrationState == CalibrationState.NEEDS_CALIBRATION || calibrationState == CalibrationState.POOR) {
+        // Zoom Indicator Floating Badge (Temporary while zooming)
+        AnimatedVisibility(
+            visible = showZoomIndicator,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 54.dp)
+        ) {
             Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 150.dp, start = 16.dp, end = 16.dp)
-                    .fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = AccentSecondary.copy(alpha = 0.9f)
+                shape = CircleShape,
+                color = Color.Black.copy(alpha = 0.8f),
+                border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.6f)),
+                shadowElevation = 8.dp
             ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CompassCalibration,
-                        contentDescription = "Calibrate",
-                        tint = Color.White
-                    )
-                    Text(
-                        text = if (isFa) "دقت قطب‌نما پایین است. گوشی خود را به صورت عدد 8 انگلیسی حرکت دهید"
-                        else "Compass precision low. Move phone in a figure-8 pattern to calibrate",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White
-                    )
-                }
+                Text(
+                    text = String.format(Locale.US, "%.1f×", zoomFactor),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                )
             }
         }
 
-        // Layer 6: Target Object Information Card at Bottom
-        targetedObject?.let { obj ->
+        // Long-Press Glass Information Card Overlay
+        longPressObject?.let { obj ->
+            val rs = remember(obj, jd) {
+                CoordinateEngine.calculateRiseSetTransit(
+                    raDeg = obj.raDeg,
+                    decDeg = obj.decDeg,
+                    latDeg = uiState.userLocation.latitude,
+                    lonDeg = uiState.userLocation.longitude,
+                    jd = jd,
+                    isFa = isFa
+                )
+            }
+
             Surface(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 80.dp, start = 16.dp, end = 16.dp)
-                    .fillMaxWidth()
-                    .clickable { viewModel.openObjectDetail(obj) }
-                    .testTag("ar_targeted_object_card"),
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.dp, CardBorder),
-                color = BackgroundCard.copy(alpha = 0.92f)
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp)
+                    .width(270.dp)
+                    .clickable { viewModel.openObjectDetail(obj) },
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF0F172A).copy(alpha = 0.94f),
+                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
+                shadowElevation = 12.dp
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.GpsFixed,
-                                contentDescription = "Identified",
-                                tint = AccentPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (isFa) obj.nameFa else obj.nameEn,
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                color = Color.White
+                            )
+                            Text(
+                                text = if (isFa) obj.type.nameFa else obj.type.nameEn,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF38BDF8),
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
-                        val constName = if (isFa) obj.constellationFa else obj.constellationEn
+                        IconButton(
+                            onClick = { longPressObject = null },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 0.5.dp)
+
+                    val distStr = formatObjectDistance(obj, isFa)
+                    Text(
+                        text = if (isFa) "فاصله از زمین: $distStr" else "Dist: $distStr",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextPrimary
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Text(
-                            text = "$constName • ${obj.category}",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = if (isFa) "طلوع: ${rs.riseTimeStr}" else "Rise: ${rs.riseTimeStr}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                        Text(
+                            text = if (isFa) "غروب: ${rs.setTimeStr}" else "Set: ${rs.setTimeStr}",
+                            style = MaterialTheme.typography.labelSmall,
                             color = TextSecondary
                         )
                     }
 
                     Button(
-                        onClick = { viewModel.openObjectDetail(obj) },
+                        onClick = {
+                            longPressObject = null
+                            viewModel.openObjectDetail(obj)
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
-                        shape = RoundedCornerShape(16.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
-                        Text(text = if (isFa) "جزئیات" else "Details", color = Color.White)
+                        Text(
+                            text = if (isFa) "شناسنامه کامل جرم" else "Full Object Details",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White
+                        )
                     }
                 }
             }
