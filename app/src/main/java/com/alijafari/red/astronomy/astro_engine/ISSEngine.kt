@@ -269,7 +269,8 @@ object ISSEngine {
     }
 
     /**
-     * Scans orbit for 7 full days (168h) and returns predicted passes.
+     * Scans orbit for specified days and returns predicted passes.
+     * Enforces the universal Visible Pass definition when visibleOnly = true.
      */
     fun predictPasses(
         userLatDeg: Double,
@@ -277,7 +278,8 @@ object ISSEngine {
         startTimestampMs: Long = System.currentTimeMillis(),
         tle: TLEData = cachedTLE,
         scanDays: Int = 7,
-        visibleOnly: Boolean = true
+        visibleOnly: Boolean = true,
+        standardMag: Double = -1.5
     ): List<ISSPass> {
         val passes = mutableListOf<ISSPass>()
         val scanDurationMs = scanDays * 24 * 3600 * 1000L
@@ -346,12 +348,15 @@ object ISSEngine {
                         shadowExit,
                         userLatDeg,
                         userLonDeg,
-                        tle
+                        tle,
+                        standardMag
                     )
 
-                    if (!visibleOnly || (pass.classification != PassClassification.NOT_VISIBLE &&
-                                pass.classification != PassClassification.INVISIBLE_SHADOW &&
-                                pass.classification != PassClassification.DAYLIGHT_ONLY)) {
+                    val isVisiblePass = pass.classification != PassClassification.NOT_VISIBLE &&
+                            pass.classification != PassClassification.INVISIBLE_SHADOW &&
+                            pass.classification != PassClassification.DAYLIGHT_ONLY
+
+                    if (!visibleOnly || isVisiblePass) {
                         passes.add(pass)
                     }
                 }
@@ -375,40 +380,45 @@ object ISSEngine {
         shadowExitMs: Long?,
         userLatDeg: Double,
         userLonDeg: Double,
-        tle: TLEData
+        tle: TLEData,
+        standardMag: Double = -1.5
     ): ISSPass {
         val posAtMax = calculateTopocentricPos(maxMs, userLatDeg, userLonDeg, 940.0, tle)
         val sunAlt = getObserverSunAltitude(maxMs, userLatDeg, userLonDeg)
 
         // Estimated apparent magnitude
-        val baseMag = -1.5
-        val rangeFactor = 5.0 * log10(posAtMax.rangeKm / 1000.0).coerceAtLeast(0.0)
-        val extFactor = if (maxElevDeg < 15.0) 1.2 else 0.3
-        val estMag = baseMag + rangeFactor + extFactor
+        val rangeFactor = 5.0 * log10(maxOf(0.1, posAtMax.rangeKm / 400.0))
+        val extFactor = if (maxElevDeg < 15.0) 0.5 else 0.0
+        val estMag = standardMag + rangeFactor + extFactor
 
-        val isDarkness = sunAlt < -6.0
+        val isDarkness = sunAlt <= -6.0
         val isSunlit = posAtMax.isSunlit
 
         val durationSec = maxOf(30L, (endMs - startMs) / 1000L)
 
-        // Evaluation & Classification Logic
+        // Evaluation & Classification Logic according to Universal Visible Pass Criteria
         val classification: PassClassification
         var score = 0
         val reasonsEn = mutableListOf<String>()
         val reasonsFa = mutableListOf<String>()
 
-        if (sunAlt >= 0.0) {
+        if (sunAlt > -6.0) {
             classification = PassClassification.DAYLIGHT_ONLY
             score = 10
-            reasonsEn.add("✕ Pass occurs during daylight (Sun altitude > 0°)")
-            reasonsFa.add("✕ گذر در طی روز و روشنایی خورشید رخ می‌دهد")
+            reasonsEn.add("✕ Pass occurs before civil twilight ends (Sun altitude > -6°)")
+            reasonsFa.add("✕ گذر پیش از پایان گرگ و میش شهری (ارتفاع خورشید بالای ۶- درجه) رخ می‌دهد")
         } else if (!isSunlit) {
             classification = PassClassification.INVISIBLE_SHADOW
             score = 15
-            reasonsEn.add("✕ ISS is inside Earth's umbra shadow (Not illuminated)")
-            reasonsFa.add("✕ ایستگاه در سایه مخروطی زمین قرار دارد (تاریک)")
+            reasonsEn.add("✕ Satellite is inside Earth's umbra shadow (Not illuminated)")
+            reasonsFa.add("✕ ماهواره در سایه مخروطی زمین قرار دارد (تاریک)")
+        } else if (estMag > 4.5) {
+            classification = PassClassification.NOT_VISIBLE
+            score = 20
+            reasonsEn.add("✕ Apparent magnitude (+${String.format("%.1f", estMag)}) is fainter than naked-eye threshold (+4.5)")
+            reasonsFa.add("✕ قدر ظاهری (${String.format("%.1f", estMag)}+) کم‌نورتر از آستانه چشم غیرمسلح (۴.۵+) است")
         } else {
-            // Illuminated ISS in twilight or night sky!
+            // Illuminated satellite in twilight or night sky with mag <= +4.5
             if (sunAlt <= -18.0) {
                 score += 40
                 reasonsEn.add("✓ Observer in true astronomical darkness (Sun $sunAlt°)")
@@ -419,12 +429,12 @@ object ISSEngine {
                 reasonsFa.add("✓ گرگ و میش دریانوردی (شرایط عالی)")
             } else if (sunAlt <= -6.0) {
                 score += 25
-                reasonsEn.add("✓ Civil twilight sky (Sun $sunAlt°)")
-                reasonsFa.add("✓ گرگ و میش شهری (آسمان نیمه‌تاریک)")
+                reasonsEn.add("✓ Civil twilight ended (Sun $sunAlt°)")
+                reasonsFa.add("✓ پایان گرگ و میش شهری (آسمان تاریک)")
             }
 
-            reasonsEn.add("✓ ISS is brightly illuminated by solar radiation")
-            reasonsFa.add("✓ ایستگاه در معرض مستقیم نور خورشید است")
+            reasonsEn.add("✓ Satellite is brightly illuminated by solar radiation")
+            reasonsFa.add("✓ ماهواره در معرض مستقیم نور خورشید است")
             score += 30
 
             when {
@@ -445,8 +455,8 @@ object ISSEngine {
                 }
                 else -> {
                     score += 2
-                    reasonsEn.add("✕ Very low horizon pass")
-                    reasonsFa.add("✕ گذر بسیار نزدیک به افق")
+                    reasonsEn.add("✕ Low horizon pass")
+                    reasonsFa.add("✕ گذر نزدیک به افق")
                 }
             }
 
@@ -455,8 +465,7 @@ object ISSEngine {
                 score >= 75 -> PassClassification.EXCELLENT
                 score >= 65 -> PassClassification.VERY_GOOD
                 score >= 50 -> PassClassification.GOOD
-                score >= 35 -> PassClassification.MARGINAL
-                else -> PassClassification.POOR
+                else -> PassClassification.MARGINAL
             }
         }
 

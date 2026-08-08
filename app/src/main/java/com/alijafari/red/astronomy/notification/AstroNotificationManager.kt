@@ -84,6 +84,91 @@ object AstroNotificationManager {
         enqueueIssWorkManager(context)
     }
 
+    /**
+     * Schedules a specific notification for an individual satellite pass with a selected lead time (10m, 30m, 1d).
+     */
+    fun scheduleSpecificPassAlarm(
+        context: Context,
+        satName: String,
+        pass: ISSEngine.ISSPass,
+        cityName: String,
+        leadMinutes: Int
+    ) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        AstroAlarmReceiver.createChannels(notificationManager)
+
+        val nowMs = System.currentTimeMillis()
+        val alertTimeMs = pass.startTimeMs - (leadMinutes * 60 * 1000L)
+        if (alertTimeMs <= nowMs) return
+
+        val intent = Intent(context, AstroAlarmReceiver::class.java).apply {
+            action = AstroAlarmReceiver.ACTION_TRIGGER_ISS_NOTIFICATION
+            putExtra(AstroAlarmReceiver.EXTRA_PASS_TIME_MS, pass.startTimeMs)
+            putExtra(AstroAlarmReceiver.EXTRA_MAX_ELEVATION, pass.maxElevationDeg)
+            putExtra(AstroAlarmReceiver.EXTRA_START_DIR, getAzimuthCardinal(pass.startAzimuthDeg))
+            putExtra(AstroAlarmReceiver.EXTRA_END_DIR, getAzimuthCardinal(pass.endAzimuthDeg))
+            putExtra(AstroAlarmReceiver.EXTRA_DURATION_SEC, pass.passDurationSec)
+            putExtra(AstroAlarmReceiver.EXTRA_CITY_NAME, cityName)
+            putExtra(AstroAlarmReceiver.EXTRA_LEAD_MINUTES, leadMinutes)
+        }
+
+        val requestCode = ((pass.startTimeMs / 1000) % 1000000).toInt() + (satName.hashCode() % 1000) + leadMinutes
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alertTimeMs, pendingIntent)
+            } else {
+                alarmManager.setExact(AlarmManager.RTC_WAKEUP, alertTimeMs, pendingIntent)
+            }
+        } catch (e: Exception) {
+            alarmManager.set(AlarmManager.RTC_WAKEUP, alertTimeMs, pendingIntent)
+        }
+    }
+
+    /**
+     * Continuous monitoring for multiple selected satellites' future visible passes.
+     */
+    fun scheduleMultiSatellitePasses(
+        context: Context,
+        selectedSatIds: Set<String>,
+        userLocation: UserLocation,
+        leadMinutes: Int = 10
+    ) {
+        val satellites = com.alijafari.red.astronomy.astro_engine.SatelliteCatalog.satellites.filter { it.id in selectedSatIds }
+        val nowMs = System.currentTimeMillis()
+
+        for (sat in satellites) {
+            val passes = ISSEngine.predictPasses(
+                userLatDeg = userLocation.latitude,
+                userLonDeg = userLocation.longitude,
+                startTimestampMs = nowMs,
+                tle = sat.defaultTle,
+                scanDays = 14,
+                visibleOnly = true,
+                standardMag = sat.standardMagnitude
+            )
+
+            for (pass in passes) {
+                scheduleSpecificPassAlarm(
+                    context = context,
+                    satName = sat.nameFa,
+                    pass = pass,
+                    cityName = userLocation.cityNameFa,
+                    leadMinutes = leadMinutes
+                )
+            }
+        }
+
+        enqueueIssWorkManager(context)
+    }
+
     fun enqueueIssWorkManager(context: Context) {
         try {
             val workRequest = PeriodicWorkRequestBuilder<IssPassSchedulerWorker>(12, TimeUnit.HOURS)

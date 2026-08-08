@@ -61,8 +61,9 @@ fun SatelliteDetailScreen(
             userLonDeg = userLocation.longitude,
             startTimestampMs = simulationTimestampMs,
             tle = satelliteItem.defaultTle,
-            scanDays = 3,
-            visibleOnly = false
+            scanDays = 7,
+            visibleOnly = true,
+            standardMag = satelliteItem.standardMagnitude
         )
     }
 
@@ -216,9 +217,11 @@ fun SatelliteDetailScreen(
                     nowMs = simulationTimestampMs,
                     isFa = isFa,
                     onScheduleReminder = {
-                        AstroNotificationManager.scheduleUpcomingIssPasses(
+                        AstroNotificationManager.scheduleSpecificPassAlarm(
                             context = context,
-                            userLocation = userLocation,
+                            satName = if (isFa) satelliteItem.nameFa else satelliteItem.nameEn,
+                            pass = nextPass,
+                            cityName = userLocation.cityNameFa,
                             leadMinutes = 10
                         )
                         Toast.makeText(
@@ -228,6 +231,56 @@ fun SatelliteDetailScreen(
                         ).show()
                     }
                 )
+            }
+
+            // UPCOMING VISIBLE PASSES PREDICTIONS LIST (Chronological Order)
+            Text(
+                text = if (isFa) "گذرهای قابل مشاهده بعدی (۷ روز آینده)" else "Upcoming Visible Passes (Next 7 Days)",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            if (passes.isEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                ) {
+                    Text(
+                        text = if (isFa) "هیچ گذر قابل مشهودی مطابق با معیار علمی برای موقعیت شما در ۷ روز آینده یافت نشد."
+                        else "No visible passes meeting scientific criteria predicted for your location in the next 7 days.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    passes.forEach { pass ->
+                        DetailedVisiblePassCard(
+                            satName = if (isFa) satelliteItem.nameFa else satelliteItem.nameEn,
+                            pass = pass,
+                            cityName = userLocation.cityNameFa,
+                            isFa = isFa,
+                            onSchedulePassReminder = { leadMins ->
+                                AstroNotificationManager.scheduleSpecificPassAlarm(
+                                    context = context,
+                                    satName = if (isFa) satelliteItem.nameFa else satelliteItem.nameEn,
+                                    pass = pass,
+                                    cityName = userLocation.cityNameFa,
+                                    leadMinutes = leadMins
+                                )
+                                val labelMins = if (leadMins == 1440) (if (isFa) "۱ روز" else "1 day") else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")
+                                Toast.makeText(
+                                    context,
+                                    if (isFa) "هشدار گذر $labelMins قبل از شروع تنظیم شد!" else "Alert scheduled $labelMins prior to pass!",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        )
+                    }
+                }
             }
 
             // 3. SCIENTIFIC MISSION & SATELLITE FACTS SECTION
@@ -652,5 +705,238 @@ private fun TelemetryItem(
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
+    }
+}
+
+@Composable
+fun DetailedVisiblePassCard(
+    satName: String,
+    pass: ISSEngine.ISSPass,
+    cityName: String,
+    isFa: Boolean,
+    onSchedulePassReminder: (leadMinutes: Int) -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    val calendarSystem = if (isFa) com.alijafari.red.astronomy.domain.CalendarSystem.SOLAR_HIJRI else com.alijafari.red.astronomy.domain.CalendarSystem.GREGORIAN
+    val dateStr = TimeEngine.formatDate(pass.startTimeMs, calendarSystem, isFa)
+    val riseStr = TimeEngine.formatTime24h(pass.startTimeMs, isFa)
+    val maxStr = TimeEngine.formatTime24h(pass.maxTimeMs, isFa)
+    val setStr = TimeEngine.formatTime24h(pass.endTimeMs, isFa)
+
+    val startDir = getAzimuthCardinal(pass.startAzimuthDeg, isFa)
+    val endDir = getAzimuthCardinal(pass.endAzimuthDeg, isFa)
+    val dirStr = if (isFa) "$startDir ← $endDir" else "$startDir → $endDir"
+
+    val magStr = String.format(Locale.US, "%.1f", pass.estimatedMagnitude)
+    val maxElevStr = String.format(Locale.US, "%.0f°", pass.maxElevationDeg)
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.4f))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header Row: Date & Classification Badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Event,
+                        contentDescription = null,
+                        tint = AccentPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = dateStr,
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(pass.classification.colorHex).copy(alpha = 0.2f),
+                    border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        text = if (isFa) pass.classification.labelFa else pass.classification.labelEn,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Color(pass.classification.colorHex),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+            // Time Row: Rise, Max, Set
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = if (isFa) "طلوع (آغاز)" else "Rise",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = riseStr,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = if (isFa) "اوج ($maxElevStr)" else "Max ($maxElevStr)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AccentPrimary
+                    )
+                    Text(
+                        text = maxStr,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = AccentPrimary
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = if (isFa) "غروب (پایان)" else "Set",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = setStr,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+            // Details Row: Direction, Duration, Mag
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Explore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = dirStr,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = if (isFa) "قدر: $magStr+".toPersianDigits() else "Mag: +$magStr",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color(0xFF2DC653)
+                    )
+
+                    Box {
+                        OutlinedButton(
+                            onClick = { showMenu = true },
+                            modifier = Modifier.height(32.dp).testTag("pass_card_notify_${pass.startTimeMs}"),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            border = BorderStroke(1.dp, AccentPrimary)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (isFa) "یادآوری" else "Remind",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AccentPrimary
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(if (isFa) "۱۰ دقیقه قبل" else "10 mins before") },
+                                onClick = {
+                                    showMenu = false
+                                    onSchedulePassReminder(10)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (isFa) "۳۰ دقیقه قبل" else "30 mins before") },
+                                onClick = {
+                                    showMenu = false
+                                    onSchedulePassReminder(30)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (isFa) "۱ روز قبل (۲۴ ساعت)" else "1 day before (24h)") },
+                                onClick = {
+                                    showMenu = false
+                                    onSchedulePassReminder(1440)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun getAzimuthCardinal(azDeg: Double, isFa: Boolean): String {
+    val normAz = (azDeg % 360 + 360) % 360
+    return if (isFa) {
+        when {
+            normAz >= 337.5 || normAz < 22.5 -> "شمال"
+            normAz < 67.5 -> "شمال‌شرقی"
+            normAz < 112.5 -> "شرق"
+            normAz < 157.5 -> "جنوب‌شرقی"
+            normAz < 202.5 -> "جنوب"
+            normAz < 247.5 -> "جنوب‌غربی"
+            normAz < 292.5 -> "غرب"
+            else -> "شمال‌غربی"
+        }
+    } else {
+        when {
+            normAz >= 337.5 || normAz < 22.5 -> "N"
+            normAz < 67.5 -> "NE"
+            normAz < 112.5 -> "E"
+            normAz < 157.5 -> "SE"
+            normAz < 202.5 -> "S"
+            normAz < 247.5 -> "SW"
+            normAz < 292.5 -> "W"
+            else -> "NW"
+        }
     }
 }

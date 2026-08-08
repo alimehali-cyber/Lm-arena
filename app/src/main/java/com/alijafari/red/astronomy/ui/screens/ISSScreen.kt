@@ -805,12 +805,16 @@ fun ISSScreen(
                         }
                     }
 
-                    // Time Slider (-12h to +12h)
+                    // Time Slider (-12h to +12h, 5-minute steps)
                     Slider(
                         value = timeOffsetHours,
-                        onValueChange = { timeOffsetHours = it },
+                        onValueChange = { raw ->
+                            val stepHours = 5.0 / 60.0 // 5 minutes step
+                            val rounded = (round(raw / stepHours) * stepHours).toFloat()
+                            timeOffsetHours = rounded
+                        },
                         valueRange = -12f..12f,
-                        steps = 47,
+                        steps = 287,
                         colors = SliderDefaults.colors(
                             thumbColor = AccentPrimary,
                             activeTrackColor = AccentPrimary
@@ -842,86 +846,65 @@ fun ISSScreen(
             }
 
             // 4. UPCOMING VISIBLE PASSES PREDICTIONS
-            if (selectedSatItem != null) {
-                Text(
-                    text = if (isFa) "گذرهای قابل مشاهده بعدی (${if (isFa) selectedSatItem.nameFa else selectedSatItem.nameEn})"
-                    else "Upcoming Visible Passes (${selectedSatItem.nameEn})",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
+            val targetSat = selectedSatItem ?: com.alijafari.red.astronomy.astro_engine.SatelliteCatalog.satellites.first()
+            Text(
+                text = if (isFa) "گذرهای قابل مشاهده بعدی (${if (isFa) targetSat.nameFa else targetSat.nameEn})"
+                else "Upcoming Visible Passes (${targetSat.nameEn})",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            val upcomingPasses = remember(currentSimulationMs, uiState.userLocation, targetSat) {
+                ISSEngine.predictPasses(
+                    userLatDeg = uiState.userLocation.latitude,
+                    userLonDeg = uiState.userLocation.longitude,
+                    startTimestampMs = currentSimulationMs,
+                    tle = targetSat.defaultTle,
+                    scanDays = 3,
+                    visibleOnly = true,
+                    standardMag = targetSat.standardMagnitude
                 )
+            }
 
-                val upcomingPasses = remember(currentSimulationMs, uiState.userLocation, selectedSatItem) {
-                    ISSEngine.predictPasses(
-                        userLatDeg = uiState.userLocation.latitude,
-                        userLonDeg = uiState.userLocation.longitude,
-                        startTimestampMs = currentSimulationMs,
-                        tle = selectedSatItem.defaultTle,
-                        scanDays = 3,
-                        visibleOnly = true
-                    ).take(3)
-                }
-
-                if (upcomingPasses.isEmpty()) {
+            if (upcomingPasses.isEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                ) {
                     Text(
-                        text = if (isFa) "هیچ گذر قابل مشهودی در ۳ روز آینده یافت نشد." else "No visible passes predicted in next 3 days.",
+                        text = if (isFa) "هیچ گذر قابل مشهودی مطابق با معیار علمی در ۳ روز آینده یافت نشد."
+                        else "No visible passes meeting scientific criteria predicted in next 3 days.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                        modifier = Modifier.padding(14.dp)
                     )
-                } else {
-                    val sdfPass = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(upcomingPasses) { pass ->
-                            Surface(
-                                modifier = Modifier
-                                    .width(220.dp)
-                                    .clickable { activeDetailSatellite = selectedSatItem }
-                                    .testTag("pass_card_${pass.startTimeMs}"),
-                                shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.4f))
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = if (isFa) pass.classification.labelFa else pass.classification.labelEn,
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = Color(pass.classification.colorHex)
-                                        )
-                                        Text(
-                                            text = if (isFa) "${pass.passDurationSec / 60} دقیقه".toPersianDigits() else "${pass.passDurationSec / 60} min",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-
-                                    val riseStr = sdfPass.format(Date(pass.startTimeMs))
-                                    val setStr = sdfPass.format(Date(pass.endTimeMs))
-                                    Text(
-                                        text = if (isFa) "شروع: $riseStr • پایان: $setStr".toPersianDigits() else "Rise: $riseStr • Set: $setStr",
-                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-
-                                    Text(
-                                        text = if (isFa) "حداکثر ارتفاع: ${String.format(Locale.US, "%.0f°", pass.maxElevationDeg)}".toPersianDigits()
-                                        else "Max Elevation: ${String.format(Locale.US, "%.0f°", pass.maxElevationDeg)}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    upcomingPasses.take(2).forEach { pass ->
+                        DetailedVisiblePassCard(
+                            satName = if (isFa) targetSat.nameFa else targetSat.nameEn,
+                            pass = pass,
+                            cityName = uiState.userLocation.cityNameFa,
+                            isFa = isFa,
+                            onSchedulePassReminder = { leadMins ->
+                                AstroNotificationManager.scheduleSpecificPassAlarm(
+                                    context = context,
+                                    satName = if (isFa) targetSat.nameFa else targetSat.nameEn,
+                                    pass = pass,
+                                    cityName = uiState.userLocation.cityNameFa,
+                                    leadMinutes = leadMins
+                                )
+                                val labelStr = if (leadMins == 1440) (if (isFa) "۱ روز" else "1 day") else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")
+                                Toast.makeText(
+                                    context,
+                                    if (isFa) "هشدار گذر $labelStr قبل از شروع تنظیم شد!" else "Alert set $labelStr prior to pass!",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
-                        }
+                        )
                     }
                 }
             }
@@ -1031,30 +1014,42 @@ fun ISSScreen(
         }
     }
 
-    // Lead Time Selection Dialog
+    // Multi-Satellite Notification State
+    var selectedSatIdsForAlerts by remember { mutableStateOf(setOf("iss_zarya", "tiangong", "starlink_train", "hubble")) }
+
+    // Lead Time & Multi-Satellite Notification Dialog
     if (showLeadTimeSelectionDialog) {
         AlertDialog(
             onDismissRequest = { showLeadTimeSelectionDialog = false },
             title = {
                 Text(
-                    text = if (isFa) "تنظیم هشدار گذرهای ماهواره" else "Configure Satellite Pass Alerts",
+                    text = if (isFa) "سیستم هشدار خودکار ماهواره‌ها" else "Automated Satellite Pass Alerts",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
                     Text(
-                        text = if (isFa) "چند دقیقه قبل از گذرهای قابل مشاهده برای شما یادآوری ارسال شود؟"
-                        else "How many minutes before visible passes would you like a notification?",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = if (isFa) "زمان یادآوری قبل از آغاز گذر:" else "Notification timing before pass:",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        color = AccentPrimary
                     )
 
-                    listOf(5, 10, 15, 30).forEach { mins ->
+                    val leadOptions = listOf(
+                        10 to (if (isFa) "۱۰ دقیقه قبل" else "10 minutes before"),
+                        30 to (if (isFa) "۳۰ دقیقه قبل" else "30 minutes before"),
+                        1440 to (if (isFa) "۱ روز قبل (۲۴ ساعت)" else "1 day before (24 hours)")
+                    )
+
+                    leadOptions.forEach { (mins, label) ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { selectedLeadMinutes = mins }
-                                .padding(vertical = 4.dp),
+                                .padding(vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
@@ -1062,10 +1057,53 @@ fun ISSScreen(
                                 onClick = { selectedLeadMinutes = mins }
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (isFa) "$mins دقیقه قبل" else "$mins minutes prior",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
+                            Text(text = label, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+                    Text(
+                        text = if (isFa) "ماهواره‌های تحت پایش خودکار:" else "Monitored satellites:",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        color = AccentPrimary
+                    )
+
+                    com.alijafari.red.astronomy.astro_engine.SatelliteCatalog.satellites.forEach { sat ->
+                        val isChecked = sat.id in selectedSatIdsForAlerts
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedSatIdsForAlerts = if (isChecked) {
+                                        selectedSatIdsForAlerts - sat.id
+                                    } else {
+                                        selectedSatIdsForAlerts + sat.id
+                                    }
+                                }
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Checkbox(
+                                    checked = isChecked,
+                                    onCheckedChange = { checked ->
+                                        selectedSatIdsForAlerts = if (checked) {
+                                            selectedSatIdsForAlerts + sat.id
+                                        } else {
+                                            selectedSatIdsForAlerts - sat.id
+                                        }
+                                    }
+                                )
+                                Text(
+                                    text = if (isFa) sat.nameFa else sat.nameEn,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
                     }
                 }
@@ -1074,11 +1112,25 @@ fun ISSScreen(
                 Button(
                     onClick = {
                         showLeadTimeSelectionDialog = false
+                        isAutoAlertEnabled = true
+                        prefs.edit().putBoolean("auto_satellite_alerts_enabled", true).apply()
+                        AstroNotificationManager.scheduleMultiSatellitePasses(
+                            context = context,
+                            selectedSatIds = selectedSatIdsForAlerts,
+                            userLocation = uiState.userLocation,
+                            leadMinutes = selectedLeadMinutes
+                        )
                         notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        Toast.makeText(
+                            context,
+                            if (isFa) "سیستم هشدار خودکار برای ماهواره‌های انتخاب شده فعال شد!"
+                            else "Automated pass monitoring enabled for selected satellites!",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary)
                 ) {
-                    Text(text = if (isFa) "فعال‌سازی" else "Enable")
+                    Text(text = if (isFa) "فعال‌سازی سیستم هشدار" else "Enable Monitoring")
                 }
             },
             dismissButton = {
