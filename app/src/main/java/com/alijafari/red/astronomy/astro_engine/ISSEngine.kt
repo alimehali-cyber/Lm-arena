@@ -18,7 +18,7 @@ object ISSEngine {
         GOOD("Good Pass", "گذر خوب", 0xFF9EF01A),
         MARGINAL("Marginal Pass", "گذر حاشیه‌ای / کم‌نور", 0xFFFFB703),
         POOR("Poor Pass", "گذر ضعیف (ارتفاع پایین)", 0xFFFF8C00),
-        NOT_VISIBLE("Not Visible", "غیرقابل مشاهده با چشم", 0xFFE63946),
+        NOT_VISIBLE("Not Visible", "قابل مشاهده نیست", 0xFFE63946),
         INVISIBLE_SHADOW("Invisible (In Shadow)", "پنهان در سایه زمین (تاریک)", 0xFF6C757D),
         DAYLIGHT_ONLY("Daylight Only", "گذر در روز (روشنایی خورشید)", 0xFF4A90E2)
     }
