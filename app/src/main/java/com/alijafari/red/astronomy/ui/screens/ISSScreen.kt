@@ -1,87 +1,56 @@
 package com.alijafari.red.astronomy.ui.screens
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
-import com.alijafari.red.astronomy.astro_engine.ISSEngine
-import com.alijafari.red.astronomy.astro_engine.TimeEngine
-import com.alijafari.red.astronomy.domain.AppLanguage
-import com.alijafari.red.astronomy.notification.AstroNotificationManager
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.astro_engine.*
+import com.alijafari.red.astronomy.domain.AppLanguage
+import com.alijafari.red.astronomy.notification.AstroNotificationManager
+import com.alijafari.red.astronomy.ui.theme.AccentPrimary
 import com.alijafari.red.astronomy.util.toPersianDigits
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import kotlin.math.abs
-
-sealed class IssLiveState {
-    object Loading : IssLiveState()
-    data class Success(
-        val latitude: Double,
-        val longitude: Double,
-        val altitudeKm: Double,
-        val velocityKmh: Double,
-        val timestampMs: Long
-    ) : IssLiveState()
-    object Unavailable : IssLiveState()
-}
-
-sealed class IssLiveResult {
-    data class Success(
-        val lat: Double,
-        val lon: Double,
-        val altKm: Double,
-        val velKmh: Double,
-        val timestampMs: Long
-    ) : IssLiveResult()
-    data class Failure(val reason: String) : IssLiveResult()
-}
+import java.util.*
+import kotlin.math.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,6 +61,7 @@ fun ISSScreen(
     val isFa = uiState.language == AppLanguage.PERSIAN
     val context = LocalContext.current
 
+    // Notification Prefs
     val prefs = remember { context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE) }
     var isAutoAlertEnabled by remember {
         mutableStateOf(prefs.getBoolean("iss_auto_alerts_enabled", false))
@@ -99,278 +69,519 @@ fun ISSScreen(
     var selectedLeadMinutes by remember {
         mutableStateOf(prefs.getInt("iss_alert_lead_minutes", 10))
     }
-
     var showLeadTimeSelectionDialog by remember { mutableStateOf(false) }
-    var showPermissionRationaleDialog by remember { mutableStateOf(false) }
-    var pendingLeadMinutesChoice by remember { mutableStateOf(10) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         prefs.edit()
             .putBoolean("iss_auto_alerts_enabled", true)
-            .putInt("iss_alert_lead_minutes", pendingLeadMinutesChoice)
-            .putFloat("user_lat", uiState.userLocation.latitude.toFloat())
-            .putFloat("user_lon", uiState.userLocation.longitude.toFloat())
-            .putString("user_city_name_fa", uiState.userLocation.cityNameFa)
-            .putString("user_city_name_en", uiState.userLocation.cityNameEn)
+            .putInt("iss_alert_lead_minutes", selectedLeadMinutes)
             .apply()
 
         isAutoAlertEnabled = true
-        selectedLeadMinutes = pendingLeadMinutesChoice
-
         AstroNotificationManager.scheduleUpcomingIssPasses(
             context = context,
             userLocation = uiState.userLocation,
-            leadMinutes = pendingLeadMinutesChoice
+            leadMinutes = selectedLeadMinutes
         )
-
         Toast.makeText(
             context,
-            if (isFa) "هشدار خودکار $pendingLeadMinutesChoice دقیقه قبل از گذرهای قابل مشاهده ISS فعال شد!"
-            else "Auto notification set for $pendingLeadMinutesChoice mins prior to visible passes!",
-            Toast.LENGTH_LONG
+            if (isFa) "هشدار خودکار $selectedLeadMinutes دقیقه قبل تنظیم شد!" else "Auto notification set for $selectedLeadMinutes mins prior!",
+            Toast.LENGTH_SHORT
         ).show()
     }
 
-    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
-    var tleData by remember { mutableStateOf(ISSEngine.TLEData()) }
-    var isFetchingTle by remember { mutableStateOf(false) }
-    var visiblePassesOnly by remember { mutableStateOf(true) }
-    var expandedPassMs by remember { mutableStateOf<Long?>(null) }
+    // Time Control & Scrubber State (-24h to +24h)
+    var realTimeNowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    var timeOffsetHours by remember { mutableFloatStateOf(0f) } // 0 = Now
+    val currentSimulationMs = remember(realTimeNowMs, timeOffsetHours) {
+        realTimeNowMs + (timeOffsetHours * 3600 * 1000L).toLong()
+    }
 
-    var issLiveState by remember { mutableStateOf<IssLiveState>(IssLiveState.Loading) }
-    var retryTrigger by remember { mutableStateOf(0) }
+    // Real-Time Clock Ticker (updates realTimeNowMs every second when in live mode)
+    LaunchedEffect(timeOffsetHours) {
+        while (timeOffsetHours == 0f) {
+            delay(1000L)
+            realTimeNowMs = System.currentTimeMillis()
+        }
+    }
 
-    // Live ISS position polling effect (every 5 seconds with exponential backoff on error)
-    LaunchedEffect(retryTrigger) {
-        issLiveState = IssLiveState.Loading
-        var failureCount = 0
-        while (isActive) {
-            val result = fetchLiveIssPosition(context)
-            if (result is IssLiveResult.Success) {
-                failureCount = 0
-                issLiveState = IssLiveState.Success(
-                    latitude = result.lat,
-                    longitude = result.lon,
-                    altitudeKm = result.altKm,
-                    velocityKmh = result.velKmh,
-                    timestampMs = result.timestampMs
-                )
-                delay(5000L)
-            } else {
-                failureCount++
-                issLiveState = IssLiveState.Unavailable
-                val backoffMs = when (failureCount) {
-                    1 -> 5000L
-                    2 -> 10000L
-                    3 -> 20000L
-                    else -> 40000L
-                }
-                delay(backoffMs)
+    // Filters
+    var selectedCategory by remember { mutableStateOf(SatelliteCategory.ALL) }
+
+    // Selected Satellite & Detail Navigation
+    var selectedSatelliteId by remember { mutableStateOf("iss_zarya") }
+    var activeDetailSatellite by remember { mutableStateOf<SatelliteItem?>(null) }
+    var isFloatingPillVisible by remember { mutableStateOf(true) }
+
+    // Map Camera Gestures State
+    var zoomScale by remember { mutableFloatStateOf(1.0f) }
+    var panOffsetX by remember { mutableFloatStateOf(0.0f) }
+    var panOffsetY by remember { mutableFloatStateOf(0.0f) }
+    var isFollowSatelliteMode by remember { mutableStateOf(false) }
+
+    // Dialog Modals
+    var showTutorialDialog by remember { mutableStateOf(false) }
+
+    // Filtered Satellites
+    val filteredSatellites = remember(selectedCategory) {
+        SatelliteCatalog.satellites.filter { sat ->
+            when (selectedCategory) {
+                SatelliteCategory.ALL -> true
+                SatelliteCategory.ISS -> sat.category == SatelliteCategory.ISS
+                SatelliteCategory.STARLINK -> sat.category == SatelliteCategory.STARLINK
+                SatelliteCategory.HUBBLE -> sat.category == SatelliteCategory.HUBBLE
+                SatelliteCategory.JWST -> sat.category == SatelliteCategory.JWST
+                SatelliteCategory.VISIBLE -> sat.isNakedEyeCandidate
             }
         }
     }
 
-    // Periodically update time every 5 seconds & fetch TLE on launch
-    LaunchedEffect(Unit) {
-        isFetchingTle = true
-        tleData = ISSEngine.fetchLatestTLE()
-        isFetchingTle = false
-        while (true) {
-            delay(5000L)
-            nowMs = System.currentTimeMillis()
+    val selectedSatItem = remember(selectedSatelliteId) {
+        SatelliteCatalog.getById(selectedSatelliteId)
+    }
+
+    // Compute live positions for all filtered satellites
+    val liveSatelliteStates = remember(filteredSatellites, currentSimulationMs, uiState.userLocation) {
+        filteredSatellites.map { sat ->
+            SatelliteEngine.calculateSatelliteState(
+                satellite = sat,
+                timestampMs = currentSimulationMs,
+                userLatDeg = uiState.userLocation.latitude,
+                userLonDeg = uiState.userLocation.longitude
+            )
         }
     }
 
-    val topocentricPos = remember(nowMs, uiState.userLocation, tleData) {
-        ISSEngine.calculateTopocentricPos(
-            nowMs,
-            uiState.userLocation.latitude,
-            uiState.userLocation.longitude,
-            uiState.userLocation.elevationMeters,
-            tleData
-        )
+    val selectedSatState = liveSatelliteStates.find { it.satellite.id == selectedSatelliteId }
+        ?: liveSatelliteStates.firstOrNull()
+
+    // Follow Satellite Camera Effect
+    LaunchedEffect(isFollowSatelliteMode, selectedSatState, zoomScale) {
+        if (isFollowSatelliteMode && selectedSatState != null && zoomScale > 1.0f) {
+            val subLat = selectedSatState.topocentric.subLatDeg
+            val subLon = selectedSatState.topocentric.subLonDeg
+            panOffsetX = -((subLon / 180.0) * 200.0 * zoomScale.toDouble()).toFloat()
+            panOffsetY = ((subLat / 90.0) * 100.0 * zoomScale.toDouble()).toFloat()
+        }
     }
 
-    val passes = remember(uiState.userLocation, tleData, visiblePassesOnly) {
-        ISSEngine.predictPasses(
-            userLatDeg = uiState.userLocation.latitude,
-            userLonDeg = uiState.userLocation.longitude,
-            startTimestampMs = nowMs,
-            tle = tleData,
-            scanDays = 7,
-            visibleOnly = visiblePassesOnly
+    // Handle full-screen Detail Screen navigation
+    if (activeDetailSatellite != null) {
+        SatelliteDetailScreen(
+            satelliteItem = activeDetailSatellite!!,
+            userLocation = uiState.userLocation,
+            language = uiState.language,
+            onBack = { activeDetailSatellite = null },
+            simulationTimestampMs = currentSimulationMs
         )
+        return
     }
 
-    val dateFormatter = remember { SimpleDateFormat("EEE, MMM dd • HH:mm", Locale.getDefault()) }
-    val timeOnlyFormatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-            .testTag("iss_screen"),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Section 0: Automatic ISS Notification Button (Placed above the Live Position Map)
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("iss_auto_notification_button")
-                    .clickable {
-                        showLeadTimeSelectionDialog = true
-                    },
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(
-                    width = 1.dp,
-                    color = if (isAutoAlertEnabled) Color(0xFF2DC653).copy(alpha = 0.6f) else Color(0xFFA855F7).copy(alpha = 0.4f)
-                ),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isAutoAlertEnabled) Color(0xFF132A1C).copy(alpha = 0.7f) else MaterialTheme.colorScheme.surfaceVariant
-                )
+    Scaffold(
+        topBar = {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                tonalElevation = 2.dp,
+                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .height(56.dp)
+                        .padding(horizontal = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = if (isAutoAlertEnabled) Color(0xFF2DC653).copy(alpha = 0.2f) else Color(0xFFA855F7).copy(alpha = 0.2f),
-                        modifier = Modifier.size(46.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(AccentPrimary.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Icon(
-                                imageVector = if (isAutoAlertEnabled) Icons.Default.NotificationsActive else Icons.Default.NotificationsNone,
-                                contentDescription = "ISS Auto Notification",
-                                tint = if (isAutoAlertEnabled) Color(0xFF2DC653) else Color(0xFFA855F7),
-                                modifier = Modifier.size(24.dp)
+                                imageVector = Icons.Default.SatelliteAlt,
+                                contentDescription = null,
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = if (isFa) "مرکز ردیابی ماهواره‌ها" else "Satellite Tracking Center",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (timeOffsetHours == 0f) (if (isFa) "نقشه زنده SGP4 • داده مداری فعال" else "Live SGP4 Map • Real-Time Propagation")
+                                else (if (isFa) "حالت شبیه‌سازی زمان" else "Time Simulation Mode"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AccentPrimary
                             )
                         }
                     }
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isFa) "🔔 تنظیم هشدار خودکار گذرهای قابل مشاهده ISS" else "🔔 Automatic ISS Pass Notification",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (isAutoAlertEnabled) {
-                                if (isFa) "✅ فعال: $selectedLeadMinutes دقیقه قبل از هر گذر قابل مشاهده با چشم غیرمسلح"
-                                else "✅ Active: $selectedLeadMinutes mins before visible passes"
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Alerts Toggle Button
+                        IconButton(
+                            onClick = { showLeadTimeSelectionDialog = true },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isAutoAlertEnabled) AccentPrimary.copy(alpha = 0.2f)
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .testTag("satellite_alerts_toggle")
+                        ) {
+                            Icon(
+                                imageVector = if (isAutoAlertEnabled) Icons.Default.NotificationsActive else Icons.Default.NotificationsNone,
+                                contentDescription = "Alerts",
+                                tint = if (isAutoAlertEnabled) AccentPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Tutorial / Help Button
+                        IconButton(
+                            onClick = { showTutorialDialog = true },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .testTag("satellite_help_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.HelpOutline,
+                                contentDescription = "Help",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+
+            // 1. MAIN FEATURE: INTERACTIVE 2D EARTH MAP
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(340.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF0B0E1B))
+                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            zoomScale = (zoomScale * zoom).coerceIn(1.0f, 6.0f)
+                            if (zoomScale > 1.0f) {
+                                panOffsetX = (panOffsetX + pan.x).coerceIn(-400f * zoomScale, 400f * zoomScale)
+                                panOffsetY = (panOffsetY + pan.y).coerceIn(-200f * zoomScale, 200f * zoomScale)
                             } else {
-                                if (isFa) "لمس کنید برای یادآوری ۱۰ یا ۳۰ دقیقه قبل از گذرهای با چشم غیرمسلح"
-                                else "Tap to schedule 10 or 30 min alerts before visible passes"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (isAutoAlertEnabled) Color(0xFF2DC653) else MaterialTheme.colorScheme.onSurfaceVariant
+                                panOffsetX = 0f
+                                panOffsetY = 0f
+                            }
+                        }
+                    }
+            ) {
+                // Earth Map Canvas
+                val subSolarPoint = remember(currentSimulationMs) {
+                    SatelliteEngine.calculateSubSolarPoint(currentSimulationMs)
+                }
+
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+
+                    fun mapX(lon: Double): Float {
+                        val baseX = ((lon + 180.0) / 360.0 * w).toFloat()
+                        val centerX = w / 2f
+                        return centerX + (baseX - centerX) * zoomScale + panOffsetX
+                    }
+
+                    fun mapY(lat: Double): Float {
+                        val baseY = ((90.0 - lat) / 180.0 * h).toFloat()
+                        val centerY = h / 2f
+                        return centerY + (baseY - centerY) * zoomScale + panOffsetY
+                    }
+
+                    // 1. Geographic Lat/Lon Grid
+                    val gridColor = Color.White.copy(alpha = 0.04f)
+                    for (gLon in -150..150 step 30) {
+                        val gx = mapX(gLon.toDouble())
+                        if (gx in 0f..w) drawLine(gridColor, start = Offset(gx, 0f), end = Offset(gx, h), strokeWidth = 1f)
+                    }
+                    for (gLat in -60..60 step 30) {
+                        val gy = mapY(gLat.toDouble())
+                        if (gy in 0f..h) drawLine(gridColor, start = Offset(0f, gy), end = Offset(w, gy), strokeWidth = 1f)
+                    }
+
+                    // Equator Line
+                    val eqY = mapY(0.0)
+                    if (eqY in 0f..h) {
+                        drawLine(
+                            color = AccentPrimary.copy(alpha = 0.20f),
+                            start = Offset(0f, eqY),
+                            end = Offset(w, eqY),
+                            strokeWidth = 1.5f
                         )
                     }
 
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-        // Section 1: Live ISS Position World Map / Fallback Card
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("iss_live_position_section"),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isFa) "موقعیت لحظه‌ای ایستگاه فضایی" else "Live ISS Position",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    if (issLiveState is IssLiveState.Success) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFA855F7).copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.4f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFA855F7))
-                                )
-                                Text(
-                                    text = if (isFa) "زنده" else "LIVE",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp
-                                    ),
-                                    color = Color(0xFFA855F7)
+                    // 2. Draw World Continents Landmasses
+                    drawWorldContinentsScaled(this, w, h, zoomScale, panOffsetX, panOffsetY, Color(0xFF1E2640))
+
+                    // 3. Draw Dynamic Day/Night Terminator & Night Shade Region
+                    drawDayNightTerminator(this, w, h, zoomScale, panOffsetX, panOffsetY, subSolarPoint)
+
+                    // 4. Draw Dynamic Night-Side City Lights
+                    drawNightCityLights(this, w, h, zoomScale, panOffsetX, panOffsetY, subSolarPoint)
+
+                    // 5. Draw User Location Pin
+                    val userX = mapX(uiState.userLocation.longitude)
+                    val userY = mapY(uiState.userLocation.latitude)
+                    if (userX in 0f..w && userY in 0f..h) {
+                        drawCircle(
+                            color = Color(0xFF00F0FF).copy(alpha = 0.3f),
+                            radius = 12.dp.toPx(),
+                            center = Offset(userX, userY)
+                        )
+                        drawCircle(
+                            color = Color(0xFF00F0FF),
+                            radius = 4.dp.toPx(),
+                            center = Offset(userX, userY)
+                        )
+                    }
+
+                    // 6. Draw Selected Satellite Ground Track
+                    if (selectedSatItem != null) {
+                        val trackPoints = SatelliteEngine.calculateGroundTrack(
+                            satellite = selectedSatItem,
+                            currentTimestampMs = currentSimulationMs
+                        )
+                        val trackPath = Path()
+                        var isFirst = true
+                        var prevLon: Double? = null
+
+                        for ((tLat, tLon) in trackPoints) {
+                            if (prevLon != null && abs(tLon - prevLon) > 180.0) {
+                                isFirst = true // handle antimeridian wrap
+                            }
+                            val tx = mapX(tLon)
+                            val ty = mapY(tLat)
+                            if (isFirst) {
+                                trackPath.moveTo(tx, ty)
+                                isFirst = false
+                            } else {
+                                trackPath.lineTo(tx, ty)
+                            }
+                            prevLon = tLon
+                        }
+
+                        drawPath(
+                            path = trackPath,
+                            color = AccentPrimary.copy(alpha = 0.6f),
+                            style = Stroke(
+                                width = 2.5f,
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
+                            )
+                        )
+                    }
+
+                    // 7. Draw All Filtered Satellite Markers
+                    for (liveState in liveSatelliteStates) {
+                        val sat = liveState.satellite
+                        val isSelected = sat.id == selectedSatelliteId
+                        val sx = mapX(liveState.topocentric.subLonDeg)
+                        val sy = mapY(liveState.topocentric.subLatDeg)
+
+                        if (sx in -20f..(w + 20f) && sy in -20f..(h + 20f)) {
+                            val markerColor = if (isSelected) AccentPrimary else if (sat.isNakedEyeCandidate) Color(0xFF2DC653) else Color(0xFFFFB703)
+
+                            if (isSelected) {
+                                drawCircle(
+                                    color = markerColor.copy(alpha = 0.25f),
+                                    radius = 16.dp.toPx(),
+                                    center = Offset(sx, sy)
                                 )
                             }
+
+                            drawCircle(
+                                color = markerColor,
+                                radius = if (isSelected) 6.dp.toPx() else 4.dp.toPx(),
+                                center = Offset(sx, sy)
+                            )
                         }
                     }
                 }
 
-                when (val state = issLiveState) {
-                    is IssLiveState.Success -> {
-                        IssWorldMapCard(
-                            lat = state.latitude,
-                            lon = state.longitude,
-                            altitudeKm = state.altitudeKm,
-                            velocityKmh = state.velocityKmh,
-                            timestampMs = state.timestampMs,
-                            isFa = isFa
-                        )
+                // Floating Action Buttons on Map
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Reset View Button
+                    SmallFloatingActionButton(
+                        onClick = {
+                            zoomScale = 1.0f
+                            panOffsetX = 0f
+                            panOffsetY = 0f
+                            isFollowSatelliteMode = false
+                        },
+                        containerColor = Color.Black.copy(alpha = 0.6f),
+                        contentColor = Color.White,
+                        modifier = Modifier.size(32.dp).testTag("map_reset_view")
+                    ) {
+                        Icon(Icons.Default.CenterFocusWeak, contentDescription = "Reset", modifier = Modifier.size(16.dp))
                     }
-                    is IssLiveState.Unavailable -> {
-                        IssUnavailableCard(
-                            onRetry = { retryTrigger++ }
-                        )
+
+                    // Follow Satellite Mode Toggle
+                    SmallFloatingActionButton(
+                        onClick = { isFollowSatelliteMode = !isFollowSatelliteMode },
+                        containerColor = if (isFollowSatelliteMode) AccentPrimary else Color.Black.copy(alpha = 0.6f),
+                        contentColor = Color.White,
+                        modifier = Modifier.size(32.dp).testTag("map_follow_toggle")
+                    ) {
+                        Icon(Icons.Default.GpsFixed, contentDescription = "Follow", modifier = Modifier.size(16.dp))
                     }
-                    is IssLiveState.Loading -> {
-                        IssLoadingCard()
+
+                    // Zoom In
+                    SmallFloatingActionButton(
+                        onClick = { zoomScale = (zoomScale + 0.8f).coerceAtMost(6.0f) },
+                        containerColor = Color.Black.copy(alpha = 0.6f),
+                        contentColor = Color.White,
+                        modifier = Modifier.size(32.dp).testTag("map_zoom_in")
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Zoom In", modifier = Modifier.size(16.dp))
+                    }
+
+                    // Zoom Out
+                    SmallFloatingActionButton(
+                        onClick = {
+                            zoomScale = (zoomScale - 0.8f).coerceAtLeast(1.0f)
+                            if (zoomScale == 1.0f) {
+                                panOffsetX = 0f
+                                panOffsetY = 0f
+                            }
+                        },
+                        containerColor = Color.Black.copy(alpha = 0.6f),
+                        contentColor = Color.White,
+                        modifier = Modifier.size(32.dp).testTag("map_zoom_out")
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = "Zoom Out", modifier = Modifier.size(16.dp))
+                    }
+                }
+
+                // 1st Tap Floating Info Pill near Map Bottom
+                if (selectedSatState != null && isFloatingPillVisible) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(12.dp)
+                            .clickable { activeDetailSatellite = selectedSatState.satellite }
+                            .testTag("map_floating_info_pill"),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xF10D1120),
+                        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .background(AccentPrimary.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.SatelliteAlt, contentDescription = null, tint = AccentPrimary, modifier = Modifier.size(16.dp))
+                            }
+
+                            Column {
+                                Text(
+                                    text = if (isFa) selectedSatState.satellite.nameFa else selectedSatState.satellite.nameEn,
+                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = Color.White
+                                )
+                                val altStr = String.format(Locale.US, "%.0f km", selectedSatState.topocentric.satAltKm)
+                                val spdStr = String.format(Locale.US, "%.1f km/s", selectedSatState.topocentric.velocityKmS)
+                                Text(
+                                    text = if (isFa) "ارتفاع: $altStr • سرعت: $spdStr".toPersianDigits() else "Alt: $altStr • Vel: $spdStr",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.7f)
+                                )
+                            }
+
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "Detail",
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        // Section 2: ISS Orbit Telemetry Hero Card
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("iss_hero_card"),
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            // 2. COMPACT SATELLITE FILTERS BAR
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(SatelliteCategory.entries) { cat ->
+                    val isSelected = cat == selectedCategory
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedCategory = cat },
+                        label = {
+                            Text(
+                                text = if (isFa) cat.labelFa else cat.labelEn,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentPrimary,
+                            selectedLabelColor = Color.White
+                        ),
+                        modifier = Modifier.testTag("filter_${cat.name}")
+                    )
+                }
+            }
+
+            // 3. COMPACT 24-HOUR TIME SCRUBBER
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -379,390 +590,229 @@ fun ISSScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier.size(44.dp)
+                            Icon(Icons.Default.AccessTime, contentDescription = null, tint = AccentPrimary, modifier = Modifier.size(16.dp))
+
+                            val sdf = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.US) }
+                            val timeStr = sdf.format(Date(currentSimulationMs))
+                            val offsetStr = if (timeOffsetHours == 0f) (if (isFa) "اکنون (زمان زنده)" else "Now (Live)")
+                            else if (timeOffsetHours > 0) "+${String.format(Locale.US, "%.1fh", timeOffsetHours)}"
+                            else String.format(Locale.US, "%.1fh", timeOffsetHours)
+
+                            Text(
+                                text = if (isFa) "$timeStr ($offsetStr)".toPersianDigits() else "$timeStr ($offsetStr)",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        if (timeOffsetHours != 0f) {
+                            Button(
+                                onClick = { timeOffsetHours = 0f },
+                                modifier = Modifier.height(28.dp).testTag("time_reset_now"),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.SatelliteAlt,
-                                        contentDescription = "ISS Satellite",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(24.dp)
+                                Text(
+                                    text = if (isFa) "زمان زنده" else "Now",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                    }
+
+                    // Time Slider (-24h to +24h)
+                    Slider(
+                        value = timeOffsetHours,
+                        onValueChange = { timeOffsetHours = it },
+                        valueRange = -24f..24f,
+                        steps = 95,
+                        colors = SliderDefaults.colors(
+                            thumbColor = AccentPrimary,
+                            activeTrackColor = AccentPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("time_scrubber_slider")
+                    )
+                }
+            }
+
+            // 4. UPCOMING VISIBLE PASSES PREDICTIONS
+            Text(
+                text = if (isFa) "گذرهای قابل مشاهده بعدی" else "Upcoming Visible Passes",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            val upcomingPasses = remember(currentSimulationMs, uiState.userLocation, selectedSatelliteId) {
+                ISSEngine.predictPasses(
+                    userLatDeg = uiState.userLocation.latitude,
+                    userLonDeg = uiState.userLocation.longitude,
+                    startTimestampMs = currentSimulationMs,
+                    tle = selectedSatItem.defaultTle,
+                    scanDays = 2,
+                    visibleOnly = true
+                ).take(3)
+            }
+
+            if (upcomingPasses.isEmpty()) {
+                Text(
+                    text = if (isFa) "هیچ گذر قابل مشهودی در ۲۴ ساعت آینده یافت نشد." else "No visible passes predicted in next 24 hours.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            } else {
+                val sdfPass = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(upcomingPasses) { pass ->
+                        Surface(
+                            modifier = Modifier
+                                .width(220.dp)
+                                .clickable { activeDetailSatellite = selectedSatItem }
+                                .testTag("pass_card_${pass.startTimeMs}"),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.4f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (isFa) pass.classification.labelFa else pass.classification.labelEn,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = Color(pass.classification.colorHex)
+                                    )
+                                    Text(
+                                        text = if (isFa) "${pass.passDurationSec / 60} دقیقه".toPersianDigits() else "${pass.passDurationSec / 60} min",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                            }
-                            Column {
+
+                                val riseStr = sdfPass.format(Date(pass.startTimeMs))
+                                val setStr = sdfPass.format(Date(pass.endTimeMs))
                                 Text(
-                                    text = if (isFa) "ردیابی زنده ایستگاه فضایی (ISS)" else "ISS Live Tracking Engine",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
+                                    text = if (isFa) "شروع: $riseStr • پایان: $setStr".toPersianDigits() else "Rise: $riseStr • Set: $setStr",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
+
                                 Text(
-                                    text = "NORAD 25544 • Real-time SGP4 Model",
+                                    text = if (isFa) "حداکثر ارتفاع: ${String.format(Locale.US, "%.0f°", pass.maxElevationDeg)}".toPersianDigits()
+                                    else "Max Elevation: ${String.format(Locale.US, "%.0f°", pass.maxElevationDeg)}",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
+                    }
+                }
+            }
 
-                        val statusColor = if (topocentricPos.isSunlit) Color(0xFF2DC653) else Color(0xFFFFB703)
-                        val statusText = if (topocentricPos.isSunlit) {
-                            if (isFa) "در معرض نور خورشید" else "Sunlit (In Light)"
-                        } else {
-                            if (isFa) "در سایه زمین" else "In Earth Shadow"
-                        }
+            // 5. SATELLITE LIST / CARDS SECTION
+            Text(
+                text = if (isFa) "فهرست ماهواره‌ها (${filteredSatellites.size})" else "Tracked Satellites (${filteredSatellites.size})",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
 
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = statusColor.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f))
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                liveSatelliteStates.forEach { state ->
+                    val sat = state.satellite
+                    val isSelected = sat.id == selectedSatelliteId
+
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedSatelliteId = sat.id
+                                isFloatingPillVisible = true
+                            }
+                            .testTag("sat_card_${sat.id}"),
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isSelected) AccentPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSelected) AccentPrimary else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(8.dp)
+                                        .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(statusColor)
-                                )
-                                Text(
-                                    text = statusText,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = statusColor
-                                )
-                            }
-                        }
-                    }
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
-
-                    // Live Sub-Satellite Coordinates & Telemetry
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = if (isFa) "عرض جغرافیایی" else "Latitude",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            val latStr = String.format("%.2f°", topocentricPos.subLatDeg)
-                            Text(
-                                text = if (isFa) latStr.toPersianDigits() else latStr,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = if (isFa) "طول جغرافیایی" else "Longitude",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            val lonStr = String.format("%.2f°", topocentricPos.subLonDeg)
-                            Text(
-                                text = if (isFa) lonStr.toPersianDigits() else lonStr,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = if (isFa) "ارتفاع مداری" else "Altitude",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            val altStr = String.format("%.0f km", topocentricPos.satAltKm)
-                            Text(
-                                text = if (isFa) altStr.toPersianDigits() else altStr,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = if (isFa) "سرعت لحظه‌ای" else "Speed",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            val speedStr = String.format("%.1f km/s", topocentricPos.velocityKmS)
-                            Text(
-                                text = if (isFa) speedStr.toPersianDigits() else speedStr,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = if (isFa) "ارتفاع نسبت به افق" else "Elevation",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            val elevStr = String.format("%.1f°", topocentricPos.elevationDeg)
-                            Text(
-                                text = if (isFa) elevStr.toPersianDigits() else elevStr,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                color = if (topocentricPos.elevationDeg > 0) Color(0xFF2DC653) else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = if (isFa) "سمت (زاویه افقی)" else "Azimuth",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            val azStr = String.format("%.1f°", topocentricPos.azimuthDeg)
-                            Text(
-                                text = if (isFa) azStr.toPersianDigits() else azStr,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = if (isFa) "فاصله مستقیم" else "Range Distance",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            val rngStr = String.format("%.0f km", topocentricPos.rangeKm)
-                            Text(
-                                text = if (isFa) rngStr.toPersianDigits() else rngStr,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Section 3: Pass Filter & Predictions Header
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (isFa) "پیش‌بینی گذرها (۷ روز آینده)" else "Pass Predictions (Next 7 Days)",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                FilterChip(
-                    selected = visiblePassesOnly,
-                    onClick = { visiblePassesOnly = !visiblePassesOnly },
-                    label = {
-                        Text(
-                            text = if (visiblePassesOnly) {
-                                if (isFa) "فقط گذر‌های قابل مشاهده" else "Visible Only"
-                            } else {
-                                if (isFa) "همه گذرها (حتی تاریک)" else "All Passes"
-                            },
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = if (visiblePassesOnly) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                )
-            }
-        }
-
-        // Section 4: Pass List Items
-        if (passes.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (isFa) "هیچ گذری با شرایط انتخابی در ۷ روز آینده یافت نشد." else "No passes found for the selected filter.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        } else {
-            items(passes) { pass ->
-                val isExpanded = expandedPassMs == pass.startTimeMs
-                val classColor = Color(pass.classification.colorHex)
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            expandedPassMs = if (isExpanded) null else pass.startTimeMs
-                        },
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, classColor.copy(alpha = 0.3f)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                val dateStr = dateFormatter.format(Date(pass.startTimeMs))
-                                Text(
-                                    text = if (isFa) dateStr.toPersianDigits() else dateStr,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                val timeRangeStr = "${timeOnlyFormatter.format(Date(pass.startTimeMs))} ➔ ${timeOnlyFormatter.format(Date(pass.endTimeMs))}"
-                                Text(
-                                    text = if (isFa) timeRangeStr.toPersianDigits() else timeRangeStr,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = classColor.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, classColor.copy(alpha = 0.4f))
-                            ) {
-                                Text(
-                                    text = if (isFa) pass.classification.labelFa else pass.classification.labelEn,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = classColor,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = if (isFa) "حداکثر ارتفاع" else "Max Elevation",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                val maxElevStr = String.format("%.0f°", pass.maxElevationDeg)
-                                Text(
-                                    text = if (isFa) maxElevStr.toPersianDigits() else maxElevStr,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = classColor
-                                )
-                            }
-
-                            Column {
-                                Text(
-                                    text = if (isFa) "روشنایی تخمینی" else "Brightness",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                val magStr = String.format("%.1f mag", pass.estimatedMagnitude)
-                                Text(
-                                    text = if (isFa) magStr.toPersianDigits() else magStr,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                                )
-                            }
-
-                            Column {
-                                Text(
-                                    text = if (isFa) "مدت زمان" else "Duration",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                val durStr = "${pass.passDurationSec / 60}m ${pass.passDurationSec % 60}s"
-                                Text(
-                                    text = if (isFa) durStr.toPersianDigits() else durStr,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                                )
-                            }
-
-                            Column {
-                                Text(
-                                    text = if (isFa) "مسیر گذر" else "Trajectory",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                val startDir = getAzimuthCardinal(pass.startAzimuthDeg, isFa)
-                                val endDir = getAzimuthCardinal(pass.endAzimuthDeg, isFa)
-                                Text(
-                                    text = "$startDir ➔ $endDir",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                                )
-                            }
-                        }
-
-                        // Expandable Details
-                        AnimatedVisibility(visible = isExpanded) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-
-                                Text(
-                                    text = if (isFa) "جزئیات تحلیل علمی گذر:" else "Scientific Pass Analysis:",
-                                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-
-                                val reasons = if (isFa) pass.detailedReasonsFa else pass.detailedReasonsEn
-                                reasons.forEach { reason ->
-                                    Text(
-                                        text = reason,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        .background(if (isSelected) AccentPrimary else MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SatelliteAlt,
+                                        contentDescription = null,
+                                        tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
 
-                                if (pass.shadowEntryMs != null) {
-                                    val entryStr = TimeEngine.formatTimeWithSeconds24h(pass.shadowEntryMs, isFa)
+                                Column {
                                     Text(
-                                        text = if (isFa) "🌑 ورود به سایه زمین: $entryStr" else "🌑 Earth Shadow Entry: $entryStr",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFFFFB703)
+                                        text = if (isFa) sat.nameFa else sat.nameEn,
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    val altStr = String.format(Locale.US, "%.0f km", state.topocentric.satAltKm)
+                                    val magStr = String.format(Locale.US, "%+.1f", state.apparentMagnitude)
+                                    Text(
+                                        text = if (isFa) "ارتفاع $altStr • قدر $magStr".toPersianDigits() else "Alt $altStr • Mag $magStr",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+                            }
 
-                                if (pass.shadowExitMs != null) {
-                                    val exitStr = TimeEngine.formatTimeWithSeconds24h(pass.shadowExitMs, isFa)
-                                    Text(
-                                        text = if (isFa) "☀️ خروج از سایه زمین: $exitStr" else "☀️ Earth Shadow Exit: $exitStr",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFF2DC653)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                val verdictColor = if (state.isNakedEyeVisible) Color(0xFF2DC653) else Color(0xFF718096)
+                                Text(
+                                    text = if (state.isNakedEyeVisible) (if (isFa) "با چشم" else "Naked Eye") else (if (isFa) "غیرمسلح نیست" else "Not Visible"),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = verdictColor
+                                )
+
+                                IconButton(
+                                    onClick = { activeDetailSatellite = sat },
+                                    modifier = Modifier.size(28.dp).testTag("open_sat_detail_${sat.id}")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = "Details",
+                                        tint = AccentPrimary,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
@@ -773,198 +823,40 @@ fun ISSScreen(
         }
     }
 
-    // Lead Time Selection Dialog (10 mins vs 30 mins)
+    // Lead Time Selection Dialog
     if (showLeadTimeSelectionDialog) {
         AlertDialog(
             onDismissRequest = { showLeadTimeSelectionDialog = false },
             title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.NotificationsActive,
-                        contentDescription = null,
-                        tint = Color(0xFFA855F7)
-                    )
-                    Text(
-                        text = if (isFa) "زمان‌بندی هشدار خودکار ISS" else "ISS Auto Alert Schedule",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = if (isFa) 
-                            "زمان یادآوری قبل از آغاز گذرهای قابل مشاهده با چشم غیرمسلح را انتخاب کنید:"
-                        else 
-                            "Select notification lead time before visible passes:",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
-                    // Selection 1: 10 minutes
-                    OutlinedButton(
-                        onClick = {
-                            pendingLeadMinutesChoice = 10
-                            showLeadTimeSelectionDialog = false
-                            showPermissionRationaleDialog = true
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, if (selectedLeadMinutes == 10 && isAutoAlertEnabled) Color(0xFF2DC653) else Color(0xFFA855F7))
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(text = "⏱️", fontSize = 18.sp)
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (isFa) "۱۰ دقیقه قبل از آغاز هر گذر" else "10 Minutes Before Pass",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = if (isFa) "هشدار ۱۰ دقیقه قبل از گذرهای قابل مشاهده با چشم غیرمسلح" else "Alert 10 mins before visible passes",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    // Selection 2: 30 minutes
-                    OutlinedButton(
-                        onClick = {
-                            pendingLeadMinutesChoice = 30
-                            showLeadTimeSelectionDialog = false
-                            showPermissionRationaleDialog = true
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, if (selectedLeadMinutes == 30 && isAutoAlertEnabled) Color(0xFF2DC653) else Color(0xFFA855F7))
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(text = "⏱️", fontSize = 18.sp)
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (isFa) "۳۰ دقیقه قبل از آغاز هر گذر" else "30 Minutes Before Pass",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = if (isFa) "هشدار ۳۰ دقیقه قبل از گذرهای قابل مشاهده با چشم غیرمسلح" else "Alert 30 mins before visible passes",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    if (isAutoAlertEnabled) {
-                        TextButton(
-                            onClick = {
-                                prefs.edit().putBoolean("iss_auto_alerts_enabled", false).apply()
-                                isAutoAlertEnabled = false
-                                AstroNotificationManager.cancelIssWorkManager(context)
-                                showLeadTimeSelectionDialog = false
-                                Toast.makeText(context, if (isFa) "هشدار خودکار غیرفعال شد" else "Auto alerts disabled", Toast.LENGTH_SHORT).show()
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Text(text = if (isFa) "❌ غیرفعال‌سازی هشدار خودکار" else "❌ Disable Auto Alerts")
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showLeadTimeSelectionDialog = false }) {
-                    Text(text = if (isFa) "انصراف" else "Cancel")
-                }
-            }
-        )
-    }
-
-    // Permission Rationale Flow Dialog
-    if (showPermissionRationaleDialog) {
-        AlertDialog(
-            onDismissRequest = { showPermissionRationaleDialog = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(text = "🛡️", fontSize = 22.sp)
-                    Text(
-                        text = if (isFa) "دلیل نیاز به مجوز نوتیفیکیشن" else "Why Notification Permission?",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Text(
+                    text = if (isFa) "تنظیم هشدار گذرهای ماهواره" else "Configure Satellite Pass Alerts",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = if (isFa)
-                            "برنامه RED برای اطلاع‌رسانی دقیق گذرهای قابل مشاهده ایستگاه فضایی به مجوز نوتیفیکیشن نیاز دارد:"
-                        else
-                            "RED requires notification permission to alert you before visible ISS passes:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
+                        text = if (isFa) "چند دقیقه قبل از گذرهای قابل مشاهده برای شما یادآوری ارسال شود؟"
+                        else "How many minutes before visible passes would you like a notification?",
+                        style = MaterialTheme.typography.bodyMedium
                     )
 
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                    listOf(5, 10, 15, 30).forEach { mins ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedLeadMinutes = mins }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (isFa) "📡 ۱. محاسبه اختصاصی محلی" else "📡 1. Private Local Computation",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFA855F7)
+                            RadioButton(
+                                selected = selectedLeadMinutes == mins,
+                                onClick = { selectedLeadMinutes = mins }
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (isFa) "موقعیت مکانی شما فقط درون دستگاه برای محاسبه مداری ISS استفاده می‌شود و هیچ اطلاعاتی ارسال نمی‌شود."
-                                else "Your location is processed strictly on device; no data leaves your phone.",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-
-                            Text(
-                                text = if (isFa) "👁️ ۲. صرفاً گذرهای با چشم غیرمسلح" else "👁️ 2. Visible Passes Only",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF2DC653)
-                            )
-                            Text(
-                                text = if (isFa) "تنها گذرهایی نوتیفیکیشن ایجاد می‌کنند که در آسمان تاریک شب و با چشم غیرمسلح کاملاً قابل رؤیت باشند."
-                                else "Only passes fully visible to the naked eye in dark skies generate notifications.",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-
-                            Text(
-                                text = if (isFa) "⏰ ۳. زمان‌بندی هوشمند $pendingLeadMinutesChoice دقیقه‌ای" else "⏰ 3. Smart $pendingLeadMinutesChoice-Min Alert",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF38BDF8)
-                            )
-                            Text(
-                                text = if (isFa) "اعلان دقیقاً $pendingLeadMinutesChoice دقیقه قبل از شروع گذر ارسال شده و حتی پس از ری‌استارت گوشی به کمک WorkManager پایدار می‌ماند."
-                                else "Alert triggers $pendingLeadMinutesChoice mins prior and persists across reboot via WorkManager.",
-                                style = MaterialTheme.typography.bodySmall
+                                text = if (isFa) "$mins دقیقه قبل" else "$mins minutes prior",
+                                style = MaterialTheme.typography.bodyLarge
                             )
                         }
                     }
@@ -973,76 +865,65 @@ fun ISSScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        showPermissionRationaleDialog = false
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            if (ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.POST_NOTIFICATIONS
-                                ) != PackageManager.PERMISSION_GRANTED
-                            ) {
-                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
-                                // Permission already granted
-                                prefs.edit()
-                                    .putBoolean("iss_auto_alerts_enabled", true)
-                                    .putInt("iss_alert_lead_minutes", pendingLeadMinutesChoice)
-                                    .putFloat("user_lat", uiState.userLocation.latitude.toFloat())
-                                    .putFloat("user_lon", uiState.userLocation.longitude.toFloat())
-                                    .putString("user_city_name_fa", uiState.userLocation.cityNameFa)
-                                    .putString("user_city_name_en", uiState.userLocation.cityNameEn)
-                                    .apply()
-
-                                isAutoAlertEnabled = true
-                                selectedLeadMinutes = pendingLeadMinutesChoice
-
-                                AstroNotificationManager.scheduleUpcomingIssPasses(
-                                    context = context,
-                                    userLocation = uiState.userLocation,
-                                    leadMinutes = pendingLeadMinutesChoice
-                                )
-
-                                Toast.makeText(
-                                    context,
-                                    if (isFa) "هشدار خودکار $pendingLeadMinutesChoice دقیقه قبل از گذرهای قابل مشاهده ISS فعال شد!"
-                                    else "Auto notification set for $pendingLeadMinutesChoice mins prior to visible passes!",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        } else {
-                            // Pre-Android 13
-                            prefs.edit()
-                                .putBoolean("iss_auto_alerts_enabled", true)
-                                .putInt("iss_alert_lead_minutes", pendingLeadMinutesChoice)
-                                .putFloat("user_lat", uiState.userLocation.latitude.toFloat())
-                                .putFloat("user_lon", uiState.userLocation.longitude.toFloat())
-                                .putString("user_city_name_fa", uiState.userLocation.cityNameFa)
-                                .putString("user_city_name_en", uiState.userLocation.cityNameEn)
-                                .apply()
-
-                            isAutoAlertEnabled = true
-                            selectedLeadMinutes = pendingLeadMinutesChoice
-
-                            AstroNotificationManager.scheduleUpcomingIssPasses(
-                                context = context,
-                                userLocation = uiState.userLocation,
-                                leadMinutes = pendingLeadMinutesChoice
-                            )
-
-                            Toast.makeText(
-                                context,
-                                if (isFa) "هشدار خودکار $pendingLeadMinutesChoice دقیقه قبل از گذرهای قابل مشاهده ISS فعال شد!"
-                                else "Auto notification set for $pendingLeadMinutesChoice mins prior to visible passes!",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
+                        showLeadTimeSelectionDialog = false
+                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary)
                 ) {
-                    Text(text = if (isFa) "متوجه شدم و موافقم" else "I Agree & Allow")
+                    Text(text = if (isFa) "فعال‌سازی" else "Enable")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showPermissionRationaleDialog = false }) {
+                TextButton(onClick = { showLeadTimeSelectionDialog = false }) {
                     Text(text = if (isFa) "انصراف" else "Cancel")
+                }
+            }
+        )
+    }
+
+    // Tutorial Dialog
+    if (showTutorialDialog) {
+        AlertDialog(
+            onDismissRequest = { showTutorialDialog = false },
+            title = {
+                Text(
+                    text = if (isFa) "راهنمای مرکز ردیابی ماهواره‌ها" else "Satellite Tracking Guide",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    TutorialBullet(
+                        title = if (isFa) "نقشه زنده زمین:" else "Live Earth Map:",
+                        desc = if (isFa) "نمایش خط جدایش روز و شب (Terminator) به همراه روشنایی شهرهای بزرگ در شب."
+                        else "Displays the dynamic day/night terminator and real-time night-side city lights."
+                    )
+                    TutorialBullet(
+                        title = if (isFa) "کنترل نقشه:" else "Map Controls:",
+                        desc = if (isFa) "امکان زوم با دو انگشت، جابه‌جایی، بازنشانی نمای زمین و حالت دنبال‌کردن ماهواره."
+                        else "Supports pinch-to-zoom, panning, reset-view, and follow-satellite mode."
+                    )
+                    TutorialBullet(
+                        title = if (isFa) "محور زمان ۲۴ ساعته:" else "24-Hour Time Scrubber:",
+                        desc = if (isFa) "بررسی موقعیت مداری ماهواره‌ها در ۲۴ ساعت گذشته یا آینده."
+                        else "Scrub from -24h in the past to +24h into the future to simulate orbit geometry."
+                    )
+                    TutorialBullet(
+                        title = if (isFa) "رؤیت با چشم غیرمسلح:" else "Naked-Eye Visibility:",
+                        desc = if (isFa) "محاسبه بر اساس تاریکی آسمان، تابش خورشید روی ماهواره و زاویه ارتفاع بالای افق."
+                        else "Scientifically calculated based on dark sky twilight, satellite solar illumination, and elevation."
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showTutorialDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary)
+                ) {
+                    Text(text = if (isFa) "متوجه شدم" else "Got It")
                 }
             }
         )
@@ -1050,257 +931,34 @@ fun ISSScreen(
 }
 
 @Composable
-private fun IssWorldMapCard(
-    lat: Double,
-    lon: Double,
-    altitudeKm: Double,
-    velocityKmh: Double,
-    timestampMs: Long,
-    isFa: Boolean
-) {
-    val animLat by animateFloatAsState(
-        targetValue = lat.toFloat(),
-        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
-        label = "IssLat"
-    )
-    val animLon by animateFloatAsState(
-        targetValue = lon.toFloat(),
-        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
-        label = "IssLon"
-    )
-
-    val infiniteTransition = rememberInfiniteTransition(label = "IssPulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.4f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "PulseScale"
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(240.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF0F0D18))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-
-            fun mapX(longitude: Double): Float = ((longitude + 180.0) / 360.0 * w).toFloat()
-            fun mapY(latitude: Double): Float = ((90.0 - latitude) / 180.0 * h).toFloat()
-
-            // 1. Gridlines at 30° intervals
-            val gridColor = Color.White.copy(alpha = 0.03f)
-            for (gLon in -150..150 step 30) {
-                val gx = mapX(gLon.toDouble())
-                drawLine(gridColor, start = Offset(gx, 0f), end = Offset(gx, h), strokeWidth = 1f)
-            }
-            for (gLat in -60..60 step 30) {
-                val gy = mapY(gLat.toDouble())
-                drawLine(gridColor, start = Offset(0f, gy), end = Offset(w, gy), strokeWidth = 1f)
-            }
-
-            // Equator Line (Purple accent)
-            val eqY = mapY(0.0)
-            drawLine(
-                color = Color(0xFFA855F7).copy(alpha = 0.15f),
-                start = Offset(0f, eqY),
-                end = Offset(w, eqY),
-                strokeWidth = 1.5f
-            )
-
-            // 2. Draw World Continent Landmasses
-            drawWorldContinents(this, w, h, Color(0xFF2A2438))
-
-            // 3. Draw Orbit Track (Past 45m dashed & Future 90m solid)
-            drawOrbitTrack(this, w, h, timestampMs)
-
-            // 4. Draw Pulsing Glowing ISS Marker
-            val mx = mapX(animLon.toDouble())
-            val my = mapY(animLat.toDouble())
-            val center = Offset(mx, my)
-
-            // Outer soft halo glow
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFFA855F7).copy(alpha = 0.40f),
-                        Color(0xFFA855F7).copy(alpha = 0.08f),
-                        Color.Transparent
-                    ),
-                    center = center,
-                    radius = 24.dp.toPx()
-                ),
-                radius = 24.dp.toPx(),
-                center = center
-            )
-
-            // Middle pulse ring
-            drawCircle(
-                color = Color(0xFFA855F7).copy(alpha = 0.30f / pulseScale),
-                radius = 12.dp.toPx() * pulseScale,
-                center = center,
-                style = Stroke(width = 2.dp.toPx())
-            )
-
-            // Inner core
-            drawCircle(
-                brush = Brush.linearGradient(
-                    colors = listOf(Color(0xFFD946EF), Color(0xFFA855F7))
-                ),
-                radius = 7.dp.toPx(),
-                center = center
-            )
-
-            // Center highlight dot
-            drawCircle(
-                color = Color.White,
-                radius = 2.5f.dp.toPx(),
-                center = center
-            )
-        }
-
-        // Overlay Info Panel (Bottom corner pill card)
-        val latDir = if (lat >= 0) "شمالی" else "جنوبی"
-        val lonDir = if (lon >= 0) "شرقی" else "غربی"
-        val coordsText = if (isFa) {
-            "${String.format(Locale.US, "%.1f° %s", abs(lat), latDir)}، ${String.format(Locale.US, "%.1f° %s", abs(lon), lonDir)}".toPersianDigits()
-        } else {
-            String.format(Locale.US, "%.1f°N, %.1f°E", lat, lon)
-        }
-        val altText = if (isFa) "${String.format(Locale.US, "%,.0f", altitudeKm)} کیلومتر".toPersianDigits() else "${String.format(Locale.US, "%,.0f", altitudeKm)} km"
-        val velText = if (isFa) "${String.format(Locale.US, "%,.0f", velocityKmh)} کیلومتر/ساعت".toPersianDigits() else "${String.format(Locale.US, "%,.0f", velocityKmh)} km/h"
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(12.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF0D0B14).copy(alpha = 0.85f))
-                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = "📍 موقعیت: $coordsText",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
-                    color = Color.White
-                )
-                Text(
-                    text = "📏 ارتفاع: $altText",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = Color.White.copy(alpha = 0.85f)
-                )
-                Text(
-                    text = "⚡ سرعت: $velText",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = Color.White.copy(alpha = 0.85f)
-                )
-            }
-        }
+private fun TutorialBullet(title: String, desc: String) {
+    Column {
+        Text(text = title, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = AccentPrimary)
+        Text(text = desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-@Composable
-private fun IssUnavailableCard(
-    onRetry: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(240.dp),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.PublicOff,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(32.dp)
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "موقعیت زنده ایستگاه در دسترس نیست",
-                style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "برای نمایش موقعیت لحظه‌ای به اینترنت نیاز است",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            TextButton(
-                onClick = onRetry,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-            ) {
-                Text(
-                    text = "تلاش مجدد",
-                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun IssLoadingCard() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(240.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(20.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp),
-                strokeWidth = 2.5.dp
-            )
-            Text(
-                text = "در حال دریافت موقعیت زنده...",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-private fun drawWorldContinents(
-    drawScope: androidx.compose.ui.graphics.drawscope.DrawScope,
+// Canvas Helper: Scaled World Continents Rendering
+private fun drawWorldContinentsScaled(
+    drawScope: DrawScope,
     w: Float,
     h: Float,
+    zoom: Float,
+    panX: Float,
+    panY: Float,
     landColor: Color
 ) {
-    fun mapX(lon: Double): Float = ((lon + 180.0) / 360.0 * w).toFloat()
-    fun mapY(lat: Double): Float = ((90.0 - lat) / 180.0 * h).toFloat()
+    fun mapX(lon: Double): Float {
+        val baseX = ((lon + 180.0) / 360.0 * w).toFloat()
+        val centerX = w / 2f
+        return centerX + (baseX - centerX) * zoom + panX
+    }
+
+    fun mapY(lat: Double): Float {
+        val baseY = ((90.0 - lat) / 180.0 * h).toFloat()
+        val centerY = h / 2f
+        return centerY + (baseY - centerY) * zoom + panY
+    }
 
     val continents = listOf(
         // North America
@@ -1310,9 +968,7 @@ private fun drawWorldContinents(
             30.0 to -115.0, 55.0 to -165.0
         ),
         // Greenland
-        listOf(
-            75.0 to -45.0, 82.0 to -30.0, 65.0 to -38.0, 60.0 to -45.0
-        ),
+        listOf(75.0 to -45.0, 82.0 to -30.0, 65.0 to -38.0, 60.0 to -45.0),
         // South America
         listOf(
             10.0 to -75.0, 5.0 to -50.0, -10.0 to -35.0, -23.0 to -42.0,
@@ -1343,9 +999,7 @@ private fun drawWorldContinents(
             -38.0 to 148.0, -35.0 to 117.0, -20.0 to 114.0
         ),
         // Antarctica
-        listOf(
-            -65.0 to -180.0, -65.0 to 180.0, -90.0 to 180.0, -90.0 to -180.0
-        )
+        listOf(-65.0 to -180.0, -65.0 to 180.0, -90.0 to 180.0, -90.0 to -180.0)
     )
 
     for (polygon in continents) {
@@ -1360,146 +1014,99 @@ private fun drawWorldContinents(
     }
 }
 
-private fun drawOrbitTrack(
-    drawScope: androidx.compose.ui.graphics.drawscope.DrawScope,
+// Canvas Helper: Dynamic Day/Night Terminator Shade
+private fun drawDayNightTerminator(
+    drawScope: DrawScope,
     w: Float,
     h: Float,
-    currentTimestampMs: Long
+    zoom: Float,
+    panX: Float,
+    panY: Float,
+    subSolarPoint: SubSolarPoint
 ) {
-    fun mapX(lon: Double): Float = ((lon + 180.0) / 360.0 * w).toFloat()
-    fun mapY(lat: Double): Float = ((90.0 - lat) / 180.0 * h).toFloat()
-
-    val pastPath = Path()
-    val futurePath = Path()
-
-    var prevLon: Double? = null
-    var isPastNewSection = true
-    var isFutureNewSection = true
-
-    val stepMs = 2 * 60 * 1000L
-    val startMs = currentTimestampMs - 45 * 60 * 1000L
-    val endMs = currentTimestampMs + 90 * 60 * 1000L
-
-    var t = startMs
-    while (t <= endMs) {
-        val pos = ISSEngine.calculateTopocentricPos(t, 0.0, 0.0)
-        val lat = pos.subLatDeg
-        val lon = pos.subLonDeg
-
-        val isPast = t <= currentTimestampMs
-        val targetPath = if (isPast) pastPath else futurePath
-
-        if (prevLon != null && abs(lon - prevLon) > 180.0) {
-            if (isPast) isPastNewSection = true else isFutureNewSection = true
-        }
-
-        val px = mapX(lon)
-        val py = mapY(lat)
-
-        val isNewSection = if (isPast) isPastNewSection else isFutureNewSection
-        if (isNewSection) {
-            targetPath.moveTo(px, py)
-            if (isPast) isPastNewSection = false else isFutureNewSection = false
-        } else {
-            targetPath.lineTo(px, py)
-        }
-
-        prevLon = lon
-        t += stepMs
+    fun mapX(lon: Double): Float {
+        val baseX = ((lon + 180.0) / 360.0 * w).toFloat()
+        val centerX = w / 2f
+        return centerX + (baseX - centerX) * zoom + panX
     }
 
-    // Past track: Dashed line
-    drawScope.drawPath(
-        path = pastPath,
-        color = Color(0xFFA855F7).copy(alpha = 0.35f),
-        style = Stroke(
-            width = 3f,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 12f))
-        )
-    )
+    fun mapY(lat: Double): Float {
+        val baseY = ((90.0 - lat) / 180.0 * h).toFloat()
+        val centerY = h / 2f
+        return centerY + (baseY - centerY) * zoom + panY
+    }
 
-    // Future track: Solid line
+    val subLatRad = Math.toRadians(subSolarPoint.latDeg)
+    val tanSubLat = tan(subLatRad)
+
+    val nightPath = Path()
+
+    // Top boundary across map
+    nightPath.moveTo(mapX(-180.0), mapY(90.0))
+    nightPath.lineTo(mapX(180.0), mapY(90.0))
+
+    // Terminator curve from +180 to -180
+    for (lon in 180 downTo -180 step 5) {
+        val dLonRad = Math.toRadians(lon - subSolarPoint.lonDeg)
+        val termLatRad = atan(-cos(dLonRad) / if (abs(tanSubLat) < 1e-4) 1e-4 else tanSubLat)
+        val termLatDeg = Math.toDegrees(termLatRad)
+
+        val tx = mapX(lon.toDouble())
+        val ty = mapY(termLatDeg)
+        nightPath.lineTo(tx, ty)
+    }
+
+    nightPath.close()
+
     drawScope.drawPath(
-        path = futurePath,
-        color = Color(0xFFA855F7).copy(alpha = 0.55f),
-        style = Stroke(width = 3.5f)
+        path = nightPath,
+        color = Color(0xBB0B1021)
     )
 }
 
-private suspend fun fetchLiveIssPosition(context: Context): IssLiveResult = withContext(Dispatchers.IO) {
-    val isConnected = try {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-        val activeNet = cm?.activeNetwork
-        val caps = cm?.getNetworkCapabilities(activeNet)
-        caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
-    } catch (e: Exception) {
-        true
+// Canvas Helper: Night-Side City Lights
+private fun drawNightCityLights(
+    drawScope: DrawScope,
+    w: Float,
+    h: Float,
+    zoom: Float,
+    panX: Float,
+    panY: Float,
+    subSolarPoint: SubSolarPoint
+) {
+    fun mapX(lon: Double): Float {
+        val baseX = ((lon + 180.0) / 360.0 * w).toFloat()
+        val centerX = w / 2f
+        return centerX + (baseX - centerX) * zoom + panX
     }
 
-    if (!isConnected) {
-        return@withContext IssLiveResult.Failure("No Internet Connection")
+    fun mapY(lat: Double): Float {
+        val baseY = ((90.0 - lat) / 180.0 * h).toFloat()
+        val centerY = h / 2f
+        return centerY + (baseY - centerY) * zoom + panY
     }
 
-    // 1. Primary API: wheretheiss.at
-    try {
-        val url = URL("https://api.wheretheiss.at/v1/satellites/25544")
-        val conn = (url.openConnection() as HttpURLConnection).apply {
-            connectTimeout = 4000
-            readTimeout = 4000
-            requestMethod = "GET"
-        }
-        if (conn.responseCode == 200) {
-            val jsonText = conn.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(jsonText)
-            val lat = json.getDouble("latitude")
-            val lon = json.getDouble("longitude")
-            val altKm = json.optDouble("altitude", 418.0)
-            val velKmh = json.optDouble("velocity", 27600.0)
-            val tsSec = json.optLong("timestamp", System.currentTimeMillis() / 1000)
-            val tsMs = tsSec * 1000L
+    val subLatRad = Math.toRadians(subSolarPoint.latDeg)
 
-            if (lat in -90.0..90.0 && lon in -180.0..180.0) {
-                val ageMs = abs(System.currentTimeMillis() - tsMs)
-                if (ageMs < 30000) {
-                    return@withContext IssLiveResult.Success(lat, lon, altKm, velKmh, tsMs)
-                }
+    for (city in SatelliteEngine.majorCityLights) {
+        val cLatRad = Math.toRadians(city.lat)
+        val dLonRad = Math.toRadians(city.lon - subSolarPoint.lonDeg)
+
+        // Spherical zenith angle cosine cosPsi
+        val cosPsi = sin(cLatRad) * sin(subLatRad) + cos(cLatRad) * cos(subLatRad) * cos(dLonRad)
+
+        if (cosPsi < 0.0) { // On night side
+            val alpha = min(1.0f, (abs(cosPsi) / 0.15f).toFloat())
+            val cx = mapX(city.lon)
+            val cy = mapY(city.lat)
+
+            if (cx in 0f..w && cy in 0f..h) {
+                drawScope.drawCircle(
+                    color = Color(0xFFFFC107).copy(alpha = 0.8f * alpha),
+                    radius = city.sizeDp * zoom * 0.8f,
+                    center = Offset(cx, cy)
+                )
             }
         }
-    } catch (e: Exception) {
-        // Fallback to open-notify
     }
-
-    // 2. Backup API: open-notify.org
-    try {
-        val url2 = URL("http://api.open-notify.org/iss-now.json")
-        val conn2 = (url2.openConnection() as HttpURLConnection).apply {
-            connectTimeout = 4000
-            readTimeout = 4000
-            requestMethod = "GET"
-        }
-        if (conn2.responseCode == 200) {
-            val jsonText = conn2.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(jsonText)
-            val pos = json.getJSONObject("iss_position")
-            val lat = pos.getString("latitude").toDouble()
-            val lon = pos.getString("longitude").toDouble()
-            val tsSec = json.optLong("timestamp", System.currentTimeMillis() / 1000)
-            val tsMs = tsSec * 1000L
-
-            if (lat in -90.0..90.0 && lon in -180.0..180.0) {
-                return@withContext IssLiveResult.Success(lat, lon, 418.0, 27600.0, tsMs)
-            }
-        }
-    } catch (e2: Exception) {
-        // Both APIs failed
-    }
-
-    return@withContext IssLiveResult.Failure("APIs Unreachable")
-}
-
-private fun getAzimuthCardinal(azimuthDeg: Double, isFa: Boolean): String {
-    val en = arrayOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")
-    val fa = arrayOf("شمال", "شمال‌شرق", "شرق", "جنوب‌شرق", "جنوب", "جنوب‌غرب", "غرب", "شمال‌غرب")
-    val idx = (((azimuthDeg + 22.5) % 360) / 45.0).toInt().coerceIn(0, 7)
-    return if (isFa) fa[idx] else en[idx]
 }
