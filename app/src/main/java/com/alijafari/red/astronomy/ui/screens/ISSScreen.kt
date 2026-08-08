@@ -1,6 +1,8 @@
 package com.alijafari.red.astronomy.ui.screens
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,10 +54,19 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
 import com.alijafari.red.astronomy.ui.theme.AccentPrimary
 import com.alijafari.red.astronomy.util.toPersianDigits
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.*
+
+private fun isNetworkAvailable(context: Context): Boolean {
+    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
+    val network = cm.activeNetwork ?: return false
+    val capabilities = cm.getNetworkCapabilities(network) ?: return false
+    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+}
 
 enum class MapTheme {
     DARK,
@@ -70,6 +81,7 @@ fun ISSScreen(
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
     val context = LocalContext.current
+    val isOnline = remember(context) { isNetworkAvailable(context) }
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
 
@@ -239,6 +251,32 @@ fun ISSScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        if (!isOnline) {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.WifiOff,
+                                        contentDescription = "Offline",
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = if (isFa) "آفلاین" else "Offline",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+
                         // Notification Alert Toggle
                         IconButton(
                             onClick = { showLeadTimeSelectionDialog = true },
@@ -805,16 +843,16 @@ fun ISSScreen(
                         }
                     }
 
-                    // Time Slider (-12h to +12h, 5-minute steps)
+                    // Time Slider (-12h to +12h, 1-minute steps)
                     Slider(
                         value = timeOffsetHours,
                         onValueChange = { raw ->
-                            val stepHours = 5.0 / 60.0 // 5 minutes step
+                            val stepHours = 1.0 / 60.0 // 1 minute step
                             val rounded = (round(raw / stepHours) * stepHours).toFloat()
                             timeOffsetHours = rounded
                         },
                         valueRange = -12f..12f,
-                        steps = 287,
+                        steps = 1439,
                         colors = SliderDefaults.colors(
                             thumbColor = AccentPrimary,
                             activeTrackColor = AccentPrimary
@@ -854,16 +892,25 @@ fun ISSScreen(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            val upcomingPasses = remember(currentSimulationMs, uiState.userLocation, targetSat) {
-                ISSEngine.predictPasses(
-                    userLatDeg = uiState.userLocation.latitude,
-                    userLonDeg = uiState.userLocation.longitude,
-                    startTimestampMs = currentSimulationMs,
-                    tle = targetSat.defaultTle,
-                    scanDays = 3,
-                    visibleOnly = true,
-                    standardMag = targetSat.standardMagnitude
-                )
+            var upcomingPasses by remember(currentSimulationMs, uiState.userLocation, targetSat.id) {
+                mutableStateOf<List<ISSEngine.ISSPass>>(emptyList())
+            }
+
+            LaunchedEffect(currentSimulationMs, uiState.userLocation, targetSat.id) {
+                withContext(Dispatchers.Default) {
+                    val result = ISSEngine.predictPasses(
+                        userLatDeg = uiState.userLocation.latitude,
+                        userLonDeg = uiState.userLocation.longitude,
+                        startTimestampMs = currentSimulationMs,
+                        tle = targetSat.defaultTle,
+                        scanDays = 3,
+                        visibleOnly = true,
+                        standardMag = targetSat.standardMagnitude
+                    )
+                    withContext(Dispatchers.Main) {
+                        upcomingPasses = result
+                    }
+                }
             }
 
             if (upcomingPasses.isEmpty()) {

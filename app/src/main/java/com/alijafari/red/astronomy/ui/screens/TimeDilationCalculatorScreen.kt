@@ -756,7 +756,7 @@ fun TimeDilationCalculatorScreen(
                                 // Earth Frame Time Card
                                 ResultComparisonTile(
                                     modifier = Modifier.weight(1f),
-                                    title = if (isFa) "دستگاه مرجع زمین" else "Earth / Ref. Frame",
+                                    title = if (isFa) "زمان از دید ساکنان زمین" else "Earth / Ref. Frame",
                                     timeValueStr = RelativisticEngine.formatDuration(journeyResult.earthTimeSeconds, isFa),
                                     badgeText = if (isFa) "زمان ناظر ساکن (t)" else "Coordinate Time (t)",
                                     accentColor = MaterialTheme.colorScheme.primary
@@ -765,7 +765,7 @@ fun TimeDilationCalculatorScreen(
                                 // Traveller Proper Time Card
                                 ResultComparisonTile(
                                     modifier = Modifier.weight(1f),
-                                    title = if (isFa) "ساعت مسافر fضا" else "Traveller Proper",
+                                    title = if (isFa) "زمان از دید مسافر" else "Traveller Proper",
                                     timeValueStr = RelativisticEngine.formatDuration(journeyResult.travellerTimeSeconds, isFa),
                                     badgeText = if (isFa) "زمان اختصاصی (τ)" else "Proper Time (τ)",
                                     accentColor = AccentPrimary

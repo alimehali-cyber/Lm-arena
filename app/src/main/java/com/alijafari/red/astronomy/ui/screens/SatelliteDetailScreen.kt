@@ -1,7 +1,10 @@
 package com.alijafari.red.astronomy.ui.screens
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -32,7 +35,16 @@ import com.alijafari.red.astronomy.ui.theme.AccentPrimary
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.max
+
+private fun isNetworkAvailable(context: Context): Boolean {
+    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
+    val network = cm.activeNetwork ?: return false
+    val capabilities = cm.getNetworkCapabilities(network) ?: return false
+    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,8 +55,14 @@ fun SatelliteDetailScreen(
     onBack: () -> Unit,
     simulationTimestampMs: Long = System.currentTimeMillis()
 ) {
+    // Intercept system back press
+    BackHandler(enabled = true) {
+        onBack()
+    }
+
     val isFa = language == AppLanguage.PERSIAN
     val context = LocalContext.current
+    val isOnline = remember(context) { isNetworkAvailable(context) }
 
     val state = remember(satelliteItem, simulationTimestampMs, userLocation) {
         SatelliteEngine.calculateSatelliteState(
@@ -55,19 +73,26 @@ fun SatelliteDetailScreen(
         )
     }
 
-    val passes = remember(satelliteItem, userLocation, simulationTimestampMs) {
-        ISSEngine.predictPasses(
-            userLatDeg = userLocation.latitude,
-            userLonDeg = userLocation.longitude,
-            startTimestampMs = simulationTimestampMs,
-            tle = satelliteItem.defaultTle,
-            scanDays = 7,
-            visibleOnly = true,
-            standardMag = satelliteItem.standardMagnitude
-        )
+    var passes by remember(satelliteItem.id, userLocation, simulationTimestampMs) {
+        mutableStateOf<List<ISSEngine.ISSPass>>(emptyList())
     }
 
-    val nextPass = passes.firstOrNull()
+    LaunchedEffect(satelliteItem.id, userLocation, simulationTimestampMs) {
+        withContext(Dispatchers.Default) {
+            val result = ISSEngine.predictPasses(
+                userLatDeg = userLocation.latitude,
+                userLonDeg = userLocation.longitude,
+                startTimestampMs = simulationTimestampMs,
+                tle = satelliteItem.defaultTle,
+                scanDays = 7,
+                visibleOnly = true,
+                standardMag = satelliteItem.standardMagnitude
+            )
+            withContext(Dispatchers.Main) {
+                passes = result
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -116,6 +141,32 @@ fun SatelliteDetailScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                    }
+
+                    if (!isOnline) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.WifiOff,
+                                    contentDescription = "Offline",
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (isFa) "آفلاین" else "Offline",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
                         }
                     }
                 }
@@ -202,35 +253,6 @@ fun SatelliteDetailScreen(
                         color = Color.White.copy(alpha = 0.85f)
                     )
                 }
-            }
-
-            // 2. COMPACT VISUAL TIMELINE COMPONENT FOR NEXT VISIBLE PASS
-            if (nextPass != null) {
-                Text(
-                    text = if (isFa) "خط زمانی گذر بعدی بر فراز شما" else "Next Visible Pass Timeline",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                NextPassTimelineProgressBar(
-                    pass = nextPass,
-                    nowMs = simulationTimestampMs,
-                    isFa = isFa,
-                    onScheduleReminder = {
-                        AstroNotificationManager.scheduleSpecificPassAlarm(
-                            context = context,
-                            satName = if (isFa) satelliteItem.nameFa else satelliteItem.nameEn,
-                            pass = nextPass,
-                            cityName = userLocation.cityNameFa,
-                            leadMinutes = 10
-                        )
-                        Toast.makeText(
-                            context,
-                            if (isFa) "هشدار ۱۰ دقیقه قبل از گذر تنظیم شد!" else "Alert set 10 mins prior to pass!",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                )
             }
 
             // UPCOMING VISIBLE PASSES PREDICTIONS LIST (Chronological Order)
@@ -394,88 +416,6 @@ fun SatelliteDetailScreen(
                                 }
                             }
                         }
-                    }
-                }
-            }
-
-            // 4. Real-Time Position Telemetry
-            Text(
-                text = if (isFa) "موقعیت و پارامترهای مداری زنده" else "Live Position & Orbital Parameters",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            val topo = state.topocentric
-            val topoLat = String.format(Locale.US, "%.4f°", topo.subLatDeg)
-            val topoLon = String.format(Locale.US, "%.4f°", topo.subLonDeg)
-            val topoAlt = String.format(Locale.US, "%.1f km", topo.satAltKm)
-            val topoSpeed = String.format(Locale.US, "%.2f km/s", topo.velocityKmS)
-            val topoAz = String.format(Locale.US, "%.1f°", topo.azimuthDeg)
-            val topoEl = String.format(Locale.US, "%.1f°", topo.elevationDeg)
-            val topoDist = String.format(Locale.US, "%.1f km", topo.rangeKm)
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TelemetryItem(
-                            label = if (isFa) "عرض جغرافیایی" else "Sub-Lat",
-                            value = if (isFa) topoLat.toPersianDigits() else topoLat
-                        )
-                        TelemetryItem(
-                            label = if (isFa) "طول جغرافیایی" else "Sub-Lon",
-                            value = if (isFa) topoLon.toPersianDigits() else topoLon
-                        )
-                        TelemetryItem(
-                            label = if (isFa) "ارتفاع مداری" else "Altitude",
-                            value = if (isFa) topoAlt.toPersianDigits() else topoAlt
-                        )
-                    }
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TelemetryItem(
-                            label = if (isFa) "سرعت مداری" else "Velocity",
-                            value = if (isFa) topoSpeed.toPersianDigits() else topoSpeed
-                        )
-                        TelemetryItem(
-                            label = if (isFa) "زاویه سمت (Azimuth)" else "Azimuth",
-                            value = if (isFa) topoAz.toPersianDigits() else topoAz
-                        )
-                        TelemetryItem(
-                            label = if (isFa) "زاویه ارتفاع (Elevation)" else "Elevation",
-                            value = if (isFa) topoEl.toPersianDigits() else topoEl
-                        )
-                    }
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        TelemetryItem(
-                            label = if (isFa) "فاصله از ناظر" else "Range to Observer",
-                            value = if (isFa) topoDist.toPersianDigits() else topoDist
-                        )
-                        TelemetryItem(
-                            label = if (isFa) "وضعیت تابش" else "Illumination",
-                            value = if (topo.isSunlit) (if (isFa) "روشن (خورشید)" else "Sunlit") else (if (isFa) "در سایه زمین" else "In Shadow")
-                        )
                     }
                 }
             }

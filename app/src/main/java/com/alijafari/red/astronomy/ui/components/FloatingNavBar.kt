@@ -38,6 +38,7 @@ data class NavItem(
     val titleRes: Int,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
+    val targetTabIndex: Int,
     val testTag: String
 )
 
@@ -48,11 +49,11 @@ fun FloatingBottomBar(
     modifier: Modifier = Modifier
 ) {
     val navItems = listOf(
-        NavItem(R.string.nav_lab, Icons.Default.Science, Icons.Outlined.Science, "nav_item_lab"),
-        NavItem(R.string.nav_satellites, Icons.Default.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
-        NavItem(R.string.nav_moon, Icons.Default.NightlightRound, Icons.Outlined.Nightlight, "nav_item_moon"),
-        NavItem(R.string.nav_arsky, Icons.Default.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
-        NavItem(R.string.nav_home, Icons.Default.Home, Icons.Outlined.Home, "nav_item_home")
+        NavItem(R.string.nav_home, Icons.Default.Home, Icons.Outlined.Home, 4, "nav_item_home"),
+        NavItem(R.string.nav_arsky, Icons.Default.Explore, Icons.Outlined.Explore, 3, "nav_item_arsky"),
+        NavItem(R.string.nav_moon, Icons.Default.NightlightRound, Icons.Outlined.Nightlight, 2, "nav_item_moon"),
+        NavItem(R.string.nav_satellites, Icons.Default.SatelliteAlt, Icons.Outlined.SatelliteAlt, 1, "nav_item_satellites"),
+        NavItem(R.string.nav_lab, Icons.Default.Science, Icons.Outlined.Science, 0, "nav_item_lab")
     )
 
     Box(
@@ -85,8 +86,8 @@ fun FloatingBottomBar(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                navItems.forEachIndexed { index, item ->
-                    val isSelected = selectedTab == index
+                navItems.forEach { item ->
+                    val isSelected = selectedTab == item.targetTabIndex
                     val activeColor by animateColorAsState(
                         targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         label = "NavColor"
@@ -101,7 +102,7 @@ fun FloatingBottomBar(
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
-                            ) { onTabSelected(index) }
+                            ) { onTabSelected(item.targetTabIndex) }
                             .testTag(item.testTag)
                     ) {
                         Box(
