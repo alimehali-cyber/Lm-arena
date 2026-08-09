@@ -5,7 +5,37 @@ import kotlin.math.*
 object CoordinateEngine {
 
     data class Equatorial(val raDeg: Double, val decDeg: Double)
-    data class Horizontal(val azimuthDeg: Double, val altitudeDeg: Double)
+    data class Horizontal(val azimuthDeg: Double, val altitudeDeg: Double) {
+        val azimuthCompassNameEn: String
+            get() {
+                val a = (azimuthDeg % 360.0 + 360.0) % 360.0
+                return when {
+                    a < 22.5 || a >= 337.5 -> "North"
+                    a < 67.5 -> "Northeast"
+                    a < 112.5 -> "East"
+                    a < 157.5 -> "Southeast"
+                    a < 202.5 -> "South"
+                    a < 247.5 -> "Southwest"
+                    a < 292.5 -> "West"
+                    else -> "Northwest"
+                }
+            }
+
+        val azimuthCompassNameFa: String
+            get() {
+                val a = (azimuthDeg % 360.0 + 360.0) % 360.0
+                return when {
+                    a < 22.5 || a >= 337.5 -> "شمال"
+                    a < 67.5 -> "شمال‌شرق"
+                    a < 112.5 -> "شرق"
+                    a < 157.5 -> "جنوب‌شرق"
+                    a < 202.5 -> "جنوب"
+                    a < 247.5 -> "جنوب‌غرب"
+                    a < 292.5 -> "غرب"
+                    else -> "شمال‌غرب"
+                }
+            }
+    }
     data class Galactic(val lDeg: Double, val bDeg: Double)
 
     data class Nutation(
@@ -309,5 +339,17 @@ object CoordinateEngine {
             transitTimeStr = transitStr,
             setTimeStr = setStr
         )
+    }
+
+    /**
+     * Calculates the angular separation in degrees between two equatorial points.
+     */
+    fun calculateAngularSeparationDeg(ra1: Double, dec1: Double, ra2: Double, dec2: Double): Double {
+        val r1 = Math.toRadians(ra1)
+        val d1 = Math.toRadians(dec1)
+        val r2 = Math.toRadians(ra2)
+        val d2 = Math.toRadians(dec2)
+        val cosSep = sin(d1) * sin(d2) + cos(d1) * cos(d2) * cos(r1 - r2)
+        return Math.toDegrees(acos(cosSep.coerceIn(-1.0, 1.0)))
     }
 }

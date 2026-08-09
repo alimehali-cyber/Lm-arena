@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -40,8 +41,6 @@ import com.alijafari.red.astronomy.ui.components.HeroSkyCanvas
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Calendar
-
-import androidx.compose.ui.text.font.FontFamily
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,21 +61,9 @@ fun HomeScreen(
     val sunHoriz = remember(lastDeg, uiState.userLocation) {
         CoordinateEngine.equatorialToHorizontal(sunEquatorial, lastDeg, uiState.userLocation.latitude)
     }
-    val twilight = remember(sunHoriz) { SunEngine.getTwilightPhase(sunHoriz.altitudeDeg) }
 
     // Moon data
     val moonData = remember(jd) { MoonEngine.calculateMoon(jd) }
-
-    // Sun events in Tehran Time Zone
-    val sunEvents = remember(uiState.userLocation) {
-        SunEngine.calculateSunEvents(uiState.userLocation.latitude, uiState.userLocation.longitude)
-    }
-
-    val peakDarkText = remember(sunEvents, isFa) {
-        val startStr = sunEvents.astronomicalDuskMs?.let { TimeEngine.formatTime24h(it, isFa) } ?: "20:28"
-        val endStr = sunEvents.astronomicalDawnMs?.let { TimeEngine.formatTime24h(it, isFa) } ?: "03:56"
-        if (isFa) "$startStr تا $endStr" else "$startStr - $endStr"
-    }
 
     val allObjects = remember(jd) { AstronomyCatalog.getAllObjects(jd) }
 
@@ -104,16 +91,9 @@ fun HomeScreen(
                 .thenByDescending { it.second.altitudeDeg })
     }
 
-    // Overall quality score
-    val overallQualityPercent = remember(sortedObjectsWithObs) {
-        val top10Avg = sortedObjectsWithObs.take(10).map { it.third.scorePercent }.average().toInt()
-        if (top10Avg in 1..100) top10Avg else 88
-    }
-
     // Astronomy Predictive Search State
     var searchQuery by remember { mutableStateOf("") }
 
-    // Predictive search filter logic across all categories simultaneously
     val filteredSearchResults = remember(searchQuery, sortedObjectsWithObs) {
         val q = searchQuery.trim().lowercase()
         sortedObjectsWithObs.filter { (obj, _, _) ->
@@ -135,7 +115,7 @@ fun HomeScreen(
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 0. TOP APP BAR — Elevated Header Bar with RED in Jersey 25
+        // 0. TOP APP BAR — Header Bar
         item {
             Row(
                 modifier = Modifier
@@ -242,8 +222,86 @@ fun HomeScreen(
             )
         }
 
-        // 2. TONIGHT'S HIGHLIGHTS CARD — "خب امشب چی داریم؟" (What's Tonight?)
+        // 2. NEXT ECLIPSES CARD — Compact scientific eclipse predictions for user location
         item {
+            val (solarEclipse, lunarEclipse) = remember(uiState.userLocation) {
+                EclipseEngine.getNextEclipses(
+                    nowMs = System.currentTimeMillis(),
+                    userLatDeg = uiState.userLocation.latitude,
+                    userLonDeg = uiState.userLocation.longitude
+                )
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("home_next_eclipses_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(text = "🌘", fontSize = 18.sp)
+                            Text(
+                                text = if (isFa) "رویدادهای گرفتگی بعدی (کسوف و خسوف)" else "Next Eclipses",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Text(
+                            text = if (isFa) "محاسبه بر اساس موقعیت جغرافیایی دقیق شما" else "Calculated for your exact location",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Solar Eclipse Item
+                    EclipseItemRow(
+                        icon = "☀️",
+                        title = if (isFa) solarEclipse.event.nameFa else solarEclipse.event.nameEn,
+                        dateStr = if (isFa) solarEclipse.formattedDateFa else solarEclipse.formattedDateEn,
+                        visibilityInfo = if (isFa) solarEclipse.localVisibilityTextFa else solarEclipse.localVisibilityTextEn,
+                        isLocallyVisible = solarEclipse.isLocallyVisible,
+                        isFa = isFa
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                    // Lunar Eclipse Item
+                    EclipseItemRow(
+                        icon = "🌕",
+                        title = if (isFa) lunarEclipse.event.nameFa else lunarEclipse.event.nameEn,
+                        dateStr = if (isFa) lunarEclipse.formattedDateFa else lunarEclipse.formattedDateEn,
+                        visibilityInfo = if (isFa) lunarEclipse.localVisibilityTextFa else lunarEclipse.localVisibilityTextEn,
+                        isLocallyVisible = lunarEclipse.isLocallyVisible,
+                        isFa = isFa
+                    )
+                }
+            }
+        }
+
+        // 3. WHAT'S UP TONIGHT? CARD — Intelligently ranked events tonight
+        item {
+            val tonightEvents = remember(uiState.userLocation, jd, isFa) {
+                WhatsUpTonightEngine.calculateTonightEvents(
+                    jd = jd,
+                    userLatDeg = uiState.userLocation.latitude,
+                    userLonDeg = uiState.userLocation.longitude,
+                    isFa = isFa
+                )
+            }
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -255,7 +313,7 @@ fun HomeScreen(
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -263,83 +321,50 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
+                            Text(text = "✨", fontSize = 18.sp)
                             Text(
-                                text = "✨",
-                                fontSize = 18.sp
-                            )
-                            Text(
-                                text = if (isFa) "خب امشب چی داریم؟" else "Tonight's Highlights",
+                                text = if (isFa) "امشب در آسمان چی داریم؟" else "What's Up Tonight?",
                                 style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Text(
-                            text = if (isFa) "پیشنهادهای هوشمند رصدی بر اساس وضعیت آسمان و موقعیت جغرافیایی شما"
-                            else "Smart observation recommendations based on sky conditions and location",
+                            text = if (isFa) "مهم‌ترین رویدادهای نجومی امشب بر اساس اولویت رصدی در موقعیت شما"
+                            else "Top ranked astronomical events occurring tonight for your location",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
 
-                    // Curated dynamic observation items matching real objects
-                    val highlightObjects = remember(sortedObjectsWithObs) {
-                        sortedObjectsWithObs.take(4)
-                    }
-
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        highlightObjects.forEach { (obj, horiz, obs) ->
-                            val icon = when (obj.type) {
-                                ObjectType.PLANET -> "🪐"
-                                ObjectType.MOON -> "🌙"
-                                ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA, ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> "🌌"
-                                ObjectType.STAR, ObjectType.ASTERISM -> "⭐"
-                                ObjectType.SATELLITE -> "🛰️"
-                                ObjectType.SUN -> "☀️"
-                                ObjectType.METEOR_SHOWER -> "☄️"
-                                ObjectType.CONSTELLATION -> "✨"
-                                ObjectType.REFERENCE_POINT -> "📍"
+                    if (tonightEvents.isEmpty()) {
+                        Text(
+                            text = if (isFa) "امشب رویداد نجومی ویژه‌ای ثبت نشده است." else "No special astronomical events tonight.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            tonightEvents.take(5).forEach { event ->
+                                TonightEventRow(
+                                    event = event,
+                                    isFa = isFa,
+                                    onClick = {
+                                        event.targetObject?.let { obj ->
+                                            viewModel.openObjectDetail(obj)
+                                        }
+                                    }
+                                )
                             }
-
-                            val magStr = String.format("%.1f", obj.magnitude)
-                            val titleText = if (isFa) {
-                                "${obj.nameFa} — قدر ${magStr}".toPersianDigits()
-                            } else {
-                                "${obj.nameEn} — Mag ${magStr}"
-                            }
-
-                            val altInt = horiz.altitudeDeg.toInt()
-                            val subtitleText = if (isFa) {
-                                "در ارتفاع ${altInt}° — ${obs.level.nameFa}".toPersianDigits()
-                            } else {
-                                "Alt ${altInt}° — ${obs.level.nameEn}"
-                            }
-
-                            val badgeText = when {
-                                obj.magnitude < 3.0 -> if (isFa) "چشم غیرمسلح" else "Naked Eye"
-                                obj.magnitude < 7.0 -> if (isFa) "دوربین دوچشمی" else "Binoculars"
-                                else -> if (isFa) "تلسکوپ" else "Telescope"
-                            }
-
-                            ObservationItemRow(
-                                data = ObservationItemData(
-                                    icon = icon,
-                                    title = titleText,
-                                    subtitle = subtitleText,
-                                    badgeText = badgeText
-                                ),
-                                onClick = {
-                                    viewModel.openObjectDetail(obj)
-                                }
-                            )
                         }
                     }
                 }
             }
         }
 
-        // 3. INTERACTIVE ASTRONOMY SEARCH BAR WITH PREDICTIVE OPTIONS (AT BOTTOM OF HOME SCREEN)
+        // 4. INTERACTIVE ASTRONOMY SEARCH BAR WITH PREDICTIVE OPTIONS
         item {
             Card(
                 modifier = Modifier
@@ -355,7 +380,6 @@ fun HomeScreen(
                     modifier = Modifier.padding(18.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Header Title
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -374,7 +398,6 @@ fun HomeScreen(
                         )
                     }
 
-                    // Modern Predictive Search Input
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
@@ -416,7 +439,6 @@ fun HomeScreen(
                         )
                     )
 
-                    // Predictive Search Suggestion Options List
                     val displayedPredictiveItems = remember(filteredSearchResults) {
                         filteredSearchResults.take(6)
                     }
@@ -522,61 +544,7 @@ fun HomeScreen(
             }
         }
 
-        // 4. QUICK ACCESS ROW — Lab, Satellites, Moon & AR Sky buttons
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("home_quick_access_row_1"),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Button 1: Lab
-                    QuickAccessButton(
-                        modifier = Modifier.weight(1f),
-                        icon = "🧪",
-                        label = if (isFa) "آزمایشگاه" else stringResource(R.string.nav_lab),
-                        testTag = "quick_access_lab",
-                        onClick = { onNavigateToTab(0) }
-                    )
-
-                    // Button 2: Satellites
-                    QuickAccessButton(
-                        modifier = Modifier.weight(1f),
-                        icon = "🛰",
-                        label = if (isFa) "ماهواره‌ها" else stringResource(R.string.nav_satellites),
-                        testTag = "quick_access_satellites",
-                        onClick = { onNavigateToTab(1) }
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("home_quick_access_row_2"),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Button 3: Moon
-                    QuickAccessButton(
-                        modifier = Modifier.weight(1f),
-                        icon = "🌙",
-                        label = if (isFa) "وضعیت ماه" else stringResource(R.string.nav_moon),
-                        testTag = "quick_access_moon",
-                        onClick = { onNavigateToTab(2) }
-                    )
-
-                    // Button 4: AR Sky
-                    QuickAccessButton(
-                        modifier = Modifier.weight(1f),
-                        icon = "🧭",
-                        label = if (isFa) "آسمان AR" else stringResource(R.string.nav_arsky),
-                        testTag = "quick_access_arsky",
-                        onClick = { onNavigateToTab(3) }
-                    )
-                }
-            }
-        }
-
-        // 5. Bottom spacing to clear floating nav bar
+        // Bottom spacing to clear floating nav bar
         item {
             Spacer(modifier = Modifier.height(80.dp))
         }
@@ -584,179 +552,136 @@ fun HomeScreen(
 }
 
 @Composable
-private fun InfoTile(
-    modifier: Modifier = Modifier,
-    icon: ImageVector,
-    label: String,
-    value: String,
-    valueColor: Color = TextPrimary
+private fun EclipseItemRow(
+    icon: String,
+    title: String,
+    dateStr: String,
+    visibilityInfo: String,
+    isLocallyVisible: Boolean,
+    isFa: Boolean
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = Color(0x0FFFFFFF), // rgba(255,255,255,0.06)
-        border = BorderStroke(1.dp, CardBorder)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.weight(1f)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = TextSecondary,
-                    modifier = Modifier.size(18.dp)
+            Text(text = icon, fontSize = 22.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = dateStr,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = AccentPrimary
+                )
+                Text(
+                    text = visibilityInfo,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = if (isLocallyVisible) StatusExcellent.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f)
+        ) {
             Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                color = valueColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                text = if (isLocallyVisible) (if (isFa) "قابل رصد" else "Locally Visible") else (if (isFa) "غیرقابل رصد" else "Not Visible"),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                color = if (isLocallyVisible) StatusExcellent else Color.Gray
             )
         }
     }
 }
 
-private data class ObservationItemData(
-    val icon: String,
-    val title: String,
-    val subtitle: String,
-    val badgeText: String
-)
-
 @Composable
-private fun ObservationItemRow(
-    data: ObservationItemData,
+private fun TonightEventRow(
+    event: WhatsUpTonightEngine.TonightEvent,
+    isFa: Boolean,
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                // Icon Circle
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
-                                )
-                            )
-                        )
-                ) {
-                    Text(
-                        text = data.icon,
-                        fontSize = 18.sp
-                    )
-                }
-
+                Text(text = event.icon, fontSize = 20.sp)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = data.title,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        text = if (isFa) event.titleFa else event.titleEn,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = data.subtitle,
+                        text = if (isFa) event.explanationFa else event.explanationEn,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isFa) event.timeOrDateStrFa else event.timeOrDateStrEn,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = AccentPrimary
+                        )
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (isFa) event.visibilityTextFa else event.visibilityTextEn,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            val (badgeText, badgeColor) = when (event.visibilityStatus) {
+                WhatsUpTonightEngine.EventVisibilityStatus.OPTIMAL -> Pair(if (isFa) "عالی" else "Optimal", StatusExcellent)
+                WhatsUpTonightEngine.EventVisibilityStatus.GOOD -> Pair(if (isFa) "خوب" else "Good", StatusGood)
+                WhatsUpTonightEngine.EventVisibilityStatus.MARGINAL -> Pair(if (isFa) "متوسط" else "Marginal", Color(0xFFFFB703))
+                WhatsUpTonightEngine.EventVisibilityStatus.NOT_VISIBLE -> Pair(if (isFa) "غیرقابل رصد" else "Not Visible", Color.Gray)
+            }
 
-            // Equipment Badge
             Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                shape = RoundedCornerShape(8.dp),
+                color = badgeColor.copy(alpha = 0.15f)
             ) {
                 Text(
-                    text = data.badgeText,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    text = badgeText,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary
+                    color = badgeColor
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun QuickAccessButton(
-    modifier: Modifier = Modifier,
-    icon: String,
-    label: String,
-    testTag: String,
-    onClick: () -> Unit
-) {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioLowBouncy),
-        label = "BtnScale"
-    )
-
-    Surface(
-        modifier = modifier
-            .height(58.dp)
-            .scale(scale)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .testTag(testTag),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = icon,
-                fontSize = 20.sp
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
         }
     }
 }
