@@ -335,7 +335,7 @@ fun HeroSkyCanvas(
 
                         // Emit Stardust particles along finger path styled by active theme
                         val particleColor = when (uiState.skyCanvasTheme) {
-                            SkyCanvasTheme.COSMIC_PREMIUM -> if (Random.nextBoolean()) Color(0xFF2DD4BF) else Color(0xFFFBBF24)
+                            SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> if (Random.nextBoolean()) Color(0xFF2DD4BF) else Color(0xFFFBBF24)
                             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
                             SkyCanvasTheme.KIDS_WATERCOLOR -> if (Random.nextBoolean()) Color(0xFFFF85A1) else Color(0xFF70D6FF)
                             SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
@@ -361,10 +361,13 @@ fun HeroSkyCanvas(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val canvasW = size.width
             val canvasH = size.height
+            val horizonY = canvasH * 0.72f
+            val topMargin = 24.dp.toPx()
+            val scale = (horizonY - topMargin) / 90.0f
 
-            val sunPosPx = if (sunHoriz.altitudeDeg > -10.0) {
+            val sunPosPx = if (sunHoriz.altitudeDeg > -12.0) {
                 val sunX = (sunHoriz.azimuthDeg / 360.0 * canvasW).toFloat()
-                val sunY = (canvasH - ((sunHoriz.altitudeDeg + 10.0) / 100.0 * canvasH)).toFloat()
+                val sunY = horizonY - sunHoriz.altitudeDeg.toFloat() * scale
                 Offset(sunX, sunY)
             } else null
 
@@ -407,9 +410,9 @@ fun HeroSkyCanvas(
             }
 
             // 5. Moon Renderer
-            if (moonData.altitudeDeg > -5.0) {
+            if (moonData.altitudeDeg > -12.0) {
                 val moonX = (moonData.azimuthDeg / 360.0 * canvasW).toFloat()
-                val moonY = (canvasH - ((moonData.altitudeDeg + 5.0) / 95.0 * canvasH)).toFloat().coerceIn(50.dp.toPx(), canvasH - 40.dp.toPx())
+                val moonY = horizonY - moonData.altitudeDeg.toFloat() * scale
                 val baseMoonRadius = 26.dp.toPx()
 
                 MoonRenderer.drawMoon(
@@ -436,11 +439,18 @@ fun HeroSkyCanvas(
                 theme = uiState.skyCanvasTheme
             )
 
+            // 7. Horizon Landscape Silhouette Layer
+            LandscapeRenderer.drawHorizonLandscape(
+                drawScope = this,
+                lightingState = lightingState,
+                frameTimeMs = frameTimeMs
+            )
+
             // 7. Tapped Celestial Target Ring Overlay
             selectedCelestial?.let { sel ->
                 val pulseRing = 1.0f + 0.12f * sin(frameTimeMs * 0.005f).toFloat()
                 val ringColor = when (uiState.skyCanvasTheme) {
-                    SkyCanvasTheme.COSMIC_PREMIUM -> Color(0xFF38BDF8)
+                    SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFF38BDF8)
                     SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
                     SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
                     SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
@@ -602,7 +612,7 @@ fun HeroSkyCanvas(
             val clampedBubbleY = (bubbleY - with(density) { 70.dp.toPx() }).coerceIn(10f, with(density) { 240.dp.toPx() })
 
             val (bgColor, borderColor, primaryTextColor, secondaryTextColor) = when (uiState.skyCanvasTheme) {
-                SkyCanvasTheme.COSMIC_PREMIUM -> Quadruple(
+                SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> Quadruple(
                     Color(0xCC0F172A),
                     Color(0xFF2DD4BF),
                     Color(0xFF2DD4BF),

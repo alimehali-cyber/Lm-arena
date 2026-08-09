@@ -36,9 +36,13 @@ object AstronomyRenderer {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
-        val sunPosPx = if (sunHoriz.altitudeDeg > -10.0) {
+        val horizonY = height * 0.72f
+        val topMargin = 24f
+        val scale = (horizonY - topMargin) / 90.0f
+
+        val sunPosPx = if (sunHoriz.altitudeDeg > -12.0) {
             val sunX = (sunHoriz.azimuthDeg / 360.0 * width).toFloat()
-            val sunY = (height - ((sunHoriz.altitudeDeg + 10.0) / 100.0 * height)).toFloat()
+            val sunY = horizonY - sunHoriz.altitudeDeg.toFloat() * scale
             Offset(sunX, sunY)
         } else null
 
@@ -93,9 +97,9 @@ object AstronomyRenderer {
         }
 
         // 7. Moon
-        if (moonData.altitudeDeg > -5.0) {
+        if (moonData.altitudeDeg > -12.0) {
             val moonX = (moonData.azimuthDeg / 360.0 * width).toFloat()
-            val moonY = (height - ((moonData.altitudeDeg + 5.0) / 95.0 * height)).toFloat().coerceIn(40f, height - 40f)
+            val moonY = horizonY - moonData.altitudeDeg.toFloat() * scale
             
             MoonRenderer.drawMoon(
                 drawScope = drawScope,
@@ -121,7 +125,7 @@ object AstronomyRenderer {
             theme = theme
         )
 
-        // 9. Landscape Horizon Silhouette
+        // 9. Horizon Landscape Silhouette
         LandscapeRenderer.drawHorizonLandscape(
             drawScope = drawScope,
             lightingState = lightingState,

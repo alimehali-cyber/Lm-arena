@@ -20,9 +20,85 @@ object AtmosphereRenderer {
     ) {
         when (theme) {
             SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialAtmosphere(drawScope, lightingState, sunPosPx)
+            SkyCanvasTheme.ATMOSPHERIC_SKY -> drawAtmosphericSky(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.KIDS_WATERCOLOR -> drawKidsWatercolorAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.OBSERVATORY -> drawObservatoryAtmosphere(drawScope, lightingState, sunPosPx)
+        }
+    }
+
+    private fun drawAtmosphericSky(
+        drawScope: DrawScope,
+        lightingState: LightingState,
+        sunPosPx: Offset?
+    ) {
+        val width = drawScope.size.width
+        val height = drawScope.size.height
+
+        // 1. Continuous Algorithmic Atmospheric Gradient
+        val (zenithColor, horizonColor) = LightingEngine.getAtmosphericSkyColors(lightingState.sunAltitudeDeg)
+        val skyGradient = Brush.verticalGradient(
+            colors = listOf(zenithColor, horizonColor)
+        )
+        drawScope.drawRect(
+            brush = skyGradient,
+            size = drawScope.size
+        )
+
+        // 2. Continuous Solar Scatter & Atmospheric Flare
+        val sunAlt = lightingState.sunAltitudeDeg
+        if (sunPosPx != null && sunAlt > -12.0) {
+            val sunScatterRadius = (height * 0.95f).coerceAtLeast(160f)
+            val scatterAlpha = when {
+                sunAlt > 12.0 -> 0.40f
+                sunAlt > 0.0 -> 0.40f + 0.35f * ((12.0 - sunAlt) / 12.0).toFloat() // peak warm flare near horizon
+                else -> 0.35f * ((sunAlt + 12.0) / 12.0).toFloat().coerceIn(0f, 1f)
+            }
+
+            val flareColors = if (sunAlt > 0.0) {
+                listOf(
+                    Color(0xFFFEF3C7).copy(alpha = scatterAlpha),
+                    Color(0xFFFBBF24).copy(alpha = scatterAlpha * 0.6f),
+                    Color(0xFFF59E0B).copy(alpha = scatterAlpha * 0.25f),
+                    Color.Transparent
+                )
+            } else {
+                listOf(
+                    Color(0xFFF97316).copy(alpha = scatterAlpha),
+                    Color(0xFFC084FC).copy(alpha = scatterAlpha * 0.5f),
+                    Color(0xFF818CF8).copy(alpha = scatterAlpha * 0.2f),
+                    Color.Transparent
+                )
+            }
+
+            drawScope.drawCircle(
+                brush = Brush.radialGradient(
+                    colors = flareColors,
+                    center = sunPosPx,
+                    radius = sunScatterRadius
+                ),
+                radius = sunScatterRadius,
+                center = sunPosPx
+            )
+        }
+
+        // 3. Subtle Night Horizon Skyglow / City Lights
+        if (sunAlt < -12.0) {
+            val hazeHeight = height * 0.25f
+            val nightHaze = Brush.verticalGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    Color(0xFF0F172A).copy(alpha = 0.5f),
+                    Color(0xFF1E1B4B).copy(alpha = 0.35f)
+                ),
+                startY = height - hazeHeight,
+                endY = height
+            )
+            drawScope.drawRect(
+                brush = nightHaze,
+                topLeft = Offset(0f, height - hazeHeight),
+                size = drawScope.size.copy(height = hazeHeight)
+            )
         }
     }
 

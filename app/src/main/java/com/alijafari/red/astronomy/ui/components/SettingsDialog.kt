@@ -162,15 +162,15 @@ fun SettingsDialog(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             FilterChip(
-                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.COSMIC_PREMIUM,
-                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.COSMIC_PREMIUM) },
-                                label = { Text(text = if (isFa) "✨ کیهانی" else "Cosmic") },
+                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.ATMOSPHERIC_SKY,
+                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.ATMOSPHERIC_SKY) },
+                                label = { Text(text = if (isFa) "🌅 آسمان جوی" else "Atmospheric") },
                                 modifier = Modifier.weight(1f)
                             )
                             FilterChip(
-                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME_SCIENTIFIC,
-                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.MONOCHROME_SCIENTIFIC) },
-                                label = { Text(text = if (isFa) "🔳 تک‌رنگ" else "Monochrome") },
+                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.COSMIC_PREMIUM,
+                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.COSMIC_PREMIUM) },
+                                label = { Text(text = if (isFa) "✨ کیهانی" else "Cosmic") },
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -179,11 +179,22 @@ fun SettingsDialog(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             FilterChip(
-                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.KIDS_WATERCOLOR,
-                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.KIDS_WATERCOLOR) },
-                                label = { Text(text = if (isFa) "🎨 آبرنگ کودکانه" else "WaterColor") },
+                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME_SCIENTIFIC,
+                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.MONOCHROME_SCIENTIFIC) },
+                                label = { Text(text = if (isFa) "🔳 تک‌رنگ" else "Monochrome") },
                                 modifier = Modifier.weight(1f)
                             )
+                            FilterChip(
+                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.KIDS_WATERCOLOR,
+                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.KIDS_WATERCOLOR) },
+                                label = { Text(text = if (isFa) "🎨 آبرنگ" else "WaterColor") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             FilterChip(
                                 selected = uiState.skyCanvasTheme == SkyCanvasTheme.OBSERVATORY,
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.OBSERVATORY) },

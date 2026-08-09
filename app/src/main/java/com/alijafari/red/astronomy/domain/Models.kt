@@ -89,6 +89,7 @@ enum class ThemeMode {
 
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {
     COSMIC_PREMIUM("Cosmic Premium", "کیهانی پرمیوم"),
+    ATMOSPHERIC_SKY("Atmospheric Sky", "آسمان جوی (اتمسفریک)"),
     MONOCHROME_SCIENTIFIC("Monochrome Scientific", "تک‌رنگ علمی (سوئیسی)"),
     KIDS_WATERCOLOR("Kids WaterColor", "آبرنگ جادویی کودکانه"),
     OBSERVATORY("Observatory Night", "شب رصدخانه (سرخ)");

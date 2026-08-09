@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import kotlin.math.abs
@@ -30,16 +31,24 @@ object MoonRenderer {
         isWaxing: Boolean = true,
         theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL
     ) {
-        if (isSolarEclipse) {
-            drawSolarEclipse(drawScope, center, radius, theme)
-            return
-        }
+        val horizonY = drawScope.size.height * 0.72f
+        drawScope.clipRect(
+            left = 0f,
+            top = 0f,
+            right = drawScope.size.width,
+            bottom = horizonY
+        ) {
+            if (isSolarEclipse) {
+                drawSolarEclipse(drawScope, center, radius, theme)
+                return@clipRect
+            }
 
-        when (theme) {
-            SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
-            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
-            SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
-            SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
+            when (theme) {
+                SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
+                SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
+            }
         }
     }
 

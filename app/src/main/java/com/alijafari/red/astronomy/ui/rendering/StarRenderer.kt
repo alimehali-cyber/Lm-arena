@@ -29,7 +29,7 @@ object StarRenderer {
         if (starVisibility <= 0.05f) return
 
         when (theme) {
-            SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs)
+            SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
             SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs)
             SkyCanvasTheme.OBSERVATORY -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)

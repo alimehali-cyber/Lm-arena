@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import kotlin.math.cos
@@ -21,13 +22,21 @@ object SunRenderer {
         frameTimeMs: Long,
         theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL
     ) {
-        if (sunAltitudeDeg < -5.0) return
+        if (sunAltitudeDeg < -10.0) return
 
-        when (theme) {
-            SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-            SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-            SkyCanvasTheme.OBSERVATORY -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+        val horizonY = drawScope.size.height * 0.72f
+        drawScope.clipRect(
+            left = 0f,
+            top = 0f,
+            right = drawScope.size.width,
+            bottom = horizonY
+        ) {
+            when (theme) {
+                SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+                SkyCanvasTheme.OBSERVATORY -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+            }
         }
     }
 
