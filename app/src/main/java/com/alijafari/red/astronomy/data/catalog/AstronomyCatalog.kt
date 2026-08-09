@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy.data.catalog
 
+import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.domain.ConstellationData
@@ -178,7 +179,28 @@ object AstronomyCatalog {
             )
         )
 
-        return listOf(EARTH, sun, moon, ISS, MILKY_WAY) + planets + galileanMoons + stars + deepSky + meteorShowers + asterisms + constellationsAsObjects + referencePoints
+        val catalogSatellites = SatelliteCatalog.satellites.map { sat ->
+            val id = if (sat.id == "iss_zarya") "sat_iss" else "sat_${sat.id}"
+            CelestialObject(
+                id = id,
+                type = ObjectType.SATELLITE,
+                nameEn = sat.nameEn,
+                nameFa = sat.nameFa,
+                raDeg = 180.0,
+                decDeg = 35.0,
+                magnitude = sat.standardMagnitude,
+                constellationEn = "Low Earth Orbit",
+                constellationFa = "مدار زمین",
+                distanceLightYears = 0.00000004,
+                category = sat.category.labelEn,
+                descriptionEn = sat.descriptionEn,
+                descriptionFa = sat.descriptionFa,
+                observationTipEn = sat.missionPurposeEn,
+                observationTipFa = sat.missionPurposeFa
+            )
+        }
+
+        return listOf(EARTH, sun, moon, MILKY_WAY) + catalogSatellites + planets + galileanMoons + stars + deepSky + meteorShowers + asterisms + constellationsAsObjects + referencePoints
     }
 
     fun getConstellations(): List<ConstellationData> {

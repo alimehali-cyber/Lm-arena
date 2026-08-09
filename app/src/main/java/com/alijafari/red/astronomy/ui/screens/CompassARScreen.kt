@@ -20,6 +20,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -68,6 +69,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.alijafari.red.astronomy.astro_engine.*
 import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
+import com.alijafari.red.astronomy.data.catalog.SolarSystemCatalog
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
@@ -92,7 +94,13 @@ enum class ArExpandedPanel {
 private fun formatObjectDistance(obj: CelestialObject, isFa: Boolean): String {
     return when (obj.type) {
         ObjectType.SUN -> if (isFa) "۱۴۹٫۶ میلیون کیلومتر" else "149.6 million km (~1 AU)"
-        ObjectType.MOON -> if (isFa) "۳۸۴,۴۰۰ کیلومتر" else "384,400 km"
+        ObjectType.MOON -> {
+            if (obj.id == "moon") {
+                if (isFa) "۳۸۴,۴۰۰ کیلومتر" else "384,400 km"
+            } else {
+                if (isFa) "۶۱۲٫۴ میلیون کیلومتر (مدار مشتری)" else "612.4 million km (Jupiter orbit)"
+            }
+        }
         ObjectType.SATELLITE -> if (isFa) "۴۱۵ کیلومتر" else "415 km"
         ObjectType.PLANET -> {
             when (obj.id) {
@@ -402,39 +410,22 @@ fun CompassARScreen(
         }
     }
 
-    // Real-Time ISS Topocentric Position
-    val issTopocentric = remember(activeTimeMs, uiState.userLocation) {
-        ISSEngine.calculateTopocentricPos(
-            timestampMs = activeTimeMs,
-            userLatDeg = uiState.userLocation.latitude,
-            userLonDeg = uiState.userLocation.longitude,
-            userAltMeters = uiState.userLocation.elevationMeters
-        )
-    }
-
-    val issHoriz = remember(issTopocentric) {
-        CoordinateEngine.Horizontal(
-            altitudeDeg = issTopocentric.elevationDeg,
-            azimuthDeg = issTopocentric.azimuthDeg
-        )
-    }
-
-    // Real-Time ISS Orbital Trajectory Points (Sampled across current pass window)
-    val issTrajectoryPoints = remember(activeTimeMs / 10000L, uiState.userLocation) {
-        val points = mutableListOf<CoordinateEngine.Horizontal>()
-        for (offsetSec in -600..600 step 20) {
-            val t = activeTimeMs + (offsetSec * 1000L)
-            val pos = ISSEngine.calculateTopocentricPos(
-                timestampMs = t,
+    // Real-Time Satellite Topocentric Positions for all catalog satellites
+    val satellitePositions = remember(activeTimeMs, uiState.userLocation) {
+        SatelliteCatalog.satellites.associate { satItem ->
+            val id = if (satItem.id == "iss_zarya") "sat_iss" else "sat_${satItem.id}"
+            val topo = ISSEngine.calculateTopocentricPos(
+                timestampMs = activeTimeMs,
                 userLatDeg = uiState.userLocation.latitude,
                 userLonDeg = uiState.userLocation.longitude,
-                userAltMeters = uiState.userLocation.elevationMeters
+                userAltMeters = uiState.userLocation.elevationMeters,
+                tle = satItem.defaultTle
             )
-            if (pos.elevationDeg > -10.0) {
-                points.add(CoordinateEngine.Horizontal(altitudeDeg = pos.elevationDeg, azimuthDeg = pos.azimuthDeg))
-            }
+            id to CoordinateEngine.Horizontal(
+                altitudeDeg = topo.elevationDeg,
+                azimuthDeg = topo.azimuthDeg
+            )
         }
-        points
     }
 
     val allCatalog = remember(jd) { AstronomyCatalog.getAllObjects(jd) }
@@ -559,6 +550,163 @@ fun CompassARScreen(
     // AR Long-press Object State
     var longPressObject by remember { mutableStateOf<CelestialObject?>(null) }
 
+    // Active Orbit Object (Target or Long-pressed Object)
+    val activeOrbitObject = selectedTarget ?: longPressObject
+
+    // Real-Time Trajectory Points for activeOrbitObject (hidden by default, shown when target or long-press card active)
+    val (orbitPastPoints, orbitFuturePoints) = remember(
+        activeOrbitObject?.id,
+        activeTimeMs,
+        uiState.userLocation
+    ) {
+        val targetObj = activeOrbitObject ?: return@remember Pair(emptyList<CoordinateEngine.Horizontal>(), emptyList<CoordinateEngine.Horizontal>())
+        val pastList = mutableListOf<CoordinateEngine.Horizontal>()
+        val futureList = mutableListOf<CoordinateEngine.Horizontal>()
+
+        if (targetObj.type == ObjectType.SATELLITE) {
+            val satItem = SatelliteCatalog.satellites.firstOrNull {
+                (if (it.id == "iss_zarya") "sat_iss" else "sat_${it.id}") == targetObj.id
+            }
+            val tle = satItem?.defaultTle ?: ISSEngine.TLEData("ISS", "1 25544U...", "2 25544...")
+            for (offsetSec in -1800..0 step 30) {
+                val t = activeTimeMs + (offsetSec * 1000L)
+                val pos = ISSEngine.calculateTopocentricPos(
+                    timestampMs = t,
+                    userLatDeg = uiState.userLocation.latitude,
+                    userLonDeg = uiState.userLocation.longitude,
+                    userAltMeters = uiState.userLocation.elevationMeters,
+                    tle = tle
+                )
+                pastList.add(CoordinateEngine.Horizontal(pos.elevationDeg, pos.azimuthDeg))
+            }
+            for (offsetSec in 0..1800 step 30) {
+                val t = activeTimeMs + (offsetSec * 1000L)
+                val pos = ISSEngine.calculateTopocentricPos(
+                    timestampMs = t,
+                    userLatDeg = uiState.userLocation.latitude,
+                    userLonDeg = uiState.userLocation.longitude,
+                    userAltMeters = uiState.userLocation.elevationMeters,
+                    tle = tle
+                )
+                futureList.add(CoordinateEngine.Horizontal(pos.elevationDeg, pos.azimuthDeg))
+            }
+        } else if (targetObj.id == "moon") {
+            val activeJd = TimeEngine.getJulianDate(activeTimeMs)
+            for (step in -48..0) {
+                val hJd = activeJd + (step * 0.25 / 24.0)
+                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
+                val hMoon = MoonEngine.calculateMoon(hJd)
+                val hHoriz = CoordinateEngine.equatorialToHorizontal(
+                    CoordinateEngine.Equatorial(hMoon.raDeg, hMoon.decDeg),
+                    hLast,
+                    uiState.userLocation.latitude
+                )
+                pastList.add(hHoriz)
+            }
+            for (step in 0..48) {
+                val hJd = activeJd + (step * 0.25 / 24.0)
+                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
+                val hMoon = MoonEngine.calculateMoon(hJd)
+                val hHoriz = CoordinateEngine.equatorialToHorizontal(
+                    CoordinateEngine.Equatorial(hMoon.raDeg, hMoon.decDeg),
+                    hLast,
+                    uiState.userLocation.latitude
+                )
+                futureList.add(hHoriz)
+            }
+        } else if (targetObj.id.startsWith("galilean_moon_")) {
+            val activeJd = TimeEngine.getJulianDate(activeTimeMs)
+            for (step in -48..0) {
+                val hJd = activeJd + (step * 0.25 / 24.0)
+                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
+                val moons = SolarSystemCatalog.getGalileanMoons(hJd)
+                val mObj = moons.firstOrNull { it.id == targetObj.id } ?: targetObj
+                val hHoriz = CoordinateEngine.equatorialToHorizontal(
+                    CoordinateEngine.Equatorial(mObj.raDeg, mObj.decDeg),
+                    hLast,
+                    uiState.userLocation.latitude
+                )
+                pastList.add(hHoriz)
+            }
+            for (step in 0..48) {
+                val hJd = activeJd + (step * 0.25 / 24.0)
+                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
+                val moons = SolarSystemCatalog.getGalileanMoons(hJd)
+                val mObj = moons.firstOrNull { it.id == targetObj.id } ?: targetObj
+                val hHoriz = CoordinateEngine.equatorialToHorizontal(
+                    CoordinateEngine.Equatorial(mObj.raDeg, mObj.decDeg),
+                    hLast,
+                    uiState.userLocation.latitude
+                )
+                futureList.add(hHoriz)
+            }
+        } else if (targetObj.type == ObjectType.SUN) {
+            val activeJd = TimeEngine.getJulianDate(activeTimeMs)
+            for (step in -48..0) {
+                val hJd = activeJd + (step * 0.25 / 24.0)
+                val hHoriz = SunEngine.getSunAltAz(hJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+                pastList.add(hHoriz)
+            }
+            for (step in 0..48) {
+                val hJd = activeJd + (step * 0.25 / 24.0)
+                val hHoriz = SunEngine.getSunAltAz(hJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+                futureList.add(hHoriz)
+            }
+        } else if (targetObj.type != ObjectType.REFERENCE_POINT) {
+            val activeJd = TimeEngine.getJulianDate(activeTimeMs)
+            for (step in -48..0) {
+                val hJd = activeJd + (step * 0.25 / 24.0)
+                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
+                val hHoriz = CoordinateEngine.equatorialToHorizontal(
+                    CoordinateEngine.Equatorial(targetObj.raDeg, targetObj.decDeg),
+                    hLast,
+                    uiState.userLocation.latitude
+                )
+                pastList.add(hHoriz)
+            }
+            for (step in 0..48) {
+                val hJd = activeJd + (step * 0.25 / 24.0)
+                val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
+                val hMoon = CoordinateEngine.equatorialToHorizontal(
+                    CoordinateEngine.Equatorial(targetObj.raDeg, targetObj.decDeg),
+                    hLast,
+                    uiState.userLocation.latitude
+                )
+                futureList.add(hMoon)
+            }
+        }
+
+        Pair(pastList, futureList)
+    }
+
+    // Auto-Hide AR UI State & 5-second Inactivity Timer
+    var isControlsVisible by remember { mutableStateOf(true) }
+    var lastInteractionTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    val resetControlsTimer = remember {
+        {
+            lastInteractionTimeMs = System.currentTimeMillis()
+            if (!isControlsVisible) {
+                isControlsVisible = true
+            }
+        }
+    }
+
+    LaunchedEffect(lastInteractionTimeMs, activeExpandedPanel, searchQuery, selectedTarget, longPressObject) {
+        if (activeExpandedPanel != null || isSearchFocused || searchQuery.isNotEmpty() || longPressObject != null) {
+            isControlsVisible = true
+            return@LaunchedEffect
+        }
+        delay(5000L)
+        isControlsVisible = false
+    }
+
+    val controlsAlpha by animateFloatAsState(
+        targetValue = if (isControlsVisible) 1.0f else 0.0f,
+        animationSpec = tween(durationMillis = 400),
+        label = "ControlsAlpha"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -616,12 +764,11 @@ fun CompassARScreen(
                 .pointerInput(allCatalog, currentAzimuth, currentAltitude, zoomFactor, filterStars, filterSun, filterMoons, filterPlanets, filterSatellites, filterDeepSky) {
                     detectTapGestures(
                         onPress = {
-                            val released = tryAwaitRelease()
-                            if (released) {
-                                longPressObject = null
-                            }
+                            resetControlsTimer()
+                            tryAwaitRelease()
                         },
                         onLongPress = { touchOffset ->
+                            resetControlsTimer()
                             val canvasWidth = size.width.toFloat()
                             val canvasHeight = size.height.toFloat()
                             val centerX = canvasWidth / 2f
@@ -649,8 +796,8 @@ fun CompassARScreen(
                                 if (!isVisibleByFilter) continue
 
                                 val horiz = if (obj.type == ObjectType.SUN) sunHoriz
-                                else if (obj.type == ObjectType.MOON) moonHoriz
-                                else if (obj.id == "sat_iss" || obj.type == ObjectType.SATELLITE) issHoriz
+                                else if (obj.id == "moon") moonHoriz
+                                else if (obj.type == ObjectType.SATELLITE) satellitePositions[obj.id] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
                                 else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), lastDeg, uiState.userLocation.latitude)
 
                                 var dAz = horiz.azimuthDeg - currentAzimuth
@@ -676,6 +823,7 @@ fun CompassARScreen(
                             }
                         },
                         onTap = {
+                            resetControlsTimer()
                             longPressObject = null
                             if (activeExpandedPanel != null) {
                                 activeExpandedPanel = null
@@ -741,39 +889,82 @@ fun CompassARScreen(
                 }
             }
 
-            // Render Trajectory Orbit Arc for Moon (if Moon filter enabled)
-            if (filterMoons) {
-                val moonOrbitPath = Path()
-                var firstPoint = true
-                for (hourOffset in -6..6) {
-                    val hourJd = jd + (hourOffset / 24.0)
-                    val hourLast = TimeEngine.getLAST(hourJd, uiState.userLocation.longitude)
-                    val hourMoon = MoonEngine.calculateMoon(hourJd)
-                    val hourHoriz = CoordinateEngine.equatorialToHorizontal(
-                        CoordinateEngine.Equatorial(hourMoon.raDeg, hourMoon.decDeg),
-                        hourLast,
-                        uiState.userLocation.latitude
-                    )
-                    var dAzH = hourHoriz.azimuthDeg - currentAzimuth
-                    if (dAzH > 180) dAzH -= 360
-                    if (dAzH < -180) dAzH += 360
-                    val dAltH = hourHoriz.altitudeDeg - currentAltitude
+            // Render Orbit Trajectory Line ONLY when an object is active (Target or Long-press Card)
+            if (activeOrbitObject != null) {
+                val rollRad = Math.toRadians(-skyOrientation.roll.toDouble())
+                val cosR = cos(rollRad).toFloat()
+                val sinR = sin(rollRad).toFloat()
 
-                    val ox = (centerX + (dAzH * pixelsPerDegree)).toFloat()
-                    val oy = (centerY - (dAltH * pixelsPerDegree)).toFloat()
+                // Solid line = orbital portion behind the object (past)
+                if (orbitPastPoints.size >= 2) {
+                    val pastPath = Path()
+                    var pastFirst = true
+                    for (pt in orbitPastPoints) {
+                        var dAz = pt.azimuthDeg - currentAzimuth
+                        if (dAz > 180) dAz -= 360
+                        if (dAz < -180) dAz += 360
+                        val dAlt = pt.altitudeDeg - currentAltitude
 
-                    if (firstPoint) {
-                        moonOrbitPath.moveTo(ox, oy)
-                        firstPoint = false
-                    } else {
-                        moonOrbitPath.lineTo(ox, oy)
+                        val rawX = (dAz * pixelsPerDegree).toFloat()
+                        val rawY = -(dAlt * pixelsPerDegree).toFloat()
+
+                        val px = centerX + (rawX * cosR - rawY * sinR)
+                        val py = centerY + (rawX * sinR + rawY * cosR)
+
+                        if (px in -600f..(canvasWidth + 600f) && py in -600f..(canvasHeight + 600f)) {
+                            if (pastFirst) {
+                                pastPath.moveTo(px, py)
+                                pastFirst = false
+                            } else {
+                                pastPath.lineTo(px, py)
+                            }
+                        }
+                    }
+                    if (!pastFirst) {
+                        drawPath(
+                            path = pastPath,
+                            color = Color(0xFF38BDF8).copy(alpha = 0.85f),
+                            style = Stroke(width = 2.5f * density)
+                        )
                     }
                 }
-                drawPath(
-                    path = moonOrbitPath,
-                    color = AccentPrimary.copy(alpha = 0.35f),
-                    style = Stroke(width = 2f)
-                )
+
+                // Dotted line = orbital portion in front of the object / yet to be travelled (future)
+                if (orbitFuturePoints.size >= 2) {
+                    val futurePath = Path()
+                    var futureFirst = true
+                    for (pt in orbitFuturePoints) {
+                        var dAz = pt.azimuthDeg - currentAzimuth
+                        if (dAz > 180) dAz -= 360
+                        if (dAz < -180) dAz += 360
+                        val dAlt = pt.altitudeDeg - currentAltitude
+
+                        val rawX = (dAz * pixelsPerDegree).toFloat()
+                        val rawY = -(dAlt * pixelsPerDegree).toFloat()
+
+                        val px = centerX + (rawX * cosR - rawY * sinR)
+                        val py = centerY + (rawX * sinR + rawY * cosR)
+
+                        if (px in -600f..(canvasWidth + 600f) && py in -600f..(canvasHeight + 600f)) {
+                            if (futureFirst) {
+                                futurePath.moveTo(px, py)
+                                futureFirst = false
+                            } else {
+                                futurePath.lineTo(px, py)
+                            }
+                        }
+                    }
+                    if (!futureFirst) {
+                        drawPath(
+                            path = futurePath,
+                            color = Color(0xFF38BDF8).copy(alpha = 0.85f),
+                            style = Stroke(
+                                width = 2.5f * density,
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f * density, 8f * density), 0f)
+                            )
+                        )
+                    }
+                }
             }
 
             // Render Galactic Equator Plane / Constellation lines (if Constellations filter enabled)
@@ -813,43 +1004,6 @@ fun CompassARScreen(
             val cosR = cos(rollRad).toFloat()
             val sinR = sin(rollRad).toFloat()
 
-            // Render ISS Real-Time Orbital Trajectory Pass Line (if Satellites filter enabled)
-            if (filterSatellites && issTrajectoryPoints.size >= 2) {
-                val issPath = Path()
-                var issFirst = true
-                for (pt in issTrajectoryPoints) {
-                    var dAzI = pt.azimuthDeg - currentAzimuth
-                    if (dAzI > 180) dAzI -= 360
-                    if (dAzI < -180) dAzI += 360
-                    val dAltI = pt.altitudeDeg - currentAltitude
-
-                    val rawX = (dAzI * pixelsPerDegree).toFloat()
-                    val rawY = -(dAltI * pixelsPerDegree).toFloat()
-
-                    val ix = centerX + (rawX * cosR - rawY * sinR)
-                    val iy = centerY + (rawX * sinR + rawY * cosR)
-
-                    if (ix in -400f..(canvasWidth + 400f) && iy in -400f..(canvasHeight + 400f)) {
-                        if (issFirst) {
-                            issPath.moveTo(ix, iy)
-                            issFirst = false
-                        } else {
-                            issPath.lineTo(ix, iy)
-                        }
-                    }
-                }
-                if (!issFirst) {
-                    drawPath(
-                        path = issPath,
-                        color = Color(0xFFFF9E00).copy(alpha = 0.75f),
-                        style = Stroke(
-                            width = 3f * density,
-                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f * density, 8f * density), 0f)
-                        )
-                    )
-                }
-            }
-
             for (obj in allCatalog) {
                 val isVisibleByFilter = when (obj.type) {
                     ObjectType.STAR, ObjectType.ASTERISM -> filterStars
@@ -865,10 +1019,10 @@ fun CompassARScreen(
 
                 val horiz = if (obj.type == ObjectType.SUN) {
                     sunHoriz
-                } else if (obj.type == ObjectType.MOON) {
+                } else if (obj.id == "moon") {
                     moonHoriz
-                } else if (obj.id == "sat_iss" || obj.type == ObjectType.SATELLITE) {
-                    issHoriz
+                } else if (obj.type == ObjectType.SATELLITE) {
+                    satellitePositions[obj.id] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
                 } else {
                     CoordinateEngine.equatorialToHorizontal(
                         CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg),
@@ -922,23 +1076,37 @@ fun CompassARScreen(
                             )
                         }
                         ObjectType.MOON -> {
-                            // Lunar Halo & Phase-aware Disc
-                            drawCircle(
-                                color = Color(0xFFE2E8F0).copy(alpha = 0.25f),
-                                radius = radiusPx * 1.7f,
-                                center = Offset(px, py)
-                            )
-                            drawCircle(
-                                color = Color(0xFFF1FAEE),
-                                radius = radiusPx,
-                                center = Offset(px, py)
-                            )
-                            val illumFrac = (moonData.illuminationPercent / 100.0).coerceIn(0.0, 1.0).toFloat()
-                            if (illumFrac < 0.95f) {
+                            if (obj.id == "moon") {
+                                // Lunar Halo & Phase-aware Disc
                                 drawCircle(
-                                    color = Color(0xFF0F172A).copy(alpha = 0.75f),
-                                    radius = radiusPx * (1f - illumFrac * 0.8f),
-                                    center = Offset(px + radiusPx * (0.3f - illumFrac * 0.3f), py)
+                                    color = Color(0xFFE2E8F0).copy(alpha = 0.25f),
+                                    radius = radiusPx * 1.7f,
+                                    center = Offset(px, py)
+                                )
+                                drawCircle(
+                                    color = Color(0xFFF1FAEE),
+                                    radius = radiusPx,
+                                    center = Offset(px, py)
+                                )
+                                val illumFrac = (moonData.illuminationPercent / 100.0).coerceIn(0.0, 1.0).toFloat()
+                                if (illumFrac < 0.95f) {
+                                    drawCircle(
+                                        color = Color(0xFF0F172A).copy(alpha = 0.75f),
+                                        radius = radiusPx * (1f - illumFrac * 0.8f),
+                                        center = Offset(px + radiusPx * (0.3f - illumFrac * 0.3f), py)
+                                    )
+                                }
+                            } else {
+                                // Jovian Satellite / Galilean Moon Disk
+                                drawCircle(
+                                    color = Color(0xFF818CF8).copy(alpha = 0.35f),
+                                    radius = radiusPx * 1.6f,
+                                    center = Offset(px, py)
+                                )
+                                drawCircle(
+                                    color = Color(0xFFC7D2FE),
+                                    radius = radiusPx,
+                                    center = Offset(px, py)
                                 )
                             }
                         }
@@ -1218,12 +1386,44 @@ fun CompassARScreen(
             )
         }
 
+        // Auto-Hide Restoration Pill
+        AnimatedVisibility(
+            visible = !isControlsVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 12.dp)
+        ) {
+            Surface(
+                onClick = { resetControlsTimer() },
+                shape = CircleShape,
+                color = Color.Black.copy(alpha = 0.75f),
+                border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(Icons.Default.TouchApp, contentDescription = null, tint = AccentPrimary, modifier = Modifier.size(16.dp))
+                    Text(
+                        text = if (isFa) "لمس کنید تا ابزارها ظاهر شوند" else "Tap screen to show controls",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+
         // Layer 3: Arrow-Guided Finder Overlay (When an object is selected)
         finderData?.let { finder ->
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(260.dp)
+                    .graphicsLayer { alpha = controlsAlpha }
             ) {
                 // Direction Arrow Canvas
                 Canvas(
@@ -1304,6 +1504,7 @@ fun CompassARScreen(
                 .statusBarsPadding()
                 .padding(top = 4.dp, start = 12.dp, end = 12.dp)
                 .fillMaxWidth()
+                .graphicsLayer { alpha = controlsAlpha }
         ) {
             // SMART FLOATING PILLS ROW
             Row(
@@ -1813,7 +2014,14 @@ fun CompassARScreen(
         }
 
         // Long-Press Glass Information Card Overlay
-        longPressObject?.let { obj ->
+        val activeLongPressObj = longPressObject
+        AnimatedVisibility(
+            visible = activeLongPressObj != null,
+            enter = fadeIn(animationSpec = tween(250)) + scaleIn(animationSpec = tween(250), initialScale = 0.85f),
+            exit = fadeOut(animationSpec = tween(200)) + scaleOut(animationSpec = tween(200), targetScale = 0.85f)
+        ) {
+            val obj = activeLongPressObj ?: return@AnimatedVisibility
+
             val rs = remember(obj, jd) {
                 CoordinateEngine.calculateRiseSetTransit(
                     raDeg = obj.raDeg,
@@ -1825,90 +2033,147 @@ fun CompassARScreen(
                 )
             }
 
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(horizontal = 24.dp)
-                    .width(270.dp)
-                    .clickable { viewModel.openObjectDetail(obj) },
-                shape = RoundedCornerShape(20.dp),
-                color = Color(0xFF0F172A).copy(alpha = 0.94f),
-                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
-                shadowElevation = 12.dp
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val localDensity = LocalDensity.current
+                val densityVal = localDensity.density
+
+                val screenWidthPx = constraints.maxWidth.toFloat()
+                val screenHeightPx = constraints.maxHeight.toFloat()
+                val canvasWidth = screenWidthPx
+                val canvasHeight = screenHeightPx
+                val centerX = canvasWidth / 2f
+                val centerY = canvasHeight / 2f
+                val fovX = 60.0 / zoomFactor
+                val pixelsPerDegree = (canvasWidth / fovX).toFloat()
+                val rollRad = Math.toRadians(-skyOrientation.roll.toDouble())
+                val cosR = cos(rollRad).toFloat()
+                val sinR = sin(rollRad).toFloat()
+
+                val horiz = if (obj.type == ObjectType.SUN) sunHoriz
+                else if (obj.id == "moon") moonHoriz
+                else if (obj.type == ObjectType.SATELLITE) satellitePositions[obj.id] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
+                else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), lastDeg, uiState.userLocation.latitude)
+
+                var dAz = horiz.azimuthDeg - currentAzimuth
+                if (dAz > 180) dAz -= 360
+                if (dAz < -180) dAz += 360
+                val dAlt = horiz.altitudeDeg - currentAltitude
+
+                val rawX = (dAz * pixelsPerDegree).toFloat()
+                val rawY = -(dAlt * pixelsPerDegree).toFloat()
+
+                val px = centerX + (rawX * cosR - rawY * sinR)
+                val py = centerY + (rawX * sinR + rawY * cosR)
+
+                val cardWidthDp = 270.dp
+                val cardHeightDp = 190.dp
+                val cardWidthPx = with(localDensity) { cardWidthDp.toPx() }
+                val cardHeightPx = with(localDensity) { cardHeightDp.toPx() }
+
+                val targetX = (px - cardWidthPx / 2f).coerceIn(16f * densityVal, screenWidthPx - cardWidthPx - 16f * densityVal)
+                val preferredY = if (py - cardHeightPx - 20f * densityVal < 80f * densityVal) {
+                    py + 20f * densityVal
+                } else {
+                    py - cardHeightPx - 20f * densityVal
+                }
+                val targetY = preferredY.coerceIn(80f * densityVal, screenHeightPx - cardHeightPx - 90f * densityVal)
+
+                val cardXDp = (targetX / densityVal).dp
+                val cardYDp = (targetY / densityVal).dp
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset(x = cardXDp, y = cardYDp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = if (isFa) obj.nameFa else obj.nameEn,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Text(
-                                text = if (isFa) obj.type.nameFa else obj.type.nameEn,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF38BDF8),
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        IconButton(
-                            onClick = { longPressObject = null },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary, modifier = Modifier.size(16.dp))
-                        }
-                    }
-
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 0.5.dp)
-
-                    val distStr = formatObjectDistance(obj, isFa)
-                    Text(
-                        text = if (isFa) "فاصله از زمین: $distStr" else "Dist: $distStr",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextPrimary
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = if (isFa) "طلوع: ${rs.riseTimeStr}" else "Rise: ${rs.riseTimeStr}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
-                        )
-                        Text(
-                            text = if (isFa) "غروب: ${rs.setTimeStr}" else "Set: ${rs.setTimeStr}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            longPressObject = null
-                            viewModel.openObjectDetail(obj)
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
-                        shape = RoundedCornerShape(12.dp),
+                    Surface(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        contentPadding = PaddingValues(vertical = 4.dp)
+                            .width(cardWidthDp)
+                            .clickable {
+                                longPressObject = null
+                                viewModel.openObjectDetail(obj)
+                            },
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF0F172A).copy(alpha = 0.94f),
+                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
+                        shadowElevation = 12.dp
                     ) {
-                        Text(
-                            text = if (isFa) "شناسنامه کامل جرم" else "Full Object Details",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White
-                        )
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isFa) obj.nameFa else obj.nameEn,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = if (isFa) obj.type.nameFa else obj.type.nameEn,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF38BDF8),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { longPressObject = null },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 0.5.dp)
+
+                            val distStr = formatObjectDistance(obj, isFa)
+                            Text(
+                                text = if (isFa) "فاصله از زمین: $distStr" else "Dist: $distStr",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextPrimary
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = if (isFa) "طلوع: ${rs.riseTimeStr}" else "Rise: ${rs.riseTimeStr}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
+                                )
+                                Text(
+                                    text = if (isFa) "غروب: ${rs.setTimeStr}" else "Set: ${rs.setTimeStr}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    longPressObject = null
+                                    viewModel.openObjectDetail(obj)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                contentPadding = PaddingValues(vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = if (isFa) "مشاهده جزئیات" else "View Details",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }
