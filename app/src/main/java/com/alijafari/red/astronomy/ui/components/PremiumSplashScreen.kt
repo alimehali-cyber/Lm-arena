@@ -1,5 +1,9 @@
 package com.alijafari.red.astronomy.ui.components
 
+import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
+import android.graphics.Matrix
+import android.graphics.Shader
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -9,190 +13,232 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
+// Font Families
+val Jersey25FontFamily = FontFamily(
+    Font(R.font.jersey25_regular, FontWeight.Normal)
+)
+
+val MontserratLightFontFamily = FontFamily(
+    Font(R.font.montserrat_light, FontWeight.W300)
+)
+
+private data class SplashStar(
+    val xFrac: Float,
+    val yFrac: Float,
+    val isNear: Boolean,
+    val coreRadiusDp: Float,
+    val color: Color,
+    val cycleSeconds: Float,
+    val phaseRad: Float
+)
+
 /**
- * World-Class Ultra-Premium Animated Splash Screen for "RED".
- * Designed with 60FPS hardware-accelerated Compose Canvas particle motion,
- * multi-ring gyroscopic orbital physics, and elegant typography.
+ * Redesigned Splash Screen for "RED".
  *
- * Developer Credit:
- * Designed and Developed by
- * Ali Jafari
+ * Requirements:
+ * 1. Pure black background.
+ * 2. Star field (~90 stars: ~64 faint far, ~26 bright near).
+ *    Soft radial-gradient glow around bright core (2.5x radius far, 4.0x radius near).
+ *    Smooth sine-wave flicker on 2-4s staggered cycles. Fade in over 1.5s.
+ * 3. Title: "RED" centered, Jersey 25 font, ~150sp, scale 0.92->1 + fade over ~1.1s.
+ *    Filled ONLY inside letter shapes with drifting nebula ShaderBrush (or fallback gradient).
+ *    No glow, drop-shadow, blur, or sheen on/around text.
+ * 4. Footer: Centered at bottom with staggered fade-up entrance:
+ *    - "DESIGNED AND DEVELOPED BY" (Montserrat 300, 9sp, uppercase, 5sp tracking, 55% white)
+ *    - 30x1dp hairline divider (32% white, fading ends)
+ *    - "ALI JAFARI" (Montserrat 300, 24sp, uppercase, 9sp tracking, metallic-silver vertical gradient)
  */
 @Composable
 fun PremiumSplashScreen(
     onSplashComplete: () -> Unit
 ) {
-    val bgGlowAlpha = remember { Animatable(0f) }
-    val starsAlpha = remember { Animatable(0f) }
-    val planetScale = remember { Animatable(0.2f) }
-    val planetAlpha = remember { Animatable(0f) }
+    val context = LocalContext.current
+
+    // Animations
+    val starFieldAlpha = remember { Animatable(0f) }
     val titleAlpha = remember { Animatable(0f) }
-    val titleOffsetY = remember { Animatable(24f) }
-    val lineScaleX = remember { Animatable(0f) }
-    val creditAlpha = remember { Animatable(0f) }
-    val creditOffsetY = remember { Animatable(18f) }
+    val titleScale = remember { Animatable(0.92f) }
+    val footerAlpha = remember { Animatable(0f) }
+    val footerOffsetY = remember { Animatable(18f) }
     val splashContainerAlpha = remember { Animatable(1f) }
 
-    // Multi-axis orbital rotation transitions
-    val infiniteTransition = rememberInfiniteTransition(label = "SplashOrbits")
-    val orbitAngle1 by infiniteTransition.animateFloat(
+    // Time loop for star flicker and nebula drift
+    val infiniteTransition = rememberInfiniteTransition(label = "SplashInfinite")
+    val timeMillis by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 360f,
+        targetValue = 1000000f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3200, easing = LinearEasing),
+            animation = tween(durationMillis = 1000000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "OrbitAngle1"
+        label = "TimeMillis"
     )
 
-    val orbitAngle2 by infiniteTransition.animateFloat(
-        initialValue = 360f,
-        targetValue = 0f,
+    // Nebula translation 14s loop
+    val nebulaDriftFraction by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2400, easing = LinearEasing),
+            animation = tween(durationMillis = 14000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "OrbitAngle2"
+        label = "NebulaDrift"
     )
 
-    val starTwinkle by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "StarTwinkle"
-    )
+    // Generate ~90 stars (64 far, 26 near) deterministically
+    val starList = remember {
+        val rand = Random(2026)
+        val list = mutableListOf<SplashStar>()
 
-    // Pre-generated deterministic star positions & sizes
-    val starPositions = remember {
-        val rand = Random(42)
-        List(65) {
-            Triple(
-                rand.nextFloat(), // x %
-                rand.nextFloat(), // y %
-                rand.nextFloat() * 1.8f + 0.4f // radius
-            )
-        }
-    }
-
-    // Pre-generated ambient cosmic dust particles
-    val particlePositions = remember {
-        val rand = Random(108)
-        List(18) {
-            Triple(
-                rand.nextFloat(),
-                rand.nextFloat(),
-                rand.nextFloat() * 2.2f + 0.8f
-            )
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        // 0.0s - 0.3s: Background deep glow fades in
-        launch {
-            bgGlowAlpha.animateTo(
-                targetValue = 1.0f,
-                animationSpec = tween(durationMillis = 350, easing = LinearOutSlowInEasing)
-            )
-        }
-
-        // 0.2s - 0.6s: Star field fades in
-        delay(200)
-        launch {
-            starsAlpha.animateTo(
-                targetValue = 1.0f,
-                animationSpec = tween(durationMillis = 400, easing = FastOutSlowInEasing)
-            )
-        }
-
-        // 0.3s - 1.0s: Central Crimson Celestial Core scales smoothly
-        launch {
-            planetAlpha.animateTo(
-                targetValue = 1.0f,
-                animationSpec = tween(durationMillis = 500, easing = LinearOutSlowInEasing)
-            )
-            planetScale.animateTo(
-                targetValue = 1.0f,
-                animationSpec = tween(
-                    durationMillis = 700,
-                    easing = CubicBezierEasing(0.16f, 1.0f, 0.3f, 1.0f)
+        // 64 faint far stars (0.3–0.7 dp)
+        repeat(64) {
+            val radius = rand.nextFloat() * (0.7f - 0.3f) + 0.3f
+            list.add(
+                SplashStar(
+                    xFrac = rand.nextFloat(),
+                    yFrac = rand.nextFloat(),
+                    isNear = false,
+                    coreRadiusDp = radius,
+                    color = Color.White,
+                    cycleSeconds = rand.nextFloat() * (4.0f - 2.0f) + 2.0f,
+                    phaseRad = (rand.nextFloat() * 2.0 * Math.PI).toFloat()
                 )
             )
         }
 
-        // 0.6s - 1.2s: "RED" title slides up cleanly
-        delay(300)
+        // 26 brighter near stars (0.8–1.7 dp, ~30% tinted soft blue/violet)
+        repeat(26) {
+            val radius = rand.nextFloat() * (1.7f - 0.8f) + 0.8f
+            val isTinted = rand.nextFloat() < 0.30f
+            val color = if (isTinted) {
+                if (rand.nextBoolean()) Color(0xFFA5F3FC) else Color(0xFFD8B4FE)
+            } else {
+                Color.White
+            }
+            list.add(
+                SplashStar(
+                    xFrac = rand.nextFloat(),
+                    yFrac = rand.nextFloat(),
+                    isNear = true,
+                    coreRadiusDp = radius,
+                    color = color,
+                    cycleSeconds = rand.nextFloat() * (4.0f - 2.0f) + 2.0f,
+                    phaseRad = (rand.nextFloat() * 2.0 * Math.PI).toFloat()
+                )
+            )
+        }
+        list
+    }
+
+    // Load nebula bitmap texture from res/drawable
+    val bitmap = remember(context) {
+        try {
+            BitmapFactory.decodeResource(context.resources, R.drawable.nebula_texture)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // ShaderBrush for title letters fill
+    val matrix = remember { Matrix() }
+    val nebulaShaderBrush = remember(bitmap, nebulaDriftFraction) {
+        if (bitmap != null && bitmap.width > 0 && bitmap.height > 0) {
+            val shader = BitmapShader(bitmap, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+            matrix.reset()
+            val translateX = nebulaDriftFraction * bitmap.width.toFloat()
+            val translateY = nebulaDriftFraction * bitmap.height.toFloat() * 0.5f
+            matrix.postTranslate(translateX, translateY)
+            shader.setLocalMatrix(matrix)
+            ShaderBrush(shader)
+        } else {
+            null
+        }
+    }
+
+    // Fallback slow-drifting purple->blue->orange gradient brush
+    val fallbackGradientBrush = remember(nebulaDriftFraction) {
+        val startX = nebulaDriftFraction * 1000f
+        val startY = nebulaDriftFraction * 500f
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0xFF9333EA), // vivid purple
+                Color(0xFF2563EB), // vivid blue
+                Color(0xFFEA580C), // vivid orange
+                Color(0xFF7C3AED)  // vivid purple
+            ),
+            start = Offset(startX, startY),
+            end = Offset(startX + 1000f, startY + 600f)
+        )
+    }
+
+    val activeLetterBrush = nebulaShaderBrush ?: fallbackGradientBrush
+
+    // Entrance and exit animations
+    LaunchedEffect(Unit) {
+        // 1. Star field fades in over ~1.5 s
+        launch {
+            starFieldAlpha.animateTo(
+                targetValue = 1.0f,
+                animationSpec = tween(durationMillis = 1500, easing = LinearOutSlowInEasing)
+            )
+        }
+
+        // 2. Title "RED" entrance animation (scale 0.92->1 + fade over ~1.1s) starting at 200ms
+        delay(200)
         launch {
             titleAlpha.animateTo(
                 targetValue = 1.0f,
-                animationSpec = tween(durationMillis = 450, easing = LinearOutSlowInEasing)
+                animationSpec = tween(durationMillis = 1100, easing = LinearOutSlowInEasing)
             )
-            titleOffsetY.animateTo(
-                targetValue = 0f,
-                animationSpec = tween(
-                    durationMillis = 600,
-                    easing = CubicBezierEasing(0.16f, 1.0f, 0.3f, 1.0f)
-                )
-            )
-        }
-
-        // 0.9s - 1.4s: Golden accent line expands horizontally
-        delay(300)
-        launch {
-            lineScaleX.animateTo(
+            titleScale.animateTo(
                 targetValue = 1.0f,
                 animationSpec = tween(
-                    durationMillis = 500,
+                    durationMillis = 1100,
                     easing = CubicBezierEasing(0.16f, 1.0f, 0.3f, 1.0f)
                 )
             )
         }
 
-        // 1.2s - 1.8s: Developer Credit fades in with elegant typography
-        delay(300)
+        // 3. Footer staggered fade-up entrance starting at 600ms
+        delay(400)
         launch {
-            creditAlpha.animateTo(
+            footerAlpha.animateTo(
                 targetValue = 1.0f,
-                animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing)
+                animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing)
             )
-            creditOffsetY.animateTo(
+            footerOffsetY.animateTo(
                 targetValue = 0f,
                 animationSpec = tween(
-                    durationMillis = 550,
+                    durationMillis = 800,
                     easing = CubicBezierEasing(0.16f, 1.0f, 0.3f, 1.0f)
                 )
             )
         }
 
-        // 2.0s - 2.45s: Smooth container fade out exit
-        delay(800)
+        // Display hold time, then exit fade
+        delay(2200)
         splashContainerAlpha.animateTo(
             targetValue = 0f,
-            animationSpec = tween(
-                durationMillis = 450,
-                easing = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1.0f)
-            )
+            animationSpec = tween(durationMillis = 500, easing = LinearOutSlowInEasing)
         )
 
         onSplashComplete()
@@ -203,258 +249,132 @@ fun PremiumSplashScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer { alpha = splashContainerAlpha.value }
-                .background(Color(0xFF03050B))
+                .background(Color.Black) // Pure black background
                 .testTag("premium_splash_screen"),
             contentAlignment = Alignment.Center
         ) {
-            // Background Cosmic Canvas
+            // Star field Canvas
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val cX = size.width / 2f
-                val cY = size.height / 2f
+                val currentStarAlpha = starFieldAlpha.value
+                if (currentStarAlpha > 0f) {
+                    val timeSec = timeMillis / 1000f
 
-                // Deep Crimson Cosmic Nebula Radial Glow
-                if (bgGlowAlpha.value > 0f) {
-                    val glowRadius = size.minDimension * 0.70f
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color(0xFFDC2626).copy(alpha = 0.25f * bgGlowAlpha.value),
-                                Color(0xFF991B1B).copy(alpha = 0.12f * bgGlowAlpha.value),
-                                Color(0xFF380E18).copy(alpha = 0.05f * bgGlowAlpha.value),
-                                Color.Transparent
+                    starList.forEach { star ->
+                        val px = star.xFrac * size.width
+                        val py = star.yFrac * size.height
+                        val corePx = star.coreRadiusDp.dp.toPx()
+                        val glowMultiplier = if (star.isNear) 4.0f else 2.5f
+                        val glowPx = corePx * glowMultiplier
+
+                        // Smooth sine wave flicker factor (varies 0.2..1.0)
+                        val flicker = (0.6f + 0.4f * sin(2.0 * Math.PI * timeSec / star.cycleSeconds + star.phaseRad)).toFloat().coerceIn(0.1f, 1.0f)
+                        val starAlpha = currentStarAlpha * flicker
+
+                        // 1. Soft radial gradient glow around the core
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    star.color.copy(alpha = 0.65f * starAlpha),
+                                    star.color.copy(alpha = 0.20f * starAlpha),
+                                    Color.Transparent
+                                ),
+                                center = Offset(px, py),
+                                radius = glowPx
                             ),
-                            center = Offset(cX, cY),
-                            radius = glowRadius
-                        ),
-                        center = Offset(cX, cY),
-                        radius = glowRadius
-                    )
-                }
-
-                // Sparkling Starfield
-                if (starsAlpha.value > 0f) {
-                    starPositions.forEachIndexed { idx, (xFrac, yFrac, starRadius) ->
-                        val px = xFrac * size.width
-                        val py = yFrac * size.height
-                        val currentTwinkle = if (idx % 2 == 0) starTwinkle else (1.3f - starTwinkle)
-                        val alpha = (0.20f + 0.70f * currentTwinkle).coerceIn(0f, 1f) * starsAlpha.value
-
-                        drawCircle(
-                            color = Color.White.copy(alpha = alpha),
-                            radius = starRadius.dp.toPx(),
-                            center = Offset(px, py)
+                            center = Offset(px, py),
+                            radius = glowPx
                         )
-                    }
 
-                    // Ambient Floating Stardust
-                    particlePositions.forEach { (xFrac, yFrac, pSize) ->
-                        val px = xFrac * size.width
-                        val py = yFrac * size.height
+                        // 2. Bright core
                         drawCircle(
-                            color = Color(0xFFFCA5A5).copy(alpha = 0.25f * starsAlpha.value),
-                            radius = pSize.dp.toPx(),
+                            color = star.color.copy(alpha = starAlpha),
+                            radius = corePx,
                             center = Offset(px, py)
                         )
                     }
                 }
             }
 
+            // Title: "RED" centered
+            Text(
+                text = "RED",
+                style = TextStyle(
+                    fontFamily = Jersey25FontFamily,
+                    fontSize = 150.sp,
+                    textAlign = TextAlign.Center,
+                    brush = activeLetterBrush
+                ),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .graphicsLayer {
+                        alpha = titleAlpha.value
+                        scaleX = titleScale.value
+                        scaleY = titleScale.value
+                    }
+            )
+
+            // Footer: Centered at bottom
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 28.dp)
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 36.dp)
+                    .graphicsLayer {
+                        alpha = footerAlpha.value
+                        translationY = footerOffsetY.value.dp.toPx()
+                    }
             ) {
-                // Central Celestial Gyroscopic Icon
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(160.dp)
-                        .graphicsLayer {
-                            scaleX = planetScale.value
-                            scaleY = planetScale.value
-                            alpha = planetAlpha.value
-                        }
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val cX = size.width / 2f
-                        val cY = size.height / 2f
-                        val coreRadius = 38.dp.toPx()
+                // "DESIGNED AND DEVELOPED BY"
+                Text(
+                    text = "DESIGNED AND DEVELOPED BY",
+                    style = TextStyle(
+                        fontFamily = MontserratLightFontFamily,
+                        fontWeight = FontWeight.W300,
+                        fontSize = 9.sp,
+                        letterSpacing = 5.sp,
+                        color = Color.White.copy(alpha = 0.55f),
+                        textAlign = TextAlign.Center
+                    )
+                )
 
-                        // Multi-layer Corona Flare
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    Color(0xFFEF4444).copy(alpha = 0.40f),
-                                    Color(0xFFB91C1C).copy(alpha = 0.15f),
-                                    Color.Transparent
-                                ),
-                                center = Offset(cX, cY),
-                                radius = coreRadius * 2.2f
-                            ),
-                            center = Offset(cX, cY),
-                            radius = coreRadius * 2.2f
-                        )
-
-                        // Central Crimson Planet/Sphere with Realistic Lighting Specular
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    Color(0xFFFCA5A5), // Highlight
-                                    Color(0xFFDC2626), // Main Crimson Body
-                                    Color(0xFF7F1D1D), // Shadow
-                                    Color(0xFF1E070B)  // Dark Limb
-                                ),
-                                center = Offset(cX - coreRadius * 0.35f, cY - coreRadius * 0.35f),
-                                radius = coreRadius * 1.35f
-                            ),
-                            center = Offset(cX, cY),
-                            radius = coreRadius
-                        )
-
-                        // Outer Dual Gyroscopic Rings
-                        val ringRx = coreRadius * 1.85f
-                        val ringRy = coreRadius * 0.52f
-
-                        // Ring 1 (-25° inclination)
-                        rotate(degrees = -25f, pivot = Offset(cX, cY)) {
-                            drawOval(
-                                color = Color(0xFFFCA5A5).copy(alpha = 0.65f),
-                                topLeft = Offset(cX - ringRx, cY - ringRy),
-                                size = androidx.compose.ui.geometry.Size(ringRx * 2f, ringRy * 2f),
-                                style = Stroke(width = 1.8.dp.toPx())
-                            )
-
-                            // Orbiting Satellite 1
-                            val rad1 = Math.toRadians(orbitAngle1.toDouble())
-                            val dot1X = cX + ringRx * cos(rad1).toFloat()
-                            val dot1Y = cY + ringRy * sin(rad1).toFloat()
-
-                            drawCircle(
-                                color = Color(0xFFEF4444).copy(alpha = 0.5f),
-                                radius = 6.dp.toPx(),
-                                center = Offset(dot1X, dot1Y)
-                            )
-                            drawCircle(
-                                color = Color.White,
-                                radius = 3.dp.toPx(),
-                                center = Offset(dot1X, dot1Y)
-                            )
-                        }
-
-                        // Ring 2 (+35° inclination counter-rotating)
-                        rotate(degrees = 35f, pivot = Offset(cX, cY)) {
-                            drawOval(
-                                color = Color(0xFF38BDF8).copy(alpha = 0.45f),
-                                topLeft = Offset(cX - ringRx * 0.85f, cY - ringRy * 0.85f),
-                                size = androidx.compose.ui.geometry.Size(ringRx * 1.7f, ringRy * 1.7f),
-                                style = Stroke(width = 1.2.dp.toPx())
-                            )
-
-                            // Orbiting Satellite 2
-                            val rad2 = Math.toRadians(orbitAngle2.toDouble())
-                            val dot2X = cX + ringRx * 0.85f * cos(rad2).toFloat()
-                            val dot2Y = cY + ringRy * 0.85f * sin(rad2).toFloat()
-
-                            drawCircle(
-                                color = Color(0xFF38BDF8),
-                                radius = 2.5.dp.toPx(),
-                                center = Offset(dot2X, dot2Y)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                // App Title "RED ASTRONOMY"
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.graphicsLayer {
-                        alpha = titleAlpha.value
-                        translationY = titleOffsetY.value
-                    }
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        // "RED"
-                        Text(
-                            text = "RED",
-                            style = TextStyle(
-                                fontWeight = FontWeight.Black,
-                                fontSize = 46.sp,
-                                letterSpacing = 20.sp,
-                                color = Color.White
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        // "A S T R O N O M Y"
-                        Text(
-                            text = "A S T R O N O M Y",
-                            style = TextStyle(
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 11.sp,
-                                letterSpacing = 6.sp,
-                                color = Color(0xFFEF4444)
-                            )
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // Thin Horizontal Accent Divider
+                // 30x1 dp hairline divider
                 Box(
                     modifier = Modifier
-                        .width(72.dp)
-                        .height(1.5.dp)
-                        .graphicsLayer {
-                            scaleX = lineScaleX.value
-                            alpha = lineScaleX.value * 0.85f
-                        }
+                        .width(30.dp)
+                        .height(1.dp)
                         .background(
                             Brush.horizontalGradient(
                                 colors = listOf(
                                     Color.Transparent,
-                                    Color(0xFFEF4444),
+                                    Color.White.copy(alpha = 0.32f),
                                     Color.Transparent
                                 )
                             )
                         )
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                // "ALI JAFARI"
+                val metallicSilverBrush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFFFFFFF),
+                        Color(0xFFDDE1E8),
+                        Color(0xFFA7AEBC)
+                    )
+                )
 
-                // Developer Information (Formatted Exactly as Requested)
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.graphicsLayer {
-                        alpha = creditAlpha.value
-                        translationY = creditOffsetY.value
-                    }
-                ) {
-                    Text(
-                        text = "Designed and Developed by",
-                        style = TextStyle(
-                            fontWeight = FontWeight.Normal,
-                            fontSize = 12.sp,
-                            letterSpacing = 2.0.sp,
-                            color = Color(0xFF9CA3AF),
-                            textAlign = TextAlign.Center
-                        )
+                Text(
+                    text = "ALI JAFARI",
+                    style = TextStyle(
+                        fontFamily = MontserratLightFontFamily,
+                        fontWeight = FontWeight.W300,
+                        fontSize = 24.sp,
+                        letterSpacing = 9.sp,
+                        brush = metallicSilverBrush,
+                        textAlign = TextAlign.Center
                     )
-                    Text(
-                        text = "Ali Jafari",
-                        style = TextStyle(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            letterSpacing = 1.5.sp,
-                            color = Color.White,
-                            textAlign = TextAlign.Center
-                        )
-                    )
-                }
+                )
             }
         }
     }

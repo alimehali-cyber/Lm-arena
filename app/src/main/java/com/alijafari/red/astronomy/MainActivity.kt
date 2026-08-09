@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxSize()
                                 .testTag("main_scaffold"),
-                            containerColor = MaterialTheme.colorScheme.background,
+                            containerColor = Color.Black,
                         topBar = {
                             val isFa = uiState.language == com.alijafari.red.astronomy.domain.AppLanguage.PERSIAN
                             Row(

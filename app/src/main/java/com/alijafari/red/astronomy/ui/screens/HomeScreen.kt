@@ -41,6 +41,10 @@ import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Calendar
 
+import com.alijafari.red.astronomy.ui.components.Jersey25FontFamily
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -128,11 +132,12 @@ fun HomeScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color.Black)
             .testTag("home_screen_column"),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 0. TOP APP BAR — Elevated Header Bar
+        // 0. TOP APP BAR — Elevated Header Bar with RED in Jersey 25
         item {
             Row(
                 modifier = Modifier
@@ -142,15 +147,28 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = if (isFa) "آسمان زنده" else "Hero Sky",
-                        style = androidx.compose.ui.text.TextStyle(
-                            fontFamily = IranSans,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 24.sp,
-                            color = MaterialTheme.colorScheme.onBackground
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "RED",
+                            style = androidx.compose.ui.text.TextStyle(
+                                fontFamily = Jersey25FontFamily,
+                                fontSize = 42.sp,
+                                color = Color.White
+                            )
                         )
-                    )
+                        Text(
+                            text = if (isFa) "• آسمان زنده" else "• Hero Sky",
+                            style = androidx.compose.ui.text.TextStyle(
+                                fontFamily = IranSans,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        )
+                    }
 
                     val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
                     Row(
