@@ -29,12 +29,18 @@ object EclipseEngine {
         val minLon: Double,
         val maxLon: Double,
         val maxTotalityRegionEn: String,
-        val maxTotalityRegionFa: String
+        val maxTotalityRegionFa: String,
+        val totalityMinLat: Double = -90.0,
+        val totalityMaxLat: Double = 90.0,
+        val totalityMinLon: Double = -180.0,
+        val totalityMaxLon: Double = 180.0
     )
 
     data class EclipseResult(
         val event: EclipseEvent,
         val isLocallyVisible: Boolean,
+        val localNameEn: String,
+        val localNameFa: String,
         val localVisibilityTextEn: String,
         val localVisibilityTextFa: String,
         val formattedDateEn: String,
@@ -55,7 +61,8 @@ object EclipseEngine {
             descriptionFa = "مسیر گرفتگی کامل از قطب شمال، گرینلند، ایسلند، اقیانوس اطلس و اسپانیا می‌گذرد.",
             minLat = 20.0, maxLat = 85.0, minLon = -100.0, maxLon = 65.0,
             maxTotalityRegionEn = "Spain, Iceland, Greenland",
-            maxTotalityRegionFa = "اسپانیا، ایسلند، گرینلند"
+            maxTotalityRegionFa = "اسپانیا، ایسلند، گرینلند",
+            totalityMinLat = 36.0, totalityMaxLat = 75.0, totalityMinLon = -25.0, totalityMaxLon = 4.0
         ),
         // 2. August 28, 2026 - Partial Lunar Eclipse
         EclipseEvent(
@@ -83,7 +90,8 @@ object EclipseEngine {
             descriptionFa = "حلقه آتشین خورشید در آمریکای جنوبی، اقیانوس اطلس و غرب آفریقا دیده می‌شود.",
             minLat = -60.0, maxLat = 30.0, minLon = -90.0, maxLon = 30.0,
             maxTotalityRegionEn = "Chile, Argentina, Ivory Coast, Ghana",
-            maxTotalityRegionFa = "شیلی، آرژانتین، ساحل عاج، غنا"
+            maxTotalityRegionFa = "شیلی، آرژانتین، ساحل عاج، غنا",
+            totalityMinLat = -50.0, totalityMaxLat = 10.0, totalityMinLon = -75.0, totalityMaxLon = 5.0
         ),
         // 4. February 20, 2027 - Penumbral Lunar Eclipse
         EclipseEvent(
@@ -111,7 +119,8 @@ object EclipseEngine {
             descriptionFa = "گرفتگی کامل بی‌نظیر به مدت بیش از ۶ دقیقه روی مصر (الاقصر)، اسپانیا، شمال آفریقا، عربستان و یمن.",
             minLat = -10.0, maxLat = 55.0, minLon = -20.0, maxLon = 80.0,
             maxTotalityRegionEn = "Egypt (Luxor), Spain, Saudi Arabia, North Africa",
-            maxTotalityRegionFa = "مصر (الاقصر)، اسپانیا، عربستان، شمال آفریقا"
+            maxTotalityRegionFa = "مصر (الاقصر)، اسپانیا، عربستان، شمال آفریقا",
+            totalityMinLat = 12.0, totalityMaxLat = 37.0, totalityMinLon = -6.0, totalityMaxLon = 50.0
         ),
         // 6. July 6, 2028 - Partial Lunar Eclipse
         EclipseEvent(
@@ -183,22 +192,86 @@ object EclipseEngine {
     ): EclipseResult {
         val jd = TimeEngine.getJulianDate(event.dateUtcMs)
         val gmstDeg = TimeEngine.getGMST(jd) * 15.0
-        val isLocallyVisible = if (event.isSolar) {
+        val lastDeg = gmstDeg + userLonDeg
+
+        var isLocallyVisible = false
+        var localNameEn = event.nameEn
+        var localNameFa = event.nameFa
+        var localTextEn = ""
+        var localTextFa = ""
+
+        if (event.isSolar) {
             val sunPos = SunEngine.calculatePosition(jd)
             val horiz = CoordinateEngine.equatorialToHorizontal(
                 CoordinateEngine.Equatorial(sunPos.raDeg, sunPos.decDeg),
-                gmstDeg,
+                lastDeg,
                 userLatDeg
             )
-            horiz.altitudeDeg > 0.0 && userLatDeg in event.minLat..event.maxLat && userLonDeg in event.minLon..event.maxLon
+            val isSunAboveHorizon = horiz.altitudeDeg > 0.0
+            val isInPartialZone = userLatDeg in event.minLat..event.maxLat && userLonDeg in event.minLon..event.maxLon
+
+            if (isSunAboveHorizon && isInPartialZone) {
+                val isInTotalityPath = userLatDeg in event.totalityMinLat..event.totalityMaxLat &&
+                        userLonDeg in event.totalityMinLon..event.totalityMaxLon
+
+                isLocallyVisible = true
+                if (isInTotalityPath) {
+                    localNameEn = event.nameEn
+                    localNameFa = event.nameFa
+                    localTextEn = "Locally Visible in your region as ${event.nameEn}!"
+                    localTextFa = "به صورت کامل/حلقوی در موقعیت جغرافیایی شما قابل رصد است!".toPersianDigits()
+                } else {
+                    localNameEn = "Partial Solar Eclipse"
+                    localNameFa = "خورشیدگرفتگی جزئی (کسوف)"
+                    localTextEn = "Locally Visible as a Partial Solar Eclipse at your location"
+                    localTextFa = "در موقعیت جغرافیایی شما به صورت کسوف جزئی قابل رصد است".toPersianDigits()
+                }
+            } else {
+                isLocallyVisible = false
+                localNameEn = event.nameEn
+                localNameFa = event.nameFa
+                localTextEn = if (!isSunAboveHorizon) {
+                    "Not Locally Visible (Sun is below your horizon at eclipse time)"
+                } else {
+                    "Not Locally Visible (Best in ${event.maxTotalityRegionEn})"
+                }
+                localTextFa = if (!isSunAboveHorizon) {
+                    "غیرقابل رصد مستقیم (خورشید در زمان گرفتگی زیر افق قرار دارد)".toPersianDigits()
+                } else {
+                    "در موقعیت شما قابل رصد مستقیم نیست (اصلی: ${event.maxTotalityRegionFa})".toPersianDigits()
+                }
+            }
         } else {
             val moonPos = MoonEngine.calculateMoon(jd)
             val horiz = CoordinateEngine.equatorialToHorizontal(
                 CoordinateEngine.Equatorial(moonPos.raDeg, moonPos.decDeg),
-                gmstDeg,
+                lastDeg,
                 userLatDeg
             )
-            horiz.altitudeDeg > 0.0 && userLatDeg in event.minLat..event.maxLat && userLonDeg in event.minLon..event.maxLon
+            val isMoonAboveHorizon = horiz.altitudeDeg > 0.0
+            val isInRegion = userLatDeg in event.minLat..event.maxLat && userLonDeg in event.minLon..event.maxLon
+
+            if (isMoonAboveHorizon && isInRegion) {
+                isLocallyVisible = true
+                localNameEn = event.nameEn
+                localNameFa = event.nameFa
+                localTextEn = "Locally Visible in your night sky (Moon altitude: ${horiz.altitudeDeg.toInt()}°)"
+                localTextFa = "قابل رصد در آسمان شب شما (ارتفاع ماه: ${horiz.altitudeDeg.toInt()} درجه)".toPersianDigits()
+            } else {
+                isLocallyVisible = false
+                localNameEn = event.nameEn
+                localNameFa = event.nameFa
+                localTextEn = if (!isMoonAboveHorizon) {
+                    "Not Locally Visible (Moon is below your horizon at eclipse time)"
+                } else {
+                    "Not Locally Visible at your location"
+                }
+                localTextFa = if (!isMoonAboveHorizon) {
+                    "در موقعیت شما قابل رصد نیست (ماه در زمان خسوف زیر افق قرار دارد)".toPersianDigits()
+                } else {
+                    "در موقعیت شما قابل رصد مستقیم نیست".toPersianDigits()
+                }
+            }
         }
 
         val cal = Calendar.getInstance(TimeZone.getDefault()).apply {
@@ -213,21 +286,11 @@ object EclipseEngine {
         val sh = TimeEngine.toSolarHijri(event.dateUtcMs)
         val formattedDateFa = "${sh.day} ${sh.monthNameFa} ${sh.year}".toPersianDigits()
 
-        val localTextEn = if (isLocallyVisible) {
-            "Locally Visible in your sky (${event.maxTotalityRegionEn})"
-        } else {
-            "Not Locally Visible (Best in ${event.maxTotalityRegionEn})"
-        }
-
-        val localTextFa = if (isLocallyVisible) {
-            "قابل رصد در موقعیت جغرافیایی شما (${event.maxTotalityRegionFa})".toPersianDigits()
-        } else {
-            "در موقعیت شما قابل رصد مستقیم نیست (اصلی: ${event.maxTotalityRegionFa})".toPersianDigits()
-        }
-
         return EclipseResult(
             event = event,
             isLocallyVisible = isLocallyVisible,
+            localNameEn = localNameEn,
+            localNameFa = localNameFa,
             localVisibilityTextEn = localTextEn,
             localVisibilityTextFa = localTextFa,
             formattedDateEn = formattedDateEn,

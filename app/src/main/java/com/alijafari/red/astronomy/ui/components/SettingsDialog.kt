@@ -141,12 +141,23 @@ fun SettingsDialog(
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                        FilterChip(
-                            selected = uiState.themeMode == ThemeMode.LIGHT,
-                            onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) },
-                            label = { Text(text = if (isFa) "☀️ حالت روشن" else "☀️ Light Mode") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = uiState.themeMode == ThemeMode.DYNAMIC_SKY,
+                                onClick = { viewModel.setThemeMode(ThemeMode.DYNAMIC_SKY) },
+                                label = { Text(text = if (isFa) "🌅 آسمان پویا" else "🌅 Dynamic Sky") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
+                                selected = uiState.themeMode == ThemeMode.LIGHT,
+                                onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) },
+                                label = { Text(text = if (isFa) "☀️ روشن" else "☀️ Light") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
 

@@ -53,8 +53,8 @@ object WhatsUpTonightEngine {
                 TonightEvent(
                     id = solarEclipse.event.id,
                     icon = "☀️",
-                    titleEn = solarEclipse.event.nameEn,
-                    titleFa = solarEclipse.event.nameFa,
+                    titleEn = solarEclipse.localNameEn,
+                    titleFa = solarEclipse.localNameFa,
                     explanationEn = solarEclipse.event.descriptionEn,
                     explanationFa = solarEclipse.event.descriptionFa,
                     timeOrDateStrEn = solarEclipse.formattedDateEn,
@@ -74,8 +74,8 @@ object WhatsUpTonightEngine {
                 TonightEvent(
                     id = lunarEclipse.event.id,
                     icon = "🌕",
-                    titleEn = lunarEclipse.event.nameEn,
-                    titleFa = lunarEclipse.event.nameFa,
+                    titleEn = lunarEclipse.localNameEn,
+                    titleFa = lunarEclipse.localNameFa,
                     explanationEn = lunarEclipse.event.descriptionEn,
                     explanationFa = lunarEclipse.event.descriptionFa,
                     timeOrDateStrEn = lunarEclipse.formattedDateEn,

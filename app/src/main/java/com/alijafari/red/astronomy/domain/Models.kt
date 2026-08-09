@@ -84,7 +84,8 @@ enum class CalendarSystem {
 enum class ThemeMode {
     DARK_NAVY,
     OLED_BLACK,
-    LIGHT
+    LIGHT,
+    DYNAMIC_SKY
 }
 
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {

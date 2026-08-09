@@ -62,7 +62,15 @@ class MainActivity : ComponentActivity() {
             val isFa = uiState.language == AppLanguage.PERSIAN
             val layoutDirection = if (isFa) LayoutDirection.Rtl else LayoutDirection.Ltr
 
-            REDTheme(themeMode = uiState.themeMode) {
+            val sunAltitudeDeg = remember(uiState.userLocation) {
+                com.alijafari.red.astronomy.astro_engine.SunEngine.getSunAltAz(
+                    com.alijafari.red.astronomy.astro_engine.TimeEngine.getJulianDate(),
+                    uiState.userLocation.latitude,
+                    uiState.userLocation.longitude
+                ).altitudeDeg
+            }
+
+            REDTheme(themeMode = uiState.themeMode, sunAltitudeDeg = sunAltitudeDeg) {
                 CompositionLocalProvider(
                     LocalContext provides localizedContext,
                     LocalLayoutDirection provides layoutDirection,
@@ -75,7 +83,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxSize()
                                 .testTag("main_scaffold"),
-                            containerColor = Color.Black,
+                            containerColor = MaterialTheme.colorScheme.background,
                         topBar = {
                             val isFa = uiState.language == com.alijafari.red.astronomy.domain.AppLanguage.PERSIAN
                             Row(

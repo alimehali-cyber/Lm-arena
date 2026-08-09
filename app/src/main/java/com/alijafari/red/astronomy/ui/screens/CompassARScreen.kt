@@ -547,8 +547,15 @@ fun CompassARScreen(
         }
     }
 
-    // AR Long-press Object State
+    // AR Info Card Object State & Auto-Dismiss Timer
     var longPressObject by remember { mutableStateOf<CelestialObject?>(null) }
+
+    LaunchedEffect(longPressObject) {
+        if (longPressObject != null) {
+            delay(3000L)
+            longPressObject = null
+        }
+    }
 
     // Active Orbit Object (Target or Long-pressed Object)
     val activeOrbitObject = selectedTarget ?: longPressObject
@@ -767,8 +774,12 @@ fun CompassARScreen(
                             resetControlsTimer()
                             tryAwaitRelease()
                         },
-                        onLongPress = { touchOffset ->
+                        onTap = { touchOffset ->
                             resetControlsTimer()
+                            if (activeExpandedPanel != null) {
+                                activeExpandedPanel = null
+                            }
+
                             val canvasWidth = size.width.toFloat()
                             val canvasHeight = size.height.toFloat()
                             val centerX = canvasWidth / 2f
@@ -818,16 +829,7 @@ fun CompassARScreen(
                                 }
                             }
 
-                            if (bestMatch != null) {
-                                longPressObject = bestMatch
-                            }
-                        },
-                        onTap = {
-                            resetControlsTimer()
-                            longPressObject = null
-                            if (activeExpandedPanel != null) {
-                                activeExpandedPanel = null
-                            }
+                            longPressObject = bestMatch
                         }
                     )
                 }
