@@ -16,10 +16,9 @@ object AtmosphereRenderer {
         drawScope: DrawScope,
         lightingState: LightingState,
         sunPosPx: Offset?,
-        theme: SkyCanvasTheme = SkyCanvasTheme.COSMIC_PREMIUM
+        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY
     ) {
         when (theme) {
-            SkyCanvasTheme.COSMIC_PREMIUM -> drawCelestialAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.ATMOSPHERIC_SKY -> drawAtmosphericSky(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.KIDS_WATERCOLOR -> drawKidsWatercolorAtmosphere(drawScope, lightingState, sunPosPx)

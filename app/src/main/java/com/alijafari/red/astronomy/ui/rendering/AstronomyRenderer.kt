@@ -30,13 +30,13 @@ object AstronomyRenderer {
         galacticPoints: List<GalacticEngine.GalacticPlanePoint>,
         selectedObjectPos: Offset?,
         frameTimeMs: Long,
-        theme: SkyCanvasTheme = SkyCanvasTheme.COSMIC_PREMIUM,
+        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY,
         drawGrid: Boolean = false
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
-        val horizonY = height * 0.72f
+        val horizonY = height * 0.85f
         val topMargin = 24f
         val scale = (horizonY - topMargin) / 90.0f
 

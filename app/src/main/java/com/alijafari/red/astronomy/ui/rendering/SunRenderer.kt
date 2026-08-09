@@ -24,7 +24,7 @@ object SunRenderer {
     ) {
         if (sunAltitudeDeg < -10.0) return
 
-        val horizonY = drawScope.size.height * 0.72f
+        val horizonY = drawScope.size.height * 0.85f
         drawScope.clipRect(
             left = 0f,
             top = 0f,
@@ -32,7 +32,7 @@ object SunRenderer {
             bottom = horizonY
         ) {
             when (theme) {
-                SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+                SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
                 SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
                 SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
                 SkyCanvasTheme.OBSERVATORY -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)

@@ -547,6 +547,26 @@ fun CompassARScreen(
         }
     }
 
+    // Dynamic state wrappers for gesture detector inside pointerInput(Unit)
+    val curAzimuthState by rememberUpdatedState(currentAzimuth)
+    val curAltitudeState by rememberUpdatedState(currentAltitude)
+    val zoomFactorState by rememberUpdatedState(zoomFactor)
+    val skyOrientationState by rememberUpdatedState(skyOrientation)
+    val currentDensity = LocalDensity.current.density
+    val densityState by rememberUpdatedState(currentDensity)
+    val filterStarsState by rememberUpdatedState(filterStars)
+    val filterSunState by rememberUpdatedState(filterSun)
+    val filterMoonsState by rememberUpdatedState(filterMoons)
+    val filterPlanetsState by rememberUpdatedState(filterPlanets)
+    val filterSatellitesState by rememberUpdatedState(filterSatellites)
+    val filterDeepSkyState by rememberUpdatedState(filterDeepSky)
+    val sunHorizState by rememberUpdatedState(sunHoriz)
+    val moonHorizState by rememberUpdatedState(moonHoriz)
+    val satellitePositionsState by rememberUpdatedState(satellitePositions)
+    val lastDegState by rememberUpdatedState(lastDeg)
+    val userLatState by rememberUpdatedState(uiState.userLocation.latitude)
+    val allCatalogState by rememberUpdatedState(allCatalog)
+
     // AR Info Card Object State & Auto-Dismiss Timer
     var longPressObject by remember { mutableStateOf<CelestialObject?>(null) }
 
@@ -768,7 +788,7 @@ fun CompassARScreen(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(allCatalog, currentAzimuth, currentAltitude, zoomFactor, filterStars, filterSun, filterMoons, filterPlanets, filterSatellites, filterDeepSky) {
+                .pointerInput(Unit) {
                     detectTapGestures(
                         onPress = {
                             resetControlsTimer()
@@ -780,41 +800,53 @@ fun CompassARScreen(
                                 activeExpandedPanel = null
                             }
 
+                            val activeAzimuth = curAzimuthState
+                            val activeAltitude = curAltitudeState
+                            val activeZoom = zoomFactorState
+                            val activeOrientation = skyOrientationState
+                            val activeDensity = densityState
+                            val activeCatalog = allCatalogState
+                            val activeSunHoriz = sunHorizState
+                            val activeMoonHoriz = moonHorizState
+                            val activeSatellitePositions = satellitePositionsState
+                            val activeLastDeg = lastDegState
+                            val activeUserLat = userLatState
+
                             val canvasWidth = size.width.toFloat()
                             val canvasHeight = size.height.toFloat()
                             val centerX = canvasWidth / 2f
                             val centerY = canvasHeight / 2f
-                            val fovX = 60.0 / zoomFactor
+                            val fovX = 60.0 / activeZoom
                             val pixelsPerDegree = canvasWidth / fovX
-                            val rollRad = Math.toRadians(-skyOrientation.roll.toDouble())
+                            val rollRad = Math.toRadians(-activeOrientation.roll.toDouble())
                             val cosR = cos(rollRad).toFloat()
                             val sinR = sin(rollRad).toFloat()
 
                             var bestMatch: CelestialObject? = null
-                            var bestDistPx = 70.0f * density
+                            var bestDistPx = 70.0f * activeDensity
 
-                            for (obj in allCatalog) {
+                            for (obj in activeCatalog) {
                                 val isVisibleByFilter = when (obj.type) {
-                                    ObjectType.STAR, ObjectType.ASTERISM -> filterStars
-                                    ObjectType.SUN -> filterSun
-                                    ObjectType.MOON -> filterMoons
-                                    ObjectType.PLANET -> filterPlanets
-                                    ObjectType.SATELLITE -> filterSatellites
+                                    ObjectType.STAR, ObjectType.ASTERISM -> filterStarsState
+                                    ObjectType.SUN -> filterSunState
+                                    ObjectType.MOON -> filterMoonsState
+                                    ObjectType.PLANET -> filterPlanetsState
+                                    ObjectType.SATELLITE -> filterSatellitesState
                                     ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA,
-                                    ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> filterDeepSky
+                                    ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> filterDeepSkyState
                                     else -> true
                                 }
                                 if (!isVisibleByFilter) continue
 
-                                val horiz = if (obj.type == ObjectType.SUN) sunHoriz
-                                else if (obj.id == "moon") moonHoriz
-                                else if (obj.type == ObjectType.SATELLITE) satellitePositions[obj.id] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
-                                else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), lastDeg, uiState.userLocation.latitude)
+                                val horiz = if (obj.type == ObjectType.SUN) activeSunHoriz
+                                else if (obj.id == "moon") activeMoonHoriz
+                                else if (obj.type == ObjectType.SATELLITE) activeSatellitePositions[obj.id] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
+                                else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), activeLastDeg, activeUserLat)
 
-                                var dAz = horiz.azimuthDeg - currentAzimuth
+                                var dAz = horiz.azimuthDeg - activeAzimuth
                                 if (dAz > 180) dAz -= 360
                                 if (dAz < -180) dAz += 360
-                                val dAlt = horiz.altitudeDeg - currentAltitude
+                                val dAlt = horiz.altitudeDeg - activeAltitude
 
                                 val rawX = (dAz * pixelsPerDegree).toFloat()
                                 val rawY = -(dAlt * pixelsPerDegree).toFloat()

@@ -43,12 +43,10 @@ object WhatsUpTonightEngine {
         val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
         val gmstDeg = TimeEngine.getGMST(jd) * 15.0
 
-        // 1. Check Upcoming Solar/Lunar Eclipses
+        // 1. Check Solar/Lunar Eclipses TONIGHT (only if occurring today/tonight AND locally visible)
         val (solarEclipse, lunarEclipse) = EclipseEngine.getNextEclipses(nowMs, userLatDeg, userLonDeg)
-        val solarDaysDiff = (solarEclipse.event.dateUtcMs - nowMs) / 86400000L
-        if (solarDaysDiff in 0..30) {
-            val status = if (solarEclipse.isLocallyVisible) EventVisibilityStatus.OPTIMAL else EventVisibilityStatus.NOT_VISIBLE
-            val score = if (solarEclipse.isLocallyVisible) 1000 else 600
+        val solarHoursDiff = Math.abs(solarEclipse.event.dateUtcMs - nowMs) / 3600000.0
+        if (solarHoursDiff <= 18.0 && solarEclipse.isLocallyVisible) {
             events.add(
                 TonightEvent(
                     id = solarEclipse.event.id,
@@ -59,17 +57,15 @@ object WhatsUpTonightEngine {
                     explanationFa = solarEclipse.event.descriptionFa,
                     timeOrDateStrEn = solarEclipse.formattedDateEn,
                     timeOrDateStrFa = solarEclipse.formattedDateFa,
-                    visibilityStatus = status,
+                    visibilityStatus = EventVisibilityStatus.OPTIMAL,
                     visibilityTextEn = solarEclipse.localVisibilityTextEn,
                     visibilityTextFa = solarEclipse.localVisibilityTextFa,
-                    importanceScore = score
+                    importanceScore = 1000
                 )
             )
         }
-        val lunarDaysDiff = (lunarEclipse.event.dateUtcMs - nowMs) / 86400000L
-        if (lunarDaysDiff in 0..30) {
-            val status = if (lunarEclipse.isLocallyVisible) EventVisibilityStatus.OPTIMAL else EventVisibilityStatus.NOT_VISIBLE
-            val score = if (lunarEclipse.isLocallyVisible) 980 else 580
+        val lunarHoursDiff = Math.abs(lunarEclipse.event.dateUtcMs - nowMs) / 3600000.0
+        if (lunarHoursDiff <= 18.0 && lunarEclipse.isLocallyVisible) {
             events.add(
                 TonightEvent(
                     id = lunarEclipse.event.id,
@@ -80,15 +76,15 @@ object WhatsUpTonightEngine {
                     explanationFa = lunarEclipse.event.descriptionFa,
                     timeOrDateStrEn = lunarEclipse.formattedDateEn,
                     timeOrDateStrFa = lunarEclipse.formattedDateFa,
-                    visibilityStatus = status,
+                    visibilityStatus = EventVisibilityStatus.OPTIMAL,
                     visibilityTextEn = lunarEclipse.localVisibilityTextEn,
                     visibilityTextFa = lunarEclipse.localVisibilityTextFa,
-                    importanceScore = score
+                    importanceScore = 980
                 )
             )
         }
 
-        // 2. Active / Peak Meteor Showers
+        // 2. Active Peak Meteor Showers TONIGHT
         val showers = MeteorShowerCatalog.getMeteorShowers()
         for (shower in showers) {
             val (peakDoy, nameEn, nameFa) = when (shower.id) {
@@ -103,23 +99,21 @@ object WhatsUpTonightEngine {
             }
             if (peakDoy > 0) {
                 val diff = Math.abs(dayOfYear - peakDoy)
-                if (diff <= 15) {
-                    val isPeak = diff <= 2
-                    val score = if (isPeak) 900 else 650
+                if (diff <= 1) { // Peaking tonight
                     events.add(
                         TonightEvent(
                             id = shower.id,
                             icon = "☄️",
                             titleEn = nameEn,
                             titleFa = nameFa,
-                            explanationEn = if (isPeak) "Peak activity tonight with high ZHR rate (~${shower.zhr} meteors/hr)." else "Active annual shower visible in late night hours.",
-                            explanationFa = if (isPeak) "اوج فعالیت امشب با نرخ بارش تا ${shower.zhr} شهاب در ساعت.".toPersianDigits() else "بارش شهابی فعال در ساعات پایانی شب.",
+                            explanationEn = "Peak activity tonight with high ZHR rate (~${shower.zhr} meteors/hr).",
+                            explanationFa = "اوج فعالیت امشب با نرخ بارش تا ${shower.zhr} شهاب در ساعت.".toPersianDigits(),
                             timeOrDateStrEn = shower.activePeakDateWindowEn,
                             timeOrDateStrFa = shower.activePeakDateWindowFa,
                             visibilityStatus = EventVisibilityStatus.OPTIMAL,
                             visibilityTextEn = "Best seen after midnight away from city lights",
                             visibilityTextFa = "بهترین زمان رصد پس از نیمه‌شب دور از آلودگی نوری",
-                            importanceScore = score,
+                            importanceScore = 900,
                             targetObject = shower
                         )
                     )

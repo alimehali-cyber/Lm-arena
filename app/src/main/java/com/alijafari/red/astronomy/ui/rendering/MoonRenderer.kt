@@ -31,7 +31,7 @@ object MoonRenderer {
         isWaxing: Boolean = true,
         theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL
     ) {
-        val horizonY = drawScope.size.height * 0.72f
+        val horizonY = drawScope.size.height * 0.85f
         drawScope.clipRect(
             left = 0f,
             top = 0f,
@@ -44,7 +44,7 @@ object MoonRenderer {
             }
 
             when (theme) {
-                SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
+                SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
                 SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
                 SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
                 SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)

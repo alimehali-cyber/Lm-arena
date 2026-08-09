@@ -335,7 +335,7 @@ fun HeroSkyCanvas(
 
                         // Emit Stardust particles along finger path styled by active theme
                         val particleColor = when (uiState.skyCanvasTheme) {
-                            SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> if (Random.nextBoolean()) Color(0xFF2DD4BF) else Color(0xFFFBBF24)
+                            SkyCanvasTheme.ATMOSPHERIC_SKY -> if (Random.nextBoolean()) Color(0xFF2DD4BF) else Color(0xFFFBBF24)
                             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
                             SkyCanvasTheme.KIDS_WATERCOLOR -> if (Random.nextBoolean()) Color(0xFFFF85A1) else Color(0xFF70D6FF)
                             SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
@@ -361,7 +361,7 @@ fun HeroSkyCanvas(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val canvasW = size.width
             val canvasH = size.height
-            val horizonY = canvasH * 0.72f
+            val horizonY = canvasH * 0.85f
             val topMargin = 24.dp.toPx()
             val scale = (horizonY - topMargin) / 90.0f
 
@@ -450,7 +450,7 @@ fun HeroSkyCanvas(
             selectedCelestial?.let { sel ->
                 val pulseRing = 1.0f + 0.12f * sin(frameTimeMs * 0.005f).toFloat()
                 val ringColor = when (uiState.skyCanvasTheme) {
-                    SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFF38BDF8)
+                    SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFF38BDF8)
                     SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
                     SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
                     SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
@@ -612,7 +612,7 @@ fun HeroSkyCanvas(
             val clampedBubbleY = (bubbleY - with(density) { 70.dp.toPx() }).coerceIn(10f, with(density) { 240.dp.toPx() })
 
             val (bgColor, borderColor, primaryTextColor, secondaryTextColor) = when (uiState.skyCanvasTheme) {
-                SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> Quadruple(
+                SkyCanvasTheme.ATMOSPHERIC_SKY -> Quadruple(
                     Color(0xCC0F172A),
                     Color(0xFF2DD4BF),
                     Color(0xFF2DD4BF),
@@ -654,7 +654,7 @@ fun HeroSkyCanvas(
                 modifier = Modifier
                     .offset { IntOffset(clampedBubbleX.toInt(), clampedBubbleY.toInt()) }
                     .then(
-                        if (uiState.skyCanvasTheme == SkyCanvasTheme.COSMIC_PREMIUM)
+                        if (uiState.skyCanvasTheme == SkyCanvasTheme.ATMOSPHERIC_SKY)
                             Modifier.shadow(12.dp, CircleShape, spotColor = Color(0xFF2DD4BF))
                         else Modifier
                     )

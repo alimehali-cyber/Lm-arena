@@ -31,7 +31,7 @@ object PlanetRenderer {
             val center = Offset(px, py)
 
             when (theme) {
-                SkyCanvasTheme.COSMIC_PREMIUM, SkyCanvasTheme.ATMOSPHERIC_SKY -> {
+                SkyCanvasTheme.ATMOSPHERIC_SKY -> {
                     when (pType) {
                         PlanetEngine.PlanetType.JUPITER -> drawJupiter(drawScope, center, frameTimeMs)
                         PlanetEngine.PlanetType.SATURN -> drawSaturn(drawScope, center)
