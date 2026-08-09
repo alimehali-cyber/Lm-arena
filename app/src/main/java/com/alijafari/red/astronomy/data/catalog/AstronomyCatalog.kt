@@ -104,6 +104,10 @@ object AstronomyCatalog {
 
     val DEFAULT_CONSTELLATIONS = ConstellationCatalog.getConstellations()
 
+    fun getById(id: String, jd: Double = TimeEngine.getJulianDate()): CelestialObject? {
+        return getAllObjects(jd).find { it.id == id }
+    }
+
     /**
      * Master catalog query: aggregates Sun, Moon, Planets, Galilean Moons, Stars,
      * Deep Sky Objects, Meteor Showers, Asterisms, Constellations, and Reference Points

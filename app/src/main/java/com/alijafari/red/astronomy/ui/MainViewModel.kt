@@ -29,7 +29,8 @@ data class MainUiState(
     val favoritesList: List<String> = emptyList(),
     val observationLogs: List<ObservationLogEntity> = emptyList(),
     val timeMachineState: TimeMachineState = TimeMachineState(),
-    val selectedTargetObject: CelestialObject? = null
+    val selectedTargetObject: CelestialObject? = null,
+    val selectedSatelliteId: String? = null
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -101,17 +102,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setLocation(cityEn: String, cityFa: String, lat: Double, lon: Double) {
-        _uiState.update {
-            it.copy(
-                userLocation = UserLocation(
-                    cityNameEn = cityEn,
-                    cityNameFa = cityFa,
-                    latitude = lat,
-                    longitude = lon,
-                    bortleClass = it.bortleClass
-                )
-            )
-        }
+        val newLoc = UserLocation(
+            cityNameEn = cityEn,
+            cityNameFa = cityFa,
+            latitude = lat,
+            longitude = lon,
+            bortleClass = _uiState.value.bortleClass
+        )
+        _uiState.update { it.copy(userLocation = newLoc) }
+        com.alijafari.red.astronomy.notification.AstroNotificationManager.handleLocationChanged(getApplication(), newLoc)
+    }
+
+    fun selectSatelliteById(satId: String?) {
+        _uiState.update { it.copy(selectedSatelliteId = satId) }
     }
 
     fun setBortleClass(bortle: Int) {

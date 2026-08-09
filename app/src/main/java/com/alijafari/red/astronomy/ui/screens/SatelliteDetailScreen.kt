@@ -307,9 +307,9 @@ fun SatelliteDetailScreen(
                             onSchedulePassReminder = { leadMins ->
                                 AstroNotificationManager.scheduleSpecificPassAlarm(
                                     context = context,
-                                    satName = if (isFa) satelliteItem.nameFa else satelliteItem.nameEn,
+                                    satellite = satelliteItem,
                                     pass = pass,
-                                    cityName = userLocation.cityNameFa,
+                                    userLocation = userLocation,
                                     leadMinutes = leadMins
                                 )
                                 val labelMins = if (leadMins == 1440) (if (isFa) "۱ روز" else "1 day") else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")

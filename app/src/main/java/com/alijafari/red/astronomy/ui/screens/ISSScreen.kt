@@ -965,9 +965,9 @@ fun ISSScreen(
                             onSchedulePassReminder = { leadMins ->
                                 AstroNotificationManager.scheduleSpecificPassAlarm(
                                     context = context,
-                                    satName = if (isFa) sat.nameFa else sat.nameEn,
+                                    satellite = sat,
                                     pass = pass,
-                                    cityName = uiState.userLocation.cityNameFa,
+                                    userLocation = uiState.userLocation,
                                     leadMinutes = leadMins
                                 )
                                 val labelStr = if (leadMins == 1440) (if (isFa) "۱ روز" else "1 day") else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")

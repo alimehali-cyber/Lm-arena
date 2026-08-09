@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivityResultRegistryOwner
@@ -45,12 +46,44 @@ import com.alijafari.red.astronomy.util.LocaleHelper
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        const val EXTRA_TARGET_OBJECT_ID = "extra_target_object_id"
+        const val EXTRA_TARGET_TYPE = "extra_target_type"
+        const val EXTRA_TARGET_ROUTE = "extra_target_route"
+    }
+
     private val viewModel: MainViewModel by viewModels()
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleNotificationIntent(intent)
+    }
+
+    private fun handleNotificationIntent(intent: Intent?) {
+        val targetObjId = intent?.getStringExtra(EXTRA_TARGET_OBJECT_ID) ?: return
+        val targetType = intent.getStringExtra(EXTRA_TARGET_TYPE) ?: ""
+
+        if (targetType == "SATELLITE" || targetObjId.startsWith("iss") || targetObjId.startsWith("starlink") || targetObjId.startsWith("hubble") || targetObjId.startsWith("tiangong") || targetObjId.startsWith("sat_")) {
+            viewModel.selectTab(1) // Satellites tab
+            viewModel.selectSatelliteById(targetObjId)
+        } else if (targetObjId == "moon" || targetObjId == "planet_moon") {
+            viewModel.selectTab(2) // Moon tab
+        } else {
+            val celObj = com.alijafari.red.astronomy.data.catalog.AstronomyCatalog.getById(targetObjId)
+            if (celObj != null) {
+                viewModel.openObjectDetail(celObj)
+            } else {
+                viewModel.selectTab(4) // Home tab
+            }
+        }
+    }
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleNotificationIntent(intent)
 
         setContent {
             val baseContext = LocalContext.current
