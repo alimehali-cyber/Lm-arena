@@ -41,8 +41,6 @@ import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Calendar
 
-import com.alijafari.red.astronomy.ui.components.Jersey25FontFamily
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -154,8 +152,9 @@ fun HomeScreen(
                         Text(
                             text = "RED",
                             style = androidx.compose.ui.text.TextStyle(
-                                fontFamily = Jersey25FontFamily,
-                                fontSize = 42.sp,
+                                fontFamily = FontFamily.SansSerif,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 32.sp,
                                 color = Color.White
                             )
                         )
