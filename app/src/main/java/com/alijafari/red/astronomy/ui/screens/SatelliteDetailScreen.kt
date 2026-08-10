@@ -305,19 +305,24 @@ fun SatelliteDetailScreen(
                             cityName = userLocation.cityNameFa,
                             isFa = isFa,
                             onSchedulePassReminder = { leadMins ->
-                                AstroNotificationManager.scheduleSpecificPassAlarm(
-                                    context = context,
-                                    satellite = satelliteItem,
-                                    pass = pass,
-                                    userLocation = userLocation,
-                                    leadMinutes = leadMins
-                                )
-                                val labelMins = if (leadMins == 1440) (if (isFa) "۱ روز" else "1 day") else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")
-                                Toast.makeText(
-                                    context,
-                                    if (isFa) "هشدار گذر $labelMins قبل از شروع تنظیم شد!" else "Alert scheduled $labelMins prior to pass!",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                val status = com.alijafari.red.astronomy.notification.NotificationPermissionHelper.checkPostNotificationStatus(context)
+                                if (status == com.alijafari.red.astronomy.notification.NotificationPermissionHelper.PostNotificationStatus.DENIED) {
+                                    com.alijafari.red.astronomy.notification.NotificationPermissionHelper.openNotificationSettings(context)
+                                } else {
+                                    AstroNotificationManager.scheduleSpecificPassAlarm(
+                                        context = context,
+                                        satellite = satelliteItem,
+                                        pass = pass,
+                                        userLocation = userLocation,
+                                        leadMinutes = leadMins
+                                    )
+                                    val labelMins = if (leadMins == 1440) (if (isFa) "۱ روز" else "1 day") else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")
+                                    Toast.makeText(
+                                        context,
+                                        if (isFa) "هشدار گذر $labelMins قبل از شروع تنظیم شد!" else "Alert scheduled $labelMins prior to pass!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             }
                         )
                     }

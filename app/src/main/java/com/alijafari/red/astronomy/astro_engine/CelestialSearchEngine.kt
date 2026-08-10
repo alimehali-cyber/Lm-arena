@@ -40,9 +40,13 @@ object CelestialSearchEngine {
             val constEn = obj.constellationEn.lowercase()
             val category = obj.category.lowercase()
 
+            val cleanNameEn = nameEn.replace("the ", "").trim()
+            val cleanNameFa = nameFa.trim()
+
             var score = 0
             when {
-                nameFa.startsWith(cleanQuery) || nameEn.startsWith(cleanQuery) -> score = 100
+                nameFa.startsWith(cleanQuery) || nameEn.startsWith(cleanQuery) ||
+                cleanNameEn.startsWith(cleanQuery) || cleanNameFa.startsWith(cleanQuery) -> score = 100
                 nameFa.contains(cleanQuery) || nameEn.contains(cleanQuery) -> score = 80
                 constFa.contains(cleanQuery) || constEn.contains(cleanQuery) -> score = 60
                 category.contains(cleanQuery) -> score = 40

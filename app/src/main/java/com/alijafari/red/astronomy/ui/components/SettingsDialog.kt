@@ -1,6 +1,15 @@
 package com.alijafari.red.astronomy.ui.components
 
+import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.LocationManager
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -15,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -48,6 +58,41 @@ fun SettingsDialog(
     val context = androidx.compose.ui.platform.LocalContext.current
     val isFa = uiState.language == AppLanguage.PERSIAN
     var showCityPicker by remember { mutableStateOf(false) }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fine || coarse) {
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            val isGpsEnabled = locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true
+            val isNetworkEnabled = locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true
+            if (!isGpsEnabled && !isNetworkEnabled) {
+                Toast.makeText(context, if (isFa) "لطفاً خدمات مکان‌یابی (GPS) دستگاه را روشن کنید" else "Please enable device Location Services (GPS)", Toast.LENGTH_LONG).show()
+                try {
+                    context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            } else {
+                try {
+                    val lastLoc = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                        ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                    if (lastLoc != null) {
+                        viewModel.setLocation("Live GPS", "GPS زنده", lastLoc.latitude, lastLoc.longitude)
+                        Toast.makeText(context, if (isFa) "موقعیت زنده GPS ثبت شد" else "Live GPS location set", Toast.LENGTH_SHORT).show()
+                        showCityPicker = false
+                    } else {
+                        viewModel.setLocation("Live GPS", "GPS زنده", uiState.userLocation.latitude, uiState.userLocation.longitude)
+                        showCityPicker = false
+                    }
+                } catch (e: SecurityException) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -369,7 +414,7 @@ fun SettingsDialog(
         }
     )
 
-    // Iran Provincial Capitals Picker Modal
+    // Iran Provincial Capitals & Live GPS Picker Modal
     if (showCityPicker) {
         AlertDialog(
             onDismissRequest = { showCityPicker = false },
@@ -377,8 +422,56 @@ fun SettingsDialog(
                 Text(text = stringResource(R.string.select_city))
             },
             text = {
-                Box(modifier = Modifier.height(300.dp)) {
+                Box(modifier = Modifier.height(320.dp)) {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        item {
+                            Button(
+                                onClick = {
+                                    val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                    val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                    if (!fine && !coarse) {
+                                        locationPermissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                                    } else {
+                                        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+                                        val isGpsEnabled = locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true
+                                        val isNetworkEnabled = locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true
+                                        if (!isGpsEnabled && !isNetworkEnabled) {
+                                            Toast.makeText(context, if (isFa) "لطفاً خدمات مکان‌یابی (GPS) دستگاه را روشن کنید" else "Please enable device Location Services (GPS)", Toast.LENGTH_LONG).show()
+                                            try {
+                                                context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        } else {
+                                            try {
+                                                val lastLoc = locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                                                    ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+                                                if (lastLoc != null) {
+                                                    viewModel.setLocation("Live GPS", "GPS زنده", lastLoc.latitude, lastLoc.longitude)
+                                                    Toast.makeText(context, if (isFa) "موقعیت زنده GPS ثبت شد" else "Live GPS location set", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    viewModel.setLocation("Live GPS", "GPS زنده", uiState.userLocation.latitude, uiState.userLocation.longitude)
+                                                }
+                                                showCityPicker = false
+                                            } catch (e: SecurityException) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            ) {
+                                Icon(Icons.Default.GpsFixed, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(text = if (isFa) "موقعیت مکانی زنده (GPS)" else "Use Live GPS Location")
+                            }
+                        }
                         items(AstronomyCatalog.IRAN_CITIES) { (en, fa, coords) ->
                             TextButton(
                                 onClick = {

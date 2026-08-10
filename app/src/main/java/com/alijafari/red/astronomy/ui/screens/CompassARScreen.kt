@@ -572,7 +572,7 @@ fun CompassARScreen(
 
     LaunchedEffect(longPressObject) {
         if (longPressObject != null) {
-            delay(3000L)
+            delay(6000L)
             longPressObject = null
         }
     }
@@ -1451,13 +1451,12 @@ fun CompassARScreen(
             }
         }
 
-        // Layer 3: Arrow-Guided Finder Overlay (When an object is selected)
+        // Layer 3: Arrow-Guided Finder Overlay (When an object is selected, remains visible during auto-hide)
         finderData?.let { finder ->
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(260.dp)
-                    .graphicsLayer { alpha = controlsAlpha }
             ) {
                 // Direction Arrow Canvas
                 Canvas(
@@ -1527,6 +1526,43 @@ fun CompassARScreen(
                             color = AccentPrimary
                         )
                     }
+                }
+            }
+        }
+
+        // Layer 3.5: Glass Floating Cancel Target Button (Visible whenever target is active, even when controls auto-hide)
+        if (selectedTarget != null) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 10.dp, end = 12.dp)
+                    .testTag("ar_cancel_target_button"),
+                onClick = {
+                    selectedTarget = null
+                    viewModel.clearTargetObject()
+                },
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xCC1A1F36),
+                border = BorderStroke(1.dp, Color(0x88FF5252))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = if (isFa) "انصراف از ردیابی" else "Cancel Target",
+                        tint = Color(0xFFFF5252),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = if (isFa) "انصراف از ردیابی" else "Cancel Target",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
         }
@@ -2213,55 +2249,36 @@ fun CompassARScreen(
             }
         }
 
-        // Layer 7: Target Arrival Celebration Dialog
-        if (showArrivalDialog && selectedTarget != null) {
-            AlertDialog(
-                onDismissRequest = { showArrivalDialog = false },
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("🎯", fontSize = 24.sp)
-                        Text(
-                            text = if (isFa) "هدف پیدا شد!" else "Target Acquired!",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = if (isFa) "شما جرم «${selectedTarget?.nameFa}» را با موفقیت در آسمان ردیابی کردید."
-                            else "You successfully tracked ${selectedTarget?.nameEn} in the sky.",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Text(
-                            text = if (isFa) selectedTarget?.descriptionFa ?: "" else selectedTarget?.descriptionEn ?: "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            showArrivalDialog = false
-                            selectedTarget?.let { viewModel.openObjectDetail(it) }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary)
-                    ) {
-                        Text(if (isFa) "مشاهده شناسنامه جرم" else "View Details")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showArrivalDialog = false }) {
-                        Text(if (isFa) "بستن" else "Close")
-                    }
-                },
-                containerColor = NavyBackground,
-                shape = RoundedCornerShape(24.dp)
-            )
+        // Layer 7: Minimal "Object found" Confirmation Banner
+        if (finderData?.isArrived == true) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = (-140).dp)
+                    .testTag("ar_object_found_banner"),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xDD0D1B2A),
+                border = BorderStroke(1.dp, Color(0xFF4CAF50))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = if (isFa) "جرم پیدا شد" else "Object found",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
         }
     }
 }

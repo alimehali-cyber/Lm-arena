@@ -515,16 +515,21 @@ fun ObjectDetailModal(
 
                     Button(
                         onClick = {
-                            AstroNotificationManager.scheduleObjectNotification(
-                                context = context,
-                                obj = obj,
-                                targetTimeMs = System.currentTimeMillis() + 3600000L, // 1 hr test/schedule
-                                eventTypeFa = "اوج ارتفاع (ترانزیت)",
-                                timeStr = riseSetTransit.transitTimeStr,
-                                leadTenMinutesBefore = true
-                            )
-                            Toast.makeText(context, if (isFa) "هشدار با موفقیت تنظیم شد!" else "Notification scheduled!", Toast.LENGTH_SHORT).show()
-                            showNotificationSheet = false
+                            val status = com.alijafari.red.astronomy.notification.NotificationPermissionHelper.checkPostNotificationStatus(context)
+                            if (status == com.alijafari.red.astronomy.notification.NotificationPermissionHelper.PostNotificationStatus.DENIED) {
+                                com.alijafari.red.astronomy.notification.NotificationPermissionHelper.openNotificationSettings(context)
+                            } else {
+                                AstroNotificationManager.scheduleObjectNotification(
+                                    context = context,
+                                    obj = obj,
+                                    targetTimeMs = System.currentTimeMillis() + 3600000L, // 1 hr test/schedule
+                                    eventTypeFa = "اوج ارتفاع (ترانزیت)",
+                                    timeStr = riseSetTransit.transitTimeStr,
+                                    leadTenMinutesBefore = true
+                                )
+                                Toast.makeText(context, if (isFa) "هشدار با موفقیت تنظیم شد!" else "Notification scheduled!", Toast.LENGTH_SHORT).show()
+                                showNotificationSheet = false
+                            }
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
