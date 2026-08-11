@@ -37,7 +37,7 @@ object CelestialObjectSizes {
         return when (obj.type) {
             ObjectType.SUN -> SUN_SIZE_DP
             ObjectType.MOON -> MOON_SIZE_DP
-            ObjectType.PLANET -> PLANET_INNER_SIZE_DP
+            ObjectType.PLANET, ObjectType.DWARF_PLANET -> PLANET_INNER_SIZE_DP
             ObjectType.SATELLITE -> if (obj.id == "sat_iss") ISS_SIZE_DP else SATELLITE_SIZE_DP
             ObjectType.DEEP_SKY -> {
                 when {
@@ -56,14 +56,13 @@ object CelestialObjectSizes {
                     else -> STAR_MAGNITUDE_5_SIZE_DP
                 }
             }
-            ObjectType.GALAXY -> DSO_GALAXY_SIZE_DP
+            ObjectType.GALAXY, ObjectType.BLACK_HOLE -> DSO_GALAXY_SIZE_DP
             ObjectType.NEBULA -> DSO_NEBULA_SIZE_DP
             ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> DSO_CLUSTER_SIZE_DP
             ObjectType.METEOR_SHOWER -> 16f
             ObjectType.ASTERISM -> 12f
             ObjectType.CONSTELLATION -> 24f
             ObjectType.REFERENCE_POINT -> 14f
-            else -> 12f
         }
     }
 

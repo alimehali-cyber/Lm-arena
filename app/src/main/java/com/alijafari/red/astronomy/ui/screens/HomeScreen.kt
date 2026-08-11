@@ -460,9 +460,9 @@ fun HomeScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             displayedPredictiveItems.forEach { (obj, horiz, obs) ->
                                 val icon = when (obj.type) {
-                                    ObjectType.PLANET -> "🪐"
+                                    ObjectType.PLANET, ObjectType.DWARF_PLANET -> "🪐"
                                     ObjectType.MOON -> "🌙"
-                                    ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA, ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> "🌌"
+                                    ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA, ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER, ObjectType.BLACK_HOLE -> "🌌"
                                     ObjectType.STAR, ObjectType.ASTERISM -> "⭐"
                                     ObjectType.SATELLITE -> "🛰️"
                                     ObjectType.SUN -> "☀️"

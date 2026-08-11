@@ -102,7 +102,7 @@ private fun formatObjectDistance(obj: CelestialObject, isFa: Boolean): String {
             }
         }
         ObjectType.SATELLITE -> if (isFa) "۴۱۵ کیلومتر" else "415 km"
-        ObjectType.PLANET -> {
+        ObjectType.PLANET, ObjectType.DWARF_PLANET -> {
             when (obj.id) {
                 "planet_mercury" -> if (isFa) "۹۱٫۷ میلیون کیلومتر" else "91.7 million km"
                 "planet_venus" -> if (isFa) "۱۰۸٫۲ میلیون کیلومتر" else "108.2 million km"
@@ -111,6 +111,7 @@ private fun formatObjectDistance(obj: CelestialObject, isFa: Boolean): String {
                 "planet_saturn" -> if (isFa) "۱٫۴۲ میلیارد کیلومتر" else "1.42 billion km"
                 "planet_uranus" -> if (isFa) "۲٫۸۷ میلیارد کیلومتر" else "2.87 billion km"
                 "planet_neptune" -> if (isFa) "۴٫۵۰ میلیارد کیلومتر" else "4.50 billion km"
+                "planet_pluto" -> if (isFa) "۵٫۹ میلیارد کیلومتر" else "5.9 billion km"
                 else -> if (isFa) "۶۱۲٫۴ میلیون کیلومتر" else "612.4 million km"
             }
         }
@@ -830,10 +831,10 @@ fun CompassARScreen(
                                     ObjectType.STAR, ObjectType.ASTERISM -> filterStarsState
                                     ObjectType.SUN -> filterSunState
                                     ObjectType.MOON -> filterMoonsState
-                                    ObjectType.PLANET -> filterPlanetsState
+                                    ObjectType.PLANET, ObjectType.DWARF_PLANET -> filterPlanetsState
                                     ObjectType.SATELLITE -> filterSatellitesState
                                     ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA,
-                                    ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> filterDeepSkyState
+                                    ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER, ObjectType.BLACK_HOLE -> filterDeepSkyState
                                     else -> true
                                 }
                                 if (!isVisibleByFilter) continue
@@ -1043,10 +1044,10 @@ fun CompassARScreen(
                     ObjectType.STAR, ObjectType.ASTERISM -> filterStars
                     ObjectType.SUN -> filterSun
                     ObjectType.MOON -> filterMoons
-                    ObjectType.PLANET -> filterPlanets
+                    ObjectType.PLANET, ObjectType.DWARF_PLANET -> filterPlanets
                     ObjectType.SATELLITE -> filterSatellites
                     ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA,
-                    ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> filterDeepSky
+                    ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER, ObjectType.BLACK_HOLE -> filterDeepSky
                     else -> true
                 }
                 if (!isVisibleByFilter) continue
@@ -1236,7 +1237,7 @@ fun CompassARScreen(
                             )
                         }
                         ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA,
-                        ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> {
+                        ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER, ObjectType.BLACK_HOLE -> {
                             if (obj.type == ObjectType.GALAXY || obj.id.contains("m31") || obj.category.contains("Galaxy", ignoreCase = true)) {
                                 // Galaxy: tiny elliptical glow + bright core
                                 drawOval(

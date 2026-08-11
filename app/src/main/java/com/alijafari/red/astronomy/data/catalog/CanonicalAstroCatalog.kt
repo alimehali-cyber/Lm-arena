@@ -381,7 +381,7 @@ object CanonicalAstroCatalog {
 
     val PLUTO = CanonicalAstroObject(
         canonicalId = "planet_pluto",
-        type = ObjectType.PLANET,
+        type = ObjectType.DWARF_PLANET,
         nameEn = "Pluto (Dwarf Planet)",
         nameFa = "پلوتو (سیاره کوتوله)",
         searchAliasesEn = listOf("pluto", "dwarf planet"),
@@ -551,7 +551,7 @@ object CanonicalAstroCatalog {
     val SAGITTARIUS_A_STAR = CanonicalAstroObject(
         canonicalId = "sagittarius_a_star",
         legacyIds = listOf("galaxy_milky_way", "gal_center", "lab_sgra", "sgra"),
-        type = ObjectType.GALAXY,
+        type = ObjectType.BLACK_HOLE,
         nameEn = "Sagittarius A* (Milky Way Galactic Center)",
         nameFa = "سیاهچاله کمان آ* (مرکز کهکشان راه شیری)",
         searchAliasesEn = listOf("sagittarius a*", "sgr a*", "galactic center", "milky way center"),

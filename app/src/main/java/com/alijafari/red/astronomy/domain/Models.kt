@@ -3,6 +3,8 @@ package com.alijafari.red.astronomy.domain
 enum class ObjectType(val nameEn: String, val nameFa: String) {
     STAR("Star", "ستاره"),
     PLANET("Planet", "سیاره"),
+    DWARF_PLANET("Dwarf Planet", "سیاره کوتوله"),
+    BLACK_HOLE("Black Hole", "سیاه‌چاله"),
     DEEP_SKY("Deep Sky Object", "جرم اعماق فضا"),
     SATELLITE("Artificial Satellite", "ماهواره مصنوعی"),
     MOON("Moon", "ماه"),
