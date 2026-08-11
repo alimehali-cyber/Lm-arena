@@ -48,6 +48,7 @@ object MoonRenderer {
                 SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
                 SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
                 SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftMoon(drawScope, center, radius, illuminationPercent, isWaxing)
             }
         }
     }
@@ -329,5 +330,71 @@ object MoonRenderer {
             center = center,
             style = Stroke(width = drawScope.run { 2.5.dp.toPx() })
         )
+    }
+
+    private fun drawPapercraftMoon(
+        drawScope: DrawScope,
+        center: Offset,
+        radius: Float,
+        illuminationPercent: Double,
+        isWaxing: Boolean
+    ) {
+        val shadowOffset = Offset(4f, 5f)
+        val shadowColor = Color(0x352A221E)
+        val paperCream = Color(0xFFFAF8F3)
+        val paperDarkCard = Color(0xFF3B4050)
+
+        // Drop shadow for the main paper moon disc
+        drawScope.drawCircle(
+            color = shadowColor,
+            radius = radius * 1.2f,
+            center = center + shadowOffset
+        )
+
+        // Outer Paper Aura Ring
+        drawScope.drawCircle(
+            color = Color(0x33FFF3B0),
+            radius = radius * 1.35f,
+            center = center
+        )
+
+        // Main Paper Moon Disc
+        drawScope.drawCircle(
+            color = paperCream,
+            radius = radius * 1.2f,
+            center = center
+        )
+        drawScope.drawCircle(
+            color = Color(0x22000000),
+            radius = radius * 1.2f,
+            center = center,
+            style = Stroke(width = 1.2f)
+        )
+
+        // Phase Cutout Shadow Layer
+        val phaseFrac = (illuminationPercent / 100.0).coerceIn(0.0, 1.0)
+        if (phaseFrac < 0.98) {
+            val r = radius * 1.2f
+            val shadowPath = Path()
+            val sweepAngle = 180f
+            val startAngle = if (isWaxing) 90f else -90f
+
+            shadowPath.addArc(Rect(center.x - r, center.y - r, center.x + r, center.y + r), startAngle, sweepAngle)
+            val k = (2.0 * phaseFrac - 1.0).toFloat()
+            val stepInnerWidth = (abs(k) * r).coerceAtLeast(0f)
+            val innerRect = Rect(center.x - stepInnerWidth, center.y - r, center.x + stepInnerWidth, center.y + r)
+
+            if (isWaxing) {
+                val innerSweep = if (k >= 0) -180f else 180f
+                shadowPath.arcTo(innerRect, 270f, innerSweep, false)
+            } else {
+                val innerSweep = if (k >= 0) -180f else 180f
+                shadowPath.arcTo(innerRect, 90f, innerSweep, false)
+            }
+            shadowPath.close()
+
+            drawScope.drawPath(path = shadowPath, color = paperDarkCard)
+            drawScope.drawPath(path = shadowPath, color = Color(0x33000000), style = Stroke(width = 1.2f))
+        }
     }
 }

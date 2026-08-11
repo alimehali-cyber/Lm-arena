@@ -9,6 +9,9 @@ import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.domain.CelestialObject
 import kotlin.math.sin
 
+import androidx.compose.ui.graphics.PathEffect
+import com.alijafari.red.astronomy.domain.SkyCanvasTheme
+
 object ConstellationRenderer {
 
     // Define constellation star connections by star IDs in catalog
@@ -44,24 +47,25 @@ object ConstellationRenderer {
         drawScope: DrawScope,
         stars: List<Pair<CelestialObject, CoordinateEngine.Horizontal>>,
         starVisibility: Float,
-        frameTimeMs: Long
+        frameTimeMs: Long,
+        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY
     ) {
         if (starVisibility < 0.2f) return
 
         val width = drawScope.size.width
         val height = drawScope.size.height
 
-        // Map star ID to horizontal screen offset
         val starMap = stars.associate { (star, horiz) ->
             val sx = (horiz.azimuthDeg / 360.0 * width).toFloat()
             val sy = (height - (horiz.altitudeDeg / 90.0 * height)).toFloat()
             star.id to (Offset(sx, sy) to horiz.altitudeDeg)
         }
 
-        // Pulse line glow gently
         val linePulse = 0.6f + 0.4f * sin(frameTimeMs * 0.0012f).toFloat()
-        val lineAlpha = (starVisibility * 0.35f * linePulse).coerceIn(0f, 0.6f)
-        val lineColor = Color(0xFF38BDF8).copy(alpha = lineAlpha)
+        val isPapercraft = theme == SkyCanvasTheme.PAPERCRAFT_DIORAMA
+        val lineAlpha = if (isPapercraft) 0.65f else (starVisibility * 0.35f * linePulse).coerceIn(0f, 0.6f)
+        val lineColor = if (isPapercraft) Color(0xFF8B5E56).copy(alpha = lineAlpha) else Color(0xFF38BDF8).copy(alpha = lineAlpha)
+        val pathEffect = if (isPapercraft) PathEffect.dashPathEffect(floatArrayOf(10f, 6f), 0f) else null
 
         CONSTELLATION_LINES.forEach { lineGroup ->
             for (i in 0 until lineGroup.size - 1) {
@@ -75,21 +79,21 @@ object ConstellationRenderer {
                     val (p1, alt1) = p1Info
                     val (p2, alt2) = p2Info
 
-                    // Only draw if both stars are above horizon
                     if (alt1 > 0.0 && alt2 > 0.0) {
-                        // Soft Outer Glow Line
-                        drawScope.drawLine(
-                            color = Color(0xFF818CF8).copy(alpha = lineAlpha * 0.4f),
-                            start = p1,
-                            end = p2,
-                            strokeWidth = 3.2f
-                        )
-                        // Core Delicate Constellation Line
+                        if (!isPapercraft) {
+                            drawScope.drawLine(
+                                color = Color(0xFF818CF8).copy(alpha = lineAlpha * 0.4f),
+                                start = p1,
+                                end = p2,
+                                strokeWidth = 3.2f
+                            )
+                        }
                         drawScope.drawLine(
                             color = lineColor,
                             start = p1,
                             end = p2,
-                            strokeWidth = 1.2f
+                            strokeWidth = if (isPapercraft) 1.8f else 1.2f,
+                            pathEffect = pathEffect
                         )
                     }
                 }

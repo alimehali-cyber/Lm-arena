@@ -57,6 +57,7 @@ object PlanetRenderer {
                     }
                 }
                 SkyCanvasTheme.OBSERVATORY -> drawMonochromePlanet(drawScope, pType, center)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftPlanet(drawScope, pType, center)
             }
         }
     }
@@ -314,6 +315,52 @@ object PlanetRenderer {
         drawScope.drawCircle(
             color = Color(0xFF1D4ED8),
             radius = r,
+            center = center,
+            style = Stroke(width = 1.0f)
+        )
+    }
+
+    private fun drawPapercraftPlanet(drawScope: DrawScope, pType: PlanetEngine.PlanetType, center: Offset) {
+        val (radius, paperColor) = when (pType) {
+            PlanetEngine.PlanetType.MERCURY -> 6f to Color(0xFFD6CCC2)
+            PlanetEngine.PlanetType.VENUS -> 8.5f to Color(0xFFE8D8B8)
+            PlanetEngine.PlanetType.MARS -> 7.5f to Color(0xFFE07A5F)
+            PlanetEngine.PlanetType.JUPITER -> 13f to Color(0xFFF4A261)
+            PlanetEngine.PlanetType.SATURN -> 11f to Color(0xFFE9C46A)
+            PlanetEngine.PlanetType.URANUS -> 8f to Color(0xFF81B29A)
+            PlanetEngine.PlanetType.NEPTUNE -> 8f to Color(0xFF3D405B)
+            else -> 6f to Color(0xFFF7F4EE)
+        }
+
+        val shadowOffset = Offset(3.5f, 4.5f)
+        val shadowColor = Color(0x30221B18)
+
+        // Drop shadow
+        drawScope.drawCircle(
+            color = shadowColor,
+            radius = radius,
+            center = center + shadowOffset
+        )
+
+        // Special Papercraft Saturn Ring
+        if (pType == PlanetEngine.PlanetType.SATURN) {
+            drawScope.drawOval(
+                color = Color(0xFFE9C46A).copy(alpha = 0.7f),
+                topLeft = Offset(center.x - radius * 2.2f, center.y - radius * 0.7f),
+                size = Size(radius * 4.4f, radius * 1.4f),
+                style = Stroke(width = 3.5f)
+            )
+        }
+
+        // Cardstock disc
+        drawScope.drawCircle(
+            color = paperColor,
+            radius = radius,
+            center = center
+        )
+        drawScope.drawCircle(
+            color = Color(0x22000000),
+            radius = radius,
             center = center,
             style = Stroke(width = 1.0f)
         )

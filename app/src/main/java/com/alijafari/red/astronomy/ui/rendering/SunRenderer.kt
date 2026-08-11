@@ -36,6 +36,7 @@ object SunRenderer {
                 SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
                 SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
                 SkyCanvasTheme.OBSERVATORY -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftSun(drawScope, center)
             }
         }
     }
@@ -261,6 +262,69 @@ object SunRenderer {
                 width = drawScope.run { 2.2.dp.toPx() },
                 cap = StrokeCap.Round
             )
+        )
+    }
+
+    private fun drawPapercraftSun(drawScope: DrawScope, center: Offset) {
+        val r = 24f
+        val shadowOffset = Offset(4f, 5f)
+        val shadowColor = Color(0x302A201C)
+
+        // Outer Layer 1 Shadow
+        drawScope.drawCircle(
+            color = shadowColor,
+            radius = r * 2.2f,
+            center = center + shadowOffset
+        )
+        // Outer Layer 1 (Pastel Cream/Peach Cardstock Aura)
+        drawScope.drawCircle(
+            color = Color(0xFFFDE2E4),
+            radius = r * 2.2f,
+            center = center
+        )
+        drawScope.drawCircle(
+            color = Color(0x22000000),
+            radius = r * 2.2f,
+            center = center,
+            style = Stroke(width = 1f)
+        )
+
+        // Mid Layer 2 Shadow
+        drawScope.drawCircle(
+            color = shadowColor,
+            radius = r * 1.6f,
+            center = center + shadowOffset
+        )
+        // Mid Layer 2 (Warm Pastel Yellow Cardstock)
+        drawScope.drawCircle(
+            color = Color(0xFFFFF1C5),
+            radius = r * 1.6f,
+            center = center
+        )
+        drawScope.drawCircle(
+            color = Color(0x22000000),
+            radius = r * 1.6f,
+            center = center,
+            style = Stroke(width = 1f)
+        )
+
+        // Inner Layer 3 Shadow
+        drawScope.drawCircle(
+            color = shadowColor,
+            radius = r,
+            center = center + shadowOffset
+        )
+        // Inner Layer 3 (Pastel Gold Center Disc)
+        drawScope.drawCircle(
+            color = Color(0xFFF3C5B6),
+            radius = r,
+            center = center
+        )
+        drawScope.drawCircle(
+            color = Color(0x22000000),
+            radius = r,
+            center = center,
+            style = Stroke(width = 1.2f)
         )
     }
 }

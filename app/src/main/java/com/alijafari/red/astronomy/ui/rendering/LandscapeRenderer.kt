@@ -5,7 +5,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlin.math.sin
+
+import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 
 object LandscapeRenderer {
 
@@ -43,8 +46,14 @@ object LandscapeRenderer {
     fun drawHorizonLandscape(
         drawScope: DrawScope,
         lightingState: LightingState,
-        frameTimeMs: Long
+        frameTimeMs: Long,
+        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY
     ) {
+        if (theme == SkyCanvasTheme.PAPERCRAFT_DIORAMA) {
+            drawPapercraftDioramaLandscape(drawScope, lightingState)
+            return
+        }
+
         val width = drawScope.size.width
         val height = drawScope.size.height
 
@@ -118,5 +127,66 @@ object LandscapeRenderer {
                 center = Offset(cityGlowX2, baseHorizonY + 25f)
             )
         }
+    }
+
+    private fun drawPapercraftDioramaLandscape(
+        drawScope: DrawScope,
+        lightingState: LightingState
+    ) {
+        val width = drawScope.size.width
+        val height = drawScope.size.height
+        val baseHorizonY = height * 0.82f
+
+        val shadowColor = Color(0x38221B19)
+        val shadowOffset = Offset(4f, 6f)
+
+        // LAYER 1: Far Background Mountain Ridge (Soft Pastel Lavender/Sage)
+        val layer1Path = buildMountainPath(width, height, baseHorizonY - 18f, peakMaxHeight = 28f, phaseShift = 0.5f)
+        val layer1Color = Color(0xFFA3B18A) // Soft pastel sage
+        // Shadow
+        drawScope.drawPath(
+            path = layer1Path,
+            color = shadowColor,
+            style = androidx.compose.ui.graphics.drawscope.Fill
+        )
+        // Cardstock
+        drawScope.drawPath(path = layer1Path, color = layer1Color)
+        drawScope.drawPath(path = layer1Path, color = Color(0x22000000), style = Stroke(width = 1.2f))
+
+        // LAYER 2: Midground Mountain Ridge (Warm Pastel Terracotta / Sand)
+        val layer2Path = buildMountainPath(width, height, baseHorizonY - 5f, peakMaxHeight = 22f, phaseShift = 1.8f)
+        val layer2Color = Color(0xFFD4A373) // Warm muted terracotta sand
+        // Shadow offset
+        drawScope.drawPath(
+            path = layer2Path,
+            color = shadowColor
+        )
+        // Cardstock
+        drawScope.drawPath(path = layer2Path, color = layer2Color)
+        drawScope.drawPath(path = layer2Path, color = Color(0x22000000), style = Stroke(width = 1.2f))
+
+        // LAYER 3: Rolling Foreground Paper Hills (Pastel Forest Green)
+        val layer3Path = buildMountainPath(width, height, baseHorizonY + 12f, peakMaxHeight = 16f, phaseShift = 3.2f)
+        val layer3Color = Color(0xFF588157) // Soft pastel eucalyptus forest
+        // Shadow offset
+        drawScope.drawPath(
+            path = layer3Path,
+            color = shadowColor
+        )
+        // Cardstock
+        drawScope.drawPath(path = layer3Path, color = layer3Color)
+        drawScope.drawPath(path = layer3Path, color = Color(0x22000000), style = Stroke(width = 1.2f))
+
+        // LAYER 4: Front Base Frame Cardstock Edge (Rich Dark Sepia/Slate)
+        val layer4Path = Path().apply {
+            moveTo(0f, baseHorizonY + 28f)
+            lineTo(width, baseHorizonY + 28f)
+            lineTo(width, height)
+            lineTo(0f, height)
+            close()
+        }
+        val layer4Color = Color(0xFF3A405A) // Dark slate paper base
+        drawScope.drawPath(path = layer4Path, color = layer4Color)
+        drawScope.drawPath(path = layer4Path, color = Color(0x33000000), style = Stroke(width = 1.5f))
     }
 }

@@ -87,6 +87,7 @@ enum class ThemeMode {
     DARK_NAVY,
     OLED_BLACK,
     LIGHT,
+    PAPERCRAFT_PASTEL,
     DYNAMIC_SKY
 }
 
@@ -94,12 +95,14 @@ enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {
     ATMOSPHERIC_SKY("Atmospheric Sky", "آسمان جوی (اتمسفریک)"),
     MONOCHROME_SCIENTIFIC("Monochrome Scientific", "تک‌رنگ علمی (سوئیسی)"),
     KIDS_WATERCOLOR("Kids WaterColor", "آبرنگ جادویی کودکانه"),
-    OBSERVATORY("Observatory Night", "شب رصدخانه (سرخ)");
+    OBSERVATORY("Observatory Night", "شب رصدخانه (سرخ)"),
+    PAPERCRAFT_DIORAMA("Papercraft Diorama", "دیوراما هنر کاغذ بریده");
 
     companion object {
         val CELESTIAL get() = ATMOSPHERIC_SKY
         val MONOCHROME get() = MONOCHROME_SCIENTIFIC
         val FUN get() = KIDS_WATERCOLOR
+        val PAPERCRAFT get() = PAPERCRAFT_DIORAMA
     }
 }
 

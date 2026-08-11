@@ -61,6 +61,24 @@ private val LightSpaceColorScheme = lightColorScheme(
     outline = SoftCreamCardBorder
 )
 
+private val PapercraftPastelColorScheme = lightColorScheme(
+    primary = PapercraftPrimary,
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = PapercraftSurfaceVariant,
+    onPrimaryContainer = PapercraftPrimary,
+    secondary = PapercraftSecondary,
+    onSecondary = PapercraftTextPrimary,
+    tertiary = PapercraftTertiary,
+    onTertiary = Color(0xFFFFFFFF),
+    background = PapercraftBackground,
+    onBackground = PapercraftTextPrimary,
+    surface = PapercraftSurface,
+    onSurface = PapercraftTextPrimary,
+    surfaceVariant = PapercraftSurfaceVariant,
+    onSurfaceVariant = PapercraftTextSecondary,
+    outline = PapercraftOutline
+)
+
 private fun lerpColor(c1: Color, c2: Color, fraction: Float): Color {
     val f = fraction.coerceIn(0f, 1f)
     return Color(
@@ -191,6 +209,7 @@ fun REDTheme(
         ThemeMode.DARK_NAVY -> SpaceColorScheme
         ThemeMode.OLED_BLACK -> OledSpaceColorScheme
         ThemeMode.LIGHT -> LightSpaceColorScheme
+        ThemeMode.PAPERCRAFT_PASTEL -> PapercraftPastelColorScheme
         ThemeMode.DYNAMIC_SKY -> createDynamicSkyColorScheme(sunAltitudeDeg)
     }
 

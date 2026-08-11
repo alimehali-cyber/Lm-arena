@@ -38,6 +38,7 @@ import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.HeroSkyCanvas
+import com.alijafari.red.astronomy.ui.components.EclipseDetailModal
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Calendar
@@ -93,6 +94,7 @@ fun HomeScreen(
 
     // Astronomy Predictive Search State
     var searchQuery by remember { mutableStateOf("") }
+    var selectedEclipseResult by remember { mutableStateOf<EclipseEngine.EclipseResult?>(null) }
 
     val filteredSearchResults = remember(searchQuery, sortedObjectsWithObs) {
         val q = searchQuery.trim().lowercase()
@@ -107,10 +109,25 @@ fun HomeScreen(
         }
     }
 
+    selectedEclipseResult?.let { eclipseRes ->
+        val detailedInfo = remember(eclipseRes, uiState.userLocation) {
+            EclipseEngine.computeDetailedInfo(
+                result = eclipseRes,
+                userLatDeg = uiState.userLocation.latitude,
+                userLonDeg = uiState.userLocation.longitude
+            )
+        }
+        EclipseDetailModal(
+            detailedInfo = detailedInfo,
+            language = uiState.language,
+            onDismiss = { selectedEclipseResult = null }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.background)
             .testTag("home_screen_column"),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -135,7 +152,7 @@ fun HomeScreen(
                                 fontFamily = FontFamily.SansSerif,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 32.sp,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.primary
                             )
                         )
                         Text(
@@ -273,7 +290,8 @@ fun HomeScreen(
                         dateStr = if (isFa) solarEclipse.formattedDateFa else solarEclipse.formattedDateEn,
                         visibilityInfo = if (isFa) solarEclipse.localVisibilityTextFa else solarEclipse.localVisibilityTextEn,
                         isLocallyVisible = solarEclipse.isLocallyVisible,
-                        isFa = isFa
+                        isFa = isFa,
+                        onClick = { selectedEclipseResult = solarEclipse }
                     )
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
@@ -285,7 +303,14 @@ fun HomeScreen(
                         dateStr = if (isFa) lunarEclipse.formattedDateFa else lunarEclipse.formattedDateEn,
                         visibilityInfo = if (isFa) lunarEclipse.localVisibilityTextFa else lunarEclipse.localVisibilityTextEn,
                         isLocallyVisible = lunarEclipse.isLocallyVisible,
-                        isFa = isFa
+                        isFa = isFa,
+                        onClick = { selectedEclipseResult = lunarEclipse }
+                    )
+
+                    Text(
+                        text = if (isFa) "برای مشاهده زمان دقیق، فازها و راه‌نمای رصد روی هر رویداد ضربه بزنید ➔" else "Tap an eclipse for exact local timing, phases & safety guide ➔",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = AccentPrimary
                     )
                 }
             }
@@ -558,48 +583,60 @@ private fun EclipseItemRow(
     dateStr: String,
     visibilityInfo: String,
     isLocallyVisible: Boolean,
-    isFa: Boolean
+    isFa: Boolean,
+    onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("eclipse_item_row_${title.lowercase().replace(' ', '_')}")
     ) {
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.weight(1f)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = icon, fontSize = 22.sp)
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(text = icon, fontSize = 22.sp)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = dateStr,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = AccentPrimary
+                    )
+                    Text(
+                        text = visibilityInfo,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (isLocallyVisible) StatusExcellent.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f)
+            ) {
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = dateStr,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = AccentPrimary
-                )
-                Text(
-                    text = visibilityInfo,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = if (isLocallyVisible) (if (isFa) "قابل رصد" else "Locally Visible") else (if (isFa) "غیرقابل رصد" else "Not Visible"),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                    color = if (isLocallyVisible) StatusExcellent else Color.Gray
                 )
             }
-        }
-
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = if (isLocallyVisible) StatusExcellent.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f)
-        ) {
-            Text(
-                text = if (isLocallyVisible) (if (isFa) "قابل رصد" else "Locally Visible") else (if (isFa) "غیرقابل رصد" else "Not Visible"),
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                color = if (isLocallyVisible) StatusExcellent else Color.Gray
-            )
         }
     }
 }

@@ -33,6 +33,7 @@ object StarRenderer {
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
             SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs)
             SkyCanvasTheme.OBSERVATORY -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
+            SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftStars(drawScope, objects, starVisibility, frameTimeMs)
         }
     }
 
@@ -274,6 +275,66 @@ object StarRenderer {
                 topLeft = Offset(center.x - width * 0.18f, center.y - height * 0.25f),
                 size = Size(width * 0.36f, height * 0.5f)
             )
+        }
+    }
+
+    private fun drawPapercraftStars(
+        drawScope: DrawScope,
+        objects: List<Pair<CelestialObject, CoordinateEngine.Horizontal>>,
+        starVisibility: Float,
+        frameTimeMs: Long
+    ) {
+        val width = drawScope.size.width
+        val height = drawScope.size.height
+
+        objects.forEach { (celestialObj, horiz) ->
+            if (celestialObj.type == ObjectType.STAR || celestialObj.type == ObjectType.DEEP_SKY) {
+                val sx = (horiz.azimuthDeg / 360.0 * width).toFloat()
+                val sy = (height - (horiz.altitudeDeg / 90.0 * height)).toFloat()
+                val center = Offset(sx, sy)
+
+                val hash = celestialObj.id.hashCode()
+                val size = (5f - celestialObj.magnitude.toFloat() * 0.6f).coerceIn(2.5f, 7.5f)
+                val paperColor = if (celestialObj.magnitude < 1.0) Color(0xFFFFF3B0) else Color(0xFFFFFDF8)
+                val shadowColor = Color(0x28201A18)
+                val shadowOffset = Offset(2.5f, 3f)
+
+                if (celestialObj.magnitude < 1.5) {
+                    // 4-point paper cutout star shape
+                    val starPath = Path().apply {
+                        moveTo(center.x, center.y - size * 2.2f)
+                        quadraticTo(center.x, center.y, center.x + size * 2.2f, center.y)
+                        quadraticTo(center.x, center.y, center.x, center.y + size * 2.2f)
+                        quadraticTo(center.x, center.y, center.x - size * 2.2f, center.y)
+                        quadraticTo(center.x, center.y, center.x, center.y - size * 2.2f)
+                        close()
+                    }
+                    val shadowPath = Path().apply {
+                        val sc = center + shadowOffset
+                        moveTo(sc.x, sc.y - size * 2.2f)
+                        quadraticTo(sc.x, sc.y, sc.x + size * 2.2f, sc.y)
+                        quadraticTo(sc.x, sc.y, sc.x, sc.y + size * 2.2f)
+                        quadraticTo(sc.x, sc.y, sc.x - size * 2.2f, sc.y)
+                        quadraticTo(sc.x, sc.y, sc.x, sc.y - size * 2.2f)
+                        close()
+                    }
+                    drawScope.drawPath(path = shadowPath, color = shadowColor)
+                    drawScope.drawPath(path = starPath, color = paperColor)
+                    drawScope.drawPath(path = starPath, color = Color(0x22000000), style = Stroke(width = 0.8f))
+                } else {
+                    // Small circular cardstock punchout
+                    drawScope.drawCircle(
+                        color = shadowColor,
+                        radius = size * 0.9f,
+                        center = center + shadowOffset
+                    )
+                    drawScope.drawCircle(
+                        color = paperColor,
+                        radius = size * 0.9f,
+                        center = center
+                    )
+                }
+            }
         }
     }
 }

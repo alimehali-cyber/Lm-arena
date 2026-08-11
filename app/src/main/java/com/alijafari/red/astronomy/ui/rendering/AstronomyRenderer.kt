@@ -73,7 +73,8 @@ object AstronomyRenderer {
             drawScope = drawScope,
             stars = stars,
             starVisibility = lightingState.starVisibility,
-            frameTimeMs = frameTimeMs
+            frameTimeMs = frameTimeMs,
+            theme = theme
         )
 
         // 5. Stars & Deep Sky Objects
@@ -129,7 +130,8 @@ object AstronomyRenderer {
         LandscapeRenderer.drawHorizonLandscape(
             drawScope = drawScope,
             lightingState = lightingState,
-            frameTimeMs = frameTimeMs
+            frameTimeMs = frameTimeMs,
+            theme = theme
         )
 
         // 10. Target Selection Indicator Ring

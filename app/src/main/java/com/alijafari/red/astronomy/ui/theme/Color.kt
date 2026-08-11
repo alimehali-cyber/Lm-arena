@@ -40,6 +40,17 @@ val GradientCardEnd = Color(0xFF0E0D17)
 
 val BottomNavBackground = Color(0xFA0E0D14)
 
+// Papercraft Pastel Color System
+val PapercraftBackground = Color(0xFFF6F3EC)       // Soft Matte Warm Linen Cardstock
+val PapercraftSurface = Color(0xFFFAF8F3)          // Layered Off-white Textured Cardstock
+val PapercraftSurfaceVariant = Color(0xFFEBE5D8)   // Secondary Layer Cardstock
+val PapercraftPrimary = Color(0xFF8B5E56)          // Muted Soft Terracotta / Vintage Paper Clay
+val PapercraftSecondary = Color(0xFFD4A373)        // Soft Warm Sand / Cardstock Gold
+val PapercraftTertiary = Color(0xFF6B8E85)         // Soft Pastel Sage / Muted Eucalyptus
+val PapercraftTextPrimary = Color(0xFF2C2523)      // Deep Warm Sepia Charcoal
+val PapercraftTextSecondary = Color(0xFF6E655F)    // Muted Sepia
+val PapercraftOutline = Color(0xFFD8D0C3)          // Visible Cut Paper Edge Shadow Border
+
 // Legacy color mappings for theme compatibility
 val NavyBackground = BackgroundPrimary
 val NavySurface = BackgroundCard

@@ -339,6 +339,7 @@ fun HeroSkyCanvas(
                             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
                             SkyCanvasTheme.KIDS_WATERCOLOR -> if (Random.nextBoolean()) Color(0xFFFF85A1) else Color(0xFF70D6FF)
                             SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+                            SkyCanvasTheme.PAPERCRAFT_DIORAMA -> if (Random.nextBoolean()) Color(0xFFE07A5F) else Color(0xFF81B29A)
                         }
                         repeat(3) {
                             stardustParticles.add(
@@ -454,6 +455,7 @@ fun HeroSkyCanvas(
                     SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
                     SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
                     SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+                    SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE07A5F)
                 }
                 drawCircle(
                     color = ringColor.copy(alpha = 0.5f),
@@ -647,6 +649,12 @@ fun HeroSkyCanvas(
                     Color(0xFFEF4444),
                     Color(0xFFEF4444),
                     Color.White.copy(alpha = 0.8f)
+                )
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Quadruple(
+                    Color(0xFFF7F4EE).copy(alpha = 0.95f),
+                    Color(0xFFE07A5F),
+                    Color(0xFF3D405B),
+                    Color(0xFF8B5E56)
                 )
             }
 

@@ -79,6 +79,7 @@ object MilkyWayRenderer {
                 SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color(0xFF94A3B8)
                 SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
                 SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFF4A261)
             }
 
             drawScope.drawCircle(

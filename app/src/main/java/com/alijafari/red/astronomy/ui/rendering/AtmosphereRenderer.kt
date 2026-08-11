@@ -23,6 +23,7 @@ object AtmosphereRenderer {
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.KIDS_WATERCOLOR -> drawKidsWatercolorAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.OBSERVATORY -> drawObservatoryAtmosphere(drawScope, lightingState, sunPosPx)
+            SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftAtmosphere(drawScope, lightingState, sunPosPx)
         }
     }
 
@@ -319,5 +320,134 @@ object AtmosphereRenderer {
         // Two cute little eyes
         drawScope.drawCircle(color = outlineColor, radius = 2.2f * scale, center = Offset(center.x - r * 0.35f, center.y - r * 0.1f))
         drawScope.drawCircle(color = outlineColor, radius = 2.2f * scale, center = Offset(center.x + r * 0.35f, center.y - r * 0.1f))
+    }
+
+    private fun drawPapercraftAtmosphere(
+        drawScope: DrawScope,
+        lightingState: LightingState,
+        sunPosPx: Offset?
+    ) {
+        val width = drawScope.size.width
+        val height = drawScope.size.height
+        val sunAlt = lightingState.sunAltitudeDeg
+
+        // 1. Layered Pastel Cardstock Sky Canvas Gradient
+        val skyColors = when {
+            sunAlt > 6.0 -> listOf(
+                Color(0xFFD6E4F0), // Soft pastel sky blue cardstock
+                Color(0xFFE8ECEF), // Pastel mist cream
+                Color(0xFFF7F3E9)  // Soft matte cardstock horizon
+            )
+            sunAlt in 0.0..6.0 -> listOf(
+                Color(0xFFF3C5B6), // Soft pastel peach
+                Color(0xFFE8B4B8), // Pastel rose blush
+                Color(0xFFEFE3C8)  // Soft warm cardstock horizon
+            )
+            sunAlt in -12.0..0.0 -> listOf(
+                Color(0xFF4A4E69), // Pastel lavender twilight
+                Color(0xFF9A8C98), // Soft cardstock purple
+                Color(0xFFC9ADA7)  // Pastel rose gold
+            )
+            else -> listOf(
+                Color(0xFF1F2432), // Dark matte indigo cardstock
+                Color(0xFF2C3446), // Deep pastel slate
+                Color(0xFF3D4A5D)  // Soft horizon cardstock
+            )
+        }
+
+        drawScope.drawRect(
+            brush = Brush.verticalGradient(skyColors),
+            size = drawScope.size
+        )
+
+        // 2. Soft Natural Solar Halo Paper Cutouts
+        if (sunPosPx != null && sunAlt > -6.0) {
+            val sunRadius = 140f
+            // Outer paper aura shadow
+            drawScope.drawCircle(
+                color = Color(0x20221A16),
+                radius = sunRadius + 12f,
+                center = sunPosPx.copy(x = sunPosPx.x + 4f, y = sunPosPx.y + 6f)
+            )
+            // Outer pastel ring
+            drawScope.drawCircle(
+                color = Color(0x33FFF3B0),
+                radius = sunRadius,
+                center = sunPosPx
+            )
+            // Inner soft cream ring
+            drawScope.drawCircle(
+                color = Color(0x44FFEAA7),
+                radius = sunRadius * 0.6f,
+                center = sunPosPx
+            )
+        }
+
+        // 3. Layered Papercraft Cutout Clouds with Physical Shadow Offsets
+        val cloudColor1 = Color(0xFFFFFDF8) // Off-white top cardstock
+        val cloudColor2 = Color(0xFFF2EBE1) // Shadowed lower cardstock
+        val shadowColor = Color(0x302C2320)
+
+        // Upper cloud layer
+        drawPapercraftCloud(
+            drawScope = drawScope,
+            center = Offset(width * 0.22f, height * 0.22f),
+            scale = 1.2f,
+            fillColor = cloudColor1,
+            shadowColor = shadowColor
+        )
+
+        // Mid cloud layer
+        drawPapercraftCloud(
+            drawScope = drawScope,
+            center = Offset(width * 0.78f, height * 0.18f),
+            scale = 0.95f,
+            fillColor = cloudColor2,
+            shadowColor = shadowColor
+        )
+
+        // Lower horizon cloud layer
+        drawPapercraftCloud(
+            drawScope = drawScope,
+            center = Offset(width * 0.52f, height * 0.35f),
+            scale = 0.80f,
+            fillColor = cloudColor1.copy(alpha = 0.90f),
+            shadowColor = shadowColor
+        )
+    }
+
+    private fun drawPapercraftCloud(
+        drawScope: DrawScope,
+        center: Offset,
+        scale: Float,
+        fillColor: Color,
+        shadowColor: Color
+    ) {
+        val r = 24f * scale
+        val shadowOffset = Offset(5f * scale, 7f * scale)
+
+        // Shadow Path (Layer behind)
+        val shadowCenter = center + shadowOffset
+        val shadowPath = Path().apply {
+            addOval(Rect(shadowCenter.x - r * 1.5f, shadowCenter.y - r * 1.1f, shadowCenter.x + r * 1.5f, shadowCenter.y + r * 1.1f))
+            addOval(Rect(shadowCenter.x - r * 2.2f, shadowCenter.y - r * 0.3f, shadowCenter.x - r * 0.4f, shadowCenter.y + r * 1.2f))
+            addOval(Rect(shadowCenter.x + r * 0.4f, shadowCenter.y - r * 0.2f, shadowCenter.x + r * 2.2f, shadowCenter.y + r * 1.2f))
+        }
+        drawScope.drawPath(path = shadowPath, color = shadowColor)
+
+        // Main Cut Paper Path
+        val mainPath = Path().apply {
+            addOval(Rect(center.x - r * 1.5f, center.y - r * 1.1f, center.x + r * 1.5f, center.y + r * 1.1f))
+            addOval(Rect(center.x - r * 2.2f, center.y - r * 0.3f, center.x - r * 0.4f, center.y + r * 1.2f))
+            addOval(Rect(center.x + r * 0.4f, center.y - r * 0.2f, center.x + r * 2.2f, center.y + r * 1.2f))
+        }
+        drawScope.drawPath(path = mainPath, color = fillColor)
+
+        // Subtle Cardstock Cut Edge Stroke Highlight
+        drawScope.drawPath(
+            path = mainPath,
+            color = Color(0x22000000),
+            style = Stroke(width = 1.2f)
+        )
     }
 }

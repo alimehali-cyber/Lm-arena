@@ -203,6 +203,17 @@ fun SettingsDialog(
                                 modifier = Modifier.weight(1f)
                             )
                         }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = uiState.themeMode == ThemeMode.PAPERCRAFT_PASTEL,
+                                onClick = { viewModel.setThemeMode(ThemeMode.PAPERCRAFT_PASTEL) },
+                                label = { Text(text = if (isFa) "✂️ کاغذ بریده (دیوراما)" else "✂️ Papercraft Art") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
 
@@ -245,6 +256,17 @@ fun SettingsDialog(
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.OBSERVATORY) },
                                 label = { Text(text = if (isFa) "🔴 رصدخانه" else "Observatory") },
                                 modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            FilterChip(
+                                selected = uiState.skyCanvasTheme == SkyCanvasTheme.PAPERCRAFT_DIORAMA,
+                                onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.PAPERCRAFT_DIORAMA) },
+                                label = { Text(text = if (isFa) "✂️ دیوراما کاغذ برجسته" else "✂️ Papercraft Diorama") },
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }

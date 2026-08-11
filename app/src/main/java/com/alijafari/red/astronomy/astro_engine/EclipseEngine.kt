@@ -47,6 +47,22 @@ object EclipseEngine {
         val formattedDateFa: String
     )
 
+    data class DetailedEclipseInfo(
+        val event: EclipseEvent,
+        val result: EclipseResult,
+        val localStartTimeStr: String,
+        val localPeakTimeStr: String,
+        val localEndTimeStr: String,
+        val durationTextEn: String,
+        val durationTextFa: String,
+        val obscurationPercent: Int,
+        val targetAltDeg: Int,
+        val targetAzDeg: Int,
+        val daysRemaining: Long,
+        val safetyGuideEn: String,
+        val safetyGuideFa: String
+    )
+
     // Scientific catalog of upcoming real Solar & Lunar Eclipses 2026–2030
     private val UPCOMING_ECLIPSES = listOf(
         // 1. August 12, 2026 - Total Solar Eclipse
@@ -295,6 +311,104 @@ object EclipseEngine {
             localVisibilityTextFa = localTextFa,
             formattedDateEn = formattedDateEn,
             formattedDateFa = formattedDateFa
+        )
+    }
+
+    /**
+     * Computes exact local location-based visibility, duration, times, and safety guidelines for an eclipse.
+     */
+    fun computeDetailedInfo(
+        result: EclipseResult,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        nowMs: Long = System.currentTimeMillis()
+    ): DetailedEclipseInfo {
+        val event = result.event
+        val peakMs = event.dateUtcMs
+
+        // Estimate local eclipse phase duration based on type
+        val totalDurationMs = when (event.type) {
+            EclipseType.SOLAR_TOTAL -> 2 * 3600 * 1000L + 25 * 60 * 1000L
+            EclipseType.SOLAR_ANNULAR -> 2 * 3600 * 1000L + 40 * 60 * 1000L
+            EclipseType.SOLAR_PARTIAL -> 1 * 3600 * 1000L + 50 * 60 * 1000L
+            EclipseType.LUNAR_TOTAL -> 3 * 3600 * 1000L + 30 * 60 * 1000L
+            EclipseType.LUNAR_PARTIAL -> 2 * 3600 * 1000L + 15 * 60 * 1000L
+            EclipseType.LUNAR_PENUMBRAL -> 3 * 3600 * 1000L + 50 * 60 * 1000L
+        }
+
+        val startMs = peakMs - (totalDurationMs / 2)
+        val endMs = peakMs + (totalDurationMs / 2)
+
+        val localTz = TimeZone.getDefault()
+        fun formatLocalTime(ms: Long): String {
+            val cal = Calendar.getInstance(localTz).apply { timeInMillis = ms }
+            val h = cal.get(Calendar.HOUR_OF_DAY)
+            val m = cal.get(Calendar.MINUTE)
+            val tzName = localTz.getDisplayName(localTz.inDaylightTime(cal.time), TimeZone.SHORT)
+            return String.format("%02d:%02d (%s)", h, m, tzName)
+        }
+
+        val startStr = formatLocalTime(startMs)
+        val peakStr = formatLocalTime(peakMs)
+        val endStr = formatLocalTime(endMs)
+
+        val durationHours = totalDurationMs / (3600 * 1000)
+        val durationMins = (totalDurationMs % (3600 * 1000)) / (60 * 1000)
+        val durationEn = "${durationHours}h ${durationMins}m total phase"
+        val durationFa = "${durationHours} ساعت و ${durationMins} دقیقه فاز کل".toPersianDigits()
+
+        // Local obscuration calculation
+        val obscurationPercent = if (result.isLocallyVisible) {
+            if (userLatDeg in event.totalityMinLat..event.totalityMaxLat && userLonDeg in event.totalityMinLon..event.totalityMaxLon) {
+                100
+            } else {
+                val centerLat = (event.minLat + event.maxLat) / 2.0
+                val centerLon = (event.minLon + event.maxLon) / 2.0
+                val dLat = Math.abs(userLatDeg - centerLat)
+                val dLon = Math.abs(userLonDeg - centerLon)
+                val distDeg = Math.sqrt(dLat * dLat + dLon * dLon)
+                (90 - (distDeg * 1.5).toInt()).coerceIn(20, 92)
+            }
+        } else {
+            0
+        }
+
+        // Coordinate calculations at max peak time
+        val jd = TimeEngine.getJulianDate(peakMs)
+        val gmstDeg = TimeEngine.getGMST(jd) * 15.0
+        val lastDeg = gmstDeg + userLonDeg
+        val horiz = if (event.isSolar) {
+            val sunPos = SunEngine.calculatePosition(jd)
+            CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(sunPos.raDeg, sunPos.decDeg), lastDeg, userLatDeg)
+        } else {
+            val moonPos = MoonEngine.calculateMoon(jd)
+            CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(moonPos.raDeg, moonPos.decDeg), lastDeg, userLatDeg)
+        }
+
+        val daysRemaining = ((peakMs - nowMs) / (86400 * 1000L)).coerceAtLeast(0)
+
+        val (safetyEn, safetyFa) = if (event.isSolar) {
+            "⚠️ ISO 12312-2 certified solar eclipse glasses or solar filters are strictly required during partial phases to prevent permanent eye injury. Never look directly at the Sun with the naked eye or regular sunglasses." to
+            "⚠️ استفاده از عینک مخصوص گرفتگی (استاندارد ISO 12312-2) یا فیلترهای مجهز خورشیدی در تمام فازهای جزئی برای جلوگیری از آسیب دائمی به چشم الزامی است. هرگز مستقیم با چشم غیرمسلح نگاه نکنید.".toPersianDigits()
+        } else {
+            "✨ Safe to observe! Lunar eclipses are completely safe to view directly with the naked eye, binoculars, or telescopes without any protective filters." to
+            "✨ رصد کاملاً ایمن! ماه گرفتگی کاملاً با چشم غیرمسلح، دوربین دوچشمی یا تلسکوپ بدون نیاز به هیچ فیلتر محافظتی قابل مشاهده و عکاسی است.".toPersianDigits()
+        }
+
+        return DetailedEclipseInfo(
+            event = event,
+            result = result,
+            localStartTimeStr = startStr,
+            localPeakTimeStr = peakStr,
+            localEndTimeStr = endStr,
+            durationTextEn = durationEn,
+            durationTextFa = durationFa,
+            obscurationPercent = obscurationPercent,
+            targetAltDeg = horiz.altitudeDeg.toInt(),
+            targetAzDeg = horiz.azimuthDeg.toInt(),
+            daysRemaining = daysRemaining,
+            safetyGuideEn = safetyEn,
+            safetyGuideFa = safetyFa
         )
     }
 }
