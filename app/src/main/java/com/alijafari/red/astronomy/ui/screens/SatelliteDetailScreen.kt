@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
+import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
@@ -64,13 +65,28 @@ fun SatelliteDetailScreen(
     val context = LocalContext.current
     val isOnline = remember(context) { isNetworkAvailable(context) }
 
-    val state = remember(satelliteItem, simulationTimestampMs, userLocation) {
-        SatelliteEngine.calculateSatelliteState(
-            satellite = satelliteItem,
+    val canonicalSatellite = remember(satelliteItem) {
+        CanonicalAstroCatalog.getCanonicalObject("sat_${satelliteItem.noradId}")
+            ?: CanonicalAstroCatalog.getCanonicalObject(satelliteItem.id)
+    }
+
+    val calculatedState = remember(canonicalSatellite, satelliteItem, simulationTimestampMs, userLocation) {
+        AstroDispatchEngine.calculateState(
+            idOrAlias = canonicalSatellite?.canonicalId ?: "sat_${satelliteItem.noradId}",
             timestampMs = simulationTimestampMs,
             userLatDeg = userLocation.latitude,
             userLonDeg = userLocation.longitude
         )
+    }
+
+    val state = remember(calculatedState, satelliteItem, simulationTimestampMs, userLocation) {
+        (calculatedState?.specializedData as? SatelliteLiveState)
+            ?: SatelliteEngine.calculateSatelliteState(
+                satellite = satelliteItem,
+                timestampMs = simulationTimestampMs,
+                userLatDeg = userLocation.latitude,
+                userLonDeg = userLocation.longitude
+            )
     }
 
     val roundedStartMs = remember(simulationTimestampMs) {

@@ -1,6 +1,6 @@
 package com.alijafari.red.astronomy.data.catalog
 
-import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
+import com.alijafari.red.astronomy.astro_engine.AstroDispatchEngine
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.domain.ConstellationData
@@ -8,71 +8,61 @@ import com.alijafari.red.astronomy.domain.ObjectType
 
 object AstronomyCatalog {
 
-    val SUN = SolarSystemCatalog.getSun(TimeEngine.getJulianDate())
-    val MOON = SolarSystemCatalog.getMoon(TimeEngine.getJulianDate())
+    val SUN: CelestialObject
+        get() = getById("sun") ?: SolarSystemCatalog.getSun(TimeEngine.getJulianDate())
 
-    val EARTH = CelestialObject(
-        id = "planet_earth",
-        type = ObjectType.PLANET,
-        nameEn = "Earth (Terra)",
-        nameFa = "زمین (کره خاک)",
-        raDeg = 0.0,
-        decDeg = 0.0,
-        magnitude = -3.8,
-        constellationEn = "Solar System",
-        constellationFa = "منظومه شمسی",
-        distanceLightYears = 0.0,
-        category = "Terrestrial Planet (Home)",
-        descriptionEn = "Our home planet, third planet from the Sun and starting origin for celestial observations.",
-        descriptionFa = "سیاره مادری ما، سومین سیاره منظومه شمسی و مبدأ مرجع رصدها و سفرهای فضایی.",
-        observationTipEn = "Origin reference for all astronomical calculations.",
-        observationTipFa = "مبدأ مرجع تمامی محاسبات نجومی و سفرهای فضایی."
-    )
+    val MOON: CelestialObject
+        get() = getById("moon") ?: SolarSystemCatalog.getMoon(TimeEngine.getJulianDate())
 
-    val ISS = CelestialObject(
-        id = "sat_iss",
-        type = ObjectType.SATELLITE,
-        nameEn = "International Space Station (ISS)",
-        nameFa = "ایستگاه فضایی بین‌المللی (ISS)",
-        raDeg = 180.0,
-        decDeg = 35.0,
-        magnitude = -3.2,
-        constellationEn = "Low Earth Orbit",
-        constellationFa = "مدار زمین",
-        distanceLightYears = 0.00000004,
-        category = "Habitable Space Station",
-        descriptionEn = "Habitable artificial satellite orbiting Earth every 90 minutes at 28,000 km/h.",
-        descriptionFa = "ایستگاه فضایی سرنشین‌دار در حال چرخش به دور زمین هر ۹۰ دقیقه با سرعت ۲۸,۰۰۰ کیلومتر بر ساعت.",
-        observationTipEn = "Appears as a fast-moving unblinking bright point across twilight skies.",
-        observationTipFa = "مانند یک نقطه بسیار پرنور بدون چشمک‌زدن با سرعت بالای افق حرکت می‌کند."
-    )
+    val EARTH: CelestialObject
+        get() = getById("planet_earth") ?: CanonicalAstroCatalog.toCelestialObject(
+            CanonicalAstroCatalog.getCanonicalObject("planet_earth")!!
+        )
 
-    val MILKY_WAY = CelestialObject(
-        id = "galaxy_milky_way",
-        type = ObjectType.GALAXY,
-        nameEn = "Milky Way Galaxy Center",
-        nameFa = "مرکز کهکشان راه شیری (Sagittarius A*)",
-        raDeg = 266.4,
-        decDeg = -29.0,
-        magnitude = -5.0,
-        constellationEn = "Sagittarius",
-        constellationFa = "کمان (قوس)",
-        distanceLightYears = 26000.0,
-        category = "Barred Spiral Galaxy",
-        descriptionEn = "Our home spiral galaxy containing 100-400 billion stars and Sagittarius A*.",
-        descriptionFa = "کهکشان خانگی ما شامل ۱۰۰ تا ۴۰۰ میلیارد ستاره و سیاهچاله کلان‌جرم مرکزی.",
-        observationTipEn = "Visible as a luminous glowing arch across dark unpolluted summer skies.",
-        observationTipFa = "نوار پهن و درخشان نورانی در شب‌های تابستان و مناطق کویری تاریک."
-    )
+    val ISS: CelestialObject
+        get() = getById("sat_iss") ?: CanonicalAstroCatalog.toCelestialObject(
+            CanonicalAstroCatalog.getCanonicalObject("sat_iss")!!
+        )
 
-    val ANDROMEDA = DeepSkyCatalog.getDeepSkyObjects().first { it.id == "dso_m31_andromeda" }
-    val ORION_NEBULA = DeepSkyCatalog.getDeepSkyObjects().first { it.id == "dso_m42_orion_nebula" }
-    val PLEIADES = DeepSkyCatalog.getDeepSkyObjects().first { it.id == "dso_m45_pleiades" }
+    val MILKY_WAY: CelestialObject
+        get() = getById("sagittarius_a_star") ?: getById("galaxy_milky_way") ?: CanonicalAstroCatalog.toCelestialObject(
+            CanonicalAstroCatalog.getCanonicalObject("sagittarius_a_star")!!
+        )
 
-    val SIRIUS = StarCatalog.getStars().first { it.id == "star_cma_sirius" }
-    val VEGA = StarCatalog.getStars().first { it.id == "star_lyr_vega" }
-    val BETELGEUSE = StarCatalog.getStars().first { it.id == "star_ori_betelgeuse" }
-    val POLARIS = StarCatalog.getStars().first { it.id == "star_umi_polaris" }
+    val ANDROMEDA: CelestialObject
+        get() = getById("dso_m31_andromeda") ?: CanonicalAstroCatalog.toCelestialObject(
+            CanonicalAstroCatalog.getCanonicalObject("dso_m31_andromeda")!!
+        )
+
+    val ORION_NEBULA: CelestialObject
+        get() = getById("dso_m42_orion_nebula") ?: CanonicalAstroCatalog.toCelestialObject(
+            CanonicalAstroCatalog.getCanonicalObject("dso_m42_orion_nebula")!!
+        )
+
+    val PLEIADES: CelestialObject
+        get() = getById("dso_m45_pleiades") ?: CanonicalAstroCatalog.toCelestialObject(
+            CanonicalAstroCatalog.getCanonicalObject("dso_m45_pleiades")!!
+        )
+
+    val SIRIUS: CelestialObject
+        get() = getById("star_cma_sirius") ?: CanonicalAstroCatalog.toCelestialObject(
+            CanonicalAstroCatalog.getCanonicalObject("star_cma_sirius")!!
+        )
+
+    val VEGA: CelestialObject
+        get() = getById("star_lyr_vega") ?: CanonicalAstroCatalog.toCelestialObject(
+            CanonicalAstroCatalog.getCanonicalObject("star_lyr_vega")!!
+        )
+
+    val BETELGEUSE: CelestialObject
+        get() = getById("star_ori_betelgeuse") ?: CanonicalAstroCatalog.toCelestialObject(
+            CanonicalAstroCatalog.getCanonicalObject("star_ori_betelgeuse")!!
+        )
+
+    val POLARIS: CelestialObject
+        get() = getById("star_umi_polaris") ?: CanonicalAstroCatalog.toCelestialObject(
+            CanonicalAstroCatalog.getCanonicalObject("star_umi_polaris")!!
+        )
 
     private val RAW_IRAN_CITIES = listOf(
         Triple("Nurabad City (NC)", "نورآباد ممسنی (NC)", 30.1141 to 51.5217),
@@ -102,109 +92,45 @@ object AstronomyCatalog {
             return listOfNotNull(nurabad) + others + listOfNotNull(safashahr)
         }
 
-    val DEFAULT_CONSTELLATIONS = ConstellationCatalog.getConstellations()
+    val DEFAULT_CONSTELLATIONS: List<ConstellationData>
+        get() = ConstellationCatalog.getConstellations()
 
     fun getById(id: String, jd: Double = TimeEngine.getJulianDate()): CelestialObject? {
-        return getAllObjects(jd).find { it.id == id }
+        val canonicalId = CanonicalAstroCatalog.resolveCanonicalId(id)
+        val canonicalObj = CanonicalAstroCatalog.getCanonicalObject(canonicalId) ?: return null
+        val timestampMs = TimeEngine.getTimestampFromJulianDate(jd)
+        val state = AstroDispatchEngine.calculateState(canonicalObj.canonicalId, timestampMs)
+        return if (state != null) {
+            CanonicalAstroCatalog.toCelestialObject(
+                canonicalObj = canonicalObj,
+                dynamicRa = state.raDeg,
+                dynamicDec = state.decDeg,
+                dynamicMag = state.magnitude
+            )
+        } else {
+            CanonicalAstroCatalog.toCelestialObject(canonicalObj)
+        }
     }
 
     /**
-     * Master catalog query: aggregates Sun, Moon, Planets, Galilean Moons, Stars,
-     * Deep Sky Objects, Meteor Showers, Asterisms, Constellations, and Reference Points
-     * into a single master catalog.
+     * Master catalog query: maps every canonical object from CanonicalAstroCatalog,
+     * updating dynamic positions/magnitudes via AstroDispatchEngine.
      */
     fun getAllObjects(jd: Double = TimeEngine.getJulianDate()): List<CelestialObject> {
-        val sun = SolarSystemCatalog.getSun(jd)
-        val moon = SolarSystemCatalog.getMoon(jd)
-        val planets = SolarSystemCatalog.getPlanets(jd)
-        val galileanMoons = SolarSystemCatalog.getGalileanMoons(jd)
-
-        val stars = StarCatalog.getStars()
-        val deepSky = DeepSkyCatalog.getDeepSkyObjects()
-        val meteorShowers = MeteorShowerCatalog.getMeteorShowers()
-        val asterisms = AsterismCatalog.getAsterisms()
-
-        val constellationsAsObjects = ConstellationCatalog.getConstellations().map { c ->
-            val avgRa = if (c.mainStars.isNotEmpty()) c.mainStars.map { it.first }.average() else 0.0
-            val avgDec = if (c.mainStars.isNotEmpty()) c.mainStars.map { it.second }.average() else 0.0
-            CelestialObject(
-                id = "const_${c.code.lowercase()}",
-                type = com.alijafari.red.astronomy.domain.ObjectType.CONSTELLATION,
-                nameEn = "${c.nameEn} Constellation",
-                nameFa = "صورت فلکی ${c.nameFa}",
-                raDeg = avgRa,
-                decDeg = avgDec,
-                magnitude = 2.0,
-                constellationEn = c.nameEn,
-                constellationFa = c.nameFa,
-                distanceLightYears = 0.0,
-                category = "Constellation (${c.seasonEn})",
-                descriptionEn = "${c.historicalInfoEn} Area: ${c.areaSqDeg} sq deg. Best Month: ${c.bestViewingMonthEn}.",
-                descriptionFa = "${c.historicalInfoFa} مساحت: ${c.areaSqDeg} درجه مربع. بهترین ماه رصد: ${c.bestViewingMonthFa}.",
-                observationTipEn = "Look for it in the ${c.seasonEn} sky.",
-                observationTipFa = "در آسمان ${c.seasonFa} قابل مشاهده است."
-            )
+        val timestampMs = TimeEngine.getTimestampFromJulianDate(jd)
+        return CanonicalAstroCatalog.getAllCanonicalObjects().map { canonicalObj ->
+            val state = AstroDispatchEngine.calculateState(canonicalObj.canonicalId, timestampMs)
+            if (state != null) {
+                CanonicalAstroCatalog.toCelestialObject(
+                    canonicalObj = canonicalObj,
+                    dynamicRa = state.raDeg,
+                    dynamicDec = state.decDeg,
+                    dynamicMag = state.magnitude
+                )
+            } else {
+                CanonicalAstroCatalog.toCelestialObject(canonicalObj)
+            }
         }
-
-        val referencePoints = listOf(
-            CelestialObject(
-                id = "ref_ncp",
-                type = com.alijafari.red.astronomy.domain.ObjectType.REFERENCE_POINT,
-                nameEn = "North Celestial Pole",
-                nameFa = "قطب شمال آسمانی (NCP)",
-                raDeg = 0.0,
-                decDeg = 90.0,
-                magnitude = 2.0,
-                constellationEn = "Ursa Minor",
-                constellationFa = "خرس کوچک (دب اصغر)",
-                distanceLightYears = 0.0,
-                category = "Celestial Coordinate Reference",
-                descriptionEn = "Point in the sky around which all northern celestial objects appear to rotate.",
-                descriptionFa = "نقطه‌ای محوری در قطب شمال کره آسمان که تمام اجرام به دور آن می‌چرخند.",
-                observationTipEn = "Located right next to Polaris in the northern sky.",
-                observationTipFa = "در مجاورت ستاره قطبی در آسمان شمالی قرار دارد."
-            ),
-            CelestialObject(
-                id = "ref_galactic_center",
-                type = com.alijafari.red.astronomy.domain.ObjectType.REFERENCE_POINT,
-                nameEn = "Galactic Center (Sagittarius A*)",
-                nameFa = "مرکز کهکشان راه شیری (Sagittarius A*)",
-                raDeg = 266.417,
-                decDeg = -29.008,
-                magnitude = 0.0,
-                constellationEn = "Sagittarius",
-                constellationFa = "کمان (قوس)",
-                distanceLightYears = 26000.0,
-                category = "Supermassive Black Hole",
-                descriptionEn = "Rotational center of the Milky Way galaxy housing a 4-million solar mass supermassive black hole.",
-                descriptionFa = "مرکز چرخش کهکشان راه شیری حاوی سیاهچاله غول‌پیکر ۴ میلیون برابر جرم خورشید.",
-                observationTipEn = "Look towards the richest part of the Milky Way in Sagittarius during summer.",
-                observationTipFa = "در تابستان به متراکم‌ترین بخش نوار راه شیری در صورت فلکی قوس نگاه کنید."
-            )
-        )
-
-        val catalogSatellites = SatelliteCatalog.satellites.map { sat ->
-            val id = if (sat.id == "iss_zarya") "sat_iss" else "sat_${sat.id}"
-            CelestialObject(
-                id = id,
-                type = ObjectType.SATELLITE,
-                nameEn = sat.nameEn,
-                nameFa = sat.nameFa,
-                raDeg = 180.0,
-                decDeg = 35.0,
-                magnitude = sat.standardMagnitude,
-                constellationEn = "Low Earth Orbit",
-                constellationFa = "مدار زمین",
-                distanceLightYears = 0.00000004,
-                category = sat.category.labelEn,
-                descriptionEn = sat.descriptionEn,
-                descriptionFa = sat.descriptionFa,
-                observationTipEn = sat.missionPurposeEn,
-                observationTipFa = sat.missionPurposeFa
-            )
-        }
-
-        return listOf(EARTH, sun, moon, MILKY_WAY) + catalogSatellites + planets + galileanMoons + stars + deepSky + meteorShowers + asterisms + constellationsAsObjects + referencePoints
     }
 
     fun getConstellations(): List<ConstellationData> {
@@ -212,18 +138,32 @@ object AstronomyCatalog {
     }
 
     fun getAsterisms(): List<CelestialObject> {
-        return AsterismCatalog.getAsterisms()
+        return CanonicalAstroCatalog.getAllCanonicalObjects()
+            .filter { it.type == ObjectType.ASTERISM }
+            .map { CanonicalAstroCatalog.toCelestialObject(it) }
     }
 
     fun getMeteorShowers(): List<CelestialObject> {
-        return MeteorShowerCatalog.getMeteorShowers()
+        return CanonicalAstroCatalog.getAllCanonicalObjects()
+            .filter { it.type == ObjectType.METEOR_SHOWER }
+            .map { CanonicalAstroCatalog.toCelestialObject(it) }
     }
 
     fun getDeepSkyObjects(): List<CelestialObject> {
-        return DeepSkyCatalog.getDeepSkyObjects()
+        return CanonicalAstroCatalog.getAllCanonicalObjects()
+            .filter {
+                it.type == ObjectType.DEEP_SKY ||
+                it.type == ObjectType.GALAXY ||
+                it.type == ObjectType.NEBULA ||
+                it.type == ObjectType.STAR_CLUSTER ||
+                it.type == ObjectType.GLOBULAR_CLUSTER
+            }
+            .map { CanonicalAstroCatalog.toCelestialObject(it) }
     }
 
     fun getStars(): List<CelestialObject> {
-        return StarCatalog.getStars()
+        return CanonicalAstroCatalog.getAllCanonicalObjects()
+            .filter { it.type == ObjectType.STAR }
+            .map { CanonicalAstroCatalog.toCelestialObject(it) }
     }
 }

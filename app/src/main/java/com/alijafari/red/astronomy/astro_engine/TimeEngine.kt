@@ -20,6 +20,13 @@ object TimeEngine {
     }
 
     /**
+     * Converts Julian Date (JD) back to UTC timestamp (ms).
+     */
+    fun getTimestampFromJulianDate(jd: Double): Long {
+        return ((jd - 2440587.5) * 86400000.0).toLong()
+    }
+
+    /**
      * Calculates Delta T (TT - UT1) in seconds based on Espenak & Meeus polynomial approximations.
      */
     fun getDeltaTSeconds(jd: Double): Double {

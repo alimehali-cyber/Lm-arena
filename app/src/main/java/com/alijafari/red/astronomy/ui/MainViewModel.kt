@@ -4,8 +4,10 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.alijafari.red.astronomy.astro_engine.AstroDispatchEngine
 import com.alijafari.red.astronomy.data.AppRepository
 import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
+import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.data.database.AppDatabase
 import com.alijafari.red.astronomy.data.database.ObservationLogEntity
 import com.alijafari.red.astronomy.domain.*
@@ -131,12 +133,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openObjectDetail(obj: CelestialObject) {
-        val isFav = _uiState.value.favoritesList.contains(obj.id)
+        val canonicalId = CanonicalAstroCatalog.resolveCanonicalId(obj.id)
+        val canonicalObj = CanonicalAstroCatalog.getCanonicalObject(canonicalId)
+        val finalObj = if (canonicalObj != null) {
+            val calc = AstroDispatchEngine.calculateState(
+                idOrAlias = canonicalObj.canonicalId,
+                timestampMs = System.currentTimeMillis(),
+                userLatDeg = _uiState.value.userLocation.latitude,
+                userLonDeg = _uiState.value.userLocation.longitude
+            )
+            CanonicalAstroCatalog.toCelestialObject(
+                canonicalObj = canonicalObj,
+                dynamicRa = calc?.raDeg ?: obj.raDeg,
+                dynamicDec = calc?.decDeg ?: obj.decDeg,
+                dynamicMag = calc?.magnitude ?: obj.magnitude
+            )
+        } else {
+            obj
+        }
+        val isFav = _uiState.value.favoritesList.contains(finalObj.id) || _uiState.value.favoritesList.contains(obj.id)
         _uiState.update {
             it.copy(
-                selectedObjectForDetail = obj,
+                selectedObjectForDetail = finalObj,
                 isDetailFavorite = isFav
             )
+        }
+    }
+
+    fun openObjectDetailById(idOrAlias: String) {
+        val canonicalId = CanonicalAstroCatalog.resolveCanonicalId(idOrAlias)
+        val canonicalObj = CanonicalAstroCatalog.getCanonicalObject(canonicalId)
+        if (canonicalObj != null) {
+            val calc = AstroDispatchEngine.calculateState(
+                idOrAlias = canonicalObj.canonicalId,
+                timestampMs = System.currentTimeMillis(),
+                userLatDeg = _uiState.value.userLocation.latitude,
+                userLonDeg = _uiState.value.userLocation.longitude
+            )
+            val celObj = CanonicalAstroCatalog.toCelestialObject(
+                canonicalObj = canonicalObj,
+                dynamicRa = calc?.raDeg ?: 0.0,
+                dynamicDec = calc?.decDeg ?: 0.0,
+                dynamicMag = calc?.magnitude ?: canonicalObj.physicalProperties.magnitude
+            )
+            openObjectDetail(celObj)
+        } else {
+            AstronomyCatalog.getById(idOrAlias)?.let { openObjectDetail(it) }
         }
     }
 

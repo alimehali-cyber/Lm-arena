@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy.astro_engine
 
+import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.data.catalog.MeteorShowerCatalog
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.domain.ObjectType
@@ -44,45 +45,47 @@ object WhatsUpTonightEngine {
         val gmstDeg = TimeEngine.getGMST(jd) * 15.0
 
         // 1. Check Solar/Lunar Eclipses TONIGHT (only if occurring today/tonight AND locally visible)
-        val (solarEclipse, lunarEclipse) = EclipseEngine.getNextEclipses(nowMs, userLatDeg, userLonDeg)
-        val solarHoursDiff = Math.abs(solarEclipse.event.dateUtcMs - nowMs) / 3600000.0
-        if (solarHoursDiff <= 18.0 && solarEclipse.isLocallyVisible) {
-            events.add(
-                TonightEvent(
-                    id = solarEclipse.event.id,
-                    icon = "☀️",
-                    titleEn = solarEclipse.localNameEn,
-                    titleFa = solarEclipse.localNameFa,
-                    explanationEn = solarEclipse.event.descriptionEn,
-                    explanationFa = solarEclipse.event.descriptionFa,
-                    timeOrDateStrEn = solarEclipse.formattedDateEn,
-                    timeOrDateStrFa = solarEclipse.formattedDateFa,
-                    visibilityStatus = EventVisibilityStatus.OPTIMAL,
-                    visibilityTextEn = solarEclipse.localVisibilityTextEn,
-                    visibilityTextFa = solarEclipse.localVisibilityTextFa,
-                    importanceScore = 1000
+        try {
+            val (solarEclipse, lunarEclipse) = EclipseEngine.getNextEclipses(nowMs, userLatDeg, userLonDeg)
+            val solarHoursDiff = Math.abs(solarEclipse.event.dateUtcMs - nowMs) / 3600000.0
+            if (solarHoursDiff <= 18.0 && solarEclipse.isLocallyVisible) {
+                events.add(
+                    TonightEvent(
+                        id = solarEclipse.event.id,
+                        icon = "☀️",
+                        titleEn = solarEclipse.localNameEn,
+                        titleFa = solarEclipse.localNameFa,
+                        explanationEn = solarEclipse.event.descriptionEn,
+                        explanationFa = solarEclipse.event.descriptionFa,
+                        timeOrDateStrEn = solarEclipse.formattedDateEn,
+                        timeOrDateStrFa = solarEclipse.formattedDateFa,
+                        visibilityStatus = EventVisibilityStatus.OPTIMAL,
+                        visibilityTextEn = solarEclipse.localVisibilityTextEn,
+                        visibilityTextFa = solarEclipse.localVisibilityTextFa,
+                        importanceScore = 1000
+                    )
                 )
-            )
-        }
-        val lunarHoursDiff = Math.abs(lunarEclipse.event.dateUtcMs - nowMs) / 3600000.0
-        if (lunarHoursDiff <= 18.0 && lunarEclipse.isLocallyVisible) {
-            events.add(
-                TonightEvent(
-                    id = lunarEclipse.event.id,
-                    icon = "🌕",
-                    titleEn = lunarEclipse.localNameEn,
-                    titleFa = lunarEclipse.localNameFa,
-                    explanationEn = lunarEclipse.event.descriptionEn,
-                    explanationFa = lunarEclipse.event.descriptionFa,
-                    timeOrDateStrEn = lunarEclipse.formattedDateEn,
-                    timeOrDateStrFa = lunarEclipse.formattedDateFa,
-                    visibilityStatus = EventVisibilityStatus.OPTIMAL,
-                    visibilityTextEn = lunarEclipse.localVisibilityTextEn,
-                    visibilityTextFa = lunarEclipse.localVisibilityTextFa,
-                    importanceScore = 980
+            }
+            val lunarHoursDiff = Math.abs(lunarEclipse.event.dateUtcMs - nowMs) / 3600000.0
+            if (lunarHoursDiff <= 18.0 && lunarEclipse.isLocallyVisible) {
+                events.add(
+                    TonightEvent(
+                        id = lunarEclipse.event.id,
+                        icon = "🌕",
+                        titleEn = lunarEclipse.localNameEn,
+                        titleFa = lunarEclipse.localNameFa,
+                        explanationEn = lunarEclipse.event.descriptionEn,
+                        explanationFa = lunarEclipse.event.descriptionFa,
+                        timeOrDateStrEn = lunarEclipse.formattedDateEn,
+                        timeOrDateStrFa = lunarEclipse.formattedDateFa,
+                        visibilityStatus = EventVisibilityStatus.OPTIMAL,
+                        visibilityTextEn = lunarEclipse.localVisibilityTextEn,
+                        visibilityTextFa = lunarEclipse.localVisibilityTextFa,
+                        importanceScore = 980
+                    )
                 )
-            )
-        }
+            }
+        } catch (_: Exception) {}
 
         // 2. Active Peak Meteor Showers TONIGHT
         val showers = MeteorShowerCatalog.getMeteorShowers()
@@ -114,7 +117,9 @@ object WhatsUpTonightEngine {
                             visibilityTextEn = "Best seen after midnight away from city lights",
                             visibilityTextFa = "بهترین زمان رصد پس از نیمه‌شب دور از آلودگی نوری",
                             importanceScore = 900,
-                            targetObject = shower
+                            targetObject = CanonicalAstroCatalog.getCanonicalObject(shower.id)?.let {
+                                CanonicalAstroCatalog.toCelestialObject(it)
+                            } ?: shower
                         )
                     )
                 }
@@ -225,23 +230,14 @@ object WhatsUpTonightEngine {
                         visibilityTextEn = "Altitude: ${horiz.altitudeDeg.toInt()}° — ${obs.level.nameEn}",
                         visibilityTextFa = "ارتفاع: ${horiz.altitudeDeg.toInt()} درجه — ${obs.level.nameFa}".toPersianDigits(),
                         importanceScore = pScore,
-                        targetObject = CelestialObject(
-                            id = id,
-                            type = ObjectType.PLANET,
-                            nameEn = names.first,
-                            nameFa = names.second,
-                            raDeg = pos.raDeg,
-                            decDeg = pos.decDeg,
-                            magnitude = pos.magnitude,
-                            constellationEn = "",
-                            constellationFa = "",
-                            distanceLightYears = 0.0,
-                            category = "Solar System Planet",
-                            descriptionEn = type.descriptionEn,
-                            descriptionFa = type.descriptionFa,
-                            observationTipEn = "",
-                            observationTipFa = ""
-                        )
+                        targetObject = CanonicalAstroCatalog.getCanonicalObject(id)?.let {
+                            CanonicalAstroCatalog.toCelestialObject(
+                                canonicalObj = it,
+                                dynamicRa = pos.raDeg,
+                                dynamicDec = pos.decDeg,
+                                dynamicMag = pos.magnitude
+                            )
+                        }
                     )
                 )
             }

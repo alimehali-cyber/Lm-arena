@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
+import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.data.catalog.PhysicalData
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
@@ -43,18 +44,42 @@ fun ObjectDetailModal(
     val context = LocalContext.current
     val isFa = uiState.language == AppLanguage.PERSIAN
 
-    val jd = remember { TimeEngine.getJulianDate() }
-    val lastDeg = remember(uiState.userLocation) {
-        TimeEngine.getLAST(jd, uiState.userLocation.longitude)
+    // Obtain single canonical identity from CanonicalAstroCatalog
+    val canonicalObj = remember(obj) {
+        CanonicalAstroCatalog.getCanonicalObject(obj.id)
+            ?: CanonicalAstroCatalog.getCanonicalObject(CanonicalAstroCatalog.resolveCanonicalId(obj.id))
     }
-    val horiz = remember(lastDeg, uiState.userLocation) {
-        CoordinateEngine.equatorialToHorizontal(
-            CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg),
-            lastDeg,
-            uiState.userLocation.latitude
+
+    val timestampMs = remember(uiState.timeMachineState) {
+        if (uiState.timeMachineState.mode == TimeMachineMode.SIMULATION) {
+            uiState.timeMachineState.simulationTimeMs
+        } else {
+            System.currentTimeMillis()
+        }
+    }
+
+    // Obtain dynamic astronomical state from AstroDispatchEngine
+    val calculatedState = remember(canonicalObj, obj.id, uiState.userLocation, timestampMs) {
+        AstroDispatchEngine.calculateState(
+            idOrAlias = canonicalObj?.canonicalId ?: obj.id,
+            timestampMs = timestampMs,
+            userLatDeg = uiState.userLocation.latitude,
+            userLonDeg = uiState.userLocation.longitude
         )
     }
-    val sunPos = remember { SunEngine.calculatePosition(jd) }
+
+    val jd = remember(timestampMs) { TimeEngine.getJulianDate(timestampMs) }
+
+    val horizAlt = calculatedState?.altitudeDeg ?: 0.0
+    val horizAz = calculatedState?.azimuthDeg ?: 0.0
+    val dynamicRa = calculatedState?.raDeg ?: obj.raDeg
+    val dynamicDec = calculatedState?.decDeg ?: obj.decDeg
+    val dynamicMag = calculatedState?.magnitude ?: obj.magnitude
+
+    val sunPos = remember(timestampMs) { SunEngine.calculatePosition(jd) }
+    val lastDeg = remember(uiState.userLocation, jd) {
+        TimeEngine.getLAST(jd, uiState.userLocation.longitude)
+    }
     val sunHoriz = remember(lastDeg, uiState.userLocation) {
         CoordinateEngine.equatorialToHorizontal(
             CoordinateEngine.Equatorial(sunPos.raDeg, sunPos.decDeg),
@@ -62,28 +87,44 @@ fun ObjectDetailModal(
             uiState.userLocation.latitude
         )
     }
+    val celestialObj = remember(canonicalObj, obj, dynamicRa, dynamicDec, dynamicMag) {
+        if (canonicalObj != null) {
+            CanonicalAstroCatalog.toCelestialObject(
+                canonicalObj = canonicalObj,
+                dynamicRa = dynamicRa,
+                dynamicDec = dynamicDec,
+                dynamicMag = dynamicMag
+            )
+        } else {
+            obj
+        }
+    }
+
     val moonData = remember(jd) { MoonEngine.calculateMoon(jd) }
-    val obs = remember(horiz, sunHoriz, moonData, uiState.bortleClass) {
+    val obs = remember(horizAlt, sunHoriz, moonData, uiState.bortleClass, dynamicMag) {
         ObservabilityEngine.calculateObservability(
-            altitudeDeg = horiz.altitudeDeg,
+            altitudeDeg = horizAlt,
             sunAltitudeDeg = sunHoriz.altitudeDeg,
             moonIlluminationPercent = moonData.illuminationPercent,
-            objectMagnitude = obj.magnitude,
+            objectMagnitude = dynamicMag,
             bortleClass = uiState.bortleClass,
-            objectType = obj.type,
-            objectId = obj.id
+            objectType = celestialObj.type,
+            objectId = celestialObj.id
         )
     }
 
-    val physicalProps = remember(obj) { PhysicalData.getPhysicalProperties(obj) }
-    val coolFacts = remember(obj, isFa) {
-        if (isFa) PhysicalData.getCoolFactsFa(obj) else PhysicalData.getCoolFactsEn(obj)
+    val physicalProps = remember(celestialObj) {
+        PhysicalData.getPhysicalProperties(celestialObj)
     }
 
-    val riseSetTransit = remember(obj, uiState.userLocation, jd, isFa) {
+    val coolFacts = remember(celestialObj, isFa) {
+        if (isFa) PhysicalData.getCoolFactsFa(celestialObj) else PhysicalData.getCoolFactsEn(celestialObj)
+    }
+
+    val riseSetTransit = remember(dynamicRa, dynamicDec, uiState.userLocation, jd, isFa) {
         CoordinateEngine.calculateRiseSetTransit(
-            raDeg = obj.raDeg,
-            decDeg = obj.decDeg,
+            raDeg = dynamicRa,
+            decDeg = dynamicDec,
             latDeg = uiState.userLocation.latitude,
             lonDeg = uiState.userLocation.longitude,
             jd = jd,
