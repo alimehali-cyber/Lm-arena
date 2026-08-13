@@ -488,6 +488,7 @@ class FrameTransformationEngine {
 
     /**
      * Apply nutation to mean equatorial coordinates to get true equator of date.
+     * Uses vector rotation matrix formulation to avoid singularity at celestial poles.
      */
     private fun applyNutation(
         raMeanDeg: Double,
@@ -496,22 +497,44 @@ class FrameTransformationEngine {
     ): Equatorial {
         val raRad = raMeanDeg * DEG2RAD
         val decRad = decMeanDeg * DEG2RAD
+        val eps0Rad = (nutation.trueObliquityDeg - nutation.deltaEpsilonDeg) * DEG2RAD
         val epsRad = nutation.trueObliquityDeg * DEG2RAD
         val dPsiRad = nutation.deltaPsiDeg * DEG2RAD
-        val dEpsRad = nutation.deltaEpsilonDeg * DEG2RAD
 
-        val dRa = (cos(epsRad) + sin(epsRad) * sin(raRad) * tan(decRad)) * dPsiRad -
-                  (cos(raRad) * tan(decRad)) * dEpsRad
-        val dDec = (sin(epsRad) * cos(raRad)) * dPsiRad + sin(raRad) * dEpsRad
+        // Mean equatorial rectangular coordinates
+        val x0 = cos(decRad) * cos(raRad)
+        val y0 = cos(decRad) * sin(raRad)
+        val z0 = sin(decRad)
+
+        // Rotate +eps0 around X -> mean ecliptic
+        val x1 = x0
+        val y1 = y0 * cos(eps0Rad) + z0 * sin(eps0Rad)
+        val z1 = -y0 * sin(eps0Rad) + z0 * cos(eps0Rad)
+
+        // Rotate +dPsi around Z -> true ecliptic
+        val cosDPsi = cos(dPsiRad)
+        val sinDPsi = sin(dPsiRad)
+        val x2 = x1 * cosDPsi - y1 * sinDPsi
+        val y2 = x1 * sinDPsi + y1 * cosDPsi
+        val z2 = z1
+
+        // Rotate -eps around X -> true equatorial
+        val xTrue = x2
+        val yTrue = y2 * cos(epsRad) - z2 * sin(epsRad)
+        val zTrue = y2 * sin(epsRad) + z2 * cos(epsRad)
+
+        val raTrueRad = atan2(yTrue, xTrue)
+        val decTrueRad = asin(zTrue.coerceIn(-1.0, 1.0))
 
         return Equatorial(
-            normalizeAngle((raRad + dRa) * RAD2DEG),
-            (decRad + dDec) * RAD2DEG
+            normalizeAngle(raTrueRad * RAD2DEG),
+            decTrueRad * RAD2DEG
         )
     }
 
     /**
      * Remove nutation from true equatorial coordinates to get mean equator of date.
+     * Uses vector rotation matrix formulation to avoid singularity at celestial poles.
      */
     private fun removeNutation(
         raTrueDeg: Double,
@@ -520,17 +543,38 @@ class FrameTransformationEngine {
     ): Equatorial {
         val raRad = raTrueDeg * DEG2RAD
         val decRad = decTrueDeg * DEG2RAD
+        val eps0Rad = (nutation.trueObliquityDeg - nutation.deltaEpsilonDeg) * DEG2RAD
         val epsRad = nutation.trueObliquityDeg * DEG2RAD
         val dPsiRad = nutation.deltaPsiDeg * DEG2RAD
-        val dEpsRad = nutation.deltaEpsilonDeg * DEG2RAD
 
-        val dRa = (cos(epsRad) + sin(epsRad) * sin(raRad) * tan(decRad)) * dPsiRad -
-                  (cos(raRad) * tan(decRad)) * dEpsRad
-        val dDec = (sin(epsRad) * cos(raRad)) * dPsiRad + sin(raRad) * dEpsRad
+        // True equatorial rectangular coordinates
+        val xT = cos(decRad) * cos(raRad)
+        val yT = cos(decRad) * sin(raRad)
+        val zT = sin(decRad)
+
+        // Rotate +eps around X -> true ecliptic
+        val x1 = xT
+        val y1 = yT * cos(epsRad) + zT * sin(epsRad)
+        val z1 = -yT * sin(epsRad) + zT * cos(epsRad)
+
+        // Rotate -dPsi around Z -> mean ecliptic
+        val cosDPsi = cos(dPsiRad)
+        val sinDPsi = sin(dPsiRad)
+        val x2 = x1 * cosDPsi + y1 * sinDPsi
+        val y2 = -x1 * sinDPsi + y1 * cosDPsi
+        val z2 = z1
+
+        // Rotate -eps0 around X -> mean equatorial
+        val xMean = x2
+        val yMean = y2 * cos(eps0Rad) - z2 * sin(eps0Rad)
+        val zMean = y2 * sin(eps0Rad) + z2 * cos(eps0Rad)
+
+        val raMeanRad = atan2(yMean, xMean)
+        val decMeanRad = asin(zMean.coerceIn(-1.0, 1.0))
 
         return Equatorial(
-            normalizeAngle((raRad - dRa) * RAD2DEG),
-            (decRad - dDec) * RAD2DEG
+            normalizeAngle(raMeanRad * RAD2DEG),
+            decMeanRad * RAD2DEG
         )
     }
 

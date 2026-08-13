@@ -211,20 +211,86 @@ object PlanetEngine {
     }
 
     private fun calculatePlutoFallback(astroTime: AstroTime): PlanetPosition {
+        val pluto = PlanetType.PLUTO
         val d = astroTime.jdTt - 2451545.0
-        val raDeg = normalizeAngle(238.92881 + 0.00397 * d)
-        val decDeg = -15.0
-        val distAu = 34.0
+
+        // Keplerian orbital elements for Pluto
+        val a = pluto.semiMajorAxisAU
+        val e = pluto.eccentricity
+        val incRad = pluto.inclinationDeg * DEG2RAD
+        val nodeRad = pluto.longitudeNodeDeg * DEG2RAD
+        val periRad = pluto.longitudePerihelionDeg * DEG2RAD
+        val meanLongJ2000 = pluto.meanLongitudeJ2000
+
+        // Mean daily motion (deg/day)
+        val nDeg = 360.0 / (pluto.orbitalPeriodYears * 365.25)
+        val Mdeg = normalizeAngle(meanLongJ2000 - pluto.longitudePerihelionDeg + nDeg * d)
+        val Mrad = Mdeg * DEG2RAD
+
+        // Solve Kepler's equation for Eccentric Anomaly E
+        var E = Mrad
+        for (i in 0..5) {
+            E = E - (E - e * sin(E) - Mrad) / (1.0 - e * cos(E))
+        }
+
+        // True anomaly v
+        val v = 2.0 * atan2(sqrt(1.0 + e) * sin(E / 2.0), sqrt(1.0 - e) * cos(E / 2.0))
+        val rAU = a * (1.0 - e * cos(E))
+
+        // Argument of latitude u = v + (longitudePerihelion - longitudeNode)
+        val omegaRad = periRad - nodeRad
+        val u = v + omegaRad
+
+        // Heliocentric ecliptic rectangular coordinates for Pluto
+        val xPluto = rAU * (cos(nodeRad) * cos(u) - sin(nodeRad) * sin(u) * cos(incRad))
+        val yPluto = rAU * (sin(nodeRad) * cos(u) + cos(nodeRad) * sin(u) * cos(incRad))
+        val zPluto = rAU * (sin(u) * sin(incRad))
+
+        // Earth heliocentric position
+        val earthHelio = vsop87.calculate(VSOP87Engine.Planet.EARTH, astroTime)
+        val eLatRad = earthHelio.latitudeDeg * DEG2RAD
+        val eLonRad = earthHelio.longitudeDeg * DEG2RAD
+        val xEarth = earthHelio.distanceAu * cos(eLatRad) * cos(eLonRad)
+        val yEarth = earthHelio.distanceAu * cos(eLatRad) * sin(eLonRad)
+        val zEarth = earthHelio.distanceAu * sin(eLatRad)
+
+        // Geocentric ecliptic coordinates
+        val xGeo = xPluto - xEarth
+        val yGeo = yPluto - yEarth
+        val zGeo = zPluto - zEarth
+
+        val geoDistAu = sqrt(xGeo * xGeo + yGeo * yGeo + zGeo * zGeo)
+        val geoLonDeg = normalizeAngle(atan2(yGeo, xGeo) * RAD2DEG)
+        val geoLatDeg = asin((zGeo / geoDistAu).coerceIn(-1.0, 1.0)) * RAD2DEG
+
+        // Obliquity of date
+        val epsRad = meanObliquity(astroTime.jcTt) * DEG2RAD
+        val lRad = geoLonDeg * DEG2RAD
+        val bRad = geoLatDeg * DEG2RAD
+
+        // Ecliptic to Equatorial
+        val sinDec = sin(bRad) * cos(epsRad) + cos(bRad) * sin(epsRad) * sin(lRad)
+        val decRad = asin(sinDec.coerceIn(-1.0, 1.0))
+        val yRa = sin(lRad) * cos(epsRad) - tan(bRad) * sin(epsRad)
+        val xRa = cos(lRad)
+        val raRad = atan2(yRa, xRa)
+
+        val raDeg = normalizeAngle(raRad * RAD2DEG)
+        val decDeg = decRad * RAD2DEG
+
+        val mag = 15.1 + 5.0 * log10(rAU * geoDistAu)
+        val diamArcsec = (2.0 * pluto.equatorialRadiusKm / (geoDistAu * 149597870.7)) * 206264.8
+
         return PlanetPosition(
             planet = PlanetType.PLUTO,
             raDeg = raDeg,
             decDeg = decDeg,
-            distanceAU = distAu,
-            heliocentricDistanceAU = distAu,
-            magnitude = 15.1,
+            distanceAU = geoDistAu,
+            heliocentricDistanceAU = rAU,
+            magnitude = mag,
             phaseAngleDeg = 1.0,
             illuminatedFraction = 0.99,
-            angularDiameterArcsec = 0.1
+            angularDiameterArcsec = diamArcsec
         )
     }
 }

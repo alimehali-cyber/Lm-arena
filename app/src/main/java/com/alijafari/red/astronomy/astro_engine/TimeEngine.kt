@@ -57,40 +57,24 @@ object TimeEngine {
     }
 
     /**
-     * Calculates Greenwich Mean Sidereal Time (GMST) in degrees (IAU-82 formula).
+     * Calculates Greenwich Mean Sidereal Time (GMST) in degrees (IAU 2006 formula).
      */
     fun getGMST(jd: Double): Double {
-        val d = jd - 2451545.0
-        val T = d / 36525.0
-        var gmst = 280.46061837 + 360.98564736629 * d + 0.000387933 * T * T - (T * T * T) / 38710000.0
-        gmst %= 360.0
-        if (gmst < 0) gmst += 360.0
-        return gmst
+        return FrameTransformationEngine().calculateGMST(AstroTime.fromJd(jd))
     }
 
     /**
      * Calculates Greenwich Apparent Sidereal Time (GAST) in degrees including Equation of Equinoxes.
      */
     fun getGAST(jd: Double): Double {
-        val gmst = getGMST(jd)
-        val nutation = CoordinateEngine.calculateNutation(jd)
-        val trueObliquityRad = Math.toRadians(nutation.trueObliquityDeg)
-        val eqEquinoxesDeg = nutation.deltaPsiDeg * cos(trueObliquityRad)
-        var gast = gmst + eqEquinoxesDeg
-        gast %= 360.0
-        if (gast < 0) gast += 360.0
-        return gast
+        return FrameTransformationEngine().calculateGAST(AstroTime.fromJd(jd))
     }
 
     /**
      * Calculates Local Apparent Sidereal Time (LAST) in degrees given observer longitude (+East).
      */
     fun getLAST(jd: Double, longitudeDeg: Double): Double {
-        val gast = getGAST(jd)
-        var last = gast + longitudeDeg
-        last %= 360.0
-        if (last < 0) last += 360.0
-        return last
+        return FrameTransformationEngine().calculateLAST(AstroTime.fromJd(jd), longitudeDeg)
     }
 
     /**

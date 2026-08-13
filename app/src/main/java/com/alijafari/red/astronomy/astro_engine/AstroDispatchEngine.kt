@@ -508,10 +508,7 @@ object AstroDispatchEngine {
     // --- Time ---
     fun getCurrentAstroTime(): AstroTime = AstroTime.now()
     fun getDeltaT(year: Int, month: Int, day: Int): Double {
-        val jd = TimeEngine.getJulianDate(
-            AstroTime.fromUtcDate(year, month, day).utcMs
-        )
-        return TimeEngine.getDeltaTSeconds(jd)
+        return AstroTime.fromUtcDate(year, month, day).deltaT
     }
 
     // --- Coordinates ---
