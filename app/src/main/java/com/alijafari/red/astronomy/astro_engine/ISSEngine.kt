@@ -5,7 +5,11 @@ import kotlinx.coroutines.withContext
 import java.net.URL
 import kotlin.math.*
 
-object ISSEngine {
+/**
+ * ISS (International Space Station) tracking engine.
+ * Uses SGP4 propagator for accurate TLE-based orbit prediction.
+ */
+class ISSEngine {
 
     enum class PassClassification(
         val labelEn: String,
@@ -67,7 +71,8 @@ object ISSEngine {
         val zEcef: Double
     )
 
-    private var cachedTLE: TLEData = TLEData()
+    private val sgp4 = SGP4Propagator()
+    var cachedTLE: TLEData = TLEData()
 
     /**
      * Fetches live TLE data from CelesTrak for NORAD ID 25544 (ISS).
@@ -101,7 +106,7 @@ object ISSEngine {
     }
 
     /**
-     * Calculates topocentric elevation, azimuth, velocity, and ECEF coordinates using SGP4/J2 model.
+     * Calculates topocentric position using SGP4 propagator and frame transformations.
      */
     fun calculateTopocentricPos(
         timestampMs: Long,
@@ -110,87 +115,33 @@ object ISSEngine {
         userAltMeters: Double = 940.0,
         tle: TLEData = cachedTLE
     ): TopocentricPosition {
-        val incDeg = parseDoubleSafe(tle.line2, 8, 16, 51.64)
-        val raan0Deg = parseDoubleSafe(tle.line2, 17, 25, 200.0)
-        val ecc = parseEccentricity(tle.line2, 26, 33, 0.0005)
-        val argPerigee0Deg = parseDoubleSafe(tle.line2, 34, 42, 90.0)
-        val meanAnomaly0Deg = parseDoubleSafe(tle.line2, 43, 51, 270.0)
-        val meanMotionRevsDay = parseDoubleSafe(tle.line2, 52, 63, 15.49)
-
-        val epochDayVal = parseDoubleSafe(tle.line1, 18, 32, 26213.5)
-        val epochYear = 2000 + (epochDayVal / 1000.0).toInt()
-        val epochDayOfYear = epochDayVal % 1000.0
-
-        val epochJan1JD = getJan1JulianDate(epochYear)
-        val epochJD = epochJan1JD + (epochDayOfYear - 1.0)
+        val sgp4Tle = parseToSgp4(tle)
+        val teme = sgp4.propagate(sgp4Tle, timestampMs)
 
         val currentJD = TimeEngine.getJulianDate(timestampMs)
-        val dtDays = currentJD - epochJD
-        val dtSec = dtDays * 86400.0
-
-        val mu = 398600.4418 // km^3/s^2
-        val Re = 6378.137 // km
-        val J2 = 1.08263e-3
-
-        val n0RadSec = (meanMotionRevsDay * 2.0 * PI) / 86400.0
-        val a = cbrt(mu / (n0RadSec * n0RadSec))
-
-        val incRad = Math.toRadians(incDeg)
-        val cosInc = cos(incRad)
-        val sinInc = sin(incRad)
-
-        // J2 Secular Rates
-        val pFactor = 1.5 * J2 * (Re / a) * (Re / a) * n0RadSec
-        val dRaanDtRadSec = -pFactor * cosInc
-        val dArgPerigeeDtRadSec = 0.5 * pFactor * (5.0 * cosInc * cosInc - 1.0)
-
-        val raanRad = Math.toRadians(raan0Deg) + dRaanDtRadSec * dtSec
-        val argPerigeeRad = Math.toRadians(argPerigee0Deg) + dArgPerigeeDtRadSec * dtSec
-        val M_rad = (Math.toRadians(meanAnomaly0Deg) + n0RadSec * dtSec) % (2.0 * PI)
-
-        var E_rad = M_rad
-        for (i in 0..10) {
-            val f = E_rad - ecc * sin(E_rad) - M_rad
-            val fPrime = 1.0 - ecc * cos(E_rad)
-            val delta = f / fPrime
-            E_rad -= delta
-            if (abs(delta) < 1e-8) break
-        }
-
-        val sinE = sin(E_rad)
-        val cosE = cos(E_rad)
-        val sinNu = (sqrt(1.0 - ecc * ecc) * sinE) / (1.0 - ecc * cosE)
-        val cosNu = (cosE - ecc) / (1.0 - ecc * cosE)
-        val nuRad = atan2(sinNu, cosNu)
-
-        val r = a * (1.0 - ecc * cosE)
-        val uRad = argPerigeeRad + nuRad
-
-        val xEci = r * (cos(uRad) * cos(raanRad) - sin(uRad) * sin(raanRad) * cosInc)
-        val yEci = r * (cos(uRad) * sin(raanRad) + sin(uRad) * cos(raanRad) * cosInc)
-        val zEci = r * (sin(uRad) * sinInc)
-
         val gmstDeg = TimeEngine.getGMST(currentJD)
         val gmstRad = Math.toRadians(gmstDeg)
 
-        val xEcef = xEci * cos(gmstRad) + yEci * sin(gmstRad)
-        val yEcef = -xEci * sin(gmstRad) + yEci * cos(gmstRad)
-        val zEcef = zEci
+        // Rotate TEME (ECI) position to ECEF
+        val xEcef = teme.xKm * cos(gmstRad) + teme.yKm * sin(gmstRad)
+        val yEcef = -teme.xKm * sin(gmstRad) + teme.yKm * cos(gmstRad)
+        val zEcef = teme.zKm
 
         val subLonRad = atan2(yEcef, xEcef)
         val subLatRad = atan2(zEcef, sqrt(xEcef * xEcef + yEcef * yEcef))
         val subLatDeg = Math.toDegrees(subLatRad)
         val subLonDeg = Math.toDegrees(subLonRad)
-        val satAltKm = r - Re
-        val velKmS = sqrt(mu * (2.0 / r - 1.0 / a))
 
-        // Check Earth Shadow Geometry (Umbra)
+        val r = sqrt(xEcef * xEcef + yEcef * yEcef + zEcef * zEcef)
+        val satAltKm = r - 6378.137
+        val velKmS = sqrt(teme.vxKmS * teme.vxKmS + teme.vyKmS * teme.vyKmS + teme.vzKmS * teme.vzKmS)
+
         val isSunlit = checkIssSunlit(currentJD, gmstDeg, xEcef, yEcef, zEcef)
 
-        // Observer ECEF
+        // Observer ECEF position
         val obsLatRad = Math.toRadians(userLatDeg)
         val obsLonRad = Math.toRadians(userLonDeg)
-        val obsR = Re + (userAltMeters / 1000.0)
+        val obsR = 6378.137 + (userAltMeters / 1000.0)
 
         val obsXEcef = obsR * cos(obsLatRad) * cos(obsLonRad)
         val obsYEcef = obsR * cos(obsLatRad) * sin(obsLonRad)
@@ -225,7 +176,6 @@ object ISSEngine {
 
     /**
      * Exact Earth Shadow (Umbra) Geometry calculation.
-     * Computes whether the satellite is illuminated by the Sun or blocked by Earth's cylindrical/conical shadow.
      */
     fun checkIssSunlit(jd: Double, gmstDeg: Double, xEcef: Double, yEcef: Double, zEcef: Double): Boolean {
         val sunPos = SunEngine.calculatePosition(jd)
@@ -241,10 +191,9 @@ object ISSEngine {
         // Projection of satellite along Sun vector
         val dParallel = xEcef * sunX + yEcef * sunY + zEcef * sunZ
 
-        // If satellite is on the night side of Earth relative to the Sun
         if (dParallel < 0.0) {
             val dPerpSq = (xEcef * xEcef + yEcef * yEcef + zEcef * zEcef) - (dParallel * dParallel)
-            val ReSq = 6378.137 * 6378.137 // Earth radius squared in km^2
+            val ReSq = 6378.137 * 6378.137
             if (dPerpSq < ReSq) {
                 return false // In Earth's umbra shadow
             }
@@ -270,7 +219,6 @@ object ISSEngine {
 
     /**
      * Scans orbit for specified days and returns predicted passes.
-     * Enforces the universal Visible Pass definition when visibleOnly = true.
      */
     fun predictPasses(
         userLatDeg: Double,
@@ -283,7 +231,7 @@ object ISSEngine {
     ): List<ISSPass> {
         val passes = mutableListOf<ISSPass>()
         val scanDurationMs = scanDays * 24 * 3600 * 1000L
-        val stepMs = 20 * 1000L // 20-second scanning resolution
+        val stepMs = 20 * 1000L
         val endTimeMs = startTimestampMs + scanDurationMs
 
         var currentTime = startTimestampMs
@@ -334,7 +282,6 @@ object ISSEngine {
                     endAz = pos.azimuthDeg
                     val passEndMs = currentTime
 
-                    // Build & Classify Pass
                     val pass = buildPass(
                         passStartMs,
                         maxElevTimeMs,
@@ -386,7 +333,6 @@ object ISSEngine {
         val posAtMax = calculateTopocentricPos(maxMs, userLatDeg, userLonDeg, 940.0, tle)
         val sunAlt = getObserverSunAltitude(maxMs, userLatDeg, userLonDeg)
 
-        // Estimated apparent magnitude
         val rangeFactor = 5.0 * log10(maxOf(0.1, posAtMax.rangeKm / 400.0))
         val extFactor = if (maxElevDeg < 15.0) 0.5 else 0.0
         val estMag = standardMag + rangeFactor + extFactor
@@ -396,7 +342,6 @@ object ISSEngine {
 
         val durationSec = maxOf(30L, (endMs - startMs) / 1000L)
 
-        // Evaluation & Classification Logic according to Universal Visible Pass Criteria
         val classification: PassClassification
         var score = 0
         val reasonsEn = mutableListOf<String>()
@@ -418,7 +363,6 @@ object ISSEngine {
             reasonsEn.add("✕ Apparent magnitude (+${String.format("%.1f", estMag)}) is fainter than naked-eye threshold (+4.5)")
             reasonsFa.add("✕ قدر ظاهری (${String.format("%.1f", estMag)}+) کم‌نورتر از آستانه چشم غیرمسلح (۴.۵+) است")
         } else {
-            // Illuminated satellite in twilight or night sky with mag <= +4.5
             if (sunAlt <= -18.0) {
                 score += 40
                 reasonsEn.add("✓ Observer in true astronomical darkness (Sun $sunAlt°)")
@@ -518,6 +462,60 @@ object ISSEngine {
         )
     }
 
+    private fun parseToSgp4(tle: TLEData): SGP4Propagator.TLEData {
+        val epochYear = parseDoubleSafe(tle.line1, 18, 20, 24.0).toInt()
+        val epochDay = parseDoubleSafe(tle.line1, 20, 32, 225.5)
+        val bStar = parseBStar(tle.line1)
+
+        val inc = parseDoubleSafe(tle.line2, 8, 16, 51.64)
+        val raan = parseDoubleSafe(tle.line2, 17, 25, 200.0)
+        val ecc = parseEccentricity(tle.line2, 26, 33, 0.0005)
+        val argp = parseDoubleSafe(tle.line2, 34, 42, 90.0)
+        val ma = parseDoubleSafe(tle.line2, 43, 51, 270.0)
+        val mm = parseDoubleSafe(tle.line2, 52, 63, 15.49)
+
+        return SGP4Propagator.TLEData(
+            epochYear = epochYear,
+            epochDay = epochDay,
+            inclinationDeg = inc,
+            raanDeg = raan,
+            eccentricity = ecc,
+            argPerigeeDeg = argp,
+            meanAnomalyDeg = ma,
+            meanMotion = mm,
+            bStar = bStar
+        )
+    }
+
+    private fun parseBStar(line1: String): Double {
+        try {
+            if (line1.length >= 61) {
+                val bStr = line1.substring(53, 61).trim()
+                if (bStr.isEmpty() || bStr == "00000-0" || bStr == "00000+0") return 0.0
+
+                var sign = 1.0
+                var s = bStr
+                if (s.startsWith("-")) {
+                    sign = -1.0
+                    s = s.substring(1)
+                } else if (s.startsWith("+")) {
+                    s = s.substring(1)
+                }
+                val dashIdx = maxOf(s.indexOf('-'), s.indexOf('+'))
+                if (dashIdx > 0) {
+                    val mantissaStr = "0." + s.substring(0, dashIdx)
+                    val expStr = s.substring(dashIdx)
+                    val mantissa = mantissaStr.toDouble()
+                    val exp = expStr.toDouble()
+                    return sign * mantissa * 10.0.pow(exp)
+                }
+            }
+        } catch (e: Exception) {
+            // ignore
+        }
+        return 0.0001
+    }
+
     private fun parseDoubleSafe(str: String, start: Int, end: Int, defaultVal: Double): Double {
         return try {
             if (end <= str.length) str.substring(start, end).trim().toDouble() else defaultVal
@@ -534,8 +532,38 @@ object ISSEngine {
         }
     }
 
-    private fun getJan1JulianDate(year: Int): Double {
-        val y = year - 1
-        return 1721424.5 + 365.0 * y + (y / 4) - (y / 100) + (y / 400) + 1.0
+    companion object {
+        private val defaultEngine = ISSEngine()
+
+        suspend fun fetchLatestTLE(): TLEData = defaultEngine.fetchLatestTLE()
+
+        fun calculateTopocentricPos(
+            timestampMs: Long,
+            userLatDeg: Double,
+            userLonDeg: Double,
+            userAltMeters: Double = 940.0,
+            tle: TLEData = defaultEngine.cachedTLE
+        ): TopocentricPosition = defaultEngine.calculateTopocentricPos(
+            timestampMs, userLatDeg, userLonDeg, userAltMeters, tle
+        )
+
+        fun checkIssSunlit(jd: Double, gmstDeg: Double, xEcef: Double, yEcef: Double, zEcef: Double): Boolean =
+            defaultEngine.checkIssSunlit(jd, gmstDeg, xEcef, yEcef, zEcef)
+
+        fun getObserverSunAltitude(timestampMs: Long, userLatDeg: Double, userLonDeg: Double): Double =
+            defaultEngine.getObserverSunAltitude(timestampMs, userLatDeg, userLonDeg)
+
+        fun predictPasses(
+            userLatDeg: Double,
+            userLonDeg: Double,
+            startTimestampMs: Long = System.currentTimeMillis(),
+            tle: TLEData = defaultEngine.cachedTLE,
+            scanDays: Int = 7,
+            visibleOnly: Boolean = true,
+            standardMag: Double = -1.5
+        ): List<ISSPass> = defaultEngine.predictPasses(
+            userLatDeg, userLonDeg, startTimestampMs, tle, scanDays, visibleOnly, standardMag
+        )
     }
 }
+

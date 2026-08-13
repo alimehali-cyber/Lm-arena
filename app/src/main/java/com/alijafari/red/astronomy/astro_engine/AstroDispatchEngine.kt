@@ -3,6 +3,7 @@ package com.alijafari.red.astronomy.astro_engine
 import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.domain.CalculatedAstroState
 import com.alijafari.red.astronomy.domain.CanonicalAstroObject
+import com.alijafari.red.astronomy.domain.ConstellationData
 import com.alijafari.red.astronomy.domain.ObjectType
 import com.alijafari.red.astronomy.domain.ObservationalInfo
 import com.alijafari.red.astronomy.domain.PhysicalProperties
@@ -18,9 +19,68 @@ import kotlin.math.sin
  * Serves as the single unified dispatch layer connecting Canonical Object Identities
  * (CanonicalAstroObject / CanonicalAstroCatalog) to underlying high-precision scientific calculation
  * engines (SunEngine, MoonEngine, PlanetEngine, JupiterMoonsEngine, SatelliteEngine/ISSEngine,
- * GalacticEngine, and CoordinateEngine).
+ * GalacticEngine, and FrameTransformationEngine).
  */
 object AstroDispatchEngine {
+
+    private val frameTransformationEngine = FrameTransformationEngine()
+    private val eclipseEngine = EclipseEngine()
+    private val deepSkyEngine = DeepSkyEngine()
+
+    fun getDeepSkyObjectById(id: String): DeepSkyCatalog.DeepSkyObject? {
+        return deepSkyEngine.findById(id)
+    }
+
+    fun searchDeepSkyObjects(query: String): List<DeepSkyCatalog.DeepSkyObject> {
+        return deepSkyEngine.searchByName(query)
+    }
+
+    fun getDeepSkyObjectsByType(type: DeepSkyCatalog.ObjectType): List<DeepSkyCatalog.DeepSkyObject> {
+        return deepSkyEngine.filterByType(type)
+    }
+
+    fun getDeepSkyObjectsByConstellation(constellation: String): List<DeepSkyCatalog.DeepSkyObject> {
+        return deepSkyEngine.filterByConstellation(constellation)
+    }
+
+    fun getBrightDeepSkyObjects(maxMagnitude: Double): List<DeepSkyCatalog.DeepSkyObject> {
+        return deepSkyEngine.filterByMagnitude(maxMagnitude)
+    }
+
+    fun coneSearchDeepSky(
+        raDeg: Double, decDeg: Double, radiusDeg: Double
+    ): List<DeepSkyEngine.SearchResult> {
+        return deepSkyEngine.coneSearch(raDeg, decDeg, radiusDeg)
+    }
+
+    fun getDeepSkyObjectPosition(
+        obj: DeepSkyCatalog.DeepSkyObject,
+        astroTime: AstroTime,
+        userLatDeg: Double,
+        userLonDeg: Double
+    ): DeepSkyEngine.ObjectPosition {
+        return deepSkyEngine.calculatePosition(obj, astroTime, userLatDeg, userLonDeg)
+    }
+
+    fun getNextSolarEclipse(afterMs: Long = System.currentTimeMillis()): EclipseEngine.EclipseEvent? {
+        return eclipseEngine.findNextSolarEclipse(afterMs)
+    }
+
+    fun getNextLunarEclipse(afterMs: Long = System.currentTimeMillis()): EclipseEngine.EclipseEvent? {
+        return eclipseEngine.findNextLunarEclipse(afterMs)
+    }
+
+    fun getEclipsesInRange(startMs: Long, endMs: Long): List<EclipseEngine.EclipseEvent> {
+        return eclipseEngine.findEclipses(startMs, endMs)
+    }
+
+    fun getNextNewMoon(afterMs: Long = System.currentTimeMillis()): Long {
+        return eclipseEngine.findNextNewMoon(afterMs)
+    }
+
+    fun getNextFullMoon(afterMs: Long = System.currentTimeMillis()): Long {
+        return eclipseEngine.findNextFullMoon(afterMs)
+    }
 
     /**
      * Calculates the real-time dynamic astronomical state for any astronomical object using its
@@ -126,12 +186,15 @@ object AstroDispatchEngine {
             "planet_mercury", "planet_venus", "planet_mars", "planet_jupiter",
             "planet_saturn", "planet_uranus", "planet_neptune", "planet_pluto" -> {
                 val planetType = mapCanonicalToPlanetType(canonicalObj.canonicalId)
-                val pos = PlanetEngine.calculatePlanet(planetType, jd)
-                val horiz = CoordinateEngine.equatorialToHorizontal(
-                    equatorial = CoordinateEngine.Equatorial(pos.raDeg, pos.decDeg),
-                    lastDeg = lastDeg,
+                val astroTime = AstroTime(timestampMs)
+                val pos = PlanetEngine.calculatePlanet(planetType, astroTime)
+                val horiz = frameTransformationEngine.equatorialToHorizontal(
+                    raJ2000Deg = pos.raDeg,
+                    decJ2000Deg = pos.decDeg,
+                    astroTime = astroTime,
                     latitudeDeg = userLatDeg,
-                    observerElevationM = elevationM
+                    longitudeDeg = userLonDeg,
+                    elevationM = elevationM
                 )
                 val distKm = pos.distanceAU * 149597870.7
                 val distLy = distKm / 9.461e12
@@ -145,8 +208,8 @@ object AstroDispatchEngine {
                     elevationM = elevationM,
                     raDeg = pos.raDeg,
                     decDeg = pos.decDeg,
-                    altitudeDeg = horiz.altitudeDeg,
-                    azimuthDeg = horiz.azimuthDeg,
+                    altitudeDeg = horiz.altDeg,
+                    azimuthDeg = horiz.azDeg,
                     distanceKm = distKm,
                     distanceAU = pos.distanceAU,
                     distanceLightYears = distLy,
@@ -171,11 +234,14 @@ object AstroDispatchEngine {
                 val moonRa = jupRa + ((moonPos?.offsetRaArcsec ?: 0.0) / 3600.0)
                 val moonDec = jupDec + ((moonPos?.offsetDecArcsec ?: 0.0) / 3600.0)
 
-                val horiz = CoordinateEngine.equatorialToHorizontal(
-                    equatorial = CoordinateEngine.Equatorial(moonRa, moonDec),
-                    lastDeg = lastDeg,
+                val astroTime = AstroTime(timestampMs)
+                val horiz = frameTransformationEngine.equatorialToHorizontal(
+                    raJ2000Deg = moonRa,
+                    decJ2000Deg = moonDec,
+                    astroTime = astroTime,
                     latitudeDeg = userLatDeg,
-                    observerElevationM = elevationM
+                    longitudeDeg = userLonDeg,
+                    elevationM = elevationM
                 )
                 val distKm = jupSystem.jupiterPos.distanceAU * 149597870.7
                 val distLy = distKm / 9.461e12
@@ -189,8 +255,8 @@ object AstroDispatchEngine {
                     elevationM = elevationM,
                     raDeg = moonRa,
                     decDeg = moonDec,
-                    altitudeDeg = horiz.altitudeDeg,
-                    azimuthDeg = horiz.azimuthDeg,
+                    altitudeDeg = horiz.altDeg,
+                    azimuthDeg = horiz.azDeg,
                     distanceKm = distKm,
                     distanceAU = jupSystem.jupiterPos.distanceAU,
                     distanceLightYears = distLy,
@@ -293,11 +359,14 @@ object AstroDispatchEngine {
         val ra = canonicalObj.staticPosition?.raDeg ?: 0.0
         val dec = canonicalObj.staticPosition?.decDeg ?: 0.0
 
-        val horiz = CoordinateEngine.equatorialToHorizontal(
-            equatorial = CoordinateEngine.Equatorial(ra, dec),
-            lastDeg = lastDeg,
+        val astroTime = AstroTime(timestampMs)
+        val horiz = frameTransformationEngine.equatorialToHorizontal(
+            raJ2000Deg = ra,
+            decJ2000Deg = dec,
+            astroTime = astroTime,
             latitudeDeg = userLatDeg,
-            observerElevationM = elevationM
+            longitudeDeg = userLonDeg,
+            elevationM = elevationM
         )
 
         return CalculatedAstroState(
@@ -309,8 +378,8 @@ object AstroDispatchEngine {
             elevationM = elevationM,
             raDeg = ra,
             decDeg = dec,
-            altitudeDeg = horiz.altitudeDeg,
-            azimuthDeg = horiz.azimuthDeg,
+            altitudeDeg = horiz.altDeg,
+            azimuthDeg = horiz.azDeg,
             distanceLightYears = canonicalObj.staticPosition?.distanceLightYears,
             magnitude = canonicalObj.physicalProperties.magnitude
         )
@@ -396,5 +465,166 @@ object AstroDispatchEngine {
             issParentId = issState?.parentCanonicalId,
             isPassed = passed
         )
+    }
+
+    private val skyMapRenderer = SkyMapRenderer()
+
+    fun renderSkyMap(
+        astroTime: AstroTime,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        settings: SkyMapRenderer.RenderSettings
+    ): SkyMapRenderer.RenderResult {
+        return skyMapRenderer.render(astroTime, userLatDeg, userLonDeg, settings)
+    }
+
+    fun identifyStarAt(
+        x: Float,
+        y: Float,
+        astroTime: AstroTime,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        settings: SkyMapRenderer.RenderSettings
+    ): StarCatalog.Star? {
+        return skyMapRenderer.identifyStarAt(x, y, astroTime, userLatDeg, userLonDeg, settings)
+    }
+
+    fun identifyDeepSkyAt(
+        x: Float,
+        y: Float,
+        astroTime: AstroTime,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        settings: SkyMapRenderer.RenderSettings
+    ): DeepSkyCatalogExpanded.DeepSkyObject? {
+        return skyMapRenderer.identifyDeepSkyAt(x, y, astroTime, userLatDeg, userLonDeg, settings)
+    }
+
+    // ============================================================
+    // Unified API Surface
+    // ============================================================
+
+    // --- Time ---
+    fun getCurrentAstroTime(): AstroTime = AstroTime.now()
+    fun getDeltaT(year: Int, month: Int, day: Int): Double = AstroTime.fromUtcDate(year, month, day).deltaT
+
+    // --- Coordinates ---
+    fun equatorialToHorizontal(
+        raDeg: Double, decDeg: Double,
+        astroTime: AstroTime, latDeg: Double, lonDeg: Double
+    ): FrameTransformationEngine.Horizontal {
+        return frameTransformationEngine.equatorialToHorizontal(raDeg, decDeg, astroTime, latDeg, lonDeg)
+    }
+
+    fun calculateLAST(astroTime: AstroTime, longitudeDeg: Double): Double {
+        return frameTransformationEngine.calculateLAST(astroTime, longitudeDeg)
+    }
+
+    // --- Ephemeris ---
+    fun getSunPosition(astroTime: AstroTime): SunEngine.SunPosition {
+        return SunEngine.calculateSun(astroTime)
+    }
+
+    fun getMoonPosition(astroTime: AstroTime): MoonEngine.MoonPosition {
+        return MoonEngine.calculateMoon(astroTime)
+    }
+
+    fun getPlanetPositions(astroTime: AstroTime): List<PlanetEngine.PlanetPosition> {
+        return PlanetEngine.PlanetType.values().map { PlanetEngine.calculatePlanet(it, astroTime) }
+    }
+
+    // --- Deep Sky ---
+    fun getDeepSkyObject(id: String): DeepSkyCatalogExpanded.DeepSkyObject? {
+        return DeepSkyCatalogExpanded.objects.firstOrNull {
+            it.catalogId.equals(id, ignoreCase = true) || it.commonName?.equals(id, ignoreCase = true) == true
+        }
+    }
+
+    fun searchDeepSky(query: String): List<DeepSkyCatalogExpanded.DeepSkyObject> {
+        val q = query.lowercase()
+        return DeepSkyCatalogExpanded.objects.filter {
+            it.catalogId.lowercase().contains(q) ||
+            it.commonName?.lowercase()?.contains(q) == true ||
+            it.type.lowercase().contains(q)
+        }
+    }
+
+    // --- Stars ---
+    fun getStar(hipId: Int): StarCatalog.Star? {
+        return StarCatalog.stars.firstOrNull { it.hipId == hipId }
+    }
+
+    fun searchStars(query: String): List<StarCatalog.Star> {
+        val q = query.lowercase()
+        return StarCatalog.stars.filter { it.name?.lowercase()?.contains(q) == true }
+    }
+
+    // --- Constellations ---
+    fun getConstellation(code: String): ConstellationData? {
+        return com.alijafari.red.astronomy.data.catalog.ConstellationCatalog.getConstellations().firstOrNull {
+            it.code.equals(code, ignoreCase = true)
+        }
+    }
+
+    fun getConstellationAt(raDeg: Double, decDeg: Double): ConstellationData? {
+        return com.alijafari.red.astronomy.data.catalog.ConstellationCatalog.getConstellations().minByOrNull { constellation ->
+            constellation.mainStars.minOfOrNull { star ->
+                val dRa = Math.abs(star.first - raDeg)
+                val dDec = Math.abs(star.second - decDeg)
+                dRa * dRa + dDec * dDec
+            } ?: Double.MAX_VALUE
+        }
+    }
+
+    // --- Sky Map ---
+    fun renderSky(
+        astroTime: AstroTime,
+        latDeg: Double,
+        lonDeg: Double,
+        settings: SkyMapRenderer.RenderSettings
+    ): SkyMapRenderer.RenderResult {
+        return skyMapRenderer.render(astroTime, latDeg, lonDeg, settings)
+    }
+
+    // --- Observability ---
+    fun getSkyQuality(
+        astroTime: AstroTime,
+        latDeg: Double,
+        lonDeg: Double
+    ): ObservabilityEngine.ObservabilityResult {
+        val sunPos = SunEngine.calculateSun(astroTime)
+        val sunHoriz = frameTransformationEngine.equatorialToHorizontal(sunPos.raDeg, sunPos.decDeg, astroTime, latDeg, lonDeg)
+        val moonPos = MoonEngine.calculateMoon(astroTime)
+        return ObservabilityEngine.calculateObservability(
+            altitudeDeg = 45.0,
+            sunAltitudeDeg = sunHoriz.altDeg,
+            moonIlluminationPercent = moonPos.illuminatedFraction * 100.0,
+            objectMagnitude = 0.0
+        )
+    }
+
+    // --- Eclipses ---
+    fun getNextEclipse(astroTime: AstroTime): EclipseEngine.EclipseEvent? {
+        val solar = eclipseEngine.findNextSolarEclipse(astroTime.utcMs)
+        val lunar = eclipseEngine.findNextLunarEclipse(astroTime.utcMs)
+        if (solar == null) return lunar
+        if (lunar == null) return solar
+        return if (solar.maximumMs < lunar.maximumMs) solar else lunar
+    }
+
+    // --- Satellites ---
+    fun getSatellitePositions(
+        astroTime: AstroTime,
+        latDeg: Double,
+        lonDeg: Double
+    ): List<SatelliteLiveState> {
+        return SatelliteCatalog.satellites.map { sat ->
+            SatelliteEngine.calculateSatelliteState(sat, astroTime.utcMs, latDeg, lonDeg)
+        }
+    }
+
+    // --- Jupiter Moons ---
+    fun getJupiterMoons(astroTime: AstroTime): List<JupiterMoonsEngine.MoonPosition> {
+        return JupiterMoonsEngine.calculateJupiterMoons(astroTime.jdTt).moons
     }
 }

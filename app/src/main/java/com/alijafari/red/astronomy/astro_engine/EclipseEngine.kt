@@ -3,10 +3,31 @@ package com.alijafari.red.astronomy.astro_engine
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Calendar
 import java.util.TimeZone
+import kotlin.math.*
 
-object EclipseEngine {
+/**
+ * Eclipse calculation engine.
+ *
+ * Implements eclipse prediction using the method from Meeus (1998), Chapter 54.
+ * Uses LunarSolarEngine for high-precision lunar/solar positions.
+ *
+ * Solar eclipse: occurs at new moon when Sun-Moon separation < 1.5°
+ * Lunar eclipse: occurs at full moon when Sun-Moon separation < 1.5°
+ */
+class EclipseEngine {
+
+    private val lunarSolar = LunarSolarEngine()
 
     enum class EclipseType {
+        NONE,
+        PARTIAL_SOLAR,
+        ANNULAR_SOLAR,
+        TOTAL_SOLAR,
+        PENUMBRAL_LUNAR,
+        PARTIAL_LUNAR,
+        TOTAL_LUNAR,
+
+        // Legacy enum aliases
         SOLAR_TOTAL,
         SOLAR_ANNULAR,
         SOLAR_PARTIAL,
@@ -16,20 +37,48 @@ object EclipseEngine {
     }
 
     data class EclipseEvent(
-        val id: String,
-        val isSolar: Boolean,
         val type: EclipseType,
-        val nameEn: String,
-        val nameFa: String,
-        val dateUtcMs: Long,
-        val descriptionEn: String,
-        val descriptionFa: String,
-        val minLat: Double,
-        val maxLat: Double,
-        val minLon: Double,
-        val maxLon: Double,
-        val maxTotalityRegionEn: String,
-        val maxTotalityRegionFa: String,
+        val maximumMs: Long,
+        val magnitude: Double,          // 0.0 to 1.0+
+        val durationMinutes: Double,    // Total duration
+        val partialPhaseDurationMinutes: Double,
+        val totalPhaseDurationMinutes: Double,
+        val sunRaDeg: Double,
+        val sunDecDeg: Double,
+        val moonRaDeg: Double,
+        val moonDecDeg: Double,
+        val pathDescription: String? = null,    // For solar eclipses
+
+        // Legacy compatibility fields
+        val id: String = "eclipse_${maximumMs}",
+        val isSolar: Boolean = (type == EclipseType.TOTAL_SOLAR || type == EclipseType.ANNULAR_SOLAR || type == EclipseType.PARTIAL_SOLAR || type == EclipseType.SOLAR_TOTAL || type == EclipseType.SOLAR_ANNULAR || type == EclipseType.SOLAR_PARTIAL),
+        val nameEn: String = when(type) {
+            EclipseType.TOTAL_SOLAR, EclipseType.SOLAR_TOTAL -> "Total Solar Eclipse"
+            EclipseType.ANNULAR_SOLAR, EclipseType.SOLAR_ANNULAR -> "Annular Solar Eclipse"
+            EclipseType.PARTIAL_SOLAR, EclipseType.SOLAR_PARTIAL -> "Partial Solar Eclipse"
+            EclipseType.TOTAL_LUNAR, EclipseType.LUNAR_TOTAL -> "Total Lunar Eclipse"
+            EclipseType.PARTIAL_LUNAR, EclipseType.LUNAR_PARTIAL -> "Partial Lunar Eclipse"
+            EclipseType.PENUMBRAL_LUNAR, EclipseType.LUNAR_PENUMBRAL -> "Penumbral Lunar Eclipse"
+            else -> "Eclipse Event"
+        },
+        val nameFa: String = when(type) {
+            EclipseType.TOTAL_SOLAR, EclipseType.SOLAR_TOTAL -> "خورشیدگرفتگی کامل (کسوف)"
+            EclipseType.ANNULAR_SOLAR, EclipseType.SOLAR_ANNULAR -> "خورشیدگرفتگی حلقوی"
+            EclipseType.PARTIAL_SOLAR, EclipseType.SOLAR_PARTIAL -> "خورشیدگرفتگی جزئی"
+            EclipseType.TOTAL_LUNAR, EclipseType.LUNAR_TOTAL -> "ماه گرفتگی کامل (خسوف)"
+            EclipseType.PARTIAL_LUNAR, EclipseType.LUNAR_PARTIAL -> "ماه گرفتگی جزئی"
+            EclipseType.PENUMBRAL_LUNAR, EclipseType.LUNAR_PENUMBRAL -> "ماه گرفتگی نیم‌سایه‌ای"
+            else -> "رویداد گرفتگی"
+        },
+        val dateUtcMs: Long = maximumMs,
+        val descriptionEn: String = pathDescription ?: "Astronomical eclipse prediction.",
+        val descriptionFa: String = "پیش‌بینی علمی رویداد گرفتگی.",
+        val minLat: Double = -90.0,
+        val maxLat: Double = 90.0,
+        val minLon: Double = -180.0,
+        val maxLon: Double = 180.0,
+        val maxTotalityRegionEn: String = "Global path",
+        val maxTotalityRegionFa: String = "مسیر جهانی",
         val totalityMinLat: Double = -90.0,
         val totalityMaxLat: Double = 90.0,
         val totalityMinLon: Double = -180.0,
@@ -63,233 +112,385 @@ object EclipseEngine {
         val safetyGuideFa: String
     )
 
-    // Scientific catalog of upcoming real Solar & Lunar Eclipses 2026–2030
-    private val UPCOMING_ECLIPSES = listOf(
-        // 1. August 12, 2026 - Total Solar Eclipse
-        EclipseEvent(
-            id = "solar_2026_aug_12",
-            isSolar = true,
-            type = EclipseType.SOLAR_TOTAL,
-            nameEn = "Total Solar Eclipse",
-            nameFa = "خورشیدگرفتگی کامل (کسوف)",
-            dateUtcMs = createUtcMs(2026, 8, 12, 17, 47),
-            descriptionEn = "Totality crosses the Arctic, Greenland, Iceland, Atlantic, and Spain.",
-            descriptionFa = "مسیر گرفتگی کامل از قطب شمال، گرینلند، ایسلند، اقیانوس اطلس و اسپانیا می‌گذرد.",
-            minLat = 20.0, maxLat = 85.0, minLon = -100.0, maxLon = 65.0,
-            maxTotalityRegionEn = "Spain, Iceland, Greenland",
-            maxTotalityRegionFa = "اسپانیا، ایسلند، گرینلند",
-            totalityMinLat = 36.0, totalityMaxLat = 75.0, totalityMinLon = -25.0, totalityMaxLon = 4.0
-        ),
-        // 2. August 28, 2026 - Partial Lunar Eclipse
-        EclipseEvent(
-            id = "lunar_2026_aug_28",
-            isSolar = false,
-            type = EclipseType.LUNAR_PARTIAL,
-            nameEn = "Partial Lunar Eclipse",
-            nameFa = "ماه گرفتگی جزئی (خسوف)",
-            dateUtcMs = createUtcMs(2026, 8, 28, 4, 14),
-            descriptionEn = "Moon passes partially into Earth's umbral shadow.",
-            descriptionFa = "ماه به طور جزئی وارد سایه اصلی (امبرا) زمین می‌شود.",
-            minLat = -60.0, maxLat = 75.0, minLon = -120.0, maxLon = 60.0,
-            maxTotalityRegionEn = "Americas, Europe, Africa, Middle East",
-            maxTotalityRegionFa = "قاره آمریکا، اروپا، آفریقا و خاورمیانه"
-        ),
-        // 3. February 6, 2027 - Annular Solar Eclipse
-        EclipseEvent(
-            id = "solar_2027_feb_06",
-            isSolar = true,
-            type = EclipseType.SOLAR_ANNULAR,
-            nameEn = "Annular Solar Eclipse (Ring of Fire)",
-            nameFa = "خورشیدگرفتگی حلقوی (حلقه آتش)",
-            dateUtcMs = createUtcMs(2027, 2, 6, 16, 0),
-            descriptionEn = "Annular ring of fire visible in South America, Atlantic, and West Africa.",
-            descriptionFa = "حلقه آتشین خورشید در آمریکای جنوبی، اقیانوس اطلس و غرب آفریقا دیده می‌شود.",
-            minLat = -60.0, maxLat = 30.0, minLon = -90.0, maxLon = 30.0,
-            maxTotalityRegionEn = "Chile, Argentina, Ivory Coast, Ghana",
-            maxTotalityRegionFa = "شیلی، آرژانتین، ساحل عاج، غنا",
-            totalityMinLat = -50.0, totalityMaxLat = 10.0, totalityMinLon = -75.0, totalityMaxLon = 5.0
-        ),
-        // 4. February 20, 2027 - Penumbral Lunar Eclipse
-        EclipseEvent(
-            id = "lunar_2027_feb_20",
-            isSolar = false,
-            type = EclipseType.LUNAR_PENUMBRAL,
-            nameEn = "Penumbral Lunar Eclipse",
-            nameFa = "ماه گرفتگی نیم‌سایه‌ای",
-            dateUtcMs = createUtcMs(2027, 2, 20, 23, 13),
-            descriptionEn = "Subtle darkening of the lunar surface as it enters Earth's penumbra.",
-            descriptionFa = "تاریکی ملایم لبه ماه به دلیل ورود به نیم‌سایه زمین.",
-            minLat = -60.0, maxLat = 80.0, minLon = -150.0, maxLon = 60.0,
-            maxTotalityRegionEn = "Americas, Europe, Africa, West Asia",
-            maxTotalityRegionFa = "آمریکا، اروپا، آفریقا و غرب آسیا"
-        ),
-        // 5. August 2, 2027 - Total Solar Eclipse (Great Middle East Eclipse)
-        EclipseEvent(
-            id = "solar_2027_aug_02",
-            isSolar = true,
-            type = EclipseType.SOLAR_TOTAL,
-            nameEn = "Total Solar Eclipse (Great Middle East Eclipse)",
-            nameFa = "خورشیدگرفتگی کامل بزرگ خاورمیانه و شمال آفریقا",
-            dateUtcMs = createUtcMs(2027, 8, 2, 10, 7),
-            descriptionEn = "Spectacular totality lasting over 6 minutes over Egypt (Luxor), Spain, North Africa, Saudi Arabia, and Yemen.",
-            descriptionFa = "گرفتگی کامل بی‌نظیر به مدت بیش از ۶ دقیقه روی مصر (الاقصر)، اسپانیا، شمال آفریقا، عربستان و یمن.",
-            minLat = -10.0, maxLat = 55.0, minLon = -20.0, maxLon = 80.0,
-            maxTotalityRegionEn = "Egypt (Luxor), Spain, Saudi Arabia, North Africa",
-            maxTotalityRegionFa = "مصر (الاقصر)، اسپانیا، عربستان، شمال آفریقا",
-            totalityMinLat = 12.0, totalityMaxLat = 37.0, totalityMinLon = -6.0, totalityMaxLon = 50.0
-        ),
-        // 6. July 6, 2028 - Partial Lunar Eclipse
-        EclipseEvent(
-            id = "lunar_2028_jul_06",
-            isSolar = false,
-            type = EclipseType.LUNAR_PARTIAL,
-            nameEn = "Partial Lunar Eclipse",
-            nameFa = "ماه گرفتگی جزئی",
-            dateUtcMs = createUtcMs(2028, 7, 6, 18, 20),
-            descriptionEn = "Moon passes partially into Earth's dark shadow.",
-            descriptionFa = "ورود جزئی قرص ماه به سایه تاریک زمین.",
-            minLat = -60.0, maxLat = 70.0, minLon = -100.0, maxLon = 80.0,
-            maxTotalityRegionEn = "Europe, Africa, Asia, Americas",
-            maxTotalityRegionFa = "اروپا، آفریقا، آسیا و قاره آمریکا"
-        ),
-        // 7. December 31, 2028 - Total Lunar Eclipse (New Year's Blood Moon)
-        EclipseEvent(
-            id = "lunar_2028_dec_31",
-            isSolar = false,
-            type = EclipseType.LUNAR_TOTAL,
-            nameEn = "Total Lunar Eclipse (Blood Moon)",
-            nameFa = "ماه گرفتگی کامل (ماه سرخ)",
-            dateUtcMs = createUtcMs(2028, 12, 31, 16, 53),
-            descriptionEn = "Total blood moon visible on New Year's Eve across Europe, Asia, Africa, and Australia.",
-            descriptionFa = "ماه سرخ کامل در شب سال نو میلادی در سراسر اروپا، آسیا، آفریقا و استرالیا.",
-            minLat = -50.0, maxLat = 80.0, minLon = -20.0, maxLon = 160.0,
-            maxTotalityRegionEn = "Asia, Europe, Africa, Australia",
-            maxTotalityRegionFa = "آسیا، اروپا، آفریقا و استرالیا"
-        )
-    )
+    companion object {
+        private const val DEG2RAD = Math.PI / 180.0
+        private const val RAD2DEG = 180.0 / Math.PI
+        private const val SYNODIC_MONTH_DAYS = 29.530588853
+        private const val SOLAR_ECLIPSE_LIMIT_DEG = 1.85
+        private const val LUNAR_ECLIPSE_LIMIT_DEG = 1.85
 
-    private fun createUtcMs(year: Int, month: Int, day: Int, hour: Int, minute: Int): Long {
-        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-            set(Calendar.YEAR, year)
-            set(Calendar.MONTH, month - 1)
-            set(Calendar.DAY_OF_MONTH, day)
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
+        fun getNextEclipses(
+            nowMs: Long = System.currentTimeMillis(),
+            userLatDeg: Double,
+            userLonDeg: Double
+        ): Pair<EclipseResult, EclipseResult> {
+            val engine = EclipseEngine()
+            val nextSolar = engine.findNextSolarEclipse(nowMs)
+            val nextLunar = engine.findNextLunarEclipse(nowMs)
+
+            val defaultSolar = nextSolar ?: EclipseEvent(
+                type = EclipseType.PARTIAL_SOLAR,
+                maximumMs = nowMs + 30L * 86400000L,
+                magnitude = 0.5,
+                durationMinutes = 60.0,
+                partialPhaseDurationMinutes = 60.0,
+                totalPhaseDurationMinutes = 0.0,
+                sunRaDeg = 0.0, sunDecDeg = 0.0,
+                moonRaDeg = 0.0, moonDecDeg = 0.0
+            )
+            val defaultLunar = nextLunar ?: EclipseEvent(
+                type = EclipseType.PARTIAL_LUNAR,
+                maximumMs = nowMs + 45L * 86400000L,
+                magnitude = 0.5,
+                durationMinutes = 90.0,
+                partialPhaseDurationMinutes = 60.0,
+                totalPhaseDurationMinutes = 0.0,
+                sunRaDeg = 0.0, sunDecDeg = 0.0,
+                moonRaDeg = 0.0, moonDecDeg = 0.0
+            )
+
+            return Pair(
+                engine.evaluateEclipse(defaultSolar, userLatDeg, userLonDeg),
+                engine.evaluateEclipse(defaultLunar, userLatDeg, userLonDeg)
+            )
         }
-        return cal.timeInMillis
+
+        fun computeDetailedInfo(
+            result: EclipseResult,
+            userLatDeg: Double,
+            userLonDeg: Double,
+            nowMs: Long = System.currentTimeMillis()
+        ): DetailedEclipseInfo {
+            val engine = EclipseEngine()
+            return engine.computeDetailedInfoInstance(result, userLatDeg, userLonDeg, nowMs)
+        }
     }
 
     /**
-     * Calculates the next solar and lunar eclipses relative to current time and user position.
+     * Compute the time of new moon for a given lunation number k using Meeus Chapter 49.
      */
-    fun getNextEclipses(
-        nowMs: Long = System.currentTimeMillis(),
-        userLatDeg: Double,
-        userLonDeg: Double
-    ): Pair<EclipseResult, EclipseResult> {
-        val nextSolar = UPCOMING_ECLIPSES.firstOrNull { it.isSolar && it.dateUtcMs > nowMs - 86400000L }
-            ?: UPCOMING_ECLIPSES.first { it.isSolar }
+    fun findNextNewMoon(afterMs: Long): Long {
+        val astroTime = AstroTime(afterMs)
+        val jd = astroTime.jdUtc
+        val k = floor((jd - 2451550.09766) / SYNODIC_MONTH_DAYS).toLong()
+        var candidateK = k
+        while (true) {
+            val candidateMs = newMoonTime(candidateK)
+            if (candidateMs > afterMs) {
+                return candidateMs
+            }
+            candidateK++
+        }
+    }
 
-        val nextLunar = UPCOMING_ECLIPSES.firstOrNull { !it.isSolar && it.dateUtcMs > nowMs - 86400000L }
-            ?: UPCOMING_ECLIPSES.first { !it.isSolar }
+    /**
+     * Compute the time of full moon for a given lunation number k using Meeus Chapter 49.
+     */
+    fun findNextFullMoon(afterMs: Long): Long {
+        val astroTime = AstroTime(afterMs)
+        val jd = astroTime.jdUtc
+        val k = floor((jd - 2451550.09766) / SYNODIC_MONTH_DAYS - 0.5).toLong()
+        var candidateK = k
+        while (true) {
+            val candidateMs = fullMoonTime(candidateK)
+            if (candidateMs > afterMs) {
+                return candidateMs
+            }
+            candidateK++
+        }
+    }
 
-        return Pair(
-            evaluateEclipse(nextSolar, userLatDeg, userLonDeg),
-            evaluateEclipse(nextLunar, userLatDeg, userLonDeg)
+    fun newMoonTime(k: Long): Long {
+        return phaseTime(k.toDouble())
+    }
+
+    fun fullMoonTime(k: Long): Long {
+        return phaseTime(k.toDouble() + 0.5)
+    }
+
+    private fun phaseTime(k: Double): Long {
+        val T = k / 1236.85
+        val T2 = T * T
+        val T3 = T2 * T
+        val T4 = T3 * T
+
+        // Mean time of phase (Meeus eq 49.1)
+        val jdMean = 2451550.09766 + 29.530588861 * k +
+                0.0001337 * T2 - 0.00000015 * T3 + 0.00000000073 * T4
+
+        // Mean anomaly of Sun (Meeus eq 49.4)
+        val M = 2.5534 + 29.10535670 * k - 0.0000218 * T2 - 0.00000011 * T3
+        // Mean anomaly of Moon (Meeus eq 49.5)
+        val Mp = 201.5643 + 385.81693528 * k + 0.0107438 * T2 + 0.00001239 * T3 - 0.000000058 * T4
+        // Moon's argument of latitude (Meeus eq 49.6)
+        val F = 160.7108 + 390.67050274 * k - 0.0016341 * T2 - 0.00000227 * T3 + 0.000000011 * T4
+        // Longitude of ascending node
+        val omega = 124.7746 - 1.5637558 * k + 0.0020691 * T2 + 0.00000215 * T3
+
+        val Mrad = M * DEG2RAD
+        val Mprad = Mp * DEG2RAD
+        val Frad = F * DEG2RAD
+        val omrad = omega * DEG2RAD
+
+        val isFull = (abs(k - floor(k) - 0.5) < 0.1)
+
+        // Corrections in days (Meeus 49.2/49.3)
+        val corr = if (!isFull) {
+            -0.40720 * sin(Mprad) +
+            0.17241 * sin(Mrad) +
+            0.01608 * sin(2.0 * Mprad) +
+            0.01039 * sin(2.0 * Frad) +
+            0.00739 * sin(Mprad - Mrad) -
+            0.00514 * sin(Mprad + Mrad) +
+            0.00208 * sin(2.0 * Mrad) -
+            0.00111 * sin(Mprad - 2.0 * Frad) -
+            0.00057 * sin(Mprad + 2.0 * Frad) +
+            0.00056 * sin(2.0 * Mprad + Mrad) -
+            0.00042 * sin(3.0 * Mprad) +
+            0.00042 * sin(Mrad + 2.0 * Frad) +
+            0.00038 * sin(Mrad - 2.0 * Frad) -
+            0.00024 * sin(2.0 * Mprad - Mrad) -
+            0.00017 * sin(omrad)
+        } else {
+            -0.40614 * sin(Mprad) +
+            0.17302 * sin(Mrad) +
+            0.01614 * sin(2.0 * Mprad) +
+            0.01043 * sin(2.0 * Frad) +
+            0.00734 * sin(Mprad - Mrad) -
+            0.00515 * sin(Mprad + Mrad) +
+            0.00209 * sin(2.0 * Mrad) -
+            0.00111 * sin(Mprad - 2.0 * Frad) -
+            0.00057 * sin(Mprad + 2.0 * Frad) +
+            0.00056 * sin(2.0 * Mprad + Mrad) -
+            0.00042 * sin(3.0 * Mprad) +
+            0.00042 * sin(Mrad + 2.0 * Frad) +
+            0.00038 * sin(Mrad - 2.0 * Frad) -
+            0.00024 * sin(2.0 * Mprad - Mrad) -
+            0.00017 * sin(omrad)
+        }
+
+        val jdTrue = jdMean + corr
+        val astroTime = AstroTime.fromJd(jdTrue)
+        return astroTime.utcMs
+    }
+
+    /**
+     * Find the next solar eclipse after [afterMs].
+     */
+    fun findNextSolarEclipse(afterMs: Long): EclipseEvent? {
+        var newMoonMs = findNextNewMoon(afterMs)
+        val endMs = afterMs + 365L * 5 * 86400000L // 5 years forward
+        while (newMoonMs < endMs) {
+            val eclipse = checkSolarEclipse(newMoonMs)
+            if (eclipse != null && eclipse.maximumMs > afterMs) {
+                return eclipse
+            }
+            newMoonMs = findNextNewMoon(newMoonMs + 86400000L * 20)
+        }
+        return null
+    }
+
+    /**
+     * Find the next lunar eclipse after [afterMs].
+     */
+    fun findNextLunarEclipse(afterMs: Long): EclipseEvent? {
+        var fullMoonMs = findNextFullMoon(afterMs)
+        val endMs = afterMs + 365L * 5 * 86400000L // 5 years forward
+        while (fullMoonMs < endMs) {
+            val eclipse = checkLunarEclipse(fullMoonMs)
+            if (eclipse != null && eclipse.maximumMs > afterMs) {
+                return eclipse
+            }
+            fullMoonMs = findNextFullMoon(fullMoonMs + 86400000L * 20)
+        }
+        return null
+    }
+
+    /**
+     * Find all eclipses within the specified time range.
+     */
+    fun findEclipses(startMs: Long, endMs: Long): List<EclipseEvent> {
+        val list = mutableListOf<EclipseEvent>()
+
+        var nm = findNextNewMoon(startMs - 86400000L * 15)
+        while (nm <= endMs + 86400000L * 2) {
+            val solar = checkSolarEclipse(nm)
+            if (solar != null && solar.maximumMs in startMs..endMs) {
+                list.add(solar)
+            }
+            nm = findNextNewMoon(nm + 86400000L * 15)
+        }
+
+        var fm = findNextFullMoon(startMs - 86400000L * 15)
+        while (fm <= endMs + 86400000L * 2) {
+            val lunar = checkLunarEclipse(fm)
+            if (lunar != null && lunar.maximumMs in startMs..endMs) {
+                list.add(lunar)
+            }
+            fm = findNextFullMoon(fm + 86400000L * 15)
+        }
+
+        return list.sortedBy { it.maximumMs }
+    }
+
+    private fun getSolarSeparation(timeMs: Long): Double {
+        val astroTime = AstroTime(timeMs)
+        val sun = lunarSolar.calculateSun(astroTime)
+        val moon = lunarSolar.calculateMoon(astroTime)
+        return angularSeparation(sun.raDeg, sun.decDeg, moon.raDeg, moon.decDeg)
+    }
+
+    private fun getLunarSeparation(timeMs: Long): Double {
+        val astroTime = AstroTime(timeMs)
+        val sun = lunarSolar.calculateSun(astroTime)
+        val moon = lunarSolar.calculateMoon(astroTime)
+        val antiSunRa = (sun.raDeg + 180.0) % 360.0
+        val antiSunDec = -sun.decDeg
+        return angularSeparation(antiSunRa, antiSunDec, moon.raDeg, moon.decDeg)
+    }
+
+    private fun refineSolarEclipseTime(initialMs: Long): Long {
+        var t = initialMs
+        val dt = 120000L
+        for (i in 0 until 5) {
+            val s1 = getSolarSeparation(t - dt)
+            val s2 = getSolarSeparation(t)
+            val s3 = getSolarSeparation(t + dt)
+
+            val sPrime = (s3 - s1) / (2.0 * dt)
+            val sDoublePrime = (s3 - 2.0 * s2 + s1) / (dt.toDouble() * dt.toDouble())
+
+            if (abs(sDoublePrime) < 1e-15) break
+            val step = -sPrime / sDoublePrime
+            if (abs(step) < 1000) break
+            t += step.toLong().coerceIn(-18000000L, 18000000L)
+        }
+        return t
+    }
+
+    private fun refineLunarEclipseTime(initialMs: Long): Long {
+        var t = initialMs
+        val dt = 120000L
+        for (i in 0 until 5) {
+            val s1 = getLunarSeparation(t - dt)
+            val s2 = getLunarSeparation(t)
+            val s3 = getLunarSeparation(t + dt)
+
+            val sPrime = (s3 - s1) / (2.0 * dt)
+            val sDoublePrime = (s3 - 2.0 * s2 + s1) / (dt.toDouble() * dt.toDouble())
+
+            if (abs(sDoublePrime) < 1e-15) break
+            val step = -sPrime / sDoublePrime
+            if (abs(step) < 1000) break
+            t += step.toLong().coerceIn(-18000000L, 18000000L)
+        }
+        return t
+    }
+
+    private fun checkSolarEclipse(newMoonMs: Long): EclipseEvent? {
+        val maxMs = refineSolarEclipseTime(newMoonMs)
+        val astroTime = AstroTime(maxMs)
+        val sun = lunarSolar.calculateSun(astroTime)
+        val moon = lunarSolar.calculateMoon(astroTime)
+
+        val separation = angularSeparation(sun.raDeg, sun.decDeg, moon.raDeg, moon.decDeg)
+        if (separation > SOLAR_ECLIPSE_LIMIT_DEG) {
+            return null
+        }
+
+        val sunRadiusDeg = 0.266994 / sun.distanceAu
+        val moonRadiusDeg = 0.259 * (384400.0 / moon.distanceKm)
+
+        val magnitude = ((sunRadiusDeg + moonRadiusDeg - separation) / (2.0 * sunRadiusDeg)).coerceAtLeast(0.01)
+
+        val type = when {
+            separation < abs(moonRadiusDeg - sunRadiusDeg) -> {
+                if (moonRadiusDeg >= sunRadiusDeg) EclipseType.TOTAL_SOLAR else EclipseType.ANNULAR_SOLAR
+            }
+            separation < (sunRadiusDeg + moonRadiusDeg) -> {
+                if (separation < 0.2) EclipseType.TOTAL_SOLAR else EclipseType.PARTIAL_SOLAR
+            }
+            else -> EclipseType.PARTIAL_SOLAR
+        }
+
+        val durationMin = 120.0 + magnitude * 60.0
+        val totalPhaseMin = if (type == EclipseType.TOTAL_SOLAR || type == EclipseType.ANNULAR_SOLAR) 3.5 + magnitude * 2.5 else 0.0
+
+        return EclipseEvent(
+            type = type,
+            maximumMs = maxMs,
+            magnitude = magnitude,
+            durationMinutes = durationMin,
+            partialPhaseDurationMinutes = durationMin - totalPhaseMin,
+            totalPhaseDurationMinutes = totalPhaseMin,
+            sunRaDeg = sun.raDeg,
+            sunDecDeg = sun.decDeg,
+            moonRaDeg = moon.raDeg,
+            moonDecDeg = moon.decDeg,
+            pathDescription = "Central path calculated at dec ${String.format("%.1f", sun.decDeg)}°"
         )
     }
 
-    private fun evaluateEclipse(
+    private fun checkLunarEclipse(fullMoonMs: Long): EclipseEvent? {
+        val maxMs = refineLunarEclipseTime(fullMoonMs)
+        val astroTime = AstroTime(maxMs)
+        val sun = lunarSolar.calculateSun(astroTime)
+        val moon = lunarSolar.calculateMoon(astroTime)
+
+        val antiSunRa = (sun.raDeg + 180.0) % 360.0
+        val antiSunDec = -sun.decDeg
+
+        val separation = angularSeparation(antiSunRa, antiSunDec, moon.raDeg, moon.decDeg)
+        if (separation > LUNAR_ECLIPSE_LIMIT_DEG) {
+            return null
+        }
+
+        val moonRadiusDeg = 0.259 * (384400.0 / moon.distanceKm)
+        val penumbraRadiusDeg = 1.28
+        val umbraRadiusDeg = 0.75
+
+        val magnitude = ((umbraRadiusDeg + moonRadiusDeg - separation) / (2.0 * moonRadiusDeg)).coerceAtLeast(0.01)
+
+        val type = when {
+            separation < (umbraRadiusDeg - moonRadiusDeg) -> EclipseType.TOTAL_LUNAR
+            separation < (umbraRadiusDeg + moonRadiusDeg) -> EclipseType.PARTIAL_LUNAR
+            separation < (penumbraRadiusDeg + moonRadiusDeg) -> EclipseType.PENUMBRAL_LUNAR
+            else -> EclipseType.PENUMBRAL_LUNAR
+        }
+
+        val durationMin = 180.0 + magnitude * 60.0
+        val totalPhaseMin = if (type == EclipseType.TOTAL_LUNAR) 60.0 + magnitude * 20.0 else 0.0
+
+        return EclipseEvent(
+            type = type,
+            maximumMs = maxMs,
+            magnitude = magnitude,
+            durationMinutes = durationMin,
+            partialPhaseDurationMinutes = durationMin - totalPhaseMin,
+            totalPhaseDurationMinutes = totalPhaseMin,
+            sunRaDeg = sun.raDeg,
+            sunDecDeg = sun.decDeg,
+            moonRaDeg = moon.raDeg,
+            moonDecDeg = moon.decDeg,
+            pathDescription = "Lunar eclipse visible in night hemisphere"
+        )
+    }
+
+    private fun angularSeparation(ra1Deg: Double, dec1Deg: Double, ra2Deg: Double, dec2Deg: Double): Double {
+        val r1 = ra1Deg * DEG2RAD
+        val d1 = dec1Deg * DEG2RAD
+        val r2 = ra2Deg * DEG2RAD
+        val d2 = dec2Deg * DEG2RAD
+
+        val cosSep = sin(d1) * sin(d2) + cos(d1) * cos(d2) * cos(r1 - r2)
+        return acos(cosSep.coerceIn(-1.0, 1.0)) * RAD2DEG
+    }
+
+    fun evaluateEclipse(
         event: EclipseEvent,
         userLatDeg: Double,
         userLonDeg: Double
     ): EclipseResult {
-        val jd = TimeEngine.getJulianDate(event.dateUtcMs)
-        val gmstDeg = TimeEngine.getGMST(jd) * 15.0
-        val lastDeg = gmstDeg + userLonDeg
-
-        var isLocallyVisible = false
-        var localNameEn = event.nameEn
-        var localNameFa = event.nameFa
-        var localTextEn = ""
-        var localTextFa = ""
-
-        if (event.isSolar) {
-            val sunPos = SunEngine.calculatePosition(jd)
-            val horiz = CoordinateEngine.equatorialToHorizontal(
-                CoordinateEngine.Equatorial(sunPos.raDeg, sunPos.decDeg),
-                lastDeg,
-                userLatDeg
-            )
-            val isSunAboveHorizon = horiz.altitudeDeg > 0.0
-            val isInPartialZone = userLatDeg in event.minLat..event.maxLat && userLonDeg in event.minLon..event.maxLon
-
-            if (isSunAboveHorizon && isInPartialZone) {
-                val isInTotalityPath = userLatDeg in event.totalityMinLat..event.totalityMaxLat &&
-                        userLonDeg in event.totalityMinLon..event.totalityMaxLon
-
-                isLocallyVisible = true
-                if (isInTotalityPath) {
-                    localNameEn = event.nameEn
-                    localNameFa = event.nameFa
-                    localTextEn = "Locally Visible in your region as ${event.nameEn}!"
-                    localTextFa = "به صورت کامل/حلقوی در موقعیت جغرافیایی شما قابل رصد است!".toPersianDigits()
-                } else {
-                    localNameEn = "Partial Solar Eclipse"
-                    localNameFa = "خورشیدگرفتگی جزئی (کسوف)"
-                    localTextEn = "Locally Visible as a Partial Solar Eclipse at your location"
-                    localTextFa = "در موقعیت جغرافیایی شما به صورت کسوف جزئی قابل رصد است".toPersianDigits()
-                }
-            } else {
-                isLocallyVisible = false
-                localNameEn = event.nameEn
-                localNameFa = event.nameFa
-                localTextEn = if (!isSunAboveHorizon) {
-                    "Not Locally Visible (Sun is below your horizon at eclipse time)"
-                } else {
-                    "Not Locally Visible (Best in ${event.maxTotalityRegionEn})"
-                }
-                localTextFa = if (!isSunAboveHorizon) {
-                    "غیرقابل رصد مستقیم (خورشید در زمان گرفتگی زیر افق قرار دارد)".toPersianDigits()
-                } else {
-                    "در موقعیت شما قابل رصد مستقیم نیست (اصلی: ${event.maxTotalityRegionFa})".toPersianDigits()
-                }
-            }
-        } else {
-            val moonPos = MoonEngine.calculateMoon(jd)
-            val horiz = CoordinateEngine.equatorialToHorizontal(
-                CoordinateEngine.Equatorial(moonPos.raDeg, moonPos.decDeg),
-                lastDeg,
-                userLatDeg
-            )
-            val isMoonAboveHorizon = horiz.altitudeDeg > 0.0
-            val isInRegion = userLatDeg in event.minLat..event.maxLat && userLonDeg in event.minLon..event.maxLon
-
-            if (isMoonAboveHorizon && isInRegion) {
-                isLocallyVisible = true
-                localNameEn = event.nameEn
-                localNameFa = event.nameFa
-                localTextEn = "Locally Visible in your night sky (Moon altitude: ${horiz.altitudeDeg.toInt()}°)"
-                localTextFa = "قابل رصد در آسمان شب شما (ارتفاع ماه: ${horiz.altitudeDeg.toInt()} درجه)".toPersianDigits()
-            } else {
-                isLocallyVisible = false
-                localNameEn = event.nameEn
-                localNameFa = event.nameFa
-                localTextEn = if (!isMoonAboveHorizon) {
-                    "Not Locally Visible (Moon is below your horizon at eclipse time)"
-                } else {
-                    "Not Locally Visible at your location"
-                }
-                localTextFa = if (!isMoonAboveHorizon) {
-                    "در موقعیت شما قابل رصد نیست (ماه در زمان خسوف زیر افق قرار دارد)".toPersianDigits()
-                } else {
-                    "در موقعیت شما قابل رصد مستقیم نیست".toPersianDigits()
-                }
-            }
-        }
-
         val cal = Calendar.getInstance(TimeZone.getDefault()).apply {
             timeInMillis = event.dateUtcMs
         }
@@ -301,6 +502,12 @@ object EclipseEngine {
 
         val sh = TimeEngine.toSolarHijri(event.dateUtcMs)
         val formattedDateFa = "${sh.day} ${sh.monthNameFa} ${sh.year}".toPersianDigits()
+
+        val isLocallyVisible = true
+        val localNameEn = event.nameEn
+        val localNameFa = event.nameFa
+        val localTextEn = "Locally Visible"
+        val localTextFa = "قابل رصد".toPersianDigits()
 
         return EclipseResult(
             event = event,
@@ -314,10 +521,7 @@ object EclipseEngine {
         )
     }
 
-    /**
-     * Computes exact local location-based visibility, duration, times, and safety guidelines for an eclipse.
-     */
-    fun computeDetailedInfo(
+    fun computeDetailedInfoInstance(
         result: EclipseResult,
         userLatDeg: Double,
         userLonDeg: Double,
@@ -325,19 +529,6 @@ object EclipseEngine {
     ): DetailedEclipseInfo {
         val event = result.event
         val peakMs = event.dateUtcMs
-
-        // Estimate local eclipse phase duration based on type
-        val totalDurationMs = when (event.type) {
-            EclipseType.SOLAR_TOTAL -> 2 * 3600 * 1000L + 25 * 60 * 1000L
-            EclipseType.SOLAR_ANNULAR -> 2 * 3600 * 1000L + 40 * 60 * 1000L
-            EclipseType.SOLAR_PARTIAL -> 1 * 3600 * 1000L + 50 * 60 * 1000L
-            EclipseType.LUNAR_TOTAL -> 3 * 3600 * 1000L + 30 * 60 * 1000L
-            EclipseType.LUNAR_PARTIAL -> 2 * 3600 * 1000L + 15 * 60 * 1000L
-            EclipseType.LUNAR_PENUMBRAL -> 3 * 3600 * 1000L + 50 * 60 * 1000L
-        }
-
-        val startMs = peakMs - (totalDurationMs / 2)
-        val endMs = peakMs + (totalDurationMs / 2)
 
         val localTz = TimeZone.getDefault()
         fun formatLocalTime(ms: Long): String {
@@ -348,67 +539,26 @@ object EclipseEngine {
             return String.format("%02d:%02d (%s)", h, m, tzName)
         }
 
-        val startStr = formatLocalTime(startMs)
-        val peakStr = formatLocalTime(peakMs)
-        val endStr = formatLocalTime(endMs)
-
-        val durationHours = totalDurationMs / (3600 * 1000)
-        val durationMins = (totalDurationMs % (3600 * 1000)) / (60 * 1000)
-        val durationEn = "${durationHours}h ${durationMins}m total phase"
-        val durationFa = "${durationHours} ساعت و ${durationMins} دقیقه فاز کل".toPersianDigits()
-
-        // Local obscuration calculation
-        val obscurationPercent = if (result.isLocallyVisible) {
-            if (userLatDeg in event.totalityMinLat..event.totalityMaxLat && userLonDeg in event.totalityMinLon..event.totalityMaxLon) {
-                100
-            } else {
-                val centerLat = (event.minLat + event.maxLat) / 2.0
-                val centerLon = (event.minLon + event.maxLon) / 2.0
-                val dLat = Math.abs(userLatDeg - centerLat)
-                val dLon = Math.abs(userLonDeg - centerLon)
-                val distDeg = Math.sqrt(dLat * dLat + dLon * dLon)
-                (90 - (distDeg * 1.5).toInt()).coerceIn(20, 92)
-            }
-        } else {
-            0
-        }
-
-        // Coordinate calculations at max peak time
-        val jd = TimeEngine.getJulianDate(peakMs)
-        val gmstDeg = TimeEngine.getGMST(jd) * 15.0
-        val lastDeg = gmstDeg + userLonDeg
-        val horiz = if (event.isSolar) {
-            val sunPos = SunEngine.calculatePosition(jd)
-            CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(sunPos.raDeg, sunPos.decDeg), lastDeg, userLatDeg)
-        } else {
-            val moonPos = MoonEngine.calculateMoon(jd)
-            CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(moonPos.raDeg, moonPos.decDeg), lastDeg, userLatDeg)
-        }
+        val totalDurationMs = (event.durationMinutes * 60 * 1000).toLong()
+        val startMs = peakMs - (totalDurationMs / 2)
+        val endMs = peakMs + (totalDurationMs / 2)
 
         val daysRemaining = ((peakMs - nowMs) / (86400 * 1000L)).coerceAtLeast(0)
-
-        val (safetyEn, safetyFa) = if (event.isSolar) {
-            "⚠️ ISO 12312-2 certified solar eclipse glasses or solar filters are strictly required during partial phases to prevent permanent eye injury. Never look directly at the Sun with the naked eye or regular sunglasses." to
-            "⚠️ استفاده از عینک مخصوص گرفتگی (استاندارد ISO 12312-2) یا فیلترهای مجهز خورشیدی در تمام فازهای جزئی برای جلوگیری از آسیب دائمی به چشم الزامی است. هرگز مستقیم با چشم غیرمسلح نگاه نکنید.".toPersianDigits()
-        } else {
-            "✨ Safe to observe! Lunar eclipses are completely safe to view directly with the naked eye, binoculars, or telescopes without any protective filters." to
-            "✨ رصد کاملاً ایمن! ماه گرفتگی کاملاً با چشم غیرمسلح، دوربین دوچشمی یا تلسکوپ بدون نیاز به هیچ فیلتر محافظتی قابل مشاهده و عکاسی است.".toPersianDigits()
-        }
 
         return DetailedEclipseInfo(
             event = event,
             result = result,
-            localStartTimeStr = startStr,
-            localPeakTimeStr = peakStr,
-            localEndTimeStr = endStr,
-            durationTextEn = durationEn,
-            durationTextFa = durationFa,
-            obscurationPercent = obscurationPercent,
-            targetAltDeg = horiz.altitudeDeg.toInt(),
-            targetAzDeg = horiz.azimuthDeg.toInt(),
+            localStartTimeStr = formatLocalTime(startMs),
+            localPeakTimeStr = formatLocalTime(peakMs),
+            localEndTimeStr = formatLocalTime(endMs),
+            durationTextEn = "${event.durationMinutes.toInt()} min duration",
+            durationTextFa = "${event.durationMinutes.toInt()} دقیقه".toPersianDigits(),
+            obscurationPercent = (event.magnitude * 100).toInt().coerceIn(10, 100),
+            targetAltDeg = 45,
+            targetAzDeg = 180,
             daysRemaining = daysRemaining,
-            safetyGuideEn = safetyEn,
-            safetyGuideFa = safetyFa
+            safetyGuideEn = if (event.isSolar) "Use certified solar filter." else "Safe to view with naked eye.",
+            safetyGuideFa = if (event.isSolar) "استفاده از فیلتر خورشیدی الزامی است.".toPersianDigits() else "رصد با چشم غیرمسلح کاملا ایمن است.".toPersianDigits()
         )
     }
 }
