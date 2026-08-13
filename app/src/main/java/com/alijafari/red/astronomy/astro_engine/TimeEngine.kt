@@ -30,18 +30,7 @@ object TimeEngine {
      * Calculates Delta T (TT - UT1) in seconds based on Espenak & Meeus polynomial approximations.
      */
     fun getDeltaTSeconds(jd: Double): Double {
-        val year = 2000.0 + (jd - 2451545.0) / 365.25
-        return when {
-            year in 2000.0..2050.0 -> {
-                val t = year - 2000.0
-                63.86 + 0.3345 * t - 0.006037 * t * t + 0.001727 * t * t * t
-            }
-            year > 2050.0 -> {
-                val t = year - 2000.0
-                62.92 + 0.32217 * t + 0.005589 * t * t
-            }
-            else -> 68.0 // Approximate default for recent years
-        }
+        return AstroTime.fromJd(jd).deltaT
     }
 
     /**

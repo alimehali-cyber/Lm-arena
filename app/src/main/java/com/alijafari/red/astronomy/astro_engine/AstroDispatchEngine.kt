@@ -9,6 +9,7 @@ import com.alijafari.red.astronomy.domain.ObservationalInfo
 import com.alijafari.red.astronomy.domain.PhysicalProperties
 import com.alijafari.red.astronomy.domain.ScientificIdentifiers
 import com.alijafari.red.astronomy.domain.StaticPosition
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -188,9 +189,9 @@ object AstroDispatchEngine {
                 val planetType = mapCanonicalToPlanetType(canonicalObj.canonicalId)
                 val astroTime = AstroTime(timestampMs)
                 val pos = PlanetEngine.calculatePlanet(planetType, astroTime)
-                val horiz = frameTransformationEngine.equatorialToHorizontal(
-                    raJ2000Deg = pos.raDeg,
-                    decJ2000Deg = pos.decDeg,
+                val horiz = frameTransformationEngine.trueEquatorialToHorizontal(
+                    raTrueDeg = pos.raDeg,
+                    decTrueDeg = pos.decDeg,
                     astroTime = astroTime,
                     latitudeDeg = userLatDeg,
                     longitudeDeg = userLonDeg,
@@ -235,9 +236,9 @@ object AstroDispatchEngine {
                 val moonDec = jupDec + ((moonPos?.offsetDecArcsec ?: 0.0) / 3600.0)
 
                 val astroTime = AstroTime(timestampMs)
-                val horiz = frameTransformationEngine.equatorialToHorizontal(
-                    raJ2000Deg = moonRa,
-                    decJ2000Deg = moonDec,
+                val horiz = frameTransformationEngine.trueEquatorialToHorizontal(
+                    raTrueDeg = moonRa,
+                    decTrueDeg = moonDec,
                     astroTime = astroTime,
                     latitudeDeg = userLatDeg,
                     longitudeDeg = userLonDeg,
@@ -360,9 +361,9 @@ object AstroDispatchEngine {
         val dec = canonicalObj.staticPosition?.decDeg ?: 0.0
 
         val astroTime = AstroTime(timestampMs)
-        val horiz = frameTransformationEngine.equatorialToHorizontal(
-            raJ2000Deg = ra,
-            decJ2000Deg = dec,
+        val horiz = frameTransformationEngine.trueEquatorialToHorizontal(
+            raTrueDeg = ra,
+            decTrueDeg = dec,
             astroTime = astroTime,
             latitudeDeg = userLatDeg,
             longitudeDeg = userLonDeg,
@@ -506,7 +507,12 @@ object AstroDispatchEngine {
 
     // --- Time ---
     fun getCurrentAstroTime(): AstroTime = AstroTime.now()
-    fun getDeltaT(year: Int, month: Int, day: Int): Double = AstroTime.fromUtcDate(year, month, day).deltaT
+    fun getDeltaT(year: Int, month: Int, day: Int): Double {
+        val jd = TimeEngine.getJulianDate(
+            AstroTime.fromUtcDate(year, month, day).utcMs
+        )
+        return TimeEngine.getDeltaTSeconds(jd)
+    }
 
     // --- Coordinates ---
     fun equatorialToHorizontal(
@@ -567,12 +573,17 @@ object AstroDispatchEngine {
     }
 
     fun getConstellationAt(raDeg: Double, decDeg: Double): ConstellationData? {
-        return com.alijafari.red.astronomy.data.catalog.ConstellationCatalog.getConstellations().minByOrNull { constellation ->
-            constellation.mainStars.minOfOrNull { star ->
-                val dRa = Math.abs(star.first - raDeg)
-                val dDec = Math.abs(star.second - decDeg)
-                dRa * dRa + dDec * dDec
-            } ?: Double.MAX_VALUE
+        // Use constellation center points for nearest-neighbor lookup
+        // This is more accurate than using main stars
+        val constellations = com.alijafari.red.astronomy.data.catalog.ConstellationCatalog.getConstellations()
+        
+        // Compute constellation centers from their main stars
+        return constellations.minByOrNull { constellation ->
+            val centerRa = constellation.mainStars.map { it.first }.average()
+            val centerDec = constellation.mainStars.map { it.second }.average()
+            val dRa = abs(centerRa - raDeg).coerceAtMost(360.0 - abs(centerRa - raDeg))
+            val dDec = abs(centerDec - decDeg)
+            dRa * dRa + dDec * dDec
         }
     }
 
@@ -590,16 +601,25 @@ object AstroDispatchEngine {
     fun getSkyQuality(
         astroTime: AstroTime,
         latDeg: Double,
-        lonDeg: Double
+        lonDeg: Double,
+        targetAltitudeDeg: Double? = null,
+        targetMagnitude: Double? = null
     ): ObservabilityEngine.ObservabilityResult {
         val sunPos = SunEngine.calculateSun(astroTime)
-        val sunHoriz = frameTransformationEngine.equatorialToHorizontal(sunPos.raDeg, sunPos.decDeg, astroTime, latDeg, lonDeg)
+        val sunHoriz = frameTransformationEngine.equatorialToHorizontal(
+            sunPos.raDeg, sunPos.decDeg, astroTime, latDeg, lonDeg
+        )
         val moonPos = MoonEngine.calculateMoon(astroTime)
+        
+        // Use provided values or sensible defaults for general sky quality
+        val altDeg = targetAltitudeDeg ?: 45.0  // Default: evaluate at 45° altitude
+        val mag = targetMagnitude ?: 3.0        // Default: evaluate for a typical naked-eye star
+        
         return ObservabilityEngine.calculateObservability(
-            altitudeDeg = 45.0,
+            altitudeDeg = altDeg,
             sunAltitudeDeg = sunHoriz.altDeg,
             moonIlluminationPercent = moonPos.illuminatedFraction * 100.0,
-            objectMagnitude = 0.0
+            objectMagnitude = mag
         )
     }
 

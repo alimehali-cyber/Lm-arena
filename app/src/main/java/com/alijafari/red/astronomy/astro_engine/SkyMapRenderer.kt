@@ -72,8 +72,6 @@ object DeepSkyCatalogExpanded {
     }
 }
 
-class DeepSkyEngineV2
-
 /**
  * Sky map renderer.
  * Projects celestial coordinates onto a 2D canvas
@@ -146,7 +144,6 @@ class SkyMapRenderer {
 
     private val frameEngine = FrameTransformationEngine()
     private val constellationEngine = ConstellationEngine()
-    private val deepSkyEngine = DeepSkyEngineV2()
 
     // ============================================================
     // Projection

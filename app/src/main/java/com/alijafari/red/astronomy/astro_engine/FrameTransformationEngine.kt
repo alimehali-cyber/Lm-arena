@@ -92,6 +92,30 @@ class FrameTransformationEngine {
     }
 
     /**
+     * Directly transforms true equatorial coordinates (RA, Dec of date) to horizontal coordinates.
+     */
+    fun trueEquatorialToHorizontal(
+        raTrueDeg: Double,
+        decTrueDeg: Double,
+        astroTime: AstroTime,
+        latitudeDeg: Double,
+        longitudeDeg: Double,
+        elevationM: Double = 0.0
+    ): Horizontal {
+        val lastDeg = calculateLAST(astroTime, longitudeDeg)
+        val haDeg = normalizeAngle(lastDeg - raTrueDeg)
+        val latRad = latitudeDeg * DEG2RAD
+        val haRad = haDeg * DEG2RAD
+        val decRad = decTrueDeg * DEG2RAD
+        val sinAlt = sin(latRad) * sin(decRad) + cos(latRad) * cos(decRad) * cos(haRad)
+        var altDeg = asin(sinAlt) * RAD2DEG
+        val azRad = atan2(-sin(haRad), cos(latRad) * tan(decRad) - sin(latRad) * cos(haRad))
+        var azDeg = normalizeAngle(azRad * RAD2DEG)
+        altDeg = applyRefraction(altDeg)
+        return Horizontal(altDeg, azDeg)
+    }
+
+    /**
      * Inverse: Horizontal → equatorial (J2000.0).
      */
     fun horizontalToEquatorial(
@@ -521,7 +545,7 @@ class FrameTransformationEngine {
      * Reference: IAU 2006 Resolution B1
      */
     fun calculateGMST(astroTime: AstroTime): Double {
-        val t = astroTime.jcTt  // TT Julian centuries from J2000.0
+        val t = astroTime.jcUtc  // UTC Julian centuries from J2000.0
 
         // GMST in seconds, then convert to degrees
         val gmstSeconds = (
