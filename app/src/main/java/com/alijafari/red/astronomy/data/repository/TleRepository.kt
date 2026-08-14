@@ -8,13 +8,14 @@ import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.data.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
-import java.net.URL
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeUnit
 
 /**
  * Repository responsible for fetching, validating, persisting, and caching
- * Two-Line Element (TLE) satellite orbital data.
+ * Two-Line Element (TLE) satellite orbital data using raw OkHttpClient plain text requests.
  *
  * Persists live TLEs into Room `cached_tle` table and keeps an in-memory cache
  * for zero-latency frame propagation during rendering.
@@ -24,6 +25,13 @@ class TleRepository(private val context: Context) {
     private val db = AppDatabase.getDatabase(context.applicationContext)
     private val memoryCache = ConcurrentHashMap<Int, TLEData>()
     private val timestampsCache = ConcurrentHashMap<Int, Long>()
+
+    private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .build()
 
     init {
         loadFromDatabase()
@@ -97,7 +105,6 @@ class TleRepository(private val context: Context) {
     fun isStale(noradId: Int, maxAgeHours: Int = 72): Boolean {
         val lastUpdated = timestampsCache[noradId]
         if (lastUpdated == null) {
-            // Check DB
             try {
                 val cursor = db.openHelper.readableDatabase.query(
                     "SELECT updatedAt FROM cached_tle WHERE noradId = ?",
@@ -144,78 +151,100 @@ class TleRepository(private val context: Context) {
     }
 
     /**
-     * Fetches live TLEs from CelesTrak feeds (visual satellites and space stations),
-     * validates mod-10 checksums, and updates local persistence.
+     * Fetches live TLEs from CelesTrak feeds (visual satellites and space stations) using raw OkHttpClient,
+     * validates mod-10 checksums, and updates local persistence with strict error logging.
      */
     suspend fun refreshTles(): Boolean = withContext(Dispatchers.IO) {
         val trackedNoradIds = SatelliteCatalog.satellites.map { it.noradId }.toSet()
         var anyUpdated = false
 
         val urls = listOf(
-            "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=TLE",
-            "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=TLE"
+            "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle",
+            "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle"
         )
 
         for (endpoint in urls) {
             try {
-                val url = URL(endpoint)
-                val conn = (url.openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 8000
-                    readTimeout = 8000
-                    requestMethod = "GET"
-                    setRequestProperty("User-Agent", "REDAstronomy/1.0")
-                }
+                val request = Request.Builder()
+                    .url(endpoint)
+                    .header("User-Agent", "RED-Astronomy/1.0")
+                    .get()
+                    .build()
 
-                if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                    val content = conn.inputStream.bufferedReader().use { it.readText() }
-                    val parsed = parseTleFeed(content)
+                okHttpClient.newCall(request).execute().use { response ->
+                    val responseCode = response.code
+                    if (!response.isSuccessful) {
+                        Log.w(TAG, "HTTP error $responseCode while fetching TLEs from $endpoint")
+                        return@use
+                    }
+
+                    val bodyString = response.body?.string()
+                    if (bodyString.isNullOrBlank()) {
+                        Log.w(TAG, "parsed 0 TLEs — response format unexpected from $endpoint (empty body)")
+                        return@use
+                    }
+
+                    val parsed = parseTleFeed(bodyString)
+                    val countParsed = parsed.size
+                    if (countParsed == 0) {
+                        Log.w(TAG, "parsed 0 TLEs — response format unexpected from $endpoint")
+                        return@use
+                    }
+
+                    var countStored = 0
                     val now = System.currentTimeMillis()
 
                     for ((noradId, tle) in parsed) {
                         if (noradId in trackedNoradIds || noradId == 25544) {
                             saveTle(noradId, tle.name, tle.line1, tle.line2, now)
+                            countStored++
                             anyUpdated = true
                         }
                     }
+
+                    Log.i(TAG, "Successfully fetched and parsed $countParsed TLEs from $endpoint, stored $countStored tracked TLEs into database")
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to fetch TLEs from $endpoint: ${e.message}")
+                Log.w(TAG, "Exception ${e.javaClass.simpleName}: ${e.message} while fetching TLEs from $endpoint", e)
             }
         }
 
-        // Single fallback fetch for ISS if not updated
+        // Single fallback fetch for ISS if not updated or stale
         if (isStale(25544, 24)) {
             try {
-                val issTle = fetchSingleNoradTle(25544)
-                if (issTle != null) {
-                    saveTle(25544, issTle.name, issTle.line1, issTle.line2)
-                    anyUpdated = true
+                val issEndpoint = "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=tle"
+                val request = Request.Builder()
+                    .url(issEndpoint)
+                    .header("User-Agent", "RED-Astronomy/1.0")
+                    .get()
+                    .build()
+
+                okHttpClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val bodyString = response.body?.string()
+                        if (!bodyString.isNullOrBlank()) {
+                            val parsed = parseTleFeed(bodyString)
+                            val issTle = parsed[25544]
+                            if (issTle != null) {
+                                saveTle(25544, issTle.name, issTle.line1, issTle.line2)
+                                anyUpdated = true
+                                Log.i(TAG, "Direct ISS TLE fetch succeeded and stored for NORAD 25544")
+                            } else {
+                                Log.w(TAG, "parsed 0 TLEs — response format unexpected from $issEndpoint")
+                            }
+                        } else {
+                            Log.w(TAG, "parsed 0 TLEs — response format unexpected from $issEndpoint (empty body)")
+                        }
+                    } else {
+                        Log.w(TAG, "HTTP error ${response.code} while fetching direct ISS TLE from $issEndpoint")
+                    }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed direct ISS TLE fetch: ${e.message}")
+                Log.w(TAG, "Exception ${e.javaClass.simpleName}: ${e.message} while direct fetching ISS TLE", e)
             }
         }
 
         anyUpdated
-    }
-
-    private suspend fun fetchSingleNoradTle(noradId: Int): TLEData? = withContext(Dispatchers.IO) {
-        try {
-            val url = URL("https://celestrak.org/NORAD/elements/gp.php?CATNR=$noradId&FORMAT=TLE")
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 6000
-                readTimeout = 6000
-                requestMethod = "GET"
-            }
-            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                val content = conn.inputStream.bufferedReader().use { it.readText() }
-                val parsed = parseTleFeed(content)
-                return@withContext parsed[noradId]
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Error fetching single NORAD TLE ($noradId): ${e.message}")
-        }
-        null
     }
 
     companion object {
@@ -253,7 +282,8 @@ class TleRepository(private val context: Context) {
         }
 
         /**
-         * Parses multi-satellite 2-line or 3-line TLE format.
+         * Parses repeating 3-line blocks (Satellite Name, Line 1 starting with "1 ", Line 2 starting with "2 ")
+         * or 2-line TLE format.
          */
         fun parseTleFeed(rawText: String): Map<Int, TLEData> {
             val result = mutableMapOf<Int, TLEData>()

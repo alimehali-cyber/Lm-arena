@@ -1,11 +1,17 @@
 package com.alijafari.red.astronomy.astro_engine
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URL
 import kotlin.math.*
 
 /**
+ * ACCEPTANCE TEST:
+ * Observer 30.11 N, 51.52 E, 2026-08-15, fresh TLE:
+ * The ~04:04 local (UTC+3:30) pass with max elevation ~21° must be flagged isVisible = true;
+ * The ~19:44 local twilight pass must be isVisible = false.
+ *
  * ISS (International Space Station) tracking engine.
  * Uses SGP4 propagator for accurate TLE-based orbit prediction.
  */
@@ -54,7 +60,8 @@ class ISSEngine {
         val summaryReasonEn: String,
         val summaryReasonFa: String,
         val detailedReasonsEn: List<String>,
-        val detailedReasonsFa: List<String>
+        val detailedReasonsFa: List<String>,
+        val isVisible: Boolean = false
     )
 
     data class TopocentricPosition(
@@ -218,10 +225,62 @@ class ISSEngine {
     }
 
     /**
+     * Determines whether the satellite is sunlit in ECI coordinates using SGP4 position vector s
+     * and Sun unit vector u (cylindrical Earth-shadow model with Earth radius 6378.137 km).
+     */
+    fun isSatelliteSunlitEci(timestampMs: Long, tle: TLEData): Boolean {
+        val sgp4Tle = parseToSgp4(tle)
+        val teme = sgp4.propagate(sgp4Tle, timestampMs)
+        val jd = TimeEngine.getJulianDate(timestampMs)
+        val sunPos = SunEngine.calculatePosition(jd)
+        val raRad = Math.toRadians(sunPos.raDeg)
+        val decRad = Math.toRadians(sunPos.decDeg)
+
+        // Unit vector u from Earth to Sun in ECI (TEME / Equatorial)
+        val ux = cos(decRad) * cos(raRad)
+        val uy = cos(decRad) * sin(raRad)
+        val uz = sin(decRad)
+
+        val sx = teme.xKm
+        val sy = teme.yKm
+        val sz = teme.zKm
+
+        val proj = sx * ux + sy * uy + sz * uz
+        if (proj >= 0.0) {
+            return true // Day side hemisphere -> sunlit
+        }
+        val perpX = sx - proj * ux
+        val perpY = sy - proj * uy
+        val perpZ = sz - proj * uz
+        val perpDist = sqrt(perpX * perpX + perpY * perpY + perpZ * perpZ)
+        return perpDist >= 6378.137 // True if outside cylindrical shadow cone
+    }
+
+    /**
+     * Checks if a single temporal sample satisfies the 3 human visibility conditions:
+     * (a) satellite elevation >= 10°
+     * (b) observer sky is dark (Sun altitude between -6° and -30°)
+     * (c) satellite is sunlit
+     */
+    fun checkSampleVisibility(
+        timestampMs: Long,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        tle: TLEData
+    ): Boolean {
+        val topo = calculateTopocentricPos(timestampMs, userLatDeg, userLonDeg, 940.0, tle)
+        if (topo.elevationDeg < 10.0) return false
+        val sunAlt = getObserverSunAltitude(timestampMs, userLatDeg, userLonDeg)
+        if (sunAlt < -30.0 || sunAlt > -6.0) return false
+        return isSatelliteSunlitEci(timestampMs, tle)
+    }
+
+    /**
      * Two-stage orbital pass prediction:
      * Stage 1: Coarse 30-second scan to detect candidate passes across the scan window.
      * Stage 2: Fine bisection and golden-section optimization for sub-second precision on
      *          Rise (AOS 10°), Peak Max Elevation (TCA), and Set (LOS 10°), as well as shadow boundaries.
+     * Evaluates 3-point sample visibility (rise, culmination, set) and filters/sorts passes.
      */
     fun predictPasses(
         userLatDeg: Double,
@@ -232,6 +291,14 @@ class ISSEngine {
         visibleOnly: Boolean = true,
         standardMag: Double = -1.5
     ): List<ISSPass> {
+        val effectiveTle = if (tle == cachedTLE && SatelliteEngine.customTleResolver != null) {
+            SatelliteEngine.customTleResolver?.invoke(25544) ?: tle
+        } else {
+            tle
+        }
+        val sourceLabel = if (effectiveTle != cachedTLE || SatelliteEngine.customTleResolver != null) "network-stored" else "hardcoded-fallback"
+        SatelliteEngine.logTleSelection(sourceLabel, effectiveTle)
+
         val passes = mutableListOf<ISSPass>()
         val scanDurationMs = scanDays * 24 * 3600 * 1000L
         val coarseStepMs = 30 * 1000L
@@ -239,7 +306,7 @@ class ISSEngine {
 
         var currentTime = startTimestampMs
         var prevTime = startTimestampMs
-        var prevElev = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, tle).elevationDeg
+        var prevElev = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, effectiveTle).elevationDeg
         var inPass = prevElev >= 10.0
         var passStartCoarseMs = if (inPass) currentTime else 0L
 
@@ -248,11 +315,11 @@ class ISSEngine {
 
         var shadowEntry: Long? = null
         var shadowExit: Long? = null
-        var prevSunlit = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, tle).isSunlit
+        var prevSunlit = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, effectiveTle).isSunlit
 
         while (currentTime <= endTimeMs) {
             currentTime += coarseStepMs
-            val pos = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, tle)
+            val pos = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, effectiveTle)
             val elev = pos.elevationDeg
 
             if (!inPass && elev >= 10.0) {
@@ -265,7 +332,7 @@ class ISSEngine {
                     isRising = true,
                     userLatDeg,
                     userLonDeg,
-                    tle
+                    effectiveTle
                 )
                 rawMaxElev = elev
                 rawMaxTimeMs = currentTime
@@ -279,7 +346,7 @@ class ISSEngine {
                         currentTime,
                         userLatDeg,
                         userLonDeg,
-                        tle
+                        effectiveTle
                     )
                     if (!pos.isSunlit && shadowEntry == null) shadowEntry = shadowTransitionTime
                     if (pos.isSunlit && shadowExit == null) shadowExit = shadowTransitionTime
@@ -301,7 +368,7 @@ class ISSEngine {
                         isRising = false,
                         userLatDeg,
                         userLonDeg,
-                        tle
+                        effectiveTle
                     )
 
                     // Fine golden section search for exact peak time and maximum elevation
@@ -310,11 +377,17 @@ class ISSEngine {
                         searchRadiusMs = coarseStepMs + 5000L,
                         userLatDeg = userLatDeg,
                         userLonDeg = userLonDeg,
-                        tle = tle
+                        tle = effectiveTle
                     )
 
-                    val startPos = calculateTopocentricPos(passStartCoarseMs, userLatDeg, userLonDeg, 940.0, tle)
-                    val endPos = calculateTopocentricPos(refinedEndMs, userLatDeg, userLonDeg, 940.0, tle)
+                    val startPos = calculateTopocentricPos(passStartCoarseMs, userLatDeg, userLonDeg, 940.0, effectiveTle)
+                    val endPos = calculateTopocentricPos(refinedEndMs, userLatDeg, userLonDeg, 940.0, effectiveTle)
+
+                    // Sample visibility at rise, culmination, and set
+                    val isRiseVis = checkSampleVisibility(passStartCoarseMs, userLatDeg, userLonDeg, effectiveTle)
+                    val isMaxVis = checkSampleVisibility(refinedMaxTimeMs, userLatDeg, userLonDeg, effectiveTle)
+                    val isSetVis = checkSampleVisibility(refinedEndMs, userLatDeg, userLonDeg, effectiveTle)
+                    val isPassVisible = isRiseVis || isMaxVis || isSetVis
 
                     val pass = buildPass(
                         startMs = passStartCoarseMs,
@@ -329,24 +402,28 @@ class ISSEngine {
                         shadowExitMs = shadowExit,
                         userLatDeg = userLatDeg,
                         userLonDeg = userLonDeg,
-                        tle = tle,
-                        standardMag = standardMag
+                        tle = effectiveTle,
+                        standardMag = standardMag,
+                        isVisible = isPassVisible
                     )
 
-                    val isVisiblePass = pass.classification != PassClassification.NOT_VISIBLE &&
-                            pass.classification != PassClassification.INVISIBLE_SHADOW &&
-                            pass.classification != PassClassification.DAYLIGHT_ONLY
-
-                    if (!visibleOnly || isVisiblePass) {
-                        passes.add(pass)
-                    }
+                    passes.add(pass)
                 }
             }
             prevTime = currentTime
             prevElev = elev
         }
 
-        return passes
+        val filteredPasses = if (visibleOnly) {
+            passes.filter { it.isVisible }
+        } else {
+            passes
+        }
+
+        return filteredPasses.sortedWith(
+            compareByDescending<ISSPass> { it.isVisible }
+                .thenBy { it.startTimeMs }
+        )
     }
 
     /**
@@ -467,7 +544,8 @@ class ISSEngine {
         userLatDeg: Double,
         userLonDeg: Double,
         tle: TLEData,
-        standardMag: Double = -1.5
+        standardMag: Double = -1.5,
+        isVisible: Boolean = false
     ): ISSPass {
         val posAtMax = calculateTopocentricPos(maxMs, userLatDeg, userLonDeg, 940.0, tle)
         val sunAlt = getObserverSunAltitude(maxMs, userLatDeg, userLonDeg)

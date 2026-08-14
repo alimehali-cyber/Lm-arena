@@ -1,6 +1,10 @@
 package com.alijafari.red.astronomy.astro_engine
 
+import android.util.Log
 import com.alijafari.red.astronomy.astro_engine.ISSEngine.TLEData
+import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 
 data class CityLightPoint(
     val nameEn: String,
@@ -71,21 +75,69 @@ object SatelliteEngine {
     var customTleResolver: ((noradId: Int) -> TLEData?)? = null
 
     /**
+     * Logs TLE selection with source, epoch, and staleness age.
+     */
+    fun logTleSelection(source: String, tle: TLEData) {
+        try {
+            val line1 = tle.line1.trim()
+            val epochStr = if (line1.length >= 32) line1.substring(18, 32).trim() else "UNKNOWN"
+            val ageDays = computeTleAgeDays(line1)
+            Log.i("TleSource", "Source: $source | Epoch: $epochStr | Age: ${String.format(Locale.US, "%.2f", ageDays)} days | Sat: ${tle.name}")
+            if (ageDays > 10.0) {
+                Log.w("TleSource", "Staleness Warning: TLE for ${tle.name} is ${String.format(Locale.US, "%.2f", ageDays)} days old (> 10 days)")
+            }
+        } catch (e: Exception) {
+            Log.w("TleSource", "Error logging TLE source: ${e.message}")
+        }
+    }
+
+    /**
+     * Computes age in days of a TLE from its line 1 epoch (columns 19-32: YYDDD.DDDDDDDD).
+     */
+    fun computeTleAgeDays(line1: String): Double {
+        try {
+            if (line1.length >= 32) {
+                val epochStr = line1.substring(18, 32).trim()
+                if (epochStr.length >= 5) {
+                    val yy = epochStr.substring(0, 2).toInt()
+                    val fullYear = if (yy < 57) 2000 + yy else 1900 + yy
+                    val epochDay = epochStr.substring(2).toDouble()
+                    val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                        clear()
+                        set(Calendar.YEAR, fullYear)
+                        set(Calendar.DAY_OF_YEAR, 1)
+                    }
+                    val epochMs = cal.timeInMillis + ((epochDay - 1.0) * 86400000.0).toLong()
+                    return (System.currentTimeMillis() - epochMs) / 86400000.0
+                }
+            }
+        } catch (e: Exception) {
+            // ignore
+        }
+        return 0.0
+    }
+
+    /**
      * Resolves the effective TLE for a satellite, checking custom resolver / repository first,
      * then ISS live cache, and falling back to the hardcoded catalog default.
      */
     fun getEffectiveTle(satellite: SatelliteItem, providedTle: TLEData? = null): TLEData {
         if (providedTle != null && providedTle != satellite.defaultTle) {
+            logTleSelection("provided-custom", providedTle)
             return providedTle
         }
         val resolved = customTleResolver?.invoke(satellite.noradId)
         if (resolved != null) {
+            logTleSelection("network-stored", resolved)
             return resolved
         }
         if (satellite.noradId == 25544 && ISSEngine.cachedTLE.line1 != satellite.defaultTle.line1) {
+            logTleSelection("network-stored", ISSEngine.cachedTLE)
             return ISSEngine.cachedTLE
         }
-        return providedTle ?: satellite.defaultTle
+        val fallback = providedTle ?: satellite.defaultTle
+        logTleSelection("hardcoded-fallback", fallback)
+        return fallback
     }
 
     /**
