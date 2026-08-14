@@ -100,7 +100,9 @@ fun ObjectDetailModal(
         }
     }
 
-    val moonData = remember(jd) { MoonEngine.calculateMoon(jd) }
+    val moonData = remember(jd, uiState.userLocation) {
+        MoonEngine.calculateMoon(jd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+    }
     val obs = remember(horizAlt, sunHoriz, moonData, uiState.bortleClass, dynamicMag) {
         ObservabilityEngine.calculateObservability(
             altitudeDeg = horizAlt,

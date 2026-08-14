@@ -47,7 +47,7 @@ object WhatsUpTonightEngine {
         // 1. Check Solar/Lunar Eclipses TONIGHT (only if occurring today/tonight AND locally visible)
         try {
             val (solarEclipse, lunarEclipse) = EclipseEngine.getNextEclipses(nowMs, userLatDeg, userLonDeg)
-            val solarHoursDiff = Math.abs(solarEclipse.event.dateUtcMs - nowMs) / 3600000.0
+            val solarHoursDiff = kotlin.math.abs(solarEclipse.event.maximumMs - nowMs) / 3600000.0
             if (solarHoursDiff <= 18.0 && solarEclipse.isLocallyVisible) {
                 events.add(
                     TonightEvent(
@@ -66,7 +66,7 @@ object WhatsUpTonightEngine {
                     )
                 )
             }
-            val lunarHoursDiff = Math.abs(lunarEclipse.event.dateUtcMs - nowMs) / 3600000.0
+            val lunarHoursDiff = kotlin.math.abs(lunarEclipse.event.maximumMs - nowMs) / 3600000.0
             if (lunarHoursDiff <= 18.0 && lunarEclipse.isLocallyVisible) {
                 events.add(
                     TonightEvent(
@@ -153,7 +153,7 @@ object WhatsUpTonightEngine {
         } catch (_: Exception) {}
 
         // 4. Moon Phase & Nightly Elevation
-        val moonData = MoonEngine.calculateMoon(jd)
+        val moonData = MoonEngine.calculateMoon(jd, userLatDeg, userLonDeg)
         val moonHoriz = CoordinateEngine.equatorialToHorizontal(
             CoordinateEngine.Equatorial(moonData.raDeg, moonData.decDeg),
             gmstDeg,

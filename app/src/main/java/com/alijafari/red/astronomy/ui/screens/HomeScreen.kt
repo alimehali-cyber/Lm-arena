@@ -64,7 +64,9 @@ fun HomeScreen(
     }
 
     // Moon data
-    val moonData = remember(jd) { MoonEngine.calculateMoon(jd) }
+    val moonData = remember(jd, uiState.userLocation) {
+        MoonEngine.calculateMoon(jd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+    }
 
     val allObjects = remember(jd) { AstronomyCatalog.getAllObjects(jd) }
 
