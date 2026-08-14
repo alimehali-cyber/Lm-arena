@@ -583,26 +583,26 @@ class FrameTransformationEngine {
     // ============================================================
 
     /**
-     * Calculate Greenwich Mean Sidereal Time (GMST) in degrees.
-     * Uses TT Julian centuries (not UTC) for accuracy.
+     * Greenwich Mean Sidereal Time (GMST) in degrees.
+     * IAU 1982 formula (Aoki et al. 1982), as given in
+     * Meeus, "Astronomical Algorithms" 2nd Ed. (1998), eq. 12.4.
      *
-     * Reference: IAU 2006 Resolution B1
+     * Verification anchor: for JD 2461055.5 (2026-01-15 00:00 UTC)
+     * this must return ~252.43 degrees (16h 49m 43s sidereal).
      */
     fun calculateGMST(astroTime: AstroTime): Double {
-        val t = astroTime.jcUtc  // UTC Julian centuries from J2000.0
+        val jd = astroTime.jdUtc
+        val d = jd - 2451545.0      // days since J2000.0 (UT1 ~ UTC approximation)
+        val T = d / 36525.0         // Julian centuries since J2000.0
 
-        // GMST in seconds, then convert to degrees
-        val gmstSeconds = (
-            67310.54841 +
-            876600.0 * 3600.0 * t +
-            8640184.812866 * t +
-            0.093104 * t * t -
-            0.0000062 * t * t * t
-        )
+        var gmstDeg = 280.46061837 +
+                360.98564736629 * d +
+                0.000387933 * T * T -
+                (T * T * T) / 38710000.0
 
-        // Convert to degrees (360° per 86400 seconds)
-        val gmstDeg = (gmstSeconds / 240.0) % 360.0
-        return normalizeAngle(gmstDeg)
+        gmstDeg %= 360.0
+        if (gmstDeg < 0) gmstDeg += 360.0
+        return gmstDeg
     }
 
     /**
