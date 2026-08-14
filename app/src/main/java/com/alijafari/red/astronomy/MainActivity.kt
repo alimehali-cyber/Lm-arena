@@ -44,6 +44,10 @@ import com.alijafari.red.astronomy.ui.screens.*
 import com.alijafari.red.astronomy.ui.theme.REDTheme
 import com.alijafari.red.astronomy.util.LocaleHelper
 
+import com.alijafari.red.astronomy.data.repository.TleRepository
+import com.alijafari.red.astronomy.data.worker.TleSyncWorker
+import com.alijafari.red.astronomy.astro_engine.SatelliteEngine
+
 class MainActivity : ComponentActivity() {
 
     companion object {
@@ -84,6 +88,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleNotificationIntent(intent)
+
+        // Initialize TLE repository and tie satellite engine resolver
+        val tleRepo = TleRepository.getInstance(applicationContext)
+        SatelliteEngine.customTleResolver = { noradId -> tleRepo.getTle(noradId) }
+
+        // Schedule periodic 6-hour sync and trigger initial refresh
+        TleSyncWorker.schedulePeriodicSync(this)
+        TleSyncWorker.enqueueImmediateSync(this)
 
         setContent {
             val baseContext = LocalContext.current

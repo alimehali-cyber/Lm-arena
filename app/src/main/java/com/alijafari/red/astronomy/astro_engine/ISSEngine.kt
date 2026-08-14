@@ -218,7 +218,10 @@ class ISSEngine {
     }
 
     /**
-     * Scans orbit for specified days and returns predicted passes.
+     * Two-stage orbital pass prediction:
+     * Stage 1: Coarse 30-second scan to detect candidate passes across the scan window.
+     * Stage 2: Fine bisection and golden-section optimization for sub-second precision on
+     *          Rise (AOS 10°), Peak Max Elevation (TCA), and Set (LOS 10°), as well as shadow boundaries.
      */
     fun predictPasses(
         userLatDeg: Double,
@@ -231,72 +234,103 @@ class ISSEngine {
     ): List<ISSPass> {
         val passes = mutableListOf<ISSPass>()
         val scanDurationMs = scanDays * 24 * 3600 * 1000L
-        val stepMs = 20 * 1000L
+        val coarseStepMs = 30 * 1000L
         val endTimeMs = startTimestampMs + scanDurationMs
 
         var currentTime = startTimestampMs
-        var inPass = false
-        var passStartMs = 0L
-        var maxElev = -90.0
-        var maxElevTimeMs = 0L
-        var maxAz = 0.0
-        var startAz = 0.0
-        var endAz = 0.0
-        var maxSatAlt = 415.0
+        var prevTime = startTimestampMs
+        var prevElev = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, tle).elevationDeg
+        var inPass = prevElev >= 10.0
+        var passStartCoarseMs = if (inPass) currentTime else 0L
+
+        var rawMaxElev = prevElev
+        var rawMaxTimeMs = currentTime
 
         var shadowEntry: Long? = null
         var shadowExit: Long? = null
-        var prevSunlit = true
+        var prevSunlit = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, tle).isSunlit
 
         while (currentTime <= endTimeMs) {
+            currentTime += coarseStepMs
             val pos = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, tle)
             val elev = pos.elevationDeg
 
             if (!inPass && elev >= 10.0) {
                 inPass = true
-                passStartMs = currentTime
-                maxElev = elev
-                maxElevTimeMs = currentTime
-                startAz = pos.azimuthDeg
-                maxAz = pos.azimuthDeg
-                maxSatAlt = pos.satAltKm
+                // Fine bisection for exact AOS (crossing 10° threshold)
+                passStartCoarseMs = refineElevationThreshold(
+                    prevTime,
+                    currentTime,
+                    10.0,
+                    isRising = true,
+                    userLatDeg,
+                    userLonDeg,
+                    tle
+                )
+                rawMaxElev = elev
+                rawMaxTimeMs = currentTime
                 shadowEntry = null
                 shadowExit = null
                 prevSunlit = pos.isSunlit
             } else if (inPass) {
                 if (pos.isSunlit != prevSunlit) {
-                    if (!pos.isSunlit && shadowEntry == null) shadowEntry = currentTime
-                    if (pos.isSunlit && shadowExit == null) shadowExit = currentTime
+                    val shadowTransitionTime = refineShadowTransition(
+                        prevTime,
+                        currentTime,
+                        userLatDeg,
+                        userLonDeg,
+                        tle
+                    )
+                    if (!pos.isSunlit && shadowEntry == null) shadowEntry = shadowTransitionTime
+                    if (pos.isSunlit && shadowExit == null) shadowExit = shadowTransitionTime
                     prevSunlit = pos.isSunlit
                 }
 
-                if (elev > maxElev) {
-                    maxElev = elev
-                    maxElevTimeMs = currentTime
-                    maxAz = pos.azimuthDeg
-                    maxSatAlt = pos.satAltKm
+                if (elev > rawMaxElev) {
+                    rawMaxElev = elev
+                    rawMaxTimeMs = currentTime
                 }
 
                 if (elev < 10.0) {
                     inPass = false
-                    endAz = pos.azimuthDeg
-                    val passEndMs = currentTime
-
-                    val pass = buildPass(
-                        passStartMs,
-                        maxElevTimeMs,
-                        passEndMs,
-                        maxElev,
-                        maxSatAlt,
-                        startAz,
-                        maxAz,
-                        endAz,
-                        shadowEntry,
-                        shadowExit,
+                    // Fine bisection for exact LOS (crossing 10° threshold downwards)
+                    val refinedEndMs = refineElevationThreshold(
+                        prevTime,
+                        currentTime,
+                        10.0,
+                        isRising = false,
                         userLatDeg,
                         userLonDeg,
-                        tle,
-                        standardMag
+                        tle
+                    )
+
+                    // Fine golden section search for exact peak time and maximum elevation
+                    val (refinedMaxTimeMs, refinedPeakPos) = refinePeakElevation(
+                        centerTimeMs = rawMaxTimeMs,
+                        searchRadiusMs = coarseStepMs + 5000L,
+                        userLatDeg = userLatDeg,
+                        userLonDeg = userLonDeg,
+                        tle = tle
+                    )
+
+                    val startPos = calculateTopocentricPos(passStartCoarseMs, userLatDeg, userLonDeg, 940.0, tle)
+                    val endPos = calculateTopocentricPos(refinedEndMs, userLatDeg, userLonDeg, 940.0, tle)
+
+                    val pass = buildPass(
+                        startMs = passStartCoarseMs,
+                        maxMs = refinedMaxTimeMs,
+                        endMs = refinedEndMs,
+                        maxElevDeg = refinedPeakPos.elevationDeg,
+                        maxSatAltKm = refinedPeakPos.satAltKm,
+                        startAzDeg = startPos.azimuthDeg,
+                        maxAzDeg = refinedPeakPos.azimuthDeg,
+                        endAzDeg = endPos.azimuthDeg,
+                        shadowEntryMs = shadowEntry,
+                        shadowExitMs = shadowExit,
+                        userLatDeg = userLatDeg,
+                        userLonDeg = userLonDeg,
+                        tle = tle,
+                        standardMag = standardMag
                     )
 
                     val isVisiblePass = pass.classification != PassClassification.NOT_VISIBLE &&
@@ -308,10 +342,115 @@ class ISSEngine {
                     }
                 }
             }
-            currentTime += stepMs
+            prevTime = currentTime
+            prevElev = elev
         }
 
         return passes
+    }
+
+    /**
+     * Refines the timestamp where satellite elevation crosses a threshold (e.g. 10.0°) using bisection.
+     */
+    private fun refineElevationThreshold(
+        t1: Long,
+        t2: Long,
+        targetElevationDeg: Double,
+        isRising: Boolean,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        tle: TLEData
+    ): Long {
+        var low = minOf(t1, t2)
+        var high = maxOf(t1, t2)
+        var bestTime = (low + high) / 2
+
+        for (iter in 0..12) {
+            val mid = (low + high) / 2
+            val elev = calculateTopocentricPos(mid, userLatDeg, userLonDeg, 940.0, tle).elevationDeg
+            bestTime = mid
+            if (isRising) {
+                if (elev < targetElevationDeg) {
+                    low = mid
+                } else {
+                    high = mid
+                }
+            } else {
+                if (elev > targetElevationDeg) {
+                    low = mid
+                } else {
+                    high = mid
+                }
+            }
+        }
+        return bestTime
+    }
+
+    /**
+     * Refines peak elevation and its exact timestamp using golden-section search.
+     */
+    private fun refinePeakElevation(
+        centerTimeMs: Long,
+        searchRadiusMs: Long,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        tle: TLEData
+    ): Pair<Long, TopocentricPosition> {
+        var a = centerTimeMs - searchRadiusMs
+        var b = centerTimeMs + searchRadiusMs
+        val invPhi = 0.618033988749895
+        val invPhiSq = 0.381966011250105
+
+        var c = a + (invPhiSq * (b - a)).toLong()
+        var d = a + (invPhi * (b - a)).toLong()
+        var posC = calculateTopocentricPos(c, userLatDeg, userLonDeg, 940.0, tle)
+        var posD = calculateTopocentricPos(d, userLatDeg, userLonDeg, 940.0, tle)
+
+        for (iter in 0..12) {
+            if (posC.elevationDeg < posD.elevationDeg) {
+                a = c
+                c = d
+                posC = posD
+                d = a + (invPhi * (b - a)).toLong()
+                posD = calculateTopocentricPos(d, userLatDeg, userLonDeg, 940.0, tle)
+            } else {
+                b = d
+                d = c
+                posD = posC
+                c = a + (invPhiSq * (b - a)).toLong()
+                posC = calculateTopocentricPos(c, userLatDeg, userLonDeg, 940.0, tle)
+            }
+        }
+
+        val bestTime = (a + b) / 2
+        val bestPos = calculateTopocentricPos(bestTime, userLatDeg, userLonDeg, 940.0, tle)
+        return Pair(bestTime, bestPos)
+    }
+
+    /**
+     * Refines shadow entry/exit boundary to 1-second accuracy.
+     */
+    private fun refineShadowTransition(
+        t1: Long,
+        t2: Long,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        tle: TLEData
+    ): Long {
+        var low = minOf(t1, t2)
+        var high = maxOf(t1, t2)
+        val initialSunlit = calculateTopocentricPos(low, userLatDeg, userLonDeg, 940.0, tle).isSunlit
+
+        for (iter in 0..10) {
+            val mid = (low + high) / 2
+            val sunlit = calculateTopocentricPos(mid, userLatDeg, userLonDeg, 940.0, tle).isSunlit
+            if (sunlit == initialSunlit) {
+                low = mid
+            } else {
+                high = mid
+            }
+        }
+        return (low + high) / 2
     }
 
     private fun buildPass(
@@ -533,7 +672,13 @@ class ISSEngine {
     }
 
     companion object {
-        private val defaultEngine = ISSEngine()
+        val defaultEngine = ISSEngine()
+
+        var cachedTLE: TLEData
+            get() = defaultEngine.cachedTLE
+            set(value) {
+                defaultEngine.cachedTLE = value
+            }
 
         suspend fun fetchLatestTLE(): TLEData = defaultEngine.fetchLatestTLE()
 

@@ -66,6 +66,29 @@ object SatelliteEngine {
     )
 
     /**
+     * Optional custom TLE resolver, dynamically set by TleRepository or app initialization.
+     */
+    var customTleResolver: ((noradId: Int) -> TLEData?)? = null
+
+    /**
+     * Resolves the effective TLE for a satellite, checking custom resolver / repository first,
+     * then ISS live cache, and falling back to the hardcoded catalog default.
+     */
+    fun getEffectiveTle(satellite: SatelliteItem, providedTle: TLEData? = null): TLEData {
+        if (providedTle != null && providedTle != satellite.defaultTle) {
+            return providedTle
+        }
+        val resolved = customTleResolver?.invoke(satellite.noradId)
+        if (resolved != null) {
+            return resolved
+        }
+        if (satellite.noradId == 25544 && ISSEngine.cachedTLE.line1 != satellite.defaultTle.line1) {
+            return ISSEngine.cachedTLE
+        }
+        return providedTle ?: satellite.defaultTle
+    }
+
+    /**
      * Calculates current sub-solar point on Earth for day/night terminator.
      */
     fun calculateSubSolarPoint(timestampMs: Long): SubSolarPoint {
@@ -86,20 +109,22 @@ object SatelliteEngine {
 
     /**
      * Calculates satellite position, magnitude, and scientific naked-eye visibility status.
+     * Prioritizes live/persisted TLE data over static catalog defaults.
      */
     fun calculateSatelliteState(
         satellite: SatelliteItem,
         timestampMs: Long,
         userLatDeg: Double,
         userLonDeg: Double,
-        tle: TLEData = satellite.defaultTle
+        tle: TLEData? = null
     ): SatelliteLiveState {
+        val effectiveTle = getEffectiveTle(satellite, tle)
         val topo = ISSEngine.calculateTopocentricPos(
             timestampMs = timestampMs,
             userLatDeg = userLatDeg,
             userLonDeg = userLonDeg,
             userAltMeters = 940.0,
-            tle = tle
+            tle = effectiveTle
         )
 
         // JWST exception (L2 orbit)
@@ -187,8 +212,9 @@ object SatelliteEngine {
     fun calculateGroundTrack(
         satellite: SatelliteItem,
         currentTimestampMs: Long,
-        tle: TLEData = satellite.defaultTle
+        tle: TLEData? = null
     ): List<Pair<Double, Double>> {
+        val effectiveTle = getEffectiveTle(satellite, tle)
         val points = mutableListOf<Pair<Double, Double>>()
         val stepMs = 3 * 60 * 1000L
         val startMs = currentTimestampMs - 45 * 60 * 1000L
@@ -196,7 +222,7 @@ object SatelliteEngine {
 
         var t = startMs
         while (t <= endMs) {
-            val topo = ISSEngine.calculateTopocentricPos(t, 0.0, 0.0, tle = tle)
+            val topo = ISSEngine.calculateTopocentricPos(t, 0.0, 0.0, tle = effectiveTle)
             points.add(Pair(topo.subLatDeg, topo.subLonDeg))
             t += stepMs
         }
