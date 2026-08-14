@@ -65,11 +65,11 @@ object MoonEngine {
         // Geocentric angular separation between Sun and Moon (elongation psi)
         val psiDeg = calculateAngularSeparation(lunar.raDeg, lunar.decDeg, sun.raDeg, sun.decDeg)
 
-        // Selenocentric phase angle i (Sun-Moon-Earth angle, Meeus eq 48.4)
+        // Selenocentric phase angle i (Sun-Moon-Earth angle, Meeus eq 48.3)
         val rKm = sun.distanceAu * 149597870.7
         val deltaKm = lunar.distanceKm
         val psiRad = psiDeg * DEG2RAD
-        val phaseAngleRad = atan2(rKm * sin(psiRad), rKm * cos(psiRad) - deltaKm)
+        val phaseAngleRad = atan2(rKm * sin(psiRad), deltaKm - rKm * cos(psiRad))
         val phaseAngleDeg = (phaseAngleRad * RAD2DEG + 360.0) % 360.0
 
         // Illuminated fraction of the Moon disk k (Meeus eq 48.1)
@@ -122,7 +122,7 @@ object MoonEngine {
         val psiDeg = calculateAngularSeparation(lunar.raDeg, lunar.decDeg, sun.raDeg, sun.decDeg)
         val rKm = sun.distanceAu * 149597870.7
         val psiRad = psiDeg * DEG2RAD
-        val phaseAngleRad = atan2(rKm * sin(psiRad), rKm * cos(psiRad) - distanceKm)
+        val phaseAngleRad = atan2(rKm * sin(psiRad), distanceKm - rKm * cos(psiRad))
         val illuminatedFraction = ((1.0 + cos(phaseAngleRad)) / 2.0).coerceIn(0.0, 1.0)
         val illuminationPercent = (illuminatedFraction * 100.0).coerceIn(0.0, 100.0)
 
