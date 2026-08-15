@@ -61,7 +61,12 @@ android {
     compose = true
     buildConfig = true
   }
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = true
+      isReturnDefaultValues = true
+    }
+  }
 }
 
 val androidComponents = project.extensions.getByType(com.android.build.api.variant.ApplicationAndroidComponentsExtension::class.java)

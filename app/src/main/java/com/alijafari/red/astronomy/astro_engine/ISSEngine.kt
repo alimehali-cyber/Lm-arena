@@ -675,7 +675,8 @@ class ISSEngine {
             summaryReasonEn = summaryEn,
             summaryReasonFa = summaryFa,
             detailedReasonsEn = reasonsEn,
-            detailedReasonsFa = reasonsFa
+            detailedReasonsFa = reasonsFa,
+            isVisible = isVisible
         )
     }
 
