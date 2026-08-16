@@ -34,10 +34,11 @@ class ISSEngine {
     }
 
     data class TLEData(
-        val name: String = "ISS (ZARYA)",
-        val line1: String = "1 25544U 98067A   26213.50000000  .00016717  00000-0  30000-3 0  9993",
-        val line2: String = "2 25544  51.6400 200.0000 0005000  90.0000 270.0000 15.49000000400001"
-    )
+    val name: String = "ISS (ZARYA)",
+    val line1: String = "1 25544U 98067A   26227.79314638  .00005207  00000+0  10100-3 0  9998",
+    val line2: String = "2 25544  51.6333   5.0907 0007602  50.2947 309.8710 15.49453975580997"
+)
+
 
     data class ISSPass(
         val startTimeMs: Long,
