@@ -45,6 +45,7 @@ import com.alijafari.red.astronomy.ui.theme.REDTheme
 import com.alijafari.red.astronomy.util.LocaleHelper
 
 import com.alijafari.red.astronomy.data.repository.TleRepository
+import com.alijafari.red.astronomy.data.worker.IssTleWorker
 import com.alijafari.red.astronomy.data.worker.TleSyncWorker
 import com.alijafari.red.astronomy.astro_engine.SatelliteEngine
 
@@ -94,6 +95,8 @@ class MainActivity : ComponentActivity() {
         SatelliteEngine.customTleResolver = { noradId -> tleRepo.getTle(noradId) }
 
         // Schedule periodic 6-hour sync and trigger initial refresh
+        IssTleWorker.schedulePeriodicSync(this)
+        IssTleWorker.enqueueImmediateSync(this)
         TleSyncWorker.schedulePeriodicSync(this)
         TleSyncWorker.enqueueImmediateSync(this)
 

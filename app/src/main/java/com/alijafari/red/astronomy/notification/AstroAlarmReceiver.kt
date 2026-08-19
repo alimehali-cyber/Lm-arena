@@ -24,6 +24,8 @@ class AstroAlarmReceiver : BroadcastReceiver() {
             ACTION_RESCHEDULE_ALL -> {
                 // Restore & Reschedule all active alarms after reboot, update, or timezone change
                 AstroNotificationManager.rescheduleAllAlarms(context)
+                com.alijafari.red.astronomy.data.worker.IssTleWorker.schedulePeriodicSync(context)
+                com.alijafari.red.astronomy.data.worker.IssTleWorker.enqueueImmediateSync(context)
             }
             ACTION_TRIGGER_NOTIFICATION -> {
                 val notifIdStr = intent.getStringExtra(EXTRA_NOTIFICATION_ID)

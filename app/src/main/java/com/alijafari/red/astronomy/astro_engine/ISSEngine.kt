@@ -7,13 +7,9 @@ import java.net.URL
 import kotlin.math.*
 
 /**
- * ACCEPTANCE TEST:
- * Observer 30.11 N, 51.52 E, 2026-08-15, fresh TLE:
- * The ~04:04 local (UTC+3:30) pass with max elevation ~21° must be flagged isVisible = true;
- * The ~19:44 local twilight pass must be isVisible = false.
- *
  * ISS (International Space Station) tracking engine.
- * Uses SGP4 propagator for accurate TLE-based orbit prediction.
+ * Uses standard SGP4 propagator with WGS-84 geodetic frame transformations
+ * and astronomical solar twilight illumination modeling.
  */
 class ISSEngine {
 
@@ -113,7 +109,7 @@ class ISSEngine {
     }
 
     /**
-     * Calculates topocentric position using SGP4 propagator and frame transformations.
+     * Calculates topocentric position using SGP4 propagator and WGS-84 frame transformations.
      */
     fun calculateTopocentricPos(
         timestampMs: Long,
@@ -129,38 +125,61 @@ class ISSEngine {
         val gmstDeg = TimeEngine.getGMST(currentJD)
         val gmstRad = Math.toRadians(gmstDeg)
 
-        // Rotate TEME (ECI) position to ECEF
-        val xEcef = teme.xKm * cos(gmstRad) + teme.yKm * sin(gmstRad)
-        val yEcef = -teme.xKm * sin(gmstRad) + teme.yKm * cos(gmstRad)
+        // Rotate TEME (ECI) position to ECEF frame
+        val cosGmst = cos(gmstRad)
+        val sinGmst = sin(gmstRad)
+        val xEcef = teme.xKm * cosGmst + teme.yKm * sinGmst
+        val yEcef = -teme.xKm * sinGmst + teme.yKm * cosGmst
         val zEcef = teme.zKm
 
+        // Sub-satellite point (Geodetic Latitude & Longitude using WGS-84 ellipsoid)
+        val a = 6378.137 // WGS-84 semi-major axis (km)
+        val f = 1.0 / 298.257223563
+        val e2 = 2.0 * f - f * f
+        val b = a * (1.0 - f)
+        val ep2 = (a * a - b * b) / (b * b)
+
+        val p = sqrt(xEcef * xEcef + yEcef * yEcef)
+        val theta = atan2(zEcef * a, p * b)
+        val subLatRad = atan2(
+            zEcef + ep2 * b * sin(theta).pow(3),
+            p - e2 * a * cos(theta).pow(3)
+        )
         val subLonRad = atan2(yEcef, xEcef)
-        val subLatRad = atan2(zEcef, sqrt(xEcef * xEcef + yEcef * yEcef))
+
         val subLatDeg = Math.toDegrees(subLatRad)
         val subLonDeg = Math.toDegrees(subLonRad)
 
-        val r = sqrt(xEcef * xEcef + yEcef * yEcef + zEcef * zEcef)
-        val satAltKm = r - 6378.137
+        val sinLat = sin(subLatRad)
+        val nCur = a / sqrt(1.0 - e2 * sinLat * sinLat)
+        val satAltKm = (p / cos(subLatRad)) - nCur
         val velKmS = sqrt(teme.vxKmS * teme.vxKmS + teme.vyKmS * teme.vyKmS + teme.vzKmS * teme.vzKmS)
 
         val isSunlit = checkIssSunlit(currentJD, gmstDeg, xEcef, yEcef, zEcef)
 
-        // Observer ECEF position
+        // Observer WGS-84 geodetic position in ECEF
         val obsLatRad = Math.toRadians(userLatDeg)
         val obsLonRad = Math.toRadians(userLonDeg)
-        val obsR = 6378.137 + (userAltMeters / 1000.0)
+        val sinObsLat = sin(obsLatRad)
+        val cosObsLat = cos(obsLatRad)
+        val sinObsLon = sin(obsLonRad)
+        val cosObsLon = cos(obsLonRad)
 
-        val obsXEcef = obsR * cos(obsLatRad) * cos(obsLonRad)
-        val obsYEcef = obsR * cos(obsLatRad) * sin(obsLonRad)
-        val obsZEcef = obsR * sin(obsLatRad)
+        val nObs = a / sqrt(1.0 - e2 * sinObsLat * sinObsLat)
+        val obsAltKm = userAltMeters / 1000.0
+
+        val obsXEcef = (nObs + obsAltKm) * cosObsLat * cosObsLon
+        val obsYEcef = (nObs + obsAltKm) * cosObsLat * sinObsLon
+        val obsZEcef = (nObs * (1.0 - e2) + obsAltKm) * sinObsLat
 
         val dX = xEcef - obsXEcef
         val dY = yEcef - obsYEcef
         val dZ = zEcef - obsZEcef
 
-        val east = -sin(obsLonRad) * dX + cos(obsLonRad) * dY
-        val north = -sin(obsLatRad) * cos(obsLonRad) * dX - sin(obsLatRad) * sin(obsLonRad) * dY + cos(obsLatRad) * dZ
-        val up = cos(obsLatRad) * cos(obsLonRad) * dX + cos(obsLatRad) * sin(obsLonRad) * dY + sin(obsLatRad) * dZ
+        // Topocentric coordinates (East, North, Up)
+        val east = -sinObsLon * dX + cosObsLon * dY
+        val north = -sinObsLat * cosObsLon * dX - sinObsLat * sinObsLon * dY + cosObsLat * dZ
+        val up = cosObsLat * cosObsLon * dX + cosObsLat * sinObsLon * dY + sinObsLat * dZ
 
         val range = sqrt(east * east + north * north + up * up)
         val elevRad = asin((up / range).coerceIn(-1.0, 1.0))
@@ -182,7 +201,7 @@ class ISSEngine {
     }
 
     /**
-     * Exact Earth Shadow (Umbra) Geometry calculation.
+     * Exact Conical Earth Shadow (Umbra) calculation taking into account finite solar diameter.
      */
     fun checkIssSunlit(jd: Double, gmstDeg: Double, xEcef: Double, yEcef: Double, zEcef: Double): Boolean {
         val sunPos = SunEngine.calculatePosition(jd)
@@ -196,71 +215,48 @@ class ISSEngine {
         val sunZ = sin(decRad)
 
         // Projection of satellite along Sun vector
-        val dParallel = xEcef * sunX + yEcef * sunY + zEcef * sunZ
-
-        if (dParallel < 0.0) {
-            val dPerpSq = (xEcef * xEcef + yEcef * yEcef + zEcef * zEcef) - (dParallel * dParallel)
-            val ReSq = 6378.137 * 6378.137
-            if (dPerpSq < ReSq) {
-                return false // In Earth's umbra shadow
-            }
+        val s = xEcef * sunX + yEcef * sunY + zEcef * sunZ
+        if (s > 0.0) {
+            return true // On illuminated sunward hemisphere
         }
-        return true // In sunlight
+
+        // Perpendicular distance squared from Earth-Sun axis
+        val dPerpSq = (xEcef * xEcef + yEcef * yEcef + zEcef * zEcef) - (s * s)
+        if (dPerpSq < 0.0) return true
+
+        // Umbra cone radius at distance |s| behind Earth
+        val earthRadiusKm = 6378.137
+        val sunRadiusKm = 696000.0
+        val sunDistanceKm = 149597870.7
+        val tanAlphaUmbra = (sunRadiusKm - earthRadiusKm) / sunDistanceKm
+        val rUmbra = earthRadiusKm + s * tanAlphaUmbra // s is negative
+
+        val rUmbraSq = if (rUmbra > 0.0) rUmbra * rUmbra else 0.0
+        return dPerpSq > rUmbraSq
     }
 
     /**
      * Calculates Sun altitude for observer at a specific time.
      */
     fun getObserverSunAltitude(timestampMs: Long, userLatDeg: Double, userLonDeg: Double): Double {
-        val jd = TimeEngine.getJulianDate(timestampMs)
-        val sunPos = SunEngine.calculatePosition(jd)
-        val gmstDeg = TimeEngine.getGMST(jd)
-        val lastDeg = gmstDeg + userLonDeg
-        val horiz = CoordinateEngine.equatorialToHorizontal(
-            CoordinateEngine.Equatorial(sunPos.raDeg, sunPos.decDeg),
-            lastDeg,
-            userLatDeg
-        )
-        return horiz.altitudeDeg
+        return SunEngine.getSunAltitude(timestampMs, userLatDeg, userLonDeg)
     }
 
     /**
-     * Determines whether the satellite is sunlit in ECI coordinates using SGP4 position vector s
-     * and Sun unit vector u (cylindrical Earth-shadow model with Earth radius 6378.137 km).
+     * Determines whether the satellite is sunlit in ECI coordinates.
      */
     fun isSatelliteSunlitEci(timestampMs: Long, tle: TLEData): Boolean {
-        val sgp4Tle = parseToSgp4(tle)
-        val teme = sgp4.propagate(sgp4Tle, timestampMs)
-        val jd = TimeEngine.getJulianDate(timestampMs)
-        val sunPos = SunEngine.calculatePosition(jd)
-        val raRad = Math.toRadians(sunPos.raDeg)
-        val decRad = Math.toRadians(sunPos.decDeg)
-
-        // Unit vector u from Earth to Sun in ECI (TEME / Equatorial)
-        val ux = cos(decRad) * cos(raRad)
-        val uy = cos(decRad) * sin(raRad)
-        val uz = sin(decRad)
-
-        val sx = teme.xKm
-        val sy = teme.yKm
-        val sz = teme.zKm
-
-        val proj = sx * ux + sy * uy + sz * uz
-        if (proj >= 0.0) {
-            return true // Day side hemisphere -> sunlit
-        }
-        val perpX = sx - proj * ux
-        val perpY = sy - proj * uy
-        val perpZ = sz - proj * uz
-        val perpDist = sqrt(perpX * perpX + perpY * perpY + perpZ * perpZ)
-        return perpDist >= 6378.137 // True if outside cylindrical shadow cone
+        val currentJD = TimeEngine.getJulianDate(timestampMs)
+        val gmstDeg = TimeEngine.getGMST(currentJD)
+        val topo = calculateTopocentricPos(timestampMs, 0.0, 0.0, 0.0, tle)
+        return checkIssSunlit(currentJD, gmstDeg, topo.xEcef, topo.yEcef, topo.zEcef)
     }
 
     /**
-     * Checks if a single temporal sample satisfies the 3 human visibility conditions:
-     * (a) satellite elevation >= 10°
-     * (b) observer sky is dark (Sun altitude between -6° and -30°)
-     * (c) satellite is sunlit
+     * Checks if a sample satisfies the conditions for human naked-eye visibility:
+     * - Satellite elevation >= 10.0°
+     * - Observer sky is dark / twilight (Sun altitude <= -6.0°)
+     * - Satellite is illuminated by the Sun
      */
     fun checkSampleVisibility(
         timestampMs: Long,
@@ -271,16 +267,16 @@ class ISSEngine {
         val topo = calculateTopocentricPos(timestampMs, userLatDeg, userLonDeg, 940.0, tle)
         if (topo.elevationDeg < 10.0) return false
         val sunAlt = getObserverSunAltitude(timestampMs, userLatDeg, userLonDeg)
-        if (sunAlt < -30.0 || sunAlt > -6.0) return false
-        return isSatelliteSunlitEci(timestampMs, tle)
+        if (sunAlt > -6.0) return false
+        return topo.isSunlit
     }
 
     /**
-     * Two-stage orbital pass prediction:
-     * Stage 1: Coarse 30-second scan to detect candidate passes across the scan window.
-     * Stage 2: Fine bisection and golden-section optimization for sub-second precision on
-     *          Rise (AOS 10°), Peak Max Elevation (TCA), and Set (LOS 10°), as well as shadow boundaries.
-     * Evaluates 3-point sample visibility (rise, culmination, set) and filters/sorts passes.
+     * Orbital pass prediction:
+     * 1. Scans forward in time with 15-second resolution.
+     * 2. Detects passes crossing 10° elevation threshold.
+     * 3. Refines AOS, Peak (TCA), LOS, and shadow transitions with bisection and golden-section search.
+     * 4. Evaluates visibility rigorously across the pass duration (sunlit, observer Sun alt <= -6°).
      */
     fun predictPasses(
         userLatDeg: Double,
@@ -301,7 +297,7 @@ class ISSEngine {
 
         val passes = mutableListOf<ISSPass>()
         val scanDurationMs = scanDays * 24 * 3600 * 1000L
-        val coarseStepMs = 30 * 1000L
+        val coarseStepMs = 15 * 1000L // 15-second fine scan step
         val endTimeMs = startTimestampMs + scanDurationMs
 
         var currentTime = startTimestampMs
@@ -383,11 +379,14 @@ class ISSEngine {
                     val startPos = calculateTopocentricPos(passStartCoarseMs, userLatDeg, userLonDeg, 940.0, effectiveTle)
                     val endPos = calculateTopocentricPos(refinedEndMs, userLatDeg, userLonDeg, 940.0, effectiveTle)
 
-                    // Sample visibility at rise, culmination, and set
-                    val isRiseVis = checkSampleVisibility(passStartCoarseMs, userLatDeg, userLonDeg, effectiveTle)
-                    val isMaxVis = checkSampleVisibility(refinedMaxTimeMs, userLatDeg, userLonDeg, effectiveTle)
-                    val isSetVis = checkSampleVisibility(refinedEndMs, userLatDeg, userLonDeg, effectiveTle)
-                    val isPassVisible = isRiseVis || isMaxVis || isSetVis
+                    // Comprehensive visibility evaluation across the entire pass duration
+                    val isPassVisible = evaluatePassNakedEyeVisibility(
+                        startMs = passStartCoarseMs,
+                        endMs = refinedEndMs,
+                        userLatDeg = userLatDeg,
+                        userLonDeg = userLonDeg,
+                        tle = effectiveTle
+                    )
 
                     val pass = buildPass(
                         startMs = passStartCoarseMs,
@@ -427,6 +426,44 @@ class ISSEngine {
     }
 
     /**
+     * Evaluates whether a pass is observable by a ground viewer:
+     * - Checks samples throughout the pass duration
+     * - Requires at least 20 seconds of continuous visibility (satellite illuminated in dark sky Sun <= -6° above 10° elev)
+     */
+    private fun evaluatePassNakedEyeVisibility(
+        startMs: Long,
+        endMs: Long,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        tle: TLEData
+    ): Boolean {
+        var continuousVisibleSeconds = 0
+        var maxContinuousVisibleSeconds = 0
+        val stepMs = 5000L // 5-second sampling during pass
+
+        var t = startMs
+        while (t <= endMs) {
+            val topo = calculateTopocentricPos(t, userLatDeg, userLonDeg, 940.0, tle)
+            val sunAlt = getObserverSunAltitude(t, userLatDeg, userLonDeg)
+
+            val isSampleVisible = topo.elevationDeg >= 9.5 && topo.isSunlit && sunAlt <= -6.0
+
+            if (isSampleVisible) {
+                continuousVisibleSeconds += 5
+                if (continuousVisibleSeconds > maxContinuousVisibleSeconds) {
+                    maxContinuousVisibleSeconds = continuousVisibleSeconds
+                }
+            } else {
+                continuousVisibleSeconds = 0
+            }
+            t += stepMs
+        }
+
+        // Visible pass requires at least 20 seconds of visible flyover
+        return maxContinuousVisibleSeconds >= 20
+    }
+
+    /**
      * Refines the timestamp where satellite elevation crosses a threshold (e.g. 10.0°) using bisection.
      */
     private fun refineElevationThreshold(
@@ -442,7 +479,7 @@ class ISSEngine {
         var high = maxOf(t1, t2)
         var bestTime = (low + high) / 2
 
-        for (iter in 0..12) {
+        for (iter in 0..14) {
             val mid = (low + high) / 2
             val elev = calculateTopocentricPos(mid, userLatDeg, userLonDeg, 940.0, tle).elevationDeg
             bestTime = mid
@@ -483,7 +520,7 @@ class ISSEngine {
         var posC = calculateTopocentricPos(c, userLatDeg, userLonDeg, 940.0, tle)
         var posD = calculateTopocentricPos(d, userLatDeg, userLonDeg, 940.0, tle)
 
-        for (iter in 0..12) {
+        for (iter in 0..14) {
             if (posC.elevationDeg < posD.elevationDeg) {
                 a = c
                 c = d
@@ -518,7 +555,7 @@ class ISSEngine {
         var high = maxOf(t1, t2)
         val initialSunlit = calculateTopocentricPos(low, userLatDeg, userLonDeg, 940.0, tle).isSunlit
 
-        for (iter in 0..10) {
+        for (iter in 0..12) {
             val mid = (low + high) / 2
             val sunlit = calculateTopocentricPos(mid, userLatDeg, userLonDeg, 940.0, tle).isSunlit
             if (sunlit == initialSunlit) {
@@ -564,33 +601,36 @@ class ISSEngine {
         val reasonsEn = mutableListOf<String>()
         val reasonsFa = mutableListOf<String>()
 
-        if (sunAlt > -6.0) {
-            classification = PassClassification.DAYLIGHT_ONLY
-            score = 10
-            reasonsEn.add("✕ Pass occurs before civil twilight ends (Sun altitude > -6°)")
-            reasonsFa.add("✕ گذر پیش از پایان گرگ و میش شهری (ارتفاع خورشید بالای ۶- درجه) رخ می‌دهد")
-        } else if (!isSunlit) {
-            classification = PassClassification.INVISIBLE_SHADOW
-            score = 15
-            reasonsEn.add("✕ Satellite is inside Earth's umbra shadow (Not illuminated)")
-            reasonsFa.add("✕ ماهواره در سایه مخروطی زمین قرار دارد (تاریک)")
-        } else if (estMag > 4.5) {
-            classification = PassClassification.NOT_VISIBLE
-            score = 20
-            reasonsEn.add("✕ Apparent magnitude (+${String.format("%.1f", estMag)}) is fainter than naked-eye threshold (+4.5)")
-            reasonsFa.add("✕ قدر ظاهری (${String.format("%.1f", estMag)}+) کم‌نورتر از آستانه چشم غیرمسلح (۴.۵+) است")
+        if (!isVisible) {
+            if (sunAlt > -6.0) {
+                classification = PassClassification.DAYLIGHT_ONLY
+                score = 10
+                reasonsEn.add("✕ Pass occurs during daylight or bright civil twilight (Sun altitude ${String.format("%.1f", sunAlt)}° > -6°)")
+                reasonsFa.add("✕ گذر در روشنایی روز یا شفق بسیار روشن (ارتفاع خورشید ${String.format("%.1f", sunAlt)} درجه) رخ می‌دهد")
+            } else if (!isSunlit) {
+                classification = PassClassification.INVISIBLE_SHADOW
+                score = 15
+                reasonsEn.add("✕ Satellite is inside Earth's umbra shadow cone (Eclipsed)")
+                reasonsFa.add("✕ ماهواره در مخروط سایه زمین قرار دارد (تاریک)")
+            } else {
+                classification = PassClassification.NOT_VISIBLE
+                score = 20
+                reasonsEn.add("✕ Pass is not observable to the naked eye")
+                reasonsFa.add("✕ گذر برای چشم غیرمسلح قابل رویت نیست")
+            }
         } else {
+            // Visible pass evaluation
             if (sunAlt <= -18.0) {
                 score += 40
-                reasonsEn.add("✓ Observer in true astronomical darkness (Sun $sunAlt°)")
+                reasonsEn.add("✓ Observer in true astronomical darkness (Sun ${String.format("%.1f", sunAlt)}°)")
                 reasonsFa.add("✓ ناظر در تاریکی کامل نجومی قرار دارد")
             } else if (sunAlt <= -12.0) {
                 score += 35
-                reasonsEn.add("✓ Nautical twilight darkness (Sun $sunAlt°)")
+                reasonsEn.add("✓ Nautical twilight darkness (Sun ${String.format("%.1f", sunAlt)}°)")
                 reasonsFa.add("✓ گرگ و میش دریانوردی (شرایط عالی)")
-            } else if (sunAlt <= -6.0) {
+            } else {
                 score += 25
-                reasonsEn.add("✓ Civil twilight ended (Sun $sunAlt°)")
+                reasonsEn.add("✓ Civil twilight ended (Sun ${String.format("%.1f", sunAlt)}°)")
                 reasonsFa.add("✓ پایان گرگ و میش شهری (آسمان تاریک)")
             }
 
@@ -599,7 +639,7 @@ class ISSEngine {
             score += 30
 
             when {
-                maxElevDeg >= 45.0 -> {
+                maxElevDeg >= 50.0 -> {
                     score += 30
                     reasonsEn.add("✓ High peak elevation (${maxElevDeg.toInt()}°)")
                     reasonsFa.add("✓ زاویه اوج بسیار بالا (${maxElevDeg.toInt()} درجه)")
@@ -609,23 +649,23 @@ class ISSEngine {
                     reasonsEn.add("✓ Good peak elevation (${maxElevDeg.toInt()}°)")
                     reasonsFa.add("✓ زاویه اوج مناسب (${maxElevDeg.toInt()} درجه)")
                 }
-                maxElevDeg >= 12.0 -> {
+                maxElevDeg >= 15.0 -> {
                     score += 10
-                    reasonsEn.add("⚠ Low peak elevation (${maxElevDeg.toInt()}°)")
-                    reasonsFa.add("⚠ زاویه اوج پایین (${maxElevDeg.toInt()} درجه)")
+                    reasonsEn.add("⚠ Moderate peak elevation (${maxElevDeg.toInt()}°)")
+                    reasonsFa.add("⚠ زاویه اوج متوسط (${maxElevDeg.toInt()} درجه)")
                 }
                 else -> {
                     score += 2
-                    reasonsEn.add("✕ Low horizon pass")
-                    reasonsFa.add("✕ گذر نزدیک به افق")
+                    reasonsEn.add("⚠ Low horizon pass (${maxElevDeg.toInt()}°)")
+                    reasonsFa.add("⚠ گذر نزدیک به افق (${maxElevDeg.toInt()} درجه)")
                 }
             }
 
             classification = when {
-                score >= 88 -> PassClassification.OUTSTANDING
-                score >= 75 -> PassClassification.EXCELLENT
-                score >= 65 -> PassClassification.VERY_GOOD
-                score >= 50 -> PassClassification.GOOD
+                score >= 88 && maxElevDeg >= 45.0 -> PassClassification.OUTSTANDING
+                score >= 75 && maxElevDeg >= 30.0 -> PassClassification.EXCELLENT
+                score >= 60 && maxElevDeg >= 20.0 -> PassClassification.VERY_GOOD
+                maxElevDeg >= 15.0 -> PassClassification.GOOD
                 else -> PassClassification.MARGINAL
             }
         }
@@ -635,7 +675,7 @@ class ISSEngine {
             PassClassification.EXCELLENT -> "Easily visible naked-eye pass with high elevation (${maxElevDeg.toInt()}°)"
             PassClassification.VERY_GOOD -> "Bright pass visible across dusk/dawn sky"
             PassClassification.GOOD -> "Visible as a moving bright star across open skies"
-            PassClassification.MARGINAL -> "Faint or low horizon pass"
+            PassClassification.MARGINAL -> "Faint or low horizon pass (${maxElevDeg.toInt()}°)"
             PassClassification.POOR -> "Obscured by atmospheric extinction or low elevation"
             PassClassification.NOT_VISIBLE -> "Not observable by unaided eye"
             PassClassification.INVISIBLE_SHADOW -> "ISS enters Earth shadow during flyover"
@@ -647,7 +687,7 @@ class ISSEngine {
             PassClassification.EXCELLENT -> "گذر کاملاً واضح با چشم غیرمسلح و ارتفاع بالا (${maxElevDeg.toInt()} درجه)"
             PassClassification.VERY_GOOD -> "گذر پرنور و جذاب در شفق شامگاهی یا سپیده‌دم"
             PassClassification.GOOD -> "مانند یک ستاره پرنور متحرک در آسمان دیده می‌شود"
-            PassClassification.MARGINAL -> "گذر کم‌نور یا نزدیک افق"
+            PassClassification.MARGINAL -> "گذر کم‌نور یا نزدیک افق (${maxElevDeg.toInt()} درجه)"
             PassClassification.POOR -> "تحت تاثیر غبار افق یا ارتفاع بسیار پایین"
             PassClassification.NOT_VISIBLE -> "غیرقابل رویت با چشم غیرمسلح"
             PassClassification.INVISIBLE_SHADOW -> "ایستگاه در طی مسیر وارد سایه زمین می‌شود"
@@ -681,7 +721,7 @@ class ISSEngine {
     }
 
     private fun parseToSgp4(tle: TLEData): SGP4Propagator.TLEData {
-        val epochYear = parseDoubleSafe(tle.line1, 18, 20, 24.0).toInt()
+        val epochYear = parseEpochYear(tle.line1)
         val epochDay = parseDoubleSafe(tle.line1, 20, 32, 225.5)
         val bStar = parseBStar(tle.line1)
 
@@ -705,11 +745,23 @@ class ISSEngine {
         )
     }
 
-    private fun parseBStar(line1: String): Double {
+    private fun parseEpochYear(line1: String): Int {
+        return try {
+            if (line1.length >= 20) {
+                line1.substring(18, 20).trim().toIntOrNull() ?: 26
+            } else {
+                26
+            }
+        } catch (e: Exception) {
+            26
+        }
+    }
+
+    fun parseBStar(line1: String): Double {
         try {
             if (line1.length >= 61) {
                 val bStr = line1.substring(53, 61).trim()
-                if (bStr.isEmpty() || bStr == "00000-0" || bStr == "00000+0") return 0.0
+                if (bStr.isEmpty() || bStr == "00000-0" || bStr == "00000+0" || bStr == "0") return 0.0
 
                 var sign = 1.0
                 var s = bStr
@@ -719,13 +771,15 @@ class ISSEngine {
                 } else if (s.startsWith("+")) {
                     s = s.substring(1)
                 }
-                val dashIdx = maxOf(s.indexOf('-'), s.indexOf('+'))
-                if (dashIdx > 0) {
-                    val mantissaStr = "0." + s.substring(0, dashIdx)
-                    val expStr = s.substring(dashIdx)
-                    val mantissa = mantissaStr.toDouble()
-                    val exp = expStr.toDouble()
-                    return sign * mantissa * 10.0.pow(exp)
+
+                val expSignIdx = maxOf(s.lastIndexOf('+'), s.lastIndexOf('-'))
+                if (expSignIdx > 0) {
+                    val mantissaStr = s.substring(0, expSignIdx)
+                    val expStr = s.substring(expSignIdx)
+                    val mantissaVal = mantissaStr.toDoubleOrNull() ?: return 0.0
+                    val expVal = expStr.toDoubleOrNull() ?: return 0.0
+                    val mantissa = mantissaVal / 10.0.pow(mantissaStr.length)
+                    return sign * mantissa * 10.0.pow(expVal)
                 }
             }
         } catch (e: Exception) {
@@ -790,4 +844,3 @@ class ISSEngine {
         )
     }
 }
-

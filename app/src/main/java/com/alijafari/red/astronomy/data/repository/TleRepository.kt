@@ -56,6 +56,9 @@ class TleRepository(private val context: Context) {
                     val tle = TLEData(name = satName, line1 = line1, line2 = line2)
                     memoryCache[noradId] = tle
                     timestampsCache[noradId] = updatedAt
+                    if (noradId == 25544) {
+                        ISSEngine.cachedTLE = tle
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -86,6 +89,9 @@ class TleRepository(private val context: Context) {
                     val tle = TLEData(name = satName, line1 = line1, line2 = line2)
                     memoryCache[noradId] = tle
                     timestampsCache[noradId] = updatedAt
+                    if (noradId == 25544) {
+                        ISSEngine.cachedTLE = tle
+                    }
                     return tle
                 }
             }
