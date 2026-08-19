@@ -42,6 +42,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(
         MainUiState(
+            language = try {
+                AppLanguage.valueOf(prefs.getString("app_language", AppLanguage.PERSIAN.name) ?: AppLanguage.PERSIAN.name)
+            } catch (e: Exception) {
+                AppLanguage.PERSIAN
+            },
+            calendarSystem = try {
+                CalendarSystem.valueOf(prefs.getString("calendar_system", CalendarSystem.SOLAR_HIJRI.name) ?: CalendarSystem.SOLAR_HIJRI.name)
+            } catch (e: Exception) {
+                CalendarSystem.SOLAR_HIJRI
+            },
             skyCanvasTheme = try {
                 SkyCanvasTheme.valueOf(prefs.getString("sky_canvas_theme", SkyCanvasTheme.CELESTIAL.name) ?: SkyCanvasTheme.CELESTIAL.name)
             } catch (e: Exception) {
@@ -51,6 +61,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.DARK_NAVY.name) ?: ThemeMode.DARK_NAVY.name)
             } catch (e: Exception) {
                 ThemeMode.DARK_NAVY
+            },
+            bortleClass = prefs.getInt("bortle_class", 3),
+            userLocation = run {
+                val savedCityEn = prefs.getString("user_city_name_en", null)
+                val savedCityFa = prefs.getString("user_city_name_fa", null)
+                val savedLat = if (prefs.contains("user_latitude")) {
+                    prefs.getFloat("user_latitude", 30.1141f).toDouble()
+                } else if (prefs.contains("user_lat")) {
+                    prefs.getFloat("user_lat", 30.1141f).toDouble()
+                } else {
+                    null
+                }
+                val savedLon = if (prefs.contains("user_longitude")) {
+                    prefs.getFloat("user_longitude", 51.5217f).toDouble()
+                } else if (prefs.contains("user_lon")) {
+                    prefs.getFloat("user_lon", 51.5217f).toDouble()
+                } else {
+                    null
+                }
+                val bortle = prefs.getInt("bortle_class", 3)
+
+                if (savedCityEn != null && savedCityFa != null && savedLat != null && savedLon != null) {
+                    UserLocation(
+                        cityNameEn = savedCityEn,
+                        cityNameFa = savedCityFa,
+                        latitude = savedLat,
+                        longitude = savedLon,
+                        bortleClass = bortle
+                    )
+                } else {
+                    UserLocation(bortleClass = bortle)
+                }
             }
         )
     )
@@ -86,10 +128,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setLanguage(language: AppLanguage) {
+        prefs.edit().putString("app_language", language.name).apply()
         _uiState.update { it.copy(language = language) }
     }
 
     fun setCalendarSystem(calendarSystem: CalendarSystem) {
+        prefs.edit().putString("calendar_system", calendarSystem.name).apply()
         _uiState.update { it.copy(calendarSystem = calendarSystem) }
     }
 
@@ -111,6 +155,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             longitude = lon,
             bortleClass = _uiState.value.bortleClass
         )
+        // Persist to SharedPreferences so location remains across app restarts
+        prefs.edit()
+            .putString("user_city_name_en", cityEn)
+            .putString("user_city_name_fa", cityFa)
+            .putFloat("user_latitude", lat.toFloat())
+            .putFloat("user_longitude", lon.toFloat())
+            .putFloat("user_lat", lat.toFloat())
+            .putFloat("user_lon", lon.toFloat())
+            .apply()
+
+        // Also persist to astro_prefs for notification and background workers
+        val astroPrefs = getApplication<Application>().getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
+        astroPrefs.edit()
+            .putString("user_city_name_en", cityEn)
+            .putString("user_city_name_fa", cityFa)
+            .putFloat("user_lat", lat.toFloat())
+            .putFloat("user_lon", lon.toFloat())
+            .apply()
+
         _uiState.update { it.copy(userLocation = newLoc) }
         com.alijafari.red.astronomy.notification.AstroNotificationManager.handleLocationChanged(getApplication(), newLoc)
     }
@@ -120,6 +183,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setBortleClass(bortle: Int) {
+        prefs.edit().putInt("bortle_class", bortle).apply()
         _uiState.update {
             it.copy(
                 bortleClass = bortle,

@@ -476,6 +476,22 @@ object AstroNotificationManager {
             .putFloat(KEY_LAST_LAT, loc.latitude.toFloat())
             .putFloat(KEY_LAST_LON, loc.longitude.toFloat())
             .apply()
+
+        val astroPrefs = context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
+        astroPrefs.edit()
+            .putString("user_city_name_fa", loc.cityNameFa)
+            .putString("user_city_name_en", loc.cityNameEn)
+            .putFloat("user_lat", loc.latitude.toFloat())
+            .putFloat("user_lon", loc.longitude.toFloat())
+            .apply()
+
+        val appPrefs = context.getSharedPreferences("astro_app_prefs", Context.MODE_PRIVATE)
+        appPrefs.edit()
+            .putString("user_city_name_fa", loc.cityNameFa)
+            .putString("user_city_name_en", loc.cityNameEn)
+            .putFloat("user_latitude", loc.latitude.toFloat())
+            .putFloat("user_longitude", loc.longitude.toFloat())
+            .apply()
     }
 
     private fun calculateDistanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
