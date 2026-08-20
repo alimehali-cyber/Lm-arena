@@ -201,7 +201,8 @@ class ISSEngine {
     }
 
     /**
-     * Exact Conical Earth Shadow (Umbra) calculation taking into account finite solar diameter.
+     * Exact Conical Earth Shadow (Umbra) calculation taking into account finite solar diameter
+     * and atmospheric absorption layer (~20 km).
      */
     fun checkIssSunlit(jd: Double, gmstDeg: Double, xEcef: Double, yEcef: Double, zEcef: Double): Boolean {
         val sunPos = SunEngine.calculatePosition(jd)
@@ -209,7 +210,7 @@ class ISSEngine {
         val decRad = Math.toRadians(sunPos.decDeg)
         val gmstRad = Math.toRadians(gmstDeg)
 
-        // Sun Unit Vector in ECEF
+        // Sun Unit Vector in ECEF frame
         val sunX = cos(decRad) * cos(raRad - gmstRad)
         val sunY = cos(decRad) * sin(raRad - gmstRad)
         val sunZ = sin(decRad)
@@ -221,15 +222,18 @@ class ISSEngine {
         }
 
         // Perpendicular distance squared from Earth-Sun axis
-        val dPerpSq = (xEcef * xEcef + yEcef * yEcef + zEcef * zEcef) - (s * s)
-        if (dPerpSq < 0.0) return true
+        val rSatSq = xEcef * xEcef + yEcef * yEcef + zEcef * zEcef
+        val dPerpSq = rSatSq - (s * s)
+        if (dPerpSq <= 0.0) return false
 
-        // Umbra cone radius at distance |s| behind Earth
+        // Umbra cone radius at distance |s| behind Earth (accounting for 20 km atmospheric layer)
         val earthRadiusKm = 6378.137
+        val atmoLayerKm = 20.0
+        val rEff = earthRadiusKm + atmoLayerKm
         val sunRadiusKm = 696000.0
         val sunDistanceKm = 149597870.7
-        val tanAlphaUmbra = (sunRadiusKm - earthRadiusKm) / sunDistanceKm
-        val rUmbra = earthRadiusKm + s * tanAlphaUmbra // s is negative
+        val tanAlphaUmbra = (sunRadiusKm - rEff) / sunDistanceKm
+        val rUmbra = rEff + s * tanAlphaUmbra // s is negative
 
         val rUmbraSq = if (rUmbra > 0.0) rUmbra * rUmbra else 0.0
         return dPerpSq > rUmbraSq
@@ -256,7 +260,7 @@ class ISSEngine {
      * Checks if a sample satisfies the conditions for human naked-eye visibility:
      * - Satellite elevation >= 10.0°
      * - Observer sky is dark / twilight (Sun altitude <= -6.0°)
-     * - Satellite is illuminated by the Sun
+     * - Satellite is illuminated by the Sun (outside Earth's umbra)
      */
     fun checkSampleVisibility(
         timestampMs: Long,
@@ -272,11 +276,13 @@ class ISSEngine {
     }
 
     /**
-     * Orbital pass prediction:
-     * 1. Scans forward in time with 15-second resolution.
-     * 2. Detects passes crossing 10° elevation threshold.
-     * 3. Refines AOS, Peak (TCA), LOS, and shadow transitions with bisection and golden-section search.
-     * 4. Evaluates visibility rigorously across the pass duration (sunlit, observer Sun alt <= -6°).
+     * Orbital pass prediction matching NASA Spot The Station and Heavens-Above standards:
+     * 1. Scans forward in time with 12-second resolution to find geometric flyovers above 10° elevation.
+     * 2. Refines geometric AOS, Peak (TCA), and LOS with 1-second accuracy.
+     * 3. Evaluates visibility timeline (satellite sunlit & observer Sun altitude <= -6.0°).
+     * 4. For dawn passes, accurately captures shadow exit (appearance from eclipse).
+     * 5. For evening passes, accurately captures shadow entry (disappearance into eclipse).
+     * 6. Strictly filters out daylight passes, deep shadow passes, and sub-threshold noise.
      */
     fun predictPasses(
         userLatDeg: Double,
@@ -297,21 +303,14 @@ class ISSEngine {
 
         val passes = mutableListOf<ISSPass>()
         val scanDurationMs = scanDays * 24 * 3600 * 1000L
-        val coarseStepMs = 15 * 1000L // 15-second fine scan step
+        val coarseStepMs = 12 * 1000L // 12-second coarse scan step
         val endTimeMs = startTimestampMs + scanDurationMs
 
         var currentTime = startTimestampMs
         var prevTime = startTimestampMs
         var prevElev = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, effectiveTle).elevationDeg
         var inPass = prevElev >= 10.0
-        var passStartCoarseMs = if (inPass) currentTime else 0L
-
-        var rawMaxElev = prevElev
-        var rawMaxTimeMs = currentTime
-
-        var shadowEntry: Long? = null
-        var shadowExit: Long? = null
-        var prevSunlit = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, effectiveTle).isSunlit
+        var passAosMs = if (inPass) currentTime else 0L
 
         while (currentTime <= endTimeMs) {
             currentTime += coarseStepMs
@@ -320,93 +319,39 @@ class ISSEngine {
 
             if (!inPass && elev >= 10.0) {
                 inPass = true
-                // Fine bisection for exact AOS (crossing 10° threshold)
-                passStartCoarseMs = refineElevationThreshold(
-                    prevTime,
-                    currentTime,
-                    10.0,
+                passAosMs = refineElevationThreshold(
+                    t1 = prevTime,
+                    t2 = currentTime,
+                    targetElevationDeg = 10.0,
                     isRising = true,
-                    userLatDeg,
-                    userLonDeg,
-                    effectiveTle
+                    userLatDeg = userLatDeg,
+                    userLonDeg = userLonDeg,
+                    tle = effectiveTle
                 )
-                rawMaxElev = elev
-                rawMaxTimeMs = currentTime
-                shadowEntry = null
-                shadowExit = null
-                prevSunlit = pos.isSunlit
-            } else if (inPass) {
-                if (pos.isSunlit != prevSunlit) {
-                    val shadowTransitionTime = refineShadowTransition(
-                        prevTime,
-                        currentTime,
-                        userLatDeg,
-                        userLonDeg,
-                        effectiveTle
-                    )
-                    if (!pos.isSunlit && shadowEntry == null) shadowEntry = shadowTransitionTime
-                    if (pos.isSunlit && shadowExit == null) shadowExit = shadowTransitionTime
-                    prevSunlit = pos.isSunlit
-                }
+            } else if (inPass && elev < 10.0) {
+                inPass = false
+                val passLosMs = refineElevationThreshold(
+                    t1 = prevTime,
+                    t2 = currentTime,
+                    targetElevationDeg = 10.0,
+                    isRising = false,
+                    userLatDeg = userLatDeg,
+                    userLonDeg = userLonDeg,
+                    tle = effectiveTle
+                )
 
-                if (elev > rawMaxElev) {
-                    rawMaxElev = elev
-                    rawMaxTimeMs = currentTime
-                }
-
-                if (elev < 10.0) {
-                    inPass = false
-                    // Fine bisection for exact LOS (crossing 10° threshold downwards)
-                    val refinedEndMs = refineElevationThreshold(
-                        prevTime,
-                        currentTime,
-                        10.0,
-                        isRising = false,
-                        userLatDeg,
-                        userLonDeg,
-                        effectiveTle
-                    )
-
-                    // Fine golden section search for exact peak time and maximum elevation
-                    val (refinedMaxTimeMs, refinedPeakPos) = refinePeakElevation(
-                        centerTimeMs = rawMaxTimeMs,
-                        searchRadiusMs = coarseStepMs + 5000L,
-                        userLatDeg = userLatDeg,
-                        userLonDeg = userLonDeg,
-                        tle = effectiveTle
-                    )
-
-                    val startPos = calculateTopocentricPos(passStartCoarseMs, userLatDeg, userLonDeg, 940.0, effectiveTle)
-                    val endPos = calculateTopocentricPos(refinedEndMs, userLatDeg, userLonDeg, 940.0, effectiveTle)
-
-                    // Comprehensive visibility evaluation across the entire pass duration
-                    val isPassVisible = evaluatePassNakedEyeVisibility(
-                        startMs = passStartCoarseMs,
-                        endMs = refinedEndMs,
-                        userLatDeg = userLatDeg,
-                        userLonDeg = userLonDeg,
-                        tle = effectiveTle
-                    )
-
-                    val pass = buildPass(
-                        startMs = passStartCoarseMs,
-                        maxMs = refinedMaxTimeMs,
-                        endMs = refinedEndMs,
-                        maxElevDeg = refinedPeakPos.elevationDeg,
-                        maxSatAltKm = refinedPeakPos.satAltKm,
-                        startAzDeg = startPos.azimuthDeg,
-                        maxAzDeg = refinedPeakPos.azimuthDeg,
-                        endAzDeg = endPos.azimuthDeg,
-                        shadowEntryMs = shadowEntry,
-                        shadowExitMs = shadowExit,
+                if (passLosMs > passAosMs + 25000L) { // Valid flyover must be at least 25s
+                    val pass = analyzeAndBuildPass(
+                        geomAosMs = passAosMs,
+                        geomLosMs = passLosMs,
                         userLatDeg = userLatDeg,
                         userLonDeg = userLonDeg,
                         tle = effectiveTle,
-                        standardMag = standardMag,
-                        isVisible = isPassVisible
+                        standardMag = standardMag
                     )
-
-                    passes.add(pass)
+                    if (pass != null) {
+                        passes.add(pass)
+                    }
                 }
             }
             prevTime = currentTime
@@ -426,41 +371,205 @@ class ISSEngine {
     }
 
     /**
-     * Evaluates whether a pass is observable by a ground viewer:
-     * - Checks samples throughout the pass duration
-     * - Requires at least 20 seconds of continuous visibility (satellite illuminated in dark sky Sun <= -6° above 10° elev)
+     * Performs detailed analysis on a geometric flyover interval [geomAosMs, geomLosMs]
+     * to evaluate visibility, shadow transitions, and twilight boundaries.
      */
-    private fun evaluatePassNakedEyeVisibility(
-        startMs: Long,
-        endMs: Long,
+    private fun analyzeAndBuildPass(
+        geomAosMs: Long,
+        geomLosMs: Long,
         userLatDeg: Double,
         userLonDeg: Double,
-        tle: TLEData
-    ): Boolean {
-        var continuousVisibleSeconds = 0
-        var maxContinuousVisibleSeconds = 0
-        val stepMs = 5000L // 5-second sampling during pass
+        tle: TLEData,
+        standardMag: Double
+    ): ISSPass? {
+        // 1. Refine geometric peak elevation and TCA
+        val (geomPeakTimeMs, geomPeakPos) = refinePeakElevation(
+            centerTimeMs = (geomAosMs + geomLosMs) / 2,
+            searchRadiusMs = maxOf(10000L, (geomLosMs - geomAosMs) / 2 + 5000L),
+            userLatDeg = userLatDeg,
+            userLonDeg = userLonDeg,
+            tle = tle
+        )
 
-        var t = startMs
-        while (t <= endMs) {
+        // 2. High-resolution sampling (2.5-second steps) across flyover to inspect visibility
+        val sampleStepMs = 2500L
+        var firstVisibleSampleMs: Long? = null
+        var lastVisibleSampleMs: Long? = null
+        var maxVisibleElev = -90.0
+        var maxVisibleTimeMs = geomPeakTimeMs
+
+        var shadowEntryMs: Long? = null
+        var shadowExitMs: Long? = null
+
+        var prevSampleSunlit: Boolean? = null
+        var prevSampleTime = geomAosMs
+
+        var continuousVisSeconds = 0
+        var maxContinuousVisSeconds = 0
+
+        var t = geomAosMs
+        while (t <= geomLosMs) {
             val topo = calculateTopocentricPos(t, userLatDeg, userLonDeg, 940.0, tle)
             val sunAlt = getObserverSunAltitude(t, userLatDeg, userLonDeg)
 
-            val isSampleVisible = topo.elevationDeg >= 9.5 && topo.isSunlit && sunAlt <= -6.0
+            val isSunlit = topo.isSunlit
+            val isDark = sunAlt <= -6.0 // Civil twilight ended
+            val isVisibleSample = topo.elevationDeg >= 9.8 && isSunlit && isDark
 
-            if (isSampleVisible) {
-                continuousVisibleSeconds += 5
-                if (continuousVisibleSeconds > maxContinuousVisibleSeconds) {
-                    maxContinuousVisibleSeconds = continuousVisibleSeconds
+            if (prevSampleSunlit != null && isSunlit != prevSampleSunlit) {
+                val transitionTime = refineShadowTransition(prevSampleTime, t, userLatDeg, userLonDeg, tle)
+                if (!isSunlit && shadowEntryMs == null) shadowEntryMs = transitionTime
+                if (isSunlit && shadowExitMs == null) shadowExitMs = transitionTime
+            }
+            prevSampleSunlit = isSunlit
+            prevSampleTime = t
+
+            if (isVisibleSample) {
+                if (firstVisibleSampleMs == null) firstVisibleSampleMs = t
+                lastVisibleSampleMs = t
+                continuousVisSeconds += (sampleStepMs / 1000L).toInt()
+                if (continuousVisSeconds > maxContinuousVisSeconds) {
+                    maxContinuousVisSeconds = continuousVisSeconds
+                }
+                if (topo.elevationDeg > maxVisibleElev) {
+                    maxVisibleElev = topo.elevationDeg
+                    maxVisibleTimeMs = t
                 }
             } else {
-                continuousVisibleSeconds = 0
+                continuousVisSeconds = 0
             }
-            t += stepMs
+
+            t += sampleStepMs
         }
 
-        // Visible pass requires at least 20 seconds of visible flyover
-        return maxContinuousVisibleSeconds >= 20
+        // 3. Determine if pass qualifies as visible (NASA Spot The Station & Heavens-Above criteria)
+        val isPassVisible = maxContinuousVisSeconds >= 25 && maxVisibleElev >= 10.0
+
+        if (isPassVisible && firstVisibleSampleMs != null && lastVisibleSampleMs != null) {
+            // Refine visible start time (e.g. shadow exit, twilight dawn/dusk, or AOS)
+            val visStartMs = when {
+                shadowExitMs != null && shadowExitMs >= geomAosMs && shadowExitMs <= lastVisibleSampleMs -> {
+                    // Dawn pass emerging from Earth shadow into sunlight!
+                    shadowExitMs
+                }
+                getObserverSunAltitude(geomAosMs, userLatDeg, userLonDeg) > -6.0 -> {
+                    // Evening pass starting when Sun drops below -6.0°
+                    refineSunAltitudeThreshold(geomAosMs, firstVisibleSampleMs, -6.0, isRising = false, userLatDeg, userLonDeg)
+                }
+                else -> geomAosMs
+            }
+
+            // Refine visible end time (e.g. shadow entry, twilight dawn bright cutoff, or LOS)
+            val visEndMs = when {
+                shadowEntryMs != null && shadowEntryMs >= firstVisibleSampleMs && shadowEntryMs <= geomLosMs -> {
+                    // Evening pass disappearing into Earth's shadow (eclipse)!
+                    shadowEntryMs
+                }
+                getObserverSunAltitude(geomLosMs, userLatDeg, userLonDeg) > -6.0 -> {
+                    // Dawn pass disappearing when Sun rises above -6.0°
+                    refineSunAltitudeThreshold(lastVisibleSampleMs, geomLosMs, -6.0, isRising = true, userLatDeg, userLonDeg)
+                }
+                else -> geomLosMs
+            }
+
+            // Refine visible maximum elevation within [visStartMs, visEndMs]
+            val effectiveMaxTimeMs: Long
+            val effectiveMaxElevDeg: Double
+            val effectiveMaxAltKm: Double
+            val effectiveMaxAzDeg: Double
+
+            if (geomPeakTimeMs in visStartMs..visEndMs) {
+                effectiveMaxTimeMs = geomPeakTimeMs
+                effectiveMaxElevDeg = geomPeakPos.elevationDeg
+                effectiveMaxAltKm = geomPeakPos.satAltKm
+                effectiveMaxAzDeg = geomPeakPos.azimuthDeg
+            } else {
+                val startPos = calculateTopocentricPos(visStartMs, userLatDeg, userLonDeg, 940.0, tle)
+                val endPos = calculateTopocentricPos(visEndMs, userLatDeg, userLonDeg, 940.0, tle)
+                if (startPos.elevationDeg >= endPos.elevationDeg) {
+                    effectiveMaxTimeMs = visStartMs
+                    effectiveMaxElevDeg = startPos.elevationDeg
+                    effectiveMaxAltKm = startPos.satAltKm
+                    effectiveMaxAzDeg = startPos.azimuthDeg
+                } else {
+                    effectiveMaxTimeMs = visEndMs
+                    effectiveMaxElevDeg = endPos.elevationDeg
+                    effectiveMaxAltKm = endPos.satAltKm
+                    effectiveMaxAzDeg = endPos.azimuthDeg
+                }
+            }
+
+            val startPos = calculateTopocentricPos(visStartMs, userLatDeg, userLonDeg, 940.0, tle)
+            val endPos = calculateTopocentricPos(visEndMs, userLatDeg, userLonDeg, 940.0, tle)
+
+            return buildPass(
+                startMs = visStartMs,
+                maxMs = effectiveMaxTimeMs,
+                endMs = visEndMs,
+                maxElevDeg = effectiveMaxElevDeg,
+                maxSatAltKm = effectiveMaxAltKm,
+                startAzDeg = startPos.azimuthDeg,
+                maxAzDeg = effectiveMaxAzDeg,
+                endAzDeg = endPos.azimuthDeg,
+                shadowEntryMs = shadowEntryMs,
+                shadowExitMs = shadowExitMs,
+                userLatDeg = userLatDeg,
+                userLonDeg = userLonDeg,
+                tle = tle,
+                standardMag = standardMag,
+                isVisible = true
+            )
+        } else {
+            // Non-visible geometric pass
+            val startPos = calculateTopocentricPos(geomAosMs, userLatDeg, userLonDeg, 940.0, tle)
+            val endPos = calculateTopocentricPos(geomLosMs, userLatDeg, userLonDeg, 940.0, tle)
+
+            return buildPass(
+                startMs = geomAosMs,
+                maxMs = geomPeakTimeMs,
+                endMs = geomLosMs,
+                maxElevDeg = geomPeakPos.elevationDeg,
+                maxSatAltKm = geomPeakPos.satAltKm,
+                startAzDeg = startPos.azimuthDeg,
+                maxAzDeg = geomPeakPos.azimuthDeg,
+                endAzDeg = endPos.azimuthDeg,
+                shadowEntryMs = shadowEntryMs,
+                shadowExitMs = shadowExitMs,
+                userLatDeg = userLatDeg,
+                userLonDeg = userLonDeg,
+                tle = tle,
+                standardMag = standardMag,
+                isVisible = false
+            )
+        }
+    }
+
+    /**
+     * Refines the timestamp where observer solar altitude crosses a threshold (e.g. -6.0°).
+     */
+    private fun refineSunAltitudeThreshold(
+        t1: Long,
+        t2: Long,
+        targetSunAltDeg: Double,
+        isRising: Boolean,
+        userLatDeg: Double,
+        userLonDeg: Double
+    ): Long {
+        var low = minOf(t1, t2)
+        var high = maxOf(t1, t2)
+        var bestTime = (low + high) / 2
+
+        for (iter in 0..12) {
+            val mid = (low + high) / 2
+            val alt = getObserverSunAltitude(mid, userLatDeg, userLonDeg)
+            bestTime = mid
+            if (isRising) {
+                if (alt < targetSunAltDeg) low = mid else high = mid
+            } else {
+                if (alt > targetSunAltDeg) low = mid else high = mid
+            }
+        }
+        return bestTime
     }
 
     /**
@@ -585,16 +694,16 @@ class ISSEngine {
         isVisible: Boolean = false
     ): ISSPass {
         val posAtMax = calculateTopocentricPos(maxMs, userLatDeg, userLonDeg, 940.0, tle)
-        val sunAlt = getObserverSunAltitude(maxMs, userLatDeg, userLonDeg)
+        val sunAltAtMax = getObserverSunAltitude(maxMs, userLatDeg, userLonDeg)
 
         val rangeFactor = 5.0 * log10(maxOf(0.1, posAtMax.rangeKm / 400.0))
         val extFactor = if (maxElevDeg < 15.0) 0.5 else 0.0
         val estMag = standardMag + rangeFactor + extFactor
 
-        val isDarkness = sunAlt <= -6.0
+        val isDarkness = sunAltAtMax <= -6.0
         val isSunlit = posAtMax.isSunlit
 
-        val durationSec = maxOf(30L, (endMs - startMs) / 1000L)
+        val durationSec = maxOf(25L, (endMs - startMs) / 1000L)
 
         val classification: PassClassification
         var score = 0
@@ -602,11 +711,11 @@ class ISSEngine {
         val reasonsFa = mutableListOf<String>()
 
         if (!isVisible) {
-            if (sunAlt > -6.0) {
+            if (sunAltAtMax > -6.0) {
                 classification = PassClassification.DAYLIGHT_ONLY
                 score = 10
-                reasonsEn.add("✕ Pass occurs during daylight or bright civil twilight (Sun altitude ${String.format("%.1f", sunAlt)}° > -6°)")
-                reasonsFa.add("✕ گذر در روشنایی روز یا شفق بسیار روشن (ارتفاع خورشید ${String.format("%.1f", sunAlt)} درجه) رخ می‌دهد")
+                reasonsEn.add("✕ Pass occurs during daylight (Sun altitude ${String.format("%.1f", sunAltAtMax)}° > -6°)")
+                reasonsFa.add("✕ گذر در روشنایی روز (ارتفاع خورشید ${String.format("%.1f", sunAltAtMax)} درجه) رخ می‌دهد")
             } else if (!isSunlit) {
                 classification = PassClassification.INVISIBLE_SHADOW
                 score = 15
@@ -620,23 +729,33 @@ class ISSEngine {
             }
         } else {
             // Visible pass evaluation
-            if (sunAlt <= -18.0) {
+            if (sunAltAtMax <= -18.0) {
                 score += 40
-                reasonsEn.add("✓ Observer in true astronomical darkness (Sun ${String.format("%.1f", sunAlt)}°)")
+                reasonsEn.add("✓ Observer in true astronomical darkness (Sun ${String.format("%.1f", sunAltAtMax)}°)")
                 reasonsFa.add("✓ ناظر در تاریکی کامل نجومی قرار دارد")
-            } else if (sunAlt <= -12.0) {
+            } else if (sunAltAtMax <= -12.0) {
                 score += 35
-                reasonsEn.add("✓ Nautical twilight darkness (Sun ${String.format("%.1f", sunAlt)}°)")
+                reasonsEn.add("✓ Nautical twilight darkness (Sun ${String.format("%.1f", sunAltAtMax)}°)")
                 reasonsFa.add("✓ گرگ و میش دریانوردی (شرایط عالی)")
             } else {
                 score += 25
-                reasonsEn.add("✓ Civil twilight ended (Sun ${String.format("%.1f", sunAlt)}°)")
+                reasonsEn.add("✓ Civil twilight ended (Sun ${String.format("%.1f", sunAltAtMax)}°)")
                 reasonsFa.add("✓ پایان گرگ و میش شهری (آسمان تاریک)")
             }
 
             reasonsEn.add("✓ Satellite is brightly illuminated by solar radiation")
             reasonsFa.add("✓ ماهواره در معرض مستقیم نور خورشید است")
             score += 30
+
+            // Mention shadow events if applicable
+            if (shadowExitMs != null && shadowExitMs in (startMs - 5000L)..(startMs + 5000L)) {
+                reasonsEn.add("✓ Dawn emergence: ISS leaves Earth shadow at ${String.format("%.0f", calculateTopocentricPos(startMs, userLatDeg, userLonDeg, 940.0, tle).elevationDeg)}° elevation")
+                reasonsFa.add("✓ پدیده خروج از سایه: ایستگاه در ارتفاع ${String.format("%.0f", calculateTopocentricPos(startMs, userLatDeg, userLonDeg, 940.0, tle).elevationDeg)} درجه از سایه زمین خارج و نمایان می‌شود")
+            }
+            if (shadowEntryMs != null && shadowEntryMs in (endMs - 5000L)..(endMs + 5000L)) {
+                reasonsEn.add("✓ Evening eclipse: ISS enters Earth shadow at ${String.format("%.0f", calculateTopocentricPos(endMs, userLatDeg, userLonDeg, 940.0, tle).elevationDeg)}° elevation")
+                reasonsFa.add("✓ پدیده ورود به سایه: ایستگاه در ارتفاع ${String.format("%.0f", calculateTopocentricPos(endMs, userLatDeg, userLonDeg, 940.0, tle).elevationDeg)} درجه وارد سایه زمین شده و محو می‌شود")
+            }
 
             when {
                 maxElevDeg >= 50.0 -> {
@@ -705,7 +824,7 @@ class ISSEngine {
             endAzimuthDeg = endAzDeg,
             estimatedMagnitude = estMag,
             passDurationSec = durationSec,
-            sunAltitudeDegAtMax = sunAlt,
+            sunAltitudeDegAtMax = sunAltAtMax,
             isObserverInDarkness = isDarkness,
             isIssSunlitAtMax = isSunlit,
             shadowEntryMs = shadowEntryMs,

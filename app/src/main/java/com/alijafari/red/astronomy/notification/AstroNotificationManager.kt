@@ -123,12 +123,11 @@ object AstroNotificationManager {
             visibleOnly = true
         )
 
-        // Strict human visibility criteria
+        // Human visibility criteria matching Spot the Station
         val validPasses = passes.filter { pass ->
-            pass.isIssSunlitAtMax &&
-            pass.sunAltitudeDegAtMax <= -12.0 &&
+            pass.isVisible &&
             pass.maxElevationDeg >= 10.0 &&
-            pass.passDurationSec >= 60
+            pass.passDurationSec >= 30
         }
 
         for (pass in validPasses) {
@@ -174,10 +173,9 @@ object AstroNotificationManager {
             )
 
             val validPasses = passes.filter { pass ->
-                pass.isIssSunlitAtMax &&
-                pass.sunAltitudeDegAtMax <= -12.0 &&
+                pass.isVisible &&
                 pass.maxElevationDeg >= 10.0 &&
-                pass.passDurationSec >= 60
+                pass.passDurationSec >= 30
             }
 
             for (pass in validPasses) {
