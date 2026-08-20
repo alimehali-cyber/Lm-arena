@@ -5,6 +5,7 @@ import android.util.Log
 import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.ISSEngine.TLEData
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
+import com.alijafari.red.astronomy.astro_engine.StarlinkTrainManager
 import com.alijafari.red.astronomy.data.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,6 +25,7 @@ class TleRepository(private val context: Context) {
 
     private val db = AppDatabase.getDatabase(context.applicationContext)
     private val memoryCache = ConcurrentHashMap<Int, TLEData>()
+    private val starlinkTles = ConcurrentHashMap<Int, TLEData>()
     private val timestampsCache = ConcurrentHashMap<Int, Long>()
 
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
@@ -67,8 +69,15 @@ class TleRepository(private val context: Context) {
     }
 
     /**
+     * Returns the latest parsed Starlink TLEs fetched from CelesTrak.
+     */
+    fun getStarlinkTles(): List<TLEData> {
+        return starlinkTles.values.toList()
+    }
+
+    /**
      * Gets the most up-to-date TLE for a given NORAD satellite ID.
-     * Looks up: Memory Cache -> Room Database -> Hardcoded Offline Fallback in SatelliteCatalog.
+     * Looks up: Memory Cache -> Room Database -> Starlink Cache -> Hardcoded Offline Fallback in SatelliteCatalog.
      */
     fun getTle(noradId: Int): TLEData {
         // 1. Check in-memory cache
@@ -99,7 +108,10 @@ class TleRepository(private val context: Context) {
             Log.w(TAG, "Error reading TLE for $noradId from database: ${e.message}")
         }
 
-        // 3. Fallback to hardcoded catalog default
+        // 3. Check Starlink cache
+        starlinkTles[noradId]?.let { return it }
+
+        // 4. Fallback to hardcoded catalog default
         val fallback = SatelliteCatalog.satellites.find { it.noradId == noradId }?.defaultTle
             ?: ISSEngine.TLEData()
         return fallback
@@ -157,8 +169,8 @@ class TleRepository(private val context: Context) {
     }
 
     /**
-     * Fetches live TLEs from CelesTrak feeds (visual satellites and space stations) using raw OkHttpClient,
-     * validates mod-10 checksums, and updates local persistence with strict error logging.
+     * Fetches live TLEs from CelesTrak feeds (stations, visual satellites, and starlink) using raw OkHttpClient,
+     * validates mod-10 checksums, updates local persistence, and populates Starlink TLE memory cache.
      */
     suspend fun refreshTles(): Boolean = withContext(Dispatchers.IO) {
         val trackedNoradIds = SatelliteCatalog.satellites.map { it.noradId }.toSet()
@@ -166,7 +178,8 @@ class TleRepository(private val context: Context) {
 
         val urls = listOf(
             "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle",
-            "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle"
+            "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle",
+            "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle"
         )
 
         for (endpoint in urls) {
@@ -199,6 +212,11 @@ class TleRepository(private val context: Context) {
 
                     var countStored = 0
                     val now = System.currentTimeMillis()
+
+                    if (endpoint.contains("GROUP=starlink")) {
+                        starlinkTles.putAll(parsed)
+                        Log.i(TAG, "Stored ${parsed.size} Starlink TLEs in Starlink memory cache")
+                    }
 
                     for ((noradId, tle) in parsed) {
                         if (noradId in trackedNoradIds || noradId == 25544) {
@@ -311,7 +329,15 @@ class TleRepository(private val context: Context) {
                         val noradStr = line1.substring(2, 7).trim()
                         val noradId = noradStr.toIntOrNull()
                         if (noradId != null) {
-                            result[noradId] = TLEData(name = name, line1 = line1, line2 = line2)
+                            val epochYr = StarlinkTrainManager.extractEpochYear(line1)
+                            val epochDay = StarlinkTrainManager.extractEpochDay(line1)
+                            result[noradId] = TLEData(
+                                name = name,
+                                line1 = line1,
+                                line2 = line2,
+                                epochYear = epochYr,
+                                epochDay = epochDay
+                            )
                         }
                     }
                     i += 2

@@ -137,6 +137,24 @@ fun ISSScreen(
         }
     }
 
+    val tleRepo = remember { com.alijafari.red.astronomy.data.repository.TleRepository.getInstance(context) }
+    var detectedTrain by remember { mutableStateOf<SatelliteItem?>(null) }
+
+    LaunchedEffect(Unit) {
+        val initialTrain = StarlinkTrainManager.detectTrain(tleRepo.getStarlinkTles())
+        detectedTrain = initialTrain
+
+        withContext(Dispatchers.IO) {
+            val updated = tleRepo.refreshTles()
+            if (updated || initialTrain == null) {
+                val newTrain = StarlinkTrainManager.detectTrain(tleRepo.getStarlinkTles())
+                withContext(Dispatchers.Main) {
+                    detectedTrain = newTrain
+                }
+            }
+        }
+    }
+
     // Filters
     var selectedCategory by remember { mutableStateOf(SatelliteCategory.ALL) }
 
@@ -155,22 +173,26 @@ fun ISSScreen(
     // Dialog Modals
     var showTutorialDialog by remember { mutableStateOf(false) }
 
+    // Visible Satellites including dynamically detected Starlink Train
+    val visibleSatellites = remember(detectedTrain) {
+        SatelliteCatalog.getVisibleList(detectedTrain)
+    }
+
     // Filtered Satellites
-    val filteredSatellites = remember(selectedCategory) {
-        SatelliteCatalog.satellites.filter { sat ->
+    val filteredSatellites = remember(selectedCategory, visibleSatellites) {
+        visibleSatellites.filter { sat ->
             when (selectedCategory) {
                 SatelliteCategory.ALL -> true
                 SatelliteCategory.ISS -> sat.category == SatelliteCategory.ISS
-                SatelliteCategory.STARLINK -> sat.category == SatelliteCategory.STARLINK
+                SatelliteCategory.STARLINK -> sat.category == SatelliteCategory.STARLINK || sat.isTrain
                 SatelliteCategory.HUBBLE -> sat.category == SatelliteCategory.HUBBLE
-                SatelliteCategory.JWST -> sat.category == SatelliteCategory.JWST
                 SatelliteCategory.VISIBLE -> sat.isNakedEyeCandidate
             }
         }
     }
 
-    val selectedSatItem = remember(selectedSatelliteId) {
-        selectedSatelliteId?.let { id -> SatelliteCatalog.getById(id) }
+    val selectedSatItem = remember(selectedSatelliteId, detectedTrain) {
+        selectedSatelliteId?.let { id -> SatelliteCatalog.getById(id, detectedTrain) }
     }
 
     // Compute live positions for all filtered satellites
@@ -899,9 +921,9 @@ fun ISSScreen(
                 mutableStateOf<List<Pair<com.alijafari.red.astronomy.astro_engine.SatelliteItem, ISSEngine.ISSPass>>?>(null)
             }
 
-            LaunchedEffect(uiState.userLocation, roundedStartMs) {
+            LaunchedEffect(uiState.userLocation, roundedStartMs, detectedTrain) {
                 withContext(Dispatchers.Default) {
-                    val allSats = com.alijafari.red.astronomy.astro_engine.SatelliteCatalog.satellites
+                    val allSats = com.alijafari.red.astronomy.astro_engine.SatelliteCatalog.getVisibleList(detectedTrain)
                     val combined = mutableListOf<Pair<com.alijafari.red.astronomy.astro_engine.SatelliteItem, ISSEngine.ISSPass>>()
                     for (sat in allSats) {
                         val passes = ISSEngine.predictPasses(
@@ -1142,7 +1164,7 @@ fun ISSScreen(
                         color = AccentPrimary
                     )
 
-                    com.alijafari.red.astronomy.astro_engine.SatelliteCatalog.satellites.forEach { sat ->
+                    com.alijafari.red.astronomy.astro_engine.SatelliteCatalog.getVisibleList(detectedTrain).forEach { sat ->
                         val isChecked = sat.id in selectedSatIdsForAlerts
                         Row(
                             modifier = Modifier
