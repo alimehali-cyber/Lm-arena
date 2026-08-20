@@ -395,12 +395,18 @@ fun CompassARScreen(
         SunEngine.getSunAltAz(jd, uiState.userLocation.latitude, uiState.userLocation.longitude)
     }
 
-    val moonData = remember(jd) { MoonEngine.calculateMoon(jd) }
-    val moonHoriz = remember(moonData, lastDeg, uiState.userLocation) {
-        CoordinateEngine.equatorialToHorizontal(
-            CoordinateEngine.Equatorial(moonData.raDeg, moonData.decDeg),
-            lastDeg,
-            uiState.userLocation.latitude
+    val moonData = remember(jd, uiState.userLocation) {
+        MoonEngine.calculateMoon(
+            jd = jd,
+            latitude = uiState.userLocation.latitude,
+            longitude = uiState.userLocation.longitude,
+            elevationM = uiState.userLocation.elevationMeters
+        )
+    }
+    val moonHoriz = remember(moonData) {
+        CoordinateEngine.Horizontal(
+            azimuthDeg = moonData.azimuthDeg,
+            altitudeDeg = moonData.altitudeDeg
         )
     }
 
@@ -567,6 +573,7 @@ fun CompassARScreen(
     val lastDegState by rememberUpdatedState(lastDeg)
     val userLatState by rememberUpdatedState(uiState.userLocation.latitude)
     val allCatalogState by rememberUpdatedState(allCatalog)
+    val isSensorActiveState by rememberUpdatedState(isSensorActive)
 
     // AR Info Card Object State & Auto-Dismiss Timer
     var longPressObject by remember { mutableStateOf<CelestialObject?>(null) }
@@ -812,16 +819,11 @@ fun CompassARScreen(
                             val activeSatellitePositions = satellitePositionsState
                             val activeLastDeg = lastDegState
                             val activeUserLat = userLatState
+                            val activeIsSensor = isSensorActiveState
 
                             val canvasWidth = size.width.toFloat()
                             val canvasHeight = size.height.toFloat()
-                            val centerX = canvasWidth / 2f
-                            val centerY = canvasHeight / 2f
                             val fovX = 60.0 / activeZoom
-                            val pixelsPerDegree = canvasWidth / fovX
-                            val rollRad = Math.toRadians(-activeOrientation.roll.toDouble())
-                            val cosR = cos(rollRad).toFloat()
-                            val sinR = sin(rollRad).toFloat()
 
                             var bestMatch: CelestialObject? = null
                             var bestDistPx = 70.0f * activeDensity
@@ -844,18 +846,19 @@ fun CompassARScreen(
                                 else if (obj.type == ObjectType.SATELLITE) activeSatellitePositions[obj.id] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
                                 else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), activeLastDeg, activeUserLat)
 
-                                var dAz = horiz.azimuthDeg - activeAzimuth
-                                if (dAz > 180) dAz -= 360
-                                if (dAz < -180) dAz += 360
-                                val dAlt = horiz.altitudeDeg - activeAltitude
+                                val pt = ARProjectionEngine.projectAltAz(
+                                    azimuthDeg = horiz.azimuthDeg,
+                                    altitudeDeg = horiz.altitudeDeg,
+                                    rotationMatrix = if (activeIsSensor) activeOrientation.rotationMatrix else null,
+                                    currentAzimuth = activeAzimuth,
+                                    currentAltitude = activeAltitude,
+                                    currentRoll = activeOrientation.roll.toDouble(),
+                                    canvasWidth = canvasWidth,
+                                    canvasHeight = canvasHeight,
+                                    fovXDeg = fovX
+                                ) ?: continue
 
-                                val rawX = (dAz * pixelsPerDegree).toFloat()
-                                val rawY = -(dAlt * pixelsPerDegree).toFloat()
-
-                                val px = centerX + (rawX * cosR - rawY * sinR)
-                                val py = centerY + (rawX * sinR + rawY * cosR)
-
-                                val dist = hypot(touchOffset.x - px, touchOffset.y - py)
+                                val dist = hypot(touchOffset.x - pt.x, touchOffset.y - pt.y)
                                 if (dist < bestDistPx) {
                                     bestDistPx = dist
                                     bestMatch = obj
@@ -891,67 +894,91 @@ fun CompassARScreen(
             }
 
             // Draw Horizon Line
-            val horizonY = (centerY + (currentAltitude * pixelsPerDegree)).toFloat()
-            if (horizonY in -200f..(canvasHeight + 200f)) {
-                drawLine(
+            val horizonPath = Path()
+            var horizonFirst = true
+            val horizonSteps = 24
+            val horizonSpan = fovX * 2.0
+            for (i in 0..horizonSteps) {
+                val hAz = currentAzimuth - (horizonSpan / 2.0) + (i * horizonSpan / horizonSteps)
+                val pt = ARProjectionEngine.projectAltAz(
+                    azimuthDeg = (hAz % 360.0 + 360.0) % 360.0,
+                    altitudeDeg = 0.0,
+                    rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
+                    currentAzimuth = currentAzimuth,
+                    currentAltitude = currentAltitude,
+                    currentRoll = skyOrientation.roll.toDouble(),
+                    canvasWidth = canvasWidth,
+                    canvasHeight = canvasHeight,
+                    fovXDeg = fovX
+                ) ?: continue
+                if (horizonFirst) {
+                    horizonPath.moveTo(pt.x, pt.y)
+                    horizonFirst = false
+                } else {
+                    horizonPath.lineTo(pt.x, pt.y)
+                }
+            }
+            if (!horizonFirst) {
+                drawPath(
+                    path = horizonPath,
                     color = AccentPrimary.copy(alpha = 0.6f),
-                    start = Offset(0f, horizonY),
-                    end = Offset(canvasWidth, horizonY),
-                    strokeWidth = 2.5f
+                    style = Stroke(width = 2.5f)
                 )
-                val horizonLabel = if (isFa) "افق (0°)" else "Horizon (0°)"
-                val horizonTextLayout = textMeasurer.measure(
-                    text = horizonLabel,
-                    style = TextStyle(color = AccentPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold),
-                    maxLines = 1,
-                    softWrap = false
+                val horizonCenterPt = ARProjectionEngine.projectAltAz(
+                    azimuthDeg = currentAzimuth,
+                    altitudeDeg = 0.0,
+                    rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
+                    currentAzimuth = currentAzimuth,
+                    currentAltitude = currentAltitude,
+                    currentRoll = skyOrientation.roll.toDouble(),
+                    canvasWidth = canvasWidth,
+                    canvasHeight = canvasHeight,
+                    fovXDeg = fovX
                 )
-                val drawX = 20f
-                val drawY = horizonY - 30f
-
-                if (
-                    drawX.isFinite() &&
-                    drawY.isFinite() &&
-                    drawX < canvasWidth &&
-                    drawY < canvasHeight &&
-                    drawX + horizonTextLayout.size.width > 0f &&
-                    drawY + horizonTextLayout.size.height > 0f
-                ) {
-                    drawText(
-                        textLayoutResult = horizonTextLayout,
-                        topLeft = Offset(drawX, drawY)
+                if (horizonCenterPt != null && horizonCenterPt.x in 0f..canvasWidth && horizonCenterPt.y in 0f..canvasHeight) {
+                    val horizonLabel = if (isFa) "افق (0°)" else "Horizon (0°)"
+                    val horizonTextLayout = textMeasurer.measure(
+                        text = horizonLabel,
+                        style = TextStyle(color = AccentPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                        maxLines = 1,
+                        softWrap = false
                     )
+                    val drawX = 20f
+                    val drawY = horizonCenterPt.y - 30f
+                    if (drawX.isFinite() && drawY.isFinite() && drawY in 0f..canvasHeight) {
+                        drawText(
+                            textLayoutResult = horizonTextLayout,
+                            topLeft = Offset(drawX, drawY)
+                        )
+                    }
                 }
             }
 
             // Render Orbit Trajectory Line ONLY when an object is active (Target or Long-press Card)
             if (activeOrbitObject != null) {
-                val rollRad = Math.toRadians(-skyOrientation.roll.toDouble())
-                val cosR = cos(rollRad).toFloat()
-                val sinR = sin(rollRad).toFloat()
-
                 // Solid line = orbital portion behind the object (past)
                 if (orbitPastPoints.size >= 2) {
                     val pastPath = Path()
                     var pastFirst = true
                     for (pt in orbitPastPoints) {
-                        var dAz = pt.azimuthDeg - currentAzimuth
-                        if (dAz > 180) dAz -= 360
-                        if (dAz < -180) dAz += 360
-                        val dAlt = pt.altitudeDeg - currentAltitude
+                        val projPt = ARProjectionEngine.projectAltAz(
+                            azimuthDeg = pt.azimuthDeg,
+                            altitudeDeg = pt.altitudeDeg,
+                            rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
+                            currentAzimuth = currentAzimuth,
+                            currentAltitude = currentAltitude,
+                            currentRoll = skyOrientation.roll.toDouble(),
+                            canvasWidth = canvasWidth,
+                            canvasHeight = canvasHeight,
+                            fovXDeg = fovX
+                        ) ?: continue
 
-                        val rawX = (dAz * pixelsPerDegree).toFloat()
-                        val rawY = -(dAlt * pixelsPerDegree).toFloat()
-
-                        val px = centerX + (rawX * cosR - rawY * sinR)
-                        val py = centerY + (rawX * sinR + rawY * cosR)
-
-                        if (px in -600f..(canvasWidth + 600f) && py in -600f..(canvasHeight + 600f)) {
+                        if (projPt.x in -600f..(canvasWidth + 600f) && projPt.y in -600f..(canvasHeight + 600f)) {
                             if (pastFirst) {
-                                pastPath.moveTo(px, py)
+                                pastPath.moveTo(projPt.x, projPt.y)
                                 pastFirst = false
                             } else {
-                                pastPath.lineTo(px, py)
+                                pastPath.lineTo(projPt.x, projPt.y)
                             }
                         }
                     }
@@ -969,23 +996,24 @@ fun CompassARScreen(
                     val futurePath = Path()
                     var futureFirst = true
                     for (pt in orbitFuturePoints) {
-                        var dAz = pt.azimuthDeg - currentAzimuth
-                        if (dAz > 180) dAz -= 360
-                        if (dAz < -180) dAz += 360
-                        val dAlt = pt.altitudeDeg - currentAltitude
+                        val projPt = ARProjectionEngine.projectAltAz(
+                            azimuthDeg = pt.azimuthDeg,
+                            altitudeDeg = pt.altitudeDeg,
+                            rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
+                            currentAzimuth = currentAzimuth,
+                            currentAltitude = currentAltitude,
+                            currentRoll = skyOrientation.roll.toDouble(),
+                            canvasWidth = canvasWidth,
+                            canvasHeight = canvasHeight,
+                            fovXDeg = fovX
+                        ) ?: continue
 
-                        val rawX = (dAz * pixelsPerDegree).toFloat()
-                        val rawY = -(dAlt * pixelsPerDegree).toFloat()
-
-                        val px = centerX + (rawX * cosR - rawY * sinR)
-                        val py = centerY + (rawX * sinR + rawY * cosR)
-
-                        if (px in -600f..(canvasWidth + 600f) && py in -600f..(canvasHeight + 600f)) {
+                        if (projPt.x in -600f..(canvasWidth + 600f) && projPt.y in -600f..(canvasHeight + 600f)) {
                             if (futureFirst) {
-                                futurePath.moveTo(px, py)
+                                futurePath.moveTo(projPt.x, projPt.y)
                                 futureFirst = false
                             } else {
-                                futurePath.lineTo(px, py)
+                                futurePath.lineTo(projPt.x, projPt.y)
                             }
                         }
                     }
@@ -1012,33 +1040,35 @@ fun CompassARScreen(
                 val galPath = Path()
                 var galFirst = true
                 for (gp in galPoints) {
-                    var dAzG = gp.azimuthDeg - currentAzimuth
-                    if (dAzG > 180) dAzG -= 360
-                    if (dAzG < -180) dAzG += 360
-                    val dAltG = gp.altitudeDeg - currentAltitude
-
-                    val gx = (centerX + (dAzG * pixelsPerDegree)).toFloat()
-                    val gy = (centerY - (dAltG * pixelsPerDegree)).toFloat()
+                    val projPt = ARProjectionEngine.projectAltAz(
+                        azimuthDeg = gp.azimuthDeg,
+                        altitudeDeg = gp.altitudeDeg,
+                        rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
+                        currentAzimuth = currentAzimuth,
+                        currentAltitude = currentAltitude,
+                        currentRoll = skyOrientation.roll.toDouble(),
+                        canvasWidth = canvasWidth,
+                        canvasHeight = canvasHeight,
+                        fovXDeg = fovX
+                    ) ?: continue
 
                     if (galFirst) {
-                        galPath.moveTo(gx, gy)
+                        galPath.moveTo(projPt.x, projPt.y)
                         galFirst = false
                     } else {
-                        galPath.lineTo(gx, gy)
+                        galPath.lineTo(projPt.x, projPt.y)
                     }
                 }
-                drawPath(
-                    path = galPath,
-                    color = Color(0xFFC084FC).copy(alpha = 0.4f),
-                    style = Stroke(width = 2.5f)
-                )
+                if (!galFirst) {
+                    drawPath(
+                        path = galPath,
+                        color = Color(0xFFC084FC).copy(alpha = 0.4f),
+                        style = Stroke(width = 2.5f)
+                    )
+                }
             }
 
             // Render All Catalog Objects (including Sun, Moon, Planets, Stars, Satellites)
-            val rollRad = Math.toRadians(-skyOrientation.roll.toDouble())
-            val cosR = cos(rollRad).toFloat()
-            val sinR = sin(rollRad).toFloat()
-
             for (obj in allCatalog) {
                 val isVisibleByFilter = when (obj.type) {
                     ObjectType.STAR, ObjectType.ASTERISM -> filterStars
@@ -1066,20 +1096,29 @@ fun CompassARScreen(
                     )
                 }
 
-                var dAz = horiz.azimuthDeg - currentAzimuth
-                if (dAz > 180) dAz -= 360
-                if (dAz < -180) dAz += 360
-                val dAlt = horiz.altitudeDeg - currentAltitude
+                val projPt = ARProjectionEngine.projectAltAz(
+                    azimuthDeg = horiz.azimuthDeg,
+                    altitudeDeg = horiz.altitudeDeg,
+                    rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
+                    currentAzimuth = currentAzimuth,
+                    currentAltitude = currentAltitude,
+                    currentRoll = skyOrientation.roll.toDouble(),
+                    canvasWidth = canvasWidth,
+                    canvasHeight = canvasHeight,
+                    fovXDeg = fovX
+                ) ?: continue
 
-                val rawX = (dAz * pixelsPerDegree).toFloat()
-                val rawY = -(dAlt * pixelsPerDegree).toFloat()
-
-                val px = centerX + (rawX * cosR - rawY * sinR)
-                val py = centerY + (rawX * sinR + rawY * cosR)
+                val px = projPt.x
+                val py = projPt.y
 
                 // Padding boundary check
                 if (px in -150f..(canvasWidth + 150f) && py in -150f..(canvasHeight + 150f)) {
                     val isSelected = obj.id == selectedTarget?.id
+
+                    var dAz = horiz.azimuthDeg - currentAzimuth
+                    if (dAz > 180) dAz -= 360
+                    if (dAz < -180) dAz += 360
+                    val dAlt = horiz.altitudeDeg - currentAltitude
 
                     // Calculate Center Proximity Scale (1.0x to 2.5x)
                     val proximityScale = CelestialObjectSizes.calculateProximityScale(

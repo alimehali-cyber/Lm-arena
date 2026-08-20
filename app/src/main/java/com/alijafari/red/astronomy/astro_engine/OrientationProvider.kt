@@ -9,14 +9,32 @@ import android.hardware.SensorManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlin.math.abs
-import kotlin.math.sqrt
+import kotlin.math.*
 
 data class SkyOrientation(
     val azimuth: Float = 0f,   // True north azimuth, 0-360°, clockwise
-    val pitch: Float = 0f,     // Elevation, positive = up, degrees
-    val roll: Float = 0f       // Roll, degrees
-)
+    val pitch: Float = 0f,     // Elevation, positive = up, degrees (-90° to +90°)
+    val roll: Float = 0f,      // Roll around optical axis, degrees
+    val rotationMatrix: FloatArray = FloatArray(9)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        other as SkyOrientation
+        return azimuth == other.azimuth &&
+                pitch == other.pitch &&
+                roll == other.roll &&
+                rotationMatrix.contentEquals(other.rotationMatrix)
+    }
+
+    override fun hashCode(): Int {
+        var result = azimuth.hashCode()
+        result = 31 * result + pitch.hashCode()
+        result = 31 * result + roll.hashCode()
+        result = 31 * result + rotationMatrix.contentHashCode()
+        return result
+    }
+}
 
 enum class CalibrationState {
     EXCELLENT, GOOD, POOR, NEEDS_CALIBRATION, UNCALIBRATED
@@ -35,9 +53,9 @@ class OrientationProvider(
     private val accelSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
     // Raw matrices
-    private val rotationMatrix = FloatArray(9)
-    private val remappedMatrix = FloatArray(9)
-    private val orientationAngles = FloatArray(3)
+    private val rawRotationMatrix = FloatArray(9)
+    private val trueRotationMatrix = FloatArray(9)
+    private val smoothRotationMatrix = FloatArray(9)
 
     // Raw accel + mag buffers
     private val gravityValues = FloatArray(3)
@@ -53,7 +71,7 @@ class OrientationProvider(
     // Velocity-based adaptive alpha
     private var velocity = 0f
     private val ALPHA_FAST = 0.35f
-    private val ALPHA_SLOW = 0.04f
+    private val ALPHA_SLOW = 0.05f
 
     // Magnetic declination (degrees, positive = east)
     private var magneticDeclination = 0f
@@ -158,60 +176,72 @@ class OrientationProvider(
     }
 
     private fun processRotationVector(rotationVectorValues: FloatArray) {
-        SensorManager.getRotationMatrixFromVector(rotationMatrix, rotationVectorValues)
-
-        // Remap coordinate system for rear-facing camera in portrait mode
-        SensorManager.remapCoordinateSystem(
-            rotationMatrix,
-            SensorManager.AXIS_X,
-            SensorManager.AXIS_Z,
-            remappedMatrix
-        )
-
-        SensorManager.getOrientation(remappedMatrix, orientationAngles)
-
-        var azimuthDeg = Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
-        var pitchDeg = Math.toDegrees(-orientationAngles[1].toDouble()).toFloat()
-        val rollDeg = Math.toDegrees(orientationAngles[2].toDouble()).toFloat()
-
-        azimuthDeg = ((azimuthDeg % 360) + 360) % 360
-
-        // Apply magnetic declination to convert to TRUE NORTH azimuth
-        azimuthDeg = ((azimuthDeg + magneticDeclination) % 360 + 360) % 360
-
-        // Gimbal lock check near zenith (pitch > 80° or < -80°)
-        if (abs(pitchDeg) > 80f) {
-            azimuthDeg = smoothAzimuth // hold steady near zenith
-        }
-
-        applyAdaptiveFiltering(azimuthDeg, pitchDeg, rollDeg)
+        SensorManager.getRotationMatrixFromVector(rawRotationMatrix, rotationVectorValues)
+        computeTrueOrientation(rawRotationMatrix)
     }
 
     private fun processAccelMag() {
         if (!hasGravity || !hasGeomagnetic) return
-        val success = SensorManager.getRotationMatrix(rotationMatrix, null, gravityValues, geomagneticValues)
+        val success = SensorManager.getRotationMatrix(rawRotationMatrix, null, gravityValues, geomagneticValues)
         if (!success) return
-
-        SensorManager.remapCoordinateSystem(
-            rotationMatrix,
-            SensorManager.AXIS_X,
-            SensorManager.AXIS_Z,
-            remappedMatrix
-        )
-
-        SensorManager.getOrientation(remappedMatrix, orientationAngles)
-
-        var azimuthDeg = Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
-        var pitchDeg = Math.toDegrees(-orientationAngles[1].toDouble()).toFloat()
-        val rollDeg = Math.toDegrees(orientationAngles[2].toDouble()).toFloat()
-
-        azimuthDeg = ((azimuthDeg % 360) + 360) % 360
-        azimuthDeg = ((azimuthDeg + magneticDeclination) % 360 + 360) % 360
-
-        applyAdaptiveFiltering(azimuthDeg, pitchDeg, rollDeg)
+        computeTrueOrientation(rawRotationMatrix)
     }
 
-    private fun applyAdaptiveFiltering(newAz: Float, newPitch: Float, newRoll: Float) {
+    private fun computeTrueOrientation(sensorMat: FloatArray) {
+        // Convert sensor rotation matrix (Magnetic North) to True North coordinates
+        val radD = Math.toRadians(magneticDeclination.toDouble())
+        val cosD = cos(radD).toFloat()
+        val sinD = sin(radD).toFloat()
+
+        trueRotationMatrix[0] = cosD * sensorMat[0] + sinD * sensorMat[3]
+        trueRotationMatrix[1] = cosD * sensorMat[1] + sinD * sensorMat[4]
+        trueRotationMatrix[2] = cosD * sensorMat[2] + sinD * sensorMat[5]
+
+        trueRotationMatrix[3] = -sinD * sensorMat[0] + cosD * sensorMat[3]
+        trueRotationMatrix[4] = -sinD * sensorMat[1] + cosD * sensorMat[4]
+        trueRotationMatrix[5] = -sinD * sensorMat[2] + cosD * sensorMat[5]
+
+        trueRotationMatrix[6] = sensorMat[6]
+        trueRotationMatrix[7] = sensorMat[7]
+        trueRotationMatrix[8] = sensorMat[8]
+
+        // Camera pointing vector (out of rear camera: -Z_device)
+        // px = East, py = North, pz = Up
+        val px = -trueRotationMatrix[2]
+        val py = -trueRotationMatrix[5]
+        val pz = -trueRotationMatrix[8]
+
+        val azimuthDeg = ((Math.toDegrees(atan2(px.toDouble(), py.toDouble())) + 360.0) % 360.0).toFloat()
+        val pitchDeg = Math.toDegrees(asin(pz.toDouble().coerceIn(-1.0, 1.0))).toFloat()
+
+        // Device Right (X_device)
+        val rx = trueRotationMatrix[0]
+        val ry = trueRotationMatrix[3]
+        val rz = trueRotationMatrix[6]
+
+        // Sky natural right and up vectors in world frame
+        val horizLen = sqrt((px * px + py * py).toDouble()).toFloat()
+        val rollDeg = if (horizLen > 1e-4f) {
+            val rSkyX = py / horizLen
+            val rSkyY = -px / horizLen
+            val rSkyZ = 0f
+
+            val uSkyX = -px * pz / horizLen
+            val uSkyY = -py * pz / horizLen
+            val uSkyZ = horizLen
+
+            val dotRight = rx * rSkyX + ry * rSkyY + rz * rSkyZ
+            val dotUp = rx * uSkyX + ry * uSkyY + rz * uSkyZ
+
+            Math.toDegrees(atan2(dotUp.toDouble(), dotRight.toDouble())).toFloat()
+        } else {
+            Math.toDegrees(atan2(rz.toDouble(), trueRotationMatrix[7].toDouble())).toFloat()
+        }
+
+        applyAdaptiveFiltering(azimuthDeg, pitchDeg, rollDeg, trueRotationMatrix)
+    }
+
+    private fun applyAdaptiveFiltering(newAz: Float, newPitch: Float, newRoll: Float, newMatrix: FloatArray) {
         var deltaAz = newAz - smoothAzimuth
         if (deltaAz > 180f) deltaAz -= 360f
         if (deltaAz < -180f) deltaAz += 360f
@@ -220,14 +250,19 @@ class OrientationProvider(
         val normVel = (velocity / 30f).coerceIn(0f, 1f)
         val alpha = ALPHA_SLOW + (ALPHA_FAST - ALPHA_SLOW) * normVel
 
-        smoothAzimuth = ((smoothAzimuth + alpha * deltaAz) % 360 + 360) % 360
+        smoothAzimuth = ((smoothAzimuth + alpha * deltaAz) % 360f + 360f) % 360f
         smoothPitch += alpha * (newPitch - smoothPitch)
         smoothRoll += alpha * (newRoll - smoothRoll)
+
+        for (i in 0..8) {
+            smoothRotationMatrix[i] += alpha * (newMatrix[i] - smoothRotationMatrix[i])
+        }
 
         _orientation.value = SkyOrientation(
             azimuth = smoothAzimuth,
             pitch = smoothPitch.coerceIn(-90f, 90f),
-            roll = smoothRoll
+            roll = smoothRoll,
+            rotationMatrix = smoothRotationMatrix.copyOf()
         )
     }
 }

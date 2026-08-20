@@ -293,12 +293,16 @@ class ISSEngine {
         visibleOnly: Boolean = true,
         standardMag: Double = -1.5
     ): List<ISSPass> {
-        val effectiveTle = if (tle == cachedTLE && SatelliteEngine.customTleResolver != null) {
-            SatelliteEngine.customTleResolver?.invoke(25544) ?: tle
-        } else {
-            tle
+        val noradId = try {
+            val line1 = tle.line1.trim()
+            if (line1.startsWith("1 ") && line1.length >= 7) {
+                line1.substring(2, 7).trim().toInt()
+            } else 25544
+        } catch (e: Exception) {
+            25544
         }
-        val sourceLabel = if (effectiveTle != cachedTLE || SatelliteEngine.customTleResolver != null) "network-stored" else "hardcoded-fallback"
+        val effectiveTle = SatelliteEngine.customTleResolver?.invoke(noradId) ?: tle
+        val sourceLabel = if (SatelliteEngine.customTleResolver != null) "network-stored" else "hardcoded-fallback"
         SatelliteEngine.logTleSelection(sourceLabel, effectiveTle)
 
         val passes = mutableListOf<ISSPass>()
@@ -306,10 +310,12 @@ class ISSEngine {
         val coarseStepMs = 12 * 1000L // 12-second coarse scan step
         val endTimeMs = startTimestampMs + scanDurationMs
 
+        val horizonThreshold = 0.0 // Scan above geometric horizon
+
         var currentTime = startTimestampMs
         var prevTime = startTimestampMs
         var prevElev = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, effectiveTle).elevationDeg
-        var inPass = prevElev >= 10.0
+        var inPass = prevElev >= horizonThreshold
         var passAosMs = if (inPass) currentTime else 0L
 
         while (currentTime <= endTimeMs) {
@@ -317,23 +323,23 @@ class ISSEngine {
             val pos = calculateTopocentricPos(currentTime, userLatDeg, userLonDeg, 940.0, effectiveTle)
             val elev = pos.elevationDeg
 
-            if (!inPass && elev >= 10.0) {
+            if (!inPass && elev >= horizonThreshold) {
                 inPass = true
                 passAosMs = refineElevationThreshold(
                     t1 = prevTime,
                     t2 = currentTime,
-                    targetElevationDeg = 10.0,
+                    targetElevationDeg = horizonThreshold,
                     isRising = true,
                     userLatDeg = userLatDeg,
                     userLonDeg = userLonDeg,
                     tle = effectiveTle
                 )
-            } else if (inPass && elev < 10.0) {
+            } else if (inPass && elev < horizonThreshold) {
                 inPass = false
                 val passLosMs = refineElevationThreshold(
                     t1 = prevTime,
                     t2 = currentTime,
-                    targetElevationDeg = 10.0,
+                    targetElevationDeg = horizonThreshold,
                     isRising = false,
                     userLatDeg = userLatDeg,
                     userLonDeg = userLonDeg,
@@ -391,6 +397,11 @@ class ISSEngine {
             tle = tle
         )
 
+        // Flyovers below 9.5° (e.g. unobservable low horizons) are filtered out
+        if (geomPeakPos.elevationDeg < 9.5) {
+            return null
+        }
+
         // 2. High-resolution sampling (2.5-second steps) across flyover to inspect visibility
         val sampleStepMs = 2500L
         var firstVisibleSampleMs: Long? = null
@@ -414,7 +425,7 @@ class ISSEngine {
 
             val isSunlit = topo.isSunlit
             val isDark = sunAlt <= -6.0 // Civil twilight ended
-            val isVisibleSample = topo.elevationDeg >= 9.8 && isSunlit && isDark
+            val isVisibleSample = topo.elevationDeg >= 5.0 && isSunlit && isDark
 
             if (prevSampleSunlit != null && isSunlit != prevSampleSunlit) {
                 val transitionTime = refineShadowTransition(prevSampleTime, t, userLatDeg, userLonDeg, tle)
@@ -443,33 +454,39 @@ class ISSEngine {
         }
 
         // 3. Determine if pass qualifies as visible (NASA Spot The Station & Heavens-Above criteria)
-        val isPassVisible = maxContinuousVisSeconds >= 25 && maxVisibleElev >= 10.0
+        val isPassVisible = maxContinuousVisSeconds >= 20 && maxVisibleElev >= 8.0
 
         if (isPassVisible && firstVisibleSampleMs != null && lastVisibleSampleMs != null) {
-            // Refine visible start time (e.g. shadow exit, twilight dawn/dusk, or AOS)
+            // Refine visible start time (e.g. shadow exit, twilight dawn/dusk, or AOS above 5°)
             val visStartMs = when {
                 shadowExitMs != null && shadowExitMs >= geomAosMs && shadowExitMs <= lastVisibleSampleMs -> {
                     // Dawn pass emerging from Earth shadow into sunlight!
-                    shadowExitMs
+                    shadowExitMs + 1000L
                 }
                 getObserverSunAltitude(geomAosMs, userLatDeg, userLonDeg) > -6.0 -> {
                     // Evening pass starting when Sun drops below -6.0°
                     refineSunAltitudeThreshold(geomAosMs, firstVisibleSampleMs, -6.0, isRising = false, userLatDeg, userLonDeg)
                 }
-                else -> geomAosMs
+                else -> {
+                    // Refine time when satellite rises above 5° elevation
+                    refineElevationThreshold(geomAosMs, firstVisibleSampleMs, 5.0, isRising = true, userLatDeg, userLonDeg, tle)
+                }
             }
 
-            // Refine visible end time (e.g. shadow entry, twilight dawn bright cutoff, or LOS)
+            // Refine visible end time (e.g. shadow entry, twilight dawn bright cutoff, or LOS below 5°)
             val visEndMs = when {
                 shadowEntryMs != null && shadowEntryMs >= firstVisibleSampleMs && shadowEntryMs <= geomLosMs -> {
                     // Evening pass disappearing into Earth's shadow (eclipse)!
-                    shadowEntryMs
+                    maxOf(visStartMs + 5000L, shadowEntryMs - 1000L)
                 }
                 getObserverSunAltitude(geomLosMs, userLatDeg, userLonDeg) > -6.0 -> {
                     // Dawn pass disappearing when Sun rises above -6.0°
                     refineSunAltitudeThreshold(lastVisibleSampleMs, geomLosMs, -6.0, isRising = true, userLatDeg, userLonDeg)
                 }
-                else -> geomLosMs
+                else -> {
+                    // Refine time when satellite sets below 5° elevation
+                    refineElevationThreshold(lastVisibleSampleMs, geomLosMs, 5.0, isRising = false, userLatDeg, userLonDeg, tle)
+                }
             }
 
             // Refine visible maximum elevation within [visStartMs, visEndMs]

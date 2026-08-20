@@ -38,6 +38,11 @@ object FinderEngine {
                 userLonDeg = userLon
             )
             CoordinateEngine.Horizontal(azimuthDeg = pos.azimuthDeg, altitudeDeg = pos.elevationDeg)
+        } else if (target.type == com.alijafari.red.astronomy.domain.ObjectType.SUN) {
+            SunEngine.getSunAltAz(jd, userLat, userLon)
+        } else if (target.id == "moon") {
+            val mData = MoonEngine.calculateMoon(jd, userLat, userLon)
+            CoordinateEngine.Horizontal(azimuthDeg = mData.azimuthDeg, altitudeDeg = mData.altitudeDeg)
         } else {
             CoordinateEngine.equatorialToHorizontal(
                 CoordinateEngine.Equatorial(target.raDeg, target.decDeg),
@@ -54,11 +59,21 @@ object FinderEngine {
         while (dAz < -180f) dAz += 360f
 
         val dAlt = (targetAlt - phoneAltitudeDeg).toFloat()
-        val totalDist = sqrt(dAz * dAz + dAlt * dAlt)
+
+        // Spherical angular separation
+        val targetAzRad = Math.toRadians(targetAz)
+        val targetAltRad = Math.toRadians(targetAlt)
+        val phoneAzRad = Math.toRadians(phoneAzimuthDeg)
+        val phoneAltRad = Math.toRadians(phoneAltitudeDeg)
+        val cosSep = kotlin.math.sin(targetAltRad) * kotlin.math.sin(phoneAltRad) +
+                kotlin.math.cos(targetAltRad) * kotlin.math.cos(phoneAltRad) * kotlin.math.cos(targetAzRad - phoneAzRad)
+        val totalDist = Math.toDegrees(kotlin.math.acos(cosSep.coerceIn(-1.0, 1.0))).toFloat()
+
+        // Effective horizontal delta scaled by cos(targetAlt) to prevent high-altitude yaw distortion
+        val effDAz = (dAz * kotlin.math.cos(targetAltRad)).toFloat()
 
         // Screen angle: 0 points UP, +PI/2 points RIGHT, etc.
-        // Screen X is right (+dAz), Screen Y is up (+dAlt)
-        val arrowAngleRad = atan2(dAz, dAlt)
+        val arrowAngleRad = atan2(effDAz, dAlt)
 
         val isBelowHorizon = targetAlt < 0.0
         val isArrived = totalDist <= 2.0f
