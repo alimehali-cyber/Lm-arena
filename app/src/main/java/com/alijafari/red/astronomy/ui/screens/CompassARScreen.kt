@@ -197,6 +197,10 @@ fun CompassARScreen(
     val skyOrientation by orientationProvider.orientation.collectAsState()
     val calibrationState by orientationProvider.calibrationState.collectAsState()
 
+    // Camera Intrinsics & Geometry Engine (Hardware calibration, sensor size, active array)
+    val cameraIntrinsics = remember(context) { ARProjectionEngine.getCameraIntrinsics(context) }
+    var previewViewInstance by remember { mutableStateOf<PreviewView?>(null) }
+
     // Camera & Location Permission State
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -772,6 +776,7 @@ fun CompassARScreen(
                     val previewView = PreviewView(ctx).apply {
                         scaleType = PreviewView.ScaleType.FILL_CENTER
                     }
+                    previewViewInstance = previewView
                     val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
                     cameraProviderFuture.addListener({
                         try {
@@ -823,12 +828,6 @@ fun CompassARScreen(
 
                             val canvasWidth = size.width.toFloat()
                             val canvasHeight = size.height.toFloat()
-                            val focalLengthPx = ARProjectionEngine.computeCameraFocalLengthPx(
-                                context = context,
-                                screenWidthPx = canvasWidth,
-                                screenHeightPx = canvasHeight,
-                                zoomFactor = activeZoom
-                            )
 
                             var bestMatch: CelestialObject? = null
                             var bestDistPx = 70.0f * activeDensity
@@ -860,7 +859,9 @@ fun CompassARScreen(
                                     currentRoll = activeOrientation.roll.toDouble(),
                                     canvasWidth = canvasWidth,
                                     canvasHeight = canvasHeight,
-                                    focalLengthPx = focalLengthPx
+                                    intrinsics = cameraIntrinsics,
+                                    zoomFactor = activeZoom,
+                                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
                                 ) ?: continue
 
                                 val dist = hypot(touchOffset.x - pt.x, touchOffset.y - pt.y)
@@ -880,13 +881,12 @@ fun CompassARScreen(
             val centerX = canvasWidth / 2f
             val centerY = canvasHeight / 2f
 
-            val focalLengthPx = ARProjectionEngine.computeCameraFocalLengthPx(
-                context = context,
+            val fovX = ARProjectionEngine.computeEffectiveFovXDeg(
                 screenWidthPx = canvasWidth,
                 screenHeightPx = canvasHeight,
+                intrinsics = cameraIntrinsics,
                 zoomFactor = zoomFactor
             )
-            val fovX = ARProjectionEngine.computeEffectiveFovXDeg(canvasWidth, focalLengthPx)
             val pixelsPerDegree = canvasWidth / fovX
 
             // Starry night background if camera disabled
@@ -920,7 +920,9 @@ fun CompassARScreen(
                     currentRoll = skyOrientation.roll.toDouble(),
                     canvasWidth = canvasWidth,
                     canvasHeight = canvasHeight,
-                    focalLengthPx = focalLengthPx
+                    intrinsics = cameraIntrinsics,
+                    zoomFactor = zoomFactor,
+                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
                 ) ?: continue
                 if (horizonFirst) {
                     horizonPath.moveTo(pt.x, pt.y)
@@ -944,7 +946,9 @@ fun CompassARScreen(
                     currentRoll = skyOrientation.roll.toDouble(),
                     canvasWidth = canvasWidth,
                     canvasHeight = canvasHeight,
-                    focalLengthPx = focalLengthPx
+                    intrinsics = cameraIntrinsics,
+                    zoomFactor = zoomFactor,
+                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
                 )
                 if (horizonCenterPt != null && horizonCenterPt.x in 0f..canvasWidth && horizonCenterPt.y in 0f..canvasHeight) {
                     val horizonLabel = if (isFa) "افق (0°)" else "Horizon (0°)"
@@ -981,7 +985,9 @@ fun CompassARScreen(
                             currentRoll = skyOrientation.roll.toDouble(),
                             canvasWidth = canvasWidth,
                             canvasHeight = canvasHeight,
-                            focalLengthPx = focalLengthPx
+                            intrinsics = cameraIntrinsics,
+                            zoomFactor = zoomFactor,
+                            sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
                         ) ?: continue
 
                         if (projPt.x in -600f..(canvasWidth + 600f) && projPt.y in -600f..(canvasHeight + 600f)) {
@@ -1016,7 +1022,9 @@ fun CompassARScreen(
                             currentRoll = skyOrientation.roll.toDouble(),
                             canvasWidth = canvasWidth,
                             canvasHeight = canvasHeight,
-                            focalLengthPx = focalLengthPx
+                            intrinsics = cameraIntrinsics,
+                            zoomFactor = zoomFactor,
+                            sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
                         ) ?: continue
 
                         if (projPt.x in -600f..(canvasWidth + 600f) && projPt.y in -600f..(canvasHeight + 600f)) {
@@ -1060,7 +1068,9 @@ fun CompassARScreen(
                         currentRoll = skyOrientation.roll.toDouble(),
                         canvasWidth = canvasWidth,
                         canvasHeight = canvasHeight,
-                        focalLengthPx = focalLengthPx
+                        intrinsics = cameraIntrinsics,
+                        zoomFactor = zoomFactor,
+                        sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
                     ) ?: continue
 
                     if (galFirst) {
@@ -1116,7 +1126,9 @@ fun CompassARScreen(
                     currentRoll = skyOrientation.roll.toDouble(),
                     canvasWidth = canvasWidth,
                     canvasHeight = canvasHeight,
-                    focalLengthPx = focalLengthPx
+                    intrinsics = cameraIntrinsics,
+                    zoomFactor = zoomFactor,
+                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
                 ) ?: continue
 
                 val px = projPt.x
@@ -2163,13 +2175,6 @@ fun CompassARScreen(
                 val canvasWidth = screenWidthPx
                 val canvasHeight = screenHeightPx
 
-                val focalLengthPx = ARProjectionEngine.computeCameraFocalLengthPx(
-                    context = context,
-                    screenWidthPx = canvasWidth,
-                    screenHeightPx = canvasHeight,
-                    zoomFactor = zoomFactor
-                )
-
                 val horiz = if (obj.type == ObjectType.SUN) sunHoriz
                 else if (obj.id == "moon") moonHoriz
                 else if (obj.type == ObjectType.SATELLITE) satellitePositions[obj.id] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
@@ -2184,7 +2189,9 @@ fun CompassARScreen(
                     currentRoll = skyOrientation.roll.toDouble(),
                     canvasWidth = canvasWidth,
                     canvasHeight = canvasHeight,
-                    focalLengthPx = focalLengthPx
+                    intrinsics = cameraIntrinsics,
+                    zoomFactor = zoomFactor,
+                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
                 )
 
                 val px = projPt?.x ?: (canvasWidth / 2f)
