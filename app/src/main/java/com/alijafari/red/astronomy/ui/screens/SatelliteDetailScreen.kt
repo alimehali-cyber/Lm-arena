@@ -5,6 +5,8 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -95,6 +97,34 @@ fun SatelliteDetailScreen(
 
     var passes by remember {
         mutableStateOf<List<ISSEngine.ISSPass>?>(null)
+    }
+
+    var pendingNotificationAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            pendingNotificationAction?.invoke()
+            pendingNotificationAction = null
+        } else {
+            pendingNotificationAction = null
+            Toast.makeText(
+                context,
+                if (isFa) "برای دریافت هشدار گذر، لطفاً مجوز اعلان را فعال کنید."
+                else "Notification permission is required to receive pass alerts.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    val executeWithNotificationPermission: (() -> Unit) -> Unit = { action ->
+        if (com.alijafari.red.astronomy.notification.NotificationPermissionHelper.hasPostNotificationPermission(context)) {
+            action()
+        } else {
+            pendingNotificationAction = action
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     LaunchedEffect(satelliteItem.id, userLocation, roundedStartMs) {
@@ -321,10 +351,7 @@ fun SatelliteDetailScreen(
                             cityName = userLocation.cityNameFa,
                             isFa = isFa,
                             onSchedulePassReminder = { leadMins ->
-                                val status = com.alijafari.red.astronomy.notification.NotificationPermissionHelper.checkPostNotificationStatus(context)
-                                if (status == com.alijafari.red.astronomy.notification.NotificationPermissionHelper.PostNotificationStatus.DENIED) {
-                                    com.alijafari.red.astronomy.notification.NotificationPermissionHelper.openNotificationSettings(context)
-                                } else {
+                                executeWithNotificationPermission {
                                     AstroNotificationManager.scheduleSpecificPassAlarm(
                                         context = context,
                                         satellite = satelliteItem,

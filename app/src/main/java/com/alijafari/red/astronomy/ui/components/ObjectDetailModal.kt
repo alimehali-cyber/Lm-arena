@@ -2,6 +2,8 @@ package com.alijafari.red.astronomy.ui.components
 
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -43,6 +45,34 @@ fun ObjectDetailModal(
 ) {
     val context = LocalContext.current
     val isFa = uiState.language == AppLanguage.PERSIAN
+
+    var pendingNotificationAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            pendingNotificationAction?.invoke()
+            pendingNotificationAction = null
+        } else {
+            pendingNotificationAction = null
+            Toast.makeText(
+                context,
+                if (isFa) "برای دریافت هشدار رصد، لطفاً مجوز اعلان را فعال کنید."
+                else "Notification permission is required to receive observation alerts.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    val executeWithNotificationPermission: (() -> Unit) -> Unit = { action ->
+        if (com.alijafari.red.astronomy.notification.NotificationPermissionHelper.hasPostNotificationPermission(context)) {
+            action()
+        } else {
+            pendingNotificationAction = action
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     // Obtain single canonical identity from CanonicalAstroCatalog
     val canonicalObj = remember(obj) {
@@ -558,20 +588,21 @@ fun ObjectDetailModal(
 
                     Button(
                         onClick = {
-                            val status = com.alijafari.red.astronomy.notification.NotificationPermissionHelper.checkPostNotificationStatus(context)
-                            if (status == com.alijafari.red.astronomy.notification.NotificationPermissionHelper.PostNotificationStatus.DENIED) {
-                                com.alijafari.red.astronomy.notification.NotificationPermissionHelper.openNotificationSettings(context)
-                            } else {
+                            showNotificationSheet = false
+                            executeWithNotificationPermission {
                                 AstroNotificationManager.scheduleObjectNotification(
                                     context = context,
                                     obj = obj,
-                                    targetTimeMs = System.currentTimeMillis() + 3600000L, // 1 hr test/schedule
+                                    targetTimeMs = System.currentTimeMillis() + 3600000L,
                                     eventTypeFa = "اوج ارتفاع (ترانزیت)",
                                     timeStr = riseSetTransit.transitTimeStr,
                                     leadTenMinutesBefore = true
                                 )
-                                Toast.makeText(context, if (isFa) "هشدار با موفقیت تنظیم شد!" else "Notification scheduled!", Toast.LENGTH_SHORT).show()
-                                showNotificationSheet = false
+                                Toast.makeText(
+                                    context,
+                                    if (isFa) "هشدار رصد با موفقیت تنظیم شد!" else "Observation alert scheduled!",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         },
                         modifier = Modifier.fillMaxWidth()

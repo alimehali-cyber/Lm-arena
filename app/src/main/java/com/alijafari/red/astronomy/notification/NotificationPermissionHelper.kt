@@ -45,6 +45,20 @@ object NotificationPermissionHelper {
     /**
      * Standardized check for POST_NOTIFICATIONS status across the application.
      */
+    fun hasPostNotificationPermission(context: Context): Boolean {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        val areNotificationsEnabled = notificationManager?.areNotificationsEnabled() ?: true
+        if (!areNotificationsEnabled) return false
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        }
+        return true
+    }
+
     fun checkPostNotificationStatus(context: Context): PostNotificationStatus {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
         val areNotificationsEnabled = notificationManager?.areNotificationsEnabled() ?: true

@@ -56,6 +56,7 @@ import com.alijafari.red.astronomy.ui.theme.AccentPrimary
 import com.alijafari.red.astronomy.util.toPersianDigits
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
@@ -88,7 +89,7 @@ fun ISSScreen(
     // Notification & Map Prefs
     val prefs = remember { context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE) }
     var isAutoAlertEnabled by remember {
-        mutableStateOf(prefs.getBoolean("iss_auto_alerts_enabled", false))
+        mutableStateOf(prefs.getBoolean("auto_satellite_alerts_enabled", prefs.getBoolean("iss_auto_alerts_enabled", false)))
     }
     var selectedLeadMinutes by remember {
         mutableStateOf(prefs.getInt("iss_alert_lead_minutes", 10))
@@ -101,25 +102,33 @@ fun ISSScreen(
         mutableStateOf(if (saved == MapTheme.LIGHT.name) MapTheme.LIGHT else MapTheme.DARK)
     }
 
+    val coroutineScope = rememberCoroutineScope()
+    var pendingNotificationAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        prefs.edit()
-            .putBoolean("iss_auto_alerts_enabled", true)
-            .putInt("iss_alert_lead_minutes", selectedLeadMinutes)
-            .apply()
+        if (isGranted) {
+            pendingNotificationAction?.invoke()
+            pendingNotificationAction = null
+        } else {
+            pendingNotificationAction = null
+            Toast.makeText(
+                context,
+                if (isFa) "برای دریافت هشدارهای گذر ماهواره، لطفاً مجوز اعلان را فعال کنید."
+                else "Notification permission is required to receive satellite pass alerts.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 
-        isAutoAlertEnabled = true
-        AstroNotificationManager.scheduleUpcomingIssPasses(
-            context = context,
-            userLocation = uiState.userLocation,
-            leadMinutes = selectedLeadMinutes
-        )
-        Toast.makeText(
-            context,
-            if (isFa) "هشدار خودکار $selectedLeadMinutes دقیقه قبل تنظیم شد!" else "Auto notification set for $selectedLeadMinutes mins prior!",
-            Toast.LENGTH_SHORT
-        ).show()
+    val executeWithNotificationPermission: (() -> Unit) -> Unit = { action ->
+        if (com.alijafari.red.astronomy.notification.NotificationPermissionHelper.hasPostNotificationPermission(context)) {
+            action()
+        } else {
+            pendingNotificationAction = action
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     // Time Control & Scrubber State (-12h to +12h)
@@ -985,19 +994,21 @@ fun ISSScreen(
                             cityName = uiState.userLocation.cityNameFa,
                             isFa = isFa,
                             onSchedulePassReminder = { leadMins ->
-                                AstroNotificationManager.scheduleSpecificPassAlarm(
-                                    context = context,
-                                    satellite = sat,
-                                    pass = pass,
-                                    userLocation = uiState.userLocation,
-                                    leadMinutes = leadMins
-                                )
-                                val labelStr = if (leadMins == 1440) (if (isFa) "۱ روز" else "1 day") else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")
-                                Toast.makeText(
-                                    context,
-                                    if (isFa) "هشدار گذر $labelStr قبل از شروع تنظیم شد!" else "Alert set $labelStr prior to pass!",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                executeWithNotificationPermission {
+                                    AstroNotificationManager.scheduleSpecificPassAlarm(
+                                        context = context,
+                                        satellite = sat,
+                                        pass = pass,
+                                        userLocation = uiState.userLocation,
+                                        leadMinutes = leadMins
+                                    )
+                                    val labelStr = if (leadMins == 1440) (if (isFa) "۱ روز" else "1 day") else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")
+                                    Toast.makeText(
+                                        context,
+                                        if (isFa) "هشدار گذر $labelStr قبل از شروع تنظیم شد!" else "Alert set $labelStr prior to pass!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             }
                         )
                     }
@@ -1207,21 +1218,30 @@ fun ISSScreen(
                 Button(
                     onClick = {
                         showLeadTimeSelectionDialog = false
-                        isAutoAlertEnabled = true
-                        prefs.edit().putBoolean("auto_satellite_alerts_enabled", true).apply()
-                        AstroNotificationManager.scheduleMultiSatellitePasses(
-                            context = context,
-                            selectedSatIds = selectedSatIdsForAlerts,
-                            userLocation = uiState.userLocation,
-                            leadMinutes = selectedLeadMinutes
-                        )
-                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                        Toast.makeText(
-                            context,
-                            if (isFa) "سیستم هشدار خودکار برای ماهواره‌های انتخاب شده فعال شد!"
-                            else "Automated pass monitoring enabled for selected satellites!",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        executeWithNotificationPermission {
+                            isAutoAlertEnabled = true
+                            prefs.edit()
+                                .putBoolean("auto_satellite_alerts_enabled", true)
+                                .putBoolean("iss_auto_alerts_enabled", true)
+                                .putInt("iss_alert_lead_minutes", selectedLeadMinutes)
+                                .apply()
+
+                            coroutineScope.launch(Dispatchers.Default) {
+                                AstroNotificationManager.scheduleMultiSatellitePasses(
+                                    context = context,
+                                    selectedSatIds = selectedSatIdsForAlerts,
+                                    userLocation = uiState.userLocation,
+                                    leadMinutes = selectedLeadMinutes
+                                )
+                            }
+
+                            Toast.makeText(
+                                context,
+                                if (isFa) "سیستم پایش خودکار برای ماهواره‌های انتخاب شده فعال شد!"
+                                else "Automated pass monitoring enabled for selected satellites!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary)
                 ) {
@@ -1229,8 +1249,34 @@ fun ISSScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showLeadTimeSelectionDialog = false }) {
-                    Text(text = if (isFa) "انصراف" else "Cancel")
+                Row {
+                    if (isAutoAlertEnabled) {
+                        TextButton(
+                            onClick = {
+                                showLeadTimeSelectionDialog = false
+                                isAutoAlertEnabled = false
+                                prefs.edit()
+                                    .putBoolean("auto_satellite_alerts_enabled", false)
+                                    .putBoolean("iss_auto_alerts_enabled", false)
+                                    .apply()
+                                AstroNotificationManager.cancelAllPassNotifications(context)
+                                Toast.makeText(
+                                    context,
+                                    if (isFa) "هشدارهای خودکار ماهواره غیرفعال شدند."
+                                    else "Automated satellite alerts disabled.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        ) {
+                            Text(
+                                text = if (isFa) "غیرفعال‌سازی" else "Disable Alerts",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    TextButton(onClick = { showLeadTimeSelectionDialog = false }) {
+                        Text(text = if (isFa) "انصراف" else "Cancel")
+                    }
                 }
             }
         )

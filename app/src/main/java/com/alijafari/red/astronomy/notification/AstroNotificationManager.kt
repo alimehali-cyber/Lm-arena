@@ -38,22 +38,21 @@ object AstroNotificationManager {
     private const val WORK_NAME = "iss_pass_scheduler_work"
 
     /**
-     * Schedules a specific notification for an individual satellite pass with a selected lead time.
+     * Builds a ScheduledNotificationItem for an individual satellite pass with a selected lead time.
      * Uses stable satellite ID and pass start time to prevent object mismatch.
      */
-    fun scheduleSpecificPassAlarm(
-        context: Context,
+    fun createScheduledPassItem(
         satellite: SatelliteItem,
         pass: ISSEngine.ISSPass,
         userLocation: UserLocation,
         leadMinutes: Int
-    ) {
+    ): ScheduledNotificationItem? {
         val nowMs = System.currentTimeMillis()
         val triggerTimeMs = pass.startTimeMs - (leadMinutes * 60 * 1000L)
-        if (triggerTimeMs <= nowMs) return
+        if (triggerTimeMs <= nowMs) return null
 
         val notifIdStr = "pass_${satellite.id}_${pass.startTimeMs}_${leadMinutes}"
-        val intId = abs(notifIdStr.hashCode())
+        val intId = (notifIdStr.hashCode() and 0x7FFFFFFF)
 
         val startDirFa = getAzimuthCardinalFa(pass.startAzimuthDeg)
         val startDirEn = getAzimuthCardinalEn(pass.startAzimuthDeg)
@@ -73,7 +72,7 @@ object AstroNotificationManager {
         val contentFa = "📍 شهر: ${userLocation.cityNameFa} | 🕐 زمان: $formattedTimeFa | 📐 حداکثر ارتفاع: ${pass.maxElevationDeg.toInt()}°\n🧭 مسیر: $startDirFa ➔ $endDirFa | ⏱ مدت: $durMinutes دقیقه"
         val contentEn = "📍 City: ${userLocation.cityNameEn} | 🕐 Time: $formattedTimeEn | 📐 Max Elev: ${pass.maxElevationDeg.toInt()}°\n🧭 Pass: $startDirEn ➔ $endDirEn | ⏱ Duration: $durMinutes min"
 
-        val item = ScheduledNotificationItem(
+        return ScheduledNotificationItem(
             id = notifIdStr,
             intNotificationId = intId,
             objectId = satellite.id,
@@ -100,7 +99,20 @@ object AstroNotificationManager {
             contentFa = contentFa,
             deepLinkRoute = "satellite/${satellite.id}"
         )
+    }
 
+    /**
+     * Schedules a specific notification for an individual satellite pass with a selected lead time.
+     * Uses stable satellite ID and pass start time to prevent object mismatch.
+     */
+    fun scheduleSpecificPassAlarm(
+        context: Context,
+        satellite: SatelliteItem,
+        pass: ISSEngine.ISSPass,
+        userLocation: UserLocation,
+        leadMinutes: Int
+    ) {
+        val item = createScheduledPassItem(satellite, pass, userLocation, leadMinutes) ?: return
         AstroNotificationStore.save(context, item)
         setAlarmWithAndroidSystem(context, item)
     }
@@ -133,14 +145,22 @@ object AstroNotificationManager {
             pass.passDurationSec >= 30
         }
 
+        val itemsToSave = mutableListOf<ScheduledNotificationItem>()
         for (pass in validPasses) {
-            scheduleSpecificPassAlarm(
-                context = context,
+            val item = createScheduledPassItem(
                 satellite = issSat,
                 pass = pass,
                 userLocation = userLocation,
                 leadMinutes = leadMinutes
             )
+            if (item != null) {
+                itemsToSave.add(item)
+                setAlarmWithAndroidSystem(context, item)
+            }
+        }
+
+        if (itemsToSave.isNotEmpty()) {
+            AstroNotificationStore.saveAll(context, itemsToSave)
         }
 
         updateStoredLocation(context, userLocation)
@@ -156,13 +176,15 @@ object AstroNotificationManager {
         userLocation: UserLocation,
         leadMinutes: Int = 10
     ) {
+        val allCatalog = SatelliteCatalog.satellites
         val satellites = if (selectedSatIds.isEmpty()) {
-            SatelliteCatalog.satellites.filter { it.isNakedEyeCandidate }
+            allCatalog.filter { it.isNakedEyeCandidate }
         } else {
-            SatelliteCatalog.satellites.filter { it.id in selectedSatIds }
+            allCatalog.filter { it.id in selectedSatIds || (it.id == "starlink_train" && "starlink_train" in selectedSatIds) }
         }
 
         val nowMs = System.currentTimeMillis()
+        val itemsToSave = mutableListOf<ScheduledNotificationItem>()
 
         for (sat in satellites) {
             val passes = ISSEngine.predictPasses(
@@ -182,14 +204,21 @@ object AstroNotificationManager {
             }
 
             for (pass in validPasses) {
-                scheduleSpecificPassAlarm(
-                    context = context,
+                val item = createScheduledPassItem(
                     satellite = sat,
                     pass = pass,
                     userLocation = userLocation,
                     leadMinutes = leadMinutes
                 )
+                if (item != null) {
+                    itemsToSave.add(item)
+                    setAlarmWithAndroidSystem(context, item)
+                }
             }
+        }
+
+        if (itemsToSave.isNotEmpty()) {
+            AstroNotificationStore.saveAll(context, itemsToSave)
         }
 
         updateStoredLocation(context, userLocation)
@@ -216,7 +245,7 @@ object AstroNotificationManager {
                 val idStr = "obs_lead_${obj.id}_$targetTimeMs"
                 val item = ScheduledNotificationItem(
                     id = idStr,
-                    intNotificationId = abs(idStr.hashCode()),
+                    intNotificationId = (idStr.hashCode() and 0x7FFFFFFF),
                     objectId = obj.id,
                     objectNameEn = obj.nameEn,
                     objectNameFa = obj.nameFa,
@@ -244,7 +273,7 @@ object AstroNotificationManager {
             val idStr = "obs_exact_${obj.id}_$targetTimeMs"
             val item = ScheduledNotificationItem(
                 id = idStr,
-                intNotificationId = abs(idStr.hashCode()),
+                intNotificationId = (idStr.hashCode() and 0x7FFFFFFF),
                 objectId = obj.id,
                 objectNameEn = obj.nameEn,
                 objectNameFa = obj.nameFa,
@@ -289,7 +318,7 @@ object AstroNotificationManager {
         val idStr = "event_${eventId}_${eventTimeMs}_$leadMinutes"
         val item = ScheduledNotificationItem(
             id = idStr,
-            intNotificationId = abs(idStr.hashCode()),
+            intNotificationId = (idStr.hashCode() and 0x7FFFFFFF),
             objectId = targetObjectId,
             objectNameEn = titleEn,
             objectNameFa = titleFa,
@@ -412,6 +441,16 @@ object AstroNotificationManager {
         }
     }
 
+    /**
+     * Cancels all scheduled satellite pass notifications across all satellites.
+     */
+    fun cancelAllPassNotifications(context: Context) {
+        val items = AstroNotificationStore.getAll(context).filter { it.objectType == "SATELLITE" }
+        for (item in items) {
+            cancelNotification(context, item.id)
+        }
+    }
+
     private fun setAlarmWithAndroidSystem(context: Context, item: ScheduledNotificationItem) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, AstroAlarmReceiver::class.java).apply {
@@ -432,7 +471,21 @@ object AstroNotificationManager {
         if (triggerMs <= System.currentTimeMillis()) return
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val showIntent = PendingIntent.getActivity(
+                    context,
+                    item.intNotificationId,
+                    Intent(context, com.alijafari.red.astronomy.MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        putExtra(com.alijafari.red.astronomy.MainActivity.EXTRA_TARGET_OBJECT_ID, item.objectId)
+                        putExtra(com.alijafari.red.astronomy.MainActivity.EXTRA_TARGET_TYPE, item.objectType)
+                        putExtra(com.alijafari.red.astronomy.MainActivity.EXTRA_TARGET_ROUTE, item.deepLinkRoute)
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerMs, showIntent)
+                alarmManager.setAlarmClock(alarmClockInfo, pendingIntent)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
             } else {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
@@ -440,12 +493,32 @@ object AstroNotificationManager {
         } catch (e: SecurityException) {
             // Fallback for devices without exact alarm permission
             try {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                } else {
+                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                }
+            } catch (ex: Exception) {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                    } else {
+                        alarmManager.set(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                    }
+                } catch (exc: Exception) {
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                }
+            }
+        } catch (e: Exception) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                } else {
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                }
             } catch (ex: Exception) {
                 alarmManager.set(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
             }
-        } catch (e: Exception) {
-            alarmManager.set(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
         }
     }
 

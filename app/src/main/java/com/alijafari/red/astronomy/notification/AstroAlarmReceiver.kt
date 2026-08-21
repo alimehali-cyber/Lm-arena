@@ -93,13 +93,20 @@ class AstroAlarmReceiver : BroadcastReceiver() {
             .setContentTitle(title)
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .setFullScreenIntent(pendingIntent, false)
             .build()
 
-        notificationManager.notify(item.intNotificationId, notification)
+        try {
+            notificationManager.notify(item.intNotificationId, notification)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
         // Remove delivered item from store
         AstroNotificationStore.remove(context, item.id)
