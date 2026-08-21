@@ -52,26 +52,27 @@ class OrientationProvider(
     private val gyroSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val accelSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
+    // Quaternion filter state (w, x, y, z)
+    private var smoothQuatW = 1.0
+    private var smoothQuatX = 0.0
+    private var smoothQuatY = 0.0
+    private var smoothQuatZ = 0.0
+    private var isQuatInitialized = false
+
     // Raw matrices
     private val rawRotationMatrix = FloatArray(9)
     private val trueRotationMatrix = FloatArray(9)
-    private val smoothRotationMatrix = FloatArray(9)
 
-    // Raw accel + mag buffers
+    // Raw accel + mag buffers for fallback
     private val gravityValues = FloatArray(3)
     private val geomagneticValues = FloatArray(3)
     private var hasGravity = false
     private var hasGeomagnetic = false
 
-    // Low-pass filtered state
-    private var smoothAzimuth = 0f
-    private var smoothPitch = 0f
-    private var smoothRoll = 0f
-
     // Velocity-based adaptive alpha
-    private var velocity = 0f
-    private val ALPHA_FAST = 0.35f
-    private val ALPHA_SLOW = 0.05f
+    private var gyroSpeedDeg = 0f
+    private val ALPHA_MIN = 0.045f // Ultra-stable when stationary, zero jitter
+    private val ALPHA_MAX = 0.40f  // Fast response during panning
 
     // Magnetic declination (degrees, positive = east)
     private var magneticDeclination = 0f
@@ -136,7 +137,7 @@ class OrientationProvider(
         when (event.sensor.type) {
             Sensor.TYPE_ROTATION_VECTOR,
             Sensor.TYPE_GAME_ROTATION_VECTOR -> {
-                processRotationVector(event.values)
+                processRotationVectorEvent(event.values)
             }
             Sensor.TYPE_ACCELEROMETER -> {
                 System.arraycopy(event.values, 0, gravityValues, 0, 3)
@@ -156,8 +157,8 @@ class OrientationProvider(
                 val gx = event.values[0]
                 val gy = event.values[1]
                 val gz = event.values[2]
-                val gyroSpeedDeg = Math.toDegrees(sqrt((gx * gx + gy * gy + gz * gz).toDouble())).toFloat()
-                velocity = velocity * 0.75f + gyroSpeedDeg * 0.25f
+                val speed = Math.toDegrees(sqrt((gx * gx + gy * gy + gz * gz).toDouble())).toFloat()
+                gyroSpeedDeg = gyroSpeedDeg * 0.7f + speed * 0.3f
             }
         }
     }
@@ -175,37 +176,161 @@ class OrientationProvider(
         }
     }
 
-    private fun processRotationVector(rotationVectorValues: FloatArray) {
-        SensorManager.getRotationMatrixFromVector(rawRotationMatrix, rotationVectorValues)
-        computeTrueOrientation(rawRotationMatrix)
+    private fun processRotationVectorEvent(values: FloatArray) {
+        // Sensor values contain [x*sin(theta/2), y*sin(theta/2), z*sin(theta/2), cos(theta/2)]
+        val qx = values[0].toDouble()
+        val qy = values[1].toDouble()
+        val qz = values[2].toDouble()
+        val qw = if (values.size >= 4 && values[3] != 0f) {
+            values[3].toDouble()
+        } else {
+            val sinHalfSq = qx * qx + qy * qy + qz * qz
+            if (sinHalfSq <= 1.0) sqrt(1.0 - sinHalfSq) else 0.0
+        }
+
+        updateQuaternion(qw, qx, qy, qz)
     }
 
     private fun processAccelMag() {
         if (!hasGravity || !hasGeomagnetic) return
         val success = SensorManager.getRotationMatrix(rawRotationMatrix, null, gravityValues, geomagneticValues)
         if (!success) return
-        computeTrueOrientation(rawRotationMatrix)
+
+        // Extract quaternion from rotation matrix
+        val trace = rawRotationMatrix[0] + rawRotationMatrix[4] + rawRotationMatrix[8]
+        val qw: Double
+        val qx: Double
+        val qy: Double
+        val qz: Double
+
+        if (trace > 0.0) {
+            val s = 0.5 / sqrt(trace + 1.0)
+            qw = 0.25 / s
+            qx = (rawRotationMatrix[7] - rawRotationMatrix[5]) * s
+            qy = (rawRotationMatrix[2] - rawRotationMatrix[6]) * s
+            qz = (rawRotationMatrix[3] - rawRotationMatrix[1]) * s
+        } else if (rawRotationMatrix[0] > rawRotationMatrix[4] && rawRotationMatrix[0] > rawRotationMatrix[8]) {
+            val s = 2.0 * sqrt(1.0 + rawRotationMatrix[0] - rawRotationMatrix[4] - rawRotationMatrix[8])
+            qw = (rawRotationMatrix[7] - rawRotationMatrix[5]) / s
+            qx = 0.25 * s
+            qy = (rawRotationMatrix[1] + rawRotationMatrix[3]) / s
+            qz = (rawRotationMatrix[2] + rawRotationMatrix[6]) / s
+        } else if (rawRotationMatrix[4] > rawRotationMatrix[8]) {
+            val s = 2.0 * sqrt(1.0 + rawRotationMatrix[4] - rawRotationMatrix[0] - rawRotationMatrix[8])
+            qw = (rawRotationMatrix[2] - rawRotationMatrix[6]) / s
+            qx = (rawRotationMatrix[1] + rawRotationMatrix[3]) / s
+            qy = 0.25 * s
+            qz = (rawRotationMatrix[5] + rawRotationMatrix[7]) / s
+        } else {
+            val s = 2.0 * sqrt(1.0 + rawRotationMatrix[8] - rawRotationMatrix[0] - rawRotationMatrix[4])
+            qw = (rawRotationMatrix[3] - rawRotationMatrix[1]) / s
+            qx = (rawRotationMatrix[2] + rawRotationMatrix[6]) / s
+            qy = (rawRotationMatrix[5] + rawRotationMatrix[7]) / s
+            qz = 0.25 * s
+        }
+
+        updateQuaternion(qw, qx, qy, qz)
     }
 
-    private fun computeTrueOrientation(sensorMat: FloatArray) {
-        // Convert sensor rotation matrix (Magnetic North) to True North coordinates
+    private fun updateQuaternion(targetW: Double, targetX: Double, targetY: Double, targetZ: Double) {
+        // Normalize target quaternion
+        val norm = sqrt(targetW * targetW + targetX * targetX + targetY * targetY + targetZ * targetZ)
+        if (norm < 1e-6) return
+        var tw = targetW / norm
+        var tx = targetX / norm
+        var ty = targetY / norm
+        var tz = targetZ / norm
+
+        if (!isQuatInitialized) {
+            smoothQuatW = tw
+            smoothQuatX = tx
+            smoothQuatY = ty
+            smoothQuatZ = tz
+            isQuatInitialized = true
+        } else {
+            // Ensure shortest rotation path (q and -q represent same orientation)
+            var dot = smoothQuatW * tw + smoothQuatX * tx + smoothQuatY * ty + smoothQuatZ * tz
+            if (dot < 0.0) {
+                tw = -tw
+                tx = -tx
+                ty = -ty
+                tz = -tz
+                dot = -dot
+            }
+
+            // Calculate angular distance in degrees
+            val clampedDot = dot.coerceIn(0.0, 1.0)
+            val angleDiffDeg = Math.toDegrees(2.0 * acos(clampedDot)).toFloat()
+
+            // Dynamic adaptive alpha: low when still, responsive when moving
+            val movementFactor = max((gyroSpeedDeg / 25f), (angleDiffDeg / 4.0f)).coerceIn(0f, 1f)
+            val alpha = (ALPHA_MIN + (ALPHA_MAX - ALPHA_MIN) * movementFactor).toDouble()
+
+            // Spherical Linear Interpolation (SLERP)
+            if (clampedDot < 0.9995) {
+                val theta = acos(clampedDot)
+                val sinTheta = sin(theta)
+                val w1 = sin((1.0 - alpha) * theta) / sinTheta
+                val w2 = sin(alpha * theta) / sinTheta
+                smoothQuatW = w1 * smoothQuatW + w2 * tw
+                smoothQuatX = w1 * smoothQuatX + w2 * tx
+                smoothQuatY = w1 * smoothQuatY + w2 * ty
+                smoothQuatZ = w1 * smoothQuatZ + w2 * tz
+            } else {
+                // Linear fallback for nearly identical quaternions
+                smoothQuatW += alpha * (tw - smoothQuatW)
+                smoothQuatX += alpha * (tx - smoothQuatX)
+                smoothQuatY += alpha * (ty - smoothQuatY)
+                smoothQuatZ += alpha * (tz - smoothQuatZ)
+            }
+
+            // Re-normalize smoothed quaternion
+            val sNorm = sqrt(smoothQuatW * smoothQuatW + smoothQuatX * smoothQuatX + smoothQuatY * smoothQuatY + smoothQuatZ * smoothQuatZ)
+            if (sNorm > 1e-6) {
+                smoothQuatW /= sNorm
+                smoothQuatX /= sNorm
+                smoothQuatY /= sNorm
+                smoothQuatZ /= sNorm
+            }
+        }
+
+        // Convert smoothed quaternion to strictly orthonormal 3x3 rotation matrix R_sensor
+        val w = smoothQuatW
+        val x = smoothQuatX
+        val y = smoothQuatY
+        val z = smoothQuatZ
+
+        val r00 = (1.0 - 2.0 * (y * y + z * z)).toFloat()
+        val r01 = (2.0 * (x * y - w * z)).toFloat()
+        val r02 = (2.0 * (x * z + w * y)).toFloat()
+
+        val r10 = (2.0 * (x * y + w * z)).toFloat()
+        val r11 = (1.0 - 2.0 * (x * x + z * z)).toFloat()
+        val r12 = (2.0 * (y * z - w * x)).toFloat()
+
+        val r20 = (2.0 * (x * z - w * y)).toFloat()
+        val r21 = (2.0 * (y * z + w * x)).toFloat()
+        val r22 = (1.0 - 2.0 * (x * x + y * y)).toFloat()
+
+        // Apply True-North magnetic declination rotation around world Z-axis (Up)
+        // R_true = R_declination * R_sensor
         val radD = Math.toRadians(magneticDeclination.toDouble())
         val cosD = cos(radD).toFloat()
         val sinD = sin(radD).toFloat()
 
-        trueRotationMatrix[0] = cosD * sensorMat[0] + sinD * sensorMat[3]
-        trueRotationMatrix[1] = cosD * sensorMat[1] + sinD * sensorMat[4]
-        trueRotationMatrix[2] = cosD * sensorMat[2] + sinD * sensorMat[5]
+        trueRotationMatrix[0] = cosD * r00 + sinD * r10
+        trueRotationMatrix[1] = cosD * r01 + sinD * r11
+        trueRotationMatrix[2] = cosD * r02 + sinD * r12
 
-        trueRotationMatrix[3] = -sinD * sensorMat[0] + cosD * sensorMat[3]
-        trueRotationMatrix[4] = -sinD * sensorMat[1] + cosD * sensorMat[4]
-        trueRotationMatrix[5] = -sinD * sensorMat[2] + cosD * sensorMat[5]
+        trueRotationMatrix[3] = -sinD * r00 + cosD * r10
+        trueRotationMatrix[4] = -sinD * r01 + cosD * r11
+        trueRotationMatrix[5] = -sinD * r02 + cosD * r12
 
-        trueRotationMatrix[6] = sensorMat[6]
-        trueRotationMatrix[7] = sensorMat[7]
-        trueRotationMatrix[8] = sensorMat[8]
+        trueRotationMatrix[6] = r20
+        trueRotationMatrix[7] = r21
+        trueRotationMatrix[8] = r22
 
-        // Camera pointing vector (out of rear camera: -Z_device)
+        // Camera optical pointing vector (-Z_device in world coordinates)
         // px = East, py = North, pz = Up
         val px = -trueRotationMatrix[2]
         val py = -trueRotationMatrix[5]
@@ -214,12 +339,11 @@ class OrientationProvider(
         val azimuthDeg = ((Math.toDegrees(atan2(px.toDouble(), py.toDouble())) + 360.0) % 360.0).toFloat()
         val pitchDeg = Math.toDegrees(asin(pz.toDouble().coerceIn(-1.0, 1.0))).toFloat()
 
-        // Device Right (X_device)
+        // Device Right (X_device) & Device Up (Y_device)
         val rx = trueRotationMatrix[0]
         val ry = trueRotationMatrix[3]
         val rz = trueRotationMatrix[6]
 
-        // Sky natural right and up vectors in world frame
         val horizLen = sqrt((px * px + py * py).toDouble()).toFloat()
         val rollDeg = if (horizLen > 1e-4f) {
             val rSkyX = py / horizLen
@@ -238,31 +362,12 @@ class OrientationProvider(
             Math.toDegrees(atan2(rz.toDouble(), trueRotationMatrix[7].toDouble())).toFloat()
         }
 
-        applyAdaptiveFiltering(azimuthDeg, pitchDeg, rollDeg, trueRotationMatrix)
-    }
-
-    private fun applyAdaptiveFiltering(newAz: Float, newPitch: Float, newRoll: Float, newMatrix: FloatArray) {
-        var deltaAz = newAz - smoothAzimuth
-        if (deltaAz > 180f) deltaAz -= 360f
-        if (deltaAz < -180f) deltaAz += 360f
-
-        // Continuous interpolation of alpha based on angular movement speed
-        val normVel = (velocity / 30f).coerceIn(0f, 1f)
-        val alpha = ALPHA_SLOW + (ALPHA_FAST - ALPHA_SLOW) * normVel
-
-        smoothAzimuth = ((smoothAzimuth + alpha * deltaAz) % 360f + 360f) % 360f
-        smoothPitch += alpha * (newPitch - smoothPitch)
-        smoothRoll += alpha * (newRoll - smoothRoll)
-
-        for (i in 0..8) {
-            smoothRotationMatrix[i] += alpha * (newMatrix[i] - smoothRotationMatrix[i])
-        }
-
         _orientation.value = SkyOrientation(
-            azimuth = smoothAzimuth,
-            pitch = smoothPitch.coerceIn(-90f, 90f),
-            roll = smoothRoll,
-            rotationMatrix = smoothRotationMatrix.copyOf()
+            azimuth = azimuthDeg,
+            pitch = pitchDeg,
+            roll = rollDeg,
+            rotationMatrix = trueRotationMatrix.copyOf()
         )
     }
 }
+

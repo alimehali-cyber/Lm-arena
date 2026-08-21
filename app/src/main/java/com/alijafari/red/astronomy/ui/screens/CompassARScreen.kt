@@ -823,7 +823,12 @@ fun CompassARScreen(
 
                             val canvasWidth = size.width.toFloat()
                             val canvasHeight = size.height.toFloat()
-                            val fovX = 60.0 / activeZoom
+                            val focalLengthPx = ARProjectionEngine.computeCameraFocalLengthPx(
+                                context = context,
+                                screenWidthPx = canvasWidth,
+                                screenHeightPx = canvasHeight,
+                                zoomFactor = activeZoom
+                            )
 
                             var bestMatch: CelestialObject? = null
                             var bestDistPx = 70.0f * activeDensity
@@ -855,7 +860,7 @@ fun CompassARScreen(
                                     currentRoll = activeOrientation.roll.toDouble(),
                                     canvasWidth = canvasWidth,
                                     canvasHeight = canvasHeight,
-                                    fovXDeg = fovX
+                                    focalLengthPx = focalLengthPx
                                 ) ?: continue
 
                                 val dist = hypot(touchOffset.x - pt.x, touchOffset.y - pt.y)
@@ -875,7 +880,13 @@ fun CompassARScreen(
             val centerX = canvasWidth / 2f
             val centerY = canvasHeight / 2f
 
-            val fovX = 60.0 / zoomFactor
+            val focalLengthPx = ARProjectionEngine.computeCameraFocalLengthPx(
+                context = context,
+                screenWidthPx = canvasWidth,
+                screenHeightPx = canvasHeight,
+                zoomFactor = zoomFactor
+            )
+            val fovX = ARProjectionEngine.computeEffectiveFovXDeg(canvasWidth, focalLengthPx)
             val pixelsPerDegree = canvasWidth / fovX
 
             // Starry night background if camera disabled
@@ -909,7 +920,7 @@ fun CompassARScreen(
                     currentRoll = skyOrientation.roll.toDouble(),
                     canvasWidth = canvasWidth,
                     canvasHeight = canvasHeight,
-                    fovXDeg = fovX
+                    focalLengthPx = focalLengthPx
                 ) ?: continue
                 if (horizonFirst) {
                     horizonPath.moveTo(pt.x, pt.y)
@@ -933,7 +944,7 @@ fun CompassARScreen(
                     currentRoll = skyOrientation.roll.toDouble(),
                     canvasWidth = canvasWidth,
                     canvasHeight = canvasHeight,
-                    fovXDeg = fovX
+                    focalLengthPx = focalLengthPx
                 )
                 if (horizonCenterPt != null && horizonCenterPt.x in 0f..canvasWidth && horizonCenterPt.y in 0f..canvasHeight) {
                     val horizonLabel = if (isFa) "افق (0°)" else "Horizon (0°)"
@@ -970,7 +981,7 @@ fun CompassARScreen(
                             currentRoll = skyOrientation.roll.toDouble(),
                             canvasWidth = canvasWidth,
                             canvasHeight = canvasHeight,
-                            fovXDeg = fovX
+                            focalLengthPx = focalLengthPx
                         ) ?: continue
 
                         if (projPt.x in -600f..(canvasWidth + 600f) && projPt.y in -600f..(canvasHeight + 600f)) {
@@ -1005,7 +1016,7 @@ fun CompassARScreen(
                             currentRoll = skyOrientation.roll.toDouble(),
                             canvasWidth = canvasWidth,
                             canvasHeight = canvasHeight,
-                            fovXDeg = fovX
+                            focalLengthPx = focalLengthPx
                         ) ?: continue
 
                         if (projPt.x in -600f..(canvasWidth + 600f) && projPt.y in -600f..(canvasHeight + 600f)) {
@@ -1049,7 +1060,7 @@ fun CompassARScreen(
                         currentRoll = skyOrientation.roll.toDouble(),
                         canvasWidth = canvasWidth,
                         canvasHeight = canvasHeight,
-                        fovXDeg = fovX
+                        focalLengthPx = focalLengthPx
                     ) ?: continue
 
                     if (galFirst) {
@@ -1105,7 +1116,7 @@ fun CompassARScreen(
                     currentRoll = skyOrientation.roll.toDouble(),
                     canvasWidth = canvasWidth,
                     canvasHeight = canvasHeight,
-                    fovXDeg = fovX
+                    focalLengthPx = focalLengthPx
                 ) ?: continue
 
                 val px = projPt.x
@@ -2151,29 +2162,33 @@ fun CompassARScreen(
                 val screenHeightPx = constraints.maxHeight.toFloat()
                 val canvasWidth = screenWidthPx
                 val canvasHeight = screenHeightPx
-                val centerX = canvasWidth / 2f
-                val centerY = canvasHeight / 2f
-                val fovX = 60.0 / zoomFactor
-                val pixelsPerDegree = (canvasWidth / fovX).toFloat()
-                val rollRad = Math.toRadians(-skyOrientation.roll.toDouble())
-                val cosR = cos(rollRad).toFloat()
-                val sinR = sin(rollRad).toFloat()
+
+                val focalLengthPx = ARProjectionEngine.computeCameraFocalLengthPx(
+                    context = context,
+                    screenWidthPx = canvasWidth,
+                    screenHeightPx = canvasHeight,
+                    zoomFactor = zoomFactor
+                )
 
                 val horiz = if (obj.type == ObjectType.SUN) sunHoriz
                 else if (obj.id == "moon") moonHoriz
                 else if (obj.type == ObjectType.SATELLITE) satellitePositions[obj.id] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
                 else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), lastDeg, uiState.userLocation.latitude)
 
-                var dAz = horiz.azimuthDeg - currentAzimuth
-                if (dAz > 180) dAz -= 360
-                if (dAz < -180) dAz += 360
-                val dAlt = horiz.altitudeDeg - currentAltitude
+                val projPt = ARProjectionEngine.projectAltAz(
+                    azimuthDeg = horiz.azimuthDeg,
+                    altitudeDeg = horiz.altitudeDeg,
+                    rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
+                    currentAzimuth = currentAzimuth,
+                    currentAltitude = currentAltitude,
+                    currentRoll = skyOrientation.roll.toDouble(),
+                    canvasWidth = canvasWidth,
+                    canvasHeight = canvasHeight,
+                    focalLengthPx = focalLengthPx
+                )
 
-                val rawX = (dAz * pixelsPerDegree).toFloat()
-                val rawY = -(dAlt * pixelsPerDegree).toFloat()
-
-                val px = centerX + (rawX * cosR - rawY * sinR)
-                val py = centerY + (rawX * sinR + rawY * cosR)
+                val px = projPt?.x ?: (canvasWidth / 2f)
+                val py = projPt?.y ?: (canvasHeight / 2f)
 
                 val cardWidthDp = 270.dp
                 val cardHeightDp = 190.dp

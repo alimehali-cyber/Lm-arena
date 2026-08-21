@@ -1,5 +1,8 @@
 package com.alijafari.red.astronomy.astro_engine
 
+import android.content.Context
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import androidx.compose.ui.geometry.Offset
 import kotlin.math.*
 
@@ -17,18 +20,64 @@ object ARProjectionEngine {
     )
 
     /**
-     * Projects a celestial object at (azimuthDeg, altitudeDeg) onto screen coordinates.
-     *
-     * @param azimuthDeg True North azimuth of the object (0°=N, 90°=E, 180°=S, 270°=W)
-     * @param altitudeDeg Altitude angle above horizon (-90° to +90°)
-     * @param rotationMatrix 3x3 True-North device rotation matrix (if available from sensors)
-     * @param currentAzimuth Camera pointing azimuth in degrees
-     * @param currentAltitude Camera pointing pitch/altitude in degrees
-     * @param currentRoll Camera roll angle around optical axis in degrees
-     * @param canvasWidth Screen/Canvas width in pixels
-     * @param canvasHeight Screen/Canvas height in pixels
-     * @param fovXDeg Camera horizontal field of view in degrees
-     * @return Offset in pixels if object is in front of camera, or null if behind camera.
+     * Computes the exact camera focal length in screen pixels, dynamically matching
+     * CameraX PreviewView.ScaleType.FILL_CENTER geometry and physical sensor characteristics.
+     */
+    fun computeCameraFocalLengthPx(
+        context: Context?,
+        screenWidthPx: Float,
+        screenHeightPx: Float,
+        zoomFactor: Float = 1.0f
+    ): Float {
+        var baseFocalLengthPx = 0f
+        if (context != null) {
+            try {
+                val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager
+                if (cameraManager != null) {
+                    val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
+                        val chars = cameraManager.getCameraCharacteristics(id)
+                        chars.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_BACK
+                    }
+                    if (cameraId != null) {
+                        val chars = cameraManager.getCameraCharacteristics(cameraId)
+                        val focalLengths = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
+                        val sensorSize = chars.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
+                        if (focalLengths != null && focalLengths.isNotEmpty() && sensorSize != null) {
+                            val fMm = focalLengths[0]
+                            val sensorLongDimMm = max(sensorSize.width, sensorSize.height)
+                            val fovYRad = 2.0 * atan(sensorLongDimMm / (2.0 * fMm))
+                            baseFocalLengthPx = ((screenHeightPx / 2.0) / tan(fovYRad / 2.0)).toFloat()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Fallback to default
+            }
+        }
+
+        // Standard 63.5° vertical field-of-view for smartphone main wide camera
+        if (baseFocalLengthPx <= 0f || !baseFocalLengthPx.isFinite()) {
+            val defaultFovYRad = Math.toRadians(63.5)
+            baseFocalLengthPx = ((screenHeightPx / 2.0) / tan(defaultFovYRad / 2.0)).toFloat()
+        }
+
+        return baseFocalLengthPx * zoomFactor
+    }
+
+    /**
+     * Computes the effective horizontal field of view in degrees matching the focal length in pixels.
+     */
+    fun computeEffectiveFovXDeg(
+        screenWidthPx: Float,
+        focalLengthPx: Float
+    ): Double {
+        if (focalLengthPx <= 0f) return 55.0
+        val halfW = screenWidthPx / 2.0
+        return Math.toDegrees(2.0 * atan(halfW / focalLengthPx))
+    }
+
+    /**
+     * Projects a celestial object at (azimuthDeg, altitudeDeg) onto screen coordinates using exact focal length.
      */
     fun projectAltAz(
         azimuthDeg: Double,
@@ -39,7 +88,7 @@ object ARProjectionEngine {
         currentRoll: Double,
         canvasWidth: Float,
         canvasHeight: Float,
-        fovXDeg: Double
+        focalLengthPx: Float
     ): Offset? {
         val azRad = Math.toRadians(azimuthDeg)
         val altRad = Math.toRadians(altitudeDeg)
@@ -56,7 +105,7 @@ object ARProjectionEngine {
         if (rotationMatrix != null && rotationMatrix.size == 9 &&
             (rotationMatrix[0] != 0f || rotationMatrix[1] != 0f || rotationMatrix[2] != 0f)
         ) {
-            // Transform directly using calibrated 3D rotation matrix:
+            // Transform directly using calibrated 3D True-North rotation matrix:
             // Xc = Right on screen, Yc = Up on screen, Zc = Front of screen towards user
             xc = ox * rotationMatrix[0] + oy * rotationMatrix[3] + oz * rotationMatrix[6]
             yc = ox * rotationMatrix[1] + oy * rotationMatrix[4] + oz * rotationMatrix[7]
@@ -103,13 +152,40 @@ object ARProjectionEngine {
         val depth = -zc
         if (depth <= 0.001) return null
 
-        val fovXRad = Math.toRadians(fovXDeg.coerceIn(10.0, 150.0))
-        val focalLength = (canvasWidth / 2.0) / tan(fovXRad / 2.0)
-
-        val px = (canvasWidth / 2.0 + (xc / depth) * focalLength).toFloat()
-        val py = (canvasHeight / 2.0 - (yc / depth) * focalLength).toFloat()
+        val px = (canvasWidth / 2.0 + (xc / depth) * focalLengthPx).toFloat()
+        val py = (canvasHeight / 2.0 - (yc / depth) * focalLengthPx).toFloat()
 
         if (!px.isFinite() || !py.isFinite()) return null
         return Offset(px, py)
     }
+
+    /**
+     * Backward-compatible overload accepting fovXDeg.
+     */
+    fun projectAltAz(
+        azimuthDeg: Double,
+        altitudeDeg: Double,
+        rotationMatrix: FloatArray?,
+        currentAzimuth: Double,
+        currentAltitude: Double,
+        currentRoll: Double,
+        canvasWidth: Float,
+        canvasHeight: Float,
+        fovXDeg: Double
+    ): Offset? {
+        val fovXRad = Math.toRadians(fovXDeg.coerceIn(10.0, 150.0))
+        val focalLengthPx = ((canvasWidth / 2.0) / tan(fovXRad / 2.0)).toFloat()
+        return projectAltAz(
+            azimuthDeg = azimuthDeg,
+            altitudeDeg = altitudeDeg,
+            rotationMatrix = rotationMatrix,
+            currentAzimuth = currentAzimuth,
+            currentAltitude = currentAltitude,
+            currentRoll = currentRoll,
+            canvasWidth = canvasWidth,
+            canvasHeight = canvasHeight,
+            focalLengthPx = focalLengthPx
+        )
+    }
 }
+
