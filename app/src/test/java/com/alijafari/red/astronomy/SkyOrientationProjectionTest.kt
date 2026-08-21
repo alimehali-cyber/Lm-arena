@@ -175,4 +175,123 @@ class SkyOrientationProjectionTest {
 
         assertEquals(null, proj)
     }
+
+    @Test
+    fun `test ARProjectionEngine cardinal directions with phone 90-degree sensor orientation`() {
+        val width = 1080f
+        val height = 2400f
+        val focalLengthPx = 1000f
+
+        val intrinsics = com.alijafari.red.astronomy.astro_engine.ARProjectionEngine.CameraIntrinsics(
+            fx = focalLengthPx.toDouble(),
+            fy = focalLengthPx.toDouble(),
+            cx = 1080.0 / 2.0, // active array center
+            cy = 2400.0 / 2.0,
+            skew = 0.0,
+            activeArrayWidth = 2400,
+            activeArrayHeight = 1080,
+            sensorOrientation = 90,
+            isLensFacingBack = true,
+            source = com.alijafari.red.astronomy.astro_engine.ARProjectionEngine.IntrinsicsSource.ESTIMATED_PHYSICAL_SENSOR
+        )
+
+        val cameraAz = 0.0 // facing North
+        val cameraAlt = 30.0 // looking 30 deg above horizon
+        val rotMat = createRotationMatrix(cameraAz, cameraAlt, 0.0)
+
+        // 1. Center target (directly at crosshair)
+        val centerPt = com.alijafari.red.astronomy.astro_engine.ARProjectionEngine.projectAltAz(
+            azimuthDeg = cameraAz,
+            altitudeDeg = cameraAlt,
+            rotationMatrix = rotMat,
+            currentAzimuth = cameraAz,
+            currentAltitude = cameraAlt,
+            currentRoll = 0.0,
+            canvasWidth = width,
+            canvasHeight = height,
+            intrinsics = intrinsics,
+            zoomFactor = 1.0f,
+            sensorToViewMatrix = null,
+            displayRotationDegrees = 0
+        )
+        assertNotNull(centerPt)
+        assertEquals(width / 2f, centerPt!!.x, 1.0f)
+        assertEquals(height / 2f, centerPt.y, 1.0f)
+
+        // 2. Object UP (higher altitude: 35 deg > 30 deg)
+        val upPt = com.alijafari.red.astronomy.astro_engine.ARProjectionEngine.projectAltAz(
+            azimuthDeg = cameraAz,
+            altitudeDeg = 35.0,
+            rotationMatrix = rotMat,
+            currentAzimuth = cameraAz,
+            currentAltitude = cameraAlt,
+            currentRoll = 0.0,
+            canvasWidth = width,
+            canvasHeight = height,
+            intrinsics = intrinsics,
+            zoomFactor = 1.0f,
+            sensorToViewMatrix = null,
+            displayRotationDegrees = 0
+        )
+        assertNotNull(upPt)
+        assertTrue("Higher altitude object must be above center (py < height/2)", upPt!!.y < height / 2f)
+        assertEquals(width / 2f, upPt.x, 1.0f)
+
+        // 3. Object DOWN (lower altitude: 25 deg < 30 deg)
+        val downPt = com.alijafari.red.astronomy.astro_engine.ARProjectionEngine.projectAltAz(
+            azimuthDeg = cameraAz,
+            altitudeDeg = 25.0,
+            rotationMatrix = rotMat,
+            currentAzimuth = cameraAz,
+            currentAltitude = cameraAlt,
+            currentRoll = 0.0,
+            canvasWidth = width,
+            canvasHeight = height,
+            intrinsics = intrinsics,
+            zoomFactor = 1.0f,
+            sensorToViewMatrix = null,
+            displayRotationDegrees = 0
+        )
+        assertNotNull(downPt)
+        assertTrue("Lower altitude object must be below center (py > height/2)", downPt!!.y > height / 2f)
+        assertEquals(width / 2f, downPt.x, 1.0f)
+
+        // 4. Object RIGHT (East of camera: 5 deg > 0 deg)
+        val rightPt = com.alijafari.red.astronomy.astro_engine.ARProjectionEngine.projectAltAz(
+            azimuthDeg = 5.0,
+            altitudeDeg = cameraAlt,
+            rotationMatrix = rotMat,
+            currentAzimuth = cameraAz,
+            currentAltitude = cameraAlt,
+            currentRoll = 0.0,
+            canvasWidth = width,
+            canvasHeight = height,
+            intrinsics = intrinsics,
+            zoomFactor = 1.0f,
+            sensorToViewMatrix = null,
+            displayRotationDegrees = 0
+        )
+        assertNotNull(rightPt)
+        assertTrue("Object to the right must project right of center (px > width/2)", rightPt!!.x > width / 2f)
+        assertEquals(height / 2f, rightPt.y, 1.0f)
+
+        // 5. Object LEFT (West of camera: 355 deg < 360/0 deg)
+        val leftPt = com.alijafari.red.astronomy.astro_engine.ARProjectionEngine.projectAltAz(
+            azimuthDeg = 355.0,
+            altitudeDeg = cameraAlt,
+            rotationMatrix = rotMat,
+            currentAzimuth = cameraAz,
+            currentAltitude = cameraAlt,
+            currentRoll = 0.0,
+            canvasWidth = width,
+            canvasHeight = height,
+            intrinsics = intrinsics,
+            zoomFactor = 1.0f,
+            sensorToViewMatrix = null,
+            displayRotationDegrees = 0
+        )
+        assertNotNull(leftPt)
+        assertTrue("Object to the left must project left of center (px < width/2)", leftPt!!.x < width / 2f)
+        assertEquals(height / 2f, leftPt.y, 1.0f)
+    }
 }

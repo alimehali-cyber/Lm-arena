@@ -33,8 +33,8 @@ import kotlin.math.*
  *    - Points with Z_cam <= 0 are behind the camera focal plane.
  *    - Sensor orientation angle theta_s = CameraCharacteristics.SENSOR_ORIENTATION (typically 90° clockwise on phones).
  *    - Transformation to Camera Sensor 3D frame:
- *      [ X_sensor ]   [  cos(theta_s)  sin(theta_s) ] [ -x_dev ]
- *      [ Y_sensor ] = [ -sin(theta_s)  cos(theta_s) ] [  y_dev ]
+ *      [ X_sensor ]   [  cos(theta_s) -sin(theta_s) ] [  x_dev ]
+ *      [ Y_sensor ] = [ -sin(theta_s) -cos(theta_s) ] [  y_dev ]
  *      Z_sensor = Z_cam = -z_dev
  *
  * 4. Pinhole Intrinsic Projection:
@@ -261,14 +261,21 @@ object ARProjectionEngine {
         val zCam = -zDev
         if (zCam <= 0.001) return null // Object is behind the camera plane
 
-        // Map device transverse coordinates (-xDev, yDev) into sensor coordinate frame using SENSOR_ORIENTATION theta_s
+        // Map device transverse coordinates (xDev, yDev) into camera sensor active array coordinates
+        // using SENSOR_ORIENTATION theta_s (the clockwise rotation from sensor frame to device frame).
+        // Device frame: +X_dev is Screen Right, +Y_dev is Screen Up, +Z_dev is towards user (+Z_cam = -zDev into scene).
+        // Sensor frame: +X_sensor is columns (right on sensor), +Y_sensor is rows (downwards on sensor).
+        // At theta_s = 0: X_sensor = +xDev, Y_sensor = -yDev
+        // At theta_s = 90: X_sensor = -yDev, Y_sensor = -xDev
+        // At theta_s = 180: X_sensor = -xDev, Y_sensor = +yDev
+        // At theta_s = 270: X_sensor = +yDev, Y_sensor = +xDev
         val thetaRad = Math.toRadians(intrinsics.sensorOrientation.toDouble())
         val cosT = cos(thetaRad)
         val sinT = sin(thetaRad)
 
-        // For back-facing camera: standard Camera2 image sensor frame mapping
-        val xSensor = -xDev * cosT + yDev * sinT
-        val ySensor = xDev * sinT + yDev * cosT
+        // Rigorous SO(2) mapping from device axes to sensor image active array axes:
+        val xSensor = xDev * cosT - yDev * sinT
+        val ySensor = -xDev * sinT - yDev * cosT
 
         // Step 4: Camera Intrinsic Projection (Pinhole model with fx, fy, cx, cy, skew)
         val xNorm = xSensor / zCam
@@ -306,14 +313,14 @@ object ARProjectionEngine {
 
         when (netRotation) {
             90 -> {
-                uRot = vSensor
-                vRot = arrayW - uSensor
+                uRot = arrayH - vSensor
+                vRot = uSensor
                 wRot = arrayH
                 hRot = arrayW
             }
             270 -> {
-                uRot = arrayH - vSensor
-                vRot = uSensor
+                uRot = vSensor
+                vRot = arrayW - uSensor
                 wRot = arrayH
                 hRot = arrayW
             }
@@ -324,7 +331,7 @@ object ARProjectionEngine {
                 hRot = arrayH
             }
             else -> {
-                uRot = arrayW - uSensor
+                uRot = uSensor
                 vRot = vSensor
                 wRot = arrayW
                 hRot = arrayH
