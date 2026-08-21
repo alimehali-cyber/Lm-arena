@@ -62,6 +62,8 @@ class OrientationProvider(
     // Raw matrices
     private val rawRotationMatrix = FloatArray(9)
     private val trueRotationMatrix = FloatArray(9)
+    private val calibratedRotationMatrix = FloatArray(9)
+    private val calibMatrixBuffer = FloatArray(9)
 
     // Raw accel + mag buffers for fallback
     private val gravityValues = FloatArray(3)
@@ -330,19 +332,36 @@ class OrientationProvider(
         trueRotationMatrix[7] = r21
         trueRotationMatrix[8] = r22
 
+        // Apply AR Pointing Calibration Layer (Yaw, Pitch, Roll offsets)
+        // R_final = R_true * R_calib (isolated device orientation correction)
+        val calibOffsets = ARCalibrationManager.getOffsets()
+        val finalRotationMatrix: FloatArray
+        if (calibOffsets.isCalibrated) {
+            ARCalibrationManager.createCalibrationRotationMatrix(
+                yawDeg = calibOffsets.yawOffsetDeg,
+                pitchDeg = calibOffsets.pitchOffsetDeg,
+                rollDeg = calibOffsets.rollOffsetDeg,
+                outMatrix = calibMatrixBuffer
+            )
+            ARCalibrationManager.multiplyMatrix3x3(trueRotationMatrix, calibMatrixBuffer, calibratedRotationMatrix)
+            finalRotationMatrix = calibratedRotationMatrix
+        } else {
+            finalRotationMatrix = trueRotationMatrix
+        }
+
         // Camera optical pointing vector (-Z_device in world coordinates)
         // px = East, py = North, pz = Up
-        val px = -trueRotationMatrix[2]
-        val py = -trueRotationMatrix[5]
-        val pz = -trueRotationMatrix[8]
+        val px = -finalRotationMatrix[2]
+        val py = -finalRotationMatrix[5]
+        val pz = -finalRotationMatrix[8]
 
         val azimuthDeg = ((Math.toDegrees(atan2(px.toDouble(), py.toDouble())) + 360.0) % 360.0).toFloat()
         val pitchDeg = Math.toDegrees(asin(pz.toDouble().coerceIn(-1.0, 1.0))).toFloat()
 
         // Device Right (X_device) & Device Up (Y_device)
-        val rx = trueRotationMatrix[0]
-        val ry = trueRotationMatrix[3]
-        val rz = trueRotationMatrix[6]
+        val rx = finalRotationMatrix[0]
+        val ry = finalRotationMatrix[3]
+        val rz = finalRotationMatrix[6]
 
         val horizLen = sqrt((px * px + py * py).toDouble()).toFloat()
         val rollDeg = if (horizLen > 1e-4f) {
@@ -359,14 +378,14 @@ class OrientationProvider(
 
             Math.toDegrees(atan2(dotUp.toDouble(), dotRight.toDouble())).toFloat()
         } else {
-            Math.toDegrees(atan2(rz.toDouble(), trueRotationMatrix[7].toDouble())).toFloat()
+            Math.toDegrees(atan2(rz.toDouble(), finalRotationMatrix[7].toDouble())).toFloat()
         }
 
         _orientation.value = SkyOrientation(
             azimuth = azimuthDeg,
             pitch = pitchDeg,
             roll = rollDeg,
-            rotationMatrix = trueRotationMatrix.copyOf()
+            rotationMatrix = finalRotationMatrix.copyOf()
         )
     }
 }

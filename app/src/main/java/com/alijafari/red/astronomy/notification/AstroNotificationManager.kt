@@ -11,6 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
+import com.alijafari.red.astronomy.astro_engine.SatelliteEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteItem
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.domain.UserLocation
@@ -119,8 +120,10 @@ object AstroNotificationManager {
             userLatDeg = userLocation.latitude,
             userLonDeg = userLocation.longitude,
             startTimestampMs = nowMs,
+            tle = SatelliteEngine.getEffectiveTle(issSat),
             scanDays = 14,
-            visibleOnly = true
+            visibleOnly = true,
+            standardMag = issSat.standardMagnitude
         )
 
         // Human visibility criteria matching Spot the Station
@@ -166,7 +169,7 @@ object AstroNotificationManager {
                 userLatDeg = userLocation.latitude,
                 userLonDeg = userLocation.longitude,
                 startTimestampMs = nowMs,
-                tle = sat.defaultTle,
+                tle = SatelliteEngine.getEffectiveTle(sat),
                 scanDays = 14,
                 visibleOnly = true,
                 standardMag = sat.standardMagnitude

@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
         // Initialize TLE repository and tie satellite engine resolver
         val tleRepo = TleRepository.getInstance(applicationContext)
         SatelliteEngine.customTleResolver = { noradId -> tleRepo.getTle(noradId) }
+        SatelliteEngine.customTleMetadataResolver = { noradId -> tleRepo.getTleWithMetadata(noradId) }
 
         // Schedule periodic 6-hour sync and trigger initial refresh
         IssTleWorker.schedulePeriodicSync(this)

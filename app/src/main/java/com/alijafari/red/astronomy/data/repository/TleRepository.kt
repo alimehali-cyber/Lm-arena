@@ -5,7 +5,10 @@ import android.util.Log
 import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.ISSEngine.TLEData
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
+import com.alijafari.red.astronomy.astro_engine.SatelliteEngine
 import com.alijafari.red.astronomy.astro_engine.StarlinkTrainManager
+import com.alijafari.red.astronomy.astro_engine.TleDataSource
+import com.alijafari.red.astronomy.astro_engine.TleMetadata
 import com.alijafari.red.astronomy.data.database.AppDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -76,12 +79,28 @@ class TleRepository(private val context: Context) {
     }
 
     /**
-     * Gets the most up-to-date TLE for a given NORAD satellite ID.
+     * Gets the most up-to-date TLE along with source provenance and freshness metadata.
      * Looks up: Memory Cache -> Room Database -> Starlink Cache -> Hardcoded Offline Fallback in SatelliteCatalog.
      */
-    fun getTle(noradId: Int): TLEData {
+    fun getTleWithMetadata(noradId: Int): TleMetadata {
+        val now = System.currentTimeMillis()
+
         // 1. Check in-memory cache
-        memoryCache[noradId]?.let { return it }
+        val memTle = memoryCache[noradId]
+        if (memTle != null) {
+            val ts = timestampsCache[noradId] ?: 0L
+            val ageMs = if (ts > 0) now - ts else Long.MAX_VALUE
+            val epochAge = SatelliteEngine.computeTleAgeDays(memTle.line1)
+            val source = if (ageMs < 24 * 3600 * 1000L && ts > 0) {
+                TleDataSource.LIVE_NETWORK
+            } else if (ts > 0) {
+                TleDataSource.PERSISTED_CACHE
+            } else {
+                TleDataSource.MEMORY_CACHE
+            }
+            val stale = epochAge > 14.0 || isStale(noradId)
+            return TleMetadata(noradId, source, epochAge, ts, stale, memTle)
+        }
 
         // 2. Check Room database
         try {
@@ -101,7 +120,15 @@ class TleRepository(private val context: Context) {
                     if (noradId == 25544) {
                         ISSEngine.cachedTLE = tle
                     }
-                    return tle
+                    val epochAge = SatelliteEngine.computeTleAgeDays(line1)
+                    val ageMs = now - updatedAt
+                    val source = if (ageMs < 24 * 3600 * 1000L && updatedAt > 0) {
+                        TleDataSource.LIVE_NETWORK
+                    } else {
+                        TleDataSource.PERSISTED_CACHE
+                    }
+                    val stale = epochAge > 14.0 || (ageMs > 72 * 3600 * 1000L)
+                    return TleMetadata(noradId, source, epochAge, updatedAt, stale, tle)
                 }
             }
         } catch (e: Exception) {
@@ -109,12 +136,26 @@ class TleRepository(private val context: Context) {
         }
 
         // 3. Check Starlink cache
-        starlinkTles[noradId]?.let { return it }
+        val starlinkTle = starlinkTles[noradId]
+        if (starlinkTle != null) {
+            val epochAge = SatelliteEngine.computeTleAgeDays(starlinkTle.line1)
+            val stale = epochAge > 14.0
+            return TleMetadata(noradId, TleDataSource.LIVE_NETWORK, epochAge, now, stale, starlinkTle)
+        }
 
-        // 4. Fallback to hardcoded catalog default
+        // 4. Fallback to hardcoded catalog default (Final offline fallback)
         val fallback = SatelliteCatalog.satellites.find { it.noradId == noradId }?.defaultTle
             ?: ISSEngine.TLEData()
-        return fallback
+        val epochAge = SatelliteEngine.computeTleAgeDays(fallback.line1)
+        return TleMetadata(noradId, TleDataSource.HARDCODED_FALLBACK, epochAge, 0L, true, fallback)
+    }
+
+    /**
+     * Gets the most up-to-date TLE for a given NORAD satellite ID.
+     * Looks up: Memory Cache -> Room Database -> Starlink Cache -> Hardcoded Offline Fallback in SatelliteCatalog.
+     */
+    fun getTle(noradId: Int): TLEData {
+        return getTleWithMetadata(noradId).tleData
     }
 
     /**

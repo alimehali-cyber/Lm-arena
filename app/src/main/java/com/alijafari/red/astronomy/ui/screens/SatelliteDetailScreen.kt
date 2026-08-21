@@ -103,7 +103,7 @@ fun SatelliteDetailScreen(
                 userLatDeg = userLocation.latitude,
                 userLonDeg = userLocation.longitude,
                 startTimestampMs = roundedStartMs,
-                tle = satelliteItem.defaultTle,
+                tle = SatelliteEngine.getEffectiveTle(satelliteItem),
                 scanDays = 7,
                 visibleOnly = true,
                 standardMag = satelliteItem.standardMagnitude

@@ -32,10 +32,15 @@ object FinderEngine {
         val lastDeg = TimeEngine.getLAST(jd, userLon)
         val horiz = if (target.id == "sat_iss" || target.type == com.alijafari.red.astronomy.domain.ObjectType.SATELLITE) {
             val timestampMs = ((jd - 2440587.5) * 86400000.0).toLong()
+            val satItem = SatelliteCatalog.satellites.firstOrNull {
+                (if (it.id == "iss_zarya") "sat_iss" else "sat_${it.id}") == target.id
+            }
+            val effectiveTle = if (satItem != null) SatelliteEngine.getEffectiveTle(satItem) else SatelliteEngine.getEffectiveTle(25544)
             val pos = ISSEngine.calculateTopocentricPos(
                 timestampMs = timestampMs,
                 userLatDeg = userLat,
-                userLonDeg = userLon
+                userLonDeg = userLon,
+                tle = effectiveTle
             )
             CoordinateEngine.Horizontal(azimuthDeg = pos.azimuthDeg, altitudeDeg = pos.elevationDeg)
         } else if (target.type == com.alijafari.red.astronomy.domain.ObjectType.SUN) {

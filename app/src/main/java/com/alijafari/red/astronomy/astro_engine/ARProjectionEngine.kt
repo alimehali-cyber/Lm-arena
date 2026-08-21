@@ -10,14 +10,45 @@ import androidx.compose.ui.geometry.Offset
 import kotlin.math.*
 
 /**
- * High-precision Camera2 / CameraX Projection Engine for Augmented Reality Sky.
+ * High-Precision Camera2 / CameraX Projection Engine for Augmented Reality Astronomy.
  *
- * Implements the full physical camera projection pipeline:
- * 1. World Celestial Unit Vector (from Horizontal Azimuth/Altitude)
- * 2. Device Orientation Frame (via 3D Rotation Matrix or virtual sensor frame)
- * 3. Rear-Camera Optical Coordinate Frame (optical axis +Z_cam into scene, accounting for sensor orientation)
- * 4. Pinhole Intrinsic Projection using Camera2 calibration metadata (fx, fy, cx, cy, skew)
- * 5. CameraX PreviewView Transformation (direct Matrix or ScaleType.FILL_CENTER geometry) to Compose Canvas pixels.
+ * Mathematically rigorous transformation pipeline:
+ *
+ * 1. World Celestial Coordinate Frame (RED True-North ENU):
+ *    - +X_world = True East
+ *    - +Y_world = True North
+ *    - +Z_world = Zenith (Up)
+ *    - Unit direction vector: v_world = [cos(Alt)*sin(Az), cos(Alt)*cos(Az), sin(Alt)]^T
+ *
+ * 2. Device Coordinate Frame (Android Sensor Natural Orientation):
+ *    - +X_dev = Screen Right (portrait natural orientation)
+ *    - +Y_dev = Screen Top (portrait natural orientation)
+ *    - +Z_dev = Out of front screen (towards user)
+ *    - Transformation from World to Device: v_dev = R_true^T * v_world
+ *      where R_true is the True-North declination-corrected rotation matrix (SO(3)) from OrientationProvider.
+ *
+ * 3. Rear-Camera Optical Frame (Physical Camera Lens & Optical Axis):
+ *    - Camera lens faces out the back of the device (-Z_dev).
+ *    - Optical boresight axis: +Z_cam = -z_dev (forward depth into scene).
+ *    - Points with Z_cam <= 0 are behind the camera focal plane.
+ *    - Sensor orientation angle theta_s = CameraCharacteristics.SENSOR_ORIENTATION (typically 90° clockwise on phones).
+ *    - Transformation to Camera Sensor 3D frame:
+ *      [ X_sensor ]   [  cos(theta_s)  sin(theta_s) ] [ -x_dev ]
+ *      [ Y_sensor ] = [ -sin(theta_s)  cos(theta_s) ] [  y_dev ]
+ *      Z_sensor = Z_cam = -z_dev
+ *
+ * 4. Pinhole Intrinsic Projection:
+ *    - Uses Camera2 LENS_INTRINSIC_CALIBRATION (fx, fy, cx, cy, skew) or physical sensor geometry.
+ *    - x_norm = X_sensor / Z_cam
+ *    - y_norm = Y_sensor / Z_cam
+ *    - u_sensor = fx * x_norm + skew * y_norm + cx
+ *    - v_sensor = fy * y_norm + cy
+ *
+ * 5. CameraX PreviewView Transformation -> Compose Canvas:
+ *    - Primary: CameraX PreviewView.sensorToViewTransform (maps sensor buffer pixels to view bounds,
+ *      automatically resolving sensor orientation, window/display rotation, and FILL_CENTER aspect crop).
+ *    - Fallback: Exact analytical transformation accounting for net rotation (sensorOrientation - displayRotation)
+ *      and FILL_CENTER aspect-fill scaling to Compose Canvas dimensions.
  */
 object ARProjectionEngine {
 
@@ -151,7 +182,7 @@ object ARProjectionEngine {
 
     /**
      * Projects a celestial coordinate (Azimuth, Altitude) to Compose Canvas pixel coordinates
-     * using the full camera intrinsics and CameraX transformation pipeline.
+     * using the full camera intrinsics, sensor-to-camera coordinate transformation, and CameraX pipeline.
      */
     fun projectAltAz(
         azimuthDeg: Double,
@@ -164,7 +195,8 @@ object ARProjectionEngine {
         canvasHeight: Float,
         intrinsics: CameraIntrinsics,
         zoomFactor: Float = 1.0f,
-        sensorToViewMatrix: Matrix? = null
+        sensorToViewMatrix: Matrix? = null,
+        displayRotationDegrees: Int = 0
     ): Offset? {
         val azRad = Math.toRadians(azimuthDeg)
         val altRad = Math.toRadians(altitudeDeg)
@@ -175,6 +207,7 @@ object ARProjectionEngine {
         val oz = sin(altRad)
 
         // Step 2: Transform into Device coordinate frame (+X_dev Right, +Y_dev Up, +Z_dev Front/User)
+        // v_dev = R_true^T * v_world
         val xDev: Double
         val yDev: Double
         val zDev: Double
@@ -182,6 +215,7 @@ object ARProjectionEngine {
         if (rotationMatrix != null && rotationMatrix.size == 9 &&
             (rotationMatrix[0] != 0f || rotationMatrix[1] != 0f || rotationMatrix[2] != 0f)
         ) {
+            // Transpose of rotationMatrix (Row i is Column i of R)
             xDev = ox * rotationMatrix[0] + oy * rotationMatrix[3] + oz * rotationMatrix[6]
             yDev = ox * rotationMatrix[1] + oy * rotationMatrix[4] + oz * rotationMatrix[7]
             zDev = ox * rotationMatrix[2] + oy * rotationMatrix[5] + oz * rotationMatrix[8]
@@ -227,14 +261,14 @@ object ARProjectionEngine {
         val zCam = -zDev
         if (zCam <= 0.001) return null // Object is behind the camera plane
 
-        // Map device transverse axes (xDev, yDev) into sensor coordinate frame using sensorOrientation
+        // Map device transverse coordinates (-xDev, yDev) into sensor coordinate frame using SENSOR_ORIENTATION theta_s
         val thetaRad = Math.toRadians(intrinsics.sensorOrientation.toDouble())
         val cosT = cos(thetaRad)
         val sinT = sin(thetaRad)
 
         // For back-facing camera: standard Camera2 image sensor frame mapping
-        val xSensor = xDev * cosT + (-yDev) * sinT
-        val ySensor = -xDev * sinT + (-yDev) * cosT
+        val xSensor = -xDev * cosT + yDev * sinT
+        val ySensor = xDev * sinT + yDev * cosT
 
         // Step 4: Camera Intrinsic Projection (Pinhole model with fx, fy, cx, cy, skew)
         val xNorm = xSensor / zCam
@@ -263,21 +297,23 @@ object ARProjectionEngine {
         val arrayW = intrinsics.activeArrayWidth.toDouble()
         val arrayH = intrinsics.activeArrayHeight.toDouble()
 
+        val netRotation = (intrinsics.sensorOrientation - displayRotationDegrees + 360) % 360
+
         val uRot: Double
         val vRot: Double
         val wRot: Double
         val hRot: Double
 
-        when (intrinsics.sensorOrientation) {
+        when (netRotation) {
             90 -> {
-                uRot = arrayH - vSensor
-                vRot = uSensor
+                uRot = vSensor
+                vRot = arrayW - uSensor
                 wRot = arrayH
                 hRot = arrayW
             }
             270 -> {
-                uRot = vSensor
-                vRot = arrayW - uSensor
+                uRot = arrayH - vSensor
+                vRot = uSensor
                 wRot = arrayH
                 hRot = arrayW
             }
@@ -288,7 +324,7 @@ object ARProjectionEngine {
                 hRot = arrayH
             }
             else -> {
-                uRot = uSensor
+                uRot = arrayW - uSensor
                 vRot = vSensor
                 wRot = arrayW
                 hRot = arrayH
@@ -340,7 +376,8 @@ object ARProjectionEngine {
             canvasHeight = canvasHeight,
             intrinsics = defaultIntrinsics,
             zoomFactor = 1.0f,
-            sensorToViewMatrix = null
+            sensorToViewMatrix = null,
+            displayRotationDegrees = 0
         )
     }
 

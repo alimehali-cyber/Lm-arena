@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.Surface
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -193,13 +194,38 @@ fun CompassARScreen(
     }
 
     // Sensor Fusion & Orientation Provider
+    LaunchedEffect(context) {
+        ARCalibrationManager.init(context)
+    }
     val orientationProvider = remember { OrientationProvider(context) }
     val skyOrientation by orientationProvider.orientation.collectAsState()
     val calibrationState by orientationProvider.calibrationState.collectAsState()
+    val arCalibrationOffsets by ARCalibrationManager.calibrationFlow.collectAsState()
+    var showCalibrationDialog by remember { mutableStateOf(false) }
 
     // Camera Intrinsics & Geometry Engine (Hardware calibration, sensor size, active array)
     val cameraIntrinsics = remember(context) { ARProjectionEngine.getCameraIntrinsics(context) }
     var previewViewInstance by remember { mutableStateOf<PreviewView?>(null) }
+
+    val displayRotationDegrees = remember(context) {
+        try {
+            val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+            val rotation = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                context.display?.rotation ?: Surface.ROTATION_0
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager?.defaultDisplay?.rotation ?: Surface.ROTATION_0
+            }
+            when (rotation) {
+                Surface.ROTATION_90 -> 90
+                Surface.ROTATION_180 -> 180
+                Surface.ROTATION_270 -> 270
+                else -> 0
+            }
+        } catch (e: Exception) {
+            0
+        }
+    }
 
     // Camera & Location Permission State
     var hasCameraPermission by remember {
@@ -425,12 +451,13 @@ fun CompassARScreen(
     val satellitePositions = remember(activeTimeMs, uiState.userLocation) {
         SatelliteCatalog.satellites.associate { satItem ->
             val id = if (satItem.id == "iss_zarya") "sat_iss" else "sat_${satItem.id}"
+            val effectiveTle = SatelliteEngine.getEffectiveTle(satItem)
             val topo = ISSEngine.calculateTopocentricPos(
                 timestampMs = activeTimeMs,
                 userLatDeg = uiState.userLocation.latitude,
                 userLonDeg = uiState.userLocation.longitude,
                 userAltMeters = uiState.userLocation.elevationMeters,
-                tle = satItem.defaultTle
+                tle = effectiveTle
             )
             id to CoordinateEngine.Horizontal(
                 altitudeDeg = topo.elevationDeg,
@@ -606,7 +633,11 @@ fun CompassARScreen(
             val satItem = SatelliteCatalog.satellites.firstOrNull {
                 (if (it.id == "iss_zarya") "sat_iss" else "sat_${it.id}") == targetObj.id
             }
-            val tle = satItem?.defaultTle ?: ISSEngine.TLEData("ISS", "1 25544U...", "2 25544...")
+            val tle = if (satItem != null) {
+                SatelliteEngine.getEffectiveTle(satItem)
+            } else {
+                SatelliteEngine.getEffectiveTle(25544)
+            }
             for (offsetSec in -1800..0 step 30) {
                 val t = activeTimeMs + (offsetSec * 1000L)
                 val pos = ISSEngine.calculateTopocentricPos(
@@ -861,7 +892,8 @@ fun CompassARScreen(
                                     canvasHeight = canvasHeight,
                                     intrinsics = cameraIntrinsics,
                                     zoomFactor = activeZoom,
-                                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
+                                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
+                                    displayRotationDegrees = displayRotationDegrees
                                 ) ?: continue
 
                                 val dist = hypot(touchOffset.x - pt.x, touchOffset.y - pt.y)
@@ -922,7 +954,8 @@ fun CompassARScreen(
                     canvasHeight = canvasHeight,
                     intrinsics = cameraIntrinsics,
                     zoomFactor = zoomFactor,
-                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
+                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
+                    displayRotationDegrees = displayRotationDegrees
                 ) ?: continue
                 if (horizonFirst) {
                     horizonPath.moveTo(pt.x, pt.y)
@@ -948,7 +981,8 @@ fun CompassARScreen(
                     canvasHeight = canvasHeight,
                     intrinsics = cameraIntrinsics,
                     zoomFactor = zoomFactor,
-                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
+                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
+                    displayRotationDegrees = displayRotationDegrees
                 )
                 if (horizonCenterPt != null && horizonCenterPt.x in 0f..canvasWidth && horizonCenterPt.y in 0f..canvasHeight) {
                     val horizonLabel = if (isFa) "افق (0°)" else "Horizon (0°)"
@@ -987,7 +1021,8 @@ fun CompassARScreen(
                             canvasHeight = canvasHeight,
                             intrinsics = cameraIntrinsics,
                             zoomFactor = zoomFactor,
-                            sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
+                            sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
+                            displayRotationDegrees = displayRotationDegrees
                         ) ?: continue
 
                         if (projPt.x in -600f..(canvasWidth + 600f) && projPt.y in -600f..(canvasHeight + 600f)) {
@@ -1024,7 +1059,8 @@ fun CompassARScreen(
                             canvasHeight = canvasHeight,
                             intrinsics = cameraIntrinsics,
                             zoomFactor = zoomFactor,
-                            sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
+                            sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
+                            displayRotationDegrees = displayRotationDegrees
                         ) ?: continue
 
                         if (projPt.x in -600f..(canvasWidth + 600f) && projPt.y in -600f..(canvasHeight + 600f)) {
@@ -1070,7 +1106,8 @@ fun CompassARScreen(
                         canvasHeight = canvasHeight,
                         intrinsics = cameraIntrinsics,
                         zoomFactor = zoomFactor,
-                        sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
+                        sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
+                        displayRotationDegrees = displayRotationDegrees
                     ) ?: continue
 
                     if (galFirst) {
@@ -1128,7 +1165,8 @@ fun CompassARScreen(
                     canvasHeight = canvasHeight,
                     intrinsics = cameraIntrinsics,
                     zoomFactor = zoomFactor,
-                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
+                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
+                    displayRotationDegrees = displayRotationDegrees
                 ) ?: continue
 
                 val px = projPt.x
@@ -2107,6 +2145,84 @@ fun CompassARScreen(
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = TextPrimary
                                                 )
+                                                if (arCalibrationOffsets.isCalibrated) {
+                                                    val yawFmt = String.format("%+.1f°", arCalibrationOffsets.yawOffsetDeg)
+                                                    val pitchFmt = String.format("%+.1f°", arCalibrationOffsets.pitchOffsetDeg)
+                                                    val rollFmt = String.format("%+.1f°", arCalibrationOffsets.rollOffsetDeg)
+                                                    Text(
+                                                        text = if (isFa)
+                                                            "• آفست‌های AR: سمت ${TimeEngine.formatPersianNumbers(yawFmt)} | ارتفاع ${TimeEngine.formatPersianNumbers(pitchFmt)} | رول ${TimeEngine.formatPersianNumbers(rollFmt)}"
+                                                        else
+                                                            "• AR Offsets: Yaw $yawFmt | Pitch $pitchFmt | Roll $rollFmt",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = AccentPrimary
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Manual AR Calibration Action Card
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = BackgroundCard,
+                                    border = BorderStroke(1.dp, CardBorder),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Tune,
+                                                    contentDescription = null,
+                                                    tint = AccentPrimary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Column {
+                                                    Text(
+                                                        text = if (isFa) "کالیبراسیون دستی جهت‌گیری AR" else "AR Pointing Calibration",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White
+                                                    )
+                                                    Text(
+                                                        text = if (arCalibrationOffsets.isCalibrated) {
+                                                            val yawFmt = String.format("%+.1f°", arCalibrationOffsets.yawOffsetDeg)
+                                                            val pitchFmt = String.format("%+.1f°", arCalibrationOffsets.pitchOffsetDeg)
+                                                            if (isFa) "آفست‌های فعال: سمت $yawFmt، ارتفاع $pitchFmt" else "Active offsets: Yaw $yawFmt, Pitch $pitchFmt"
+                                                        } else {
+                                                            if (isFa) "همترازی نشانگر با ستاره واقعی" else "Align pointer with bright star"
+                                                        },
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = TextSecondary
+                                                    )
+                                                }
+                                            }
+
+                                            Button(
+                                                onClick = { showCalibrationDialog = true },
+                                                colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                                modifier = Modifier.testTag("open_ar_calibration_btn")
+                                            ) {
+                                                Text(
+                                                    text = if (isFa) "تنظیم" else "Calibrate",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
                                             }
                                         }
                                     }
@@ -2191,7 +2307,8 @@ fun CompassARScreen(
                     canvasHeight = canvasHeight,
                     intrinsics = cameraIntrinsics,
                     zoomFactor = zoomFactor,
-                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform
+                    sensorToViewMatrix = previewViewInstance?.sensorToViewTransform,
+                    displayRotationDegrees = displayRotationDegrees
                 )
 
                 val px = projPt?.x ?: (canvasWidth / 2f)
@@ -2340,6 +2457,26 @@ fun CompassARScreen(
                         color = Color.White
                     )
                 }
+            }
+        }
+
+        // Layer 8: Manual AR Pointing Calibration Dialog
+        if (showCalibrationDialog) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .padding(horizontal = 12.dp, vertical = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                ARCalibrationDialog(
+                    isFa = isFa,
+                    onDismiss = { showCalibrationDialog = false },
+                    onSelectReferenceStar = { star ->
+                        selectedTarget = star
+                        hasVibratedForArrival = false
+                    }
+                )
             }
         }
     }

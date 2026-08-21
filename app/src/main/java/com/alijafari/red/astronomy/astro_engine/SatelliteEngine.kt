@@ -22,7 +22,24 @@ data class SatelliteLiveState(
     val visibilityVerdictEn: String,
     val visibilityVerdictFa: String,
     val reasonEn: String,
-    val reasonFa: String
+    val reasonFa: String,
+    val tleMetadata: TleMetadata? = null
+)
+
+enum class TleDataSource {
+    LIVE_NETWORK,       // Freshly fetched / verified from network (< 24h)
+    PERSISTED_CACHE,    // Stored in Room local database
+    MEMORY_CACHE,       // Loaded in runtime memory
+    HARDCODED_FALLBACK  // Default static catalog TLE (offline final fallback)
+}
+
+data class TleMetadata(
+    val noradId: Int,
+    val source: TleDataSource,
+    val epochAgeDays: Double,
+    val lastUpdatedMs: Long,
+    val isStale: Boolean,
+    val tleData: TLEData
 )
 
 data class SubSolarPoint(
@@ -75,6 +92,11 @@ object SatelliteEngine {
     var customTleResolver: ((noradId: Int) -> TLEData?)? = null
 
     /**
+     * Authoritative custom TLE metadata resolver, dynamically set by TleRepository.
+     */
+    var customTleMetadataResolver: ((noradId: Int) -> TleMetadata?)? = null
+
+    /**
      * Logs TLE selection with source, epoch, and staleness age.
      */
     fun logTleSelection(source: String, tle: TLEData) {
@@ -118,26 +140,104 @@ object SatelliteEngine {
     }
 
     /**
-     * Resolves the effective TLE for a satellite, checking custom resolver / repository first,
-     * then ISS live cache, and falling back to the hardcoded catalog default.
+     * Authoritative resolution of TLE and source metadata for a satellite NORAD ID.
+     * Hierarchy:
+     * 1. Provided custom TLE (if non-null and not matching the catalog default)
+     * 2. Authoritative TleRepository metadata resolver (Memory -> Room Database -> Starlink cache)
+     * 3. Custom TLE resolver fallback
+     * 4. Live ISS memory cache (for NORAD 25544 if modified)
+     * 5. Hardcoded static catalog default TLE (final offline fallback)
+     */
+    fun getEffectiveTleInfo(noradId: Int, providedTle: TLEData? = null): TleMetadata {
+        val catItem = SatelliteCatalog.satellites.find { it.noradId == noradId }
+        val catalogDefault = catItem?.defaultTle ?: (if (noradId == 25544) ISSEngine.cachedTLE else null)
+
+        // 1. Provided custom TLE if explicitly passed and different from hardcoded catalog default
+        if (providedTle != null && catalogDefault != null && (providedTle.line1 != catalogDefault.line1 || providedTle.line2 != catalogDefault.line2)) {
+            val epochAge = computeTleAgeDays(providedTle.line1)
+            val meta = TleMetadata(
+                noradId = noradId,
+                source = TleDataSource.MEMORY_CACHE,
+                epochAgeDays = epochAge,
+                lastUpdatedMs = System.currentTimeMillis(),
+                isStale = epochAge > 14.0,
+                tleData = providedTle
+            )
+            logTleSelection("provided-custom", providedTle)
+            return meta
+        }
+
+        // 2. Authoritative TleRepository Metadata Resolver
+        val resolvedMeta = customTleMetadataResolver?.invoke(noradId)
+        if (resolvedMeta != null) {
+            logTleSelection("metadata-resolver (${resolvedMeta.source})", resolvedMeta.tleData)
+            return resolvedMeta
+        }
+
+        // 3. Fallback to basic customTleResolver
+        val resolvedTle = customTleResolver?.invoke(noradId)
+        if (resolvedTle != null) {
+            val epochAge = computeTleAgeDays(resolvedTle.line1)
+            val isDefault = catalogDefault != null && resolvedTle.line1 == catalogDefault.line1 && resolvedTle.line2 == catalogDefault.line2
+            val source = if (isDefault) TleDataSource.HARDCODED_FALLBACK else TleDataSource.PERSISTED_CACHE
+            logTleSelection("custom-resolver ($source)", resolvedTle)
+            return TleMetadata(
+                noradId = noradId,
+                source = source,
+                epochAgeDays = epochAge,
+                lastUpdatedMs = System.currentTimeMillis(),
+                isStale = epochAge > 14.0,
+                tleData = resolvedTle
+            )
+        }
+
+        // 4. ISS cached check
+        if (noradId == 25544 && catalogDefault != null && ISSEngine.cachedTLE.line1 != catalogDefault.line1) {
+            val epochAge = computeTleAgeDays(ISSEngine.cachedTLE.line1)
+            logTleSelection("network-stored", ISSEngine.cachedTLE)
+            return TleMetadata(
+                noradId = 25544,
+                source = TleDataSource.PERSISTED_CACHE,
+                epochAgeDays = epochAge,
+                lastUpdatedMs = System.currentTimeMillis(),
+                isStale = epochAge > 14.0,
+                tleData = ISSEngine.cachedTLE
+            )
+        }
+
+        // 5. Final offline fallback (hardcoded catalog default)
+        val fallback = providedTle ?: catalogDefault ?: ISSEngine.TLEData()
+        val epochAge = computeTleAgeDays(fallback.line1)
+        logTleSelection("hardcoded-fallback", fallback)
+        return TleMetadata(
+            noradId = noradId,
+            source = TleDataSource.HARDCODED_FALLBACK,
+            epochAgeDays = epochAge,
+            lastUpdatedMs = 0L,
+            isStale = true,
+            tleData = fallback
+        )
+    }
+
+    /**
+     * Resolves the authoritative TLE info for a given SatelliteItem.
+     */
+    fun getEffectiveTleInfo(satellite: SatelliteItem, providedTle: TLEData? = null): TleMetadata {
+        return getEffectiveTleInfo(satellite.noradId, providedTle)
+    }
+
+    /**
+     * Resolves the authoritative TLE for a given NORAD ID.
+     */
+    fun getEffectiveTle(noradId: Int, providedTle: TLEData? = null): TLEData {
+        return getEffectiveTleInfo(noradId, providedTle).tleData
+    }
+
+    /**
+     * Resolves the authoritative TLE for a given satellite.
      */
     fun getEffectiveTle(satellite: SatelliteItem, providedTle: TLEData? = null): TLEData {
-        if (providedTle != null && providedTle != satellite.defaultTle) {
-            logTleSelection("provided-custom", providedTle)
-            return providedTle
-        }
-        val resolved = customTleResolver?.invoke(satellite.noradId)
-        if (resolved != null) {
-            logTleSelection("network-stored", resolved)
-            return resolved
-        }
-        if (satellite.noradId == 25544 && ISSEngine.cachedTLE.line1 != satellite.defaultTle.line1) {
-            logTleSelection("network-stored", ISSEngine.cachedTLE)
-            return ISSEngine.cachedTLE
-        }
-        val fallback = providedTle ?: satellite.defaultTle
-        logTleSelection("hardcoded-fallback", fallback)
-        return fallback
+        return getEffectiveTleInfo(satellite.noradId, providedTle).tleData
     }
 
     /**
@@ -170,13 +270,13 @@ object SatelliteEngine {
         userLonDeg: Double,
         tle: TLEData? = null
     ): SatelliteLiveState {
-        val effectiveTle = getEffectiveTle(satellite, tle)
+        val tleMeta = getEffectiveTleInfo(satellite, tle)
         val topo = ISSEngine.calculateTopocentricPos(
             timestampMs = timestampMs,
             userLatDeg = userLatDeg,
             userLonDeg = userLonDeg,
             userAltMeters = 940.0,
-            tle = effectiveTle
+            tle = tleMeta.tleData
         )
 
         // JWST exception (L2 orbit)
@@ -254,7 +354,8 @@ object SatelliteEngine {
             visibilityVerdictEn = verdictEn,
             visibilityVerdictFa = verdictFa,
             reasonEn = reasonEn,
-            reasonFa = reasonFa
+            reasonFa = reasonFa,
+            tleMetadata = tleMeta
         )
     }
 

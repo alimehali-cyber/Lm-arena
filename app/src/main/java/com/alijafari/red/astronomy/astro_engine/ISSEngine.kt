@@ -303,9 +303,7 @@ class ISSEngine {
         } catch (e: Exception) {
             25544
         }
-        val effectiveTle = SatelliteEngine.customTleResolver?.invoke(noradId) ?: tle
-        val sourceLabel = if (SatelliteEngine.customTleResolver != null) "network-stored" else "hardcoded-fallback"
-        SatelliteEngine.logTleSelection(sourceLabel, effectiveTle)
+        val effectiveTle = SatelliteEngine.getEffectiveTle(noradId, tle)
 
         val passes = mutableListOf<ISSPass>()
         val scanDurationMs = scanDays * 24 * 3600 * 1000L

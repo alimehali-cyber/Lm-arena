@@ -930,7 +930,7 @@ fun ISSScreen(
                             userLatDeg = uiState.userLocation.latitude,
                             userLonDeg = uiState.userLocation.longitude,
                             startTimestampMs = roundedStartMs,
-                            tle = sat.defaultTle,
+                            tle = SatelliteEngine.getEffectiveTle(sat),
                             scanDays = 3,
                             visibleOnly = true,
                             standardMag = sat.standardMagnitude
