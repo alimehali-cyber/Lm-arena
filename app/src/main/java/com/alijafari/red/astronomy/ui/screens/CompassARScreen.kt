@@ -450,8 +450,8 @@ fun CompassARScreen(
 
     // Real-Time Satellite Topocentric Positions for all catalog satellites
     val satellitePositions = remember(activeTimeMs, uiState.userLocation) {
-        SatelliteCatalog.satellites.associate { satItem ->
-            val id = if (satItem.id == "iss_zarya") "sat_iss" else "sat_${satItem.id}"
+        val map = mutableMapOf<String, CoordinateEngine.Horizontal>()
+        SatelliteCatalog.satellites.forEach { satItem ->
             val effectiveTle = SatelliteEngine.getEffectiveTle(satItem)
             val topo = ISSEngine.calculateTopocentricPos(
                 timestampMs = activeTimeMs,
@@ -460,11 +460,20 @@ fun CompassARScreen(
                 userAltMeters = uiState.userLocation.elevationMeters,
                 tle = effectiveTle
             )
-            id to CoordinateEngine.Horizontal(
+            val horiz = CoordinateEngine.Horizontal(
                 altitudeDeg = topo.elevationDeg,
                 azimuthDeg = topo.azimuthDeg
             )
+            map[satItem.id] = horiz
+            map["sat_${satItem.id}"] = horiz
+            map["sat_${satItem.noradId}"] = horiz
+            map["norad_${satItem.noradId}"] = horiz
+            if (satItem.noradId == 25544) {
+                map["sat_iss"] = horiz
+                map["iss"] = horiz
+            }
         }
+        map
     }
 
     val allCatalog = remember(jd) { AstronomyCatalog.getAllObjects(jd) }
@@ -632,7 +641,10 @@ fun CompassARScreen(
 
         if (targetObj.type == ObjectType.SATELLITE) {
             val satItem = SatelliteCatalog.satellites.firstOrNull {
-                (if (it.id == "iss_zarya") "sat_iss" else "sat_${it.id}") == targetObj.id
+                it.id == targetObj.id ||
+                "sat_${it.id}" == targetObj.id ||
+                "sat_${it.noradId}" == targetObj.id ||
+                (it.noradId == 25544 && (targetObj.id == "sat_iss" || targetObj.id == "iss"))
             }
             val tle = if (satItem != null) {
                 SatelliteEngine.getEffectiveTle(satItem)
