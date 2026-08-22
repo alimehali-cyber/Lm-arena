@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
+import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.astro_engine.MoonEngine
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.domain.AppLanguage
@@ -211,6 +213,8 @@ fun MoonScreen(
                     PhotographicMoonView(
                         moonData = moonData,
                         latitude = uiState.userLocation.latitude,
+                        longitude = uiState.userLocation.longitude,
+                        jd = currentJd,
                         onDragDelta = { dragAmount ->
                             val deltaDays = dragAmount / 15f
                             selectedDayOffsetFloat = (selectedDayOffsetFloat + deltaDays).coerceIn(-30f, 30f)
@@ -425,6 +429,8 @@ fun MoonScreen(
 private fun PhotographicMoonView(
     moonData: MoonEngine.MoonData,
     latitude: Double,
+    longitude: Double,
+    jd: Double,
     onDragDelta: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -438,6 +444,19 @@ private fun PhotographicMoonView(
         ),
         label = "Rotation"
     )
+
+    val lastDeg = remember(jd, longitude) { TimeEngine.getLAST(jd, longitude) }
+    val moonParallacticAngle = remember(lastDeg, latitude, moonData.raDeg, moonData.decDeg) {
+        CoordinateEngine.calculateParallacticAngleDeg(
+            lastDeg = lastDeg,
+            latitudeDeg = latitude,
+            raDeg = moonData.raDeg,
+            decDeg = moonData.decDeg
+        )
+    }
+    val zenithAngleDeg = remember(moonData.brightLimbAngleDeg, moonParallacticAngle) {
+        CoordinateEngine.calculateZenithAngleDeg(moonData.brightLimbAngleDeg, moonParallacticAngle)
+    }
 
     Box(
         modifier = modifier
@@ -498,6 +517,12 @@ private fun PhotographicMoonView(
                 val age = moonData.ageDays
                 val isWaxing = age < 14.765
 
+                val shadowRotDeg = if (isWaxing) {
+                    (zenithAngleDeg - 90.0).toFloat()
+                } else {
+                    (zenithAngleDeg - 270.0).toFloat()
+                }
+
                 if (ill < 0.98) {
                     // Multi-pass Feathered Terminator Shadow Overlay for natural penumbra blending
                     val targetShadowAlpha = 0.92f
@@ -532,10 +557,12 @@ private fun PhotographicMoonView(
                         }
                         shadowPath.close()
 
-                        drawPath(
-                            path = shadowPath,
-                            color = Color(0xFF07070F).copy(alpha = stepAlpha)
-                        )
+                        rotate(shadowRotDeg, center) {
+                            drawPath(
+                                path = shadowPath,
+                                color = Color(0xFF07070F).copy(alpha = stepAlpha)
+                            )
+                        }
                     }
                 }
 

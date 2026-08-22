@@ -9,7 +9,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.dp
+import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import kotlin.math.abs
 import kotlin.math.cos
@@ -29,7 +31,9 @@ object MoonRenderer {
         lightingState: LightingState,
         frameTimeMs: Long = System.currentTimeMillis(),
         isWaxing: Boolean = true,
-        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL
+        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
+        brightLimbAngleDeg: Double = 0.0,
+        parallacticAngleDeg: Double = 0.0
     ) {
         val horizonY = drawScope.size.height * 0.85f
         drawScope.clipRect(
@@ -43,12 +47,25 @@ object MoonRenderer {
                 return@clipRect
             }
 
+            // The angle of the bright limb relative to local zenith (upwards)
+            // Zenith angle theta = chi - q (Meeus Chapter 14 & 48)
+            val zenithAngleDeg = CoordinateEngine.calculateZenithAngleDeg(brightLimbAngleDeg, parallacticAngleDeg)
+
+            // When isWaxing = true, default standard shadow is on the left (limb on right at 0 deg).
+            // Rotation by (zenithAngleDeg - 90f) or zenithAngleDeg aligns the bright limb to the exact physical direction of the Sun.
+            // Specifically: if zenithAngle is 90° (due East/Right), rotation is 0°. If zenithAngle is 270° (due West/Left), rotation is 180°.
+            val shadowRotationDeg = if (isWaxing) {
+                (zenithAngleDeg - 90.0).toFloat()
+            } else {
+                (zenithAngleDeg - 270.0).toFloat()
+            }
+
             when (theme) {
-                SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
-                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
-                SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing)
-                SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing)
-                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftMoon(drawScope, center, radius, illuminationPercent, isWaxing)
+                SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing, shadowRotationDeg)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing, shadowRotationDeg)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing, shadowRotationDeg)
+                SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing, shadowRotationDeg)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftMoon(drawScope, center, radius, illuminationPercent, isWaxing, shadowRotationDeg)
             }
         }
     }
@@ -83,7 +100,8 @@ object MoonRenderer {
         radius: Float,
         illuminationPercent: Double,
         isLunarEclipse: Boolean,
-        isWaxing: Boolean
+        isWaxing: Boolean,
+        shadowRotationDeg: Float = 0f
     ) {
         // Monochromatic vector Moon: Illuminated part white, shadowed part dark grey, subtle depth stroke
         val illuminatedColor = if (isLunarEclipse) Color(0xFFD4D4D8) else Color.White
@@ -122,10 +140,12 @@ object MoonRenderer {
             }
             illuminatedPath.close()
 
-            drawScope.drawPath(
-                path = illuminatedPath,
-                color = illuminatedColor
-            )
+            drawScope.rotate(shadowRotationDeg, center) {
+                drawPath(
+                    path = illuminatedPath,
+                    color = illuminatedColor
+                )
+            }
         }
 
         // 3. Subtle depth outline (minimal, architectural stroke)
@@ -146,7 +166,8 @@ object MoonRenderer {
         moonPulseScale: Float,
         lightingState: LightingState,
         frameTimeMs: Long,
-        isWaxing: Boolean
+        isWaxing: Boolean,
+        shadowRotationDeg: Float = 0f
     ) {
         val shinePulse = 1.0f + 0.08f * sin(frameTimeMs * 0.0022f).toFloat() * moonPulseScale
 
@@ -195,7 +216,9 @@ object MoonRenderer {
             }
             shadowPath.close()
 
-            drawScope.drawPath(path = shadowPath, color = baseShadowColor)
+            drawScope.rotate(shadowRotationDeg, center) {
+                drawPath(path = shadowPath, color = baseShadowColor)
+            }
         }
 
         drawScope.drawCircle(color = Color(0xFFFDE047).copy(alpha = 0.8f), radius = radius, center = center, style = Stroke(width = 1.5f))
@@ -210,7 +233,8 @@ object MoonRenderer {
         moonPulseScale: Float,
         lightingState: LightingState,
         frameTimeMs: Long,
-        isWaxing: Boolean
+        isWaxing: Boolean,
+        shadowRotationDeg: Float = 0f
     ) {
         val shinePulse = 1.0f + 0.08f * sin(frameTimeMs * 0.0022f).toFloat() * moonPulseScale
 
@@ -321,7 +345,9 @@ object MoonRenderer {
             }
             shadowPath.close()
 
-            drawScope.drawPath(path = shadowPath, color = baseShadowColor)
+            drawScope.rotate(shadowRotationDeg, center) {
+                drawPath(path = shadowPath, color = baseShadowColor)
+            }
         }
 
         drawScope.drawCircle(
@@ -337,7 +363,8 @@ object MoonRenderer {
         center: Offset,
         radius: Float,
         illuminationPercent: Double,
-        isWaxing: Boolean
+        isWaxing: Boolean,
+        shadowRotationDeg: Float = 0f
     ) {
         val shadowOffset = Offset(4f, 5f)
         val shadowColor = Color(0x352A221E)
@@ -393,8 +420,10 @@ object MoonRenderer {
             }
             shadowPath.close()
 
-            drawScope.drawPath(path = shadowPath, color = paperDarkCard)
-            drawScope.drawPath(path = shadowPath, color = Color(0x33000000), style = Stroke(width = 1.2f))
+            drawScope.rotate(shadowRotationDeg, center) {
+                drawPath(path = shadowPath, color = paperDarkCard)
+                drawPath(path = shadowPath, color = Color(0x33000000), style = Stroke(width = 1.2f))
+            }
         }
     }
 }

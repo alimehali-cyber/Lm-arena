@@ -45,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -1224,12 +1225,49 @@ fun CompassARScreen(
                                     center = Offset(px, py)
                                 )
                                 val illumFrac = (moonData.illuminationPercent / 100.0).coerceIn(0.0, 1.0).toFloat()
-                                if (illumFrac < 0.95f) {
-                                    drawCircle(
-                                        color = Color(0xFF0F172A).copy(alpha = 0.75f),
-                                        radius = radiusPx * (1f - illumFrac * 0.8f),
-                                        center = Offset(px + radiusPx * (0.3f - illumFrac * 0.3f), py)
+                                if (illumFrac < 0.98f) {
+                                    val isWaxing = moonData.ageDays < 14.765
+                                    val moonParallacticAngle = CoordinateEngine.calculateParallacticAngleDeg(
+                                        lastDeg = lastDeg,
+                                        latitudeDeg = uiState.userLocation.latitude,
+                                        raDeg = moonData.raDeg,
+                                        decDeg = moonData.decDeg
                                     )
+                                    val zenithAngleDeg = CoordinateEngine.calculateZenithAngleDeg(moonData.brightLimbAngleDeg, moonParallacticAngle)
+                                    val shadowRotDeg = if (isWaxing) {
+                                        (zenithAngleDeg - 90.0).toFloat()
+                                    } else {
+                                        (zenithAngleDeg - 270.0).toFloat()
+                                    }
+
+                                    val shadowPath = Path()
+                                    val sweepAngle = 180f
+                                    val startAngle = if (isWaxing) 90f else -90f
+
+                                    shadowPath.addArc(
+                                        Rect(px - radiusPx, py - radiusPx, px + radiusPx, py + radiusPx),
+                                        startAngle,
+                                        sweepAngle
+                                    )
+                                    val k = (2.0 * illumFrac - 1.0).toFloat()
+                                    val stepInnerWidth = (abs(k) * radiusPx).coerceAtLeast(0f)
+                                    val innerRect = Rect(px - stepInnerWidth, py - radiusPx, px + stepInnerWidth, py + radiusPx)
+
+                                    if (isWaxing) {
+                                        val innerSweep = if (k >= 0) -180f else 180f
+                                        shadowPath.arcTo(innerRect, 270f, innerSweep, false)
+                                    } else {
+                                        val innerSweep = if (k >= 0) -180f else 180f
+                                        shadowPath.arcTo(innerRect, 90f, innerSweep, false)
+                                    }
+                                    shadowPath.close()
+
+                                    rotate(shadowRotDeg, Offset(px, py)) {
+                                        drawPath(
+                                            path = shadowPath,
+                                            color = Color(0xFF0F172A).copy(alpha = 0.85f)
+                                        )
+                                    }
                                 }
                             } else {
                                 // Jovian Satellite / Galilean Moon Disk
@@ -1631,13 +1669,13 @@ fun CompassARScreen(
             }
         }
 
-        // Layer 3.5: Glass Floating Cancel Target Button (Visible whenever target is active, even when controls auto-hide)
+        // Layer 3.5: Glass Floating Cancel Target Button (Visible whenever target is active at bottom-start)
         if (selectedTarget != null) {
             Surface(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(top = 10.dp, end = 12.dp)
+                    .align(Alignment.BottomStart)
+                    .navigationBarsPadding()
+                    .padding(start = 16.dp, bottom = 16.dp)
                     .testTag("ar_cancel_target_button"),
                 onClick = {
                     selectedTarget = null
@@ -1645,7 +1683,8 @@ fun CompassARScreen(
                 },
                 shape = RoundedCornerShape(20.dp),
                 color = Color(0xCC1A1F36),
-                border = BorderStroke(1.dp, Color(0x88FF5252))
+                border = BorderStroke(1.dp, Color(0x88FF5252)),
+                shadowElevation = 6.dp
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),

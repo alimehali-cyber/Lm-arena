@@ -1,5 +1,7 @@
 package com.alijafari.red.astronomy.astro_engine
 
+import kotlin.math.*
+
 object CoordinateEngine {
     data class Equatorial(val raDeg: Double, val decDeg: Double)
     data class Horizontal(val azimuthDeg: Double, val altitudeDeg: Double) {
@@ -85,4 +87,41 @@ object CoordinateEngine {
         return RiseSetTransit(legacyRst.riseTimeStr, legacyRst.transitTimeStr, legacyRst.setTimeStr, legacyRst.isCircumpolar, legacyRst.neverRises)
     }
     fun calculateAngularSeparationDeg(ra1: Double, dec1: Double, ra2: Double, dec2: Double) = CoordinateEngineLegacy.calculateAngularSeparationDeg(ra1, dec1, ra2, dec2)
+
+    /**
+     * Calculates the parallactic angle q (in degrees) for an equatorial object at given local sidereal time and latitude.
+     * q is the angle between the great circle through the celestial pole and the zenith.
+     * Returns angle in degrees in range [-180, +180].
+     */
+    fun calculateParallacticAngleDeg(raDeg: Double, decDeg: Double, lastDeg: Double, latitudeDeg: Double): Double {
+        var haDeg = lastDeg - raDeg
+        haDeg %= 360.0
+        if (haDeg < 0) haDeg += 360.0
+
+        val haRad = Math.toRadians(haDeg)
+        val decRad = Math.toRadians(decDeg)
+        val latRad = Math.toRadians(latitudeDeg)
+
+        val sinH = sin(haRad)
+        val cosH = cos(haRad)
+        val tanLat = tan(latRad)
+        val cosDec = cos(decRad)
+        val sinDec = sin(decRad)
+
+        val num = sinH
+        val den = tanLat * cosDec - sinDec * cosH
+        val qRad = atan2(num, den)
+        return Math.toDegrees(qRad)
+    }
+
+    /**
+     * Calculates the position angle of the Moon's bright limb relative to the local zenith (Zenith Angle / Vertex Angle).
+     * theta = chi - q (Meeus Chapter 14 & 48).
+     * Returns normalized angle in [0, 360) degrees.
+     */
+    fun calculateZenithAngleDeg(brightLimbAngleDeg: Double, parallacticAngleDeg: Double): Double {
+        var zenithAngle = (brightLimbAngleDeg - parallacticAngleDeg) % 360.0
+        if (zenithAngle < 0) zenithAngle += 360.0
+        return zenithAngle
+    }
 }
