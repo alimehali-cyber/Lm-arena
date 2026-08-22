@@ -36,14 +36,8 @@ object AstronomyRenderer {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
-        val horizonY = height * 0.85f
-        val topMargin = 24f
-        val scale = (horizonY - topMargin) / 90.0f
-
         val sunPosPx = if (sunHoriz.altitudeDeg > -12.0) {
-            val sunX = (sunHoriz.azimuthDeg / 360.0 * width).toFloat()
-            val sunY = horizonY - sunHoriz.altitudeDeg.toFloat() * scale
-            Offset(sunX, sunY)
+            HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, width, height)
         } else null
 
         // 1. Atmosphere & Sky Gradient
@@ -99,12 +93,11 @@ object AstronomyRenderer {
 
         // 7. Moon
         if (moonData.altitudeDeg > -12.0) {
-            val moonX = (moonData.azimuthDeg / 360.0 * width).toFloat()
-            val moonY = horizonY - moonData.altitudeDeg.toFloat() * scale
+            val moonCenter = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, width, height)
             
             MoonRenderer.drawMoon(
                 drawScope = drawScope,
-                center = Offset(moonX, moonY),
+                center = moonCenter,
                 radius = 26f,
                 illuminationPercent = moonData.illuminationPercent,
                 phaseAngleRad = moonData.phaseAngleRad,
@@ -153,7 +146,7 @@ object AstronomyRenderer {
 
         // Horizontal Altitude Circles
         for (alt in 15..75 step 15) {
-            val y = height - (alt / 90.0f * height)
+            val y = HeroSkyProjection.project(0.0, alt.toDouble(), width, height).y
             drawScope.drawLine(
                 color = gridColor,
                 start = Offset(0f, y),
@@ -164,7 +157,7 @@ object AstronomyRenderer {
 
         // Vertical Azimuth Lines
         for (az in 45..315 step 45) {
-            val x = az / 360.0f * width
+            val x = HeroSkyProjection.project(az.toDouble(), 0.0, width, height).x
             drawScope.drawLine(
                 color = gridColor,
                 start = Offset(x, 0f),

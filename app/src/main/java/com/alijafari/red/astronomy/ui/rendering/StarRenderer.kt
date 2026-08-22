@@ -47,9 +47,9 @@ object StarRenderer {
         val height = drawScope.size.height
 
         objects.forEach { (celestialObj, horiz) ->
-            val sx = (horiz.azimuthDeg / 360.0 * width).toFloat()
-            val sy = (height - (horiz.altitudeDeg / 90.0 * height)).toFloat()
-            val center = Offset(sx, sy)
+            val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height)
+            val sx = center.x
+            val sy = center.y
 
             if (celestialObj.type == ObjectType.DEEP_SKY) {
                 drawAndromedaCelestial(drawScope, center, starVisibility, frameTimeMs)
@@ -111,9 +111,9 @@ object StarRenderer {
         val height = drawScope.size.height
 
         objects.forEach { (celestialObj, horiz) ->
-            val sx = (horiz.azimuthDeg / 360.0 * width).toFloat()
-            val sy = (height - (horiz.altitudeDeg / 90.0 * height)).toFloat()
-            val center = Offset(sx, sy)
+            val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height)
+            val sx = center.x
+            val sy = center.y
 
             if (celestialObj.type == ObjectType.DEEP_SKY) {
                 // Faint elliptical outline with soft translucent center
@@ -289,9 +289,9 @@ object StarRenderer {
 
         objects.forEach { (celestialObj, horiz) ->
             if (celestialObj.type == ObjectType.STAR || celestialObj.type == ObjectType.DEEP_SKY) {
-                val sx = (horiz.azimuthDeg / 360.0 * width).toFloat()
-                val sy = (height - (horiz.altitudeDeg / 90.0 * height)).toFloat()
-                val center = Offset(sx, sy)
+                val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height)
+                val sx = center.x
+                val sy = center.y
 
                 val hash = celestialObj.id.hashCode()
                 val size = (5f - celestialObj.magnitude.toFloat() * 0.6f).coerceIn(2.5f, 7.5f)

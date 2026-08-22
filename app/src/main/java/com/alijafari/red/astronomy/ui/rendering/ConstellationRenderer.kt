@@ -56,9 +56,8 @@ object ConstellationRenderer {
         val height = drawScope.size.height
 
         val starMap = stars.associate { (star, horiz) ->
-            val sx = (horiz.azimuthDeg / 360.0 * width).toFloat()
-            val sy = (height - (horiz.altitudeDeg / 90.0 * height)).toFloat()
-            star.id to (Offset(sx, sy) to horiz.altitudeDeg)
+            val starPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height)
+            star.id to (starPos to horiz.altitudeDeg)
         }
 
         val linePulse = 0.6f + 0.4f * sin(frameTimeMs * 0.0012f).toFloat()

@@ -55,6 +55,7 @@ data class StardustParticle(
 )
 
 data class SelectedCelestialInfo(
+    val id: String = "",
     val name: String,
     val position: Offset,
     val typeName: String? = null
@@ -71,8 +72,8 @@ fun HeroSkyCanvas(
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
 
-    // Base Julian Date for now
-    val baseJd = remember { TimeEngine.getJulianDate() }
+    // Dynamic Astronomical Julian Date (Tracks real system time continuously in live mode, plus simulation offset)
+    var currentSystemTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     // Direct Finger Time Travel state
     val simulatedOffsetHoursAnim = remember { Animatable(0f) }
@@ -94,12 +95,13 @@ fun HeroSkyCanvas(
     // Stardust Particles list
     val stardustParticles = remember { mutableStateListOf<StardustParticle>() }
 
-    // Continuous frame time for star twinkling & Moon pulse
+    // Continuous frame time for star twinkling, Moon pulse & real-time clock tracking
     var frameTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
             withFrameMillis { ms ->
                 frameTimeMs = ms
+                currentSystemTimeMs = System.currentTimeMillis()
                 // Update stardust particles
                 val iter = stardustParticles.iterator()
                 while (iter.hasNext()) {
@@ -127,12 +129,11 @@ fun HeroSkyCanvas(
         label = "MoonPulse"
     )
 
-    // Current Simulated Julian Date
+    // Current Simulated Julian Date (Real system time JD in live mode, plus any finger time travel offset)
     val currentOffsetHours = simulatedOffsetHoursAnim.value
-    val simulatedJd = baseJd + (currentOffsetHours / 24.0)
-    val simulatedTimeMs = remember(simulatedJd) {
-        ((simulatedJd - 2440587.5) * 86400000.0).toLong()
-    }
+    val currentBaseJd = TimeEngine.getJulianDate(currentSystemTimeMs)
+    val simulatedJd = currentBaseJd + (currentOffsetHours / 24.0)
+    val simulatedTimeMs = ((simulatedJd - 2440587.5) * 86400000.0).toLong()
 
     // Astro computations
     val userLat = uiState.userLocation.latitude
@@ -217,7 +218,7 @@ fun HeroSkyCanvas(
     // Selected Tapped Celestial Object
     var selectedCelestial by remember { mutableStateOf<SelectedCelestialInfo?>(null) }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .height(320.dp)
@@ -233,30 +234,30 @@ fun HeroSkyCanvas(
                     var minDistance = Float.MAX_VALUE
 
                     // Check Sun
-                    if (sunHoriz.altitudeDeg > -10.0) {
-                        val sunX = (sunHoriz.azimuthDeg / 360.0 * canvasW).toFloat()
-                        val sunY = (canvasH - ((sunHoriz.altitudeDeg + 10.0) / 100.0 * canvasH)).toFloat()
-                        val dist = hypot(tapOffset.x - sunX, tapOffset.y - sunY)
+                    if (sunHoriz.altitudeDeg > -12.0) {
+                        val sunPos = HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH)
+                        val dist = HeroSkyProjection.screenDistance(tapOffset, sunPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             closestObj = SelectedCelestialInfo(
+                                id = "sun",
                                 name = if (isFa) "خورشید" else "Sun",
-                                position = Offset(sunX, sunY),
+                                position = sunPos,
                                 typeName = if (isFa) "ستاره مرکزی منظومه شمسی" else "Central Star"
                             )
                         }
                     }
 
                     // Check Moon
-                    if (moonData.altitudeDeg > -5.0) {
-                        val moonX = (moonData.azimuthDeg / 360.0 * canvasW).toFloat()
-                        val moonY = (canvasH - ((moonData.altitudeDeg + 5.0) / 95.0 * canvasH)).toFloat().coerceIn(50.dp.toPx(), canvasH - 40.dp.toPx())
-                        val dist = hypot(tapOffset.x - moonX, tapOffset.y - moonY)
+                    if (moonData.altitudeDeg > -12.0) {
+                        val moonPos = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH)
+                        val dist = HeroSkyProjection.screenDistance(tapOffset, moonPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             closestObj = SelectedCelestialInfo(
+                                id = "moon",
                                 name = if (isFa) "ماه" else "Moon",
-                                position = Offset(moonX, moonY),
+                                position = moonPos,
                                 typeName = if (isFa) moonData.phaseNameFa else moonData.phaseNameEn
                             )
                         }
@@ -264,14 +265,14 @@ fun HeroSkyCanvas(
 
                     // Check Planets
                     planetPositions.forEach { (pType, _, horiz) ->
-                        val px = (horiz.azimuthDeg / 360.0 * canvasW).toFloat()
-                        val py = (canvasH - ((horiz.altitudeDeg + 5.0) / 95.0 * canvasH)).toFloat()
-                        val dist = hypot(tapOffset.x - px, tapOffset.y - py)
+                        val pPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH)
+                        val dist = HeroSkyProjection.screenDistance(tapOffset, pPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             closestObj = SelectedCelestialInfo(
+                                id = "planet_${pType.name}",
                                 name = if (isFa) pType.nameFa else pType.nameEn,
-                                position = Offset(px, py),
+                                position = pPos,
                                 typeName = if (isFa) "سیاره" else "Planet"
                             )
                         }
@@ -279,14 +280,14 @@ fun HeroSkyCanvas(
 
                     // Check Catalog Stars / Deep Sky
                     catalogStars.forEach { (celestialObj, horiz) ->
-                        val sx = (horiz.azimuthDeg / 360.0 * canvasW).toFloat()
-                        val sy = (canvasH - (horiz.altitudeDeg / 90.0 * canvasH)).toFloat()
-                        val dist = hypot(tapOffset.x - sx, tapOffset.y - sy)
+                        val sPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH)
+                        val dist = HeroSkyProjection.screenDistance(tapOffset, sPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             closestObj = SelectedCelestialInfo(
+                                id = "star_${celestialObj.id}",
                                 name = if (isFa) celestialObj.nameFa else celestialObj.nameEn,
-                                position = Offset(sx, sy),
+                                position = sPos,
                                 typeName = if (isFa) celestialObj.type.nameFa else celestialObj.type.nameEn
                             )
                         }
@@ -362,14 +363,9 @@ fun HeroSkyCanvas(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val canvasW = size.width
             val canvasH = size.height
-            val horizonY = canvasH * 0.85f
-            val topMargin = 24.dp.toPx()
-            val scale = (horizonY - topMargin) / 90.0f
 
             val sunPosPx = if (sunHoriz.altitudeDeg > -12.0) {
-                val sunX = (sunHoriz.azimuthDeg / 360.0 * canvasW).toFloat()
-                val sunY = horizonY - sunHoriz.altitudeDeg.toFloat() * scale
-                Offset(sunX, sunY)
+                HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH)
             } else null
 
             // 1. Atmosphere Renderer
@@ -412,13 +408,12 @@ fun HeroSkyCanvas(
 
             // 5. Moon Renderer
             if (moonData.altitudeDeg > -12.0) {
-                val moonX = (moonData.azimuthDeg / 360.0 * canvasW).toFloat()
-                val moonY = horizonY - moonData.altitudeDeg.toFloat() * scale
+                val moonCenter = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH)
                 val baseMoonRadius = 26.dp.toPx()
 
                 MoonRenderer.drawMoon(
                     drawScope = this,
-                    center = Offset(moonX, moonY),
+                    center = moonCenter,
                     radius = baseMoonRadius,
                     illuminationPercent = moonData.illuminationPercent,
                     phaseAngleRad = moonData.phaseAngleRad,
@@ -449,6 +444,23 @@ fun HeroSkyCanvas(
 
             // 7. Tapped Celestial Target Ring Overlay
             selectedCelestial?.let { sel ->
+                val selPos = when {
+                    sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH)
+                    sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH)
+                    sel.id.startsWith("planet_") -> {
+                        val pName = sel.id.removePrefix("planet_")
+                        planetPositions.find { it.first.name == pName }?.let {
+                            HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH)
+                        } ?: sel.position
+                    }
+                    sel.id.startsWith("star_") -> {
+                        val sId = sel.id.removePrefix("star_")
+                        catalogStars.find { it.first.id == sId }?.let {
+                            HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH)
+                        } ?: sel.position
+                    }
+                    else -> sel.position
+                }
                 val pulseRing = 1.0f + 0.12f * sin(frameTimeMs * 0.005f).toFloat()
                 val ringColor = when (uiState.skyCanvasTheme) {
                     SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFF38BDF8)
@@ -460,13 +472,13 @@ fun HeroSkyCanvas(
                 drawCircle(
                     color = ringColor.copy(alpha = 0.5f),
                     radius = 28.dp.toPx() * pulseRing,
-                    center = sel.position,
+                    center = selPos,
                     style = Stroke(width = 1.5.dp.toPx())
                 )
                 drawCircle(
                     color = ringColor,
                     radius = 18.dp.toPx(),
-                    center = sel.position,
+                    center = selPos,
                     style = Stroke(width = 1.8.dp.toPx())
                 )
             }
@@ -480,8 +492,27 @@ fun HeroSkyCanvas(
 
         // --- FLOATING SELECTED CELESTIAL OBJECT NAME PILL ---
         selectedCelestial?.let { sel ->
-            val xDp = with(LocalDensity.current) { sel.position.x.toDp() }
-            val yDp = with(LocalDensity.current) { sel.position.y.toDp() }
+            val canvasW = constraints.maxWidth.toFloat()
+            val canvasH = constraints.maxHeight.toFloat()
+            val livePos = when {
+                sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH)
+                sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH)
+                sel.id.startsWith("planet_") -> {
+                    val pName = sel.id.removePrefix("planet_")
+                    planetPositions.find { it.first.name == pName }?.let {
+                        HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH)
+                    } ?: sel.position
+                }
+                sel.id.startsWith("star_") -> {
+                    val sId = sel.id.removePrefix("star_")
+                    catalogStars.find { it.first.id == sId }?.let {
+                        HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH)
+                    } ?: sel.position
+                }
+                else -> sel.position
+            }
+            val xDp = with(LocalDensity.current) { livePos.x.toDp() }
+            val yDp = with(LocalDensity.current) { livePos.y.toDp() }
 
             Surface(
                 onClick = { selectedCelestial = null },

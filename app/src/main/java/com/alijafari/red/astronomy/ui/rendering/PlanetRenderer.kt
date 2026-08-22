@@ -26,9 +26,7 @@ object PlanetRenderer {
         val height = drawScope.size.height
 
         planets.forEach { (pType, pPos, horiz) ->
-            val px = (horiz.azimuthDeg / 360.0 * width).toFloat()
-            val py = (height - ((horiz.altitudeDeg + 2.0) / 92.0 * height)).toFloat()
-            val center = Offset(px, py)
+            val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height)
 
             when (theme) {
                 SkyCanvasTheme.ATMOSPHERIC_SKY -> {

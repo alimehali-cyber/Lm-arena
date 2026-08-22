@@ -39,14 +39,13 @@ object MilkyWayRenderer {
         val screenPoints = mutableListOf<Offset>()
 
         for (pt in galacticPoints) {
-            val px = (pt.azimuthDeg / 360.0 * width).toFloat()
-            val py = (height - (pt.altitudeDeg / 90.0 * height)).toFloat()
-            screenPoints.add(Offset(px, py))
+            val screenPos = HeroSkyProjection.project(pt.azimuthDeg, pt.altitudeDeg, width, height)
+            screenPoints.add(screenPos)
             if (first) {
-                mwPath.moveTo(px, py)
+                mwPath.moveTo(screenPos.x, screenPos.y)
                 first = false
             } else {
-                mwPath.lineTo(px, py)
+                mwPath.lineTo(screenPos.x, screenPos.y)
             }
         }
 
