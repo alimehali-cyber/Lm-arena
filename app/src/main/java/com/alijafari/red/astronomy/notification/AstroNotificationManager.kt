@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -13,33 +14,41 @@ import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.astro_engine.SatelliteEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteItem
+import com.alijafari.red.astronomy.data.worker.IssTleWorker
+import com.alijafari.red.astronomy.data.worker.TleSyncWorker
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.domain.UserLocation
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import kotlin.math.abs
 
 /**
- * Centralized Notification Engine for all astronomical notifications across the application:
- * - Satellite visible passes (ISS, Starlink, Hubble, Tiangong, etc.)
+ * Centralized Notification Engine for all astronomical notifications across RED:
+ * - Satellite visible passes (ISS, Tiangong, Starlink, Hubble, etc.) maintaining rolling ~7-day schedules
+ * - Completely local, offline-capable AlarmManager exact alarms and BroadcastReceiver execution
+ * - Zero duplicate notifications and automatic cancellation of obsolete future alarms on update
+ * - Automatic reboot and timezone change recovery
  * - Celestial object observation reminders (Moon, Planets, Stars, Deep Sky)
  * - Astronomical events & eclipses
- *
- * All scheduling is backed by [AstroNotificationStore] to guarantee zero object-mismatch,
- * zero duplicate notifications, and accurate background/reboot recovery.
  */
 object AstroNotificationManager {
 
+    private const val TAG = "AstroNotifManager"
     private const val PREFS_NAME = "astro_notification_prefs_v2"
+    private const val ASTRO_PREFS = "astro_prefs"
     private const val KEY_LAST_LAT = "last_notif_lat"
     private const val KEY_LAST_LON = "last_notif_lon"
+    private const val KEY_AUTO_SATELLITE_ALERTS = "auto_satellite_alerts_enabled"
+    private const val KEY_ISS_AUTO_ALERTS = "iss_auto_alerts_enabled"
+    private const val KEY_MONITORED_SAT_IDS = "monitored_satellite_ids"
+    private const val KEY_ALERT_LEAD_MINUTES = "satellite_alert_lead_minutes"
+    private const val KEY_ISS_LEAD_MINUTES = "iss_alert_lead_minutes"
     private const val WORK_NAME = "iss_pass_scheduler_work"
 
     /**
      * Builds a ScheduledNotificationItem for an individual satellite pass with a selected lead time.
-     * Uses stable satellite ID and pass start time to prevent object mismatch.
+     * Uses deterministic notification ID based on satellite ID, start timestamp, and lead time.
      */
     fun createScheduledPassItem(
         satellite: SatelliteItem,
@@ -103,7 +112,7 @@ object AstroNotificationManager {
 
     /**
      * Schedules a specific notification for an individual satellite pass with a selected lead time.
-     * Uses stable satellite ID and pass start time to prevent object mismatch.
+     * Prevents duplicate alarms and persists locally.
      */
     fun scheduleSpecificPassAlarm(
         context: Context,
@@ -113,62 +122,31 @@ object AstroNotificationManager {
         leadMinutes: Int
     ) {
         val item = createScheduledPassItem(satellite, pass, userLocation, leadMinutes) ?: return
+        // Cancel existing identical pass alarm if already present before saving
+        cancelNotification(context, item.id)
         AstroNotificationStore.save(context, item)
         setAlarmWithAndroidSystem(context, item)
+        Log.i(TAG, "Scheduled individual pass notification for ${satellite.nameEn} at ${Date(item.triggerTimeMs)}")
     }
 
     /**
-     * Calculates upcoming strictly visible ISS passes for the user's location over next 14 days
-     * and schedules exact alarms.
+     * Schedules rolling ~7-day visible passes for the International Space Station (ISS).
      */
     fun scheduleUpcomingIssPasses(
         context: Context,
         userLocation: UserLocation = UserLocation(),
         leadMinutes: Int = 10
     ) {
-        val issSat = SatelliteCatalog.satellites.find { it.id == "iss_zarya" } ?: SatelliteCatalog.satellites.first()
-        val nowMs = System.currentTimeMillis()
-        val passes = ISSEngine.predictPasses(
-            userLatDeg = userLocation.latitude,
-            userLonDeg = userLocation.longitude,
-            startTimestampMs = nowMs,
-            tle = SatelliteEngine.getEffectiveTle(issSat),
-            scanDays = 14,
-            visibleOnly = true,
-            standardMag = issSat.standardMagnitude
+        scheduleRollingSatellitePasses(
+            context = context,
+            userLocation = userLocation,
+            selectedSatIds = setOf("iss_zarya"),
+            leadMinutes = leadMinutes
         )
-
-        // Human visibility criteria matching Spot the Station
-        val validPasses = passes.filter { pass ->
-            pass.isVisible &&
-            pass.maxElevationDeg >= 10.0 &&
-            pass.passDurationSec >= 30
-        }
-
-        val itemsToSave = mutableListOf<ScheduledNotificationItem>()
-        for (pass in validPasses) {
-            val item = createScheduledPassItem(
-                satellite = issSat,
-                pass = pass,
-                userLocation = userLocation,
-                leadMinutes = leadMinutes
-            )
-            if (item != null) {
-                itemsToSave.add(item)
-                setAlarmWithAndroidSystem(context, item)
-            }
-        }
-
-        if (itemsToSave.isNotEmpty()) {
-            AstroNotificationStore.saveAll(context, itemsToSave)
-        }
-
-        updateStoredLocation(context, userLocation)
-        enqueueIssWorkManager(context)
     }
 
     /**
-     * Continuous monitoring for multiple selected satellites' future visible passes.
+     * Backward-compatible alias for multi-satellite scheduling.
      */
     fun scheduleMultiSatellitePasses(
         context: Context,
@@ -176,27 +154,62 @@ object AstroNotificationManager {
         userLocation: UserLocation,
         leadMinutes: Int = 10
     ) {
+        scheduleRollingSatellitePasses(
+            context = context,
+            userLocation = userLocation,
+            selectedSatIds = selectedSatIds,
+            leadMinutes = leadMinutes
+        )
+    }
+
+    /**
+     * Maintains a rolling ~7-day schedule of visible satellite passes for the monitored satellites.
+     * Cancels obsolete future alarms for the target satellites and schedules newly predicted passes
+     * with zero duplicates and complete offline persistence.
+     */
+    fun scheduleRollingSatellitePasses(
+        context: Context,
+        userLocation: UserLocation,
+        selectedSatIds: Set<String>,
+        leadMinutes: Int = 10,
+        scanDays: Int = 7
+    ) {
         val allCatalog = SatelliteCatalog.satellites
-        val satellites = if (selectedSatIds.isEmpty()) {
+        val targetSatellites = if (selectedSatIds.isEmpty()) {
             allCatalog.filter { it.isNakedEyeCandidate }
         } else {
             allCatalog.filter { it.id in selectedSatIds || (it.id == "starlink_train" && "starlink_train" in selectedSatIds) }
         }
 
+        val targetSatIds = targetSatellites.map { it.id }.toSet()
         val nowMs = System.currentTimeMillis()
-        val itemsToSave = mutableListOf<ScheduledNotificationItem>()
 
-        for (sat in satellites) {
+        // 1. Cancel and remove obsolete future alarms for these satellites to avoid duplicates and outdated timings
+        val existingItems = AstroNotificationStore.getAll(context)
+        val obsoleteItems = existingItems.filter { it.objectType == "SATELLITE" && it.objectId in targetSatIds }
+        for (obsItem in obsoleteItems) {
+            cancelAlarmOnly(context, obsItem)
+        }
+        if (obsoleteItems.isNotEmpty()) {
+            AstroNotificationStore.removeByIds(context, obsoleteItems.map { it.id }.toSet())
+            Log.d(TAG, "Cleared ${obsoleteItems.size} obsolete pass alarms before rescheduling 7-day window")
+        }
+
+        // 2. Calculate newly predicted upcoming visible passes for next 7 days using local SGP4 & cached TLEs
+        val newlyScheduledItems = mutableListOf<ScheduledNotificationItem>()
+        for (sat in targetSatellites) {
+            val tle = SatelliteEngine.getEffectiveTle(sat)
             val passes = ISSEngine.predictPasses(
                 userLatDeg = userLocation.latitude,
                 userLonDeg = userLocation.longitude,
                 startTimestampMs = nowMs,
-                tle = SatelliteEngine.getEffectiveTle(sat),
-                scanDays = 14,
+                tle = tle,
+                scanDays = scanDays,
                 visibleOnly = true,
                 standardMag = sat.standardMagnitude
             )
 
+            // Strictly visible passes meeting naked-eye observational criteria
             val validPasses = passes.filter { pass ->
                 pass.isVisible &&
                 pass.maxElevationDeg >= 10.0 &&
@@ -211,18 +224,95 @@ object AstroNotificationManager {
                     leadMinutes = leadMinutes
                 )
                 if (item != null) {
-                    itemsToSave.add(item)
+                    newlyScheduledItems.add(item)
                     setAlarmWithAndroidSystem(context, item)
                 }
             }
         }
 
-        if (itemsToSave.isNotEmpty()) {
-            AstroNotificationStore.saveAll(context, itemsToSave)
+        // 3. Persist all newly scheduled items in local store
+        if (newlyScheduledItems.isNotEmpty()) {
+            AstroNotificationStore.saveAll(context, newlyScheduledItems)
+            Log.i(TAG, "Successfully scheduled and stored ${newlyScheduledItems.size} upcoming passes for next $scanDays days")
         }
 
+        // 4. Save configuration preferences for background sync & reboot restoration
+        savePassMonitoringPreferences(context, userLocation, targetSatIds, leadMinutes)
         updateStoredLocation(context, userLocation)
         enqueueIssWorkManager(context)
+    }
+
+    /**
+     * Refreshes satellite pass schedules when updated TLE orbital data is retrieved online
+     * or when triggered by background workers.
+     */
+    fun refreshSatellitePassSchedulesIfEnabled(context: Context) {
+        val prefs = context.getSharedPreferences(ASTRO_PREFS, Context.MODE_PRIVATE)
+        val isAutoEnabled = prefs.getBoolean(KEY_AUTO_SATELLITE_ALERTS, false) ||
+                prefs.getBoolean(KEY_ISS_AUTO_ALERTS, false)
+
+        if (!isAutoEnabled) return
+
+        val satIds = prefs.getStringSet(KEY_MONITORED_SAT_IDS, null) ?: setOf("iss_zarya")
+        val leadMinutes = prefs.getInt(KEY_ALERT_LEAD_MINUTES, prefs.getInt(KEY_ISS_LEAD_MINUTES, 10))
+        val lat = prefs.getFloat("user_lat", 30.1132f).toDouble()
+        val lon = prefs.getFloat("user_lon", 51.5217f).toDouble()
+        val cityNameFa = prefs.getString("user_city_name_fa", "نورآباد ممسنی") ?: "نورآباد ممسنی"
+        val cityNameEn = prefs.getString("user_city_name_en", "Noorabad Mamasani") ?: "Noorabad Mamasani"
+
+        val location = UserLocation(
+            cityNameFa = cityNameFa,
+            cityNameEn = cityNameEn,
+            latitude = lat,
+            longitude = lon
+        )
+
+        Log.i(TAG, "Refreshing satellite pass schedule with updated orbital data for ${satIds.size} satellites...")
+        scheduleRollingSatellitePasses(
+            context = context,
+            userLocation = location,
+            selectedSatIds = satIds,
+            leadMinutes = leadMinutes,
+            scanDays = 7
+        )
+    }
+
+    /**
+     * Called on device boot, app update, timezone change, or system time set.
+     * Reloads all stored passes, purges expired ones, and re-registers Android system alarms.
+     * Also refreshes the rolling 7-day schedule using local cached TLEs completely offline.
+     */
+    fun onDeviceRebootOrTimeChanged(context: Context) {
+        Log.i(TAG, "Handling device reboot or system time change...")
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        AstroAlarmReceiver.createChannels(notificationManager)
+
+        // 1. Purge expired items
+        val nowMs = System.currentTimeMillis()
+        val expired = AstroNotificationStore.purgeExpired(context, nowMs)
+        Log.d(TAG, "Purged ${expired.size} expired notifications")
+
+        // 2. Re-register all remaining future alarms with AlarmManager
+        val remaining = AstroNotificationStore.getAll(context)
+        for (item in remaining) {
+            setAlarmWithAndroidSystem(context, item)
+        }
+        Log.i(TAG, "Re-registered ${remaining.size} future alarms from local persistence")
+
+        // 3. If auto satellite monitoring is enabled, recalculate and extend rolling 7-day schedule offline
+        refreshSatellitePassSchedulesIfEnabled(context)
+
+        // 4. Ensure periodic background workers are scheduled
+        IssTleWorker.schedulePeriodicSync(context)
+        TleSyncWorker.schedulePeriodicSync(context)
+        enqueueIssWorkManager(context)
+    }
+
+    /**
+     * Backward-compatible alias for rescheduleAllAlarms.
+     */
+    fun rescheduleAllAlarms(context: Context) {
+        onDeviceRebootOrTimeChanged(context)
     }
 
     /**
@@ -342,42 +432,7 @@ object AstroNotificationManager {
     }
 
     /**
-     * Called on device boot, app update, timezone change, or app start to restore all active alarms.
-     */
-    fun rescheduleAllAlarms(context: Context) {
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        AstroAlarmReceiver.createChannels(notificationManager)
-
-        // 1. Purge expired items
-        val nowMs = System.currentTimeMillis()
-        AstroNotificationStore.purgeExpired(context, nowMs)
-
-        // 2. Re-register all remaining future alarms
-        val remaining = AstroNotificationStore.getAll(context)
-        for (item in remaining) {
-            setAlarmWithAndroidSystem(context, item)
-        }
-
-        // 3. Keep satellite passes fresh if auto alerts are enabled
-        val prefs = context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
-        val isIssAutoAlertEnabled = prefs.getBoolean("iss_auto_alerts_enabled", false) || prefs.getBoolean("auto_satellite_alerts_enabled", false)
-        val leadMinutes = prefs.getInt("iss_alert_lead_minutes", 10)
-        val cityNameFa = prefs.getString("user_city_name_fa", "نورآباد ممسنی") ?: "نورآباد ممسنی"
-        val cityNameEn = prefs.getString("user_city_name_en", "Noorabad Mamasani") ?: "Noorabad Mamasani"
-        val lat = prefs.getFloat("user_lat", 30.1132f).toDouble()
-        val lon = prefs.getFloat("user_lon", 51.5217f).toDouble()
-
-        if (isIssAutoAlertEnabled) {
-            scheduleUpcomingIssPasses(
-                context = context,
-                userLocation = UserLocation(cityNameFa = cityNameFa, cityNameEn = cityNameEn, latitude = lat, longitude = lon),
-                leadMinutes = leadMinutes
-            )
-        }
-    }
-
-    /**
-     * Detects meaningful location changes and invalidates old location-sensitive passes.
+     * Detects meaningful location changes (> 10 km) and refreshes location-sensitive passes.
      */
     fun handleLocationChanged(context: Context, newLocation: UserLocation) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -387,21 +442,8 @@ object AstroNotificationManager {
         if (lastLat != 999.0 && lastLon != 999.0) {
             val distKm = calculateDistanceKm(lastLat, lastLon, newLocation.latitude, newLocation.longitude)
             if (distKm > 10.0) {
-                // Cancel old satellite passes and recalculate for new location
-                val allItems = AstroNotificationStore.getAll(context)
-                val satelliteItems = allItems.filter { it.objectType == "SATELLITE" }
-                for (item in satelliteItems) {
-                    cancelNotification(context, item.id)
-                }
-
                 updateStoredLocation(context, newLocation)
-
-                val appPrefs = context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
-                val isIssAutoAlertEnabled = appPrefs.getBoolean("iss_auto_alerts_enabled", false) || appPrefs.getBoolean("auto_satellite_alerts_enabled", false)
-                val leadMinutes = appPrefs.getInt("iss_alert_lead_minutes", 10)
-                if (isIssAutoAlertEnabled) {
-                    scheduleUpcomingIssPasses(context, newLocation, leadMinutes)
-                }
+                refreshSatellitePassSchedulesIfEnabled(context)
             }
         } else {
             updateStoredLocation(context, newLocation)
@@ -409,25 +451,11 @@ object AstroNotificationManager {
     }
 
     /**
-     * Cancels a specific scheduled notification by ID.
+     * Cancels a specific scheduled notification by ID from AlarmManager and Store.
      */
     fun cancelNotification(context: Context, notificationIdStr: String) {
         val item = AstroNotificationStore.getById(context, notificationIdStr) ?: return
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
-        val intent = Intent(context, AstroAlarmReceiver::class.java).apply {
-            action = AstroAlarmReceiver.ACTION_TRIGGER_NOTIFICATION
-            putExtra(AstroAlarmReceiver.EXTRA_NOTIFICATION_ID, item.id)
-        }
-
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            item.intNotificationId,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        alarmManager.cancel(pendingIntent)
+        cancelAlarmOnly(context, item)
         AstroNotificationStore.remove(context, notificationIdStr)
     }
 
@@ -447,17 +475,58 @@ object AstroNotificationManager {
     fun cancelAllPassNotifications(context: Context) {
         val items = AstroNotificationStore.getAll(context).filter { it.objectType == "SATELLITE" }
         for (item in items) {
-            cancelNotification(context, item.id)
+            cancelAlarmOnly(context, item)
+        }
+        if (items.isNotEmpty()) {
+            AstroNotificationStore.removeByIds(context, items.map { it.id }.toSet())
+            Log.i(TAG, "Cancelled all ${items.size} satellite pass notifications.")
+        }
+        cancelIssWorkManager(context)
+    }
+
+    private fun cancelAlarmOnly(context: Context, item: ScheduledNotificationItem) {
+        try {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val intent = Intent(context, AstroAlarmReceiver::class.java).apply {
+                action = AstroAlarmReceiver.ACTION_TRIGGER_NOTIFICATION
+                putExtra(AstroAlarmReceiver.EXTRA_NOTIFICATION_ID, item.id)
+                putExtra(AstroAlarmReceiver.EXTRA_INT_NOTIFICATION_ID, item.intNotificationId)
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                item.intNotificationId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingIntent)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error cancelling alarm for ${item.id}: ${e.message}")
         }
     }
 
-    private fun setAlarmWithAndroidSystem(context: Context, item: ScheduledNotificationItem) {
+    /**
+     * Sets an exact alarm with the Android AlarmManager using modern Android exact-alarm best practices.
+     * Carries all metadata in intent extras as well as in persistent storage for 100% offline reliability.
+     */
+    fun setAlarmWithAndroidSystem(context: Context, item: ScheduledNotificationItem) {
+        val triggerMs = item.triggerTimeMs
+        if (triggerMs <= System.currentTimeMillis()) return
+
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = Intent(context, AstroAlarmReceiver::class.java).apply {
             action = AstroAlarmReceiver.ACTION_TRIGGER_NOTIFICATION
             putExtra(AstroAlarmReceiver.EXTRA_NOTIFICATION_ID, item.id)
             putExtra(AstroAlarmReceiver.EXTRA_INT_NOTIFICATION_ID, item.intNotificationId)
             putExtra(AstroAlarmReceiver.EXTRA_OBJECT_ID, item.objectId)
+            putExtra(AstroAlarmReceiver.EXTRA_OBJECT_NAME_EN, item.objectNameEn)
+            putExtra(AstroAlarmReceiver.EXTRA_OBJECT_NAME_FA, item.objectNameFa)
+            putExtra(AstroAlarmReceiver.EXTRA_OBJECT_TYPE, item.objectType)
+            putExtra(AstroAlarmReceiver.EXTRA_TITLE_EN, item.titleEn)
+            putExtra(AstroAlarmReceiver.EXTRA_TITLE_FA, item.titleFa)
+            putExtra(AstroAlarmReceiver.EXTRA_CONTENT_EN, item.contentEn)
+            putExtra(AstroAlarmReceiver.EXTRA_CONTENT_FA, item.contentFa)
+            putExtra(AstroAlarmReceiver.EXTRA_DEEP_LINK_ROUTE, item.deepLinkRoute)
+            putExtra(AstroAlarmReceiver.EXTRA_EVENT_TIME_MS, item.eventTimeMs)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
@@ -467,47 +536,27 @@ object AstroNotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val triggerMs = item.triggerTimeMs
-        if (triggerMs <= System.currentTimeMillis()) return
-
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val showIntent = PendingIntent.getActivity(
-                    context,
-                    item.intNotificationId,
-                    Intent(context, com.alijafari.red.astronomy.MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        putExtra(com.alijafari.red.astronomy.MainActivity.EXTRA_TARGET_OBJECT_ID, item.objectId)
-                        putExtra(com.alijafari.red.astronomy.MainActivity.EXTRA_TARGET_TYPE, item.objectType)
-                        putExtra(com.alijafari.red.astronomy.MainActivity.EXTRA_TARGET_ROUTE, item.deepLinkRoute)
-                    },
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                val alarmClockInfo = AlarmManager.AlarmClockInfo(triggerMs, showIntent)
-                alarmManager.setAlarmClock(alarmClockInfo, pendingIntent)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                } else {
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
             } else {
                 alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
             }
         } catch (e: SecurityException) {
-            // Fallback for devices without exact alarm permission
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
                 } else {
-                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
-                }
-            } catch (ex: Exception) {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
-                    } else {
-                        alarmManager.set(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
-                    }
-                } catch (exc: Exception) {
                     alarmManager.set(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
                 }
+            } catch (ex: Exception) {
+                Log.e(TAG, "SecurityException while scheduling alarm: ${ex.message}")
             }
         } catch (e: Exception) {
             try {
@@ -517,7 +566,7 @@ object AstroNotificationManager {
                     alarmManager.set(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
                 }
             } catch (ex: Exception) {
-                alarmManager.set(AlarmManager.RTC_WAKEUP, triggerMs, pendingIntent)
+                Log.e(TAG, "Exception while scheduling alarm: ${ex.message}")
             }
         }
     }
@@ -544,6 +593,26 @@ object AstroNotificationManager {
         }
     }
 
+    private fun savePassMonitoringPreferences(
+        context: Context,
+        userLocation: UserLocation,
+        selectedSatIds: Set<String>,
+        leadMinutes: Int
+    ) {
+        val astroPrefs = context.getSharedPreferences(ASTRO_PREFS, Context.MODE_PRIVATE)
+        astroPrefs.edit()
+            .putBoolean(KEY_AUTO_SATELLITE_ALERTS, true)
+            .putBoolean(KEY_ISS_AUTO_ALERTS, true)
+            .putStringSet(KEY_MONITORED_SAT_IDS, selectedSatIds)
+            .putInt(KEY_ALERT_LEAD_MINUTES, leadMinutes)
+            .putInt(KEY_ISS_LEAD_MINUTES, leadMinutes)
+            .putString("user_city_name_fa", userLocation.cityNameFa)
+            .putString("user_city_name_en", userLocation.cityNameEn)
+            .putFloat("user_lat", userLocation.latitude.toFloat())
+            .putFloat("user_lon", userLocation.longitude.toFloat())
+            .apply()
+    }
+
     private fun updateStoredLocation(context: Context, loc: UserLocation) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit()
@@ -551,7 +620,7 @@ object AstroNotificationManager {
             .putFloat(KEY_LAST_LON, loc.longitude.toFloat())
             .apply()
 
-        val astroPrefs = context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
+        val astroPrefs = context.getSharedPreferences(ASTRO_PREFS, Context.MODE_PRIVATE)
         astroPrefs.edit()
             .putString("user_city_name_fa", loc.cityNameFa)
             .putString("user_city_name_en", loc.cityNameEn)

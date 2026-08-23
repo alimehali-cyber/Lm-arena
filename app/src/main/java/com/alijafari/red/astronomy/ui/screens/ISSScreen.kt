@@ -1121,7 +1121,10 @@ fun ISSScreen(
     }
 
     // Multi-Satellite Notification State
-    var selectedSatIdsForAlerts by remember { mutableStateOf(setOf("iss_zarya", "tiangong", "starlink_train", "hubble")) }
+    var selectedSatIdsForAlerts by remember {
+        val savedSet = prefs.getStringSet("monitored_satellite_ids", null)
+        mutableStateOf(savedSet ?: setOf("iss_zarya", "tiangong", "starlink_train", "hubble"))
+    }
 
     // Lead Time & Multi-Satellite Notification Dialog
     if (showLeadTimeSelectionDialog) {
@@ -1223,22 +1226,29 @@ fun ISSScreen(
                             prefs.edit()
                                 .putBoolean("auto_satellite_alerts_enabled", true)
                                 .putBoolean("iss_auto_alerts_enabled", true)
+                                .putStringSet("monitored_satellite_ids", selectedSatIdsForAlerts)
+                                .putInt("satellite_alert_lead_minutes", selectedLeadMinutes)
                                 .putInt("iss_alert_lead_minutes", selectedLeadMinutes)
+                                .putString("user_city_name_fa", uiState.userLocation.cityNameFa)
+                                .putString("user_city_name_en", uiState.userLocation.cityNameEn)
+                                .putFloat("user_lat", uiState.userLocation.latitude.toFloat())
+                                .putFloat("user_lon", uiState.userLocation.longitude.toFloat())
                                 .apply()
 
                             coroutineScope.launch(Dispatchers.Default) {
-                                AstroNotificationManager.scheduleMultiSatellitePasses(
+                                AstroNotificationManager.scheduleRollingSatellitePasses(
                                     context = context,
-                                    selectedSatIds = selectedSatIdsForAlerts,
                                     userLocation = uiState.userLocation,
-                                    leadMinutes = selectedLeadMinutes
+                                    selectedSatIds = selectedSatIdsForAlerts,
+                                    leadMinutes = selectedLeadMinutes,
+                                    scanDays = 7
                                 )
                             }
 
                             Toast.makeText(
                                 context,
-                                if (isFa) "سیستم پایش خودکار برای ماهواره‌های انتخاب شده فعال شد!"
-                                else "Automated pass monitoring enabled for selected satellites!",
+                                if (isFa) "سیستم پایش خودکار ۷ روزه برای ماهواره‌های انتخاب شده فعال شد!"
+                                else "7-day automated pass schedule enabled for selected satellites!",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }

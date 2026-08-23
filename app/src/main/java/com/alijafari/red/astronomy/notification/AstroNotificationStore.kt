@@ -160,6 +160,15 @@ object AstroNotificationStore {
     }
 
     @Synchronized
+    fun removeByIds(context: Context, ids: Set<String>) {
+        if (ids.isEmpty()) return
+        val current = getAll(context).toMutableList()
+        if (current.removeAll { it.id in ids }) {
+            saveAllInternal(context, current)
+        }
+    }
+
+    @Synchronized
     fun removeByObjectId(context: Context, objectId: String) {
         val current = getAll(context).toMutableList()
         if (current.removeAll { it.objectId == objectId }) {

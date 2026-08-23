@@ -20,6 +20,9 @@ class TleSyncWorker(
         return try {
             val repository = TleRepository.getInstance(applicationContext)
             val updated = repository.refreshTles()
+            if (updated) {
+                com.alijafari.red.astronomy.notification.AstroNotificationManager.refreshSatellitePassSchedulesIfEnabled(applicationContext)
+            }
             Log.d(TAG, "TLE synchronization complete. Updated: $updated")
             Result.success()
         } catch (e: Exception) {
