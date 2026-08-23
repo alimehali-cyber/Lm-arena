@@ -24,16 +24,17 @@ object MoonRenderer {
         center: Offset,
         radius: Float,
         illuminationPercent: Double,
-        phaseAngleRad: Double,
-        isLunarEclipse: Boolean,
-        isSolarEclipse: Boolean,
-        moonPulseScale: Float,
+        phaseAngleRad: Double = 0.0,
+        isLunarEclipse: Boolean = false,
+        isSolarEclipse: Boolean = false,
+        moonPulseScale: Float = 1.0f,
         lightingState: LightingState,
         frameTimeMs: Long = System.currentTimeMillis(),
         isWaxing: Boolean = true,
         theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
         brightLimbAngleDeg: Double = 0.0,
-        parallacticAngleDeg: Double = 0.0
+        parallacticAngleDeg: Double = 0.0,
+        limbScreenAngleDeg: Double? = null
     ) {
         val horizonY = drawScope.size.height * 0.85f
         drawScope.clipRect(
@@ -47,25 +48,18 @@ object MoonRenderer {
                 return@clipRect
             }
 
-            // The angle of the bright limb relative to local zenith (upwards)
-            // Zenith angle theta = chi - q (Meeus Chapter 14 & 48)
-            val zenithAngleDeg = CoordinateEngine.calculateZenithAngleDeg(brightLimbAngleDeg, parallacticAngleDeg)
-
-            // When isWaxing = true, default standard shadow is on the left (limb on right at 0 deg).
-            // Rotation by (zenithAngleDeg - 90f) or zenithAngleDeg aligns the bright limb to the exact physical direction of the Sun.
-            // Specifically: if zenithAngle is 90° (due East/Right), rotation is 0°. If zenithAngle is 270° (due West/Left), rotation is 180°.
-            val shadowRotationDeg = if (isWaxing) {
-                (zenithAngleDeg - 90.0).toFloat()
-            } else {
-                (zenithAngleDeg - 270.0).toFloat()
-            }
+            // Rigorous screen orientation angle of the bright limb
+            val rotationDeg = (limbScreenAngleDeg ?: run {
+                val zenithAngle = CoordinateEngine.calculateZenithAngleDeg(brightLimbAngleDeg, parallacticAngleDeg)
+                if (isWaxing) zenithAngle - 90.0 else zenithAngle - 270.0
+            }).toFloat()
 
             when (theme) {
-                SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing, shadowRotationDeg)
-                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing, shadowRotationDeg)
-                SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, isWaxing, shadowRotationDeg)
-                SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, isWaxing, shadowRotationDeg)
-                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftMoon(drawScope, center, radius, illuminationPercent, isWaxing, shadowRotationDeg)
+                SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, rotationDeg)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, rotationDeg)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, rotationDeg)
+                SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, rotationDeg)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftMoon(drawScope, center, radius, illuminationPercent, rotationDeg)
             }
         }
     }
@@ -100,8 +94,7 @@ object MoonRenderer {
         radius: Float,
         illuminationPercent: Double,
         isLunarEclipse: Boolean,
-        isWaxing: Boolean,
-        shadowRotationDeg: Float = 0f
+        rotationDeg: Float = 0f
     ) {
         // Monochromatic vector Moon: Illuminated part white, shadowed part dark grey, subtle depth stroke
         val illuminatedColor = if (isLunarEclipse) Color(0xFFD4D4D8) else Color.White
@@ -114,33 +107,27 @@ object MoonRenderer {
             center = center
         )
 
-        // 2. Draw illuminated phase portion
+        // 2. Draw illuminated phase portion (centered at 0° / Right, rotated to rotationDeg)
         val phaseFrac = (illuminationPercent / 100.0).coerceIn(0.0, 1.0)
         if (phaseFrac > 0.02) {
             val illuminatedPath = Path()
-            val sweepAngle = 180f
-            val startAngle = if (isWaxing) -90f else 90f
-
+            // Outer semicircular arc on the right side (-90° top to +90° bottom)
             illuminatedPath.addArc(
                 Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius),
-                startAngle,
-                sweepAngle
+                -90f,
+                180f
             )
 
             val k = (2.0 * phaseFrac - 1.0).toFloat()
             val stepInnerWidth = (abs(k) * radius).coerceAtLeast(0f)
             val innerRect = Rect(center.x - stepInnerWidth, center.y - radius, center.x + stepInnerWidth, center.y + radius)
 
-            if (isWaxing) {
-                val innerSweep = if (k >= 0) 180f else -180f
-                illuminatedPath.arcTo(innerRect, 90f, innerSweep, false)
-            } else {
-                val innerSweep = if (k >= 0) 180f else -180f
-                illuminatedPath.arcTo(innerRect, 270f, innerSweep, false)
-            }
+            // Inner terminator arc from +90° bottom to -90° top
+            val innerSweep = if (k >= 0) 180f else -180f
+            illuminatedPath.arcTo(innerRect, 90f, innerSweep, false)
             illuminatedPath.close()
 
-            drawScope.rotate(shadowRotationDeg, center) {
+            drawScope.rotate(rotationDeg, center) {
                 drawPath(
                     path = illuminatedPath,
                     color = illuminatedColor
@@ -166,8 +153,7 @@ object MoonRenderer {
         moonPulseScale: Float,
         lightingState: LightingState,
         frameTimeMs: Long,
-        isWaxing: Boolean,
-        shadowRotationDeg: Float = 0f
+        rotationDeg: Float = 0f
     ) {
         val shinePulse = 1.0f + 0.08f * sin(frameTimeMs * 0.0022f).toFloat() * moonPulseScale
 
@@ -194,29 +180,24 @@ object MoonRenderer {
         drawScope.drawCircle(color = craterColor, radius = radius * 0.22f, center = Offset(center.x - radius * 0.32f, center.y - radius * 0.25f))
         drawScope.drawCircle(color = craterColor, radius = radius * 0.18f, center = Offset(center.x + radius * 0.30f, center.y + radius * 0.28f))
 
-        // Phase shadow
+        // Phase shadow (unilluminated region centered at 180° / Left, bright limb at 0° / Right rotated by rotationDeg)
         val phaseFrac = (illuminationPercent / 100.0).coerceIn(0.0, 1.0)
         if (phaseFrac < 0.98) {
             val baseShadowColor = Color(0xEE0F172A)
             val shadowPath = Path()
-            val sweepAngle = 180f
-            val startAngle = if (isWaxing) 90f else -90f
 
-            shadowPath.addArc(Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius), startAngle, sweepAngle)
+            // Outer shadow arc around the left edge (+90° bottom to -90° top)
+            shadowPath.addArc(Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius), 90f, 180f)
             val k = (2.0 * phaseFrac - 1.0).toFloat()
             val stepInnerWidth = (abs(k) * radius).coerceAtLeast(0f)
             val innerRect = Rect(center.x - stepInnerWidth, center.y - radius, center.x + stepInnerWidth, center.y + radius)
 
-            if (isWaxing) {
-                val innerSweep = if (k >= 0) -180f else 180f
-                shadowPath.arcTo(innerRect, 270f, innerSweep, false)
-            } else {
-                val innerSweep = if (k >= 0) -180f else 180f
-                shadowPath.arcTo(innerRect, 90f, innerSweep, false)
-            }
+            // Inner terminator arc from -90° top to +90° bottom
+            val innerSweep = if (k >= 0) -180f else 180f
+            shadowPath.arcTo(innerRect, 270f, innerSweep, false)
             shadowPath.close()
 
-            drawScope.rotate(shadowRotationDeg, center) {
+            drawScope.rotate(rotationDeg, center) {
                 drawPath(path = shadowPath, color = baseShadowColor)
             }
         }
@@ -233,8 +214,7 @@ object MoonRenderer {
         moonPulseScale: Float,
         lightingState: LightingState,
         frameTimeMs: Long,
-        isWaxing: Boolean,
-        shadowRotationDeg: Float = 0f
+        rotationDeg: Float = 0f
     ) {
         val shinePulse = 1.0f + 0.08f * sin(frameTimeMs * 0.0022f).toFloat() * moonPulseScale
 
@@ -328,24 +308,17 @@ object MoonRenderer {
         if (phaseFrac < 0.98) {
             val baseShadowColor = Color(0xEE070A14)
             val shadowPath = Path()
-            val sweepAngle = 180f
-            val startAngle = if (isWaxing) 90f else -90f
 
-            shadowPath.addArc(Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius), startAngle, sweepAngle)
+            shadowPath.addArc(Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius), 90f, 180f)
             val k = (2.0 * phaseFrac - 1.0).toFloat()
             val stepInnerWidth = (abs(k) * radius).coerceAtLeast(0f)
             val innerRect = Rect(center.x - stepInnerWidth, center.y - radius, center.x + stepInnerWidth, center.y + radius)
 
-            if (isWaxing) {
-                val innerSweep = if (k >= 0) -180f else 180f
-                shadowPath.arcTo(innerRect, 270f, innerSweep, false)
-            } else {
-                val innerSweep = if (k >= 0) -180f else 180f
-                shadowPath.arcTo(innerRect, 90f, innerSweep, false)
-            }
+            val innerSweep = if (k >= 0) -180f else 180f
+            shadowPath.arcTo(innerRect, 270f, innerSweep, false)
             shadowPath.close()
 
-            drawScope.rotate(shadowRotationDeg, center) {
+            drawScope.rotate(rotationDeg, center) {
                 drawPath(path = shadowPath, color = baseShadowColor)
             }
         }
@@ -363,8 +336,7 @@ object MoonRenderer {
         center: Offset,
         radius: Float,
         illuminationPercent: Double,
-        isWaxing: Boolean,
-        shadowRotationDeg: Float = 0f
+        rotationDeg: Float = 0f
     ) {
         val shadowOffset = Offset(4f, 5f)
         val shadowColor = Color(0x352A221E)
@@ -403,24 +375,17 @@ object MoonRenderer {
         if (phaseFrac < 0.98) {
             val r = radius * 1.2f
             val shadowPath = Path()
-            val sweepAngle = 180f
-            val startAngle = if (isWaxing) 90f else -90f
 
-            shadowPath.addArc(Rect(center.x - r, center.y - r, center.x + r, center.y + r), startAngle, sweepAngle)
+            shadowPath.addArc(Rect(center.x - r, center.y - r, center.x + r, center.y + r), 90f, 180f)
             val k = (2.0 * phaseFrac - 1.0).toFloat()
             val stepInnerWidth = (abs(k) * r).coerceAtLeast(0f)
             val innerRect = Rect(center.x - stepInnerWidth, center.y - r, center.x + stepInnerWidth, center.y + r)
 
-            if (isWaxing) {
-                val innerSweep = if (k >= 0) -180f else 180f
-                shadowPath.arcTo(innerRect, 270f, innerSweep, false)
-            } else {
-                val innerSweep = if (k >= 0) -180f else 180f
-                shadowPath.arcTo(innerRect, 90f, innerSweep, false)
-            }
+            val innerSweep = if (k >= 0) -180f else 180f
+            shadowPath.arcTo(innerRect, 270f, innerSweep, false)
             shadowPath.close()
 
-            drawScope.rotate(shadowRotationDeg, center) {
+            drawScope.rotate(rotationDeg, center) {
                 drawPath(path = shadowPath, color = paperDarkCard)
                 drawPath(path = shadowPath, color = Color(0x33000000), style = Stroke(width = 1.2f))
             }

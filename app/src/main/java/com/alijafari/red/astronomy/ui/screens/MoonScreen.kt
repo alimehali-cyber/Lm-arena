@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.astro_engine.MoonEngine
+import com.alijafari.red.astronomy.astro_engine.SunEngine
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainUiState
@@ -65,6 +66,16 @@ fun MoonScreen(
 
     val moonData = remember(currentJd, uiState.userLocation) {
         MoonEngine.calculateMoon(currentJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+    }
+
+    val sunHoriz = remember(currentJd, uiState.userLocation) {
+        val sunPos = SunEngine.calculatePosition(currentJd)
+        val lastDeg = TimeEngine.getLAST(currentJd, uiState.userLocation.longitude)
+        CoordinateEngine.equatorialToHorizontal(
+            equatorial = CoordinateEngine.Equatorial(sunPos.raDeg, sunPos.decDeg),
+            lastDeg = lastDeg,
+            latitudeDeg = uiState.userLocation.latitude
+        )
     }
 
     val upcomingPhases = remember(baseJd) {
@@ -212,6 +223,7 @@ fun MoonScreen(
                     // Realistic Photographic Moon Visualization with Horizontal Scrubber Drag
                     PhotographicMoonView(
                         moonData = moonData,
+                        sunHoriz = sunHoriz,
                         latitude = uiState.userLocation.latitude,
                         longitude = uiState.userLocation.longitude,
                         jd = currentJd,
@@ -428,6 +440,7 @@ fun MoonScreen(
 @Composable
 private fun PhotographicMoonView(
     moonData: MoonEngine.MoonData,
+    sunHoriz: CoordinateEngine.Horizontal,
     latitude: Double,
     longitude: Double,
     jd: Double,
@@ -445,17 +458,13 @@ private fun PhotographicMoonView(
         label = "Rotation"
     )
 
-    val lastDeg = remember(jd, longitude) { TimeEngine.getLAST(jd, longitude) }
-    val moonParallacticAngle = remember(lastDeg, latitude, moonData.raDeg, moonData.decDeg) {
-        CoordinateEngine.calculateParallacticAngleDeg(
-            lastDeg = lastDeg,
-            latitudeDeg = latitude,
-            raDeg = moonData.raDeg,
-            decDeg = moonData.decDeg
-        )
-    }
-    val zenithAngleDeg = remember(moonData.brightLimbAngleDeg, moonParallacticAngle) {
-        CoordinateEngine.calculateZenithAngleDeg(moonData.brightLimbAngleDeg, moonParallacticAngle)
+    val limbScreenAngleDeg = remember(moonData.azimuthDeg, moonData.altitudeDeg, sunHoriz.azimuthDeg, sunHoriz.altitudeDeg) {
+        CoordinateEngine.calculateMoonLimbScreenAngleDeg(
+            moonAzimuthDeg = moonData.azimuthDeg,
+            moonAltitudeDeg = moonData.altitudeDeg,
+            sunAzimuthDeg = sunHoriz.azimuthDeg,
+            sunAltitudeDeg = sunHoriz.altitudeDeg
+        ).toFloat()
     }
 
     Box(
@@ -514,14 +523,6 @@ private fun PhotographicMoonView(
                 val center = Offset(size.width / 2f, size.height / 2f)
 
                 val ill = moonData.illuminationPercent / 100.0
-                val age = moonData.ageDays
-                val isWaxing = age < 14.765
-
-                val shadowRotDeg = if (isWaxing) {
-                    (zenithAngleDeg - 90.0).toFloat()
-                } else {
-                    (zenithAngleDeg - 270.0).toFloat()
-                }
 
                 if (ill < 0.98) {
                     // Multi-pass Feathered Terminator Shadow Overlay for natural penumbra blending
@@ -535,29 +536,23 @@ private fun PhotographicMoonView(
                         val offset = t * feather
 
                         val shadowPath = Path()
-                        val sweepAngle = 180f
-                        val startAngle = if (isWaxing) 90f else -90f
-
+                        // Outer shadow arc around left edge (+90° bottom to -90° top)
                         shadowPath.addArc(
                             Rect(center.x - radius, center.y - radius, center.x + radius, center.y + radius),
-                            startAngle,
-                            sweepAngle
+                            90f,
+                            180f
                         )
 
                         val k = (2.0 * ill - 1.0).toFloat()
                         val stepInnerWidth = (abs(k) * radius + offset).coerceAtLeast(0f)
                         val innerRect = Rect(center.x - stepInnerWidth, center.y - radius, center.x + stepInnerWidth, center.y + radius)
 
-                        if (isWaxing) {
-                            val innerSweep = if (k >= 0) -180f else 180f
-                            shadowPath.arcTo(innerRect, 270f, innerSweep, false)
-                        } else {
-                            val innerSweep = if (k >= 0) -180f else 180f
-                            shadowPath.arcTo(innerRect, 90f, innerSweep, false)
-                        }
+                        // Inner terminator arc from -90° top to +90° bottom
+                        val innerSweep = if (k >= 0) -180f else 180f
+                        shadowPath.arcTo(innerRect, 270f, innerSweep, false)
                         shadowPath.close()
 
-                        rotate(shadowRotDeg, center) {
+                        rotate(limbScreenAngleDeg, center) {
                             drawPath(
                                 path = shadowPath,
                                 color = Color(0xFF07070F).copy(alpha = stepAlpha)

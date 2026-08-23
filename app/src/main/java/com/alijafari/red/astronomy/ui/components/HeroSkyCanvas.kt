@@ -426,11 +426,11 @@ fun HeroSkyCanvas(
                 val moonCenter = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH)
                 val baseMoonRadius = 26.dp.toPx()
 
-                val moonParallacticAngle = CoordinateEngine.calculateParallacticAngleDeg(
-                    lastDeg = lastDeg,
-                    latitudeDeg = userLat,
-                    raDeg = moonData.raDeg,
-                    decDeg = moonData.decDeg
+                val limbScreenAngleDeg = CoordinateEngine.calculateMoonLimbScreenAngleDeg(
+                    moonAzimuthDeg = moonData.azimuthDeg,
+                    moonAltitudeDeg = moonData.altitudeDeg,
+                    sunAzimuthDeg = sunHoriz.azimuthDeg,
+                    sunAltitudeDeg = sunHoriz.altitudeDeg
                 )
 
                 MoonRenderer.drawMoon(
@@ -446,8 +446,7 @@ fun HeroSkyCanvas(
                     frameTimeMs = frameTimeMs,
                     isWaxing = (moonData.ageDays < 14.765),
                     theme = uiState.skyCanvasTheme,
-                    brightLimbAngleDeg = moonData.brightLimbAngleDeg,
-                    parallacticAngleDeg = moonParallacticAngle
+                    limbScreenAngleDeg = limbScreenAngleDeg
                 )
             }
 

@@ -1238,43 +1238,34 @@ fun CompassARScreen(
                                 )
                                 val illumFrac = (moonData.illuminationPercent / 100.0).coerceIn(0.0, 1.0).toFloat()
                                 if (illumFrac < 0.98f) {
-                                    val isWaxing = moonData.ageDays < 14.765
-                                    val moonParallacticAngle = CoordinateEngine.calculateParallacticAngleDeg(
-                                        lastDeg = lastDeg,
-                                        latitudeDeg = uiState.userLocation.latitude,
-                                        raDeg = moonData.raDeg,
-                                        decDeg = moonData.decDeg
-                                    )
-                                    val zenithAngleDeg = CoordinateEngine.calculateZenithAngleDeg(moonData.brightLimbAngleDeg, moonParallacticAngle)
-                                    val shadowRotDeg = if (isWaxing) {
-                                        (zenithAngleDeg - 90.0).toFloat()
-                                    } else {
-                                        (zenithAngleDeg - 270.0).toFloat()
-                                    }
+                                    val limbScreenAngleDeg = ARProjectionEngine.calculateMoonLimbScreenAngleDeg(
+                                        moonAzimuthDeg = moonHoriz.azimuthDeg,
+                                        moonAltitudeDeg = moonHoriz.altitudeDeg,
+                                        sunAzimuthDeg = sunHoriz.azimuthDeg,
+                                        sunAltitudeDeg = sunHoriz.altitudeDeg,
+                                        rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
+                                        currentAzimuth = currentAzimuth,
+                                        currentAltitude = currentAltitude,
+                                        currentRoll = skyOrientation.roll.toDouble()
+                                    ).toFloat()
 
                                     val shadowPath = Path()
-                                    val sweepAngle = 180f
-                                    val startAngle = if (isWaxing) 90f else -90f
-
+                                    // Outer shadow arc around left edge (+90° bottom to -90° top)
                                     shadowPath.addArc(
                                         Rect(px - radiusPx, py - radiusPx, px + radiusPx, py + radiusPx),
-                                        startAngle,
-                                        sweepAngle
+                                        90f,
+                                        180f
                                     )
                                     val k = (2.0 * illumFrac - 1.0).toFloat()
                                     val stepInnerWidth = (abs(k) * radiusPx).coerceAtLeast(0f)
                                     val innerRect = Rect(px - stepInnerWidth, py - radiusPx, px + stepInnerWidth, py + radiusPx)
 
-                                    if (isWaxing) {
-                                        val innerSweep = if (k >= 0) -180f else 180f
-                                        shadowPath.arcTo(innerRect, 270f, innerSweep, false)
-                                    } else {
-                                        val innerSweep = if (k >= 0) -180f else 180f
-                                        shadowPath.arcTo(innerRect, 90f, innerSweep, false)
-                                    }
+                                    // Inner terminator arc from -90° top to +90° bottom
+                                    val innerSweep = if (k >= 0) -180f else 180f
+                                    shadowPath.arcTo(innerRect, 270f, innerSweep, false)
                                     shadowPath.close()
 
-                                    rotate(shadowRotDeg, Offset(px, py)) {
+                                    rotate(limbScreenAngleDeg, Offset(px, py)) {
                                         drawPath(
                                             path = shadowPath,
                                             color = Color(0xFF0F172A).copy(alpha = 0.85f)

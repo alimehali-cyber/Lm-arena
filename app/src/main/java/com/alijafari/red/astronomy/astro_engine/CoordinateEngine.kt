@@ -124,4 +124,34 @@ object CoordinateEngine {
         if (zenithAngle < 0) zenithAngle += 360.0
         return zenithAngle
     }
+
+    /**
+     * Calculates the apparent direction angle (in degrees) of the Moon's illuminated bright limb
+     * in screen coordinates (+X = Right / greater Azimuth, +Y = Down / decreasing Altitude).
+     *
+     * Derived rigorously from the local tangent-plane spherical geometry from Moon to Sun.
+     *
+     * Returns angle in degrees in [-180, +180] where:
+     *   -90° = pointing UP (towards Zenith)
+     *     0° = pointing RIGHT (+X, eastward/greater azimuth)
+     *   +90° = pointing DOWN (towards Nadir)
+     *   180° = pointing LEFT (-X, westward/smaller azimuth)
+     */
+    fun calculateMoonLimbScreenAngleDeg(
+        moonAzimuthDeg: Double,
+        moonAltitudeDeg: Double,
+        sunAzimuthDeg: Double,
+        sunAltitudeDeg: Double
+    ): Double {
+        val azMRad = Math.toRadians(moonAzimuthDeg)
+        val altMRad = Math.toRadians(moonAltitudeDeg)
+        val azSRad = Math.toRadians(sunAzimuthDeg)
+        val altSRad = Math.toRadians(sunAltitudeDeg)
+
+        val dAz = azSRad - azMRad
+        val vx = cos(altSRad) * sin(dAz)
+        val vy = -(sin(altSRad) * cos(altMRad) - cos(altSRad) * sin(altMRad) * cos(dAz))
+
+        return Math.toDegrees(atan2(vy, vx))
+    }
 }

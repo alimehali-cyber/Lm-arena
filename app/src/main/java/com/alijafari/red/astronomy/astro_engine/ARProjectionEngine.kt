@@ -468,4 +468,83 @@ object ARProjectionEngine {
         )
         return computeEffectiveFovXDeg(screenWidthPx, focalLengthPx)
     }
+
+    /**
+     * Calculates the apparent direction angle (in degrees) of the Moon's illuminated bright limb
+     * in AR Screen / Camera View coordinates (+X = Right, +Y = Down).
+     *
+     * Rigorously transforms the Moon-to-Sun celestial tangent vector through the device's
+     * real-time attitude rotation matrix (incorporating yaw, pitch, and roll), ensuring the
+     * bright limb physically points towards the Sun in 3D camera space.
+     */
+    fun calculateMoonLimbScreenAngleDeg(
+        moonAzimuthDeg: Double,
+        moonAltitudeDeg: Double,
+        sunAzimuthDeg: Double,
+        sunAltitudeDeg: Double,
+        rotationMatrix: FloatArray?,
+        currentAzimuth: Double,
+        currentAltitude: Double,
+        currentRoll: Double
+    ): Double {
+        val mAzRad = Math.toRadians(moonAzimuthDeg)
+        val mAltRad = Math.toRadians(moonAltitudeDeg)
+        val sAzRad = Math.toRadians(sunAzimuthDeg)
+        val sAltRad = Math.toRadians(sunAltitudeDeg)
+
+        // Moon & Sun 3D unit vectors in World ENU frame (East = +X, North = +Y, Up = +Z)
+        val mx = cos(mAltRad) * sin(mAzRad)
+        val my = cos(mAltRad) * cos(mAzRad)
+        val mz = sin(mAltRad)
+
+        val sx = cos(sAltRad) * sin(sAzRad)
+        val sy = cos(sAltRad) * cos(sAzRad)
+        val sz = sin(sAltRad)
+
+        // Project Sun vector onto the plane tangent to the celestial sphere at the Moon
+        val dot = sx * mx + sy * my + sz * mz
+        val tx = sx - dot * mx
+        val ty = sy - dot * my
+        val tz = sz - dot * mz
+
+        // Device coordinate frame (+X_dev Right, +Y_dev Up, +Z_dev Front/User)
+        val xDev: Double
+        val yDev: Double
+
+        if (rotationMatrix != null && rotationMatrix.size == 9 &&
+            (rotationMatrix[0] != 0f || rotationMatrix[1] != 0f || rotationMatrix[2] != 0f)
+        ) {
+            xDev = tx * rotationMatrix[0] + ty * rotationMatrix[3] + tz * rotationMatrix[6]
+            yDev = tx * rotationMatrix[1] + ty * rotationMatrix[4] + tz * rotationMatrix[7]
+        } else {
+            val cAzRad = Math.toRadians(currentAzimuth)
+            val cAltRad = Math.toRadians(currentAltitude)
+            val cRollRad = Math.toRadians(currentRoll)
+
+            val rx0 = cos(cAzRad)
+            val ry0 = -sin(cAzRad)
+            val rz0 = 0.0
+
+            val ux0 = -sin(cAltRad) * sin(cAzRad)
+            val uy0 = -sin(cAltRad) * cos(cAzRad)
+            val uz0 = cos(cAltRad)
+
+            val cosR = cos(cRollRad)
+            val sinR = sin(cRollRad)
+
+            val rx = rx0 * cosR - ux0 * sinR
+            val ry = ry0 * cosR - uy0 * sinR
+            val rz = rz0 * cosR - uz0 * sinR
+
+            val ux = rx0 * sinR + ux0 * cosR
+            val uy = ry0 * sinR + uy0 * cosR
+            val uz = rz0 * sinR + uz0 * cosR
+
+            xDev = tx * rx + ty * ry + tz * rz
+            yDev = tx * ux + ty * uy + tz * uz
+        }
+
+        // In Compose screen coordinates: +X is Right (+xDev), +Y is Down (-yDev)
+        return Math.toDegrees(atan2(-yDev, xDev))
+    }
 }
