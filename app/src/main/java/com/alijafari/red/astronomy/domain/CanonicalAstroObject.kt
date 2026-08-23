@@ -44,8 +44,13 @@ data class StaticPosition(
 data class PhysicalProperties(
     val magnitude: Double = 0.0,
     val diameterKm: Double? = null,
+    val diameterComparedToEarth: Double? = null,
     val massKg: Double? = null,
+    val massComparedToEarth: Double? = null,
     val surfaceGravityMS2: Double? = null,
+    val surfaceGravityComparedToEarth: Double? = null,
+    val distanceKm: Double? = null,
+    val distanceLightYears: Double? = null,
     val temperatureK: Int = 0,
     val rotationPeriodHours: Double? = null,
     val orbitalPeriodDays: Double? = null,
@@ -73,5 +78,7 @@ data class ObservationalInfo(
     val historicalInfoFa: String = "",
     val activePeakDateWindowEn: String = "",
     val activePeakDateWindowFa: String = "",
-    val zhr: Int = 0
+    val zhr: Int = 0,
+    val verifiedFactsEn: List<String> = emptyList(),
+    val verifiedFactsFa: List<String> = emptyList()
 )
