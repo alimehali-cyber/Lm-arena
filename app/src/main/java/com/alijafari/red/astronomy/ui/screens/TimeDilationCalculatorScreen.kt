@@ -357,6 +357,28 @@ fun TimeDilationCalculatorScreen(
                                     color = AccentPrimary
                                 )
 
+                                // Explicit Dual-Unit Display (km and light-years)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${if (isFa) "کیلومتر: " else "km: "}${RelativisticEngine.formatDistance(distRes.distanceMeters, DistanceUnit.KM, isFa)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "•",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                    Text(
+                                        text = "${if (isFa) "سال نوری: " else "Light-years: "}${RelativisticEngine.formatDistance(distRes.distanceMeters, DistanceUnit.LIGHT_YEARS, isFa)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
                                 Text(
                                     text = if (isFa) distRes.noteFa else distRes.noteEn,
                                     style = MaterialTheme.typography.labelSmall,

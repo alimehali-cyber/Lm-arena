@@ -80,4 +80,22 @@ class RelativisticEngineTest {
         assertTrue(durationEn.contains("1 yrs 0 d") || durationEn.contains("yrs"))
         assertTrue(durationFa.contains("سال"))
     }
+
+    @Test
+    fun testPlanetaryAndStellarDistanceCalculation() {
+        val earth = AstronomyCatalog.getById("planet_earth")
+        val mars = AstronomyCatalog.getById("planet_mars")
+        val moon = AstronomyCatalog.getById("moon")
+
+        assertNotNull(earth)
+        assertNotNull(mars)
+        assertNotNull(moon)
+
+        val earthToMars = RelativisticEngine.calculateDistance(earth!!, mars!!)
+        assertTrue("Distance to Mars in km should be positive and realistic", earthToMars.distanceKm > 10_000_000.0)
+        assertTrue("Distance to Mars in light years should be positive", earthToMars.distanceLightYears > 0.0)
+
+        val earthToMoon = RelativisticEngine.calculateDistance(earth, moon!!)
+        assertTrue("Distance to Moon in km should be approx 384,400 km", earthToMoon.distanceKm in 300_000.0..500_000.0)
+    }
 }

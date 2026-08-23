@@ -105,7 +105,8 @@ object AstronomyCatalog {
                 canonicalObj = canonicalObj,
                 dynamicRa = state.raDeg,
                 dynamicDec = state.decDeg,
-                dynamicMag = state.magnitude
+                dynamicMag = state.magnitude,
+                dynamicDistanceLy = state.distanceLightYears
             )
         } else {
             CanonicalAstroCatalog.toCelestialObject(canonicalObj)
@@ -125,7 +126,8 @@ object AstronomyCatalog {
                     canonicalObj = canonicalObj,
                     dynamicRa = state.raDeg,
                     dynamicDec = state.decDeg,
-                    dynamicMag = state.magnitude
+                    dynamicMag = state.magnitude,
+                    dynamicDistanceLy = state.distanceLightYears
                 )
             } else {
                 CanonicalAstroCatalog.toCelestialObject(canonicalObj)

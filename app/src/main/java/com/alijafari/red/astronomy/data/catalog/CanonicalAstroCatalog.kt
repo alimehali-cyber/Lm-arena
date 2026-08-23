@@ -1217,8 +1217,15 @@ object CanonicalAstroCatalog {
         canonicalObj: CanonicalAstroObject,
         dynamicRa: Double = canonicalObj.staticPosition?.raDeg ?: 0.0,
         dynamicDec: Double = canonicalObj.staticPosition?.decDeg ?: 0.0,
-        dynamicMag: Double = canonicalObj.physicalProperties.magnitude
+        dynamicMag: Double = canonicalObj.physicalProperties.magnitude,
+        dynamicDistanceLy: Double? = null
     ): CelestialObject {
+        val distanceLy = dynamicDistanceLy
+            ?: canonicalObj.staticPosition?.distanceLightYears
+            ?: canonicalObj.physicalProperties.distanceLightYears
+            ?: (canonicalObj.physicalProperties.distanceKm?.let { it / 9.4607304725808e12 })
+            ?: 0.0
+
         return CelestialObject(
             id = canonicalObj.canonicalId,
             type = canonicalObj.type,
@@ -1229,7 +1236,7 @@ object CanonicalAstroCatalog {
             magnitude = dynamicMag,
             constellationEn = canonicalObj.scientificIdentifiers.constellationCode,
             constellationFa = canonicalObj.scientificIdentifiers.constellationCode,
-            distanceLightYears = canonicalObj.staticPosition?.distanceLightYears ?: 0.0,
+            distanceLightYears = distanceLy,
             category = canonicalObj.observationalInfo.categoryEn,
             descriptionEn = canonicalObj.observationalInfo.descriptionEn,
             descriptionFa = canonicalObj.observationalInfo.descriptionFa,

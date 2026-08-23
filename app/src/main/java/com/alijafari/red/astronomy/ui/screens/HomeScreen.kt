@@ -241,7 +241,80 @@ fun HomeScreen(
             )
         }
 
-        // 2. NEXT ECLIPSES CARD — Compact scientific eclipse predictions for user location
+        // 2. WHAT'S UP TONIGHT? CARD — Intelligently ranked events tonight
+        item {
+            val tonightEvents = remember(uiState.userLocation, jd, isFa) {
+                WhatsUpTonightEngine.calculateTonightEvents(
+                    jd = jd,
+                    userLatDeg = uiState.userLocation.latitude,
+                    userLonDeg = uiState.userLocation.longitude,
+                    isFa = isFa
+                )
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("home_highlights_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(text = "✨", fontSize = 18.sp)
+                            Text(
+                                text = if (isFa) "امشب در آسمان چی داریم؟" else "What's Up Tonight?",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Text(
+                            text = if (isFa) "مهم‌ترین رویدادهای نجومی امشب بر اساس اولویت رصدی در موقعیت شما"
+                            else "Top ranked astronomical events occurring tonight for your location",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    if (tonightEvents.isEmpty()) {
+                        Text(
+                            text = if (isFa) "امشب رویداد نجومی ویژه‌ای ثبت نشده است." else "No special astronomical events tonight.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            tonightEvents.take(5).forEach { event ->
+                                TonightEventRow(
+                                    event = event,
+                                    isFa = isFa,
+                                    onClick = {
+                                        event.targetObject?.let { obj ->
+                                            viewModel.openObjectDetail(obj)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. NEXT ECLIPSES CARD — Compact scientific eclipse predictions for user location
         item {
             val (solarEclipse, lunarEclipse) = remember(uiState.userLocation) {
                 EclipseEngine.getNextEclipses(
@@ -314,79 +387,6 @@ fun HomeScreen(
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = AccentPrimary
                     )
-                }
-            }
-        }
-
-        // 3. WHAT'S UP TONIGHT? CARD — Intelligently ranked events tonight
-        item {
-            val tonightEvents = remember(uiState.userLocation, jd, isFa) {
-                WhatsUpTonightEngine.calculateTonightEvents(
-                    jd = jd,
-                    userLatDeg = uiState.userLocation.latitude,
-                    userLonDeg = uiState.userLocation.longitude,
-                    isFa = isFa
-                )
-            }
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("home_highlights_card"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(text = "✨", fontSize = 18.sp)
-                            Text(
-                                text = if (isFa) "امشب در آسمان چی داریم؟" else "What's Up Tonight?",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Text(
-                            text = if (isFa) "مهم‌ترین رویدادهای نجومی امشب بر اساس اولویت رصدی در موقعیت شما"
-                            else "Top ranked astronomical events occurring tonight for your location",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    if (tonightEvents.isEmpty()) {
-                        Text(
-                            text = if (isFa) "امشب رویداد نجومی ویژه‌ای ثبت نشده است." else "No special astronomical events tonight.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            tonightEvents.take(5).forEach { event ->
-                                TonightEventRow(
-                                    event = event,
-                                    isFa = isFa,
-                                    onClick = {
-                                        event.targetObject?.let { obj ->
-                                            viewModel.openObjectDetail(obj)
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }

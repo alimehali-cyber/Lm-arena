@@ -203,17 +203,6 @@ fun SettingsDialog(
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            FilterChip(
-                                selected = uiState.themeMode == ThemeMode.PAPERCRAFT_PASTEL,
-                                onClick = { viewModel.setThemeMode(ThemeMode.PAPERCRAFT_PASTEL) },
-                                label = { Text(text = if (isFa) "✂️ کاغذ بریده (دیوراما)" else "✂️ Papercraft Art") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
                     }
                 }
 
