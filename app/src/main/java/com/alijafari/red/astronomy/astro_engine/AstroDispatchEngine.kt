@@ -309,15 +309,16 @@ object AstroDispatchEngine {
         elevationM: Double,
         lastDeg: Double
     ): CalculatedAstroState {
-        val noradId = canonicalObj.scientificIdentifiers.noradId ?: 25544
-        val satItem = SatelliteCatalog.satellites.find { it.noradId == noradId || it.id == canonicalObj.canonicalId }
+        val satItem = SatelliteEngine.resolveSatelliteItem(canonicalObj.canonicalId)
+            ?: (canonicalObj.scientificIdentifiers.noradId?.let { SatelliteEngine.resolveSatelliteItem(it.toString()) })
             ?: SatelliteCatalog.getById("iss_zarya")
 
         val liveState = SatelliteEngine.calculateSatelliteState(
             satellite = satItem,
             timestampMs = timestampMs,
             userLatDeg = userLatDeg,
-            userLonDeg = userLonDeg
+            userLonDeg = userLonDeg,
+            userAltMeters = elevationM
         )
 
         // Convert sub-latitude and sub-longitude to approximate RA/Dec for satellite

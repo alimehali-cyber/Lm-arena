@@ -27,25 +27,32 @@ object FinderEngine {
         phoneAltitudeDeg: Double,
         userLat: Double,
         userLon: Double,
+        userAltMeters: Double = 0.0,
         jd: Double = TimeEngine.getJulianDate()
     ): FinderData {
         val lastDeg = TimeEngine.getLAST(jd, userLon)
-        val horiz = if (target.id == "sat_iss" || target.type == com.alijafari.red.astronomy.domain.ObjectType.SATELLITE) {
-            val timestampMs = ((jd - 2440587.5) * 86400000.0).toLong()
-            val satItem = SatelliteCatalog.satellites.firstOrNull {
-                it.id == target.id ||
-                "sat_${it.id}" == target.id ||
-                "sat_${it.noradId}" == target.id ||
-                (it.noradId == 25544 && (target.id == "sat_iss" || target.id == "iss"))
-            }
-            val effectiveTle = if (satItem != null) SatelliteEngine.getEffectiveTle(satItem) else SatelliteEngine.getEffectiveTle(25544)
-            val pos = ISSEngine.calculateTopocentricPos(
+        val horiz = if (target.id == "sat_iss" || target.id == "iss" || target.type == com.alijafari.red.astronomy.domain.ObjectType.SATELLITE || target.id.startsWith("sat_")) {
+            val timestampMs = TimeEngine.getTimestampFromJulianDate(jd)
+            val state = SatelliteEngine.calculateSatelliteState(
+                idOrNoradOrAlias = target.id,
                 timestampMs = timestampMs,
                 userLatDeg = userLat,
                 userLonDeg = userLon,
-                tle = effectiveTle
+                userAltMeters = userAltMeters
             )
-            CoordinateEngine.Horizontal(azimuthDeg = pos.azimuthDeg, altitudeDeg = pos.elevationDeg)
+            if (state != null) {
+                CoordinateEngine.Horizontal(azimuthDeg = state.topocentric.azimuthDeg, altitudeDeg = state.topocentric.elevationDeg)
+            } else {
+                val satItem = SatelliteEngine.resolveSatelliteItem(target.id) ?: SatelliteCatalog.getById("iss_zarya")
+                val topo = ISSEngine.calculateTopocentricPos(
+                    timestampMs = timestampMs,
+                    userLatDeg = userLat,
+                    userLonDeg = userLon,
+                    userAltMeters = userAltMeters,
+                    tle = SatelliteEngine.getEffectiveTle(satItem)
+                )
+                CoordinateEngine.Horizontal(azimuthDeg = topo.azimuthDeg, altitudeDeg = topo.elevationDeg)
+            }
         } else if (target.type == com.alijafari.red.astronomy.domain.ObjectType.SUN) {
             SunEngine.getSunAltAz(jd, userLat, userLon)
         } else if (target.id == "moon") {

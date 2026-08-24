@@ -450,30 +450,12 @@ fun CompassARScreen(
 
     // Real-Time Satellite Topocentric Positions for all catalog satellites
     val satellitePositions = remember(activeTimeMs, uiState.userLocation) {
-        val map = mutableMapOf<String, CoordinateEngine.Horizontal>()
-        SatelliteCatalog.satellites.forEach { satItem ->
-            val effectiveTle = SatelliteEngine.getEffectiveTle(satItem)
-            val topo = ISSEngine.calculateTopocentricPos(
-                timestampMs = activeTimeMs,
-                userLatDeg = uiState.userLocation.latitude,
-                userLonDeg = uiState.userLocation.longitude,
-                userAltMeters = uiState.userLocation.elevationMeters,
-                tle = effectiveTle
-            )
-            val horiz = CoordinateEngine.Horizontal(
-                altitudeDeg = topo.elevationDeg,
-                azimuthDeg = topo.azimuthDeg
-            )
-            map[satItem.id] = horiz
-            map["sat_${satItem.id}"] = horiz
-            map["sat_${satItem.noradId}"] = horiz
-            map["norad_${satItem.noradId}"] = horiz
-            if (satItem.noradId == 25544) {
-                map["sat_iss"] = horiz
-                map["iss"] = horiz
-            }
-        }
-        map
+        SatelliteEngine.calculateAllSatellitePositions(
+            timestampMs = activeTimeMs,
+            userLatDeg = uiState.userLocation.latitude,
+            userLonDeg = uiState.userLocation.longitude,
+            userAltMeters = uiState.userLocation.elevationMeters
+        )
     }
 
     val allCatalog = remember(jd) { AstronomyCatalog.getAllObjects(jd) }
@@ -514,6 +496,7 @@ fun CompassARScreen(
                 phoneAltitudeDeg = currentAltitude,
                 userLat = uiState.userLocation.latitude,
                 userLon = uiState.userLocation.longitude,
+                userAltMeters = uiState.userLocation.elevationMeters,
                 jd = jd
             )
         }
@@ -639,39 +622,21 @@ fun CompassARScreen(
         val pastList = mutableListOf<CoordinateEngine.Horizontal>()
         val futureList = mutableListOf<CoordinateEngine.Horizontal>()
 
-        if (targetObj.type == ObjectType.SATELLITE) {
-            val satItem = SatelliteCatalog.satellites.firstOrNull {
-                it.id == targetObj.id ||
-                "sat_${it.id}" == targetObj.id ||
-                "sat_${it.noradId}" == targetObj.id ||
-                (it.noradId == 25544 && (targetObj.id == "sat_iss" || targetObj.id == "iss"))
-            }
-            val tle = if (satItem != null) {
-                SatelliteEngine.getEffectiveTle(satItem)
-            } else {
-                SatelliteEngine.getEffectiveTle(25544)
-            }
-            for (offsetSec in -1800..0 step 30) {
-                val t = activeTimeMs + (offsetSec * 1000L)
-                val pos = ISSEngine.calculateTopocentricPos(
-                    timestampMs = t,
+        if (targetObj.type == ObjectType.SATELLITE || targetObj.id.startsWith("sat_")) {
+            val satItem = SatelliteEngine.resolveSatelliteItem(targetObj.id)
+            if (satItem != null) {
+                val (past, future) = SatelliteEngine.generateOrbitTrajectory(
+                    satellite = satItem,
+                    currentTimestampMs = activeTimeMs,
                     userLatDeg = uiState.userLocation.latitude,
                     userLonDeg = uiState.userLocation.longitude,
                     userAltMeters = uiState.userLocation.elevationMeters,
-                    tle = tle
+                    pastMinutes = 45,
+                    futureMinutes = 45,
+                    stepSeconds = 30
                 )
-                pastList.add(CoordinateEngine.Horizontal(pos.elevationDeg, pos.azimuthDeg))
-            }
-            for (offsetSec in 0..1800 step 30) {
-                val t = activeTimeMs + (offsetSec * 1000L)
-                val pos = ISSEngine.calculateTopocentricPos(
-                    timestampMs = t,
-                    userLatDeg = uiState.userLocation.latitude,
-                    userLonDeg = uiState.userLocation.longitude,
-                    userAltMeters = uiState.userLocation.elevationMeters,
-                    tle = tle
-                )
-                futureList.add(CoordinateEngine.Horizontal(pos.elevationDeg, pos.azimuthDeg))
+                pastList.addAll(past)
+                futureList.addAll(future)
             }
         } else if (targetObj.id == "moon") {
             val activeJd = TimeEngine.getJulianDate(activeTimeMs)
@@ -891,7 +856,7 @@ fun CompassARScreen(
 
                                 val horiz = if (obj.type == ObjectType.SUN) activeSunHoriz
                                 else if (obj.id == "moon") activeMoonHoriz
-                                else if (obj.type == ObjectType.SATELLITE) activeSatellitePositions[obj.id] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
+                                else if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) activeSatellitePositions[obj.id] ?: activeSatellitePositions[com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id)] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
                                 else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), activeLastDeg, activeUserLat)
 
                                 val pt = ARProjectionEngine.projectAltAz(
@@ -1157,8 +1122,8 @@ fun CompassARScreen(
                     sunHoriz
                 } else if (obj.id == "moon") {
                     moonHoriz
-                } else if (obj.type == ObjectType.SATELLITE) {
-                    satellitePositions[obj.id] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
+                } else if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) {
+                    satellitePositions[obj.id] ?: satellitePositions[com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id)] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
                 } else {
                     CoordinateEngine.equatorialToHorizontal(
                         CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg),
@@ -1187,7 +1152,7 @@ fun CompassARScreen(
 
                 // Padding boundary check
                 if (px in -150f..(canvasWidth + 150f) && py in -150f..(canvasHeight + 150f)) {
-                    val isSelected = obj.id == selectedTarget?.id
+                    val isSelected = obj.id == selectedTarget?.id || (selectedTarget != null && com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id) == com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(selectedTarget?.id ?: ""))
 
                     var dAz = horiz.azimuthDeg - currentAzimuth
                     if (dAz > 180) dAz -= 360
@@ -2335,7 +2300,7 @@ fun CompassARScreen(
 
                 val horiz = if (obj.type == ObjectType.SUN) sunHoriz
                 else if (obj.id == "moon") moonHoriz
-                else if (obj.type == ObjectType.SATELLITE) satellitePositions[obj.id] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
+                else if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) satellitePositions[obj.id] ?: satellitePositions[com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id)] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
                 else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), lastDeg, uiState.userLocation.latitude)
 
                 val projPt = ARProjectionEngine.projectAltAz(
