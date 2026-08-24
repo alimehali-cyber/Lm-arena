@@ -526,7 +526,8 @@ private fun PhotographicMoonView(
 
                 if (ill < 0.98) {
                     // Multi-pass Feathered Terminator Shadow Overlay for natural penumbra blending
-                    val targetShadowAlpha = 0.92f
+                    // Subtly darkened unilluminated limb with realistic earthshine and faint lunar surface detail
+                    val targetShadowAlpha = 0.965f
                     val numSteps = 16
                     val stepAlpha = targetShadowAlpha / numSteps
                     val feather = radius * 0.08f // Soft penumbra width (~22px feathering)
@@ -555,7 +556,7 @@ private fun PhotographicMoonView(
                         rotate(limbScreenAngleDeg, center) {
                             drawPath(
                                 path = shadowPath,
-                                color = Color(0xFF07070F).copy(alpha = stepAlpha)
+                                color = Color(0xFF030307).copy(alpha = stepAlpha)
                             )
                         }
                     }
@@ -566,7 +567,7 @@ private fun PhotographicMoonView(
                     brush = Brush.radialGradient(
                         colors = listOf(
                             Color.Transparent,
-                            Color(0xFF0A0A12).copy(alpha = 0.35f)
+                            Color(0xFF05050D).copy(alpha = 0.40f)
                         ),
                         center = center,
                         radius = radius

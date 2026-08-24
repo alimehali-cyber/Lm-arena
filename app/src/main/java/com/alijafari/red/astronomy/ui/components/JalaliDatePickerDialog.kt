@@ -31,6 +31,23 @@ import com.alijafari.red.astronomy.ui.theme.TextPrimary
 import com.alijafari.red.astronomy.ui.theme.TextSecondary
 import java.util.Calendar
 
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+
+private fun parseJalaliYear(input: String): Int? {
+    val englishDigits = input
+        .replace('۰', '0').replace('۱', '1').replace('۲', '2').replace('۳', '3').replace('۴', '4')
+        .replace('۵', '5').replace('۶', '6').replace('۷', '7').replace('۸', '8').replace('۹', '9')
+        .replace('٠', '0').replace('١', '1').replace('٢', '2').replace('٣', '3').replace('٤', '4')
+        .replace('٥', '5').replace('٦', '6').replace('٧', '7').replace('٨', '8').replace('٩', '9')
+        .trim()
+    val yr = englishDigits.toIntOrNull() ?: return null
+    return if (yr in 1200..1600) yr else null
+}
+
 private val PERSIAN_MONTHS_FA = arrayOf(
     "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
     "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
@@ -61,6 +78,8 @@ fun JalaliDatePickerDialog(
     }
 
     var isSelectingYear by remember { mutableStateOf(false) }
+    var directYearInput by remember(selectedYear) { mutableStateOf(selectedYear.toString()) }
+    var isDirectYearError by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
@@ -97,7 +116,7 @@ fun JalaliDatePickerDialog(
                     .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Year Header with Navigation
+                // Year Header with Navigation and Direct Entry Trigger
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -112,16 +131,30 @@ fun JalaliDatePickerDialog(
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = CardSurface,
-                        border = BorderStroke(1.dp, CardBorder),
-                        modifier = Modifier.clickable { isSelectingYear = !isSelectingYear }
+                        color = if (isSelectingYear) AccentPrimary.copy(alpha = 0.2f) else CardSurface,
+                        border = BorderStroke(1.dp, if (isSelectingYear) AccentPrimary else CardBorder),
+                        modifier = Modifier
+                            .clickable {
+                                isSelectingYear = !isSelectingYear
+                                if (isSelectingYear) {
+                                    directYearInput = selectedYear.toString()
+                                    isDirectYearError = false
+                                }
+                            }
+                            .testTag("jalali_year_header_btn")
                     ) {
-                        Text(
-                            text = "سال ${TimeEngine.formatPersianNumbers(selectedYear.toString())}",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = TextPrimary,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit Year", tint = AccentPrimary, modifier = Modifier.size(14.dp))
+                            Text(
+                                text = "سال ${TimeEngine.formatPersianNumbers(selectedYear.toString())}",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = TextPrimary
+                            )
+                        }
                     }
 
                     IconButton(
@@ -133,36 +166,118 @@ fun JalaliDatePickerDialog(
                 }
 
                 if (isSelectingYear) {
-                    // Quick Year Selector Grid (Around current year +- 10)
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(180.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                            .padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val years = (selectedYear - 7..selectedYear + 8).toList()
-                        items(years) { yr ->
-                            val isSelected = yr == selectedYear
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) AccentPrimary else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) AccentPrimary else CardBorder),
-                                modifier = Modifier.clickable {
-                                    selectedYear = yr
-                                    isSelectingYear = false
-                                }
-                            ) {
-                                Text(
-                                    text = TimeEngine.formatPersianNumbers(yr.toString()),
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) Color.Black else TextPrimary
-                                    ),
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(vertical = 8.dp)
+                        // Direct Year Entry Input Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = directYearInput,
+                                onValueChange = {
+                                    directYearInput = it
+                                    isDirectYearError = false
+                                },
+                                label = { Text("ورود مستقیم سال", fontSize = 11.sp) },
+                                placeholder = { Text("مثلاً ۱۳۷۰ یا 1403", fontSize = 11.sp) },
+                                singleLine = true,
+                                isError = isDirectYearError,
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Done
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onDone = {
+                                        val parsed = parseJalaliYear(directYearInput)
+                                        if (parsed != null) {
+                                            selectedYear = parsed
+                                            isSelectingYear = false
+                                            isDirectYearError = false
+                                        } else {
+                                            isDirectYearError = true
+                                        }
+                                    }
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("jalali_direct_year_input"),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = AccentPrimary,
+                                    unfocusedBorderColor = CardBorder
                                 )
+                            )
+
+                            Button(
+                                onClick = {
+                                    val parsed = parseJalaliYear(directYearInput)
+                                    if (parsed != null) {
+                                        selectedYear = parsed
+                                        isSelectingYear = false
+                                        isDirectYearError = false
+                                    } else {
+                                        isDirectYearError = true
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
+                                modifier = Modifier.testTag("jalali_direct_year_apply_btn")
+                            ) {
+                                Text("پرش", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+
+                        if (isDirectYearError) {
+                            Text(
+                                text = "لطفاً سال معتبر خورشیدی بین ۱۲۰۰ تا ۱۶۰۰ وارد کنید",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                        }
+
+                        Text(
+                            text = "یا انتخاب سریع سال‌های مجاور:",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+
+                        // Quick Year Selector Grid
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(4),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val years = (selectedYear - 7..selectedYear + 8).toList()
+                            items(years) { yr ->
+                                val isSelected = yr == selectedYear
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) AccentPrimary else CardSurface,
+                                    border = BorderStroke(1.dp, if (isSelected) AccentPrimary else CardBorder),
+                                    modifier = Modifier.clickable {
+                                        selectedYear = yr
+                                        isSelectingYear = false
+                                    }
+                                ) {
+                                    Text(
+                                        text = TimeEngine.formatPersianNumbers(yr.toString()),
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) Color.Black else TextPrimary
+                                        ),
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 6.dp)
+                                    )
+                                }
                             }
                         }
                     }

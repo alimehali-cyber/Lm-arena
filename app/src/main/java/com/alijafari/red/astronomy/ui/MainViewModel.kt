@@ -532,9 +532,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleTimeMachinePlaying() {
         _uiState.update {
+            val isNowPlaying = !it.timeMachineState.isPlaying
+            val newMode = if (isNowPlaying && it.timeMachineState.mode == TimeMachineMode.LIVE) {
+                TimeMachineMode.SIMULATION
+            } else {
+                it.timeMachineState.mode
+            }
+            val newSimTime = if (it.timeMachineState.mode == TimeMachineMode.LIVE) {
+                System.currentTimeMillis()
+            } else {
+                it.timeMachineState.simulationTimeMs
+            }
             it.copy(
                 timeMachineState = it.timeMachineState.copy(
-                    isPlaying = !it.timeMachineState.isPlaying
+                    mode = newMode,
+                    isPlaying = isNowPlaying,
+                    simulationTimeMs = newSimTime
                 )
             )
         }
@@ -542,8 +555,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTimeMachinePlaying(playing: Boolean) {
         _uiState.update {
+            val newMode = if (playing && it.timeMachineState.mode == TimeMachineMode.LIVE) {
+                TimeMachineMode.SIMULATION
+            } else {
+                it.timeMachineState.mode
+            }
+            val newSimTime = if (it.timeMachineState.mode == TimeMachineMode.LIVE) {
+                System.currentTimeMillis()
+            } else {
+                it.timeMachineState.simulationTimeMs
+            }
             it.copy(
-                timeMachineState = it.timeMachineState.copy(isPlaying = playing)
+                timeMachineState = it.timeMachineState.copy(
+                    mode = newMode,
+                    isPlaying = playing,
+                    simulationTimeMs = newSimTime
+                )
             )
         }
     }

@@ -370,23 +370,28 @@ fun CompassARScreen(
     // Smooth playback ticking loop when simulation mode is active and playing
     LaunchedEffect(timeMachineState.mode, timeMachineState.isPlaying, timeMachineState.speed, timeMachineState.isReverse) {
         if (timeMachineState.mode == TimeMachineMode.SIMULATION && timeMachineState.isPlaying) {
-            var lastRealMs = System.currentTimeMillis()
+            var lastFrameNanos = 0L
             var currentSimMs = timeMachineState.simulationTimeMs
             while (true) {
-                withFrameMillis { frameTimeMs ->
-                    val nowRealMs = frameTimeMs
-                    val deltaRealSec = (nowRealMs - lastRealMs) / 1000.0
-                    lastRealMs = nowRealMs
+                withFrameNanos { frameTimeNanos ->
+                    if (lastFrameNanos == 0L) {
+                        lastFrameNanos = frameTimeNanos
+                    } else {
+                        val deltaRealSec = (frameTimeNanos - lastFrameNanos) / 1_000_000_000.0
+                        lastFrameNanos = frameTimeNanos
 
-                    val multiplier = timeMachineState.speed.multiplier
-                    val direction = if (timeMachineState.isReverse) -1.0 else 1.0
-                    val deltaSimMs = (deltaRealSec * multiplier * direction * 1000.0).toLong()
+                        val multiplier = timeMachineState.speed.multiplier
+                        val direction = if (timeMachineState.isReverse) -1.0 else 1.0
+                        val deltaSimMs = (deltaRealSec * multiplier * direction * 1000.0).toLong()
 
-                    currentSimMs = (currentSimMs + deltaSimMs).coerceIn(
-                        TimeMachineState.MIN_TIMESTAMP_MS,
-                        TimeMachineState.MAX_TIMESTAMP_MS
-                    )
-                    viewModel.setSimulatedTime(currentSimMs, timeMachineState.eventName, timeMachineState.isBirthdayMode)
+                        if (deltaSimMs != 0L) {
+                            currentSimMs = (currentSimMs + deltaSimMs).coerceIn(
+                                TimeMachineState.MIN_TIMESTAMP_MS,
+                                TimeMachineState.MAX_TIMESTAMP_MS
+                            )
+                            viewModel.setSimulatedTime(currentSimMs, timeMachineState.eventName, timeMachineState.isBirthdayMode)
+                        }
+                    }
                 }
             }
         }
