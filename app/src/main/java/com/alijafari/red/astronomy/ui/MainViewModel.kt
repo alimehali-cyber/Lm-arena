@@ -15,6 +15,7 @@ import com.alijafari.red.astronomy.data.catalog.GeoCity
 import com.alijafari.red.astronomy.data.catalog.GeoLocationCatalog
 import com.alijafari.red.astronomy.data.database.AppDatabase
 import com.alijafari.red.astronomy.data.database.ObservationLogEntity
+import com.alijafari.red.astronomy.data.database.UserOccasionEntity
 import com.alijafari.red.astronomy.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -42,6 +43,7 @@ data class MainUiState(
     val locationSearchQuery: String = "",
     val isGpsLocating: Boolean = false,
     val observationLogs: List<ObservationLogEntity> = emptyList(),
+    val userOccasions: List<UserOccasionEntity> = emptyList(),
     val timeMachineState: TimeMachineState = TimeMachineState(),
     val selectedTargetObject: CelestialObject? = null,
     val selectedSatelliteId: String? = null
@@ -165,6 +167,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.observationLogsFlow.collect { logs ->
                 _uiState.update { it.copy(observationLogs = logs) }
+            }
+        }
+
+        viewModelScope.launch {
+            repository.userOccasionsFlow.collect { occasions ->
+                _uiState.update { it.copy(userOccasions = occasions) }
             }
         }
     }
@@ -474,6 +482,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteObservationLog(log: ObservationLogEntity) {
         viewModelScope.launch {
             repository.deleteObservationLog(log)
+        }
+    }
+
+    // User Occasions (My Occasions)
+    fun saveUserOccasion(id: String?, title: String, timestampMs: Long, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val success = repository.saveUserOccasion(id, title, timestampMs)
+            onResult(success)
+        }
+    }
+
+    fun deleteUserOccasion(id: String) {
+        viewModelScope.launch {
+            repository.deleteUserOccasion(id)
         }
     }
 

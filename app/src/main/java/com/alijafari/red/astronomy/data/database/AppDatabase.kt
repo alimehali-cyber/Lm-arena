@@ -14,9 +14,10 @@ import androidx.room.RoomDatabase
         TleEntity::class,
         ObservationLogEntity::class,
         CelestialObjectEntity::class,
-        ConstellationEntity::class
+        ConstellationEntity::class,
+        UserOccasionEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun observationLogDao(): ObservationLogDao
     abstract fun celestialObjectDao(): CelestialObjectDao
     abstract fun constellationDao(): ConstellationDao
+    abstract fun userOccasionDao(): UserOccasionDao
 
     companion object {
         @Volatile

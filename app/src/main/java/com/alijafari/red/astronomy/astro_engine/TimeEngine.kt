@@ -158,6 +158,65 @@ object TimeEngine {
     }
 
     /**
+     * Converts Persian (Solar Hijri) Year, Month (1-12), Day (1-31), Hour (0-23), Minute (0-59)
+     * accurately to UTC timestamp in milliseconds using ICU PersianCalendar.
+     */
+    fun persianToTimestamp(
+        year: Int,
+        month: Int,
+        day: Int,
+        hour: Int = 12,
+        minute: Int = 0,
+        second: Int = 0,
+        timeZone: TimeZone = TEHRAN_TIME_ZONE
+    ): Long {
+        val icuTz = android.icu.util.TimeZone.getTimeZone(timeZone.id)
+        val pCal = android.icu.util.Calendar.getInstance(
+            icuTz,
+            android.icu.util.ULocale("fa_IR@calendar=persian")
+        ).apply {
+            clear()
+            set(android.icu.util.Calendar.YEAR, year)
+            set(android.icu.util.Calendar.MONTH, (month - 1).coerceIn(0, 11))
+            set(android.icu.util.Calendar.DAY_OF_MONTH, day.coerceIn(1, 31))
+            set(android.icu.util.Calendar.HOUR_OF_DAY, hour.coerceIn(0, 23))
+            set(android.icu.util.Calendar.MINUTE, minute.coerceIn(0, 59))
+            set(android.icu.util.Calendar.SECOND, second.coerceIn(0, 59))
+            set(android.icu.util.Calendar.MILLISECOND, 0)
+        }
+        return pCal.timeInMillis
+    }
+
+    /**
+     * Determines whether a given Solar Hijri year is a leap year.
+     */
+    fun isSolarHijriLeapYear(year: Int): Boolean {
+        val icuTz = android.icu.util.TimeZone.getTimeZone("Asia/Tehran")
+        val pCal = android.icu.util.Calendar.getInstance(
+            icuTz,
+            android.icu.util.ULocale("fa_IR@calendar=persian")
+        ).apply {
+            clear()
+            set(android.icu.util.Calendar.YEAR, year)
+            set(android.icu.util.Calendar.MONTH, 11) // 12th month (Esfand)
+            set(android.icu.util.Calendar.DAY_OF_MONTH, 30)
+        }
+        return pCal.get(android.icu.util.Calendar.MONTH) == 11 && pCal.get(android.icu.util.Calendar.DAY_OF_MONTH) == 30
+    }
+
+    /**
+     * Returns the number of days in the specified Solar Hijri month (1-12).
+     */
+    fun getSolarHijriDaysInMonth(year: Int, month: Int): Int {
+        return when (month) {
+            in 1..6 -> 31
+            in 7..11 -> 30
+            12 -> if (isSolarHijriLeapYear(year)) 30 else 29
+            else -> 30
+        }
+    }
+
+    /**
      * Converts Persian digits to English digits if needed or vice-versa.
      */
     fun formatPersianNumbers(str: String): String {

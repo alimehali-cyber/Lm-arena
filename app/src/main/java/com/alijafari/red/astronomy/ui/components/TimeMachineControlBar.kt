@@ -1,15 +1,11 @@
 package com.alijafari.red.astronomy.ui.components
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,19 +17,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
+import com.alijafari.red.astronomy.data.database.UserOccasionEntity
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.theme.*
-import kotlinx.coroutines.launch
 import java.util.Calendar
-import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +34,7 @@ fun TimeMachineControlBar(
     state: TimeMachineState,
     isFa: Boolean,
     calendarSystem: CalendarSystem,
+    userOccasions: List<UserOccasionEntity> = emptyList(),
     onSimulatedTimeChange: (Long, String?, Boolean) -> Unit,
     onModeChange: (TimeMachineMode) -> Unit,
     onTogglePlay: () -> Unit,
@@ -48,13 +42,13 @@ fun TimeMachineControlBar(
     onToggleReverse: () -> Unit,
     onToggleExpanded: () -> Unit,
     onReturnToLive: () -> Unit,
+    onSaveOccasion: (String?, String, Long, (Boolean) -> Unit) -> Unit = { _, _, _, cb -> cb(true) },
+    onDeleteOccasion: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val coroutineScope = rememberCoroutineScope()
-
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
-    var showPresetsModal by remember { mutableStateOf(false) }
+    var showOccasionsModal by remember { mutableStateOf(false) }
     var showBirthdayModal by remember { mutableStateOf(false) }
     var showSpeedMenu by remember { mutableStateOf(false) }
 
@@ -347,7 +341,7 @@ fun TimeMachineControlBar(
                             }
                         }
 
-                        // Preset Shortcuts Row (Birthday Sky & Historical Events)
+                        // Preset Shortcuts Row (Birthday Sky & My Occasions)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -363,7 +357,7 @@ fun TimeMachineControlBar(
                                     .testTag("tm_birthday_btn")
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(vertical = 6.dp, horizontal = 8.dp),
+                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp),
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -375,23 +369,23 @@ fun TimeMachineControlBar(
                                 }
                             }
 
-                            // 🌌 Historical Events Catalog Button
+                            // ⭐ My Occasions Button
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
                                 color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)),
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clickable { showPresetsModal = true }
-                                    .testTag("tm_presets_btn")
+                                    .clickable { showOccasionsModal = true }
+                                    .testTag("tm_my_occasions_btn")
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(vertical = 6.dp, horizontal = 8.dp),
+                                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 8.dp),
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = if (isFa) "🌌 رویدادهای نجومی" else "🌌 Astronomical Events",
+                                        text = if (isFa) "⭐ رویدادهای من (${userOccasions.size}/20)" else "⭐ My Occasions (${userOccasions.size}/20)",
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
                                         color = MaterialTheme.colorScheme.secondary
                                     )
@@ -463,46 +457,57 @@ fun TimeMachineControlBar(
         }
     }
 
-    // --- Material DatePicker Dialog ---
+    // --- DatePicker Dialog (Jalali in Persian mode, Gregorian in English mode) ---
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = activeTime
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { pickedMillis ->
-                            // Preserve current hour/minute/second
-                            val calCurrent = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply { timeInMillis = activeTime }
-                            val hour = calCurrent.get(Calendar.HOUR_OF_DAY)
-                            val min = calCurrent.get(Calendar.MINUTE)
+        if (calendarSystem == CalendarSystem.SOLAR_HIJRI || isFa) {
+            JalaliDatePickerDialog(
+                initialTimestampMs = activeTime,
+                onDismissRequest = { showDatePicker = false },
+                onDateConfirmed = { pickedMillis ->
+                    onSimulatedTimeChange(pickedMillis, null, false)
+                }
+            )
+        } else {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = activeTime
+            )
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            datePickerState.selectedDateMillis?.let { pickedMillis ->
+                                val calCurrent = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply { timeInMillis = activeTime }
+                                val hour = calCurrent.get(Calendar.HOUR_OF_DAY)
+                                val min = calCurrent.get(Calendar.MINUTE)
+                                val sec = calCurrent.get(Calendar.SECOND)
 
-                            val calTarget = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply {
-                                timeInMillis = pickedMillis
-                                set(Calendar.HOUR_OF_DAY, hour)
-                                set(Calendar.MINUTE, min)
+                                val calTarget = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply {
+                                    timeInMillis = pickedMillis
+                                    set(Calendar.HOUR_OF_DAY, hour)
+                                    set(Calendar.MINUTE, min)
+                                    set(Calendar.SECOND, sec)
+                                }
+                                onSimulatedTimeChange(calTarget.timeInMillis, null, false)
                             }
-                            onSimulatedTimeChange(calTarget.timeInMillis, null, false)
+                            showDatePicker = false
                         }
-                        showDatePicker = false
+                    ) {
+                        Text(if (isFa) "تأیید" else "OK")
                     }
-                ) {
-                    Text(if (isFa) "تأیید" else "OK")
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePicker = false }) {
+                        Text(if (isFa) "انصراف" else "Cancel")
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text(if (isFa) "انصراف" else "Cancel")
-                }
+            ) {
+                DatePicker(state = datePickerState)
             }
-        ) {
-            DatePicker(state = datePickerState)
         }
     }
 
-    // --- Material TimePicker Dialog ---
+    // --- TimePicker Dialog ---
     if (showTimePicker) {
         val cal = remember(activeTime) { Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply { timeInMillis = activeTime } }
         val timePickerState = rememberTimePickerState(
@@ -621,94 +626,419 @@ fun TimeMachineControlBar(
         )
 
         if (showBirthDatePicker) {
-            val bPickerState = rememberDatePickerState()
-            DatePickerDialog(
-                onDismissRequest = { showBirthDatePicker = false },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            bPickerState.selectedDateMillis?.let { birthDateMillis = it }
-                            showBirthDatePicker = false
+            if (calendarSystem == CalendarSystem.SOLAR_HIJRI || isFa) {
+                JalaliDatePickerDialog(
+                    initialTimestampMs = birthDateMillis ?: System.currentTimeMillis(),
+                    onDismissRequest = { showBirthDatePicker = false },
+                    onDateConfirmed = { pickedMillis ->
+                        birthDateMillis = pickedMillis
+                    }
+                )
+            } else {
+                val bPickerState = rememberDatePickerState()
+                DatePickerDialog(
+                    onDismissRequest = { showBirthDatePicker = false },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                bPickerState.selectedDateMillis?.let { birthDateMillis = it }
+                                showBirthDatePicker = false
+                            }
+                        ) {
+                            Text(if (isFa) "تأیید" else "OK")
                         }
-                    ) {
-                        Text(if (isFa) "تأیید" else "OK")
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showBirthDatePicker = false }) {
+                            Text(if (isFa) "انصراف" else "Cancel")
+                        }
                     }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showBirthDatePicker = false }) {
-                        Text(if (isFa) "انصراف" else "Cancel")
-                    }
+                ) {
+                    DatePicker(state = bPickerState)
                 }
-            ) {
-                DatePicker(state = bPickerState)
             }
         }
     }
 
-    // --- Astronomical Historical Events Presets Catalog Modal ---
-    if (showPresetsModal) {
+    // --- "My Occasions" (رویدادهای من) Modal ---
+    if (showOccasionsModal) {
+        var showAddEditOccasionDialog by remember { mutableStateOf(false) }
+        var occasionToEdit by remember { mutableStateOf<UserOccasionEntity?>(null) }
+
         AlertDialog(
-            onDismissRequest = { showPresetsModal = false },
+            onDismissRequest = { showOccasionsModal = false },
+            modifier = Modifier.testTag("my_occasions_dialog"),
             title = {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("🌌", fontSize = 22.sp)
-                    Text(
-                        text = if (isFa) "رویدادهای تاریخی و نجومی" else "Astronomical & Historical Events",
-                        fontWeight = FontWeight.Bold
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("⭐", fontSize = 22.sp)
+                        Text(
+                            text = if (isFa) "رویدادهای من" else "My Occasions",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = "${userOccasions.size}/20",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
                 }
             },
             text = {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    HistoricalEventCatalog.PRESETS.forEach { preset ->
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                    // Add Occasion Action Button (max 20)
+                    Button(
+                        onClick = {
+                            occasionToEdit = null
+                            showAddEditOccasionDialog = true
+                        },
+                        enabled = userOccasions.size < 20,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("add_occasion_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (userOccasions.size >= 20) {
+                                if (isFa) "حداکثر ۲۰ رویداد ذخیره شده است" else "Maximum 20 occasions reached"
+                            } else {
+                                if (isFa) "افزودن رویداد جدید" else "Add New Occasion"
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    if (userOccasions.isEmpty()) {
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    onSimulatedTimeChange(
-                                        preset.timestampMs,
-                                        if (isFa) preset.titleFa else preset.titleEn,
-                                        false
-                                    )
-                                    showPresetsModal = false
-                                }
+                                .padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = if (isFa) preset.titleFa else preset.titleEn,
-                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = TimeEngine.formatDate(preset.timestampMs, calendarSystem, isFa),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = if (isFa) preset.descriptionFa else preset.descriptionEn,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Text(
+                                text = if (isFa) "هیچ رویدادی ذخیره نشده است.\nبا دکمه بالا رویداد دلخواه خود را ثبت کنید."
+                                else "No occasions saved yet.\nTap above to create your custom occasion.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 340.dp)
+                        ) {
+                            items(userOccasions, key = { it.id }) { occ ->
+                                val occDateStr = TimeEngine.formatDate(occ.timestampMs, calendarSystem, isFa)
+                                val occTimeStr = TimeEngine.formatTime24h(occ.timestampMs, isFa)
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            onSimulatedTimeChange(occ.timestampMs, occ.title, false)
+                                            showOccasionsModal = false
+                                        }
+                                        .testTag("occasion_item_${occ.id}")
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = occ.title,
+                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "$occDateStr • $occTimeStr",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
+                                        }
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(
+                                                onClick = {
+                                                    occasionToEdit = occ
+                                                    showAddEditOccasionDialog = true
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Edit,
+                                                    contentDescription = "Edit Occasion",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = {
+                                                    onDeleteOccasion(occ.id)
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Delete,
+                                                    contentDescription = "Delete Occasion",
+                                                    tint = StatusWarning,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showPresetsModal = false }) {
+                TextButton(onClick = { showOccasionsModal = false }) {
                     Text(if (isFa) "بستن" else "Close")
                 }
             },
             containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(24.dp)
         )
+
+        // Sub-dialog: Add / Edit Occasion
+        if (showAddEditOccasionDialog) {
+            var occasionTitle by remember { mutableStateOf(occasionToEdit?.title ?: "") }
+            var occasionTimestampMs by remember { mutableLongStateOf(occasionToEdit?.timestampMs ?: activeTime) }
+            var showSubDatePicker by remember { mutableStateOf(false) }
+            var showSubTimePicker by remember { mutableStateOf(false) }
+
+            val subDateStr = remember(occasionTimestampMs, calendarSystem, isFa) {
+                TimeEngine.formatDate(occasionTimestampMs, calendarSystem, isFa)
+            }
+            val subTimeStr = remember(occasionTimestampMs, isFa) {
+                TimeEngine.formatTime24h(occasionTimestampMs, isFa)
+            }
+
+            AlertDialog(
+                onDismissRequest = { showAddEditOccasionDialog = false },
+                title = {
+                    Text(
+                        text = if (occasionToEdit == null) {
+                            if (isFa) "افزودن رویداد جدید" else "Add New Occasion"
+                        } else {
+                            if (isFa) "ویرایش رویداد" else "Edit Occasion"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = occasionTitle,
+                            onValueChange = { occasionTitle = it },
+                            label = { Text(if (isFa) "عنوان رویداد" else "Occasion Name") },
+                            placeholder = { Text(if (isFa) "مثلاً سالگرد، شب رصدی، ..." else "e.g. Observation Night") },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("occasion_title_input")
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Date Selection Button
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { showSubDatePicker = true }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = subDateStr,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+
+                            // Time Selection Button
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { showSubTimePicker = true }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = subTimeStr,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Icon(Icons.Default.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (occasionTitle.isNotBlank()) {
+                                onSaveOccasion(occasionToEdit?.id, occasionTitle.trim(), occasionTimestampMs) { success ->
+                                    if (success) {
+                                        showAddEditOccasionDialog = false
+                                    }
+                                }
+                            }
+                        },
+                        enabled = occasionTitle.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text(if (isFa) "ذخیره" else "Save")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddEditOccasionDialog = false }) {
+                        Text(if (isFa) "انصراف" else "Cancel")
+                    }
+                },
+                containerColor = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(24.dp)
+            )
+
+            if (showSubDatePicker) {
+                if (calendarSystem == CalendarSystem.SOLAR_HIJRI || isFa) {
+                    JalaliDatePickerDialog(
+                        initialTimestampMs = occasionTimestampMs,
+                        onDismissRequest = { showSubDatePicker = false },
+                        onDateConfirmed = { pickedMillis ->
+                            occasionTimestampMs = pickedMillis
+                        }
+                    )
+                } else {
+                    val subPickerState = rememberDatePickerState(initialSelectedDateMillis = occasionTimestampMs)
+                    DatePickerDialog(
+                        onDismissRequest = { showSubDatePicker = false },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    subPickerState.selectedDateMillis?.let { pickedMillis ->
+                                        val calCurrent = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply { timeInMillis = occasionTimestampMs }
+                                        val hour = calCurrent.get(Calendar.HOUR_OF_DAY)
+                                        val min = calCurrent.get(Calendar.MINUTE)
+                                        val sec = calCurrent.get(Calendar.SECOND)
+
+                                        val calTarget = Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply {
+                                            timeInMillis = pickedMillis
+                                            set(Calendar.HOUR_OF_DAY, hour)
+                                            set(Calendar.MINUTE, min)
+                                            set(Calendar.SECOND, sec)
+                                        }
+                                        occasionTimestampMs = calTarget.timeInMillis
+                                    }
+                                    showSubDatePicker = false
+                                }
+                            ) {
+                                Text(if (isFa) "تأیید" else "OK")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showSubDatePicker = false }) {
+                                Text(if (isFa) "انصراف" else "Cancel")
+                            }
+                        }
+                    ) {
+                        DatePicker(state = subPickerState)
+                    }
+                }
+            }
+
+            if (showSubTimePicker) {
+                val cal = remember(occasionTimestampMs) { Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply { timeInMillis = occasionTimestampMs } }
+                val subTimePickerState = rememberTimePickerState(
+                    initialHour = cal.get(Calendar.HOUR_OF_DAY),
+                    initialMinute = cal.get(Calendar.MINUTE),
+                    is24Hour = true
+                )
+
+                AlertDialog(
+                    onDismissRequest = { showSubTimePicker = false },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                cal.set(Calendar.HOUR_OF_DAY, subTimePickerState.hour)
+                                cal.set(Calendar.MINUTE, subTimePickerState.minute)
+                                occasionTimestampMs = cal.timeInMillis
+                                showSubTimePicker = false
+                            }
+                        ) {
+                            Text(if (isFa) "تأیید" else "OK")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showSubTimePicker = false }) {
+                            Text(if (isFa) "انصراف" else "Cancel")
+                        }
+                    },
+                    title = {
+                        Text(
+                            text = if (isFa) "انتخاب ساعت" else "Select Time",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            TimePicker(state = subTimePickerState)
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(24.dp)
+                )
+            }
+        }
     }
 }

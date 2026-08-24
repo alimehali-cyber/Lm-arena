@@ -16,6 +16,29 @@ class AppRepository(private val db: AppDatabase) {
     val favoritesFlow: Flow<List<FavoriteEntity>> = db.favoriteDao().getAllFavorites()
     val favoriteLocationsFlow: Flow<List<FavoriteLocationEntity>> = db.favoriteLocationDao().getAllFavoriteLocationsFlow()
     val observationLogsFlow: Flow<List<ObservationLogEntity>> = db.observationLogDao().getAllLogs()
+    val userOccasionsFlow: Flow<List<UserOccasionEntity>> = db.userOccasionDao().getAllOccasionsFlow()
+
+    suspend fun getUserOccasionsCount(): Int = db.userOccasionDao().getCount()
+
+    suspend fun saveUserOccasion(id: String?, title: String, timestampMs: Long): Boolean {
+        val dao = db.userOccasionDao()
+        if (id == null) {
+            val count = dao.getCount()
+            if (count >= 20) {
+                return false
+            }
+            val newId = "occ_${System.currentTimeMillis()}_${(1000..9999).random()}"
+            dao.insert(UserOccasionEntity(id = newId, title = title.trim(), timestampMs = timestampMs))
+            return true
+        } else {
+            dao.update(UserOccasionEntity(id = id, title = title.trim(), timestampMs = timestampMs))
+            return true
+        }
+    }
+
+    suspend fun deleteUserOccasion(id: String) {
+        db.userOccasionDao().deleteById(id)
+    }
 
     fun isFavorite(objectId: String): Flow<Boolean> = db.favoriteDao().isFavorite(objectId)
 
