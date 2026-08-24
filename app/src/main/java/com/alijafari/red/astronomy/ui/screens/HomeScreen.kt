@@ -39,6 +39,7 @@ import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.HeroSkyCanvas
 import com.alijafari.red.astronomy.ui.components.EclipseDetailModal
+import com.alijafari.red.astronomy.ui.components.LocationSelectorDialog
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Calendar
@@ -126,6 +127,44 @@ fun HomeScreen(
         )
     }
 
+    if (uiState.showLocationSelector) {
+        LocationSelectorDialog(
+            uiState = uiState,
+            onDismiss = { viewModel.setShowLocationSelector(false) },
+            onSelectLocation = { city ->
+                viewModel.setLocation(
+                    cityEn = city.nameEn,
+                    cityFa = city.nameFa,
+                    lat = city.latitude,
+                    lon = city.longitude,
+                    elevationMeters = city.elevationMeters,
+                    timezoneId = city.timezoneId,
+                    countryCode = if (city.isIran) "IR" else "GLOBAL",
+                    provinceEn = city.provinceEn,
+                    provinceFa = city.provinceFa
+                )
+            },
+            onSelectCoordinates = { lat, lon, elev, nameEn, nameFa ->
+                viewModel.setLocation(
+                    cityEn = nameEn,
+                    cityFa = nameFa,
+                    lat = lat,
+                    lon = lon,
+                    elevationMeters = elev
+                )
+            },
+            onGpsSelected = { lat, lon, alt ->
+                viewModel.setGpsLocation(lat, lon, alt)
+            },
+            onToggleFavorite = { city ->
+                viewModel.toggleFavoriteLocation(city)
+            },
+            onRemoveFavorite = { id ->
+                viewModel.removeFavoriteLocation(id)
+            }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -143,52 +182,28 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "RED",
-                            style = androidx.compose.ui.text.TextStyle(
-                                fontFamily = FontFamily.SansSerif,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 32.sp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "RED",
+                        style = androidx.compose.ui.text.TextStyle(
+                            fontFamily = FontFamily.SansSerif,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 32.sp,
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        Text(
-                            text = if (isFa) "• آسمان زنده" else "• Hero Sky",
-                            style = androidx.compose.ui.text.TextStyle(
-                                fontFamily = IranSans,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
+                    )
+                    Text(
+                        text = if (isFa) "• آسمان زنده" else "• Hero Sky",
+                        style = androidx.compose.ui.text.TextStyle(
+                            fontFamily = IranSans,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onBackground
                         )
-                    }
-
-                    val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = "Location",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Text(
-                            text = locationName,
-                            style = androidx.compose.ui.text.TextStyle(
-                                fontFamily = IranSans,
-                                fontWeight = FontWeight.Normal,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }
+                    )
                 }
 
                 Row(
@@ -228,6 +243,109 @@ fun HomeScreen(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                }
+            }
+        }
+
+        // 0.5. LOCATION SELECTION BAR — Below RED/Live Sky & Immediately Above Hero Sky Canvas
+        item {
+            val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
+            val coordsText = String.format(java.util.Locale.US, "%.2f°N, %.2f°E", uiState.userLocation.latitude, uiState.userLocation.longitude)
+            val elevText = if (uiState.userLocation.elevationMeters > 0) {
+                if (isFa) " • ${uiState.userLocation.elevationMeters.toInt()} متر" else " • ${uiState.userLocation.elevationMeters.toInt()}m"
+            } else ""
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(
+                        width = 1.2.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .clickable {
+                        viewModel.setShowLocationSelector(true)
+                    }
+                    .testTag("home_location_selector_button"),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                tonalElevation = 2.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = "Location",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = locationName,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontFamily = if (isFa) IranSans else null,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = if (isFa) "تغییر موقعیت" else "Change",
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontFamily = if (isFa) IranSans else null,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 10.sp
+                                        )
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "$coordsText$elevText",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = if (isFa) IranSans else null,
+                                    fontSize = 11.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Expand Location Picker",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
             }
         }

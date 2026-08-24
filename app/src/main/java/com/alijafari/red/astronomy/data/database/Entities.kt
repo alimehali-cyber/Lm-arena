@@ -17,6 +17,24 @@ data class SettingEntity(
     val value: String
 )
 
+@Entity(tableName = "favorite_locations")
+data class FavoriteLocationEntity(
+    @PrimaryKey val id: String,
+    val nameEn: String,
+    val nameFa: String,
+    val lat: Double,
+    val lon: Double,
+    val elevationMeters: Double = 0.0,
+    val timezoneId: String = "Asia/Tehran",
+    val countryEn: String = "Iran",
+    val countryFa: String = "ایران",
+    val provinceEn: String = "",
+    val provinceFa: String = "",
+    val isIran: Boolean = true,
+    val isCapital: Boolean = false,
+    val savedAt: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "cached_cities")
 data class CityEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

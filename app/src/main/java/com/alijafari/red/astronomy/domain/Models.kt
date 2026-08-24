@@ -70,7 +70,11 @@ data class UserLocation(
     val latitude: Double = 30.1141,
     val longitude: Double = 51.5217,
     val elevationMeters: Double = 940.0,
-    val bortleClass: Int = 3
+    val bortleClass: Int = 3,
+    val timezoneId: String = "Asia/Tehran",
+    val countryCode: String = "IR",
+    val provinceEn: String = "Fars",
+    val provinceFa: String = "فارس"
 )
 
 enum class AppLanguage {

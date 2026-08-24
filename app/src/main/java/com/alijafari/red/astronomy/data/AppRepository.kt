@@ -2,6 +2,8 @@ package com.alijafari.red.astronomy.data
 
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
+import com.alijafari.red.astronomy.data.catalog.GeoCity
+import com.alijafari.red.astronomy.data.catalog.GeoLocationCatalog
 import com.alijafari.red.astronomy.data.database.*
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.domain.ConstellationData
@@ -12,9 +14,46 @@ import kotlinx.coroutines.flow.firstOrNull
 class AppRepository(private val db: AppDatabase) {
 
     val favoritesFlow: Flow<List<FavoriteEntity>> = db.favoriteDao().getAllFavorites()
+    val favoriteLocationsFlow: Flow<List<FavoriteLocationEntity>> = db.favoriteLocationDao().getAllFavoriteLocationsFlow()
     val observationLogsFlow: Flow<List<ObservationLogEntity>> = db.observationLogDao().getAllLogs()
 
     fun isFavorite(objectId: String): Flow<Boolean> = db.favoriteDao().isFavorite(objectId)
+
+    suspend fun toggleFavoriteLocation(city: GeoCity): Boolean {
+        val favLocDao = db.favoriteLocationDao()
+        val exists = favLocDao.isFavoriteLocationFlow(city.id).firstOrNull() ?: false
+        if (exists) {
+            favLocDao.deleteById(city.id)
+            return false
+        } else {
+            val count = favLocDao.getCount()
+            if (count < 5) {
+                favLocDao.insert(
+                    FavoriteLocationEntity(
+                        id = city.id,
+                        nameEn = city.nameEn,
+                        nameFa = city.nameFa,
+                        lat = city.latitude,
+                        lon = city.longitude,
+                        elevationMeters = city.elevationMeters,
+                        timezoneId = city.timezoneId,
+                        countryEn = city.countryEn,
+                        countryFa = city.countryFa,
+                        provinceEn = city.provinceEn,
+                        provinceFa = city.provinceFa,
+                        isIran = city.isIran,
+                        isCapital = city.isCapital
+                    )
+                )
+                return true
+            }
+            return false
+        }
+    }
+
+    suspend fun removeFavoriteLocation(id: String) {
+        db.favoriteLocationDao().deleteById(id)
+    }
 
     suspend fun toggleFavorite(objectId: String, objectType: String) {
         val favDao = db.favoriteDao()

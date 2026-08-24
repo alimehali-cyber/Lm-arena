@@ -2,17 +2,25 @@ package com.alijafari.red.astronomy.ui
 
 import android.app.Application
 import android.content.Context
+import android.location.Geocoder
+import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.alijafari.red.astronomy.astro_engine.AstroDispatchEngine
+import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.data.AppRepository
 import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
 import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
+import com.alijafari.red.astronomy.data.catalog.GeoCity
+import com.alijafari.red.astronomy.data.catalog.GeoLocationCatalog
 import com.alijafari.red.astronomy.data.database.AppDatabase
 import com.alijafari.red.astronomy.data.database.ObservationLogEntity
 import com.alijafari.red.astronomy.domain.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.Locale
 
 data class MainUiState(
     val language: AppLanguage = AppLanguage.PERSIAN,
@@ -26,9 +34,13 @@ data class MainUiState(
     val isDetailFavorite: Boolean = false,
     val showFavoritesDialog: Boolean = false,
     val showSettingsDialog: Boolean = false,
+    val showLocationSelector: Boolean = false,
     val showObservationLogDialog: Boolean = false,
     val bortleClass: Int = 3,
     val favoritesList: List<String> = emptyList(),
+    val favoriteLocations: List<GeoCity> = emptyList(),
+    val locationSearchQuery: String = "",
+    val isGpsLocating: Boolean = false,
     val observationLogs: List<ObservationLogEntity> = emptyList(),
     val timeMachineState: TimeMachineState = TimeMachineState(),
     val selectedTargetObject: CelestialObject? = null,
@@ -80,6 +92,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     null
                 }
+                val savedElevation = prefs.getFloat("user_elevation", 940.0f).toDouble()
+                val savedTimezone = prefs.getString("user_timezone_id", "Asia/Tehran") ?: "Asia/Tehran"
+                val savedCountry = prefs.getString("user_country_code", "IR") ?: "IR"
+                val savedProvEn = prefs.getString("user_province_en", "Fars") ?: "Fars"
+                val savedProvFa = prefs.getString("user_province_fa", "فارس") ?: "فارس"
                 val bortle = prefs.getInt("bortle_class", 3)
 
                 if (savedCityEn != null && savedCityFa != null && savedLat != null && savedLon != null) {
@@ -88,7 +105,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         cityNameFa = savedCityFa,
                         latitude = savedLat,
                         longitude = savedLon,
-                        bortleClass = bortle
+                        elevationMeters = savedElevation,
+                        bortleClass = bortle,
+                        timezoneId = savedTimezone,
+                        countryCode = savedCountry,
+                        provinceEn = savedProvEn,
+                        provinceFa = savedProvFa
                     )
                 } else {
                     UserLocation(bortleClass = bortle)
@@ -113,6 +135,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value.selectedObjectForDetail?.let { currentObj ->
                     _uiState.update { it.copy(isDetailFavorite = ids.contains(currentObj.id)) }
                 }
+            }
+        }
+
+        // Observe DB favorite locations
+        viewModelScope.launch {
+            repository.favoriteLocationsFlow.collect { favEntities ->
+                val list = favEntities.map { entity ->
+                    GeoCity(
+                        id = entity.id,
+                        nameEn = entity.nameEn,
+                        nameFa = entity.nameFa,
+                        latitude = entity.lat,
+                        longitude = entity.lon,
+                        elevationMeters = entity.elevationMeters,
+                        timezoneId = entity.timezoneId,
+                        countryEn = entity.countryEn,
+                        countryFa = entity.countryFa,
+                        provinceEn = entity.provinceEn,
+                        provinceFa = entity.provinceFa,
+                        isIran = entity.isIran,
+                        isCapital = entity.isCapital
+                    )
+                }
+                _uiState.update { it.copy(favoriteLocations = list) }
             }
         }
 
@@ -147,13 +193,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(skyCanvasTheme = theme) }
     }
 
-    fun setLocation(cityEn: String, cityFa: String, lat: Double, lon: Double) {
+    fun setShowLocationSelector(show: Boolean) {
+        _uiState.update { it.copy(showLocationSelector = show, locationSearchQuery = if (!show) "" else it.locationSearchQuery) }
+    }
+
+    fun setLocationSearchQuery(query: String) {
+        _uiState.update { it.copy(locationSearchQuery = query) }
+    }
+
+    fun toggleFavoriteLocation(city: GeoCity) {
+        viewModelScope.launch {
+            repository.toggleFavoriteLocation(city)
+        }
+    }
+
+    fun removeFavoriteLocation(id: String) {
+        viewModelScope.launch {
+            repository.removeFavoriteLocation(id)
+        }
+    }
+
+    fun setLocation(
+        cityEn: String,
+        cityFa: String,
+        lat: Double,
+        lon: Double,
+        elevationMeters: Double = 0.0,
+        timezoneId: String = "Asia/Tehran",
+        countryCode: String = "IR",
+        provinceEn: String = "",
+        provinceFa: String = ""
+    ) {
         val newLoc = UserLocation(
             cityNameEn = cityEn,
             cityNameFa = cityFa,
             latitude = lat,
             longitude = lon,
-            bortleClass = _uiState.value.bortleClass
+            elevationMeters = elevationMeters,
+            bortleClass = _uiState.value.bortleClass,
+            timezoneId = timezoneId,
+            countryCode = countryCode,
+            provinceEn = provinceEn,
+            provinceFa = provinceFa
         )
         // Persist to SharedPreferences so location remains across app restarts
         prefs.edit()
@@ -163,6 +244,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .putFloat("user_longitude", lon.toFloat())
             .putFloat("user_lat", lat.toFloat())
             .putFloat("user_lon", lon.toFloat())
+            .putFloat("user_elevation", elevationMeters.toFloat())
+            .putString("user_timezone_id", timezoneId)
+            .putString("user_country_code", countryCode)
+            .putString("user_province_en", provinceEn)
+            .putString("user_province_fa", provinceFa)
             .apply()
 
         // Also persist to astro_prefs for notification and background workers
@@ -174,8 +260,110 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .putFloat("user_lon", lon.toFloat())
             .apply()
 
-        _uiState.update { it.copy(userLocation = newLoc) }
+        _uiState.update { it.copy(userLocation = newLoc, showLocationSelector = false) }
         com.alijafari.red.astronomy.notification.AstroNotificationManager.handleLocationChanged(getApplication(), newLoc)
+    }
+
+    fun setGpsLocation(lat: Double, lon: Double, altMeters: Double? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(isGpsLocating = true) }
+
+            // 1. Instant offline resolution using local database
+            val nearest = GeoLocationCatalog.findNearestCity(lat, lon)
+            val distKm = GeoLocationCatalog.distanceKm(lat, lon, nearest.latitude, nearest.longitude)
+            val elevation = altMeters ?: nearest.elevationMeters
+
+            val isIran = nearest.isIran && distKm < 1000.0
+            val initialCityEn = if (distKm < 5.0) nearest.nameEn else "GPS (${String.format(Locale.US, "%.2f°N, %.2f°E", lat, lon)})"
+            val initialCityFa = if (distKm < 5.0) nearest.nameFa else "موقعیت زنده GPS (${nearest.nameFa})"
+
+            val initialLoc = UserLocation(
+                cityNameEn = initialCityEn,
+                cityNameFa = initialCityFa,
+                latitude = lat,
+                longitude = lon,
+                elevationMeters = elevation,
+                bortleClass = _uiState.value.bortleClass,
+                timezoneId = nearest.timezoneId,
+                countryCode = if (isIran) "IR" else "GLOBAL",
+                provinceEn = nearest.provinceEn,
+                provinceFa = nearest.provinceFa
+            )
+
+            withContext(Dispatchers.Main) {
+                setLocation(
+                    cityEn = initialLoc.cityNameEn,
+                    cityFa = initialLoc.cityNameFa,
+                    lat = initialLoc.latitude,
+                    lon = initialLoc.longitude,
+                    elevationMeters = initialLoc.elevationMeters,
+                    timezoneId = initialLoc.timezoneId,
+                    countryCode = initialLoc.countryCode,
+                    provinceEn = initialLoc.provinceEn,
+                    provinceFa = initialLoc.provinceFa
+                )
+                _uiState.update { it.copy(isGpsLocating = false) }
+            }
+
+            // 2. Opportunistic Geocoder reverse lookup if online (won't crash or block if offline)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val geocoder = Geocoder(getApplication(), Locale.getDefault())
+                    geocoder.getFromLocation(lat, lon, 1) { addresses ->
+                        if (addresses.isNotEmpty()) {
+                            val addr = addresses[0]
+                            val locality = addr.locality ?: addr.subAdminArea ?: addr.adminArea
+                            val country = addr.countryName
+                            if (!locality.isNullOrBlank()) {
+                                val enrichedEn = "$locality, $country"
+                                val enrichedFa = "$locality ($country)"
+                                viewModelScope.launch(Dispatchers.Main) {
+                                    setLocation(
+                                        cityEn = enrichedEn,
+                                        cityFa = enrichedFa,
+                                        lat = lat,
+                                        lon = lon,
+                                        elevationMeters = elevation,
+                                        timezoneId = nearest.timezoneId,
+                                        countryCode = addr.countryCode ?: if (isIran) "IR" else "GLOBAL",
+                                        provinceEn = addr.adminArea ?: nearest.provinceEn,
+                                        provinceFa = addr.adminArea ?: nearest.provinceFa
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    val geocoder = Geocoder(getApplication(), Locale.getDefault())
+                    val addresses = geocoder.getFromLocation(lat, lon, 1)
+                    if (!addresses.isNullOrEmpty()) {
+                        val addr = addresses[0]
+                        val locality = addr.locality ?: addr.subAdminArea ?: addr.adminArea
+                        val country = addr.countryName
+                        if (!locality.isNullOrBlank()) {
+                            val enrichedEn = "$locality, $country"
+                            val enrichedFa = "$locality ($country)"
+                            withContext(Dispatchers.Main) {
+                                setLocation(
+                                    cityEn = enrichedEn,
+                                    cityFa = enrichedFa,
+                                    lat = lat,
+                                    lon = lon,
+                                    elevationMeters = elevation,
+                                    timezoneId = nearest.timezoneId,
+                                    countryCode = addr.countryCode ?: if (isIran) "IR" else "GLOBAL",
+                                    provinceEn = addr.adminArea ?: nearest.provinceEn,
+                                    provinceFa = addr.adminArea ?: nearest.provinceFa
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (ignored: Exception) {
+                // Offline or geocoder unavailable - graceful degradation
+            }
+        }
     }
 
     fun selectSatelliteById(satId: String?) {

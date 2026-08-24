@@ -8,6 +8,7 @@ import androidx.room.RoomDatabase
 @Database(
     entities = [
         FavoriteEntity::class,
+        FavoriteLocationEntity::class,
         SettingEntity::class,
         CityEntity::class,
         TleEntity::class,
@@ -15,12 +16,13 @@ import androidx.room.RoomDatabase
         CelestialObjectEntity::class,
         ConstellationEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun favoriteDao(): FavoriteDao
+    abstract fun favoriteLocationDao(): FavoriteLocationDao
     abstract fun settingDao(): SettingDao
     abstract fun cityDao(): CityDao
     abstract fun observationLogDao(): ObservationLogDao

@@ -19,6 +19,27 @@ interface FavoriteDao {
 }
 
 @Dao
+interface FavoriteLocationDao {
+    @Query("SELECT * FROM favorite_locations ORDER BY savedAt DESC LIMIT 5")
+    fun getAllFavoriteLocationsFlow(): Flow<List<FavoriteLocationEntity>>
+
+    @Query("SELECT * FROM favorite_locations ORDER BY savedAt DESC LIMIT 5")
+    suspend fun getAllFavoriteLocationsDirect(): List<FavoriteLocationEntity>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM favorite_locations WHERE id = :id LIMIT 1)")
+    fun isFavoriteLocationFlow(id: String): Flow<Boolean>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(location: FavoriteLocationEntity)
+
+    @Query("DELETE FROM favorite_locations WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("SELECT COUNT(*) FROM favorite_locations")
+    suspend fun getCount(): Int
+}
+
+@Dao
 interface SettingDao {
     @Query("SELECT * FROM settings")
     fun getAllSettings(): Flow<List<SettingEntity>>
