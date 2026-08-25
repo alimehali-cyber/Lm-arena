@@ -1274,6 +1274,9 @@ fun ISSScreen(
                     }
                 }
             }
+
+            // Bottom spacing for floating navigation bar
+            Spacer(modifier = Modifier.height(96.dp))
         }
     }
 

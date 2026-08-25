@@ -139,149 +139,102 @@ class MainActivity : ComponentActivity() {
                 ) {
                     var showSplashScreen by remember { mutableStateOf(true) }
 
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(com.alijafari.red.astronomy.ui.theme.RedTheme.colors.background)
+                    ) {
                         Scaffold(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .testTag("main_scaffold"),
-                            containerColor = MaterialTheme.colorScheme.background,
-                        topBar = {
-                            val isFa = uiState.language == com.alijafari.red.astronomy.domain.AppLanguage.PERSIAN
-                            Row(
+                            containerColor = Color.Transparent,
+                            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                            topBar = {
+                                if (uiState.selectedTab != 4) {
+                                    val isFa = uiState.language == com.alijafari.red.astronomy.domain.AppLanguage.PERSIAN
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .statusBarsPadding()
+                                            .height(56.dp)
+                                            .padding(horizontal = com.alijafari.red.astronomy.ui.theme.RedSpacing.lg),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        IconButton(
+                                            onClick = { viewModel.selectTab(4) },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowForward,
+                                                contentDescription = "Back",
+                                                tint = com.alijafari.red.astronomy.ui.theme.RedTheme.colors.textSecondary,
+                                                modifier = Modifier.size(com.alijafari.red.astronomy.ui.theme.RedIconSize.md)
+                                            )
+                                        }
+
+                                        val pageTitle = when (uiState.selectedTab) {
+                                            0 -> if (isFa) "آزمایشگاه" else "Lab"
+                                            1 -> if (isFa) "ماهواره‌ها" else "Satellites"
+                                            2 -> if (isFa) "ماه" else "Moon"
+                                            3 -> if (isFa) "آسمان AR" else "AR Sky"
+                                            else -> ""
+                                        }
+
+                                        Text(
+                                            text = pageTitle,
+                                            style = com.alijafari.red.astronomy.ui.theme.RedTypographyTokens.sectionHeading,
+                                            color = com.alijafari.red.astronomy.ui.theme.RedTheme.colors.textPrimary
+                                        )
+
+                                        Spacer(modifier = Modifier.size(36.dp))
+                                    }
+                                }
+                            }
+                        ) { innerPadding ->
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .statusBarsPadding()
-                                    .height(64.dp)
-                                    .padding(horizontal = 20.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .fillMaxSize()
+                                    .padding(top = innerPadding.calculateTopPadding())
                             ) {
-                                if (uiState.selectedTab == 4) {
-                                    // Home Screen Top Bar
-                                    // Far RIGHT (Start in RTL): RED logo with pulsing glow
-                                    val infiniteTransition = rememberInfiniteTransition(label = "RedLogoGlow")
-                                    val glowOpacity by infiniteTransition.animateFloat(
-                                        initialValue = 0.0f,
-                                        targetValue = 0.15f,
-                                        animationSpec = infiniteRepeatable(
-                                            animation = tween(durationMillis = 1500, easing = LinearEasing),
-                                            repeatMode = RepeatMode.Reverse
-                                        ),
-                                        label = "GlowOpacity"
-                                    )
-
-                                    Box(
-                                        contentAlignment = Alignment.Center,
-                                        modifier = Modifier.size(44.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(40.dp)
-                                                .clip(CircleShape)
-                                                .background(
-                                                    Brush.radialGradient(
-                                                        colors = listOf(
-                                                            com.alijafari.red.astronomy.ui.theme.AccentPrimary.copy(alpha = glowOpacity),
-                                                            Color.Transparent
-                                                        )
-                                                    )
-                                                )
+                                Crossfade(
+                                    targetState = uiState.selectedTab,
+                                    label = "TabSwitch"
+                                ) { tab ->
+                                    when (tab) {
+                                        0 -> LabScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
                                         )
-                                        SafeAppLogo(
-                                            modifier = Modifier.size(32.dp),
-                                            cornerRadius = 8.dp
+                                        1 -> ISSScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
+                                        )
+                                        2 -> MoonScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
+                                        )
+                                        3 -> CompassARScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
+                                        )
+                                        4 -> HomeScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel,
+                                            onNavigateToTab = { viewModel.selectTab(it) }
                                         )
                                     }
-
-                                    // Far LEFT (End in RTL): Signature text
-                                    Text(
-                                        text = "Developed by Ali Jafari",
-                                        style = androidx.compose.ui.text.TextStyle(
-                                            fontFamily = com.alijafari.red.astronomy.ui.theme.IranSans,
-                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Light,
-                                            fontSize = 10.sp,
-                                            letterSpacing = 0.5.sp,
-                                            color = Color(0xFF3A3A44),
-                                            textDirection = androidx.compose.ui.text.style.TextDirection.Ltr
-                                        )
-                                    )
-                                } else {
-                                    // Other Tabs Top Bar (e.g. Moon screen)
-                                    IconButton(
-                                        onClick = { viewModel.selectTab(4) },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowForward,
-                                            contentDescription = "Back",
-                                            tint = Color(0xFF9CA3AF),
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                    }
-
-                                    val pageTitle = when (uiState.selectedTab) {
-                                        0 -> if (isFa) "آزمایشگاه" else "Lab"
-                                        1 -> if (isFa) "ماهواره‌ها" else "Satellites"
-                                        2 -> if (isFa) "ماه" else "Moon"
-                                        3 -> if (isFa) "آسمان AR" else "AR Sky"
-                                        else -> ""
-                                    }
-
-                                    Text(
-                                        text = pageTitle,
-                                        style = androidx.compose.ui.text.TextStyle(
-                                            fontFamily = com.alijafari.red.astronomy.ui.theme.IranSans,
-                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                            fontSize = 18.sp,
-                                            color = MaterialTheme.colorScheme.onBackground
-                                        )
-                                    )
-
-                                    Spacer(modifier = Modifier.size(32.dp))
-                                }
-                            }
-                        },
-                        bottomBar = {
-                            com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
-                                selectedTab = uiState.selectedTab,
-                                onTabSelected = { viewModel.selectTab(it) }
-                            )
-                        }
-                    ) { innerPadding ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(innerPadding)
-                        ) {
-                            Crossfade(
-                                targetState = uiState.selectedTab,
-                                label = "TabSwitch"
-                            ) { tab ->
-                                when (tab) {
-                                    0 -> LabScreen(
-                                        uiState = uiState,
-                                        viewModel = viewModel
-                                    )
-                                    1 -> ISSScreen(
-                                        uiState = uiState,
-                                        viewModel = viewModel
-                                    )
-                                    2 -> MoonScreen(
-                                        uiState = uiState,
-                                        viewModel = viewModel
-                                    )
-                                    3 -> CompassARScreen(
-                                        uiState = uiState,
-                                        viewModel = viewModel
-                                    )
-                                    4 -> HomeScreen(
-                                        uiState = uiState,
-                                        viewModel = viewModel,
-                                        onNavigateToTab = { viewModel.selectTab(it) }
-                                    )
                                 }
                             }
                         }
+
+                        // Floating Navigation Bar overlaying content directly
+                        com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
+                            selectedTab = uiState.selectedTab,
+                            onTabSelected = { viewModel.selectTab(it) },
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                        )
 
                         // Dialogs and Modals
                         if (uiState.selectedObjectForDetail != null) {
@@ -308,18 +261,17 @@ class MainActivity : ComponentActivity() {
                                 onDismiss = { viewModel.setShowSettingsDialog(false) }
                             )
                         }
-                    }
-                }
 
-                if (showSplashScreen) {
-                    com.alijafari.red.astronomy.ui.components.PremiumSplashScreen(
-                        onSplashComplete = {
-                            showSplashScreen = false
+                        if (showSplashScreen) {
+                            com.alijafari.red.astronomy.ui.components.PremiumSplashScreen(
+                                onSplashComplete = {
+                                    showSplashScreen = false
+                                }
+                            )
                         }
-                    )
+                    }
                 }
             }
         }
     }
-}
 }

@@ -95,28 +95,32 @@ fun HeroSkyCanvas(
     // Stardust Particles list
     val stardustParticles = remember { mutableStateListOf<StardustParticle>() }
 
-    // Continuous frame time for star twinkling, Moon pulse & real-time clock tracking
-    var frameTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    // Steady state real-time clock update (every 1 second instead of every frame)
     LaunchedEffect(Unit) {
-        var lastTimeUpdateMs = 0L
         while (true) {
-            withFrameMillis { ms ->
-                frameTimeMs = ms
-                val now = System.currentTimeMillis()
-                // Update system time state continuously during drag/animation, or once per second in live steady mode
-                if (isDragging || simulatedOffsetHoursAnim.isRunning || now - lastTimeUpdateMs >= 1000L) {
-                    currentSystemTimeMs = now
-                    lastTimeUpdateMs = now
-                }
-                // Update stardust particles
-                val iter = stardustParticles.iterator()
-                while (iter.hasNext()) {
-                    val p = iter.next()
-                    p.x += p.vx
-                    p.y += p.vy
-                    p.alpha -= 0.025f
-                    if (p.alpha <= 0f) {
-                        iter.remove()
+            val now = System.currentTimeMillis()
+            currentSystemTimeMs = now
+            delay(1000L)
+        }
+    }
+
+    // Active particle & interactive animation loop (only active when interacting or particles exist)
+    var frameTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(isDragging, stardustParticles.size) {
+        if (isDragging || stardustParticles.isNotEmpty() || simulatedOffsetHoursAnim.isRunning) {
+            while (isDragging || stardustParticles.isNotEmpty() || simulatedOffsetHoursAnim.isRunning) {
+                withFrameMillis { ms ->
+                    frameTimeMs = ms
+                    // Update stardust particles
+                    val iter = stardustParticles.iterator()
+                    while (iter.hasNext()) {
+                        val p = iter.next()
+                        p.x += p.vx
+                        p.y += p.vy
+                        p.alpha -= 0.025f
+                        if (p.alpha <= 0f) {
+                            iter.remove()
+                        }
                     }
                 }
             }
@@ -392,10 +396,9 @@ fun HeroSkyCanvas(
             )
 
             // 2. Milky Way Renderer
-            val galacticPoints = GalacticEngine.calculateGalacticPlanePoints(simulatedJd, userLat, userLon)
             MilkyWayRenderer.drawMilkyWay(
                 drawScope = this,
-                galacticPoints = galacticPoints,
+                galacticPoints = galacticPlanePoints,
                 lightingState = lightingState,
                 frameTimeMs = frameTimeMs,
                 theme = uiState.skyCanvasTheme

@@ -168,176 +168,107 @@ fun HomeScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .testTag("home_screen_column"),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
     ) {
-        // 0. TOP APP BAR — Header Bar
+        // 0. TOP COMPACT BAR — Clean Apple-inspired Header with Understated Location Control & Actions
         item {
+            val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
+            val coordsText = String.format(java.util.Locale.US, "%.2f°N, %.2f°E", uiState.userLocation.latitude, uiState.userLocation.longitude)
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = RedSpacing.xs),
+                    .statusBarsPadding()
+                    .padding(top = RedSpacing.xs, bottom = RedSpacing.xs),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                // Understated, quiet location selector
+                Surface(
+                    onClick = { viewModel.setShowLocationSelector(true) },
+                    shape = RoundedCornerShape(RedCornerRadius.pill),
+                    color = RedTheme.colors.surfaceElevated,
+                    border = BorderStroke(0.75.dp, RedTheme.colors.border),
+                    modifier = Modifier.testTag("home_location_selector_button")
                 ) {
-                    Text(
-                        text = "RED",
-                        style = RedTypographyTokens.heroDisplay.copy(
-                            color = RedTheme.colors.accentRed,
-                            letterSpacing = 1.sp
+                    Row(
+                        modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "Location",
+                            tint = RedTheme.colors.accentRed,
+                            modifier = Modifier.size(RedIconSize.xs)
                         )
-                    )
-                    Text(
-                        text = if (isFa) "• آسمان زنده" else "• Live Sky",
-                        style = RedTypographyTokens.bodyPrimary.copy(
-                            fontWeight = FontWeight.Medium,
+                        Text(
+                            text = locationName,
+                            style = RedTypographyTokens.bodySecondary.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            ),
+                            color = RedTheme.colors.textPrimary
+                        )
+                        Text(
+                            text = "•",
+                            style = RedTypographyTokens.caption,
+                            color = RedTheme.colors.textTertiary
+                        )
+                        Text(
+                            text = coordsText,
+                            style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
                             color = RedTheme.colors.textSecondary
                         )
-                    )
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Change Location",
+                            tint = RedTheme.colors.textTertiary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
 
+                // Top Actions: Bookmarks & Settings
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = { viewModel.setShowFavoritesDialog(true) },
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
                             .background(RedTheme.colors.surfaceElevated)
-                            .border(1.dp, RedTheme.colors.border, CircleShape)
+                            .border(0.75.dp, RedTheme.colors.border, CircleShape)
                             .testTag("top_favorites_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Bookmark,
                             contentDescription = stringResource(R.string.favorites_and_history),
                             tint = RedTheme.colors.accentRed,
-                            modifier = Modifier.size(RedIconSize.sm)
+                            modifier = Modifier.size(RedIconSize.xs)
                         )
                     }
 
                     IconButton(
                         onClick = { viewModel.setShowSettingsDialog(true) },
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
                             .background(RedTheme.colors.surfaceElevated)
-                            .border(1.dp, RedTheme.colors.border, CircleShape)
+                            .border(0.75.dp, RedTheme.colors.border, CircleShape)
                             .testTag("top_settings_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = stringResource(R.string.settings),
                             tint = RedTheme.colors.textSecondary,
-                            modifier = Modifier.size(RedIconSize.sm)
+                            modifier = Modifier.size(RedIconSize.xs)
                         )
                     }
-                }
-            }
-        }
-
-        // 0.5. LOCATION SELECTION BAR — Refined Primary Control framing the Sky
-        item {
-            val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
-            val coordsText = String.format(java.util.Locale.US, "%.2f°N, %.2f°E", uiState.userLocation.latitude, uiState.userLocation.longitude)
-            val elevText = if (uiState.userLocation.elevationMeters > 0) {
-                if (isFa) " • ${uiState.userLocation.elevationMeters.toInt()} متر" else " • ${uiState.userLocation.elevationMeters.toInt()}m"
-            } else ""
-
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(RedCornerRadius.lg))
-                    .border(
-                        width = 1.dp,
-                        color = RedTheme.colors.border,
-                        shape = RoundedCornerShape(RedCornerRadius.lg)
-                    )
-                    .clickable {
-                        viewModel.setShowLocationSelector(true)
-                    }
-                    .testTag("home_location_selector_button"),
-                color = RedTheme.colors.surfaceElevated,
-                shadowElevation = RedElevation.subtle
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.md),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .background(RedTheme.colors.accentRed.copy(alpha = 0.12f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.LocationOn,
-                                contentDescription = "Location",
-                                tint = RedTheme.colors.accentRed,
-                                modifier = Modifier.size(RedIconSize.sm)
-                            )
-                        }
-
-                        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs)
-                            ) {
-                                Text(
-                                    text = locationName,
-                                    style = RedTypographyTokens.bodyPrimary.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 14.sp
-                                    ),
-                                    color = RedTheme.colors.textPrimary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(RedCornerRadius.xs))
-                                        .background(RedTheme.colors.accentRed.copy(alpha = 0.12f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = if (isFa) "تغییر" else "Change",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            color = RedTheme.colors.accentRed,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 10.sp
-                                        )
-                                    )
-                                }
-                            }
-                            Text(
-                                text = "$coordsText$elevText",
-                                style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                                color = RedTheme.colors.textSecondary
-                            )
-                        }
-                    }
-
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Expand Location Picker",
-                        tint = RedTheme.colors.textTertiary,
-                        modifier = Modifier.size(RedIconSize.sm)
-                    )
                 }
             }
         }

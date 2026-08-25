@@ -401,6 +401,11 @@ fun MoonScreen(
                 }
             }
         }
+
+        // Bottom spacing for floating navigation bar
+        item {
+            Spacer(modifier = Modifier.height(96.dp))
+        }
     }
 }
 
