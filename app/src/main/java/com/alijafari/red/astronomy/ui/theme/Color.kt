@@ -2,13 +2,32 @@ package com.alijafari.red.astronomy.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Pure White & Old-Money Design System Color Tokens
+// ==========================================
+// RED Core Brand & Semantic Colors
+// ==========================================
+val RedAccentVermilion = Color(0xFFE53935)       // RED signature vermilion crimson
+val RedAccentSubtle = Color(0x28E53935)
+val RedAccentLight = Color(0xFFD32F2F)
+
+val RedCelestialGold = Color(0xFFD4AF37)
+val RedCelestialBlue = Color(0xFF38BDF8)
+val RedCelestialPurple = Color(0xFFA855F7)
+
+// Status & Semantic Colors
+val StatusSuccess = Color(0xFF34C759)
+val StatusWarning = Color(0xFFFF9F0A)
+val StatusError = Color(0xFFFF453A)
+val StatusInfo = Color(0xFF0A84FF)
+
+// ==========================================
+// Pure White & Light Design System Tokens
+// ==========================================
 val PureWhiteBackground = Color(0xFFFFFFFF)
 val SoftCreamSurface = Color(0xFFFAF8F5)         // Ivory Soft Cream
 val SoftCreamCardBorder = Color(0xFFEAE5D9)      // Subtle warm cream border
 val SoftCreamVariant = Color(0xFFF3EFE6)         // Cream container
 
-// Old-Money Accent Colors
+// Old-Money / Classic Accent Colors
 val OldMoneyBurgundy = Color(0xFF800020)         // Deep Royal Mars Crimson / Burgundy
 val OldMoneyBurgundyLight = Color(0xFF9F1239)    // Rich Mars Accent
 val OldMoneyChampagneGold = Color(0xFFC5A059)    // Warm Champagne Gold
@@ -17,11 +36,13 @@ val OldMoneySlate = Color(0xFF111118)            // Rich High-Contrast Black Sla
 val OldMoneySlateMuted = Color(0xFF4A4A5A)       // High-Contrast Slate Secondary
 val OldMoneyNavy = Color(0xFF182238)             // Deep Luxury Navy
 
+// ==========================================
 // RED Celestial & Dark Night Color Tokens
+// ==========================================
 val BackgroundPrimary = Color(0xFF090A0F)      // Deep Celestial Void
 val BackgroundCard = Color(0xFF12131C)         // Deep Slate Card Surface
 val CardSurface = Color(0x12FFFFFF)            // Light glass overlay
-val CardBorder = Color(0x1AFFFFFF)             // Light border
+val CardBorder = Color(0x1AFFFFFF)             // Subtle light border
 
 val AccentPrimary = Color(0xFF9F1239)          // Mars Crimson / Old Money Burgundy
 val AccentSecondary = Color(0xFFC5A059)        // Champagne Gold
@@ -33,14 +54,15 @@ val TextTertiary = Color(0xFF8E8E9A)           // Muted text
 
 val StatusExcellent = Color(0xFF059669)        // Deep Rich Emerald
 val StatusGood = Color(0xFFD97706)             // Deep Warm Amber
-val StatusWarning = Color(0xFFDC2626)          // Deep Carmine Red
 
 val GradientCardStart = Color(0xFF1A1829)
 val GradientCardEnd = Color(0xFF0E0D17)
 
 val BottomNavBackground = Color(0xFA0E0D14)
 
+// ==========================================
 // Papercraft Pastel Color System
+// ==========================================
 val PapercraftBackground = Color(0xFFF6F3EC)       // Soft Matte Warm Linen Cardstock
 val PapercraftSurface = Color(0xFFFAF8F3)          // Layered Off-white Textured Cardstock
 val PapercraftSurfaceVariant = Color(0xFFEBE5D8)   // Secondary Layer Cardstock
@@ -51,7 +73,9 @@ val PapercraftTextPrimary = Color(0xFF2C2523)      // Deep Warm Sepia Charcoal
 val PapercraftTextSecondary = Color(0xFF6E655F)    // Muted Sepia
 val PapercraftOutline = Color(0xFFD8D0C3)          // Visible Cut Paper Edge Shadow Border
 
-// Legacy color mappings for theme compatibility
+// ==========================================
+// Legacy color mappings for backward compatibility
+// ==========================================
 val NavyBackground = BackgroundPrimary
 val NavySurface = BackgroundCard
 val NavySurfaceVariant = Color(0xFF1A1726)
@@ -70,4 +94,3 @@ val AccentCyan = AccentPrimary
 val AccentViolet = AccentPrimary
 val AccentRose = StatusWarning
 val AccentBlue = AccentTertiary
-

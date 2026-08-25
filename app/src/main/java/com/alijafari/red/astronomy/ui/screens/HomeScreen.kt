@@ -178,76 +178,72 @@ fun HomeScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = RedSpacing.xs),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                 ) {
                     Text(
                         text = "RED",
-                        style = androidx.compose.ui.text.TextStyle(
-                            fontFamily = FontFamily.SansSerif,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 32.sp,
-                            color = MaterialTheme.colorScheme.primary
+                        style = RedTypographyTokens.heroDisplay.copy(
+                            color = RedTheme.colors.accentRed,
+                            letterSpacing = 1.sp
                         )
                     )
                     Text(
-                        text = if (isFa) "• آسمان زنده" else "• Hero Sky",
-                        style = androidx.compose.ui.text.TextStyle(
-                            fontFamily = IranSans,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onBackground
+                        text = if (isFa) "• آسمان زنده" else "• Live Sky",
+                        style = RedTypographyTokens.bodyPrimary.copy(
+                            fontWeight = FontWeight.Medium,
+                            color = RedTheme.colors.textSecondary
                         )
                     )
                 }
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = { viewModel.setShowFavoritesDialog(true) },
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), CircleShape)
+                            .background(RedTheme.colors.surfaceElevated)
+                            .border(1.dp, RedTheme.colors.border, CircleShape)
                             .testTag("top_favorites_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Bookmark,
                             contentDescription = stringResource(R.string.favorites_and_history),
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            tint = RedTheme.colors.accentRed,
+                            modifier = Modifier.size(RedIconSize.sm)
                         )
                     }
 
                     IconButton(
                         onClick = { viewModel.setShowSettingsDialog(true) },
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), CircleShape)
+                            .background(RedTheme.colors.surfaceElevated)
+                            .border(1.dp, RedTheme.colors.border, CircleShape)
                             .testTag("top_settings_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = stringResource(R.string.settings),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            tint = RedTheme.colors.textSecondary,
+                            modifier = Modifier.size(RedIconSize.sm)
                         )
                     }
                 }
             }
         }
 
-        // 0.5. LOCATION SELECTION BAR — Below RED/Live Sky & Immediately Above Hero Sky Canvas
+        // 0.5. LOCATION SELECTION BAR — Refined Primary Control framing the Sky
         item {
             val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
             val coordsText = String.format(java.util.Locale.US, "%.2f°N, %.2f°E", uiState.userLocation.latitude, uiState.userLocation.longitude)
@@ -258,72 +254,71 @@ fun HomeScreen(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(RedCornerRadius.lg))
                     .border(
-                        width = 1.2.dp,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                        shape = RoundedCornerShape(16.dp)
+                        width = 1.dp,
+                        color = RedTheme.colors.border,
+                        shape = RoundedCornerShape(RedCornerRadius.lg)
                     )
                     .clickable {
                         viewModel.setShowLocationSelector(true)
                     }
                     .testTag("home_location_selector_button"),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                tonalElevation = 2.dp
+                color = RedTheme.colors.surfaceElevated,
+                shadowElevation = RedElevation.subtle
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.md),
                         modifier = Modifier.weight(1f)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
-                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                                .size(34.dp)
+                                .background(RedTheme.colors.accentRed.copy(alpha = 0.12f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.LocationOn,
                                 contentDescription = "Location",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                                tint = RedTheme.colors.accentRed,
+                                modifier = Modifier.size(RedIconSize.sm)
                             )
                         }
 
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs)
                             ) {
                                 Text(
                                     text = locationName,
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontFamily = if (isFa) IranSans else null,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
+                                    style = RedTypographyTokens.bodyPrimary.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp
                                     ),
-                                    color = MaterialTheme.colorScheme.onSurface,
+                                    color = RedTheme.colors.textPrimary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(6.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(RedCornerRadius.xs))
+                                        .background(RedTheme.colors.accentRed.copy(alpha = 0.12f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = if (isFa) "تغییر موقعیت" else "Change",
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        text = if (isFa) "تغییر" else "Change",
                                         style = MaterialTheme.typography.labelSmall.copy(
-                                            fontFamily = if (isFa) IranSans else null,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Bold,
+                                            color = RedTheme.colors.accentRed,
+                                            fontWeight = FontWeight.SemiBold,
                                             fontSize = 10.sp
                                         )
                                     )
@@ -331,11 +326,8 @@ fun HomeScreen(
                             }
                             Text(
                                 text = "$coordsText$elevText",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = if (isFa) IranSans else null,
-                                    fontSize = 11.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                                color = RedTheme.colors.textSecondary
                             )
                         }
                     }
@@ -343,8 +335,8 @@ fun HomeScreen(
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Expand Location Picker",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
+                        tint = RedTheme.colors.textTertiary,
+                        modifier = Modifier.size(RedIconSize.sm)
                     )
                 }
             }
@@ -359,7 +351,7 @@ fun HomeScreen(
             )
         }
 
-        // 2. WHAT'S UP TONIGHT? CARD — Intelligently ranked events tonight
+        // 2. WHAT'S UP TONIGHT? — Coherent Section Grouping
         item {
             val tonightEvents = remember(uiState.userLocation, jd, isFa) {
                 WhatsUpTonightEngine.calculateTonightEvents(
@@ -370,52 +362,32 @@ fun HomeScreen(
                 )
             }
 
-            Card(
+            RedElevatedCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("home_highlights_card"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                shape = RoundedCornerShape(RedCornerRadius.xl),
+                backgroundColor = RedTheme.colors.surfaceElevated,
+                borderColor = RedTheme.colors.border,
+                contentPadding = PaddingValues(RedSpacing.lg)
             ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(text = "✨", fontSize = 18.sp)
-                            Text(
-                                text = if (isFa) "امشب در آسمان چی داریم؟" else "What's Up Tonight?",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Text(
-                            text = if (isFa) "مهم‌ترین رویدادهای نجومی امشب بر اساس اولویت رصدی در موقعیت شما"
-                            else "Top ranked astronomical events occurring tonight for your location",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(2.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.md)) {
+                    RedSectionHeader(
+                        title = if (isFa) "امشب در آسمان" else "What's Up Tonight",
+                        subtitle = if (isFa) "مهم‌ترین رویدادهای نجومی بر اساس موقعیت رصدی شما"
+                        else "Top ranked astronomical events for your location"
+                    )
 
                     if (tonightEvents.isEmpty()) {
                         Text(
                             text = if (isFa) "امشب رویداد نجومی ویژه‌ای ثبت نشده است." else "No special astronomical events tonight.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = RedTypographyTokens.bodySecondary,
+                            color = RedTheme.colors.textSecondary,
+                            modifier = Modifier.padding(vertical = RedSpacing.sm)
                         )
                     } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            tonightEvents.take(5).forEach { event ->
+                        Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
+                            tonightEvents.take(5).forEachIndexed { idx, event ->
                                 TonightEventRow(
                                     event = event,
                                     isFa = isFa,
@@ -425,6 +397,9 @@ fun HomeScreen(
                                         }
                                     }
                                 )
+                                if (idx < minOf(4, tonightEvents.size - 1)) {
+                                    RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.xs))
+                                }
                             }
                         }
                     }
@@ -432,7 +407,7 @@ fun HomeScreen(
             }
         }
 
-        // 3. NEXT ECLIPSES CARD — Compact scientific eclipse predictions for user location
+        // 3. NEXT ECLIPSES CARD — Compact scientific eclipse predictions
         item {
             val (solarEclipse, lunarEclipse) = remember(uiState.userLocation) {
                 EclipseEngine.getNextEclipses(
@@ -442,39 +417,21 @@ fun HomeScreen(
                 )
             }
 
-            Card(
+            RedElevatedCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("home_next_eclipses_card"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                shape = RoundedCornerShape(RedCornerRadius.xl),
+                backgroundColor = RedTheme.colors.surfaceElevated,
+                borderColor = RedTheme.colors.border,
+                contentPadding = PaddingValues(RedSpacing.lg)
             ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(text = "🌘", fontSize = 18.sp)
-                            Text(
-                                text = if (isFa) "رویدادهای گرفتگی بعدی (کسوف و خسوف)" else "Next Eclipses",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        Text(
-                            text = if (isFa) "محاسبه بر اساس موقعیت جغرافیایی دقیق شما" else "Calculated for your exact location",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.md)) {
+                    RedSectionHeader(
+                        title = if (isFa) "گرفتگی‌های بعدی" else "Next Eclipses",
+                        subtitle = if (isFa) "محاسبه دقیق کسوف و خسوف برای موقعیت شما"
+                        else "Calculated precisely for your coordinates"
+                    )
 
                     // Solar Eclipse Item
                     EclipseItemRow(
@@ -487,7 +444,7 @@ fun HomeScreen(
                         onClick = { selectedEclipseResult = solarEclipse }
                     )
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                    RedHairlineDivider()
 
                     // Lunar Eclipse Item
                     EclipseItemRow(
@@ -501,9 +458,10 @@ fun HomeScreen(
                     )
 
                     Text(
-                        text = if (isFa) "برای مشاهده زمان دقیق، فازها و راه‌نمای رصد روی هر رویداد ضربه بزنید ➔" else "Tap an eclipse for exact local timing, phases & safety guide ➔",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = AccentPrimary
+                        text = if (isFa) "برای مشاهده زمان دقیق، فازها و راه‌نما ضربه بزنید ➔" else "Tap an eclipse for local timing, phases & guide ➔",
+                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                        color = RedTheme.colors.accentRed,
+                        modifier = Modifier.padding(top = RedSpacing.xs)
                     )
                 }
             }
@@ -511,37 +469,20 @@ fun HomeScreen(
 
         // 4. INTERACTIVE ASTRONOMY SEARCH BAR WITH PREDICTIVE OPTIONS
         item {
-            Card(
+            RedElevatedCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("home_astronomy_search_card"),
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                shape = RoundedCornerShape(RedCornerRadius.xl),
+                backgroundColor = RedTheme.colors.surfaceElevated,
+                borderColor = RedTheme.colors.border,
+                contentPadding = PaddingValues(RedSpacing.lg)
             ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search Objects",
-                            tint = AccentPrimary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Text(
-                            text = if (isFa) "جستجوی هوشمند اجرام آسمان" else "Interactive Sky Search",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.md)) {
+                    RedSectionHeader(
+                        title = if (isFa) "جستجوی هوشمند اجرام" else "Interactive Sky Search",
+                        subtitle = if (isFa) "کاوش در بانک داده جامع اجرام آسمان" else "Search planets, stars, constellations & deep sky"
+                    )
 
                     OutlinedTextField(
                         value = searchQuery,
@@ -551,16 +492,17 @@ fun HomeScreen(
                             .testTag("home_astronomy_search_input"),
                         placeholder = {
                             Text(
-                                text = if (isFa) "نام سیاره، ستاره یا سحابی (مثلا مشتری، شباهنگ)..." else "Search planets, stars, nebulae...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                text = if (isFa) "نام سیاره، ستاره یا سحابی..." else "Search planets, stars, nebulae...",
+                                style = RedTypographyTokens.bodySecondary,
+                                color = RedTheme.colors.textTertiary
                             )
                         },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Search,
                                 contentDescription = null,
-                                tint = AccentPrimary
+                                tint = RedTheme.colors.accentRed,
+                                modifier = Modifier.size(RedIconSize.sm)
                             )
                         },
                         trailingIcon = {
@@ -569,18 +511,19 @@ fun HomeScreen(
                                     Icon(
                                         imageVector = Icons.Default.Close,
                                         contentDescription = "Clear",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = RedTheme.colors.textSecondary,
+                                        modifier = Modifier.size(RedIconSize.sm)
                                     )
                                 }
                             }
                         },
                         singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(RedCornerRadius.md),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = AccentPrimary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                            focusedBorderColor = RedTheme.colors.accentRed,
+                            unfocusedBorderColor = RedTheme.colors.border,
+                            focusedContainerColor = RedTheme.colors.surfaceGrouped,
+                            unfocusedContainerColor = RedTheme.colors.surfaceGrouped
                         )
                     )
 
@@ -592,18 +535,18 @@ fun HomeScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 12.dp),
+                                .padding(vertical = RedSpacing.md),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = if (isFa) "هیچ جرم متناسبی پیدا نشد." else "No matching celestial object found.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                style = RedTypographyTokens.bodySecondary,
+                                color = RedTheme.colors.textTertiary
                             )
                         }
                     } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            displayedPredictiveItems.forEach { (obj, horiz, obs) ->
+                        Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)) {
+                            displayedPredictiveItems.forEachIndexed { idx, (obj, horiz, obs) ->
                                 val icon = when (obj.type) {
                                     ObjectType.PLANET, ObjectType.DWARF_PLANET -> "🪐"
                                     ObjectType.MOON -> "🌙"
@@ -633,31 +576,30 @@ fun HomeScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .testTag("predictive_search_item_${obj.id}"),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                                    shape = RoundedCornerShape(RedCornerRadius.sm),
+                                    color = RedTheme.colors.surfaceGrouped
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(12.dp),
+                                        modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.md),
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Text(text = icon, fontSize = 20.sp)
-                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(text = icon, fontSize = 18.sp)
+                                            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                                 Text(
                                                     text = if (isFa) obj.nameFa else obj.nameEn,
-                                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                                    color = MaterialTheme.colorScheme.onSurface
+                                                    style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                                                    color = RedTheme.colors.textPrimary
                                                 )
                                                 Text(
                                                     text = riseSetStr,
-                                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                                    color = AccentPrimary
+                                                    style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                                                    color = RedTheme.colors.accentRed
                                                 )
                                             }
                                         }
@@ -669,18 +611,25 @@ fun HomeScreen(
                                             if (isFa) "زیر افق" else "Below Horizon"
                                         }
 
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = if (horiz.altitudeDeg > 0.0) StatusExcellent.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f)
-                                        ) {
-                                            Text(
+                                        if (horiz.altitudeDeg > 0.0) {
+                                            RedStatusBadge(
                                                 text = statusBadge,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                                color = if (horiz.altitudeDeg > 0.0) StatusExcellent else Color.Gray
+                                                statusColor = RedTheme.colors.statusSuccess,
+                                                containerColor = RedTheme.colors.statusSuccessContainer
+                                            )
+                                        } else {
+                                            RedBadge(
+                                                text = statusBadge,
+                                                backgroundColor = RedTheme.colors.surface,
+                                                textColor = RedTheme.colors.textTertiary,
+                                                borderColor = RedTheme.colors.border
                                             )
                                         }
                                     }
+                                }
+
+                                if (idx < displayedPredictiveItems.size - 1) {
+                                    RedHairlineDivider()
                                 }
                             }
                         }
@@ -708,8 +657,8 @@ private fun EclipseItemRow(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        shape = RoundedCornerShape(RedCornerRadius.md),
+        color = RedTheme.colors.surfaceGrouped,
         modifier = Modifier
             .fillMaxWidth()
             .testTag("eclipse_item_row_${title.lowercase().replace(' ', '_')}")
@@ -717,44 +666,47 @@ private fun EclipseItemRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp),
+                .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(RedSpacing.md),
                 modifier = Modifier.weight(1f)
             ) {
-                Text(text = icon, fontSize = 22.sp)
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(text = icon, fontSize = 20.sp)
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
+                        style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                        color = RedTheme.colors.textPrimary
                     )
                     Text(
                         text = dateStr,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = AccentPrimary
+                        style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Medium),
+                        color = RedTheme.colors.accentRed
                     )
                     Text(
                         text = visibilityInfo,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                        color = RedTheme.colors.textSecondary
                     )
                 }
             }
 
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = if (isLocallyVisible) StatusExcellent.copy(alpha = 0.15f) else Color.Gray.copy(alpha = 0.15f)
-            ) {
-                Text(
-                    text = if (isLocallyVisible) (if (isFa) "قابل رصد" else "Locally Visible") else (if (isFa) "غیرقابل رصد" else "Not Visible"),
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                    color = if (isLocallyVisible) StatusExcellent else Color.Gray
+            if (isLocallyVisible) {
+                RedStatusBadge(
+                    text = if (isFa) "قابل رصد" else "Locally Visible",
+                    statusColor = RedTheme.colors.statusSuccess,
+                    containerColor = RedTheme.colors.statusSuccessContainer
+                )
+            } else {
+                RedBadge(
+                    text = if (isFa) "غیرقابل رصد" else "Not Visible",
+                    backgroundColor = RedTheme.colors.surface,
+                    textColor = RedTheme.colors.textTertiary,
+                    borderColor = RedTheme.colors.border
                 )
             }
         }
@@ -770,74 +722,86 @@ private fun TonightEventRow(
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        shape = RoundedCornerShape(RedCornerRadius.md),
+        color = RedTheme.colors.surfaceGrouped
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(RedSpacing.md),
                 modifier = Modifier.weight(1f)
             ) {
-                Text(text = event.icon, fontSize = 20.sp)
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(text = event.icon, fontSize = 18.sp)
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(
                         text = if (isFa) event.titleFa else event.titleEn,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
+                        style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                        color = RedTheme.colors.textPrimary
                     )
                     Text(
                         text = if (isFa) event.explanationFa else event.explanationEn,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = RedTypographyTokens.caption,
+                        color = RedTheme.colors.textSecondary,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = if (isFa) event.timeOrDateStrFa else event.timeOrDateStrEn,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = AccentPrimary
+                            style = RedTypographyTokens.caption.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                            color = RedTheme.colors.accentRed
                         )
                         Text(
                             text = "•",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = RedTypographyTokens.caption,
+                            color = RedTheme.colors.textTertiary
                         )
                         Text(
                             text = if (isFa) event.visibilityTextFa else event.visibilityTextEn,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                            color = RedTheme.colors.textSecondary
                         )
                     }
                 }
             }
 
-            val (badgeText, badgeColor) = when (event.visibilityStatus) {
-                WhatsUpTonightEngine.EventVisibilityStatus.OPTIMAL -> Pair(if (isFa) "عالی" else "Optimal", StatusExcellent)
-                WhatsUpTonightEngine.EventVisibilityStatus.GOOD -> Pair(if (isFa) "خوب" else "Good", StatusGood)
-                WhatsUpTonightEngine.EventVisibilityStatus.MARGINAL -> Pair(if (isFa) "متوسط" else "Marginal", Color(0xFFFFB703))
-                WhatsUpTonightEngine.EventVisibilityStatus.NOT_VISIBLE -> Pair(if (isFa) "غیرقابل رصد" else "Not Visible", Color.Gray)
-            }
-
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = badgeColor.copy(alpha = 0.15f)
-            ) {
-                Text(
-                    text = badgeText,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                    color = badgeColor
-                )
+            when (event.visibilityStatus) {
+                WhatsUpTonightEngine.EventVisibilityStatus.OPTIMAL -> {
+                    RedStatusBadge(
+                        text = if (isFa) "عالی" else "Optimal",
+                        statusColor = RedTheme.colors.statusSuccess,
+                        containerColor = RedTheme.colors.statusSuccessContainer
+                    )
+                }
+                WhatsUpTonightEngine.EventVisibilityStatus.GOOD -> {
+                    RedStatusBadge(
+                        text = if (isFa) "خوب" else "Good",
+                        statusColor = RedTheme.colors.accentRed,
+                        containerColor = RedTheme.colors.accentRed.copy(alpha = 0.12f)
+                    )
+                }
+                WhatsUpTonightEngine.EventVisibilityStatus.MARGINAL -> {
+                    RedStatusBadge(
+                        text = if (isFa) "متوسط" else "Marginal",
+                        statusColor = RedTheme.colors.statusWarning,
+                        containerColor = RedTheme.colors.statusWarningContainer
+                    )
+                }
+                WhatsUpTonightEngine.EventVisibilityStatus.NOT_VISIBLE -> {
+                    RedBadge(
+                        text = if (isFa) "غیرقابل رصد" else "Not Visible",
+                        backgroundColor = RedTheme.colors.surface,
+                        textColor = RedTheme.colors.textTertiary,
+                        borderColor = RedTheme.colors.border
+                    )
+                }
             }
         }
     }

@@ -31,6 +31,7 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,10 +48,13 @@ fun SettingsDialog(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("settings_dialog"),
+        shape = RoundedCornerShape(RedCornerRadius.xl),
+        containerColor = RedTheme.colors.surfaceElevated,
         title = {
             Text(
                 text = stringResource(R.string.app_settings),
-                style = MaterialTheme.typography.titleMedium
+                style = RedTypographyTokens.sectionHeading,
+                color = RedTheme.colors.textPrimary
             )
         },
         text = {
@@ -58,113 +62,156 @@ fun SettingsDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
             ) {
                 // Language Selection Segmented Switch
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)) {
                     Text(
                         text = stringResource(R.string.application_language),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                        color = RedTheme.colors.textPrimary
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                     ) {
                         FilterChip(
                             selected = uiState.language == AppLanguage.PERSIAN,
                             onClick = { viewModel.setLanguage(AppLanguage.PERSIAN) },
                             label = { Text(text = stringResource(R.string.language_persian)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = RedTheme.colors.accentRed,
+                                selectedLabelColor = Color.White
+                            ),
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
                             selected = uiState.language == AppLanguage.ENGLISH,
                             onClick = { viewModel.setLanguage(AppLanguage.ENGLISH) },
                             label = { Text(text = stringResource(R.string.language_english)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = RedTheme.colors.accentRed,
+                                selectedLabelColor = Color.White
+                            ),
                             modifier = Modifier.weight(1f)
                         )
                     }
                 }
 
                 // Calendar System Selection
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)) {
                     Text(
                         text = stringResource(R.string.calendar_system),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                        color = RedTheme.colors.textPrimary
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                     ) {
                         FilterChip(
                             selected = uiState.calendarSystem == CalendarSystem.SOLAR_HIJRI,
                             onClick = { viewModel.setCalendarSystem(CalendarSystem.SOLAR_HIJRI) },
                             label = { Text(text = stringResource(R.string.calendar_solar_hijri)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = RedTheme.colors.accentRed,
+                                selectedLabelColor = Color.White
+                            ),
                             modifier = Modifier.weight(1f)
                         )
                         FilterChip(
                             selected = uiState.calendarSystem == CalendarSystem.GREGORIAN,
                             onClick = { viewModel.setCalendarSystem(CalendarSystem.GREGORIAN) },
                             label = { Text(text = stringResource(R.string.calendar_gregorian)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = RedTheme.colors.accentRed,
+                                selectedLabelColor = Color.White
+                            ),
                             modifier = Modifier.weight(1f)
                         )
                     }
                 }
 
-                // Theme Mode Selection (OLED Black, Deep Navy, Light)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // Theme Mode Selection
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)) {
                     Text(
                         text = if (isFa) "پوسته برنامه (App Theme):" else "App Theme Mode:",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                        color = RedTheme.colors.textPrimary
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                         ) {
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.DARK_NAVY,
                                 onClick = { viewModel.setThemeMode(ThemeMode.DARK_NAVY) },
                                 label = { Text(text = if (isFa) "🌌 سرمه‌ای" else "🌌 Deep Navy") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.OLED_BLACK,
                                 onClick = { viewModel.setThemeMode(ThemeMode.OLED_BLACK) },
                                 label = { Text(text = if (isFa) "🖤 OLED" else "🖤 Pitch OLED") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                         ) {
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.DYNAMIC_SILK,
                                 onClick = { viewModel.setThemeMode(ThemeMode.DYNAMIC_SILK) },
                                 label = { Text(text = if (isFa) "✨ ابریشم پویا (Silk)" else "✨ Dynamic Silk") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.DYNAMIC_SKY,
                                 onClick = { viewModel.setThemeMode(ThemeMode.DYNAMIC_SKY) },
                                 label = { Text(text = if (isFa) "🌅 آسمان پویا" else "🌅 Dynamic Sky") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                         ) {
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.LIGHT,
                                 onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) },
                                 label = { Text(text = if (isFa) "☀️ روشن" else "☀️ Light") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.PAPERCRAFT_PASTEL,
                                 onClick = { viewModel.setThemeMode(ThemeMode.PAPERCRAFT_PASTEL) },
                                 label = { Text(text = if (isFa) "📜 کاغذ دست‌ساز" else "📜 Papercraft") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -172,10 +219,11 @@ fun SettingsDialog(
                 }
 
                 // Sky Canvas Theme Section
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)) {
                     Text(
                         text = if (isFa) "سبک هنری آسمان (RMAE Theme):" else "Sky Canvas Theme:",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                        color = RedTheme.colors.textPrimary
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(
@@ -186,12 +234,20 @@ fun SettingsDialog(
                                 selected = uiState.skyCanvasTheme == SkyCanvasTheme.ATMOSPHERIC_SKY,
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.ATMOSPHERIC_SKY) },
                                 label = { Text(text = if (isFa) "🌅 آسمان جوی" else "Atmospheric") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                             FilterChip(
                                 selected = uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME_SCIENTIFIC,
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.MONOCHROME_SCIENTIFIC) },
                                 label = { Text(text = if (isFa) "🔳 تک‌رنگ" else "Monochrome") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -203,12 +259,20 @@ fun SettingsDialog(
                                 selected = uiState.skyCanvasTheme == SkyCanvasTheme.KIDS_WATERCOLOR,
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.KIDS_WATERCOLOR) },
                                 label = { Text(text = if (isFa) "🎨 آبرنگ" else "WaterColor") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                             FilterChip(
                                 selected = uiState.skyCanvasTheme == SkyCanvasTheme.OBSERVATORY,
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.OBSERVATORY) },
                                 label = { Text(text = if (isFa) "🔴 رصدخانه" else "Observatory") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -220,6 +284,10 @@ fun SettingsDialog(
                                 selected = uiState.skyCanvasTheme == SkyCanvasTheme.PAPERCRAFT_DIORAMA,
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.PAPERCRAFT_DIORAMA) },
                                 label = { Text(text = if (isFa) "✂️ دیوراما کاغذ برجسته" else "✂️ Papercraft Diorama") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -227,67 +295,51 @@ fun SettingsDialog(
                 }
 
                 // Light Pollution / Bortle Class Slider
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)) {
                     val bortleText = stringResource(R.string.bortle_class_setting, uiState.bortleClass)
                     Text(
                         text = bortleText,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                        color = RedTheme.colors.textPrimary
                     )
                     Slider(
                         value = uiState.bortleClass.toFloat(),
                         onValueChange = { viewModel.setBortleClass(it.toInt()) },
                         valueRange = 1f..9f,
-                        steps = 7
+                        steps = 7,
+                        colors = SliderDefaults.colors(
+                            thumbColor = RedTheme.colors.accentRed,
+                            activeTrackColor = RedTheme.colors.accentRed
+                        )
                     )
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                RedHairlineDivider()
 
-                // Luxury Glassmorphic Developer Credit Card
+                // Developer Credit Card
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    Color(0x25FFFFFF),
-                                    Color(0x1200F0FF),
-                                    Color(0x1FA855F7)
-                                )
-                            )
-                        )
-                        .border(
-                            border = BorderStroke(
-                                width = 1.5.dp,
-                                brush = Brush.linearGradient(
-                                    colors = listOf(
-                                        Color(0x90FFFFFF),
-                                        Color(0x4038BDF8),
-                                        Color(0x80A855F7),
-                                        Color(0x60FFFFFF)
-                                    )
-                                )
-                            ),
-                            shape = RoundedCornerShape(20.dp)
-                        )
-                        .padding(16.dp)
+                        .clip(RoundedCornerShape(RedCornerRadius.lg))
+                        .background(RedTheme.colors.surfaceGrouped)
+                        .border(1.dp, RedTheme.colors.border, RoundedCornerShape(RedCornerRadius.lg))
+                        .padding(RedSpacing.md)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = Color.White.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
-                            modifier = Modifier.size(52.dp)
+                            color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.3f)),
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 SafeAppLogo(
-                                    modifier = Modifier.size(38.dp),
-                                    cornerRadius = 10.dp
+                                    modifier = Modifier.size(34.dp),
+                                    cornerRadius = 8.dp
                                 )
                             }
                         }
@@ -302,33 +354,30 @@ fun SettingsDialog(
                             ) {
                                 Text(
                                     text = if (isFa) "توسعه‌دهنده: " else "Developed by ",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                    style = RedTypographyTokens.caption,
+                                    color = RedTheme.colors.textSecondary
                                 )
                                 Text(
                                     text = "علی جعفری",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.ExtraBold,
-                                        letterSpacing = 0.5.sp
-                                    ),
-                                    color = Color(0xFF38BDF8)
+                                    style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.Bold),
+                                    color = RedTheme.colors.textPrimary
                                 )
                             }
 
                             Text(
                                 text = "Ali Jafari • RED Astronomy Engine",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                style = RedTypographyTokens.caption,
+                                color = RedTheme.colors.textSecondary
                             )
 
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
 
                             // Telegram Glass Badge
                             val intentContext = context
                             Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF0088CC).copy(alpha = 0.2f),
-                                border = BorderStroke(1.dp, Color(0xFF0088CC).copy(alpha = 0.6f)),
+                                shape = RoundedCornerShape(RedCornerRadius.xs),
+                                color = RedTheme.colors.accentRed.copy(alpha = 0.1f),
+                                border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.3f)),
                                 modifier = Modifier.clickable {
                                     try {
                                         val tgIntent = android.content.Intent(
@@ -342,21 +391,20 @@ fun SettingsDialog(
                                 }
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Text(
                                         text = "✈️",
-                                        fontSize = 12.sp
+                                        fontSize = 11.sp
                                     )
                                     Text(
                                         text = "@EdisonWasAThief",
-                                        style = MaterialTheme.typography.labelSmall.copy(
+                                        style = RedTypographyTokens.caption.copy(
                                             fontWeight = FontWeight.Bold,
-                                            letterSpacing = 0.3.sp
-                                        ),
-                                        color = Color(0xFF38BDF8)
+                                            color = RedTheme.colors.accentRed
+                                        )
                                     )
                                 }
                             }
@@ -366,8 +414,11 @@ fun SettingsDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss) {
-                Text(text = stringResource(R.string.ok))
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed)
+            ) {
+                Text(text = stringResource(R.string.ok), color = Color.White)
             }
         }
     )

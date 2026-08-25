@@ -1,18 +1,19 @@
 package com.alijafari.red.astronomy.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,19 +21,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
-import com.alijafari.red.astronomy.ui.theme.AccentPrimary
-import com.alijafari.red.astronomy.ui.theme.BottomNavBackground
-import com.alijafari.red.astronomy.ui.theme.CardBorder
-import com.alijafari.red.astronomy.ui.theme.TextTertiary
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.RedElevation
+import com.alijafari.red.astronomy.ui.theme.RedIconSize
+import com.alijafari.red.astronomy.ui.theme.RedSpacing
+import com.alijafari.red.astronomy.ui.theme.RedTheme
 
 data class NavItem(
     val titleRes: Int,
@@ -42,6 +41,14 @@ data class NavItem(
     val testTag: String
 )
 
+/**
+ * Clean, Apple-inspired Floating Navigation Bar
+ * Features:
+ * - Restrained, clean floating capsule aesthetic
+ * - Subdued hairline border with soft ambient elevation
+ * - No radial glows or extra decorative dots
+ * - Smooth color state transitions and accessible 48dp touch targets
+ */
 @Composable
 fun FloatingBottomBar(
     selectedTab: Int,
@@ -56,40 +63,36 @@ fun FloatingBottomBar(
         NavItem(R.string.nav_lab, Icons.Default.Science, Icons.Outlined.Science, 0, "nav_item_lab")
     )
 
+    val navShape = RoundedCornerShape(RedCornerRadius.xxl)
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
             .testTag("main_bottom_navigation")
     ) {
-        Box(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(66.dp)
-                .shadow(
-                    elevation = 12.dp,
-                    shape = RoundedCornerShape(26.dp),
-                    ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                    spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-                )
-                .clip(RoundedCornerShape(26.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(26.dp)
-                )
+                .height(62.dp),
+            shape = navShape,
+            color = RedTheme.colors.navSurface,
+            shadowElevation = RedElevation.floatingNav,
+            border = androidx.compose.foundation.BorderStroke(1.dp, RedTheme.colors.navBorder)
         ) {
             Row(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = RedSpacing.xs),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 navItems.forEach { item ->
                     val isSelected = selectedTab == item.targetTabIndex
                     val activeColor by animateColorAsState(
-                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        targetValue = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
+                        animationSpec = tween(durationMillis = 200),
                         label = "NavColor"
                     )
 
@@ -99,38 +102,19 @@ fun FloatingBottomBar(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
+                            .clip(RoundedCornerShape(RedCornerRadius.md))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) { onTabSelected(item.targetTabIndex) }
                             .testTag(item.testTag)
                     ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            if (isSelected) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            Brush.radialGradient(
-                                                colors = listOf(
-                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
-                                                    Color.Transparent
-                                                )
-                                            )
-                                        )
-                                )
-                            }
-                            Icon(
-                                imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
-                                contentDescription = stringResource(item.titleRes),
-                                tint = activeColor,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
+                            contentDescription = stringResource(item.titleRes),
+                            tint = activeColor,
+                            modifier = Modifier.size(RedIconSize.md)
+                        )
 
                         Spacer(modifier = Modifier.height(2.dp))
 
@@ -138,20 +122,8 @@ fun FloatingBottomBar(
                             text = stringResource(item.titleRes),
                             style = MaterialTheme.typography.labelSmall,
                             color = activeColor,
-                            fontSize = 11.sp
+                            fontSize = 10.sp
                         )
-
-                        if (isSelected) {
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Box(
-                                modifier = Modifier
-                                    .size(4.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary)
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.height(6.dp))
-                        }
                     }
                 }
             }

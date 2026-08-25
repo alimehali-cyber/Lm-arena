@@ -92,8 +92,8 @@ fun MoonScreen(
         modifier = Modifier
             .fillMaxSize()
             .testTag("moon_screen"),
-        contentPadding = PaddingValues(bottom = 80.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
     ) {
         // 1. MOON HERO SECTION (~400dp height)
         item {
@@ -101,18 +101,13 @@ fun MoonScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentHeight()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surface,
-                                MaterialTheme.colorScheme.background
-                            )
-                        )
-                    )
+                    .clip(RoundedCornerShape(RedCornerRadius.xl))
+                    .background(RedTheme.colors.surfaceElevated)
+                    .border(1.dp, RedTheme.colors.border, RoundedCornerShape(RedCornerRadius.xl))
                     .testTag("moon_hero_card")
             ) {
                 // Procedural Starfield background
-                val starColor = MaterialTheme.colorScheme.onBackground
+                val starColor = RedTheme.colors.textPrimary
                 Canvas(modifier = Modifier.matchParentSize()) {
                     val random = Random(42)
                     val width = size.width
@@ -120,7 +115,7 @@ fun MoonScreen(
                     for (i in 0..75) {
                         val x = random.nextFloat() * width
                         val y = random.nextFloat() * height
-                        val alpha = 0.10f + random.nextFloat() * 0.20f
+                        val alpha = 0.08f + random.nextFloat() * 0.15f
                         val radius = 0.8f + random.nextFloat() * 1.5f
                         drawCircle(
                             color = starColor.copy(alpha = alpha),
@@ -133,25 +128,25 @@ fun MoonScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp, bottom = 20.dp, start = 16.dp, end = 16.dp),
+                        .padding(top = RedSpacing.md, bottom = RedSpacing.xl, start = RedSpacing.lg, end = RedSpacing.lg),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
                 ) {
                     // Date switcher pill
                     Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                            .clip(CircleShape)
+                            .background(RedTheme.colors.surfaceGrouped)
+                            .border(1.dp, RedTheme.colors.border, CircleShape)
+                            .padding(horizontal = RedSpacing.md, vertical = RedSpacing.xs),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                     ) {
                         IconButton(
                             onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat - 1f).coerceIn(-30f, 30f) },
                             modifier = Modifier.size(28.dp)
                         ) {
-                            Icon(Icons.Default.ChevronRight, contentDescription = "Previous Day", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.ChevronRight, contentDescription = "Previous Day", tint = RedTheme.colors.accentRed)
                         }
 
                         val dateStr = TimeEngine.formatDate(selectedCalendar.timeInMillis, uiState.calendarSystem, isFa).let {
@@ -165,11 +160,9 @@ fun MoonScreen(
 
                         Text(
                             text = offsetBadge,
-                            style = TextStyle(
-                                fontFamily = IranSans,
+                            style = RedTypographyTokens.caption.copy(
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = RedTheme.colors.textPrimary
                             )
                         )
 
@@ -177,42 +170,38 @@ fun MoonScreen(
                             onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat + 1f).coerceIn(-30f, 30f) },
                             modifier = Modifier.size(28.dp)
                         ) {
-                            Icon(Icons.Default.ChevronLeft, contentDescription = "Next Day", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.ChevronLeft, contentDescription = "Next Day", tint = RedTheme.colors.accentRed)
                         }
                     }
 
                     // Scrubber drag instructions badge below date pill
                     Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                            .clip(CircleShape)
+                            .background(RedTheme.colors.accentRed.copy(alpha = 0.08f))
+                            .border(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.2f), CircleShape)
+                            .padding(horizontal = RedSpacing.md, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs)
                     ) {
-                        Icon(Icons.Default.Swipe, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Swipe, contentDescription = null, tint = RedTheme.colors.accentRed, modifier = Modifier.size(14.dp))
                         Text(
-                            text = if (isFa) "برای تغییر روزها (۳۰- تا ۳۰+) ماه را افقی بکشید" else "Drag moon to scrub days (-30 to +30d)",
-                            style = TextStyle(
-                                fontFamily = IranSans,
-                                fontWeight = FontWeight.Normal,
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            text = if (isFa) "برای تغییر روزها ماه را افقی بکشید" else "Drag moon to scrub days (-30 to +30d)",
+                            style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                            color = RedTheme.colors.textPrimary
                         )
                         if (dayOffsetInt != 0) {
                             Surface(
                                 onClick = { selectedDayOffsetFloat = 0f },
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                shape = RoundedCornerShape(RedCornerRadius.xs),
+                                color = RedTheme.colors.accentRed.copy(alpha = 0.2f)
                             ) {
                                 Text(
                                     text = if (isFa) "بازنشانی" else "Reset",
-                                    style = TextStyle(
-                                        fontFamily = IranSans,
+                                    style = MaterialTheme.typography.labelSmall.copy(
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = RedTheme.colors.accentRed
                                     ),
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
@@ -237,16 +226,12 @@ fun MoonScreen(
                     // Phase Name & Illumination Text below moon
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)
                     ) {
                         Text(
                             text = if (isFa) moonData.phaseNameFa else moonData.phaseNameEn,
-                            style = TextStyle(
-                                fontFamily = IranSans,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 22.sp,
-                                color = MaterialTheme.colorScheme.onBackground
-                            ),
+                            style = RedTypographyTokens.sectionHeading.copy(fontSize = 22.sp),
+                            color = RedTheme.colors.textPrimary,
                             textAlign = TextAlign.Center
                         )
 
@@ -255,11 +240,9 @@ fun MoonScreen(
                         }
                         Text(
                             text = illFormatted,
-                            style = TextStyle(
-                                fontFamily = IranSans,
+                            style = RedTypographyTokens.bodyPrimary.copy(
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.primary
+                                color = RedTheme.colors.accentRed
                             ),
                             textAlign = TextAlign.Center
                         )
@@ -268,31 +251,21 @@ fun MoonScreen(
             }
         }
 
-        // 2. DETAILS CARD (Glassmorphism 2x2 grid)
+        // 2. DETAILS CARD
         item {
-            Card(
+            RedElevatedCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
                     .testTag("moon_details_card"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                shape = RoundedCornerShape(RedCornerRadius.xl),
+                backgroundColor = RedTheme.colors.surfaceElevated,
+                borderColor = RedTheme.colors.border,
+                contentPadding = PaddingValues(RedSpacing.lg)
             ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = if (isFa) "جزئیات موقعیت و فاز" else "Position & Phase Details",
-                        style = TextStyle(
-                            fontFamily = IranSans,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.md)) {
+                    RedSectionHeader(
+                        title = if (isFa) "جزئیات موقعیت و فاز" else "Position & Phase Details",
+                        subtitle = if (isFa) "مشخصات مداری و طلوع/غروب ماه" else "Orbital parameters & rise/set timing"
                     )
 
                     val riseStr = moonData.moonriseTimeMs?.let {
@@ -311,9 +284,9 @@ fun MoonScreen(
                         if (isFa) "$it° بالای افق".toPersianDigits() else "$it° Above Horizon"
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             MoonTile(
@@ -332,7 +305,7 @@ fun MoonScreen(
                         }
 
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             MoonTile(
@@ -356,33 +329,23 @@ fun MoonScreen(
 
         // 3. UPCOMING PHASES CARD
         item {
-            Card(
+            RedElevatedCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
                     .testTag("moon_upcoming_card"),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                shape = RoundedCornerShape(RedCornerRadius.xl),
+                backgroundColor = RedTheme.colors.surfaceElevated,
+                borderColor = RedTheme.colors.border,
+                contentPadding = PaddingValues(RedSpacing.lg)
             ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Text(
-                        text = if (isFa) "فازهای آینده" else "Upcoming Phases",
-                        style = TextStyle(
-                            fontFamily = IranSans,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.md)) {
+                    RedSectionHeader(
+                        title = if (isFa) "فازهای آینده" else "Upcoming Phases",
+                        subtitle = if (isFa) "زمان‌بندی فازهای بعدی ماه" else "Next lunar quarters & full moon schedule"
                     )
 
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        upcomingPhases.forEach { phase ->
+                    Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)) {
+                        upcomingPhases.forEachIndexed { idx, phase ->
                             val name = if (isFa) phase.phaseNameFa else phase.phaseNameEn
                             val dateText = TimeEngine.formatDate(phase.dateMs, uiState.calendarSystem, isFa).let {
                                 if (isFa) it.toPersianDigits() else it
@@ -392,42 +355,46 @@ fun MoonScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    .clip(RoundedCornerShape(RedCornerRadius.md))
+                                    .background(RedTheme.colors.surfaceGrouped)
+                                    .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Brightness2,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
+                                        tint = RedTheme.colors.accentRed,
+                                        modifier = Modifier.size(RedIconSize.sm)
                                     )
-                                    Text(
-                                        text = "$name — $dateText",
-                                        style = TextStyle(
-                                            fontFamily = IranSans,
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                        Text(
+                                            text = name,
+                                            style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                                            color = RedTheme.colors.textPrimary
                                         )
-                                    )
+                                        Text(
+                                            text = dateText,
+                                            style = RedTypographyTokens.caption,
+                                            color = RedTheme.colors.textSecondary
+                                        )
+                                    }
                                 }
 
-                                Text(
+                                RedBadge(
                                     text = daysText,
-                                    style = TextStyle(
-                                        fontFamily = IranSans,
-                                        fontWeight = FontWeight.Normal,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    backgroundColor = RedTheme.colors.surface,
+                                    textColor = RedTheme.colors.textSecondary,
+                                    borderColor = RedTheme.colors.border
                                 )
+                            }
+
+                            if (idx < upcomingPhases.size - 1) {
+                                RedHairlineDivider()
                             }
                         }
                     }
@@ -589,48 +556,43 @@ private fun MoonTile(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+        shape = RoundedCornerShape(RedCornerRadius.md),
+        color = RedTheme.colors.surfaceGrouped,
+        border = BorderStroke(1.dp, RedTheme.colors.border)
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    .background(RedTheme.colors.accentRed.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
+                    tint = RedTheme.colors.accentRed,
+                    modifier = Modifier.size(RedIconSize.sm)
                 )
             }
 
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(
                     text = label,
-                    style = TextStyle(
-                        fontFamily = IranSans,
-                        fontWeight = FontWeight.Normal,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    style = RedTypographyTokens.caption,
+                    color = RedTheme.colors.textSecondary
                 )
                 Text(
                     text = value,
-                    style = TextStyle(
-                        fontFamily = IranSans,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    style = RedTypographyTokens.bodyPrimary.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    ),
+                    color = RedTheme.colors.textPrimary
                 )
             }
         }

@@ -9,51 +9,52 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import com.alijafari.red.astronomy.domain.ThemeMode
 
+// Material 3 Color Schemes
 private val SpaceColorScheme = darkColorScheme(
-    primary = AccentPrimary,
-    onPrimary = TextPrimary,
-    primaryContainer = Color(0x26A855F7),
+    primary = RedAccentVermilion,
+    onPrimary = Color.White,
+    primaryContainer = RedAccentSubtle,
     onPrimaryContainer = TextPrimary,
-    secondary = AccentSecondary,
-    onSecondary = TextPrimary,
-    tertiary = AccentTertiary,
-    onTertiary = TextPrimary,
+    secondary = RedCelestialGold,
+    onSecondary = Color.White,
+    tertiary = RedCelestialBlue,
+    onTertiary = Color.White,
     background = BackgroundPrimary,
     onBackground = TextPrimary,
     surface = BackgroundCard,
     onSurface = TextPrimary,
-    surfaceVariant = Color(0xFF1A1726),
+    surfaceVariant = Color(0xFF171824),
     onSurfaceVariant = TextSecondary,
     outline = CardBorder
 )
 
 private val OledSpaceColorScheme = darkColorScheme(
-    primary = AccentPrimary,
-    onPrimary = TextPrimary,
-    primaryContainer = Color(0x33A855F7),
-    onPrimaryContainer = TextPrimary,
-    secondary = AccentSecondary,
-    onSecondary = TextPrimary,
-    tertiary = AccentTertiary,
-    onTertiary = TextPrimary,
+    primary = RedAccentVermilion,
+    onPrimary = Color.White,
+    primaryContainer = RedAccentSubtle,
+    onPrimaryContainer = Color.White,
+    secondary = RedCelestialGold,
+    onSecondary = Color.White,
+    tertiary = RedCelestialBlue,
+    onTertiary = Color.White,
     background = Color(0xFF000000),
     onBackground = Color(0xFFFFFFFF),
     surface = Color(0xFF000000),
     onSurface = Color(0xFFFFFFFF),
-    surfaceVariant = Color(0xFF080808),
+    surfaceVariant = Color(0xFF0C0C10),
     onSurfaceVariant = Color(0xFFA1A1AA),
     outline = Color(0xFF27272A)
 )
 
 private val LightSpaceColorScheme = lightColorScheme(
-    primary = OldMoneyBurgundy,
-    onPrimary = Color(0xFFFFFFFF),
+    primary = RedAccentLight,
+    onPrimary = Color.White,
     primaryContainer = SoftCreamVariant,
-    onPrimaryContainer = OldMoneyBurgundy,
+    onPrimaryContainer = RedAccentLight,
     secondary = OldMoneyChampagneGold,
-    onSecondary = Color(0xFFFFFFFF),
-    tertiary = OldMoneyNavy,
-    onTertiary = Color(0xFFFFFFFF),
+    onSecondary = Color.White,
+    tertiary = RedCelestialBlue,
+    onTertiary = Color.White,
     background = PureWhiteBackground,
     onBackground = OldMoneySlate,
     surface = SoftCreamSurface,
@@ -65,13 +66,13 @@ private val LightSpaceColorScheme = lightColorScheme(
 
 private val PapercraftPastelColorScheme = lightColorScheme(
     primary = PapercraftPrimary,
-    onPrimary = Color(0xFFFFFFFF),
+    onPrimary = Color.White,
     primaryContainer = PapercraftSurfaceVariant,
     onPrimaryContainer = PapercraftPrimary,
     secondary = PapercraftSecondary,
     onSecondary = PapercraftTextPrimary,
     tertiary = PapercraftTertiary,
-    onTertiary = Color(0xFFFFFFFF),
+    onTertiary = Color.White,
     background = PapercraftBackground,
     onBackground = PapercraftTextPrimary,
     surface = PapercraftSurface,
@@ -117,7 +118,7 @@ fun createDynamicSkyColorScheme(sunAltitudeDeg: Double): androidx.compose.materi
     val nightBg = Color(0xFF0B0F19)
     val nightSurf = Color(0xFF111827)
     val nightSurfVar = Color(0xFF1F2937)
-    val nightPrimary = Color(0xFFA855F7)
+    val nightPrimary = RedAccentVermilion
     val nightSecondary = Color(0xFFC084FC)
     val nightText = Color(0xFFF8FAFC)
 
@@ -223,8 +224,78 @@ fun REDTheme(
         ThemeMode.DYNAMIC_SILK -> createDynamicSilkColorScheme(celestialLighting)
     }
 
+    val redColorTokens = when (themeMode) {
+        ThemeMode.DARK_NAVY -> RedDarkColorTokens
+        ThemeMode.OLED_BLACK -> RedDarkColorTokens.copy(
+            background = Color.Black,
+            backgroundSecondary = Color(0xFF060608),
+            backgroundTertiary = Color(0xFF0C0C10),
+            surface = Color.Black,
+            surfaceElevated = Color(0xFF0E0E12),
+            surfaceGrouped = Color(0xFF14141A),
+            surfaceVariant = Color(0xFF0A0A0E),
+            border = Color(0xFF27272A),
+            separator = Color(0xFF18181B)
+        )
+        ThemeMode.LIGHT -> RedLightColorTokens
+        ThemeMode.PAPERCRAFT_PASTEL -> RedLightColorTokens.copy(
+            background = PapercraftBackground,
+            backgroundSecondary = PapercraftSurfaceVariant,
+            backgroundTertiary = PapercraftSurface,
+            surface = PapercraftSurface,
+            surfaceElevated = PapercraftSurfaceVariant,
+            surfaceGrouped = PapercraftSurfaceVariant,
+            textPrimary = PapercraftTextPrimary,
+            textSecondary = PapercraftTextSecondary,
+            border = PapercraftOutline,
+            separator = PapercraftOutline.copy(alpha = 0.5f)
+        )
+        ThemeMode.DYNAMIC_SKY -> if (sunAltitudeDeg >= 0.0) {
+            RedLightColorTokens.copy(
+                background = colorScheme.background,
+                surface = colorScheme.surface,
+                surfaceElevated = colorScheme.surfaceVariant,
+                textPrimary = colorScheme.onSurface,
+                textSecondary = colorScheme.onSurfaceVariant
+            )
+        } else {
+            RedDarkColorTokens.copy(
+                background = colorScheme.background,
+                surface = colorScheme.surface,
+                surfaceElevated = colorScheme.surfaceVariant,
+                textPrimary = colorScheme.onSurface,
+                textSecondary = colorScheme.onSurfaceVariant
+            )
+        }
+        ThemeMode.DYNAMIC_SILK -> if (celestialLighting.isDark) {
+            RedDarkColorTokens.copy(
+                background = celestialLighting.backgroundColor,
+                surface = celestialLighting.surfaceColor,
+                surfaceElevated = celestialLighting.surfaceVariantColor,
+                textPrimary = celestialLighting.textPrimaryColor,
+                textSecondary = celestialLighting.textSecondaryColor,
+                textTertiary = celestialLighting.textTertiaryColor,
+                border = celestialLighting.outlineColor
+            )
+        } else {
+            RedLightColorTokens.copy(
+                background = celestialLighting.backgroundColor,
+                surface = celestialLighting.surfaceColor,
+                surfaceElevated = celestialLighting.surfaceVariantColor,
+                textPrimary = celestialLighting.textPrimaryColor,
+                textSecondary = celestialLighting.textSecondaryColor,
+                textTertiary = celestialLighting.textTertiaryColor,
+                border = celestialLighting.outlineColor
+            )
+        }
+    }
+
     CompositionLocalProvider(
-        LocalCelestialLighting provides celestialLighting
+        LocalCelestialLighting provides celestialLighting,
+        LocalRedColors provides redColorTokens,
+        LocalRedSpacing provides RedSpacing,
+        LocalRedRadius provides RedCornerRadius,
+        LocalRedElevation provides RedElevation
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
@@ -233,4 +304,3 @@ fun REDTheme(
         )
     }
 }
-

@@ -16,8 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -26,7 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
-import com.alijafari.red.astronomy.ui.theme.AccentPrimary
+import com.alijafari.red.astronomy.ui.theme.*
 
 enum class LabFeatureType(
     val titleEn: String,
@@ -90,52 +88,52 @@ fun LabScreen(
             modifier = modifier
                 .fillMaxSize()
                 .testTag("lab_screen"),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
+            verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
         ) {
             // Lab Header Banner
             item {
-                Surface(
+                RedElevatedCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("lab_header_card"),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.3f))
+                    shape = RoundedCornerShape(RedCornerRadius.xl),
+                    backgroundColor = RedTheme.colors.surfaceElevated,
+                    borderColor = RedTheme.colors.border,
+                    contentPadding = PaddingValues(RedSpacing.lg)
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(48.dp)
+                                    .size(44.dp)
                                     .clip(CircleShape)
-                                    .background(AccentPrimary.copy(alpha = 0.2f)),
+                                    .background(RedTheme.colors.accentRed.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Science,
                                     contentDescription = null,
-                                    tint = AccentPrimary,
-                                    modifier = Modifier.size(28.dp)
+                                    tint = RedTheme.colors.accentRed,
+                                    modifier = Modifier.size(RedIconSize.lg)
                                 )
                             }
 
-                            Column {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
                                     text = if (isFa) "آزمایشگاه نجومی و فیزیک" else "Astrophysics Lab",
-                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    style = RedTypographyTokens.sectionHeading,
+                                    color = RedTheme.colors.textPrimary
                                 )
                                 Text(
                                     text = if (isFa) "مجموعه ابزارهای علمی و محاسبه‌گرهای نجومی" else "Scientific tools & computational simulators",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    style = RedTypographyTokens.caption,
+                                    color = RedTheme.colors.textSecondary
                                 )
                             }
                         }
@@ -145,8 +143,8 @@ fun LabScreen(
                                 "آزمایشگاه نجومی محیطی برای آزمایش فرضیه‌ها، محاسبات نسبیتی، مکانیک سماوی و شبیه‌سازی‌های پیشرفته است."
                             else
                                 "An expandable suite of advanced computational astrophysics tools and relativistic physics simulators.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
+                            style = RedTypographyTokens.bodySecondary,
+                            color = RedTheme.colors.textSecondary
                         )
                     }
                 }
@@ -154,10 +152,9 @@ fun LabScreen(
 
             // Section Title
             item {
-                Text(
-                    text = if (isFa) "ابزارهای فعال و در حال توسعه" else "Available Scientific Tools",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
+                RedSectionHeader(
+                    title = if (isFa) "ابزارهای فعال و در حال توسعه" else "Available Scientific Tools",
+                    subtitle = if (isFa) "شبیه‌سازها و ماشین‌حساب‌های اخترفیزیک" else "Astrophysics calculators & simulators"
                 )
             }
 
@@ -186,37 +183,36 @@ private fun LabFeatureCard(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(RedCornerRadius.xl))
             .clickable(enabled = feature.isAvailable, onClick = onClick)
             .testTag("lab_feature_card_${feature.name.lowercase()}"),
-        shape = RoundedCornerShape(20.dp),
-        color = if (feature.isAvailable) MaterialTheme.colorScheme.surface
-        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        shape = RoundedCornerShape(RedCornerRadius.xl),
+        color = if (feature.isAvailable) RedTheme.colors.surfaceElevated else RedTheme.colors.surfaceGrouped,
         border = BorderStroke(
-            width = if (feature.isAvailable) 1.5.dp else 1.dp,
-            color = if (feature.isAvailable) AccentPrimary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+            width = 1.dp,
+            color = if (feature.isAvailable) RedTheme.colors.border else RedTheme.colors.border.copy(alpha = 0.5f)
         )
     ) {
         Row(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier.padding(RedSpacing.lg),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
         ) {
             Box(
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
                     .background(
-                        if (feature.isAvailable) AccentPrimary.copy(alpha = 0.15f)
-                        else MaterialTheme.colorScheme.surfaceVariant
+                        if (feature.isAvailable) RedTheme.colors.accentRed.copy(alpha = 0.12f)
+                        else RedTheme.colors.surfaceGrouped
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = feature.icon,
                     contentDescription = null,
-                    tint = if (feature.isAvailable) AccentPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(28.dp)
+                    tint = if (feature.isAvailable) RedTheme.colors.accentRed else RedTheme.colors.textSecondary.copy(alpha = 0.5f),
+                    modifier = Modifier.size(RedIconSize.md)
                 )
             }
 
@@ -226,40 +222,34 @@ private fun LabFeatureCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                 ) {
                     Text(
                         text = if (isFa) feature.titleFa else feature.titleEn,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = if (feature.isAvailable) MaterialTheme.colorScheme.onSurface
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+                        style = RedTypographyTokens.sectionHeading.copy(fontSize = 17.sp),
+                        color = if (feature.isAvailable) RedTheme.colors.textPrimary else RedTheme.colors.textSecondary
                     )
 
                     if (!feature.isAvailable) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceVariant
-                        ) {
-                            Text(
-                                text = if (isFa) "به زودی" else "Coming Soon",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
+                        RedBadge(
+                            text = if (isFa) "به زودی" else "Coming Soon",
+                            backgroundColor = RedTheme.colors.surfaceGrouped,
+                            textColor = RedTheme.colors.textSecondary,
+                            borderColor = RedTheme.colors.border
+                        )
                     }
                 }
 
                 Text(
                     text = if (isFa) feature.subtitleFa else feature.subtitleEn,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = AccentPrimary
+                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (feature.isAvailable) RedTheme.colors.accentRed else RedTheme.colors.textSecondary
                 )
 
                 Text(
                     text = if (isFa) feature.descriptionFa else feature.descriptionEn,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = RedTypographyTokens.bodySecondary,
+                    color = RedTheme.colors.textSecondary,
                     maxLines = 2
                 )
             }
@@ -267,8 +257,8 @@ private fun LabFeatureCard(
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = "Open",
-                tint = if (feature.isAvailable) AccentPrimary else MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(24.dp)
+                tint = if (feature.isAvailable) RedTheme.colors.accentRed else RedTheme.colors.textSecondary.copy(alpha = 0.3f),
+                modifier = Modifier.size(RedIconSize.md)
             )
         }
     }
