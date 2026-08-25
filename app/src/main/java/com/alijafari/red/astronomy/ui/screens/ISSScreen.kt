@@ -58,6 +58,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.alijafari.red.astronomy.domain.ThemeMode
+import com.alijafari.red.astronomy.ui.theme.LocalCelestialLighting
+import com.alijafari.red.astronomy.ui.theme.PapercraftBackground
+import com.alijafari.red.astronomy.ui.theme.PapercraftOutline
+import com.alijafari.red.astronomy.ui.theme.PapercraftPrimary
+import com.alijafari.red.astronomy.ui.theme.PapercraftSecondary
+import com.alijafari.red.astronomy.ui.theme.PapercraftSurface
+import com.alijafari.red.astronomy.ui.theme.PapercraftSurfaceVariant
+import com.alijafari.red.astronomy.ui.theme.PapercraftTertiary
+import com.alijafari.red.astronomy.ui.theme.PapercraftTextPrimary
+import com.alijafari.red.astronomy.ui.theme.SoftCreamCardBorder
+import com.alijafari.red.astronomy.ui.theme.SoftCreamSurface
+import com.alijafari.red.astronomy.ui.theme.SoftCreamVariant
+import com.alijafari.red.astronomy.ui.theme.OldMoneyBurgundy
+import com.alijafari.red.astronomy.ui.theme.OldMoneyChampagneGold
+import com.alijafari.red.astronomy.ui.theme.OldMoneyBronze
+import com.alijafari.red.astronomy.ui.theme.OldMoneyNavy
+import com.alijafari.red.astronomy.ui.theme.OldMoneySlate
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.*
@@ -70,9 +88,26 @@ private fun isNetworkAvailable(context: Context): Boolean {
 }
 
 enum class MapTheme {
+    AUTO,
     DARK,
     LIGHT
 }
+
+data class SatelliteMapPalette(
+    val oceanColor: Color,
+    val landColor: Color,
+    val landStroke: Color,
+    val gridColor: Color,
+    val equatorColor: Color,
+    val nightShadowColor: Color,
+    val cityLightColor: Color,
+    val orbitTrackColor: Color,
+    val userPinColor: Color,
+    val userTextColor: Color,
+    val containerBg: Color,
+    val containerBorder: Color,
+    val isDarkBackground: Boolean
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,10 +131,114 @@ fun ISSScreen(
     }
     var showLeadTimeSelectionDialog by remember { mutableStateOf(false) }
 
-    // Map Theme State (Persisted: "DARK" or "LIGHT")
+    // Map Theme State (Persisted: "AUTO", "DARK" or "LIGHT")
+    val celestialLighting = LocalCelestialLighting.current
     var mapTheme by remember {
-        val saved = prefs.getString("satellite_map_theme", MapTheme.DARK.name)
-        mutableStateOf(if (saved == MapTheme.LIGHT.name) MapTheme.LIGHT else MapTheme.DARK)
+        val saved = prefs.getString("satellite_map_theme", MapTheme.AUTO.name)
+        mutableStateOf(
+            when (saved) {
+                MapTheme.DARK.name -> MapTheme.DARK
+                MapTheme.LIGHT.name -> MapTheme.LIGHT
+                else -> MapTheme.AUTO
+            }
+        )
+    }
+
+    val activeThemeMode = when (mapTheme) {
+        MapTheme.DARK -> ThemeMode.DARK_NAVY
+        MapTheme.LIGHT -> ThemeMode.LIGHT
+        MapTheme.AUTO -> uiState.themeMode
+    }
+
+    val mapPalette = remember(activeThemeMode, celestialLighting) {
+        when (activeThemeMode) {
+            ThemeMode.DYNAMIC_SILK -> {
+                val isDark = celestialLighting.isDark
+                SatelliteMapPalette(
+                    oceanColor = celestialLighting.backgroundColor,
+                    landColor = celestialLighting.surfaceColor,
+                    landStroke = celestialLighting.outlineColor,
+                    gridColor = celestialLighting.outlineColor.copy(alpha = if (isDark) 0.22f else 0.35f),
+                    equatorColor = celestialLighting.primaryAccent.copy(alpha = 0.75f),
+                    nightShadowColor = if (isDark) Color(0xCC050814) else Color(0x550F172A),
+                    cityLightColor = Color(0xFFFBBF24),
+                    orbitTrackColor = celestialLighting.primaryAccent,
+                    userPinColor = celestialLighting.primaryAccent,
+                    userTextColor = celestialLighting.textPrimaryColor,
+                    containerBg = celestialLighting.surfaceVariantColor,
+                    containerBorder = celestialLighting.outlineColor,
+                    isDarkBackground = isDark
+                )
+            }
+            ThemeMode.PAPERCRAFT_PASTEL -> {
+                SatelliteMapPalette(
+                    oceanColor = PapercraftBackground,
+                    landColor = PapercraftSurface,
+                    landStroke = PapercraftOutline,
+                    gridColor = PapercraftOutline.copy(alpha = 0.5f),
+                    equatorColor = PapercraftTertiary,
+                    nightShadowColor = Color(0x352C2523),
+                    cityLightColor = PapercraftSecondary,
+                    orbitTrackColor = PapercraftPrimary,
+                    userPinColor = PapercraftTertiary,
+                    userTextColor = PapercraftTextPrimary,
+                    containerBg = PapercraftSurfaceVariant,
+                    containerBorder = PapercraftOutline,
+                    isDarkBackground = false
+                )
+            }
+            ThemeMode.LIGHT -> {
+                SatelliteMapPalette(
+                    oceanColor = SoftCreamVariant,
+                    landColor = SoftCreamSurface,
+                    landStroke = SoftCreamCardBorder,
+                    gridColor = Color(0x22182238),
+                    equatorColor = OldMoneyChampagneGold,
+                    nightShadowColor = Color(0x35111118),
+                    cityLightColor = OldMoneyBronze,
+                    orbitTrackColor = OldMoneyBurgundy,
+                    userPinColor = OldMoneyNavy,
+                    userTextColor = OldMoneySlate,
+                    containerBg = SoftCreamSurface,
+                    containerBorder = SoftCreamCardBorder,
+                    isDarkBackground = false
+                )
+            }
+            ThemeMode.OLED_BLACK -> {
+                SatelliteMapPalette(
+                    oceanColor = Color(0xFF000000),
+                    landColor = Color(0xFF101014),
+                    landStroke = Color(0xFF27272A),
+                    gridColor = Color(0x18FFFFFF),
+                    equatorColor = Color(0xFF38BDF8),
+                    nightShadowColor = Color(0xF0000000),
+                    cityLightColor = Color(0xFFFFC107),
+                    orbitTrackColor = AccentPrimary,
+                    userPinColor = Color(0xFF00F0FF),
+                    userTextColor = Color(0xFFFFFFFF),
+                    containerBg = Color(0xFF000000),
+                    containerBorder = Color(0xFF27272A),
+                    isDarkBackground = true
+                )
+            }
+            else -> { // DARK_NAVY, DYNAMIC_SKY, etc.
+                SatelliteMapPalette(
+                    oceanColor = Color(0xFF1E293B),
+                    landColor = Color(0xFF334155),
+                    landStroke = Color(0xFF64748B),
+                    gridColor = Color(0x18FFFFFF),
+                    equatorColor = Color(0x4000F0FF),
+                    nightShadowColor = Color(0xCC030712),
+                    cityLightColor = Color(0xFFFFC107),
+                    orbitTrackColor = AccentPrimary,
+                    userPinColor = Color(0xFF00F0FF),
+                    userTextColor = Color(0xFF00F0FF),
+                    containerBg = Color(0xFF1E293B),
+                    containerBorder = Color.White.copy(alpha = 0.15f),
+                    isDarkBackground = true
+                )
+            }
+        }
     }
 
     val coroutineScope = rememberCoroutineScope()
@@ -365,10 +504,10 @@ fun ISSScreen(
                     .fillMaxWidth()
                     .aspectRatio(2.0f) // Strictly preserve true geographic 2:1 aspect ratio
                     .clip(RoundedCornerShape(20.dp))
-                    .background(if (mapTheme == MapTheme.DARK) Color(0xFF1E293B) else Color(0xFFE0F2FE))
+                    .background(mapPalette.containerBg)
                     .border(
                         1.dp,
-                        if (mapTheme == MapTheme.DARK) Color.White.copy(alpha = 0.15f) else Color(0xFF0284C7).copy(alpha = 0.3f),
+                        mapPalette.containerBorder,
                         RoundedCornerShape(20.dp)
                     )
             ) {
@@ -450,6 +589,9 @@ fun ISSScreen(
                     val w = size.width
                     val h = size.height
 
+                    // 0. Ocean Background
+                    drawRect(color = mapPalette.oceanColor)
+
                     // Geographic Coordinate Proportions: 360° longitude, 180° latitude
                     val pxPerDeg = w / 360.0f
                     val centerX = w / 2f
@@ -461,14 +603,12 @@ fun ISSScreen(
                     fun mapY(lat: Double): Float =
                         centerY - (lat.toFloat() * pxPerDeg) * zoomScale + panOffsetY
 
-                    // Color theme palettes
-                    val isDark = mapTheme == MapTheme.DARK
-                    val landColor = if (isDark) Color(0xFF334155) else Color(0xFFA7F3D0)
-                    val landStroke = if (isDark) Color(0xFF64748B) else Color(0xFF059669)
-                    val gridColor = if (isDark) Color(0x18FFFFFF) else Color(0x3094A3B8)
-                    val equatorColor = if (isDark) Color(0x4000F0FF) else Color(0x600284C7)
-                    val nightShadowColor = if (isDark) Color(0xCC030712) else Color(0x400F172A)
-                    val cityLightColor = if (isDark) Color(0xFFFFC107) else Color(0xFFD97706)
+                    val landColor = mapPalette.landColor
+                    val landStroke = mapPalette.landStroke
+                    val gridColor = mapPalette.gridColor
+                    val equatorColor = mapPalette.equatorColor
+                    val nightShadowColor = mapPalette.nightShadowColor
+                    val cityLightColor = mapPalette.cityLightColor
 
                     // 1. Geographic Lat/Lon Grid Lines
                     for (gLon in -150..150 step 30) {
@@ -506,7 +646,7 @@ fun ISSScreen(
                         drawPath(
                             path = unitPath,
                             color = landStroke,
-                            style = Stroke(width = (if (isDark) 1.2f else 1.0f) / scaleX)
+                            style = Stroke(width = (if (mapPalette.isDarkBackground) 1.2f else 1.0f) / scaleX)
                         )
                     }
                     drawContext.canvas.restore()
@@ -567,12 +707,12 @@ fun ISSScreen(
                     val userY = mapY(uiState.userLocation.latitude)
                     if (userX in 0f..w && userY in 0f..h) {
                         drawCircle(
-                            color = Color(0xFF00F0FF).copy(alpha = 0.35f),
+                            color = mapPalette.userPinColor.copy(alpha = 0.35f),
                             radius = 12.dp.toPx(),
                             center = Offset(userX, userY)
                         )
                         drawCircle(
-                            color = Color(0xFF00F0FF),
+                            color = mapPalette.userPinColor,
                             radius = 4.dp.toPx(),
                             center = Offset(userX, userY)
                         )
@@ -583,7 +723,7 @@ fun ISSScreen(
                             style = TextStyle(
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isDark) Color(0xFF00F0FF) else Color(0xFF0284C7)
+                                color = mapPalette.userTextColor
                             )
                         )
                         drawText(
@@ -619,7 +759,7 @@ fun ISSScreen(
 
                         drawPath(
                             path = trackPath,
-                            color = AccentPrimary.copy(alpha = 0.85f),
+                            color = mapPalette.orbitTrackColor.copy(alpha = 0.85f),
                             style = Stroke(
                                 width = 2.5f,
                                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
@@ -790,12 +930,29 @@ fun ISSScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
+                                .background(if (mapTheme == MapTheme.AUTO) AccentPrimary else Color.Transparent)
+                                .clickable {
+                                    mapTheme = MapTheme.AUTO
+                                    prefs.edit().putString("satellite_map_theme", MapTheme.AUTO.name).apply()
+                                }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (isFa) "پوسته" else "Auto",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (mapTheme == MapTheme.AUTO) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(if (mapTheme == MapTheme.DARK) AccentPrimary else Color.Transparent)
                                 .clickable {
                                     mapTheme = MapTheme.DARK
                                     prefs.edit().putString("satellite_map_theme", MapTheme.DARK.name).apply()
                                 }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         ) {
                             Text(
                                 text = if (isFa) "تاریک" else "Dark",
@@ -812,7 +969,7 @@ fun ISSScreen(
                                     mapTheme = MapTheme.LIGHT
                                     prefs.edit().putString("satellite_map_theme", MapTheme.LIGHT.name).apply()
                                 }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         ) {
                             Text(
                                 text = if (isFa) "روشن" else "Light",

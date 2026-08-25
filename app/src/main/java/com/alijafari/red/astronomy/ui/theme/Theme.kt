@@ -4,6 +4,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import com.alijafari.red.astronomy.domain.ThemeMode
 
@@ -203,20 +205,32 @@ fun createDynamicSkyColorScheme(sunAltitudeDeg: Double): androidx.compose.materi
 fun REDTheme(
     themeMode: ThemeMode = ThemeMode.DARK_NAVY,
     sunAltitudeDeg: Double = -20.0,
+    userLatitude: Double = 30.1141,
+    userLongitude: Double = 51.5217,
+    timestampMs: Long = System.currentTimeMillis(),
     content: @Composable () -> Unit
 ) {
+    val celestialLighting = remember(timestampMs, userLatitude, userLongitude) {
+        calculateCelestialLighting(timestampMs, userLatitude, userLongitude)
+    }
+
     val colorScheme = when (themeMode) {
         ThemeMode.DARK_NAVY -> SpaceColorScheme
         ThemeMode.OLED_BLACK -> OledSpaceColorScheme
         ThemeMode.LIGHT -> LightSpaceColorScheme
         ThemeMode.PAPERCRAFT_PASTEL -> PapercraftPastelColorScheme
         ThemeMode.DYNAMIC_SKY -> createDynamicSkyColorScheme(sunAltitudeDeg)
+        ThemeMode.DYNAMIC_SILK -> createDynamicSilkColorScheme(celestialLighting)
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalCelestialLighting provides celestialLighting
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
 

@@ -92,7 +92,8 @@ enum class ThemeMode {
     OLED_BLACK,
     LIGHT,
     PAPERCRAFT_PASTEL,
-    DYNAMIC_SKY
+    DYNAMIC_SKY,
+    DYNAMIC_SILK
 }
 
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {

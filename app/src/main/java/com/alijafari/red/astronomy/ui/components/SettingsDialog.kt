@@ -139,15 +139,32 @@ fun SettingsDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             FilterChip(
+                                selected = uiState.themeMode == ThemeMode.DYNAMIC_SILK,
+                                onClick = { viewModel.setThemeMode(ThemeMode.DYNAMIC_SILK) },
+                                label = { Text(text = if (isFa) "✨ ابریشم پویا (Silk)" else "✨ Dynamic Silk") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
                                 selected = uiState.themeMode == ThemeMode.DYNAMIC_SKY,
                                 onClick = { viewModel.setThemeMode(ThemeMode.DYNAMIC_SKY) },
                                 label = { Text(text = if (isFa) "🌅 آسمان پویا" else "🌅 Dynamic Sky") },
                                 modifier = Modifier.weight(1f)
                             )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.LIGHT,
                                 onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) },
                                 label = { Text(text = if (isFa) "☀️ روشن" else "☀️ Light") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
+                                selected = uiState.themeMode == ThemeMode.PAPERCRAFT_PASTEL,
+                                onClick = { viewModel.setThemeMode(ThemeMode.PAPERCRAFT_PASTEL) },
+                                label = { Text(text = if (isFa) "📜 کاغذ دست‌ساز" else "📜 Papercraft") },
                                 modifier = Modifier.weight(1f)
                             )
                         }

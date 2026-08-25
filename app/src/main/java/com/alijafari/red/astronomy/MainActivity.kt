@@ -111,15 +111,27 @@ class MainActivity : ComponentActivity() {
             val isFa = uiState.language == AppLanguage.PERSIAN
             val layoutDirection = if (isFa) LayoutDirection.Rtl else LayoutDirection.Ltr
 
-            val sunAltitudeDeg = remember(uiState.userLocation) {
+            val currentEffectiveTimeMs = if (uiState.timeMachineState.mode == com.alijafari.red.astronomy.domain.TimeMachineMode.SIMULATION) {
+                uiState.timeMachineState.simulationTimeMs
+            } else {
+                System.currentTimeMillis()
+            }
+
+            val sunAltitudeDeg = remember(uiState.userLocation, currentEffectiveTimeMs) {
                 com.alijafari.red.astronomy.astro_engine.SunEngine.getSunAltAz(
-                    com.alijafari.red.astronomy.astro_engine.TimeEngine.getJulianDate(),
+                    com.alijafari.red.astronomy.astro_engine.TimeEngine.getJulianDate(currentEffectiveTimeMs),
                     uiState.userLocation.latitude,
                     uiState.userLocation.longitude
                 ).altitudeDeg
             }
 
-            REDTheme(themeMode = uiState.themeMode, sunAltitudeDeg = sunAltitudeDeg) {
+            REDTheme(
+                themeMode = uiState.themeMode,
+                sunAltitudeDeg = sunAltitudeDeg,
+                userLatitude = uiState.userLocation.latitude,
+                userLongitude = uiState.userLocation.longitude,
+                timestampMs = currentEffectiveTimeMs
+            ) {
                 CompositionLocalProvider(
                     LocalContext provides localizedContext,
                     LocalLayoutDirection provides layoutDirection,
