@@ -66,19 +66,19 @@ fun FloatingBottomBar(
             .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
             .testTag("main_bottom_navigation")
     ) {
-        // Continuous native Liquid Glass floating bar surface
-        Box(
+        // Continuous native Liquid Glass floating bar surface across the entire bottom navigation
+        LiquidGlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .liquidGlass(
-                    backdrop = backdrop,
-                    shape = navShape,
-                    style = LiquidGlassDefaults.NavigationBar,
-                    fallbackColor = RedTheme.colors.surfaceElevated,
-                    fallbackBorder = androidx.compose.foundation.BorderStroke(1.dp, RedTheme.colors.border),
-                    fallbackShadowElevation = RedElevation.floating
-                )
+                .testTag("main_bottom_navigation_glass_surface"),
+            backdrop = backdrop,
+            shape = navShape,
+            style = LiquidGlassDefaults.NavigationBar,
+            fallbackColor = RedTheme.colors.surfaceElevated,
+            fallbackBorder = androidx.compose.foundation.BorderStroke(1.dp, RedTheme.colors.border),
+            fallbackShadowElevation = RedElevation.floating,
+            glassBorder = androidx.compose.foundation.BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.4f))
         ) {
             Row(
                 modifier = Modifier
