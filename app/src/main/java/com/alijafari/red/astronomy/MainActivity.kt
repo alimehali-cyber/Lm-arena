@@ -45,6 +45,8 @@ import com.alijafari.red.astronomy.ui.components.SettingsDialog
 import com.alijafari.red.astronomy.ui.screens.*
 import com.alijafari.red.astronomy.ui.theme.REDTheme
 import com.alijafari.red.astronomy.util.LocaleHelper
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
 import com.alijafari.red.astronomy.data.repository.TleRepository
 import com.alijafari.red.astronomy.data.worker.IssTleWorker
@@ -140,6 +142,7 @@ class MainActivity : ComponentActivity() {
                     LocalActivityResultRegistryOwner provides this@MainActivity
                 ) {
                     var showSplashScreen by remember { mutableStateOf(true) }
+                    val backdrop = rememberLayerBackdrop()
 
                     Box(
                         modifier = Modifier
@@ -197,6 +200,7 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
+                                    .layerBackdrop(backdrop)
                                     .padding(top = innerPadding.calculateTopPadding())
                             ) {
                                 Crossfade(
@@ -230,8 +234,9 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Floating Navigation Bar overlaying content directly
+                        // Floating Navigation Bar with Real Kyant0 Liquid Glass Backdrop sampling
                         com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
+                            backdrop = backdrop,
                             selectedTab = uiState.selectedTab,
                             onTabSelected = { viewModel.selectTab(it) },
                             modifier = Modifier.align(Alignment.BottomCenter)

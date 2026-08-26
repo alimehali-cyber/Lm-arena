@@ -4,7 +4,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -32,6 +31,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.theme.*
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import com.kyant.backdrop.highlight.Highlight
+import com.kyant.backdrop.shadow.InnerShadow
+import com.kyant.backdrop.shadow.Shadow
 
 data class NavItem(
     val titleRes: Int,
@@ -41,32 +48,22 @@ data class NavItem(
     val testTag: String
 )
 
-/**
- * RED Liquid Glass Floating Navigation Bar
- *
- * Implements Phase 1 of RED's Liquid Glass System:
- * - Floats physically above actual screen content with high optical transmission (IOR ~ 1.15)
- * - Multi-layer refractive rim & subtle chromatic dispersion highlight
- * - Native backdrop blur on supported devices with graceful fallback
- * - Content-aware optical separation without solid background blocking
- * - Interactive tactile press compression & smooth active item transitions
- * - Accessible 48dp+ touch targets and full RTL/Persian compatibility
- */
 @Composable
 fun FloatingBottomBar(
+    backdrop: Backdrop,
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val navItems = listOf(
-        NavItem(R.string.nav_home, Icons.Default.Home, Icons.Outlined.Home, 4, "nav_item_home"),
-        NavItem(R.string.nav_arsky, Icons.Default.Explore, Icons.Outlined.Explore, 3, "nav_item_arsky"),
-        NavItem(R.string.nav_moon, Icons.Default.NightlightRound, Icons.Outlined.Nightlight, 2, "nav_item_moon"),
-        NavItem(R.string.nav_satellites, Icons.Default.SatelliteAlt, Icons.Outlined.SatelliteAlt, 1, "nav_item_satellites"),
-        NavItem(R.string.nav_lab, Icons.Default.Science, Icons.Outlined.Science, 0, "nav_item_lab")
+        NavItem(R.string.nav_home, Icons.Outlined.Home, Icons.Outlined.Home, 4, "nav_item_home"),
+        NavItem(R.string.nav_arsky, Icons.Outlined.Explore, Icons.Outlined.Explore, 3, "nav_item_arsky"),
+        NavItem(R.string.nav_moon, Icons.Outlined.DarkMode, Icons.Outlined.DarkMode, 2, "nav_item_moon"),
+        NavItem(R.string.nav_satellites, Icons.Outlined.SatelliteAlt, Icons.Outlined.SatelliteAlt, 1, "nav_item_satellites"),
+        NavItem(R.string.nav_lab, Icons.Outlined.Science, Icons.Outlined.Science, 0, "nav_item_lab")
     )
 
-    val navShape = RoundedCornerShape(RedCornerRadius.xxl)
+    val navShape = RoundedCornerShape(32.dp)
 
     Box(
         modifier = modifier
@@ -75,12 +72,26 @@ fun FloatingBottomBar(
             .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
             .testTag("main_bottom_navigation")
     ) {
-        LiquidGlassSurface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp),
-            style = LiquidGlassDefaults.NavigationBar,
-            shape = navShape
+                .height(64.dp)
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { navShape },
+                    effects = {
+                        vibrancy()
+                        blur(8f.dp.toPx())
+                        lens(
+                            refractionHeight = 24f.dp.toPx(),
+                            refractionAmount = 24f.dp.toPx()
+                        )
+                    },
+                    highlight = { Highlight.Ambient },
+                    shadow = { Shadow(radius = 12.dp) },
+                    innerShadow = { InnerShadow(radius = 2.dp) }
+                )
+                .clip(navShape)
         ) {
             Row(
                 modifier = Modifier
@@ -106,27 +117,40 @@ fun FloatingBottomBar(
                         label = "NavColor"
                     )
 
-                    val activeBgAlpha by animateFloatAsState(
-                        targetValue = if (isSelected) 0.12f else 0.0f,
-                        animationSpec = tween(durationMillis = 200),
-                        label = "NavActivePillAlpha"
+                    val activeProgress by animateFloatAsState(
+                        targetValue = if (isSelected) 1f else 0f,
+                        animationSpec = spring(dampingRatio = 0.8f, stiffness = 380f),
+                        label = "NavActiveLensProgress"
                     )
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
+                    val pillShape = RoundedCornerShape(20.dp)
+
+                    Box(
+                        contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .scale(itemScale)
-                            .clip(RoundedCornerShape(RedCornerRadius.pill))
-                            .background(
-                                color = if (activeBgAlpha > 0f) {
-                                    RedTheme.colors.accentRed.copy(alpha = activeBgAlpha)
+                            .then(
+                                if (activeProgress > 0.01f) {
+                                    Modifier.drawBackdrop(
+                                        backdrop = backdrop,
+                                        shape = { pillShape },
+                                        effects = {
+                                            lens(
+                                                refractionHeight = 10f.dp.toPx() * activeProgress,
+                                                refractionAmount = 14f.dp.toPx() * activeProgress,
+                                                chromaticAberration = true
+                                            )
+                                        },
+                                        highlight = { Highlight.Ambient },
+                                        innerShadow = { InnerShadow(radius = 1.5.dp) }
+                                    )
                                 } else {
-                                    Color.Transparent
+                                    Modifier
                                 }
                             )
+                            .clip(pillShape)
                             .clickable(
                                 interactionSource = interactionSource,
                                 indication = null
@@ -134,26 +158,32 @@ fun FloatingBottomBar(
                             .padding(vertical = 4.dp)
                             .testTag(item.testTag)
                     ) {
-                        Icon(
-                            imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
-                            contentDescription = stringResource(item.titleRes),
-                            tint = activeColor,
-                            modifier = Modifier.size(RedIconSize.md)
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
+                                contentDescription = stringResource(item.titleRes),
+                                tint = activeColor,
+                                modifier = Modifier.size(RedIconSize.md)
+                            )
 
-                        Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
 
-                        Text(
-                            text = stringResource(item.titleRes),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = activeColor,
-                            fontSize = 10.sp,
-                            maxLines = 1
-                        )
+                            Text(
+                                text = stringResource(item.titleRes),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = activeColor,
+                                fontSize = 10.sp,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
         }
     }
 }
+
