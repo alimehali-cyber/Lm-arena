@@ -144,15 +144,16 @@ private fun ArSmartPill(
     isHighlighted: Boolean = false,
     onClick: () -> Unit
 ) {
-    Surface(
+    LiquidGlassSurface(
         onClick = onClick,
         shape = CircleShape,
-        color = if (isActive) RedTheme.colors.accentRed else if (isHighlighted) RedTheme.colors.surfaceElevated.copy(alpha = 0.95f) else RedTheme.colors.surfaceElevated.copy(alpha = 0.85f),
-        border = BorderStroke(
+        style = LiquidGlassDefaults.Pill,
+        fallbackColor = if (isActive) RedTheme.colors.accentRed else if (isHighlighted) RedTheme.colors.surfaceElevated.copy(alpha = 0.95f) else RedTheme.colors.surfaceElevated.copy(alpha = 0.85f),
+        fallbackBorder = BorderStroke(
             1.dp,
             if (isActive) Color.Transparent else if (isHighlighted) RedTheme.colors.accentRed.copy(alpha = 0.6f) else RedTheme.colors.border
         ),
-        shadowElevation = RedElevation.floating,
+        fallbackShadowElevation = RedElevation.floating,
         modifier = Modifier.height(36.dp)
     ) {
         Row(
@@ -1602,11 +1603,12 @@ fun CompassARScreen(
                 .statusBarsPadding()
                 .padding(top = 12.dp)
         ) {
-            Surface(
+            LiquidGlassSurface(
                 onClick = { resetControlsTimer() },
                 shape = CircleShape,
-                color = Color.Black.copy(alpha = 0.75f),
-                border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.5f))
+                style = LiquidGlassDefaults.Pill,
+                fallbackColor = Color.Black.copy(alpha = 0.75f),
+                fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.5f))
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
@@ -1673,13 +1675,14 @@ fun CompassARScreen(
                 }
 
                 // Instruction & Distance Card floating below arrow
-                Surface(
+                LiquidGlassSurface(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .offset(y = 60.dp),
                     shape = RoundedCornerShape(20.dp),
-                    color = BackgroundCard.copy(alpha = 0.9f),
-                    border = BorderStroke(1.dp, CardBorder)
+                    style = LiquidGlassDefaults.Card,
+                    fallbackColor = BackgroundCard.copy(alpha = 0.9f),
+                    fallbackBorder = BorderStroke(1.dp, CardBorder)
                 ) {
                     Column(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -1704,7 +1707,7 @@ fun CompassARScreen(
 
         // Layer 3.5: Glass Floating Cancel Target Button (Visible whenever target is active at bottom-start)
         if (selectedTarget != null) {
-            Surface(
+            LiquidGlassSurface(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .navigationBarsPadding()
@@ -1715,9 +1718,10 @@ fun CompassARScreen(
                     viewModel.clearTargetObject()
                 },
                 shape = RoundedCornerShape(20.dp),
-                color = Color(0xCC1A1F36),
-                border = BorderStroke(1.dp, Color(0x88FF5252)),
-                shadowElevation = 6.dp
+                style = LiquidGlassDefaults.Pill,
+                fallbackColor = Color(0xCC1A1F36),
+                fallbackBorder = BorderStroke(1.dp, Color(0x88FF5252)),
+                fallbackShadowElevation = 6.dp
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -1758,11 +1762,12 @@ fun CompassARScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Left Floating Pill: Back Button + AR Sky Title
-                Surface(
+                LiquidGlassSurface(
                     shape = CircleShape,
-                    color = RedTheme.colors.surfaceElevated.copy(alpha = 0.88f),
-                    border = BorderStroke(1.dp, RedTheme.colors.border),
-                    shadowElevation = RedElevation.floating
+                    style = LiquidGlassDefaults.Pill,
+                    fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.88f),
+                    fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                    fallbackShadowElevation = RedElevation.floating
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
@@ -1796,11 +1801,12 @@ fun CompassARScreen(
 
                 // Right Floating Pill: Quick Tools (Night Vision + Calibrate)
                 val isNightVision = uiState.skyCanvasTheme == SkyCanvasTheme.OBSERVATORY
-                Surface(
+                LiquidGlassSurface(
                     shape = CircleShape,
-                    color = RedTheme.colors.surfaceElevated.copy(alpha = 0.88f),
-                    border = BorderStroke(1.dp, RedTheme.colors.border),
-                    shadowElevation = RedElevation.floating
+                    style = LiquidGlassDefaults.Pill,
+                    fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.88f),
+                    fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                    fallbackShadowElevation = RedElevation.floating
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
@@ -1897,11 +1903,12 @@ fun CompassARScreen(
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
-                Surface(
+                LiquidGlassSurface(
                     shape = RoundedCornerShape(RedCornerRadius.xl),
-                    color = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
-                    border = BorderStroke(1.dp, RedTheme.colors.border),
-                    shadowElevation = RedElevation.floating,
+                    style = LiquidGlassDefaults.Card,
+                    fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
+                    fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                    fallbackShadowElevation = RedElevation.floating,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     when (activeExpandedPanel) {
@@ -2510,7 +2517,7 @@ fun CompassARScreen(
                         .fillMaxSize()
                         .offset(x = cardXDp, y = cardYDp)
                 ) {
-                    Surface(
+                    LiquidGlassSurface(
                         modifier = Modifier
                             .width(cardWidthDp)
                             .clickable {
@@ -2518,9 +2525,10 @@ fun CompassARScreen(
                                 viewModel.openObjectDetail(obj)
                             },
                         shape = RoundedCornerShape(20.dp),
-                        color = Color(0xFF0F172A).copy(alpha = 0.94f),
-                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
-                        shadowElevation = 12.dp
+                        style = LiquidGlassDefaults.Card,
+                        fallbackColor = Color(0xFF0F172A).copy(alpha = 0.94f),
+                        fallbackBorder = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
+                        fallbackShadowElevation = 12.dp
                     ) {
                         Column(
                             modifier = Modifier.padding(14.dp),

@@ -46,7 +46,8 @@ data class MainUiState(
     val userOccasions: List<UserOccasionEntity> = emptyList(),
     val timeMachineState: TimeMachineState = TimeMachineState(),
     val selectedTargetObject: CelestialObject? = null,
-    val selectedSatelliteId: String? = null
+    val selectedSatelliteId: String? = null,
+    val isLiquidGlassEnabled: Boolean = true
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -56,6 +57,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(
         MainUiState(
+            isLiquidGlassEnabled = prefs.getBoolean("liquid_glass_enabled", true),
             language = try {
                 AppLanguage.valueOf(prefs.getString("app_language", AppLanguage.PERSIAN.name) ?: AppLanguage.PERSIAN.name)
             } catch (e: Exception) {
@@ -194,6 +196,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setThemeMode(themeMode: ThemeMode) {
         prefs.edit().putString("theme_mode", themeMode.name).apply()
         _uiState.update { it.copy(themeMode = themeMode) }
+    }
+
+    fun setLiquidGlassEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("liquid_glass_enabled", enabled).apply()
+        _uiState.update { it.copy(isLiquidGlassEnabled = enabled) }
     }
 
     fun setSkyCanvasTheme(theme: SkyCanvasTheme) {

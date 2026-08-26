@@ -68,10 +68,11 @@ fun TimeMachineControlBar(
             .testTag("time_machine_container")
     ) {
         // --- Information Banner & Main Pill ---
-        Surface(
+        LiquidGlassSurface(
             shape = RoundedCornerShape(24.dp),
-            color = if (state.mode == TimeMachineMode.SIMULATION) Color(0xFF181528).copy(alpha = 0.95f) else Color(0xFF10121D).copy(alpha = 0.88f),
-            border = BorderStroke(
+            style = LiquidGlassDefaults.Card,
+            fallbackColor = if (state.mode == TimeMachineMode.SIMULATION) Color(0xFF181528).copy(alpha = 0.95f) else Color(0xFF10121D).copy(alpha = 0.88f),
+            fallbackBorder = BorderStroke(
                 width = 1.dp,
                 color = if (state.mode == TimeMachineMode.SIMULATION) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
             ),

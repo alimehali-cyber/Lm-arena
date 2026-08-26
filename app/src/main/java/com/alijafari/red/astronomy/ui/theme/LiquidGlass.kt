@@ -1,7 +1,11 @@
 package com.alijafari.red.astronomy.ui.theme
 
+import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -11,9 +15,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -25,6 +32,24 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
+
+/**
+ * Composition local providing the active window/screen backdrop layer.
+ */
+val LocalBackdrop = staticCompositionLocalOf<Backdrop?> { null }
+
+/**
+ * Composition local providing whether Liquid Glass is enabled globally.
+ */
+val LocalLiquidGlassEnabled = staticCompositionLocalOf { true }
+
+/**
+ * Android version capability check for native Backdrop shaders.
+ * Liquid Glass physical refraction requires Android 13+ (API 33+).
+ */
+fun isLiquidGlassSupported(): Boolean {
+    return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+}
 
 /**
  * RED Liquid Glass Optical Specification
@@ -58,20 +83,30 @@ object LiquidGlassDefaults {
         innerShadowRadius = 2.dp
     )
 
-    val ActiveTab = LiquidGlassStyle(
-        blurRadius = 0.dp,
-        refractionHeight = 10.dp,
-        refractionAmount = 14.dp,
-        chromaticAberration = true,
+    val Header = LiquidGlassStyle(
+        blurRadius = 8.dp,
+        refractionHeight = 20.dp,
+        refractionAmount = 20.dp,
+        chromaticAberration = false,
         hasHighlight = true,
-        shadowRadius = 0.dp,
+        shadowRadius = 8.dp,
+        innerShadowRadius = 1.5.dp
+    )
+
+    val Pill = LiquidGlassStyle(
+        blurRadius = 6.dp,
+        refractionHeight = 14.dp,
+        refractionAmount = 14.dp,
+        chromaticAberration = false,
+        hasHighlight = true,
+        shadowRadius = 6.dp,
         innerShadowRadius = 1.5.dp
     )
 
     val Card = LiquidGlassStyle(
-        blurRadius = 6.dp,
-        refractionHeight = 16.dp,
-        refractionAmount = 16.dp,
+        blurRadius = 8.dp,
+        refractionHeight = 18.dp,
+        refractionAmount = 18.dp,
         chromaticAberration = false,
         hasHighlight = true,
         shadowRadius = 8.dp,
@@ -93,44 +128,74 @@ object LiquidGlassDefaults {
  * Reusable Liquid Glass Modifier.
  *
  * Applies real-time backdrop sampling, lens refraction, vibrancy, blur,
- * highlights, and shadows to any Compose component.
+ * highlights, and shadows when enabled & supported.
+ * Falls back cleanly to premium RED design system surface tokens on Android 12-
+ * or when disabled by user preference.
  */
+@Composable
 fun Modifier.liquidGlass(
-    backdrop: Backdrop,
+    backdrop: Backdrop? = LocalBackdrop.current,
     shape: Shape = RoundedCornerShape(32.dp),
-    style: LiquidGlassStyle = LiquidGlassDefaults.NavigationBar
-): Modifier = this
-    .drawBackdrop(
-        backdrop = backdrop,
-        shape = { shape },
-        effects = {
-            vibrancy()
-            if (style.blurRadius > 0.dp) {
-                blur(style.blurRadius.toPx())
-            }
-            if (style.refractionHeight > 0.dp || style.refractionAmount > 0.dp) {
-                lens(
-                    refractionHeight = style.refractionHeight.toPx(),
-                    refractionAmount = style.refractionAmount.toPx(),
-                    chromaticAberration = style.chromaticAberration
-                )
-            }
-        },
-        highlight = if (style.hasHighlight) { { Highlight.Ambient } } else null,
-        shadow = if (style.shadowRadius > 0.dp) { { Shadow(radius = style.shadowRadius) } } else null,
-        innerShadow = if (style.innerShadowRadius > 0.dp) { { InnerShadow(radius = style.innerShadowRadius) } } else null
-    )
-    .clip(shape)
+    style: LiquidGlassStyle = LiquidGlassDefaults.NavigationBar,
+    fallbackColor: Color = RedTheme.colors.surfaceElevated,
+    fallbackBorder: BorderStroke = BorderStroke(1.dp, RedTheme.colors.border),
+    fallbackShadowElevation: Dp = RedElevation.floating,
+    glassTint: Color = Color.Transparent,
+    glassBorder: BorderStroke? = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
+    enabled: Boolean = LocalLiquidGlassEnabled.current
+): Modifier {
+    val isGlassActive = enabled && isLiquidGlassSupported() && backdrop != null
+
+    return if (isGlassActive) {
+        this
+            .drawBackdrop(
+                backdrop = backdrop!!,
+                shape = { shape },
+                effects = {
+                    vibrancy()
+                    if (style.blurRadius > 0.dp) {
+                        blur(style.blurRadius.toPx())
+                    }
+                    if (style.refractionHeight > 0.dp || style.refractionAmount > 0.dp) {
+                        lens(
+                            refractionHeight = style.refractionHeight.toPx(),
+                            refractionAmount = style.refractionAmount.toPx(),
+                            chromaticAberration = style.chromaticAberration
+                        )
+                    }
+                },
+                highlight = if (style.hasHighlight) { { Highlight.Ambient } } else null,
+                shadow = if (style.shadowRadius > 0.dp) { { Shadow(radius = style.shadowRadius) } } else null,
+                innerShadow = if (style.innerShadowRadius > 0.dp) { { InnerShadow(radius = style.innerShadowRadius) } } else null
+            )
+            .then(if (glassTint != Color.Transparent) Modifier.background(glassTint, shape) else Modifier)
+            .then(if (glassBorder != null) Modifier.border(glassBorder, shape) else Modifier)
+            .clip(shape)
+    } else {
+        this
+            .then(if (fallbackShadowElevation > 0.dp) Modifier.shadow(fallbackShadowElevation, shape) else Modifier)
+            .background(fallbackColor, shape)
+            .border(fallbackBorder, shape)
+            .clip(shape)
+    }
+}
 
 /**
- * Reusable Native Liquid Glass Surface Composable.
+ * Reusable Native Liquid Glass Surface Composable with built-in responsive touch feedback,
+ * high-contrast styling, and automatic RED premium fallback.
  */
 @Composable
 fun LiquidGlassSurface(
-    backdrop: Backdrop,
     modifier: Modifier = Modifier,
-    style: LiquidGlassStyle = LiquidGlassDefaults.NavigationBar,
-    shape: Shape = RoundedCornerShape(32.dp),
+    backdrop: Backdrop? = LocalBackdrop.current,
+    style: LiquidGlassStyle = LiquidGlassDefaults.Card,
+    shape: Shape = RoundedCornerShape(RedCornerRadius.xl),
+    fallbackColor: Color = RedTheme.colors.surfaceElevated,
+    fallbackBorder: BorderStroke = BorderStroke(1.dp, RedTheme.colors.border),
+    fallbackShadowElevation: Dp = RedElevation.floating,
+    glassTint: Color = Color.Transparent,
+    glassBorder: BorderStroke? = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
+    enabled: Boolean = LocalLiquidGlassEnabled.current,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
@@ -149,7 +214,13 @@ fun LiquidGlassSurface(
             .liquidGlass(
                 backdrop = backdrop,
                 shape = shape,
-                style = style
+                style = style,
+                fallbackColor = fallbackColor,
+                fallbackBorder = fallbackBorder,
+                fallbackShadowElevation = fallbackShadowElevation,
+                glassTint = glassTint,
+                glassBorder = glassBorder,
+                enabled = enabled
             )
             .then(
                 if (onClick != null) {
@@ -166,6 +237,7 @@ fun LiquidGlassSurface(
         content()
     }
 }
+
 
 
 

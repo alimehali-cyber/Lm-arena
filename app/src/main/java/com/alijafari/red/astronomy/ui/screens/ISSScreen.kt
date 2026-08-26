@@ -890,9 +890,13 @@ fun ISSScreen(
                 }
             }
 
-            // 3. COMPACT TIME SCRUBBER (-12h to +12h)
-            RedElevatedCard(
-                modifier = Modifier.fillMaxWidth()
+            // 3. COMPACT TIME SCRUBBER (-12h to +12h) — Liquid Glass Surface
+            LiquidGlassSurface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("satellite_time_scrubber_card"),
+                shape = RoundedCornerShape(RedCornerRadius.lg),
+                style = LiquidGlassDefaults.Card
             ) {
                 Column(
                     modifier = Modifier.padding(RedSpacing.lg),

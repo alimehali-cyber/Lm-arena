@@ -62,6 +62,8 @@
     <string name="observation_location">Observation Location:</string>
     <string name="bortle_class_setting">Bortle Light Pollution Class: %1$d</string>
     <string name="select_city">Select Iran Provincial Capital</string>
+    <string name="liquid_glass_setting">Liquid Glass (Optical Surface)</string>
+    <string name="liquid_glass_desc">Physical optical refraction and ambient blur on floating UI (Android 13+)</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>

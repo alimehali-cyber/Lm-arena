@@ -316,17 +316,58 @@ fun SettingsDialog(
 
                 RedHairlineDivider()
 
-                // Developer Credit Card
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(RedCornerRadius.lg))
-                        .background(RedTheme.colors.surfaceGrouped)
-                        .border(1.dp, RedTheme.colors.border, RoundedCornerShape(RedCornerRadius.lg))
-                        .padding(RedSpacing.md)
-                ) {
+                // Liquid Glass Optical Surface Global Setting
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = RedSpacing.sm)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.liquid_glass_setting),
+                                style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                                color = RedTheme.colors.textPrimary
+                            )
+                            Text(
+                                text = stringResource(R.string.liquid_glass_desc),
+                                style = RedTypographyTokens.caption,
+                                color = RedTheme.colors.textSecondary
+                            )
+                        }
+                        Switch(
+                            checked = uiState.isLiquidGlassEnabled,
+                            onCheckedChange = { viewModel.setLiquidGlassEnabled(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = RedTheme.colors.accentRed,
+                                uncheckedThumbColor = RedTheme.colors.textSecondary,
+                                uncheckedTrackColor = RedTheme.colors.border
+                            ),
+                            modifier = Modifier.testTag("settings_liquid_glass_switch")
+                        )
+                    }
+                }
+
+                RedHairlineDivider()
+
+                // Developer Credit Card — Liquid Glass with Premium Fallback
+                LiquidGlassSurface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("developer_credit_card"),
+                    shape = RoundedCornerShape(RedCornerRadius.lg),
+                    style = LiquidGlassDefaults.Card,
+                    fallbackColor = RedTheme.colors.surfaceGrouped
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(RedSpacing.md),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                     ) {

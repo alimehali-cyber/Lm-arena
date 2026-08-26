@@ -144,11 +144,15 @@ class MainActivity : ComponentActivity() {
                     var showSplashScreen by remember { mutableStateOf(true) }
                     val backdrop = rememberLayerBackdrop()
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(com.alijafari.red.astronomy.ui.theme.RedTheme.colors.background)
+                    CompositionLocalProvider(
+                        com.alijafari.red.astronomy.ui.theme.LocalBackdrop provides backdrop,
+                        com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassEnabled provides (uiState.isLiquidGlassEnabled && com.alijafari.red.astronomy.ui.theme.isLiquidGlassSupported())
                     ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(com.alijafari.red.astronomy.ui.theme.RedTheme.colors.background)
+                        ) {
                         Scaffold(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -280,4 +284,5 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
 }

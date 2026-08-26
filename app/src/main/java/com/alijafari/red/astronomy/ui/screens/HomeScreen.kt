@@ -178,110 +178,119 @@ fun HomeScreen(
             val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
             val coordsText = String.format(java.util.Locale.US, "%.2f°N, %.2f°E", uiState.userLocation.latitude, uiState.userLocation.longitude)
 
-            Column(
+            LiquidGlassSurface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(top = RedSpacing.xs, bottom = RedSpacing.xs),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)
+                    .padding(top = RedSpacing.xs, bottom = RedSpacing.xs)
+                    .testTag("home_red_header"),
+                shape = RoundedCornerShape(24.dp),
+                style = LiquidGlassDefaults.Header
             ) {
-                // Top Action Bar with Centered "RED"
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)
                 ) {
-                    // Favorites bookmark action (Start)
-                    IconButton(
-                        onClick = { viewModel.setShowFavoritesDialog(true) },
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .testTag("top_favorites_button")
+                    // Top Action Bar with Centered "RED"
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.BookmarkBorder,
-                            contentDescription = stringResource(R.string.favorites_and_history),
-                            tint = RedTheme.colors.textSecondary,
-                            modifier = Modifier.size(RedIconSize.sm)
-                        )
-                    }
+                        // Favorites bookmark action (Start)
+                        IconButton(
+                            onClick = { viewModel.setShowFavoritesDialog(true) },
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .testTag("top_favorites_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.BookmarkBorder,
+                                contentDescription = stringResource(R.string.favorites_and_history),
+                                tint = RedTheme.colors.textPrimary,
+                                modifier = Modifier.size(RedIconSize.sm)
+                            )
+                        }
 
-                    // Centered "RED" brand title
-                    Text(
-                        text = "RED",
-                        style = TextStyle(
-                            fontFamily = IranSans,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp,
-                            letterSpacing = 3.sp
-                        ),
-                        color = RedTheme.colors.textPrimary,
-                        modifier = Modifier.testTag("home_red_title")
-                    )
-
-                    // Settings action (End)
-                    IconButton(
-                        onClick = { viewModel.setShowSettingsDialog(true) },
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .testTag("top_settings_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Settings,
-                            contentDescription = stringResource(R.string.settings),
-                            tint = RedTheme.colors.textSecondary,
-                            modifier = Modifier.size(RedIconSize.sm)
-                        )
-                    }
-                }
-
-                // Understated, quiet location selector beneath RED
-                Surface(
-                    onClick = { viewModel.setShowLocationSelector(true) },
-                    shape = RoundedCornerShape(RedCornerRadius.pill),
-                    color = RedTheme.colors.surfaceElevated,
-                    border = BorderStroke(0.75.dp, RedTheme.colors.border),
-                    modifier = Modifier.testTag("home_location_selector_button")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.LocationOn,
-                            contentDescription = "Location",
-                            tint = RedTheme.colors.accentRed,
-                            modifier = Modifier.size(13.dp)
-                        )
+                        // Centered "RED" brand title
                         Text(
-                            text = locationName,
-                            style = RedTypographyTokens.bodySecondary.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 12.sp
+                            text = "RED",
+                            style = TextStyle(
+                                fontFamily = IranSans,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                letterSpacing = 3.sp
                             ),
-                            color = RedTheme.colors.textPrimary
+                            color = RedTheme.colors.textPrimary,
+                            modifier = Modifier.testTag("home_red_title")
                         )
-                        Text(
-                            text = "•",
-                            style = RedTypographyTokens.caption,
-                            color = RedTheme.colors.textTertiary
-                        )
-                        Text(
-                            text = coordsText,
-                            style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                            color = RedTheme.colors.textSecondary
-                        )
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Change Location",
-                            tint = RedTheme.colors.textTertiary,
-                            modifier = Modifier.size(14.dp)
-                        )
+
+                        // Settings action (End)
+                        IconButton(
+                            onClick = { viewModel.setShowSettingsDialog(true) },
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .testTag("top_settings_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Settings,
+                                contentDescription = stringResource(R.string.settings),
+                                tint = RedTheme.colors.textPrimary,
+                                modifier = Modifier.size(RedIconSize.sm)
+                            )
+                        }
+                    }
+
+                    // Understated, quiet location selector beneath RED
+                    Surface(
+                        onClick = { viewModel.setShowLocationSelector(true) },
+                        shape = RoundedCornerShape(RedCornerRadius.pill),
+                        color = RedTheme.colors.surfaceElevated.copy(alpha = 0.7f),
+                        border = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
+                        modifier = Modifier.testTag("home_location_selector_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.LocationOn,
+                                contentDescription = "Location",
+                                tint = RedTheme.colors.accentRed,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = locationName,
+                                style = RedTypographyTokens.bodySecondary.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp
+                                ),
+                                color = RedTheme.colors.textPrimary
+                            )
+                            Text(
+                                text = "•",
+                                style = RedTypographyTokens.caption,
+                                color = RedTheme.colors.textTertiary
+                            )
+                            Text(
+                                text = coordsText,
+                                style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                                color = RedTheme.colors.textSecondary
+                            )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Change Location",
+                                tint = RedTheme.colors.textTertiary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
                     }
                 }
             }

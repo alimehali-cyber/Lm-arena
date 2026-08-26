@@ -4,13 +4,14 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,13 +33,6 @@ import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.theme.*
 import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
-import com.kyant.backdrop.highlight.Highlight
-import com.kyant.backdrop.shadow.InnerShadow
-import com.kyant.backdrop.shadow.Shadow
 
 data class NavItem(
     val titleRes: Int,
@@ -50,7 +44,7 @@ data class NavItem(
 
 @Composable
 fun FloatingBottomBar(
-    backdrop: Backdrop,
+    backdrop: Backdrop? = LocalBackdrop.current,
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
@@ -72,26 +66,19 @@ fun FloatingBottomBar(
             .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
             .testTag("main_bottom_navigation")
     ) {
+        // Continuous native Liquid Glass floating bar surface
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .drawBackdrop(
+                .liquidGlass(
                     backdrop = backdrop,
-                    shape = { navShape },
-                    effects = {
-                        vibrancy()
-                        blur(8f.dp.toPx())
-                        lens(
-                            refractionHeight = 24f.dp.toPx(),
-                            refractionAmount = 24f.dp.toPx()
-                        )
-                    },
-                    highlight = { Highlight.Ambient },
-                    shadow = { Shadow(radius = 12.dp) },
-                    innerShadow = { InnerShadow(radius = 2.dp) }
+                    shape = navShape,
+                    style = LiquidGlassDefaults.NavigationBar,
+                    fallbackColor = RedTheme.colors.surfaceElevated,
+                    fallbackBorder = androidx.compose.foundation.BorderStroke(1.dp, RedTheme.colors.border),
+                    fallbackShadowElevation = RedElevation.floating
                 )
-                .clip(navShape)
         ) {
             Row(
                 modifier = Modifier
@@ -106,7 +93,7 @@ fun FloatingBottomBar(
                     val isPressed by interactionSource.collectIsPressedAsState()
 
                     val itemScale by animateFloatAsState(
-                        targetValue = if (isPressed) 0.94f else 1.0f,
+                        targetValue = if (isPressed) 0.93f else 1.0f,
                         animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
                         label = "NavItemPressScale"
                     )
@@ -120,7 +107,7 @@ fun FloatingBottomBar(
                     val activeProgress by animateFloatAsState(
                         targetValue = if (isSelected) 1f else 0f,
                         animationSpec = spring(dampingRatio = 0.8f, stiffness = 380f),
-                        label = "NavActiveLensProgress"
+                        label = "NavActiveIndicatorProgress"
                     )
 
                     val pillShape = RoundedCornerShape(20.dp)
@@ -131,26 +118,23 @@ fun FloatingBottomBar(
                             .weight(1f)
                             .fillMaxHeight()
                             .scale(itemScale)
+                            .clip(pillShape)
                             .then(
                                 if (activeProgress > 0.01f) {
-                                    Modifier.drawBackdrop(
-                                        backdrop = backdrop,
-                                        shape = { pillShape },
-                                        effects = {
-                                            lens(
-                                                refractionHeight = 10f.dp.toPx() * activeProgress,
-                                                refractionAmount = 14f.dp.toPx() * activeProgress,
-                                                chromaticAberration = true
-                                            )
-                                        },
-                                        highlight = { Highlight.Ambient },
-                                        innerShadow = { InnerShadow(radius = 1.5.dp) }
-                                    )
+                                    Modifier
+                                        .background(
+                                            RedTheme.colors.accentRed.copy(alpha = 0.12f * activeProgress),
+                                            pillShape
+                                        )
+                                        .border(
+                                            1.dp,
+                                            RedTheme.colors.accentRed.copy(alpha = 0.25f * activeProgress),
+                                            pillShape
+                                        )
                                 } else {
                                     Modifier
                                 }
                             )
-                            .clip(pillShape)
                             .clickable(
                                 interactionSource = interactionSource,
                                 indication = null
@@ -186,4 +170,5 @@ fun FloatingBottomBar(
         }
     }
 }
+
 
