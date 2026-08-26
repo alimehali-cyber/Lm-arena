@@ -95,7 +95,7 @@ fun MoonScreen(
         contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
         verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
     ) {
-        // 1. MOON HERO SECTION (~400dp height)
+        // 1. MOON HERO SECTION
         item {
             Box(
                 modifier = Modifier
@@ -115,7 +115,7 @@ fun MoonScreen(
                     for (i in 0..75) {
                         val x = random.nextFloat() * width
                         val y = random.nextFloat() * height
-                        val alpha = 0.08f + random.nextFloat() * 0.15f
+                        val alpha = 0.06f + random.nextFloat() * 0.12f
                         val radius = 0.8f + random.nextFloat() * 1.5f
                         drawCircle(
                             color = starColor.copy(alpha = alpha),
@@ -128,7 +128,7 @@ fun MoonScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = RedSpacing.md, bottom = RedSpacing.xl, start = RedSpacing.lg, end = RedSpacing.lg),
+                        .padding(top = RedSpacing.lg, bottom = RedSpacing.xl, start = RedSpacing.lg, end = RedSpacing.lg),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
                 ) {
@@ -138,15 +138,20 @@ fun MoonScreen(
                             .clip(CircleShape)
                             .background(RedTheme.colors.surfaceGrouped)
                             .border(1.dp, RedTheme.colors.border, CircleShape)
-                            .padding(horizontal = RedSpacing.md, vertical = RedSpacing.xs),
+                            .padding(horizontal = RedSpacing.sm, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs)
                     ) {
                         IconButton(
                             onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat - 1f).coerceIn(-30f, 30f) },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            Icon(Icons.Default.ChevronRight, contentDescription = "Previous Day", tint = RedTheme.colors.accentRed)
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "Previous Day",
+                                tint = RedTheme.colors.textSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
 
                         val dateStr = TimeEngine.formatDate(selectedCalendar.timeInMillis, uiState.calendarSystem, isFa).let {
@@ -163,14 +168,20 @@ fun MoonScreen(
                             style = RedTypographyTokens.caption.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = RedTheme.colors.textPrimary
-                            )
+                            ),
+                            modifier = Modifier.padding(horizontal = RedSpacing.xs)
                         )
 
                         IconButton(
                             onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat + 1f).coerceIn(-30f, 30f) },
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            Icon(Icons.Default.ChevronLeft, contentDescription = "Next Day", tint = RedTheme.colors.accentRed)
+                            Icon(
+                                imageVector = Icons.Default.ChevronLeft,
+                                contentDescription = "Next Day",
+                                tint = RedTheme.colors.textSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
 
@@ -179,12 +190,17 @@ fun MoonScreen(
                         modifier = Modifier
                             .clip(CircleShape)
                             .background(RedTheme.colors.accentRed.copy(alpha = 0.08f))
-                            .border(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.2f), CircleShape)
+                            .border(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.18f), CircleShape)
                             .padding(horizontal = RedSpacing.md, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs)
                     ) {
-                        Icon(Icons.Default.Swipe, contentDescription = null, tint = RedTheme.colors.accentRed, modifier = Modifier.size(14.dp))
+                        Icon(
+                            imageVector = Icons.Default.Swipe,
+                            contentDescription = null,
+                            tint = RedTheme.colors.accentRed,
+                            modifier = Modifier.size(13.dp)
+                        )
                         Text(
                             text = if (isFa) "برای تغییر روزها ماه را افقی بکشید" else "Drag moon to scrub days (-30 to +30d)",
                             style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
@@ -284,42 +300,54 @@ fun MoonScreen(
                         if (isFa) "$it° بالای افق".toPersianDigits() else "$it° Above Horizon"
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(RedCornerRadius.lg))
+                            .background(RedTheme.colors.surfaceGrouped)
+                            .border(1.dp, RedTheme.colors.border, RoundedCornerShape(RedCornerRadius.lg))
+                    ) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = RedSpacing.md, vertical = RedSpacing.md),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            MoonTile(
-                                modifier = Modifier.weight(1f),
+                            MoonMetricItem(
                                 icon = Icons.Default.WbSunny,
                                 label = if (isFa) "طلوع ماه" else "Moonrise",
-                                value = if (isFa) riseStr.toPersianDigits() else riseStr
+                                value = if (isFa) riseStr.toPersianDigits() else riseStr,
+                                modifier = Modifier.weight(1f)
                             )
-
-                            MoonTile(
-                                modifier = Modifier.weight(1f),
+                            MoonMetricItem(
                                 icon = Icons.Default.NightsStay,
                                 label = if (isFa) "غروب ماه" else "Moonset",
-                                value = if (isFa) setStr.toPersianDigits() else setStr
+                                value = if (isFa) setStr.toPersianDigits() else setStr,
+                                modifier = Modifier.weight(1f)
                             )
                         }
 
+                        RedHairlineDivider()
+
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = RedSpacing.md, vertical = RedSpacing.md),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            MoonTile(
-                                modifier = Modifier.weight(1f),
+                            MoonMetricItem(
                                 icon = Icons.Default.Straighten,
                                 label = if (isFa) "فاصله از زمین" else "Distance",
-                                value = distStr
+                                value = distStr,
+                                modifier = Modifier.weight(1f)
                             )
-
-                            MoonTile(
-                                modifier = Modifier.weight(1f),
+                            MoonMetricItem(
                                 icon = Icons.Default.Navigation,
                                 label = if (isFa) "ارتفاع فعلی" else "Current Altitude",
-                                value = altStr
+                                value = altStr,
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
@@ -344,7 +372,13 @@ fun MoonScreen(
                         subtitle = if (isFa) "زمان‌بندی فازهای بعدی ماه" else "Next lunar quarters & full moon schedule"
                     )
 
-                    Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(RedCornerRadius.lg))
+                            .background(RedTheme.colors.surfaceGrouped)
+                            .border(1.dp, RedTheme.colors.border, RoundedCornerShape(RedCornerRadius.lg))
+                    ) {
                         upcomingPhases.forEachIndexed { idx, phase ->
                             val name = if (isFa) phase.phaseNameFa else phase.phaseNameEn
                             val dateText = TimeEngine.formatDate(phase.dateMs, uiState.calendarSystem, isFa).let {
@@ -355,9 +389,7 @@ fun MoonScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(RedCornerRadius.md))
-                                    .background(RedTheme.colors.surfaceGrouped)
-                                    .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
+                                    .padding(horizontal = RedSpacing.md, vertical = RedSpacing.md),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -365,12 +397,20 @@ fun MoonScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Brightness2,
-                                        contentDescription = null,
-                                        tint = RedTheme.colors.accentRed,
-                                        modifier = Modifier.size(RedIconSize.sm)
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(RedTheme.colors.accentRed.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Brightness2,
+                                            contentDescription = null,
+                                            tint = RedTheme.colors.accentRed,
+                                            modifier = Modifier.size(RedIconSize.sm)
+                                        )
+                                    }
                                     Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                                         Text(
                                             text = name,
@@ -404,7 +444,7 @@ fun MoonScreen(
 
         // Bottom spacing for floating navigation bar
         item {
-            Spacer(modifier = Modifier.height(96.dp))
+            Spacer(modifier = Modifier.height(112.dp))
         }
     }
 }
@@ -553,53 +593,47 @@ private fun PhotographicMoonView(
 }
 
 @Composable
-private fun MoonTile(
+private fun MoonMetricItem(
     modifier: Modifier = Modifier,
     icon: ImageVector,
     label: String,
     value: String
 ) {
-    Surface(
+    Row(
         modifier = modifier,
-        shape = RoundedCornerShape(RedCornerRadius.md),
-        color = RedTheme.colors.surfaceGrouped,
-        border = BorderStroke(1.dp, RedTheme.colors.border)
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(RedTheme.colors.accentRed.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(RedTheme.colors.accentRed.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = RedTheme.colors.accentRed,
-                    modifier = Modifier.size(RedIconSize.sm)
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = RedTheme.colors.accentRed,
+                modifier = Modifier.size(RedIconSize.sm)
+            )
+        }
 
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(
-                    text = label,
-                    style = RedTypographyTokens.caption,
-                    color = RedTheme.colors.textSecondary
-                )
-                Text(
-                    text = value,
-                    style = RedTypographyTokens.bodyPrimary.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp
-                    ),
-                    color = RedTheme.colors.textPrimary
-                )
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(
+                text = label,
+                style = RedTypographyTokens.caption,
+                color = RedTheme.colors.textSecondary
+            )
+            Text(
+                text = value,
+                style = RedTypographyTokens.bodyPrimary.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp
+                ),
+                color = RedTheme.colors.textPrimary
+            )
         }
     }
 }
+

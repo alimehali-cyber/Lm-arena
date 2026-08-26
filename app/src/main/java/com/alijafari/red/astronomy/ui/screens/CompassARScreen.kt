@@ -36,6 +36,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -145,30 +147,32 @@ private fun ArSmartPill(
     Surface(
         onClick = onClick,
         shape = CircleShape,
-        color = if (isActive) AccentPrimary else if (isHighlighted) AccentSecondary.copy(alpha = 0.88f) else BackgroundCard.copy(alpha = 0.85f),
+        color = if (isActive) RedTheme.colors.accentRed else if (isHighlighted) RedTheme.colors.surfaceElevated.copy(alpha = 0.95f) else RedTheme.colors.surfaceElevated.copy(alpha = 0.85f),
         border = BorderStroke(
             1.dp,
-            if (isActive) Color.White.copy(alpha = 0.6f) else if (isHighlighted) AccentSecondary else CardBorder
+            if (isActive) Color.Transparent else if (isHighlighted) RedTheme.colors.accentRed.copy(alpha = 0.6f) else RedTheme.colors.border
         ),
-        shadowElevation = 6.dp,
-        modifier = Modifier.height(38.dp)
+        shadowElevation = RedElevation.floating,
+        modifier = Modifier.height(36.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = if (isActive || isHighlighted) Color.White else TextPrimary,
-                modifier = Modifier.size(16.dp)
+                tint = if (isActive) Color.White else if (isHighlighted) RedTheme.colors.accentRed else RedTheme.colors.textPrimary,
+                modifier = Modifier.size(15.dp)
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (isActive || isHighlighted) FontWeight.Bold else FontWeight.Medium,
-                color = if (isActive || isHighlighted) Color.White else TextPrimary
+                style = RedTypographyTokens.caption.copy(
+                    fontWeight = if (isActive || isHighlighted) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 12.sp
+                ),
+                color = if (isActive) Color.White else RedTheme.colors.textPrimary
             )
         }
     }
@@ -1736,15 +1740,104 @@ fun CompassARScreen(
             }
         }
 
-        // Layer 4: Focus Mode Smart Floating Pills Row (Positioned at top)
+        // Layer 4: Floating Top Header Pill & Focus Mode Smart Pills
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
-                .padding(top = 4.dp, start = 12.dp, end = 12.dp)
+                .padding(top = RedSpacing.xs, start = RedSpacing.md, end = RedSpacing.md)
                 .fillMaxWidth()
                 .graphicsLayer { alpha = controlsAlpha }
         ) {
+            // FLOATING TOP HEADER PILL
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = RedSpacing.xs),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left Floating Pill: Back Button + AR Sky Title
+                Surface(
+                    shape = CircleShape,
+                    color = RedTheme.colors.surfaceElevated.copy(alpha = 0.88f),
+                    border = BorderStroke(1.dp, RedTheme.colors.border),
+                    shadowElevation = RedElevation.floating
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        IconButton(
+                            onClick = { viewModel.selectTab(4) },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .testTag("ar_back_button")
+                        ) {
+                            Icon(
+                                imageVector = if (isFa) Icons.AutoMirrored.Filled.ArrowForward else Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = RedTheme.colors.textPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Text(
+                            text = if (isFa) "آسمان AR" else "AR Sky",
+                            style = RedTypographyTokens.bodyPrimary.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            ),
+                            color = RedTheme.colors.textPrimary,
+                            modifier = Modifier.padding(end = 10.dp)
+                        )
+                    }
+                }
+
+                // Right Floating Pill: Quick Tools (Night Vision + Calibrate)
+                val isNightVision = uiState.skyCanvasTheme == SkyCanvasTheme.OBSERVATORY
+                Surface(
+                    shape = CircleShape,
+                    color = RedTheme.colors.surfaceElevated.copy(alpha = 0.88f),
+                    border = BorderStroke(1.dp, RedTheme.colors.border),
+                    shadowElevation = RedElevation.floating
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        IconButton(
+                            onClick = {
+                                viewModel.setSkyCanvasTheme(
+                                    if (isNightVision) SkyCanvasTheme.ATMOSPHERIC_SKY else SkyCanvasTheme.OBSERVATORY
+                                )
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.NightsStay,
+                                contentDescription = "Night Mode",
+                                tint = if (isNightVision) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { showCalibrationDialog = true },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = "Calibrate",
+                                tint = RedTheme.colors.textSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             // SMART FLOATING PILLS ROW
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1805,10 +1898,10 @@ fun CompassARScreen(
                 exit = fadeOut() + shrinkVertically()
             ) {
                 Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = BackgroundCard.copy(alpha = 0.94f),
-                    border = BorderStroke(1.dp, CardBorder),
-                    shadowElevation = 12.dp,
+                    shape = RoundedCornerShape(RedCornerRadius.xl),
+                    color = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
+                    border = BorderStroke(1.dp, RedTheme.colors.border),
+                    shadowElevation = RedElevation.floating,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     when (activeExpandedPanel) {

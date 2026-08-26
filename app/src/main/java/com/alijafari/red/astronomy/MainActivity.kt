@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -151,13 +153,13 @@ class MainActivity : ComponentActivity() {
                             containerColor = Color.Transparent,
                             contentWindowInsets = WindowInsets(0, 0, 0, 0),
                             topBar = {
-                                if (uiState.selectedTab != 4) {
+                                if (uiState.selectedTab != 4 && uiState.selectedTab != 3) {
                                     val isFa = uiState.language == com.alijafari.red.astronomy.domain.AppLanguage.PERSIAN
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .statusBarsPadding()
-                                            .height(56.dp)
+                                            .height(52.dp)
                                             .padding(horizontal = com.alijafari.red.astronomy.ui.theme.RedSpacing.lg),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
@@ -167,7 +169,7 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.size(36.dp)
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.ArrowForward,
+                                                imageVector = if (isFa) Icons.AutoMirrored.Filled.ArrowForward else Icons.AutoMirrored.Filled.ArrowBack,
                                                 contentDescription = "Back",
                                                 tint = com.alijafari.red.astronomy.ui.theme.RedTheme.colors.textSecondary,
                                                 modifier = Modifier.size(com.alijafari.red.astronomy.ui.theme.RedIconSize.md)
@@ -178,7 +180,6 @@ class MainActivity : ComponentActivity() {
                                             0 -> if (isFa) "آزمایشگاه" else "Lab"
                                             1 -> if (isFa) "ماهواره‌ها" else "Satellites"
                                             2 -> if (isFa) "ماه" else "Moon"
-                                            3 -> if (isFa) "آسمان AR" else "AR Sky"
                                             else -> ""
                                         }
 

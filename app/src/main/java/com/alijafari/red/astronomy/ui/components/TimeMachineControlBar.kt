@@ -412,17 +412,12 @@ fun TimeMachineControlBar(
                                 TimeMachineState.MAX_TIMESTAMP_MS.toFloat()
                             )
 
-                            Slider(
+                            RedSlider(
                                 value = currentVal,
                                 onValueChange = { newVal ->
                                     onSimulatedTimeChange(newVal.toLong(), null, false)
                                 },
                                 valueRange = TimeMachineState.MIN_TIMESTAMP_MS.toFloat()..TimeMachineState.MAX_TIMESTAMP_MS.toFloat(),
-                                colors = SliderDefaults.colors(
-                                    thumbColor = MaterialTheme.colorScheme.primary,
-                                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                                    inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("tm_timeline_slider")

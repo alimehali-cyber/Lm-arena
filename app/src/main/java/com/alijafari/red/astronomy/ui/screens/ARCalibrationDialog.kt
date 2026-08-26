@@ -438,18 +438,13 @@ private fun CalibrationSliderRow(
                 )
             }
 
-            Slider(
+            RedSlider(
                 value = value,
                 onValueChange = onValueChange,
                 valueRange = range,
                 modifier = Modifier
                     .weight(1f)
-                    .testTag("calib_slider_$tag"),
-                colors = SliderDefaults.colors(
-                    thumbColor = AccentPrimary,
-                    activeTrackColor = AccentPrimary,
-                    inactiveTrackColor = Color.White.copy(alpha = 0.2f)
-                )
+                    .testTag("calib_slider_$tag")
             )
 
             IconButton(

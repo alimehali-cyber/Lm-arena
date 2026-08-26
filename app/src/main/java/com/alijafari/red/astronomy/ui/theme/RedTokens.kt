@@ -39,6 +39,7 @@ object RedCornerRadius {
     val xl: Dp = 22.dp      // Hero cards, sheet dialogs
     val xxl: Dp = 28.dp     // Floating bars, modals
     val pill: Dp = 999.dp   // Capsule / pill buttons
+    val full: Dp = 999.dp   // Fully rounded
 }
 
 // Restrained Elevation / Depth Scale
@@ -49,6 +50,7 @@ object RedElevation {
     val popover: Dp = 4.dp
     val modal: Dp = 8.dp
     val floatingNav: Dp = 6.dp
+    val floating: Dp = 6.dp
 }
 
 // Standard Icon Sizes

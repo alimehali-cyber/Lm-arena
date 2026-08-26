@@ -52,30 +52,13 @@ import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.astro_engine.*
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
-import com.alijafari.red.astronomy.ui.theme.AccentPrimary
+import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.alijafari.red.astronomy.domain.ThemeMode
-import com.alijafari.red.astronomy.ui.theme.LocalCelestialLighting
-import com.alijafari.red.astronomy.ui.theme.PapercraftBackground
-import com.alijafari.red.astronomy.ui.theme.PapercraftOutline
-import com.alijafari.red.astronomy.ui.theme.PapercraftPrimary
-import com.alijafari.red.astronomy.ui.theme.PapercraftSecondary
-import com.alijafari.red.astronomy.ui.theme.PapercraftSurface
-import com.alijafari.red.astronomy.ui.theme.PapercraftSurfaceVariant
-import com.alijafari.red.astronomy.ui.theme.PapercraftTertiary
-import com.alijafari.red.astronomy.ui.theme.PapercraftTextPrimary
-import com.alijafari.red.astronomy.ui.theme.SoftCreamCardBorder
-import com.alijafari.red.astronomy.ui.theme.SoftCreamSurface
-import com.alijafari.red.astronomy.ui.theme.SoftCreamVariant
-import com.alijafari.red.astronomy.ui.theme.OldMoneyBurgundy
-import com.alijafari.red.astronomy.ui.theme.OldMoneyChampagneGold
-import com.alijafari.red.astronomy.ui.theme.OldMoneyBronze
-import com.alijafari.red.astronomy.ui.theme.OldMoneyNavy
-import com.alijafari.red.astronomy.ui.theme.OldMoneySlate
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.*
@@ -367,148 +350,101 @@ fun ISSScreen(
         return
     }
 
-    Scaffold(
-        topBar = {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                tonalElevation = 2.dp,
-                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(AccentPrimary.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.SatelliteAlt,
-                                contentDescription = null,
-                                tint = AccentPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = if (isFa) "ماهواره‌ها" else "Satellites",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = if (timeOffsetHours == 0f) (if (isFa) "نقشه زنده SGP4 • داده مداری فعال" else "Live SGP4 Map • Real-Time Propagation")
-                                else (if (isFa) "حالت شبیه‌سازی زمان" else "Time Simulation Mode"),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = AccentPrimary
-                            )
-                        }
-                    }
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (!isOnline) {
-                            Surface(
-                                shape = RoundedCornerShape(20.dp),
-                                color = MaterialTheme.colorScheme.errorContainer,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.WifiOff,
-                                        contentDescription = "Offline",
-                                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Text(
-                                        text = if (isFa) "آفلاین" else "Offline",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
-                                }
-                            }
-                        }
-
-                        // Notification Alert Toggle
-                        IconButton(
-                            onClick = { showLeadTimeSelectionDialog = true },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (isAutoAlertEnabled) AccentPrimary.copy(alpha = 0.2f)
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .testTag("satellite_alerts_toggle")
-                        ) {
-                            Icon(
-                                imageVector = if (isAutoAlertEnabled) Icons.Default.NotificationsActive else Icons.Default.NotificationsNone,
-                                contentDescription = "Alerts",
-                                tint = if (isAutoAlertEnabled) AccentPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        // Help / Guide Button
-                        IconButton(
-                            onClick = { showTutorialDialog = true },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .testTag("satellite_help_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.HelpOutline,
-                                contentDescription = "Help",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { innerPadding ->
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Transparent)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
         ) {
+            // Status/Action Row (Alerts, Guide, Status)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                ) {
+                    RedBadge(
+                        text = if (timeOffsetHours == 0f) (if (isFa) "پایش زنده SGP4" else "Live SGP4 Orbit") else (if (isFa) "شبیه‌سازی زمانی" else "Time Simulation"),
+                        isAccent = timeOffsetHours == 0f
+                    )
+                    if (!isOnline) {
+                        RedBadge(
+                            text = if (isFa) "آفلاین" else "Offline",
+                            isAccent = false
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                ) {
+                    // Notification Alert Toggle
+                    IconButton(
+                        onClick = { showLeadTimeSelectionDialog = true },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isAutoAlertEnabled) RedTheme.colors.accentRed.copy(alpha = 0.15f)
+                                else RedTheme.colors.surfaceElevated
+                            )
+                            .border(
+                                1.dp,
+                                if (isAutoAlertEnabled) RedTheme.colors.accentRed.copy(alpha = 0.5f)
+                                else RedTheme.colors.border,
+                                CircleShape
+                            )
+                            .testTag("satellite_alerts_toggle")
+                    ) {
+                        Icon(
+                            imageVector = if (isAutoAlertEnabled) Icons.Default.NotificationsActive else Icons.Default.NotificationsNone,
+                            contentDescription = "Alerts",
+                            tint = if (isAutoAlertEnabled) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // Help / Guide Button
+                    IconButton(
+                        onClick = { showTutorialDialog = true },
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(RedTheme.colors.surfaceElevated)
+                            .border(1.dp, RedTheme.colors.border, CircleShape)
+                            .testTag("satellite_help_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.HelpOutline,
+                            contentDescription = "Help",
+                            tint = RedTheme.colors.textSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
 
             // 1. MAIN FEATURE: SCIENTIFICALLY ACCURATE 2D EARTH MAP
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(2.0f) // Strictly preserve true geographic 2:1 aspect ratio
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(RedCornerRadius.lg))
                     .background(mapPalette.containerBg)
                     .border(
                         1.dp,
-                        mapPalette.containerBorder,
-                        RoundedCornerShape(20.dp)
+                        RedTheme.colors.border,
+                        RoundedCornerShape(RedCornerRadius.lg)
                     )
             ) {
                 // Solar position for astronomical terminator & city illumination
@@ -892,105 +828,75 @@ fun ISSScreen(
                 // Category Filter Chips
                 LazyRow(
                     modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                 ) {
                     items(SatelliteCategory.entries) { cat ->
                         val isSelected = cat == selectedCategory
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { selectedCategory = cat },
-                            label = {
-                                Text(
-                                    text = if (isFa) cat.labelFa else cat.labelEn,
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = AccentPrimary,
-                                selectedLabelColor = Color.White
-                            ),
-                            modifier = Modifier.testTag("filter_${cat.name}")
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(RedCornerRadius.full),
+                            color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
+                            border = BorderStroke(1.dp, if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border),
+                            modifier = Modifier
+                                .clickable { selectedCategory = cat }
+                                .testTag("filter_${cat.name}")
+                        ) {
+                            Text(
+                                text = if (isFa) cat.labelFa else cat.labelEn,
+                                style = RedTypography.labelMedium.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                                color = if (isSelected) Color.White else RedTheme.colors.textSecondary,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(RedSpacing.sm))
 
-                // Compact Unobtrusive Map Theme Selector Outside Map
+                // Compact Map Theme Selector Outside Map
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    shape = RoundedCornerShape(RedCornerRadius.full),
+                    color = RedTheme.colors.surfaceElevated,
+                    border = BorderStroke(1.dp, RedTheme.colors.border),
                     modifier = Modifier.testTag("map_theme_selector")
                 ) {
                     Row(
                         modifier = Modifier.padding(2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (mapTheme == MapTheme.AUTO) AccentPrimary else Color.Transparent)
-                                .clickable {
-                                    mapTheme = MapTheme.AUTO
-                                    prefs.edit().putString("satellite_map_theme", MapTheme.AUTO.name).apply()
-                                }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = if (isFa) "پوسته" else "Auto",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = if (mapTheme == MapTheme.AUTO) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (mapTheme == MapTheme.DARK) AccentPrimary else Color.Transparent)
-                                .clickable {
-                                    mapTheme = MapTheme.DARK
-                                    prefs.edit().putString("satellite_map_theme", MapTheme.DARK.name).apply()
-                                }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = if (isFa) "تاریک" else "Dark",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = if (mapTheme == MapTheme.DARK) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (mapTheme == MapTheme.LIGHT) AccentPrimary else Color.Transparent)
-                                .clickable {
-                                    mapTheme = MapTheme.LIGHT
-                                    prefs.edit().putString("satellite_map_theme", MapTheme.LIGHT.name).apply()
-                                }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = if (isFa) "روشن" else "Light",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = if (mapTheme == MapTheme.LIGHT) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        listOf(
+                            Triple(MapTheme.AUTO, if (isFa) "خودکار" else "Auto", "map_theme_auto"),
+                            Triple(MapTheme.DARK, if (isFa) "تاریک" else "Dark", "map_theme_dark"),
+                            Triple(MapTheme.LIGHT, if (isFa) "روشن" else "Light", "map_theme_light")
+                        ).forEach { (theme, label, _) ->
+                            val isSelected = mapTheme == theme
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(RedCornerRadius.full))
+                                    .background(if (isSelected) RedTheme.colors.accentRed else Color.Transparent)
+                                    .clickable {
+                                        mapTheme = theme
+                                        prefs.edit().putString("satellite_map_theme", theme.name).apply()
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = RedTypography.labelSmall.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium),
+                                    color = if (isSelected) Color.White else RedTheme.colors.textSecondary
+                                )
+                            }
                         }
                     }
                 }
             }
 
             // 3. COMPACT TIME SCRUBBER (-12h to +12h)
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            RedElevatedCard(
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.padding(RedSpacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -999,9 +905,14 @@ fun ISSScreen(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                         ) {
-                            Icon(Icons.Default.AccessTime, contentDescription = null, tint = AccentPrimary, modifier = Modifier.size(16.dp))
+                            Icon(
+                                Icons.Default.AccessTime,
+                                contentDescription = null,
+                                tint = RedTheme.colors.accentRed,
+                                modifier = Modifier.size(16.dp)
+                            )
 
                             val sdf = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.US) }
                             val timeStr = sdf.format(Date(currentSimulationMs))
@@ -1011,28 +922,32 @@ fun ISSScreen(
 
                             Text(
                                 text = if (isFa) "$timeStr ($offsetStr)".toPersianDigits() else "$timeStr ($offsetStr)",
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
+                                style = RedTypography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = RedTheme.colors.textPrimary
                             )
                         }
 
                         if (timeOffsetHours != 0f) {
-                            Button(
-                                onClick = { timeOffsetHours = 0f },
-                                modifier = Modifier.height(28.dp).testTag("time_reset_now"),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary)
+                            Surface(
+                                shape = RoundedCornerShape(RedCornerRadius.full),
+                                color = RedTheme.colors.accentRed.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.4f)),
+                                modifier = Modifier
+                                    .clickable { timeOffsetHours = 0f }
+                                    .testTag("time_reset_now")
                             ) {
                                 Text(
                                     text = if (isFa) "زمان زنده" else "Now",
-                                    style = MaterialTheme.typography.labelSmall
+                                    style = RedTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = RedTheme.colors.accentRed,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
                         }
                     }
 
                     // Time Slider (-12h to +12h, 1-minute steps)
-                    Slider(
+                    RedSlider(
                         value = timeOffsetHours,
                         onValueChange = { raw ->
                             val stepHours = 1.0 / 60.0 // 1 minute step
@@ -1041,10 +956,6 @@ fun ISSScreen(
                         },
                         valueRange = -12f..12f,
                         steps = 1439,
-                        colors = SliderDefaults.colors(
-                            thumbColor = AccentPrimary,
-                            activeTrackColor = AccentPrimary
-                        ),
                         modifier = Modifier.fillMaxWidth().testTag("time_scrubber_slider")
                     )
 
@@ -1054,31 +965,24 @@ fun ISSScreen(
                     ) {
                         Text(
                             text = if (isFa) "۱۲ ساعت قبل" else "12h ago",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = RedTypography.labelSmall,
+                            color = RedTheme.colors.textSecondary
                         )
                         Text(
                             text = if (isFa) "زمان زنده" else "Now",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AccentPrimary
+                            style = RedTypography.labelSmall,
+                            color = RedTheme.colors.accentRed
                         )
                         Text(
                             text = if (isFa) "۱۲ ساعت بعد" else "12h ahead",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = RedTypography.labelSmall,
+                            color = RedTheme.colors.textSecondary
                         )
                     }
                 }
             }
 
             // 4. UPCOMING VISIBLE PASSES PREDICTIONS (ALL Satellites, Next 3 Days, Chronological)
-            Text(
-                text = if (isFa) "گذرهای قابل مشاهده بعدی (۳ روز آینده - همه ماهواره‌ها)"
-                else "Upcoming Visible Passes (Next 3 Days - All Satellites)",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
             val roundedStartMs = remember(currentSimulationMs) {
                 (currentSimulationMs / 60_000L) * 60_000L
             }
@@ -1086,6 +990,11 @@ fun ISSScreen(
             var allUpcomingPasses by remember {
                 mutableStateOf<List<Pair<com.alijafari.red.astronomy.astro_engine.SatelliteItem, ISSEngine.ISSPass>>?>(null)
             }
+
+            RedSectionHeader(
+                title = if (isFa) "گذرهای قابل مشاهده بعدی (۳ روز آینده)" else "Upcoming Visible Passes (Next 3 Days)",
+                actionText = if (allUpcomingPasses?.isNotEmpty() == true) "${allUpcomingPasses!!.size}" else null
+            )
 
             LaunchedEffect(uiState.userLocation, roundedStartMs, detectedTrain) {
                 withContext(Dispatchers.Default) {
@@ -1114,36 +1023,30 @@ fun ISSScreen(
 
             val currentAllPasses = allUpcomingPasses
             if (currentAllPasses == null) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                RedElevatedCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = if (isFa) "در حال محاسبه گذرهای ماهواره‌ها..." else "Calculating satellite passes...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(14.dp)
+                        style = RedTypography.bodyMedium,
+                        color = RedTheme.colors.textSecondary,
+                        modifier = Modifier.padding(RedSpacing.lg)
                     )
                 }
             } else if (currentAllPasses.isEmpty()) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                RedElevatedCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = if (isFa) "هیچ گذر قابل مشهودی مطابق با معیار علمی در ۳ روز آینده یافت نشد."
                         else "No visible passes meeting scientific criteria predicted in next 3 days.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(14.dp)
+                        style = RedTypography.bodyMedium,
+                        color = RedTheme.colors.textSecondary,
+                        modifier = Modifier.padding(RedSpacing.lg)
                     )
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
                     currentAllPasses.forEach { (sat, pass) ->
                         DetailedVisiblePassCard(
                             satName = if (isFa) sat.nameFa else sat.nameEn,
@@ -1173,57 +1076,51 @@ fun ISSScreen(
             }
 
             // 5. SATELLITE LIST / CARDS SECTION
-            Text(
-                text = if (isFa) "فهرست ماهواره‌ها (${filteredSatellites.size})" else "Tracked Satellites (${filteredSatellites.size})",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
+            RedSectionHeader(
+                title = if (isFa) "فهرست ماهواره‌ها" else "Tracked Satellites",
+                actionText = "${filteredSatellites.size}"
             )
 
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
             ) {
                 liveSatelliteStates.forEach { state ->
                     val sat = state.satellite
                     val isSelected = sat.id == selectedSatelliteId
 
-                    Surface(
+                    RedElevatedCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
                                 selectedSatelliteId = if (isSelected) null else sat.id
                                 anchoredSatLabelState = if (isSelected) null else state
                             }
-                            .testTag("sat_card_${sat.id}"),
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (isSelected) AccentPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        border = BorderStroke(
-                            1.dp,
-                            if (isSelected) AccentPrimary else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                        )
+                            .testTag("sat_card_${sat.id}")
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
+                                .padding(RedSpacing.md),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(RedSpacing.md),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Box(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(if (isSelected) AccentPrimary else MaterialTheme.colorScheme.surfaceVariant),
+                                        .background(if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated)
+                                        .border(1.dp, if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border, CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.SatelliteAlt,
                                         contentDescription = null,
-                                        tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        tint = if (isSelected) Color.White else RedTheme.colors.textSecondary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -1231,8 +1128,8 @@ fun ISSScreen(
                                 Column {
                                     Text(
                                         text = if (isFa) sat.nameFa else sat.nameEn,
-                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface,
+                                        style = RedTypography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = RedTheme.colors.textPrimary,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -1240,22 +1137,19 @@ fun ISSScreen(
                                     val magStr = String.format(Locale.US, "%+.1f", state.apparentMagnitude)
                                     Text(
                                         text = if (isFa) "ارتفاع $altStr • قدر $magStr".toPersianDigits() else "Alt $altStr • Mag $magStr",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        style = RedTypography.labelSmall,
+                                        color = RedTheme.colors.textSecondary
                                     )
                                 }
                             }
 
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                             ) {
-                                val verdictColor = if (state.isNakedEyeVisible) Color(0xFF2DC653) else Color(0xFF718096)
-                                val verdictText = if (state.isNakedEyeVisible) (if (isFa) "با چشم" else "Naked Eye") else (if (isFa) "قابل مشاهده نیست" else "Not Visible")
-                                Text(
-                                    text = verdictText,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = verdictColor
+                                RedBadge(
+                                    text = if (state.isNakedEyeVisible) (if (isFa) "با چشم" else "Naked Eye") else (if (isFa) "تلسکوپی" else "Telescopic"),
+                                    isAccent = state.isNakedEyeVisible
                                 )
 
                                 IconButton(
@@ -1265,7 +1159,7 @@ fun ISSScreen(
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                         contentDescription = "Details",
-                                        tint = AccentPrimary,
+                                        tint = RedTheme.colors.accentRed,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }

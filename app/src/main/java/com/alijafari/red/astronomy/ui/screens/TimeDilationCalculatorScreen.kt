@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -21,7 +22,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -36,8 +36,7 @@ import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.ui.MainUiState
-import com.alijafari.red.astronomy.ui.theme.AccentPrimary
-import com.alijafari.red.astronomy.ui.theme.IranSans
+import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Locale
 
@@ -141,51 +140,51 @@ fun TimeDilationCalculatorScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag("time_dilation_screen"),
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                tonalElevation = 2.dp,
-                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                color = RedTheme.colors.surfaceElevated,
+                border = BorderStroke(1.dp, RedTheme.colors.border)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
-                        .padding(horizontal = 14.dp),
+                        .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                     ) {
                         IconButton(
                             onClick = onBackToLab,
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .background(RedTheme.colors.surfaceElevated)
+                                .border(1.dp, RedTheme.colors.border, CircleShape)
                                 .testTag("time_dilation_back_button")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.ArrowBack,
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back to Lab",
-                                tint = MaterialTheme.colorScheme.onSurface
+                                tint = RedTheme.colors.textPrimary,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
 
                         Column {
                             Text(
-                                text = if (isFa) "محاسبه‌گر انقباض زمان و نسبیت" else "Time Dilation Calculator",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
+                                text = if (isFa) "محاسبه‌گر انقباض زمان" else "Time Dilation Calculator",
+                                style = RedTypography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = RedTheme.colors.textPrimary
                             )
                             Text(
-                                text = if (isFa) "سفر بین‌ستاره‌ای با فیزیک نسبیت خاص آینشتاین" else "Relativistic Journey Simulator",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = if (isFa) "سفر بین‌ستاره‌ای با نسبیت خاص" else "Relativistic Journey Simulator",
+                                style = RedTypography.labelSmall,
+                                color = RedTheme.colors.textSecondary
                             )
                         }
                     }
@@ -193,15 +192,15 @@ fun TimeDilationCalculatorScreen(
                     IconButton(
                         onClick = { showHowItWorksDialog = true },
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
-                            .background(AccentPrimary.copy(alpha = 0.15f))
+                            .background(RedTheme.colors.accentRed.copy(alpha = 0.12f))
                             .testTag("time_dilation_info_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.HelpOutline,
                             contentDescription = "How it works",
-                            tint = AccentPrimary,
+                            tint = RedTheme.colors.accentRed,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -213,33 +212,25 @@ fun TimeDilationCalculatorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
         ) {
             // STEP 1 & 2: OBJECT SELECTORS (START & DESTINATION)
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                RedElevatedCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.padding(RedSpacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
                     ) {
-                        Text(
-                            text = if (isFa) "۱. انتخاب مبدأ و مقصد سفر" else "1. Select Route (Origin & Destination)",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                        RedSectionHeader(
+                            title = if (isFa) "۱. انتخاب مبدأ و مقصد سفر" else "1. Select Route (Origin & Destination)"
                         )
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Start Selector Card
@@ -255,8 +246,8 @@ fun TimeDilationCalculatorScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = "To",
-                                tint = AccentPrimary,
-                                modifier = Modifier.size(20.dp)
+                                tint = RedTheme.colors.accentRed,
+                                modifier = Modifier.size(18.dp)
                             )
 
                             // Destination Selector Card
@@ -275,26 +266,35 @@ fun TimeDilationCalculatorScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End
                         ) {
-                            TextButton(
-                                onClick = {
-                                    val temp = startObject
-                                    startObject = destObject
-                                    destObject = temp
-                                },
-                                modifier = Modifier.testTag("swap_route_button")
+                            Surface(
+                                shape = RoundedCornerShape(RedCornerRadius.full),
+                                color = RedTheme.colors.surfaceElevated,
+                                border = BorderStroke(1.dp, RedTheme.colors.border),
+                                modifier = Modifier
+                                    .clickable {
+                                        val temp = startObject
+                                        startObject = destObject
+                                        destObject = temp
+                                    }
+                                    .testTag("swap_route_button")
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.SwapHoriz,
-                                    contentDescription = "Swap",
-                                    tint = AccentPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (isFa) "تعویض مبدأ و مقصد" else "Swap Origin & Destination",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = AccentPrimary
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SwapHoriz,
+                                        contentDescription = "Swap",
+                                        tint = RedTheme.colors.accentRed,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = if (isFa) "تعویض مبدأ و مقصد" else "Swap Origin & Destination",
+                                        style = RedTypography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                        color = RedTheme.colors.accentRed
+                                    )
+                                }
                             }
                         }
 
@@ -302,87 +302,86 @@ fun TimeDilationCalculatorScreen(
                         val distRes = journeyResult.distance
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                            border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.3f))
+                            shape = RoundedCornerShape(RedCornerRadius.lg),
+                            color = RedTheme.colors.surfaceElevated,
+                            border = BorderStroke(1.dp, RedTheme.colors.border)
                         ) {
                             Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier.padding(RedSpacing.md),
+                                verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Straighten,
                                         contentDescription = null,
-                                        tint = AccentPrimary,
-                                        modifier = Modifier.size(18.dp)
+                                        tint = RedTheme.colors.accentRed,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                     Text(
                                         text = if (isFa) "فاصله بین دو جرم:" else "Calculated Distance:",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        style = RedTypography.labelMedium,
+                                        color = RedTheme.colors.textSecondary
                                     )
                                 }
 
                                 // Distance Unit Selector Carousel
                                 LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     items(DistanceUnit.entries) { unit ->
                                         val isSelected = distanceUnit == unit
-                                        FilterChip(
-                                            selected = isSelected,
-                                            onClick = { distanceUnit = unit },
-                                            label = {
-                                                Text(
-                                                    text = if (isFa) unit.labelFa else unit.labelEn,
-                                                    style = MaterialTheme.typography.labelSmall
-                                                )
-                                            },
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = AccentPrimary,
-                                                selectedLabelColor = Color.White
+                                        Surface(
+                                            shape = RoundedCornerShape(RedCornerRadius.full),
+                                            color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
+                                            border = BorderStroke(1.dp, if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border),
+                                            modifier = Modifier.clickable { distanceUnit = unit }
+                                        ) {
+                                            Text(
+                                                text = if (isFa) unit.labelFa else unit.labelEn,
+                                                style = RedTypography.labelSmall.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                                                color = if (isSelected) Color.White else RedTheme.colors.textSecondary,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                             )
-                                        )
+                                        }
                                     }
                                 }
 
                                 Text(
                                     text = RelativisticEngine.formatDistance(distRes.distanceMeters, unit = distanceUnit, isFa = isFa),
-                                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                                    color = AccentPrimary
+                                    style = RedTypography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                                    color = RedTheme.colors.accentRed
                                 )
 
                                 // Explicit Dual-Unit Display (km and light-years)
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
                                         text = "${if (isFa) "کیلومتر: " else "km: "}${RelativisticEngine.formatDistance(distRes.distanceMeters, DistanceUnit.KM, isFa)}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        style = RedTypography.labelSmall,
+                                        color = RedTheme.colors.textSecondary
                                     )
                                     Text(
                                         text = "•",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.outline
+                                        style = RedTypography.labelSmall,
+                                        color = RedTheme.colors.border
                                     )
                                     Text(
                                         text = "${if (isFa) "سال نوری: " else "Light-years: "}${RelativisticEngine.formatDistance(distRes.distanceMeters, DistanceUnit.LIGHT_YEARS, isFa)}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        style = RedTypography.labelSmall,
+                                        color = RedTheme.colors.textSecondary
                                     )
                                 }
 
                                 Text(
                                     text = if (isFa) distRes.noteFa else distRes.noteEn,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                    style = RedTypography.labelSmall,
+                                    color = RedTheme.colors.textSecondary.copy(alpha = 0.8f)
                                 )
                             }
                         }
@@ -392,66 +391,57 @@ fun TimeDilationCalculatorScreen(
 
             // STEP 3: TRAVEL SPEED & PRESETS
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                RedElevatedCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        modifier = Modifier.padding(RedSpacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
                     ) {
-                        Text(
-                            text = if (isFa) "۲. تعیین سرعت حرکت" else "2. Travel Speed & Presets",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                        RedSectionHeader(
+                            title = if (isFa) "۲. تعیین سرعت حرکت" else "2. Travel Speed & Presets"
                         )
 
-                        // Unit Selector Tabs (LazyRow prevents vertical stretching / wrapping in Persian)
+                        // Unit Selector Tabs
                         LazyRow(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs)
                         ) {
                             items(SpeedUnit.entries) { unit ->
                                 val isSelected = speedUnit == unit
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
+                                Surface(
+                                    shape = RoundedCornerShape(RedCornerRadius.full),
+                                    color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
+                                    border = BorderStroke(1.dp, if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border),
+                                    modifier = Modifier.clickable {
                                         speedUnit = unit
-                                        // Auto adjust input string for better UX
                                         rawSpeedInput = when (unit) {
                                             SpeedUnit.PERCENT_C -> "90"
                                             SpeedUnit.KM_H -> "971280000"
                                             SpeedUnit.M_S -> "269813212"
                                         }
-                                    },
-                                    label = {
-                                        Text(
-                                            text = if (isFa) unit.labelFa else unit.labelEn,
-                                            maxLines = 1
-                                        )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = AccentPrimary,
-                                        selectedLabelColor = Color.White
+                                    }
+                                ) {
+                                    Text(
+                                        text = if (isFa) unit.labelFa else unit.labelEn,
+                                        style = RedTypography.labelSmall.copy(fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                                        color = if (isSelected) Color.White else RedTheme.colors.textSecondary,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        maxLines = 1
                                     )
-                                )
+                                }
                             }
                         }
 
                         // Speed Presets Scrollable Row
                         Text(
                             text = if (isFa) "نمونه‌های آماده سرعت:" else "Preset Speed Examples:",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = RedTypography.labelMedium,
+                            color = RedTheme.colors.textSecondary
                         )
 
                         LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             items(speedPresets) { preset ->
@@ -471,20 +461,20 @@ fun TimeDilationCalculatorScreen(
                                             }
                                         }
                                     },
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = MaterialTheme.colorScheme.surface,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                    shape = RoundedCornerShape(RedCornerRadius.md),
+                                    color = RedTheme.colors.surfaceElevated,
+                                    border = BorderStroke(1.dp, RedTheme.colors.border)
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Text(text = preset.icon, fontSize = 16.sp)
+                                        Text(text = preset.icon, fontSize = 14.sp)
                                         Text(
                                             text = if (isFa) preset.titleFa else preset.titleEn,
-                                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            style = RedTypography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                            color = RedTheme.colors.textPrimary
                                         )
                                     }
                                 }
@@ -506,12 +496,12 @@ fun TimeDilationCalculatorScreen(
                             },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(RedCornerRadius.md),
                             trailingIcon = {
                                 Text(
                                     text = if (isFa) speedUnit.labelFa else speedUnit.labelEn,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = AccentPrimary,
+                                    style = RedTypography.labelSmall,
+                                    color = RedTheme.colors.accentRed,
                                     modifier = Modifier.padding(end = 12.dp)
                                 )
                             }
@@ -520,49 +510,49 @@ fun TimeDilationCalculatorScreen(
                         // Superluminal / Light Speed Warnings
                         if (journeyResult.isSuperluminal) {
                             Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, RedTheme.colors.accentRed)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(14.dp),
+                                    modifier = Modifier.padding(RedSpacing.md),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Warning,
                                         contentDescription = "Warning",
-                                        tint = MaterialTheme.colorScheme.error
+                                        tint = RedTheme.colors.accentRed
                                     )
                                     Text(
                                         text = if (isFa) "هشدار فیزیکی: سرعت $rawSpeedInput بیشتر از سرعت نور (v > c) است! طبق اصل نسبیت خاص آینشتاین، هیچ ذره دارای جرمی نمی‌تواند به سرعت نور یا بالاتر از آن دست یابد."
                                         else "Physical Constraint Violation: Speed exceeds light speed (v > c). Superluminal travel is forbidden by Special Relativity as mass becomes infinite.",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                        style = RedTypography.labelMedium,
+                                        color = RedTheme.colors.accentRed
                                     )
                                 }
                             }
                         } else if (journeyResult.isSpeedOfLight) {
                             Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = AccentPrimary.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, AccentPrimary)
+                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, RedTheme.colors.accentRed)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(14.dp),
+                                    modifier = Modifier.padding(RedSpacing.md),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Info,
                                         contentDescription = "Info",
-                                        tint = AccentPrimary
+                                        tint = RedTheme.colors.accentRed
                                     )
                                     Text(
                                         text = if (isFa) "در سرعت نور (v = c): زمان اختصاصی برای فوتون یا مسافر برابر با ۰ است (عامل لورنتس بی‌نهایت). اجرام جرم‌دار برای رسیدن به این سرعت نیازمند انرژی بی‌نهایت هستند."
                                         else "At speed of light (v = c): Proper time for traveller = 0 (infinite Lorentz factor). Massive particles require infinite energy to reach c.",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        style = RedTypography.labelMedium,
+                                        color = RedTheme.colors.textPrimary
                                     )
                                 }
                             }
@@ -573,23 +563,15 @@ fun TimeDilationCalculatorScreen(
 
             // STEP 4: ACCELERATION MODE & LENGTH CONTRACTION TOGGLES
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                RedElevatedCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        modifier = Modifier.padding(RedSpacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
                     ) {
-                        Text(
-                            text = if (isFa) "۳. تنظیمات شتاب و انقباض طول" else "3. Relativistic Options & Kinematics",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                        RedSectionHeader(
+                            title = if (isFa) "۳. تنظیمات شتاب و انقباض طول" else "3. Relativistic Options & Kinematics"
                         )
 
                         // Acceleration Toggle
@@ -601,20 +583,24 @@ fun TimeDilationCalculatorScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = if (isFa) "حالت شتاب نسبیتی ثابت (Acceleration)" else "Relativistic Acceleration Mode",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    style = RedTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = RedTheme.colors.textPrimary
                                 )
                                 Text(
                                     text = if (isFa) "شتاب‌گیری تا نیمه راه و شتاب‌کاهی تا مقصد (Brachistochrone)"
                                     else "Accelerate to midpoint, decelerate to destination",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    style = RedTypography.labelSmall,
+                                    color = RedTheme.colors.textSecondary
                                 )
                             }
 
                             Switch(
                                 checked = isAccelerationOn,
                                 onCheckedChange = { isAccelerationOn = it },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = RedTheme.colors.accentRed
+                                ),
                                 modifier = Modifier.testTag("acceleration_toggle")
                             )
                         }
@@ -631,12 +617,12 @@ fun TimeDilationCalculatorScreen(
                                 },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                shape = RoundedCornerShape(16.dp),
+                                shape = RoundedCornerShape(RedCornerRadius.md),
                                 trailingIcon = {
                                     Text(
                                         text = "g",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = AccentPrimary,
+                                        style = RedTypography.labelMedium,
+                                        color = RedTheme.colors.accentRed,
                                         modifier = Modifier.padding(end = 12.dp)
                                     )
                                 }
@@ -645,12 +631,12 @@ fun TimeDilationCalculatorScreen(
                             // Acceleration breakdown display
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                color = RedTheme.colors.surfaceElevated,
+                                border = BorderStroke(1.dp, RedTheme.colors.border)
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(12.dp),
+                                    modifier = Modifier.padding(RedSpacing.md),
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Row(
@@ -659,15 +645,15 @@ fun TimeDilationCalculatorScreen(
                                     ) {
                                         Text(
                                             text = if (isFa) "بیشینه سرعت رسیده شده:" else "Max Velocity Reached:",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            style = RedTypography.labelMedium,
+                                            color = RedTheme.colors.textSecondary
                                         )
                                         val maxVelVal = String.format(Locale.US, "%.2f", journeyResult.maxVelocityFractionOfC * 100)
                                         val maxVelFormatted = if (isFa) "$maxVelVal٪ c".toPersianDigits() else "$maxVelVal% c"
                                         Text(
                                             text = maxVelFormatted,
-                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = AccentPrimary
+                                            style = RedTypography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = RedTheme.colors.accentRed
                                         )
                                     }
 
@@ -677,13 +663,13 @@ fun TimeDilationCalculatorScreen(
                                     ) {
                                         Text(
                                             text = if (isFa) "زمان فاز شتاب‌گیری (مرجع زمین):" else "Acc. Phase Duration (Earth):",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            style = RedTypography.labelSmall,
+                                            color = RedTheme.colors.textSecondary
                                         )
                                         Text(
                                             text = RelativisticEngine.formatDuration(journeyResult.accelerationPhaseEarthSeconds, isFa),
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            style = RedTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                            color = RedTheme.colors.textPrimary
                                         )
                                     }
 
@@ -693,20 +679,20 @@ fun TimeDilationCalculatorScreen(
                                     ) {
                                         Text(
                                             text = if (isFa) "زمان فاز کروز / سرعت ثابت:" else "Cruise Phase Duration:",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            style = RedTypography.labelSmall,
+                                            color = RedTheme.colors.textSecondary
                                         )
                                         Text(
                                             text = RelativisticEngine.formatDuration(journeyResult.cruisePhaseEarthSeconds, isFa),
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            style = RedTypography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                            color = RedTheme.colors.textPrimary
                                         )
                                     }
                                 }
                             }
                         }
 
-                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        HorizontalDivider(color = RedTheme.colors.border)
 
                         // Length Contraction Toggle
                         Row(
@@ -717,20 +703,24 @@ fun TimeDilationCalculatorScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = if (isFa) "محاسبه انقباض طول نسبیتی (Length Contraction)" else "Relativistic Length Contraction",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    style = RedTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = RedTheme.colors.textPrimary
                                 )
                                 Text(
                                     text = if (isFa) "محاسبه انقباض فاصله مسیر در دستگاه مختصات ناظر متحرک (L' = L/γ)"
                                     else "Calculate contracted journey length in moving frame (L' = L/γ)",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    style = RedTypography.labelSmall,
+                                    color = RedTheme.colors.textSecondary
                                 )
                             }
 
                             Switch(
                                 checked = isLengthContractionOn,
                                 onCheckedChange = { isLengthContractionOn = it },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = RedTheme.colors.accentRed
+                                ),
                                 modifier = Modifier.testTag("length_contraction_toggle")
                             )
                         }
@@ -740,70 +730,64 @@ fun TimeDilationCalculatorScreen(
 
             // STEP 5: RELATIVISTIC RESULTS COMPARISON
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    border = BorderStroke(1.5.dp, AccentPrimary.copy(alpha = 0.6f))
+                RedElevatedCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        modifier = Modifier.padding(RedSpacing.lg),
+                        verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Timelapse,
                                 contentDescription = null,
-                                tint = AccentPrimary,
-                                modifier = Modifier.size(22.dp)
+                                tint = RedTheme.colors.accentRed,
+                                modifier = Modifier.size(20.dp)
                             )
                             Text(
                                 text = if (isFa) "نتایج و مقایسه زمان نسبیتی" else "Relativistic Results Comparison",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                style = RedTypography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = RedTheme.colors.textPrimary
                             )
                         }
 
                         if (!journeyResult.isSuperluminal) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                             ) {
                                 // Earth Frame Time Card
                                 ResultComparisonTile(
                                     modifier = Modifier.weight(1f),
-                                    title = if (isFa) "زمان از دید ساکنان زمین" else "Earth / Ref. Frame",
+                                    title = if (isFa) "دید زمین" else "Earth / Ref.",
                                     timeValueStr = RelativisticEngine.formatDuration(journeyResult.earthTimeSeconds, isFa),
-                                    badgeText = if (isFa) "زمان ناظر ساکن (t)" else "Coordinate Time (t)",
-                                    accentColor = MaterialTheme.colorScheme.primary
+                                    badgeText = if (isFa) "زمان ناظر (t)" else "Coord Time (t)",
+                                    isAccent = false
                                 )
 
                                 // Traveller Proper Time Card
                                 ResultComparisonTile(
                                     modifier = Modifier.weight(1f),
-                                    title = if (isFa) "زمان از دید مسافر" else "Traveller Proper",
+                                    title = if (isFa) "دید مسافر" else "Traveller Proper",
                                     timeValueStr = RelativisticEngine.formatDuration(journeyResult.travellerTimeSeconds, isFa),
-                                    badgeText = if (isFa) "زمان اختصاصی (τ)" else "Proper Time (τ)",
-                                    accentColor = AccentPrimary
+                                    badgeText = if (isFa) "اختصاصی (τ)" else "Proper (τ)",
+                                    isAccent = true
                                 )
                             }
 
                             // Summary metrics grid
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                color = RedTheme.colors.surfaceElevated,
+                                border = BorderStroke(1.dp, RedTheme.colors.border)
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    modifier = Modifier.padding(RedSpacing.md),
+                                    verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                                 ) {
                                     MetricRow(
                                         label = if (isFa) "اختلاف زمان (کند شدن زمان):" else "Time Difference (Dilation):",
@@ -850,8 +834,8 @@ fun TimeDilationCalculatorScreen(
                             Text(
                                 text = if (isFa) "سرعت غیرمجاز فوق‌نور. محاسبات نسبیتی معتبر نیستند."
                                 else "Superluminal velocity input. Relativistic physics equations do not apply.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
+                                style = RedTypography.bodyMedium,
+                                color = RedTheme.colors.accentRed,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -891,49 +875,57 @@ fun TimeDilationCalculatorScreen(
     if (showHowItWorksDialog) {
         AlertDialog(
             onDismissRequest = { showHowItWorksDialog = false },
+            shape = RoundedCornerShape(RedCornerRadius.xl),
+            containerColor = RedTheme.colors.surfaceElevated,
             confirmButton = {
                 TextButton(onClick = { showHowItWorksDialog = false }) {
-                    Text(text = if (isFa) "متوجه شدم" else "Got It")
+                    Text(
+                        text = if (isFa) "متوجه شدم" else "Got It",
+                        color = RedTheme.colors.accentRed,
+                        style = RedTypography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                    )
                 }
             },
             icon = {
                 Icon(
                     imageVector = Icons.Default.Science,
                     contentDescription = null,
-                    tint = AccentPrimary,
+                    tint = RedTheme.colors.accentRed,
                     modifier = Modifier.size(32.dp)
                 )
             },
             title = {
                 Text(
                     text = if (isFa) "فیزیک کند شدن زمان و نسبیت خاص" else "How Relativistic Time Dilation Works",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    style = RedTypography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = RedTheme.colors.textPrimary
                 )
             },
             text = {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.padding(vertical = 8.dp)
+                    verticalArrangement = Arrangement.spacedBy(RedSpacing.md),
+                    modifier = Modifier.padding(vertical = RedSpacing.xs)
                 ) {
                     Text(
                         text = if (isFa)
                             "بر اساس نظریه نسبیت خاص آینشتاین (۱۹۰۵)، سرعت نور در خلاء (c ≈ ۳۰۰,۰۰۰ km/s) برای تمامی ناظرها یکسان و ثابت است. برای حفظ این ثبات، زمان و مکان نسبی می‌شوند."
                         else
                             "According to Einstein's Theory of Special Relativity (1905), the speed of light in vacuum (c ≈ 300,000 km/s) is invariant across all inertial reference frames.",
-                        style = MaterialTheme.typography.bodyMedium
+                        style = RedTypography.bodyMedium,
+                        color = RedTheme.colors.textSecondary
                     )
 
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
+                        shape = RoundedCornerShape(RedCornerRadius.md),
+                        color = RedTheme.colors.surfaceElevated,
+                        border = BorderStroke(1.dp, RedTheme.colors.border)
                     ) {
                         Text(
                             text = if (isFa) "فرمول عامل لورنتس:\nγ = 1 / √(1 - v²/c²)\n\nزمان ناظر ساکن (زمین):\nt = γ × τ"
                             else "Lorentz Factor Equation:\nγ = 1 / √(1 - v²/c²)\n\nReference Frame Time:\nt = γ × τ",
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.labelLarge.copy(fontFamily = IranSans, fontWeight = FontWeight.Bold),
-                            color = AccentPrimary
+                            modifier = Modifier.padding(RedSpacing.md),
+                            style = RedTypography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                            color = RedTheme.colors.accentRed
                         )
                     }
 
@@ -942,7 +934,8 @@ fun TimeDilationCalculatorScreen(
                             "• زمان اختصاصی (Proper Time τ): زمانی است که توسط ساعت همراه مسافر اندازه‌گیری می‌شود.\n\n• انقباض طول (Length Contraction): مسیر حرکت از دید مسافر متحرک کوتاه می‌شود (L' = L/γ).\n\n• در سرعت‌های معمولی، γ بسیار نزدیک به ۱ است و محاسبات با فیزیک نیوتنی کلاسیک یکی می‌شود."
                         else
                             "• Proper Time (τ): Time measured by the traveller's onboard clock.\n\n• Length Contraction: Distances shorten in the direction of motion for the moving traveller (L' = L/γ).\n\n• At low velocities, γ ≈ 1, converging naturally to classical Newtonian physics.",
-                        style = MaterialTheme.typography.bodySmall
+                        style = RedTypography.bodySmall,
+                        color = RedTheme.colors.textSecondary
                     )
                 }
             }
@@ -961,35 +954,35 @@ private fun ObjectSelectionChip(
 ) {
     Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(RedCornerRadius.lg))
             .clickable(onClick = onClick)
             .testTag(testTag),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+        shape = RoundedCornerShape(RedCornerRadius.lg),
+        color = RedTheme.colors.surfaceElevated,
+        border = BorderStroke(1.dp, RedTheme.colors.border)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(RedSpacing.md),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = AccentPrimary
+                style = RedTypography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                color = RedTheme.colors.accentRed
             )
 
             Text(
                 text = if (isFa) selectedObject.nameFa else selectedObject.nameEn,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
+                style = RedTypography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = RedTheme.colors.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
 
             Text(
-                text = if (isFa) selectedObject.category else selectedObject.category,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = selectedObject.category,
+                style = RedTypography.labelSmall,
+                color = RedTheme.colors.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1003,34 +996,34 @@ private fun ResultComparisonTile(
     title: String,
     timeValueStr: String,
     badgeText: String,
-    accentColor: Color
+    isAccent: Boolean
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
-        color = accentColor.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.35f))
+        shape = RoundedCornerShape(RedCornerRadius.lg),
+        color = if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.12f) else RedTheme.colors.surfaceElevated,
+        border = BorderStroke(1.dp, if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            modifier = Modifier.padding(RedSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = badgeText,
-                style = MaterialTheme.typography.labelSmall,
-                color = accentColor
+                style = RedTypography.labelSmall,
+                color = if (isAccent) RedTheme.colors.accentRed else RedTheme.colors.textSecondary
             )
 
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
+                style = RedTypography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                color = RedTheme.colors.textPrimary
             )
 
             Text(
                 text = timeValueStr,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
-                color = accentColor
+                style = RedTypography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                color = if (isAccent) RedTheme.colors.accentRed else RedTheme.colors.textPrimary
             )
         }
     }
@@ -1049,15 +1042,15 @@ private fun MetricRow(
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = RedTypography.bodySmall,
+            color = RedTheme.colors.textSecondary
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.bodyMedium.copy(
+            style = RedTypography.bodyMedium.copy(
                 fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal
             ),
-            color = if (highlight) AccentPrimary else MaterialTheme.colorScheme.onSurface
+            color = if (highlight) RedTheme.colors.accentRed else RedTheme.colors.textPrimary
         )
     }
 }
@@ -1088,18 +1081,20 @@ private fun ObjectSearchModal(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = RedTheme.colors.surfaceElevated,
+        shape = RoundedCornerShape(topStart = RedCornerRadius.xl, topEnd = RedCornerRadius.xl)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(RedSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
+                style = RedTypography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = RedTheme.colors.textPrimary
             )
 
             OutlinedTextField(
@@ -1109,20 +1104,24 @@ private fun ObjectSearchModal(
                     .fillMaxWidth()
                     .testTag("object_search_dialog_input"),
                 placeholder = {
-                    Text(text = if (isFa) "جستجوی جرم (زمین، خورشید، ماه، مریخ، آندرومدا...)" else "Search objects (Earth, Moon, Sun, Mars...)")
+                    Text(
+                        text = if (isFa) "جستجوی جرم (زمین، خورشید، ماه، مریخ، آندرومدا...)" else "Search objects (Earth, Moon, Sun, Mars...)",
+                        style = RedTypography.bodyMedium,
+                        color = RedTheme.colors.textSecondary
+                    )
                 },
                 leadingIcon = {
-                    Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = AccentPrimary)
+                    Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = RedTheme.colors.accentRed)
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(RedCornerRadius.md)
             )
 
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 400.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
             ) {
                 items(filtered) { obj ->
                     Surface(
@@ -1130,38 +1129,38 @@ private fun ObjectSearchModal(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("search_dialog_item_${obj.id}"),
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                        shape = RoundedCornerShape(RedCornerRadius.md),
+                        color = RedTheme.colors.surfaceElevated,
+                        border = BorderStroke(1.dp, RedTheme.colors.border)
                     ) {
                         Row(
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.padding(RedSpacing.md),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
                                     text = if (isFa) obj.nameFa else obj.nameEn,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    style = RedTypography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = RedTheme.colors.textPrimary
                                 )
                                 Text(
                                     text = "${obj.type.nameEn} • ${obj.category}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    style = RedTypography.labelSmall,
+                                    color = RedTheme.colors.textSecondary
                                 )
                             }
 
                             val distLyStr = if (obj.distanceLightYears < 0.01) {
                                 if (isFa) "منظومه شمسی" else "Solar System"
                             } else {
-                                "${String.format("%.1f", obj.distanceLightYears)} ly"
+                                "${String.format(Locale.US, "%.1f", obj.distanceLightYears)} ly"
                             }
 
                             Text(
                                 text = distLyStr,
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                color = AccentPrimary
+                                style = RedTypography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = RedTheme.colors.accentRed
                             )
                         }
                     }

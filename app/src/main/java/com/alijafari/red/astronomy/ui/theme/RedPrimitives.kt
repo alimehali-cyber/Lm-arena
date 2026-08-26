@@ -8,8 +8,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -18,12 +21,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -125,6 +130,7 @@ fun RedSectionHeader(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     badgeText: String? = null,
+    actionText: String? = null,
     action: (@Composable () -> Unit)? = null
 ) {
     Row(
@@ -145,8 +151,9 @@ fun RedSectionHeader(
                     color = RedTheme.colors.textPrimary
                 )
 
-                if (badgeText != null) {
-                    RedBadge(text = badgeText)
+                val badge = badgeText ?: actionText
+                if (badge != null) {
+                    RedBadge(text = badge)
                 }
             }
 
@@ -173,9 +180,10 @@ fun RedSectionHeader(
 fun RedBadge(
     text: String,
     modifier: Modifier = Modifier,
-    backgroundColor: Color = RedTheme.colors.surfaceGrouped,
-    textColor: Color = RedTheme.colors.textSecondary,
-    borderColor: Color = RedTheme.colors.border
+    isAccent: Boolean = false,
+    backgroundColor: Color = if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.15f) else RedTheme.colors.surfaceGrouped,
+    textColor: Color = if (isAccent) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
+    borderColor: Color = if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border
 ) {
     Box(
         modifier = modifier
@@ -294,3 +302,45 @@ fun RedControl(
         }
     }
 }
+
+/**
+ * Shared RED Slider
+ * Modern Apple-inspired slider:
+ * - Slim refined track with clean rounded ends
+ * - High-contrast active track using RedTheme.colors.accentRed
+ * - Restrained subtle inactive track adapting to surface
+ * - Refined circular thumb with subtle elevation & clean accent border
+ * - Generous touch target meeting accessibility standards
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RedSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+    steps: Int = 0,
+    onValueChangeFinished: (() -> Unit)? = null
+) {
+    Slider(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        enabled = enabled,
+        valueRange = valueRange,
+        steps = steps,
+        onValueChangeFinished = onValueChangeFinished,
+        colors = SliderDefaults.colors(
+            thumbColor = RedTheme.colors.accentRed,
+            activeTrackColor = RedTheme.colors.accentRed,
+            inactiveTrackColor = RedTheme.colors.surfaceGrouped,
+            activeTickColor = Color.Transparent,
+            inactiveTickColor = Color.Transparent,
+            disabledThumbColor = RedTheme.colors.textTertiary,
+            disabledActiveTrackColor = RedTheme.colors.separator,
+            disabledInactiveTrackColor = RedTheme.colors.border
+        )
+    )
+}
+

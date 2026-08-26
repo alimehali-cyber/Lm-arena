@@ -231,3 +231,24 @@ object RedTypographyTokens {
         letterSpacing = 0.2.sp
     )
 }
+
+/**
+ * Accessor for typography styles compatible with both Material 3 and custom RED styles
+ */
+object RedTypography {
+    val displayLarge: TextStyle get() = Typography.displayLarge
+    val displayMedium: TextStyle get() = Typography.displayMedium
+    val displaySmall: TextStyle get() = Typography.displaySmall
+    val headlineLarge: TextStyle get() = Typography.headlineLarge
+    val headlineMedium: TextStyle get() = Typography.headlineMedium
+    val headlineSmall: TextStyle get() = Typography.headlineSmall
+    val titleLarge: TextStyle get() = Typography.titleLarge
+    val titleMedium: TextStyle get() = Typography.titleMedium
+    val titleSmall: TextStyle get() = Typography.titleSmall
+    val bodyLarge: TextStyle get() = Typography.bodyLarge
+    val bodyMedium: TextStyle get() = Typography.bodyMedium
+    val bodySmall: TextStyle get() = Typography.bodySmall
+    val labelLarge: TextStyle get() = Typography.labelLarge
+    val labelMedium: TextStyle get() = Typography.labelMedium
+    val labelSmall: TextStyle get() = Typography.labelSmall
+}
