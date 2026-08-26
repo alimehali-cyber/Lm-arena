@@ -173,7 +173,7 @@ fun LabScreen(
 
             // Bottom spacing for floating navigation bar
             item {
-                Spacer(modifier = Modifier.height(96.dp))
+                Spacer(modifier = Modifier.height(112.dp))
             }
         }
     }

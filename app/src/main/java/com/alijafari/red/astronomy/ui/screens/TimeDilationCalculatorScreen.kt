@@ -859,6 +859,11 @@ fun TimeDilationCalculatorScreen(
                     }
                 }
             }
+
+            // Bottom clearance for floating navigation bar
+            item {
+                Spacer(modifier = Modifier.height(112.dp))
+            }
         }
     }
 

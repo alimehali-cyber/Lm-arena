@@ -147,7 +147,7 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.DARK_NAVY,
                                 onClick = { viewModel.setThemeMode(ThemeMode.DARK_NAVY) },
-                                label = { Text(text = if (isFa) "🌌 سرمه‌ای" else "🌌 Deep Navy") },
+                                label = { Text(text = if (isFa) "سرمه‌ای" else "Deep Navy") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RedTheme.colors.accentRed,
                                     selectedLabelColor = Color.White
@@ -157,7 +157,7 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.OLED_BLACK,
                                 onClick = { viewModel.setThemeMode(ThemeMode.OLED_BLACK) },
-                                label = { Text(text = if (isFa) "🖤 OLED" else "🖤 Pitch OLED") },
+                                label = { Text(text = if (isFa) "مشکی خالص OLED" else "Pitch OLED") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RedTheme.colors.accentRed,
                                     selectedLabelColor = Color.White
@@ -172,7 +172,7 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.DYNAMIC_SILK,
                                 onClick = { viewModel.setThemeMode(ThemeMode.DYNAMIC_SILK) },
-                                label = { Text(text = if (isFa) "✨ ابریشم پویا (Silk)" else "✨ Dynamic Silk") },
+                                label = { Text(text = if (isFa) "ابریشم پویا (Silk)" else "Dynamic Silk") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RedTheme.colors.accentRed,
                                     selectedLabelColor = Color.White
@@ -182,7 +182,7 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.DYNAMIC_SKY,
                                 onClick = { viewModel.setThemeMode(ThemeMode.DYNAMIC_SKY) },
-                                label = { Text(text = if (isFa) "🌅 آسمان پویا" else "🌅 Dynamic Sky") },
+                                label = { Text(text = if (isFa) "آسمان پویا" else "Dynamic Sky") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RedTheme.colors.accentRed,
                                     selectedLabelColor = Color.White
@@ -197,7 +197,7 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.LIGHT,
                                 onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) },
-                                label = { Text(text = if (isFa) "☀️ روشن" else "☀️ Light") },
+                                label = { Text(text = if (isFa) "روشن" else "Light") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RedTheme.colors.accentRed,
                                     selectedLabelColor = Color.White
@@ -207,7 +207,7 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.themeMode == ThemeMode.PAPERCRAFT_PASTEL,
                                 onClick = { viewModel.setThemeMode(ThemeMode.PAPERCRAFT_PASTEL) },
-                                label = { Text(text = if (isFa) "📜 کاغذ دست‌ساز" else "📜 Papercraft") },
+                                label = { Text(text = if (isFa) "کاغذ دست‌ساز" else "Papercraft") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RedTheme.colors.accentRed,
                                     selectedLabelColor = Color.White
@@ -233,7 +233,7 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.skyCanvasTheme == SkyCanvasTheme.ATMOSPHERIC_SKY,
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.ATMOSPHERIC_SKY) },
-                                label = { Text(text = if (isFa) "🌅 آسمان جوی" else "Atmospheric") },
+                                label = { Text(text = if (isFa) "آسمان جوی" else "Atmospheric") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RedTheme.colors.accentRed,
                                     selectedLabelColor = Color.White
@@ -243,7 +243,7 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.skyCanvasTheme == SkyCanvasTheme.MONOCHROME_SCIENTIFIC,
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.MONOCHROME_SCIENTIFIC) },
-                                label = { Text(text = if (isFa) "🔳 تک‌رنگ" else "Monochrome") },
+                                label = { Text(text = if (isFa) "تک‌رنگ" else "Monochrome") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RedTheme.colors.accentRed,
                                     selectedLabelColor = Color.White
@@ -258,7 +258,7 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.skyCanvasTheme == SkyCanvasTheme.KIDS_WATERCOLOR,
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.KIDS_WATERCOLOR) },
-                                label = { Text(text = if (isFa) "🎨 آبرنگ" else "WaterColor") },
+                                label = { Text(text = if (isFa) "آبرنگ" else "WaterColor") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RedTheme.colors.accentRed,
                                     selectedLabelColor = Color.White
@@ -268,7 +268,7 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.skyCanvasTheme == SkyCanvasTheme.OBSERVATORY,
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.OBSERVATORY) },
-                                label = { Text(text = if (isFa) "🔴 رصدخانه" else "Observatory") },
+                                label = { Text(text = if (isFa) "رصدخانه" else "Observatory") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RedTheme.colors.accentRed,
                                     selectedLabelColor = Color.White
@@ -283,7 +283,7 @@ fun SettingsDialog(
                             FilterChip(
                                 selected = uiState.skyCanvasTheme == SkyCanvasTheme.PAPERCRAFT_DIORAMA,
                                 onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.PAPERCRAFT_DIORAMA) },
-                                label = { Text(text = if (isFa) "✂️ دیوراما کاغذ برجسته" else "✂️ Papercraft Diorama") },
+                                label = { Text(text = if (isFa) "دیوراما کاغذ برجسته" else "Papercraft Diorama") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = RedTheme.colors.accentRed,
                                     selectedLabelColor = Color.White

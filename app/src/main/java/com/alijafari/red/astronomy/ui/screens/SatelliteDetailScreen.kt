@@ -533,6 +533,9 @@ fun SatelliteDetailScreen(
                     )
                 }
             }
+
+            // Bottom clearance for floating navigation bar
+            Spacer(modifier = Modifier.height(112.dp))
         }
     }
 }

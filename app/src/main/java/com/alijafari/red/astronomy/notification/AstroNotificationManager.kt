@@ -75,11 +75,11 @@ object AstroNotificationManager {
         val leadStrFa = if (leadMinutes == 1440) "۱ روز" else "$leadMinutes دقیقه"
         val leadStrEn = if (leadMinutes == 1440) "1 day" else "$leadMinutes min"
 
-        val titleFa = "🛸 ${satellite.nameFa} — $leadStrFa دیگر!"
-        val titleEn = "🛸 ${satellite.nameEn} — in $leadStrEn!"
+        val titleFa = "${satellite.nameFa} — $leadStrFa دیگر!"
+        val titleEn = "${satellite.nameEn} — in $leadStrEn!"
 
-        val contentFa = "📍 شهر: ${userLocation.cityNameFa} | 🕐 زمان: $formattedTimeFa | 📐 حداکثر ارتفاع: ${pass.maxElevationDeg.toInt()}°\n🧭 مسیر: $startDirFa ➔ $endDirFa | ⏱ مدت: $durMinutes دقیقه"
-        val contentEn = "📍 City: ${userLocation.cityNameEn} | 🕐 Time: $formattedTimeEn | 📐 Max Elev: ${pass.maxElevationDeg.toInt()}°\n🧭 Pass: $startDirEn ➔ $endDirEn | ⏱ Duration: $durMinutes min"
+        val contentFa = "شهر: ${userLocation.cityNameFa} | زمان: $formattedTimeFa | حداکثر ارتفاع: ${pass.maxElevationDeg.toInt()}°\nمسیر: $startDirFa ➔ $endDirFa | مدت: $durMinutes دقیقه"
+        val contentEn = "City: ${userLocation.cityNameEn} | Time: $formattedTimeEn | Max Elev: ${pass.maxElevationDeg.toInt()}°\nPass: $startDirEn ➔ $endDirEn | Duration: $durMinutes min"
 
         return ScheduledNotificationItem(
             id = notifIdStr,
@@ -348,8 +348,8 @@ object AstroNotificationManager {
                     userLon = 0.0,
                     cityNameFa = "",
                     cityNameEn = "",
-                    titleFa = "🔭 یادآوری رصد: ${obj.nameFa} (۱۰ دقیقه دیگر)",
-                    titleEn = "🔭 Observation Reminder: ${obj.nameEn} (in 10 min)",
+                    titleFa = "یادآوری رصد: ${obj.nameFa} (۱۰ دقیقه دیگر)",
+                    titleEn = "Observation Reminder: ${obj.nameEn} (in 10 min)",
                     contentFa = "زمان $eventTypeFa ${obj.nameFa} فرا خواهد رسید ($timeStr). شرایط رصدپذیری را بررسی کنید.",
                     contentEn = "Time for $eventTypeEn ${obj.nameEn} is approaching ($timeStr). Check viewing conditions.",
                     deepLinkRoute = "object/${obj.id}"
@@ -376,8 +376,8 @@ object AstroNotificationManager {
                 userLon = 0.0,
                 cityNameFa = "",
                 cityNameEn = "",
-                titleFa = "🔭 آغاز رصد: ${obj.nameFa}",
-                titleEn = "🔭 Observation Event: ${obj.nameEn}",
+                titleFa = "آغاز رصد: ${obj.nameFa}",
+                titleEn = "Observation Event: ${obj.nameEn}",
                 contentFa = "هم‌اکنون $eventTypeFa ${obj.nameFa} فرا رسیده است ($timeStr).",
                 contentEn = "$eventTypeEn for ${obj.nameEn} is occurring now ($timeStr).",
                 deepLinkRoute = "object/${obj.id}"

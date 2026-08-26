@@ -324,9 +324,14 @@ fun ObjectDetailModal(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(text = "🌐", fontSize = 18.sp)
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
                             Text(
                                 text = if (isFa) "مشخصات فیزیکی و محاسباتی مراجع" else "Derived Physical Properties",
                                 style = MaterialTheme.typography.titleMedium,
@@ -337,19 +342,19 @@ fun ObjectDetailModal(
 
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             PropertyRow(
-                                label = if (isFa) "📏 ابعاد و قطر" else "📏 Size / Diameter",
+                                label = if (isFa) "ابعاد و قطر" else "Size / Diameter",
                                 value = if (isFa) physicalProps.diameterDisplayFa else physicalProps.diameterDisplayEn
                             )
                             PropertyRow(
-                                label = if (isFa) "⚖️ جرم تقریبی" else "⚖️ Approximate Mass",
+                                label = if (isFa) "جرم تقریبی" else "Approximate Mass",
                                 value = if (isFa) physicalProps.massKgDisplayFa else physicalProps.massKgDisplayEn
                             )
                             PropertyRow(
-                                label = if (isFa) "🌍 گرانش سطحی" else "🌍 Surface Gravity",
+                                label = if (isFa) "گرانش سطحی" else "Surface Gravity",
                                 value = if (isFa) physicalProps.gravityMssDisplayFa else physicalProps.gravityMssDisplayEn
                             )
                             PropertyRow(
-                                label = if (isFa) "📡 فاصله از زمین" else "📡 Distance from Earth",
+                                label = if (isFa) "فاصله از زمین" else "Distance from Earth",
                                 value = if (isFa) physicalProps.distanceDisplayFa else physicalProps.distanceDisplayEn
                             )
                         }
@@ -393,7 +398,7 @@ fun ObjectDetailModal(
                         ) {
                             Column(horizontalAlignment = Alignment.Start) {
                                 Text(
-                                    text = if (isFa) "🌅 طلوع" else "🌅 Rise",
+                                    text = if (isFa) "طلوع" else "Rise",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -406,7 +411,7 @@ fun ObjectDetailModal(
 
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = if (isFa) "☀️ اوج ارتفاع (ترانزیت)" else "☀️ Peak Transit",
+                                    text = if (isFa) "اوج ارتفاع (ترانزیت)" else "Peak Transit",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -419,7 +424,7 @@ fun ObjectDetailModal(
 
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    text = if (isFa) "🌇 غروب" else "🌇 Set",
+                                    text = if (isFa) "غروب" else "Set",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -448,9 +453,14 @@ fun ObjectDetailModal(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(text = "💡", fontSize = 18.sp)
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
                             Text(
                                 text = if (isFa) "۵ حقیقت شگفت‌انگیز و علمی" else "5 Verified Facts & Stories",
                                 style = MaterialTheme.typography.titleMedium,

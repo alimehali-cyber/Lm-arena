@@ -86,9 +86,11 @@ fun EclipseDetailModal(
                                 .background(MaterialTheme.colorScheme.primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = if (event.isSolar) "☀️" else "🌑",
-                                fontSize = 22.sp
+                            Icon(
+                                imageVector = if (event.isSolar) Icons.Default.Info else Icons.Default.Visibility,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
@@ -245,7 +247,7 @@ fun EclipseDetailModal(
 
                 // Sky Position & Obscuration Coverage
                 Text(
-                    text = if (isFa) "🔭 موقعیت در آسمان و درصد پوشش:" else "🔭 Sky Position & Local Obscuration:",
+                    text = if (isFa) "موقعیت در آسمان و درصد پوشش:" else "Sky Position & Local Obscuration:",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -301,7 +303,7 @@ fun EclipseDetailModal(
 
                 // Global Path & Scientific Description
                 Text(
-                    text = if (isFa) "🗺️ مسیر جهانی و توضیحات علمی:" else "🗺️ Global Path & Scientific Details:",
+                    text = if (isFa) "مسیر جهانی و توضیحات علمی:" else "Global Path & Scientific Details:",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )

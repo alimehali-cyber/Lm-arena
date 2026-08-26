@@ -590,68 +590,61 @@ fun HeroSkyCanvas(
             }
         }
 
-        // --- SUBTLE CANVAS FOOTER BADGES ---
+        // --- BOTTOM PILLS (Live sky & Date) ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val twilight = SunEngine.getTwilightPhase(sunHoriz.altitudeDeg)
-            val statusText = when {
-                twilight.isDaylight -> if (isFa) "روز / روشنایی" else "Daylight"
-                sunHoriz.altitudeDeg in -6.0..0.0 -> if (isFa) "شفق / حواشی غروب" else "Civil Twilight"
-                sunHoriz.altitudeDeg in -12.0..-6.0 -> if (isFa) "شفق دریایی" else "Nautical Twilight"
-                sunHoriz.altitudeDeg in -18.0..-12.0 -> if (isFa) "شفق نجومی" else "Astronomical Twilight"
-                else -> if (isFa) "تاریکی مطلق / شب" else "Peak Dark Night"
-            }
-
+            // "Live sky" minimal pill
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0x44000000),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0x66000000),
+                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f))
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(7.dp)
+                            .size(5.dp)
                             .clip(CircleShape)
-                            .background(if (twilight.isDaylight) Color(0xFFFBBF24) else Color(0xFF2DD4BF))
+                            .background(Color(0xFF2DD4BF))
                     )
                     Text(
-                        text = statusText,
+                        text = if (isFa) "آسمان زنده" else "Live sky",
                         style = TextStyle(
                             fontFamily = IranSans,
                             fontWeight = FontWeight.Medium,
-                            fontSize = 12.sp,
-                            color = Color.White
+                            fontSize = 11.sp,
+                            color = Color(0xFFF9FAFB)
                         )
                     )
                 }
             }
 
+            // Minimalistic Date pill
             val formattedDate = TimeEngine.formatDate(simulatedTimeMs, uiState.calendarSystem, isFa).let {
                 if (isFa) it.toPersianDigits() else it
             }
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0x44000000),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+                shape = RoundedCornerShape(10.dp),
+                color = Color(0x66000000),
+                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f))
             ) {
                 Text(
                     text = formattedDate,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     style = TextStyle(
                         fontFamily = IranSans,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 12.sp,
-                        color = Color(0xFF2DD4BF)
+                        fontSize = 11.sp,
+                        color = Color(0xFFF9FAFB)
                     )
                 )
             }
