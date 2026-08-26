@@ -1,11 +1,13 @@
 package com.alijafari.red.astronomy.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,7 +15,6 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -21,17 +22,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
-import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
-import com.alijafari.red.astronomy.ui.theme.RedElevation
-import com.alijafari.red.astronomy.ui.theme.RedIconSize
-import com.alijafari.red.astronomy.ui.theme.RedSpacing
-import com.alijafari.red.astronomy.ui.theme.RedTheme
+import com.alijafari.red.astronomy.ui.theme.*
 
 data class NavItem(
     val titleRes: Int,
@@ -42,12 +42,15 @@ data class NavItem(
 )
 
 /**
- * Clean, Apple-inspired Floating Navigation Bar
- * Features:
- * - Restrained, clean floating capsule aesthetic
- * - Subdued hairline border with soft ambient elevation
- * - No radial glows or extra decorative dots
- * - Smooth color state transitions and accessible 48dp touch targets
+ * RED Liquid Glass Floating Navigation Bar
+ *
+ * Implements Phase 1 of RED's Liquid Glass System:
+ * - Floats physically above actual screen content with high optical transmission (IOR ~ 1.15)
+ * - Multi-layer refractive rim & subtle chromatic dispersion highlight
+ * - Native backdrop blur on supported devices with graceful fallback
+ * - Content-aware optical separation without solid background blocking
+ * - Interactive tactile press compression & smooth active item transitions
+ * - Accessible 48dp+ touch targets and full RTL/Persian compatibility
  */
 @Composable
 fun FloatingBottomBar(
@@ -72,28 +75,41 @@ fun FloatingBottomBar(
             .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
             .testTag("main_bottom_navigation")
     ) {
-        Surface(
+        LiquidGlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(62.dp),
-            shape = navShape,
-            color = RedTheme.colors.navSurface,
-            shadowElevation = RedElevation.floatingNav,
-            border = androidx.compose.foundation.BorderStroke(1.dp, RedTheme.colors.navBorder)
+                .height(64.dp),
+            style = LiquidGlassDefaults.NavigationBar,
+            shape = navShape
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = RedSpacing.xs),
+                    .padding(horizontal = RedSpacing.xs, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 navItems.forEach { item ->
                     val isSelected = selectedTab == item.targetTabIndex
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+
+                    val itemScale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.94f else 1.0f,
+                        animationSpec = spring(dampingRatio = 0.75f, stiffness = 450f),
+                        label = "NavItemPressScale"
+                    )
+
                     val activeColor by animateColorAsState(
                         targetValue = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
                         animationSpec = tween(durationMillis = 200),
                         label = "NavColor"
+                    )
+
+                    val activeBgAlpha by animateFloatAsState(
+                        targetValue = if (isSelected) 0.12f else 0.0f,
+                        animationSpec = tween(durationMillis = 200),
+                        label = "NavActivePillAlpha"
                     )
 
                     Column(
@@ -102,11 +118,20 @@ fun FloatingBottomBar(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(RedCornerRadius.md))
+                            .scale(itemScale)
+                            .clip(RoundedCornerShape(RedCornerRadius.pill))
+                            .background(
+                                color = if (activeBgAlpha > 0f) {
+                                    RedTheme.colors.accentRed.copy(alpha = activeBgAlpha)
+                                } else {
+                                    Color.Transparent
+                                }
+                            )
                             .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
+                                interactionSource = interactionSource,
                                 indication = null
                             ) { onTabSelected(item.targetTabIndex) }
+                            .padding(vertical = 4.dp)
                             .testTag(item.testTag)
                     ) {
                         Icon(
@@ -121,8 +146,10 @@ fun FloatingBottomBar(
                         Text(
                             text = stringResource(item.titleRes),
                             style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                             color = activeColor,
-                            fontSize = 10.sp
+                            fontSize = 10.sp,
+                            maxLines = 1
                         )
                     }
                 }
