@@ -1681,8 +1681,8 @@ fun CompassARScreen(
                         .offset(y = 60.dp),
                     shape = RoundedCornerShape(20.dp),
                     style = LiquidGlassDefaults.Card,
-                    fallbackColor = BackgroundCard.copy(alpha = 0.9f),
-                    fallbackBorder = BorderStroke(1.dp, CardBorder)
+                    fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.95f),
+                    fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border)
                 ) {
                     Column(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -1692,13 +1692,13 @@ fun CompassARScreen(
                             text = if (isFa) finder.instructionFa else finder.instructionEn,
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = RedTheme.colors.textPrimary
                         )
                         val distStr = String.format("%.1f°", finder.totalAngularDistanceDeg)
                         Text(
                             text = if (isFa) "فاصله تا هدف: ${TimeEngine.formatPersianNumbers(distStr)}" else "Distance: $distStr",
                             style = MaterialTheme.typography.labelSmall,
-                            color = AccentPrimary
+                            color = RedTheme.colors.accentRed
                         )
                     }
                 }
@@ -1922,7 +1922,7 @@ fun CompassARScreen(
                                     Icon(
                                         imageVector = Icons.Default.Search,
                                         contentDescription = "Search",
-                                        tint = AccentPrimary,
+                                        tint = RedTheme.colors.accentRed,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -1933,7 +1933,7 @@ fun CompassARScreen(
                                             Text(
                                                 text = if (isFa) "جستجوی جرم (ماه، مریخ، شباهنگ...)" else "Search target (Moon, Mars, Sirius...)",
                                                 style = MaterialTheme.typography.bodyMedium,
-                                                color = TextSecondary
+                                                color = RedTheme.colors.textSecondary
                                             )
                                         },
                                         singleLine = true,
@@ -1941,7 +1941,9 @@ fun CompassARScreen(
                                             focusedContainerColor = Color.Transparent,
                                             unfocusedContainerColor = Color.Transparent,
                                             focusedIndicatorColor = Color.Transparent,
-                                            unfocusedIndicatorColor = Color.Transparent
+                                            unfocusedIndicatorColor = Color.Transparent,
+                                            focusedTextColor = RedTheme.colors.textPrimary,
+                                            unfocusedTextColor = RedTheme.colors.textPrimary
                                         ),
                                         modifier = Modifier
                                             .weight(1f)
@@ -2002,7 +2004,7 @@ fun CompassARScreen(
 
                                 // Search Results or Quick Suggestions
                                 if (searchResults.isNotEmpty()) {
-                                    HorizontalDivider(color = CardBorder, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+                                    HorizontalDivider(color = RedTheme.colors.border, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
                                     LazyColumn(modifier = Modifier.heightIn(max = 200.dp).fillMaxWidth()) {
                                         items(searchResults) { result ->
                                             Row(
@@ -2022,23 +2024,23 @@ fun CompassARScreen(
                                                         text = if (isFa) result.celestialObject.nameFa else result.celestialObject.nameEn,
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = TextPrimary
+                                                        color = RedTheme.colors.textPrimary
                                                     )
                                                     Text(
                                                         text = if (isFa) result.celestialObject.constellationFa else result.celestialObject.constellationEn,
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = TextSecondary
+                                                        color = RedTheme.colors.textSecondary
                                                     )
                                                 }
                                                 Surface(
                                                     shape = RoundedCornerShape(12.dp),
-                                                    color = if (result.isVisibleNow) StatusGood.copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.2f),
-                                                    border = BorderStroke(1.dp, if (result.isVisibleNow) StatusGood else Color.Gray)
+                                                    color = if (result.isVisibleNow) StatusGood.copy(alpha = 0.2f) else RedTheme.colors.surfaceVariant,
+                                                    border = BorderStroke(1.dp, if (result.isVisibleNow) StatusGood else RedTheme.colors.border)
                                                 ) {
                                                     Text(
                                                         text = if (isFa) result.statusFa else result.statusEn,
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = if (result.isVisibleNow) StatusGood else TextSecondary,
+                                                        color = if (result.isVisibleNow) StatusGood else RedTheme.colors.textSecondary,
                                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                                     )
                                                 }
@@ -2046,19 +2048,19 @@ fun CompassARScreen(
                                         }
                                     }
                                 } else {
-                                    HorizontalDivider(color = CardBorder, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+                                    HorizontalDivider(color = RedTheme.colors.border, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
                                     Text(
                                         text = if (isFa) "پیشنهادهای سریع:" else "Quick Suggestions:",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = TextSecondary,
+                                        color = RedTheme.colors.textSecondary,
                                         modifier = Modifier.padding(bottom = 6.dp)
                                     )
                                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         items(CelestialSearchEngine.getQuickSuggestions()) { sug ->
                                             SuggestionChip(
                                                 onClick = { searchQuery = sug },
-                                                label = { Text(sug) },
-                                                colors = SuggestionChipDefaults.suggestionChipColors(containerColor = NavyBackground)
+                                                label = { Text(sug, color = RedTheme.colors.textPrimary) },
+                                                colors = SuggestionChipDefaults.suggestionChipColors(containerColor = RedTheme.colors.surfaceVariant)
                                             )
                                         }
                                     }
@@ -2106,25 +2108,25 @@ fun CompassARScreen(
                                         text = if (isFa) "فیلترهای نمایش اجرام آسمان" else "Sky Object Visibility",
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = TextPrimary
+                                        color = RedTheme.colors.textPrimary
                                     )
                                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                         TextButton(
                                             onClick = { setAllFilters(true) },
                                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                                         ) {
-                                            Text(if (isFa) "نمایش همه" else "Show All", style = MaterialTheme.typography.labelSmall, color = AccentPrimary)
+                                            Text(if (isFa) "نمایش همه" else "Show All", style = MaterialTheme.typography.labelSmall, color = RedTheme.colors.accentRed)
                                         }
                                         TextButton(
                                             onClick = { setAllFilters(false) },
                                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                                         ) {
-                                            Text(if (isFa) "پنهان همه" else "Hide All", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                            Text(if (isFa) "پنهان همه" else "Hide All", style = MaterialTheme.typography.labelSmall, color = RedTheme.colors.textSecondary)
                                         }
                                     }
                                 }
 
-                                HorizontalDivider(color = CardBorder, thickness = 0.5.dp)
+                                HorizontalDivider(color = RedTheme.colors.border, thickness = 0.5.dp)
 
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2197,7 +2199,7 @@ fun CompassARScreen(
                                     text = if (isFa) "مدیریت حسگرها و موقعیت‌یاب" else "Sensors & Telemetry Control",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = TextPrimary
+                                    color = RedTheme.colors.textPrimary
                                 )
 
                                 // Sensor Toggles Row
@@ -2314,18 +2316,18 @@ fun CompassARScreen(
                                                 Text(
                                                     text = if (isFa) "• دقت GPS: ${TimeEngine.formatPersianNumbers(accStr)}" else "• GPS Accuracy: $accStr",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = TextPrimary
+                                                    color = RedTheme.colors.textPrimary
                                                 )
                                                 Text(
                                                     text = if (isFa) "• موقعیت: ${TimeEngine.formatPersianNumbers(String.format("%.2f°", uiState.userLocation.latitude))}, ${TimeEngine.formatPersianNumbers(String.format("%.2f°", uiState.userLocation.longitude))}"
                                                     else "• Location: ${String.format("%.2f°", uiState.userLocation.latitude)}, ${String.format("%.2f°", uiState.userLocation.longitude)}",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = TextPrimary
+                                                    color = RedTheme.colors.textPrimary
                                                 )
                                                 Text(
                                                     text = if (isFa) "• وضعیت کالیبراسیون: ${calibrationState.name}" else "• Calibration: ${calibrationState.name}",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = TextPrimary
+                                                    color = RedTheme.colors.textPrimary
                                                 )
                                                 if (arCalibrationOffsets.isCalibrated) {
                                                     val yawFmt = String.format("%+.1f°", arCalibrationOffsets.yawOffsetDeg)
@@ -2337,7 +2339,7 @@ fun CompassARScreen(
                                                         else
                                                             "• AR Offsets: Yaw $yawFmt | Pitch $pitchFmt | Roll $rollFmt",
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = AccentPrimary
+                                                        color = RedTheme.colors.accentRed
                                                     )
                                                 }
                                             }
@@ -2348,8 +2350,8 @@ fun CompassARScreen(
                                 // Manual AR Calibration Action Card
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
-                                    color = BackgroundCard,
-                                    border = BorderStroke(1.dp, CardBorder),
+                                    color = RedTheme.colors.surfaceElevated,
+                                    border = BorderStroke(1.dp, RedTheme.colors.border),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Column(
@@ -2368,7 +2370,7 @@ fun CompassARScreen(
                                                 Icon(
                                                     imageVector = Icons.Default.Tune,
                                                     contentDescription = null,
-                                                    tint = AccentPrimary,
+                                                    tint = RedTheme.colors.accentRed,
                                                     modifier = Modifier.size(20.dp)
                                                 )
                                                 Column {
@@ -2376,7 +2378,7 @@ fun CompassARScreen(
                                                         text = if (isFa) "کالیبراسیون دستی جهت‌گیری AR" else "AR Pointing Calibration",
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = Color.White
+                                                        color = RedTheme.colors.textPrimary
                                                     )
                                                     Text(
                                                         text = if (arCalibrationOffsets.isCalibrated) {
@@ -2387,14 +2389,14 @@ fun CompassARScreen(
                                                             if (isFa) "همترازی نشانگر با ستاره واقعی" else "Align pointer with bright star"
                                                         },
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = TextSecondary
+                                                        color = RedTheme.colors.textSecondary
                                                     )
                                                 }
                                             }
 
                                             Button(
                                                 onClick = { showCalibrationDialog = true },
-                                                colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
+                                                colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed),
                                                 shape = RoundedCornerShape(10.dp),
                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                                 modifier = Modifier.testTag("open_ar_calibration_btn")
@@ -2526,8 +2528,8 @@ fun CompassARScreen(
                             },
                         shape = RoundedCornerShape(20.dp),
                         style = LiquidGlassDefaults.Card,
-                        fallbackColor = Color(0xFF0F172A).copy(alpha = 0.94f),
-                        fallbackBorder = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
+                        fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
+                        fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.6f)),
                         fallbackShadowElevation = 12.dp
                     ) {
                         Column(
@@ -2544,12 +2546,12 @@ fun CompassARScreen(
                                         text = if (isFa) obj.nameFa else obj.nameEn,
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = RedTheme.colors.textPrimary
                                     )
                                     Text(
                                         text = if (isFa) obj.type.nameFa else obj.type.nameEn,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF38BDF8),
+                                        color = RedTheme.colors.accentRed,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 }
@@ -2557,17 +2559,17 @@ fun CompassARScreen(
                                     onClick = { longPressObject = null },
                                     modifier = Modifier.size(24.dp)
                                 ) {
-                                    Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Close, contentDescription = "Close", tint = RedTheme.colors.textSecondary, modifier = Modifier.size(16.dp))
                                 }
                             }
 
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 0.5.dp)
+                            HorizontalDivider(color = RedTheme.colors.border, thickness = 0.5.dp)
 
                             val distStr = formatObjectDistance(obj, isFa)
                             Text(
                                 text = if (isFa) "فاصله از زمین: $distStr" else "Dist: $distStr",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = TextPrimary
+                                color = RedTheme.colors.textPrimary
                             )
 
                             Row(
@@ -2577,12 +2579,12 @@ fun CompassARScreen(
                                 Text(
                                     text = if (isFa) "طلوع: ${rs.riseTimeStr}" else "Rise: ${rs.riseTimeStr}",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary
+                                    color = RedTheme.colors.textSecondary
                                 )
                                 Text(
                                     text = if (isFa) "غروب: ${rs.setTimeStr}" else "Set: ${rs.setTimeStr}",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary
+                                    color = RedTheme.colors.textSecondary
                                 )
                             }
 
@@ -2591,7 +2593,7 @@ fun CompassARScreen(
                                     longPressObject = null
                                     viewModel.openObjectDetail(obj)
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()

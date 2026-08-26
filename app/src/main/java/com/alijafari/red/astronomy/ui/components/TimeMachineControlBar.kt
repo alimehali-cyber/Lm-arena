@@ -71,10 +71,10 @@ fun TimeMachineControlBar(
         LiquidGlassSurface(
             shape = RoundedCornerShape(24.dp),
             style = LiquidGlassDefaults.Card,
-            fallbackColor = if (state.mode == TimeMachineMode.SIMULATION) Color(0xFF181528).copy(alpha = 0.95f) else Color(0xFF10121D).copy(alpha = 0.88f),
+            fallbackColor = if (state.mode == TimeMachineMode.SIMULATION) RedTheme.colors.surfaceElevated else RedTheme.colors.surface,
             fallbackBorder = BorderStroke(
                 width = 1.dp,
-                color = if (state.mode == TimeMachineMode.SIMULATION) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                color = if (state.mode == TimeMachineMode.SIMULATION) RedTheme.colors.accentRed.copy(alpha = 0.6f) else RedTheme.colors.border
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -400,12 +400,12 @@ fun TimeMachineControlBar(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(text = "1900", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(text = "1950", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(text = "2000", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(text = "2026", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.primary)
-                                Text(text = "2050", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(text = "2100", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(text = "1900", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = RedTheme.colors.textSecondary)
+                                Text(text = "1950", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = RedTheme.colors.textSecondary)
+                                Text(text = "2000", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = RedTheme.colors.textSecondary)
+                                Text(text = "2026", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold), color = RedTheme.colors.accentRed)
+                                Text(text = "2050", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = RedTheme.colors.textSecondary)
+                                Text(text = "2100", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = RedTheme.colors.textSecondary)
                             }
 
                             val currentVal = activeTime.toFloat().coerceIn(
@@ -431,19 +431,19 @@ fun TimeMachineControlBar(
                             ) {
                                 AssistChip(
                                     onClick = { onSimulatedTimeChange(activeTime - 86400000L, null, false) },
-                                    label = { Text(if (isFa) "۱ روز-" else "-1 Day", fontSize = 10.sp) }
+                                    label = { Text(if (isFa) "۱ روز-" else "-1 Day", fontSize = 10.sp, color = RedTheme.colors.textPrimary) }
                                 )
                                 AssistChip(
                                     onClick = { onSimulatedTimeChange(activeTime - 3600000L, null, false) },
-                                    label = { Text(if (isFa) "۱ ساعت-" else "-1 Hour", fontSize = 10.sp) }
+                                    label = { Text(if (isFa) "۱ ساعت-" else "-1 Hour", fontSize = 10.sp, color = RedTheme.colors.textPrimary) }
                                 )
                                 AssistChip(
                                     onClick = { onSimulatedTimeChange(activeTime + 3600000L, null, false) },
-                                    label = { Text(if (isFa) "۱ ساعت+" else "+1 Hour", fontSize = 10.sp) }
+                                    label = { Text(if (isFa) "۱ ساعت+" else "+1 Hour", fontSize = 10.sp, color = RedTheme.colors.textPrimary) }
                                 )
                                 AssistChip(
                                     onClick = { onSimulatedTimeChange(activeTime + 86400000L, null, false) },
-                                    label = { Text(if (isFa) "۱ روز+" else "+1 Day", fontSize = 10.sp) }
+                                    label = { Text(if (isFa) "۱ روز+" else "+1 Day", fontSize = 10.sp, color = RedTheme.colors.textPrimary) }
                                 )
                             }
                         }

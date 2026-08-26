@@ -66,50 +66,50 @@ data class LiquidGlassStyle(
 
 object LiquidGlassDefaults {
     val NavigationBar = LiquidGlassStyle(
-        blurRadius = 8.dp,
-        refractionHeight = 24.dp,
-        refractionAmount = 24.dp,
-        chromaticAberration = false,
+        blurRadius = 0.dp,
+        refractionHeight = 28.dp,
+        refractionAmount = 28.dp,
+        chromaticAberration = true,
         hasHighlight = true,
         shadowRadius = 12.dp,
         innerShadowRadius = 2.dp
     )
 
     val Header = LiquidGlassStyle(
-        blurRadius = 8.dp,
-        refractionHeight = 20.dp,
-        refractionAmount = 20.dp,
-        chromaticAberration = false,
+        blurRadius = 0.dp,
+        refractionHeight = 22.dp,
+        refractionAmount = 22.dp,
+        chromaticAberration = true,
         hasHighlight = true,
         shadowRadius = 8.dp,
         innerShadowRadius = 1.5.dp
     )
 
     val Pill = LiquidGlassStyle(
-        blurRadius = 6.dp,
-        refractionHeight = 14.dp,
-        refractionAmount = 14.dp,
-        chromaticAberration = false,
+        blurRadius = 0.dp,
+        refractionHeight = 16.dp,
+        refractionAmount = 16.dp,
+        chromaticAberration = true,
         hasHighlight = true,
         shadowRadius = 6.dp,
         innerShadowRadius = 1.5.dp
     )
 
     val Card = LiquidGlassStyle(
-        blurRadius = 8.dp,
-        refractionHeight = 18.dp,
-        refractionAmount = 18.dp,
-        chromaticAberration = false,
+        blurRadius = 1.dp,
+        refractionHeight = 22.dp,
+        refractionAmount = 22.dp,
+        chromaticAberration = true,
         hasHighlight = true,
         shadowRadius = 8.dp,
-        innerShadowRadius = 1.5.dp
+        innerShadowRadius = 2.dp
     )
 
     val Modal = LiquidGlassStyle(
-        blurRadius = 12.dp,
+        blurRadius = 2.dp,
         refractionHeight = 28.dp,
         refractionAmount = 28.dp,
-        chromaticAberration = false,
+        chromaticAberration = true,
         hasHighlight = true,
         shadowRadius = 16.dp,
         innerShadowRadius = 3.dp
