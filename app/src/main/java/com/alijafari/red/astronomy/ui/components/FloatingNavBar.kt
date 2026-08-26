@@ -44,7 +44,7 @@ data class NavItem(
 
 @Composable
 fun FloatingBottomBar(
-    backdrop: Backdrop? = LocalBackdrop.current,
+    backdrop: Backdrop? = null,
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier

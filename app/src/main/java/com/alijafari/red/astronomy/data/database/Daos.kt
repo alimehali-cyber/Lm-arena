@@ -107,3 +107,18 @@ interface ConstellationDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(constellations: List<ConstellationEntity>)
 }
+
+@Dao
+interface TleDao {
+    @Query("SELECT * FROM cached_tle")
+    suspend fun getAllTles(): List<TleEntity>
+
+    @Query("SELECT * FROM cached_tle WHERE noradId = :noradId LIMIT 1")
+    suspend fun getTleById(noradId: Int): TleEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrUpdate(tle: TleEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(tles: List<TleEntity>)
+}

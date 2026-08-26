@@ -30,6 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun celestialObjectDao(): CelestialObjectDao
     abstract fun constellationDao(): ConstellationDao
     abstract fun userOccasionDao(): UserOccasionDao
+    abstract fun tleDao(): TleDao
 
     companion object {
         @Volatile

@@ -142,10 +142,14 @@ class MainActivity : ComponentActivity() {
                     LocalActivityResultRegistryOwner provides this@MainActivity
                 ) {
                     var showSplashScreen by remember { mutableStateOf(true) }
-                    val backdrop = rememberLayerBackdrop()
+                    val isGlassActive = uiState.isLiquidGlassEnabled && com.alijafari.red.astronomy.ui.theme.isLiquidGlassSupported()
+                    val backdrop = if (isGlassActive) {
+                        rememberLayerBackdrop()
+                    } else {
+                        null
+                    }
 
                     CompositionLocalProvider(
-                        com.alijafari.red.astronomy.ui.theme.LocalBackdrop provides backdrop,
                         com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassEnabled provides (uiState.isLiquidGlassEnabled && com.alijafari.red.astronomy.ui.theme.isLiquidGlassSupported())
                     ) {
                         Box(
@@ -204,7 +208,13 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .layerBackdrop(backdrop)
+                                    .then(
+                                        if (backdrop != null) {
+                                            Modifier.layerBackdrop(backdrop)
+                                        } else {
+                                            Modifier
+                                        }
+                                    )
                                     .padding(top = innerPadding.calculateTopPadding())
                             ) {
                                 Crossfade(

@@ -33,14 +33,6 @@ import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 
-/**
- * Composition local providing the active window/screen backdrop layer.
- */
-val LocalBackdrop = staticCompositionLocalOf<Backdrop?> { null }
-
-/**
- * Composition local providing whether Liquid Glass is enabled globally.
- */
 val LocalLiquidGlassEnabled = staticCompositionLocalOf { true }
 
 /**
@@ -134,7 +126,7 @@ object LiquidGlassDefaults {
  */
 @Composable
 fun Modifier.liquidGlass(
-    backdrop: Backdrop? = LocalBackdrop.current,
+    backdrop: Backdrop? = null,
     shape: Shape = RoundedCornerShape(32.dp),
     style: LiquidGlassStyle = LiquidGlassDefaults.NavigationBar,
     fallbackColor: Color = RedTheme.colors.surfaceElevated,
@@ -187,7 +179,7 @@ fun Modifier.liquidGlass(
 @Composable
 fun LiquidGlassSurface(
     modifier: Modifier = Modifier,
-    backdrop: Backdrop? = LocalBackdrop.current,
+    backdrop: Backdrop? = null,
     style: LiquidGlassStyle = LiquidGlassDefaults.Card,
     shape: Shape = RoundedCornerShape(RedCornerRadius.xl),
     fallbackColor: Color = RedTheme.colors.surfaceElevated,

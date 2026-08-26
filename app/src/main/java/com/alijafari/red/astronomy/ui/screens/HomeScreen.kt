@@ -178,22 +178,15 @@ fun HomeScreen(
             val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
             val coordsText = String.format(java.util.Locale.US, "%.2f°N, %.2f°E", uiState.userLocation.latitude, uiState.userLocation.longitude)
 
-            LiquidGlassSurface(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(top = RedSpacing.xs, bottom = RedSpacing.xs)
+                    .padding(horizontal = RedSpacing.md, vertical = RedSpacing.xs)
                     .testTag("home_red_header"),
-                shape = RoundedCornerShape(24.dp),
-                style = LiquidGlassDefaults.Header
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)
-                ) {
                     // Top Action Bar with Centered "RED"
                     Box(
                         modifier = Modifier.fillMaxWidth(),
@@ -294,8 +287,6 @@ fun HomeScreen(
                     }
                 }
             }
-        }
-
         // 1. HERO SKY CANVAS — Level 1: Hero Content
         item {
             HeroSkyCanvas(
