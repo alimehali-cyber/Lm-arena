@@ -408,14 +408,10 @@ fun SettingsDialog(
                                             color = RedTheme.colors.accentRed
                                         )
                                     }
-                                    Slider(
+                                    RedSlider(
                                         value = glassConfig.clarity,
                                         onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(clarity = it)) },
                                         valueRange = 0.0f..1.0f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = RedTheme.colors.accentRed,
-                                            activeTrackColor = RedTheme.colors.accentRed
-                                        ),
                                         modifier = Modifier.testTag("liquid_glass_clarity_slider")
                                     )
                                 }
@@ -437,14 +433,10 @@ fun SettingsDialog(
                                             color = RedTheme.colors.accentRed
                                         )
                                     }
-                                    Slider(
+                                    RedSlider(
                                         value = glassConfig.refractionHeightDp,
                                         onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(refractionHeightDp = it)) },
                                         valueRange = 0f..60f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = RedTheme.colors.accentRed,
-                                            activeTrackColor = RedTheme.colors.accentRed
-                                        ),
                                         modifier = Modifier.testTag("liquid_glass_refraction_slider")
                                     )
                                 }
@@ -466,14 +458,10 @@ fun SettingsDialog(
                                             color = RedTheme.colors.accentRed
                                         )
                                     }
-                                    Slider(
+                                    RedSlider(
                                         value = glassConfig.refractionAmountDp,
                                         onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(refractionAmountDp = it)) },
                                         valueRange = 0f..60f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = RedTheme.colors.accentRed,
-                                            activeTrackColor = RedTheme.colors.accentRed
-                                        ),
                                         modifier = Modifier.testTag("liquid_glass_warping_slider")
                                     )
                                 }
@@ -495,14 +483,10 @@ fun SettingsDialog(
                                             color = RedTheme.colors.accentRed
                                         )
                                     }
-                                    Slider(
+                                    RedSlider(
                                         value = glassConfig.blurRadiusDp,
                                         onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(blurRadiusDp = it)) },
                                         valueRange = 0f..24f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = RedTheme.colors.accentRed,
-                                            activeTrackColor = RedTheme.colors.accentRed
-                                        ),
                                         modifier = Modifier.testTag("liquid_glass_blur_slider")
                                     )
                                 }

@@ -240,7 +240,12 @@ fun CompassARScreen(
         }
     }
 
-    // Camera & Location Permission State
+    // Camera & Location State
+    var isCameraEnabled by remember { mutableStateOf(true) }
+    var isGpsActive by remember { mutableStateOf(true) }
+    var gpsAccuracyMeters by remember { mutableStateOf<Float?>(null) }
+    var isSensorActive by remember { mutableStateOf(true) }
+
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -258,6 +263,9 @@ fun CompassARScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasCameraPermission = isGranted
+        if (isGranted) {
+            isCameraEnabled = true
+        }
     }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -265,12 +273,12 @@ fun CompassARScreen(
     ) { permissions ->
         val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
         val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
-        hasLocationPermission = fine || coarse
+        val isGranted = fine || coarse
+        hasLocationPermission = isGranted
+        if (isGranted) {
+            isGpsActive = true
+        }
     }
-
-    // Live GPS State
-    var isGpsActive by remember { mutableStateOf(true) }
-    var gpsAccuracyMeters by remember { mutableStateOf<Float?>(null) }
 
     // Live GPS Listener for maximum precision and real sky alignment
     DisposableEffect(isGpsActive, hasLocationPermission) {
@@ -342,9 +350,6 @@ fun CompassARScreen(
             onDispose { }
         }
     }
-
-    var isSensorActive by remember { mutableStateOf(true) }
-    var isCameraEnabled by remember { mutableStateOf(true) }
 
     // Manual Drag Fallback when sensors paused
     var manualAzimuthOffset by remember { mutableStateOf(0.0) }
@@ -563,7 +568,7 @@ fun CompassARScreen(
     var filterSun by remember { mutableStateOf(prefs.getBoolean("filter_sun", true)) }
     var filterDeepSky by remember { mutableStateOf(prefs.getBoolean("filter_deepsky", true)) }
     var filterSatellites by remember { mutableStateOf(prefs.getBoolean("filter_satellites", true)) }
-    var filterObjectNames by remember { mutableStateOf(prefs.getBoolean("filter_object_names", true)) }
+    var filterObjectNames by remember { mutableStateOf(prefs.getBoolean("filter_object_names", false)) }
 
     fun updateFilter(key: String, value: Boolean, setter: (Boolean) -> Unit) {
         setter(value)
@@ -1705,13 +1710,13 @@ fun CompassARScreen(
             }
         }
 
-        // Layer 3.5: Glass Floating Cancel Target Button (Visible whenever target is active at bottom-start)
+        // Layer 3.5: Glass Floating Cancel Target Button (Visible whenever target is active at bottom-start, safely above bottom nav bar)
         if (selectedTarget != null) {
             LiquidGlassSurface(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .navigationBarsPadding()
-                    .padding(start = 16.dp, bottom = 16.dp)
+                    .padding(start = 16.dp, bottom = 88.dp)
                     .testTag("ar_cancel_target_button"),
                 onClick = {
                     selectedTarget = null
@@ -2216,8 +2221,9 @@ fun CompassARScreen(
                                                 locationPermissionLauncher.launch(
                                                     arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
                                                 )
+                                            } else {
+                                                isGpsActive = !isGpsActive
                                             }
-                                            isGpsActive = !isGpsActive
                                         },
                                         label = { Text(if (isFa) "GPS دائم" else "Live GPS") },
                                         leadingIcon = {
@@ -2249,8 +2255,9 @@ fun CompassARScreen(
                                         onClick = {
                                             if (!hasCameraPermission) {
                                                 permissionLauncher.launch(Manifest.permission.CAMERA)
+                                            } else {
+                                                isCameraEnabled = !isCameraEnabled
                                             }
-                                            isCameraEnabled = !isCameraEnabled
                                         },
                                         label = { Text(if (isFa) "دوربین AR" else "Camera Feed") },
                                         leadingIcon = {
