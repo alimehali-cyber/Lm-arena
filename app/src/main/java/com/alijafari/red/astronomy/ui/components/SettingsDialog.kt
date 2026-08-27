@@ -316,8 +316,8 @@ fun SettingsDialog(
 
                 RedHairlineDivider()
 
-                // Liquid Glass Optical Surface Global Setting
-                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)) {
+                // Liquid Glass Optical Surface Global Setting & Customizer
+                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -329,12 +329,12 @@ fun SettingsDialog(
                                 .padding(end = RedSpacing.sm)
                         ) {
                             Text(
-                                text = stringResource(R.string.liquid_glass_setting),
+                                text = if (isFa) "شیشه مایع و فیزیک اپتیکی" else stringResource(R.string.liquid_glass_setting),
                                 style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
                                 color = RedTheme.colors.textPrimary
                             )
                             Text(
-                                text = stringResource(R.string.liquid_glass_desc),
+                                text = if (isFa) "شکست نور، اعوجاج فیزیکی، بازتاب و شفافیت شیشه‌ای (اندروید ۱۳+)" else stringResource(R.string.liquid_glass_desc),
                                 style = RedTypographyTokens.caption,
                                 color = RedTheme.colors.textSecondary
                             )
@@ -350,6 +350,203 @@ fun SettingsDialog(
                             ),
                             modifier = Modifier.testTag("settings_liquid_glass_switch")
                         )
+                    }
+
+                    // Liquid Glass Fine-Tuning Controls (when enabled)
+                    if (uiState.isLiquidGlassEnabled) {
+                        val glassConfig = uiState.liquidGlassConfig
+
+                        Surface(
+                            shape = RoundedCornerShape(RedCornerRadius.md),
+                            color = RedTheme.colors.surfaceVariant,
+                            border = BorderStroke(1.dp, RedTheme.colors.border),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(RedSpacing.md),
+                                verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
+                            ) {
+                                // Section Header & Reset
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (isFa) "⚙️ شخصی‌سازی اپتیک شیشه" else "⚙️ Liquid Glass Customization",
+                                        style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.Bold),
+                                        color = RedTheme.colors.textPrimary
+                                    )
+                                    TextButton(
+                                        onClick = { viewModel.resetLiquidGlassConfig() },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isFa) "بازنشانی" else "Reset",
+                                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                                            color = RedTheme.colors.accentRed
+                                        )
+                                    }
+                                }
+
+                                // 1. Clarity (شفافیت و خلوص لنز)
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = if (isFa) "شفافیت و زلالی لنز (Clarity)" else "Lens Clarity",
+                                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                                            color = RedTheme.colors.textPrimary
+                                        )
+                                        Text(
+                                            text = "${(glassConfig.clarity * 100).toInt()}%",
+                                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                                            color = RedTheme.colors.accentRed
+                                        )
+                                    }
+                                    Slider(
+                                        value = glassConfig.clarity,
+                                        onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(clarity = it)) },
+                                        valueRange = 0.0f..1.0f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = RedTheme.colors.accentRed,
+                                            activeTrackColor = RedTheme.colors.accentRed
+                                        ),
+                                        modifier = Modifier.testTag("liquid_glass_clarity_slider")
+                                    )
+                                }
+
+                                // 2. Refraction Depth (عمق شکست فیزیکی)
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = if (isFa) "عمق شکست فیزیکی (Refraction Depth)" else "Refraction Depth",
+                                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                                            color = RedTheme.colors.textPrimary
+                                        )
+                                        Text(
+                                            text = "${glassConfig.refractionHeightDp.toInt()} dp",
+                                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                                            color = RedTheme.colors.accentRed
+                                        )
+                                    }
+                                    Slider(
+                                        value = glassConfig.refractionHeightDp,
+                                        onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(refractionHeightDp = it)) },
+                                        valueRange = 0f..60f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = RedTheme.colors.accentRed,
+                                            activeTrackColor = RedTheme.colors.accentRed
+                                        ),
+                                        modifier = Modifier.testTag("liquid_glass_refraction_slider")
+                                    )
+                                }
+
+                                // 3. Refraction Warping (اعوجاج و خمش نور)
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = if (isFa) "اعوجاج و خمش نور (Refraction Warping)" else "Refraction Warping",
+                                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                                            color = RedTheme.colors.textPrimary
+                                        )
+                                        Text(
+                                            text = "${glassConfig.refractionAmountDp.toInt()} dp",
+                                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                                            color = RedTheme.colors.accentRed
+                                        )
+                                    }
+                                    Slider(
+                                        value = glassConfig.refractionAmountDp,
+                                        onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(refractionAmountDp = it)) },
+                                        valueRange = 0f..60f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = RedTheme.colors.accentRed,
+                                            activeTrackColor = RedTheme.colors.accentRed
+                                        ),
+                                        modifier = Modifier.testTag("liquid_glass_warping_slider")
+                                    )
+                                }
+
+                                // 4. Gaussian Blur Radius (تاری پس‌زمینه)
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = if (isFa) "میزان تاری پس‌زمینه (Blur)" else "Background Blur",
+                                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                                            color = RedTheme.colors.textPrimary
+                                        )
+                                        Text(
+                                            text = "${glassConfig.blurRadiusDp.toInt()} dp",
+                                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                                            color = RedTheme.colors.accentRed
+                                        )
+                                    }
+                                    Slider(
+                                        value = glassConfig.blurRadiusDp,
+                                        onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(blurRadiusDp = it)) },
+                                        valueRange = 0f..24f,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = RedTheme.colors.accentRed,
+                                            activeTrackColor = RedTheme.colors.accentRed
+                                        ),
+                                        modifier = Modifier.testTag("liquid_glass_blur_slider")
+                                    )
+                                }
+
+                                HorizontalDivider(color = RedTheme.colors.border, thickness = 0.5.dp)
+
+                                // Optical Toggles Row (Chromatic Aberration, Highlights, Shadow)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    FilterChip(
+                                        selected = glassConfig.chromaticAberration,
+                                        onClick = { viewModel.updateLiquidGlassConfig(glassConfig.copy(chromaticAberration = !glassConfig.chromaticAberration)) },
+                                        label = { Text(text = if (isFa) "شکست رنگی" else "Chromatic", fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = RedTheme.colors.accentRed,
+                                            selectedLabelColor = Color.White
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    FilterChip(
+                                        selected = glassConfig.hasHighlight,
+                                        onClick = { viewModel.updateLiquidGlassConfig(glassConfig.copy(hasHighlight = !glassConfig.hasHighlight)) },
+                                        label = { Text(text = if (isFa) "هایلایت لبه" else "Highlights", fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = RedTheme.colors.accentRed,
+                                            selectedLabelColor = Color.White
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    FilterChip(
+                                        selected = glassConfig.hasShadow,
+                                        onClick = { viewModel.updateLiquidGlassConfig(glassConfig.copy(hasShadow = !glassConfig.hasShadow)) },
+                                        label = { Text(text = if (isFa) "سایه عمق" else "Shadow", fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = RedTheme.colors.accentRed,
+                                            selectedLabelColor = Color.White
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
 

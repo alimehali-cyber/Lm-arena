@@ -36,6 +36,24 @@ import com.kyant.backdrop.shadow.Shadow
 val LocalLiquidGlassEnabled = staticCompositionLocalOf { true }
 
 /**
+ * User-configurable Liquid Glass optical characteristics.
+ * Persisted in SharedPreferences and dynamically applied across all liquid glass surfaces.
+ */
+@Immutable
+data class LiquidGlassConfig(
+    val enabled: Boolean = true,
+    val clarity: Float = 1.0f, // 0.0 (frosted) to 1.0 (crystal pure)
+    val blurRadiusDp: Float = 0f, // 0 to 24 dp
+    val refractionHeightDp: Float = 28f, // 0 to 60 dp
+    val refractionAmountDp: Float = 28f, // 0 to 60 dp (refraction warping)
+    val chromaticAberration: Boolean = true,
+    val hasHighlight: Boolean = true,
+    val hasShadow: Boolean = true
+)
+
+val LocalLiquidGlassConfig = staticCompositionLocalOf { LiquidGlassConfig() }
+
+/**
  * Android version capability check for native Backdrop shaders.
  * Liquid Glass physical refraction requires Android 13+ (API 33+).
  */
@@ -136,30 +154,54 @@ fun Modifier.liquidGlass(
     glassBorder: BorderStroke? = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
     enabled: Boolean = LocalLiquidGlassEnabled.current
 ): Modifier {
-    val isGlassActive = enabled && isLiquidGlassSupported() && backdrop != null
+    val config = LocalLiquidGlassConfig.current
+    val isGlassActive = enabled && config.enabled && isLiquidGlassSupported() && backdrop != null
 
     return if (isGlassActive) {
+        // Dynamic blur radius
+        val activeBlur = (config.blurRadiusDp + style.blurRadius.value).coerceAtLeast(0f).dp
+
+        // Dynamic refraction depth & warping amount scaled by user preferences
+        val baseRefractionHeight = style.refractionHeight.value
+        val activeRefractionHeight = (config.refractionHeightDp * (if (baseRefractionHeight > 0f) baseRefractionHeight / 28f else 1f)).coerceAtLeast(0f).dp
+
+        val baseRefractionAmount = style.refractionAmount.value
+        val activeRefractionAmount = (config.refractionAmountDp * (if (baseRefractionAmount > 0f) baseRefractionAmount / 28f else 1f)).coerceAtLeast(0f).dp
+
+        val activeChromatic = config.chromaticAberration && style.chromaticAberration
+        val activeHighlight = config.hasHighlight && style.hasHighlight
+        val activeShadow = if (config.hasShadow) style.shadowRadius else 0.dp
+        val activeInnerShadow = if (config.hasShadow) style.innerShadowRadius else 0.dp
+
+        // Clarity frosted tint: when clarity < 1.0f, introduce frosted tint opacity
+        val clarityFrostedColor = if (config.clarity < 0.99f) {
+            RedTheme.colors.surfaceElevated.copy(alpha = (1.0f - config.clarity) * 0.45f)
+        } else {
+            Color.Transparent
+        }
+
         this
             .drawBackdrop(
                 backdrop = backdrop!!,
                 shape = { shape },
                 effects = {
                     vibrancy()
-                    if (style.blurRadius > 0.dp) {
-                        blur(style.blurRadius.toPx())
+                    if (activeBlur > 0.dp) {
+                        blur(activeBlur.toPx())
                     }
-                    if (style.refractionHeight > 0.dp || style.refractionAmount > 0.dp) {
+                    if (activeRefractionHeight > 0.dp || activeRefractionAmount > 0.dp) {
                         lens(
-                            refractionHeight = style.refractionHeight.toPx(),
-                            refractionAmount = style.refractionAmount.toPx(),
-                            chromaticAberration = style.chromaticAberration
+                            refractionHeight = activeRefractionHeight.toPx(),
+                            refractionAmount = activeRefractionAmount.toPx(),
+                            chromaticAberration = activeChromatic
                         )
                     }
                 },
-                highlight = if (style.hasHighlight) { { Highlight.Ambient } } else null,
-                shadow = if (style.shadowRadius > 0.dp) { { Shadow(radius = style.shadowRadius) } } else null,
-                innerShadow = if (style.innerShadowRadius > 0.dp) { { InnerShadow(radius = style.innerShadowRadius) } } else null
+                highlight = if (activeHighlight) { { Highlight.Ambient } } else null,
+                shadow = if (activeShadow > 0.dp) { { Shadow(radius = activeShadow) } } else null,
+                innerShadow = if (activeInnerShadow > 0.dp) { { InnerShadow(radius = activeInnerShadow) } } else null
             )
+            .then(if (clarityFrostedColor != Color.Transparent) Modifier.background(clarityFrostedColor, shape) else Modifier)
             .then(if (glassTint != Color.Transparent) Modifier.background(glassTint, shape) else Modifier)
             .then(if (glassBorder != null) Modifier.border(glassBorder, shape) else Modifier)
             .clip(shape)

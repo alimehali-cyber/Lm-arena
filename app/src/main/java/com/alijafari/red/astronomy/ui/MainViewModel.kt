@@ -17,6 +17,7 @@ import com.alijafari.red.astronomy.data.database.AppDatabase
 import com.alijafari.red.astronomy.data.database.ObservationLogEntity
 import com.alijafari.red.astronomy.data.database.UserOccasionEntity
 import com.alijafari.red.astronomy.domain.*
+import com.alijafari.red.astronomy.ui.theme.LiquidGlassConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -47,7 +48,8 @@ data class MainUiState(
     val timeMachineState: TimeMachineState = TimeMachineState(),
     val selectedTargetObject: CelestialObject? = null,
     val selectedSatelliteId: String? = null,
-    val isLiquidGlassEnabled: Boolean = true
+    val isLiquidGlassEnabled: Boolean = true,
+    val liquidGlassConfig: LiquidGlassConfig = LiquidGlassConfig()
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -58,6 +60,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(
         MainUiState(
             isLiquidGlassEnabled = prefs.getBoolean("liquid_glass_enabled", true),
+            liquidGlassConfig = LiquidGlassConfig(
+                enabled = prefs.getBoolean("liquid_glass_enabled", true),
+                clarity = prefs.getFloat("liquid_glass_clarity", 1.0f),
+                blurRadiusDp = prefs.getFloat("liquid_glass_blur", 0.0f),
+                refractionHeightDp = prefs.getFloat("liquid_glass_refraction_height", 28.0f),
+                refractionAmountDp = prefs.getFloat("liquid_glass_refraction_amount", 28.0f),
+                chromaticAberration = prefs.getBoolean("liquid_glass_chromatic_aberration", true),
+                hasHighlight = prefs.getBoolean("liquid_glass_highlight", true),
+                hasShadow = prefs.getBoolean("liquid_glass_shadow", true)
+            ),
             language = try {
                 AppLanguage.valueOf(prefs.getString("app_language", AppLanguage.PERSIAN.name) ?: AppLanguage.PERSIAN.name)
             } catch (e: Exception) {
@@ -199,8 +211,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setLiquidGlassEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean("liquid_glass_enabled", enabled).apply()
-        _uiState.update { it.copy(isLiquidGlassEnabled = enabled) }
+        val updated = _uiState.value.liquidGlassConfig.copy(enabled = enabled)
+        updateLiquidGlassConfig(updated)
+    }
+
+    fun updateLiquidGlassConfig(config: LiquidGlassConfig) {
+        prefs.edit()
+            .putBoolean("liquid_glass_enabled", config.enabled)
+            .putFloat("liquid_glass_clarity", config.clarity)
+            .putFloat("liquid_glass_blur", config.blurRadiusDp)
+            .putFloat("liquid_glass_refraction_height", config.refractionHeightDp)
+            .putFloat("liquid_glass_refraction_amount", config.refractionAmountDp)
+            .putBoolean("liquid_glass_chromatic_aberration", config.chromaticAberration)
+            .putBoolean("liquid_glass_highlight", config.hasHighlight)
+            .putBoolean("liquid_glass_shadow", config.hasShadow)
+            .apply()
+        _uiState.update { it.copy(liquidGlassConfig = config, isLiquidGlassEnabled = config.enabled) }
+    }
+
+    fun resetLiquidGlassConfig() {
+        val defaultConfig = LiquidGlassConfig()
+        updateLiquidGlassConfig(defaultConfig)
     }
 
     fun setSkyCanvasTheme(theme: SkyCanvasTheme) {

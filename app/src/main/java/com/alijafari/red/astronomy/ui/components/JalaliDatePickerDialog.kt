@@ -9,9 +9,12 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,22 +23,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
-import com.alijafari.red.astronomy.ui.theme.AccentPrimary
-import com.alijafari.red.astronomy.ui.theme.CardBorder
-import com.alijafari.red.astronomy.ui.theme.CardSurface
-import com.alijafari.red.astronomy.ui.theme.TextPrimary
-import com.alijafari.red.astronomy.ui.theme.TextSecondary
+import com.alijafari.red.astronomy.ui.theme.RedTheme
 import java.util.Calendar
-
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 
 private fun parseJalaliYear(input: String): Int? {
     val englishDigits = input
@@ -52,6 +47,8 @@ private val PERSIAN_MONTHS_FA = arrayOf(
     "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
     "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
 )
+
+private val PERSIAN_WEEKDAYS_SHORT = arrayOf("ش", "ی", "د", "س", "چ", "پ", "ج")
 
 @Composable
 fun JalaliDatePickerDialog(
@@ -84,6 +81,8 @@ fun JalaliDatePickerDialog(
     AlertDialog(
         onDismissRequest = onDismissRequest,
         modifier = Modifier.testTag("jalali_date_picker_dialog"),
+        containerColor = RedTheme.colors.surfaceElevated,
+        shape = RoundedCornerShape(24.dp),
         title = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -92,18 +91,18 @@ fun JalaliDatePickerDialog(
                 Text(
                     text = "انتخاب تاریخ خورشیدی",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = TextPrimary
+                    color = RedTheme.colors.textPrimary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = AccentPrimary.copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.4f))
+                    color = RedTheme.colors.accentRed.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.4f))
                 ) {
                     Text(
                         text = "${TimeEngine.formatPersianNumbers(selectedDay.toString())} ${PERSIAN_MONTHS_FA[(selectedMonth - 1).coerceIn(0, 11)]} ${TimeEngine.formatPersianNumbers(selectedYear.toString())}",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = AccentPrimary,
+                        color = RedTheme.colors.accentRed,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                     )
                 }
@@ -126,13 +125,17 @@ fun JalaliDatePickerDialog(
                         onClick = { selectedYear-- },
                         modifier = Modifier.size(36.dp)
                     ) {
-                        Icon(Icons.Default.ChevronRight, contentDescription = "Previous Year", tint = TextPrimary)
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = "Previous Year",
+                            tint = RedTheme.colors.textPrimary
+                        )
                     }
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (isSelectingYear) AccentPrimary.copy(alpha = 0.2f) else CardSurface,
-                        border = BorderStroke(1.dp, if (isSelectingYear) AccentPrimary else CardBorder),
+                        color = if (isSelectingYear) RedTheme.colors.accentRed.copy(alpha = 0.2f) else RedTheme.colors.surfaceVariant,
+                        border = BorderStroke(1.dp, if (isSelectingYear) RedTheme.colors.accentRed else RedTheme.colors.border),
                         modifier = Modifier
                             .clickable {
                                 isSelectingYear = !isSelectingYear
@@ -148,11 +151,16 @@ fun JalaliDatePickerDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit Year", tint = AccentPrimary, modifier = Modifier.size(14.dp))
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Year",
+                                tint = RedTheme.colors.accentRed,
+                                modifier = Modifier.size(14.dp)
+                            )
                             Text(
                                 text = "سال ${TimeEngine.formatPersianNumbers(selectedYear.toString())}",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = TextPrimary
+                                color = RedTheme.colors.textPrimary
                             )
                         }
                     }
@@ -161,7 +169,11 @@ fun JalaliDatePickerDialog(
                         onClick = { selectedYear++ },
                         modifier = Modifier.size(36.dp)
                     ) {
-                        Icon(Icons.Default.ChevronLeft, contentDescription = "Next Year", tint = TextPrimary)
+                        Icon(
+                            imageVector = Icons.Default.ChevronLeft,
+                            contentDescription = "Next Year",
+                            tint = RedTheme.colors.textPrimary
+                        )
                     }
                 }
 
@@ -208,8 +220,14 @@ fun JalaliDatePickerDialog(
                                     .weight(1f)
                                     .testTag("jalali_direct_year_input"),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = AccentPrimary,
-                                    unfocusedBorderColor = CardBorder
+                                    focusedBorderColor = RedTheme.colors.accentRed,
+                                    unfocusedBorderColor = RedTheme.colors.border,
+                                    focusedTextColor = RedTheme.colors.textPrimary,
+                                    unfocusedTextColor = RedTheme.colors.textPrimary,
+                                    focusedLabelColor = RedTheme.colors.accentRed,
+                                    unfocusedLabelColor = RedTheme.colors.textSecondary,
+                                    focusedPlaceholderColor = RedTheme.colors.textSecondary,
+                                    unfocusedPlaceholderColor = RedTheme.colors.textSecondary
                                 )
                             )
 
@@ -225,10 +243,10 @@ fun JalaliDatePickerDialog(
                                     }
                                 },
                                 shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed),
                                 modifier = Modifier.testTag("jalali_direct_year_apply_btn")
                             ) {
-                                Text("پرش", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("پرش", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
 
@@ -244,7 +262,7 @@ fun JalaliDatePickerDialog(
                         Text(
                             text = "یا انتخاب سریع سال‌های مجاور:",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
+                            color = RedTheme.colors.textSecondary
                         )
 
                         // Quick Year Selector Grid
@@ -261,8 +279,8 @@ fun JalaliDatePickerDialog(
                                 val isSelected = yr == selectedYear
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = if (isSelected) AccentPrimary else CardSurface,
-                                    border = BorderStroke(1.dp, if (isSelected) AccentPrimary else CardBorder),
+                                    color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.surfaceVariant,
+                                    border = BorderStroke(1.dp, if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border),
                                     modifier = Modifier.clickable {
                                         selectedYear = yr
                                         isSelectingYear = false
@@ -272,7 +290,7 @@ fun JalaliDatePickerDialog(
                                         text = TimeEngine.formatPersianNumbers(yr.toString()),
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) Color.Black else TextPrimary
+                                            color = if (isSelected) Color.White else RedTheme.colors.textPrimary
                                         ),
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.padding(vertical = 6.dp)
@@ -294,8 +312,8 @@ fun JalaliDatePickerDialog(
                             val isSelected = mNum == selectedMonth
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) AccentPrimary.copy(alpha = 0.25f) else CardSurface,
-                                border = BorderStroke(1.dp, if (isSelected) AccentPrimary else CardBorder),
+                                color = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.25f) else RedTheme.colors.surfaceVariant,
+                                border = BorderStroke(1.dp, if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border),
                                 modifier = Modifier.clickable { selectedMonth = mNum }
                             ) {
                                 Text(
@@ -303,7 +321,7 @@ fun JalaliDatePickerDialog(
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 11.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) AccentPrimary else TextPrimary
+                                        color = if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.textPrimary
                                     ),
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.padding(vertical = 6.dp)
@@ -312,7 +330,7 @@ fun JalaliDatePickerDialog(
                         }
                     }
 
-                    HorizontalDivider(color = CardBorder, thickness = 0.5.dp)
+                    HorizontalDivider(color = RedTheme.colors.border, thickness = 0.5.dp)
 
                     // Day Selector Grid (1..31)
                     LazyVerticalGrid(
@@ -330,7 +348,7 @@ fun JalaliDatePickerDialog(
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clip(CircleShape)
-                                    .background(if (isSelected) AccentPrimary else Color.Transparent)
+                                    .background(if (isSelected) RedTheme.colors.accentRed else Color.Transparent)
                                     .clickable { selectedDay = dNum },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -338,7 +356,7 @@ fun JalaliDatePickerDialog(
                                     text = TimeEngine.formatPersianNumbers(dNum.toString()),
                                     style = MaterialTheme.typography.bodySmall.copy(
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) Color.Black else TextPrimary
+                                        color = if (isSelected) Color.White else RedTheme.colors.textPrimary
                                     )
                                 )
                             }
@@ -367,17 +385,15 @@ fun JalaliDatePickerDialog(
                     onDateConfirmed(targetMs)
                     onDismissRequest()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary)
+                colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed)
             ) {
-                Text("تأیید", color = Color.Black, fontWeight = FontWeight.Bold)
+                Text("تأیید", color = Color.White, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismissRequest) {
-                Text("انصراف", color = TextSecondary)
+                Text("انصراف", color = RedTheme.colors.textSecondary)
             }
-        },
-        containerColor = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(24.dp)
+        }
     )
 }

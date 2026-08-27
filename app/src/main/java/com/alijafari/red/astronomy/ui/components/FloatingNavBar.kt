@@ -119,22 +119,6 @@ fun FloatingBottomBar(
                             .fillMaxHeight()
                             .scale(itemScale)
                             .clip(pillShape)
-                            .then(
-                                if (activeProgress > 0.01f) {
-                                    Modifier
-                                        .background(
-                                            RedTheme.colors.accentRed.copy(alpha = 0.12f * activeProgress),
-                                            pillShape
-                                        )
-                                        .border(
-                                            1.dp,
-                                            RedTheme.colors.accentRed.copy(alpha = 0.25f * activeProgress),
-                                            pillShape
-                                        )
-                                } else {
-                                    Modifier
-                                }
-                            )
                             .clickable(
                                 interactionSource = interactionSource,
                                 indication = null

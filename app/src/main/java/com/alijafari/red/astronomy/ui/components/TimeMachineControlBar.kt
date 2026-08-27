@@ -543,7 +543,7 @@ fun TimeMachineControlBar(
                     TimePicker(state = timePickerState)
                 }
             },
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = RedTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(24.dp)
         )
     }
@@ -560,7 +560,8 @@ fun TimeMachineControlBar(
                     Text("✨", fontSize = 22.sp)
                     Text(
                         text = if (isFa) "مشاهده آسمان روز تولد" else "View My Birthday Sky",
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = RedTheme.colors.textPrimary
                     )
                 }
             },
@@ -570,13 +571,13 @@ fun TimeMachineControlBar(
                         text = if (isFa) "تاریخ تولد خود را انتخاب کنید تا موقعیت دقیق خورشید، ماه و صور فلکی در لحظه تولدتان محاسبه شود."
                         else "Enter your birth date to observe the exact astronomical sky at the moment of your birth.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = RedTheme.colors.textSecondary
                     )
 
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                        color = RedTheme.colors.surfaceVariant,
+                        border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.5f)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { showBirthDatePicker = true }
@@ -591,9 +592,9 @@ fun TimeMachineControlBar(
                                     ?: (if (isFa) "برای انتخاب تاریخ کلیک کنید" else "Tap to select birth date"),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (birthDateMillis != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (birthDateMillis != null) RedTheme.colors.accentRed else RedTheme.colors.textSecondary
                             )
-                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = RedTheme.colors.accentRed)
                         }
                     }
                 }
@@ -607,17 +608,17 @@ fun TimeMachineControlBar(
                         showBirthdayModal = false
                     },
                     enabled = birthDateMillis != null,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed)
                 ) {
-                    Text(if (isFa) "نمایش آسمان" else "Show Sky")
+                    Text(if (isFa) "نمایش آسمان" else "Show Sky", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showBirthdayModal = false }) {
-                    Text(if (isFa) "انصراف" else "Cancel")
+                    Text(if (isFa) "انصراف" else "Cancel", color = RedTheme.colors.textSecondary)
                 }
             },
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = RedTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(24.dp)
         )
 
@@ -664,6 +665,8 @@ fun TimeMachineControlBar(
         AlertDialog(
             onDismissRequest = { showOccasionsModal = false },
             modifier = Modifier.testTag("my_occasions_dialog"),
+            containerColor = RedTheme.colors.surfaceElevated,
+            shape = RoundedCornerShape(24.dp),
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -674,18 +677,19 @@ fun TimeMachineControlBar(
                         Text("⭐", fontSize = 22.sp)
                         Text(
                             text = if (isFa) "رویدادهای من" else "My Occasions",
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = RedTheme.colors.textPrimary
                         )
                     }
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f))
+                        color = RedTheme.colors.accentRed.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.4f))
                     ) {
                         Text(
                             text = "${userOccasions.size}/20",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.secondary,
+                            color = RedTheme.colors.accentRed,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
@@ -706,9 +710,9 @@ fun TimeMachineControlBar(
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("add_occasion_button"),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (userOccasions.size >= 20) {
@@ -716,7 +720,8 @@ fun TimeMachineControlBar(
                             } else {
                                 if (isFa) "افزودن رویداد جدید" else "Add New Occasion"
                             },
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
                         )
                     }
 
@@ -731,7 +736,7 @@ fun TimeMachineControlBar(
                                 text = if (isFa) "هیچ رویدادی ذخیره نشده است.\nبا دکمه بالا رویداد دلخواه خود را ثبت کنید."
                                 else "No occasions saved yet.\nTap above to create your custom occasion.",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = RedTheme.colors.textSecondary,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                         }
@@ -748,8 +753,8 @@ fun TimeMachineControlBar(
 
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+                                    color = RedTheme.colors.surfaceVariant,
+                                    border = BorderStroke(1.dp, RedTheme.colors.border),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
@@ -769,13 +774,13 @@ fun TimeMachineControlBar(
                                             Text(
                                                 text = occ.title,
                                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = MaterialTheme.colorScheme.primary
+                                                color = RedTheme.colors.accentRed
                                             )
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
                                                 text = "$occDateStr • $occTimeStr",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.secondary
+                                                color = RedTheme.colors.textSecondary
                                             )
                                         }
 
@@ -790,7 +795,7 @@ fun TimeMachineControlBar(
                                                 Icon(
                                                     Icons.Default.Edit,
                                                     contentDescription = "Edit Occasion",
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    tint = RedTheme.colors.textSecondary,
                                                     modifier = Modifier.size(16.dp)
                                                 )
                                             }
@@ -818,11 +823,9 @@ fun TimeMachineControlBar(
             },
             confirmButton = {
                 TextButton(onClick = { showOccasionsModal = false }) {
-                    Text(if (isFa) "بستن" else "Close")
+                    Text(if (isFa) "بستن" else "Close", color = RedTheme.colors.accentRed)
                 }
-            },
-            containerColor = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(24.dp)
+            }
         )
 
         // Sub-dialog: Add / Edit Occasion
@@ -841,6 +844,8 @@ fun TimeMachineControlBar(
 
             AlertDialog(
                 onDismissRequest = { showAddEditOccasionDialog = false },
+                containerColor = RedTheme.colors.surfaceElevated,
+                shape = RoundedCornerShape(24.dp),
                 title = {
                     Text(
                         text = if (occasionToEdit == null) {
@@ -848,7 +853,8 @@ fun TimeMachineControlBar(
                         } else {
                             if (isFa) "ویرایش رویداد" else "Edit Occasion"
                         },
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = RedTheme.colors.textPrimary
                     )
                 },
                 text = {
@@ -864,7 +870,17 @@ fun TimeMachineControlBar(
                             singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("occasion_title_input")
+                                .testTag("occasion_title_input"),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = RedTheme.colors.accentRed,
+                                unfocusedBorderColor = RedTheme.colors.border,
+                                focusedTextColor = RedTheme.colors.textPrimary,
+                                unfocusedTextColor = RedTheme.colors.textPrimary,
+                                focusedLabelColor = RedTheme.colors.accentRed,
+                                unfocusedLabelColor = RedTheme.colors.textSecondary,
+                                focusedPlaceholderColor = RedTheme.colors.textSecondary,
+                                unfocusedPlaceholderColor = RedTheme.colors.textSecondary
+                            )
                         )
 
                         Row(
@@ -874,8 +890,8 @@ fun TimeMachineControlBar(
                             // Date Selection Button
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                                color = RedTheme.colors.surfaceVariant,
+                                border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.5f)),
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { showSubDatePicker = true }
@@ -888,17 +904,17 @@ fun TimeMachineControlBar(
                                     Text(
                                         text = subDateStr,
                                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = RedTheme.colors.accentRed
                                     )
-                                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.CalendarToday, contentDescription = null, tint = RedTheme.colors.accentRed, modifier = Modifier.size(16.dp))
                                 }
                             }
 
                             // Time Selection Button
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                                color = RedTheme.colors.surfaceVariant,
+                                border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.5f)),
                                 modifier = Modifier
                                     .weight(1f)
                                     .clickable { showSubTimePicker = true }
@@ -911,9 +927,9 @@ fun TimeMachineControlBar(
                                     Text(
                                         text = subTimeStr,
                                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = RedTheme.colors.accentRed
                                     )
-                                    Icon(Icons.Default.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.AccessTime, contentDescription = null, tint = RedTheme.colors.accentRed, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -931,18 +947,16 @@ fun TimeMachineControlBar(
                             }
                         },
                         enabled = occasionTitle.isNotBlank(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed)
                     ) {
-                        Text(if (isFa) "ذخیره" else "Save")
+                        Text(if (isFa) "ذخیره" else "Save", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showAddEditOccasionDialog = false }) {
-                        Text(if (isFa) "انصراف" else "Cancel")
+                        Text(if (isFa) "انصراف" else "Cancel", color = RedTheme.colors.textSecondary)
                     }
-                },
-                containerColor = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(24.dp)
+                }
             )
 
             if (showSubDatePicker) {
