@@ -40,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.FavoritesHistoryDialog
+import com.alijafari.red.astronomy.ui.components.LocationSelectorDialog
 import com.alijafari.red.astronomy.ui.components.ObjectDetailModal
 import com.alijafari.red.astronomy.ui.components.SafeAppLogo
 import com.alijafari.red.astronomy.ui.components.SettingsDialog
@@ -267,7 +268,46 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.align(Alignment.BottomCenter)
                         )
 
-                        // Dialogs and Modals
+                        // Dialogs and Modals (Promoted sibling overlays with Real Kyant0 Liquid Glass Backdrop sampling)
+                        if (uiState.showLocationSelector) {
+                            LocationSelectorDialog(
+                                backdrop = backdrop,
+                                uiState = uiState,
+                                onDismiss = { viewModel.setShowLocationSelector(false) },
+                                onSelectLocation = { city ->
+                                    viewModel.setLocation(
+                                        cityEn = city.nameEn,
+                                        cityFa = city.nameFa,
+                                        lat = city.latitude,
+                                        lon = city.longitude,
+                                        elevationMeters = city.elevationMeters,
+                                        timezoneId = city.timezoneId,
+                                        countryCode = if (city.isIran) "IR" else "GLOBAL",
+                                        provinceEn = city.provinceEn,
+                                        provinceFa = city.provinceFa
+                                    )
+                                },
+                                onSelectCoordinates = { lat, lon, elev, nameEn, nameFa ->
+                                    viewModel.setLocation(
+                                        cityEn = nameEn,
+                                        cityFa = nameFa,
+                                        lat = lat,
+                                        lon = lon,
+                                        elevationMeters = elev
+                                    )
+                                },
+                                onGpsSelected = { lat, lon, alt ->
+                                    viewModel.setGpsLocation(lat, lon, alt)
+                                },
+                                onToggleFavorite = { city ->
+                                    viewModel.toggleFavoriteLocation(city)
+                                },
+                                onRemoveFavorite = { id ->
+                                    viewModel.removeFavoriteLocation(id)
+                                }
+                            )
+                        }
+
                         if (uiState.selectedObjectForDetail != null) {
                             ObjectDetailModal(
                                 obj = uiState.selectedObjectForDetail!!,

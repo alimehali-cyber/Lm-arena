@@ -47,11 +47,13 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.theme.*
+import com.kyant.backdrop.Backdrop
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationSelectorDialog(
+    backdrop: Backdrop? = null,
     uiState: MainUiState,
     onDismiss: () -> Unit,
     onSelectLocation: (GeoCity) -> Unit,
@@ -131,6 +133,7 @@ fun LocationSelectorDialog(
                         onClick = {} // Intercept clicks so window doesn't dismiss
                     )
                     .testTag("location_selector_glass_window"),
+                backdrop = backdrop,
                 shape = RoundedCornerShape(RedCornerRadius.xxl),
                 style = LiquidGlassDefaults.Window,
                 glassTint = RedTheme.colors.surfaceElevated.copy(alpha = if (RedTheme.colors.isDark) 0.65f else 0.75f),
@@ -254,6 +257,7 @@ fun LocationSelectorDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("gps_location_card"),
+                                backdrop = backdrop,
                                 onClick = {
                                     val fineGranted = ContextCompat.checkSelfPermission(
                                         context,
@@ -386,6 +390,7 @@ fun LocationSelectorDialog(
                                     isSelected = isSelected,
                                     isFavorite = true,
                                     isFa = isFa,
+                                    backdrop = backdrop,
                                     onSelect = { onSelectLocation(favCity) },
                                     onToggleFavorite = { onRemoveFavorite(favCity.id) }
                                 )
@@ -437,6 +442,7 @@ fun LocationSelectorDialog(
                                     isSelected = isSelected,
                                     isFavorite = isFav,
                                     isFa = isFa,
+                                    backdrop = backdrop,
                                     onSelect = { onSelectLocation(city) },
                                     onToggleFavorite = { onToggleFavorite(city) }
                                 )
@@ -449,6 +455,7 @@ fun LocationSelectorDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("manual_coordinates_card"),
+                                backdrop = backdrop,
                                 shape = RoundedCornerShape(RedCornerRadius.md),
                                 style = LiquidGlassDefaults.LocationCard,
                                 glassTint = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.35f else 0.45f),
@@ -658,6 +665,7 @@ private fun CityItemCard(
     isSelected: Boolean,
     isFavorite: Boolean,
     isFa: Boolean,
+    backdrop: Backdrop? = null,
     onSelect: () -> Unit,
     onToggleFavorite: () -> Unit
 ) {
@@ -708,6 +716,7 @@ private fun CityItemCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("city_card_${city.id}"),
+        backdrop = backdrop,
         onClick = onSelect,
         shape = RoundedCornerShape(RedCornerRadius.md),
         style = LiquidGlassDefaults.LocationCard,

@@ -40,7 +40,6 @@ import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.HeroSkyCanvas
 import com.alijafari.red.astronomy.ui.components.EclipseDetailModal
-import com.alijafari.red.astronomy.ui.components.LocationSelectorDialog
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Calendar
@@ -125,44 +124,6 @@ fun HomeScreen(
             detailedInfo = detailedInfo,
             language = uiState.language,
             onDismiss = { selectedEclipseResult = null }
-        )
-    }
-
-    if (uiState.showLocationSelector) {
-        LocationSelectorDialog(
-            uiState = uiState,
-            onDismiss = { viewModel.setShowLocationSelector(false) },
-            onSelectLocation = { city ->
-                viewModel.setLocation(
-                    cityEn = city.nameEn,
-                    cityFa = city.nameFa,
-                    lat = city.latitude,
-                    lon = city.longitude,
-                    elevationMeters = city.elevationMeters,
-                    timezoneId = city.timezoneId,
-                    countryCode = if (city.isIran) "IR" else "GLOBAL",
-                    provinceEn = city.provinceEn,
-                    provinceFa = city.provinceFa
-                )
-            },
-            onSelectCoordinates = { lat, lon, elev, nameEn, nameFa ->
-                viewModel.setLocation(
-                    cityEn = nameEn,
-                    cityFa = nameFa,
-                    lat = lat,
-                    lon = lon,
-                    elevationMeters = elev
-                )
-            },
-            onGpsSelected = { lat, lon, alt ->
-                viewModel.setGpsLocation(lat, lon, alt)
-            },
-            onToggleFavorite = { city ->
-                viewModel.toggleFavoriteLocation(city)
-            },
-            onRemoveFavorite = { id ->
-                viewModel.removeFavoriteLocation(id)
-            }
         )
     }
 

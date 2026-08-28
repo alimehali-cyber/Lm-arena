@@ -1,5 +1,41 @@
 package com.alijafari.red.astronomy.ui.theme
 
+/**
+ * ============================================================================
+ * LIQUID GLASS PLACEMENT RULES
+ * ============================================================================
+ *
+ * 1. WHERE DOES A COMPONENT BELONG?
+ *    - Inside Crossfade (Tabs / Screens / Content Cards):
+ *      Any screen or card inside `Crossfade(targetState = uiState.selectedTab)`
+ *      in MainActivity is wrapped in `Modifier.layerBackdrop(backdrop)` and
+ *      scoped to `CompositionLocalProvider(LocalLiquidGlassBackdrop provides null)`.
+ *      These components MUST NOT attempt to call `drawBackdrop()` on that same root
+ *      `backdrop` instance (doing so causes the fatal Kyant assertion:
+ *      "Can not perform this action inside of drawBackdrop!"). They safely render
+ *      high-contrast premium RED design tokens via their `fallbackColor`/`fallbackBorder`.
+ *    - Root-Level Sibling Overlays (Floating Bars, Modals, Full-Screen Dialogs):
+ *      Components that should render real Liquid Glass optical effects (sampling the
+ *      live, animated screen content beneath them) MUST sit OUTSIDE the Crossfade tree
+ *      as direct siblings in `MainActivity.kt`'s root Box (e.g., `FloatingBottomBar`,
+ *      `LocationSelectorDialog`).
+ *
+ * 2. EXPLICIT PARAMETER PASSING MANDATE:
+ *    - Always pass the root `backdrop: Backdrop?` as an EXPLICIT parameter down into
+ *      the overlay composable and forward it to every internal `LiquidGlassSurface(backdrop = backdrop, ...)`.
+ *    - NEVER rely on `LocalLiquidGlassBackdrop.current` for components intended to render
+ *      real glass, since ambient composition local resolution is intentionally null-scoped
+ *      inside the main content tree.
+ *
+ * 3. CONFIGURATION & CUSTOMIZATION (LocalLiquidGlassConfig / LocalLiquidGlassEnabled):
+ *    - `LocalLiquidGlassConfig` (blur, refraction depth/warping, chromatic aberration,
+ *      clarity) and `LocalLiquidGlassEnabled` are provided at the root and are NOT scoped
+ *      to null anywhere.
+ *    - All `LiquidGlassSurface` composables automatically pick up Settings customizations
+ *      and gracefully adapt without extra wiring.
+ * ============================================================================
+ */
+
 import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
