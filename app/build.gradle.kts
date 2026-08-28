@@ -69,15 +69,6 @@ android {
   }
 }
 
-val androidComponents = project.extensions.getByType(com.android.build.api.variant.ApplicationAndroidComponentsExtension::class.java)
-androidComponents.onVariants { variant ->
-  variant.outputs.forEach { output ->
-    if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
-      output.outputFileName.set("RED-${variant.name}.apk")
-    }
-  }
-}
-
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
 // to match the convention used in Web projects.
 secrets {

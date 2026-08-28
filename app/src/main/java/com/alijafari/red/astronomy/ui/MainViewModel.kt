@@ -27,8 +27,8 @@ import java.util.Locale
 data class MainUiState(
     val language: AppLanguage = AppLanguage.PERSIAN,
     val calendarSystem: CalendarSystem = CalendarSystem.SOLAR_HIJRI,
-    val themeMode: ThemeMode = ThemeMode.DARK_NAVY,
-    val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
+    val themeMode: ThemeMode = ThemeMode.DYNAMIC_SILK,
+    val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.PAPERCRAFT_DIORAMA,
     val userLocation: UserLocation = UserLocation(),
     val selectedTab: Int = 4,
     val searchQuery: String = "",
@@ -81,14 +81,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 CalendarSystem.SOLAR_HIJRI
             },
             skyCanvasTheme = try {
-                SkyCanvasTheme.valueOf(prefs.getString("sky_canvas_theme", SkyCanvasTheme.CELESTIAL.name) ?: SkyCanvasTheme.CELESTIAL.name)
+                SkyCanvasTheme.valueOf(prefs.getString("sky_canvas_theme", SkyCanvasTheme.PAPERCRAFT_DIORAMA.name) ?: SkyCanvasTheme.PAPERCRAFT_DIORAMA.name)
             } catch (e: Exception) {
-                SkyCanvasTheme.CELESTIAL
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA
             },
             themeMode = try {
-                ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.DARK_NAVY.name) ?: ThemeMode.DARK_NAVY.name)
+                ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.DYNAMIC_SILK.name) ?: ThemeMode.DYNAMIC_SILK.name)
             } catch (e: Exception) {
-                ThemeMode.DARK_NAVY
+                ThemeMode.DYNAMIC_SILK
             },
             bortleClass = prefs.getInt("bortle_class", 3),
             userLocation = run {

@@ -95,6 +95,52 @@ fun lerpSilkColor(c1: Color, c2: Color, fraction: Float): Color {
 }
 
 /**
+ * Computes standard WCAG relative luminance for an sRGB Color.
+ */
+fun calculateRelativeLuminance(color: Color): Float {
+    fun channelLuminance(c: Float): Float {
+        return if (c <= 0.04045f) {
+            c / 12.92f
+        } else {
+            ((c + 0.055f) / 1.055f).pow(2.4f)
+        }
+    }
+    val r = channelLuminance(color.red)
+    val g = channelLuminance(color.green)
+    val b = channelLuminance(color.blue)
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b
+}
+
+/**
+ * Derives crisp, dynamic, WCAG AAA readable text and accent colors guaranteed to have
+ * maximum legibility against any background/surface color throughout the day.
+ */
+fun deriveDynamicTextColors(
+    surfaceBg: Color,
+    seasonFactor: Float
+): Triple<Color, Color, Color> {
+    val lum = calculateRelativeLuminance(surfaceBg)
+    return if (lum < 0.25f) {
+        // Dark surface -> Crisp light text
+        // High contrast pure white textPrimary, soft slate secondary, muted tertiary
+        val primary = Color(0xFFF8FAFC)
+        val secondary = Color(0xFFCBD5E1)
+        val tertiary = Color(0xFF94A3B8)
+        Triple(primary, secondary, tertiary)
+    } else {
+        // Light surface -> Deep high-contrast obsidian ink text
+        val deepObsidian = lerpSilkColor(
+            Color(0xFF0B132B), // Deep midnight ink in winter
+            Color(0xFF0A1626), // Deep navy obsidian in summer
+            seasonFactor
+        )
+        val secondary = Color(0xFF334155) // Slate 700
+        val tertiary = Color(0xFF64748B)  // Slate 500
+        Triple(deepObsidian, secondary, tertiary)
+    }
+}
+
+/**
  * Computes the authoritative Celestial Fabric lighting and color palette based on
  * RED's existing date/time and Sun/Moon astronomical positions.
  */
@@ -136,9 +182,6 @@ fun calculateCelestialLighting(
     val summerDaySecondary = Color(0xFF0EA5E9)    // Glacial Cyan
     val summerDayTertiary = Color(0xFF0284C7)
     val summerDayOutline = Color(0xFFBAE6FD)
-    val summerDayTextPrimary = Color(0xFF0A1626)  // High-contrast deep navy obsidian
-    val summerDayTextSecondary = Color(0xFF334155)
-    val summerDayTextTertiary = Color(0xFF64748B)
 
     // Winter Daytime: Elegant Cornflower Blue Silk
     val winterDayBg = Color(0xFFE8EEFA)
@@ -148,9 +191,6 @@ fun calculateCelestialLighting(
     val winterDaySecondary = Color(0xFF6366F1)    // Periwinkle Silk
     val winterDayTertiary = Color(0xFF4F46E5)
     val winterDayOutline = Color(0xFFC7D2FE)
-    val winterDayTextPrimary = Color(0xFF0B132B)  // High-contrast deep midnight ink
-    val winterDayTextSecondary = Color(0xFF334155)
-    val winterDayTextTertiary = Color(0xFF64748B)
 
     // Interpolated Daytime Silk Palette according to season (Spring/Autumn transition smoothly)
     val dayBg = lerpSilkColor(winterDayBg, summerDayBg, seasonFactor)
@@ -160,34 +200,25 @@ fun calculateCelestialLighting(
     val daySecondary = lerpSilkColor(winterDaySecondary, summerDaySecondary, seasonFactor)
     val dayTertiary = lerpSilkColor(winterDayTertiary, summerDayTertiary, seasonFactor)
     val dayOutline = lerpSilkColor(winterDayOutline, summerDayOutline, seasonFactor)
-    val dayTextPrimary = lerpSilkColor(winterDayTextPrimary, summerDayTextPrimary, seasonFactor)
-    val dayTextSecondary = lerpSilkColor(winterDayTextSecondary, summerDayTextSecondary, seasonFactor)
-    val dayTextTertiary = lerpSilkColor(winterDayTextTertiary, summerDayTextTertiary, seasonFactor)
 
     // 3. Daily Cycle Palettes for Twilight & Night
     // Golden Hour (Sun altitude 0° to 12°)
-    val goldenBg = Color(0xFFF5ECE1)
-    val goldenSurface = Color(0xFFFDFBF7)
-    val goldenSurfaceVar = Color(0xFFF3E7D8)
+    val goldenBg = Color(0xFFF7EFE6)
+    val goldenSurface = Color(0xFFFDFCF9)
+    val goldenSurfaceVar = Color(0xFFF5E8D6)
     val goldenPrimary = Color(0xFFD97706)         // Amber Silk
     val goldenSecondary = Color(0xFFF59E0B)       // Warm Champagne Gold
     val goldenTertiary = Color(0xFFB45309)
     val goldenOutline = Color(0xFFFDE68A)
-    val goldenTextPrimary = Color(0xFF1C1917)
-    val goldenTextSecondary = Color(0xFF57534E)
-    val goldenTextTertiary = Color(0xFF78716C)
 
     // Sunset / Civil Twilight (Sun altitude -6° to 0°)
-    val civilBg = Color(0xFF20182A)
-    val civilSurface = Color(0xFF2C223A)
-    val civilSurfaceVar = Color(0xFF3D2F50)
+    val civilBg = Color(0xFF1E1528)
+    val civilSurface = Color(0xFF281C36)
+    val civilSurfaceVar = Color(0xFF38274C)
     val civilPrimary = Color(0xFFF97316)          // Sunset Coral Silk
     val civilSecondary = Color(0xFFA855F7)        // Amethyst Twilight Silk
     val civilTertiary = Color(0xFFFB923C)
     val civilOutline = Color(0x66F97316)
-    val civilTextPrimary = Color(0xFFFFF7ED)
-    val civilTextSecondary = Color(0xFFFED7AA)
-    val civilTextTertiary = Color(0xFFC084FC)
 
     // Nautical Twilight (Sun altitude -12° to -6°)
     val nauticalBg = Color(0xFF101424)
@@ -197,9 +228,6 @@ fun calculateCelestialLighting(
     val nauticalSecondary = Color(0xFFA5B4FC)
     val nauticalTertiary = Color(0xFF38BDF8)
     val nauticalOutline = Color(0x40818CF8)
-    val nauticalTextPrimary = Color(0xFFF8FAFC)
-    val nauticalTextSecondary = Color(0xFF94A3B8)
-    val nauticalTextTertiary = Color(0xFF64748B)
 
     // Astronomical Twilight (Sun altitude -18° to -12°)
     val astroBg = Color(0xFF0C0F1D)
@@ -209,9 +237,6 @@ fun calculateCelestialLighting(
     val astroSecondary = Color(0xFF60A5FA)
     val astroTertiary = Color(0xFF818CF8)
     val astroOutline = Color(0x3338BDF8)
-    val astroTextPrimary = Color(0xFFF8FAFC)
-    val astroTextSecondary = Color(0xFF94A3B8)
-    val astroTextTertiary = Color(0xFF64748B)
 
     // Night (True Dark, Sun altitude < -18°)
     val nightBg = Color(0xFF080B14)               // Midnight Celestial Void Silk
@@ -221,12 +246,8 @@ fun calculateCelestialLighting(
     val nightSecondary = Color(0xFF818CF8)        // Moonlit Silk
     val nightTertiary = Color(0xFFFDE68A)         // Pale Starlight Gold
     val nightOutline = Color(0x2938BDF8)
-    val nightTextPrimary = Color(0xFFF8FAFC)
-    val nightTextSecondary = Color(0xFF94A3B8)
-    val nightTextTertiary = Color(0xFF64748B)
 
     // 4. Smooth Continuous Evolution Across the Daily Cycle
-    val isDark: Boolean
     val phaseName: String
     val bgCol: Color
     val surfCol: Color
@@ -235,20 +256,15 @@ fun calculateCelestialLighting(
     val secCol: Color
     val tertCol: Color
     val outCol: Color
-    val txtPrimCol: Color
-    val txtSecCol: Color
-    val txtTertCol: Color
 
     when {
         sunAlt >= 22.0 -> {
-            isDark = false
             phaseName = "Daylight"
             bgCol = dayBg; surfCol = daySurface; surfVarCol = daySurfaceVar
             primCol = dayPrimary; secCol = daySecondary; tertCol = dayTertiary
-            outCol = dayOutline; txtPrimCol = dayTextPrimary; txtSecCol = dayTextSecondary; txtTertCol = dayTextTertiary
+            outCol = dayOutline
         }
         sunAlt in 10.0..22.0 -> {
-            isDark = false
             phaseName = "Afternoon Light"
             val f = ((sunAlt - 10.0) / 12.0).toFloat()
             bgCol = lerpSilkColor(goldenBg, dayBg, f)
@@ -258,27 +274,19 @@ fun calculateCelestialLighting(
             secCol = lerpSilkColor(goldenSecondary, daySecondary, f)
             tertCol = lerpSilkColor(goldenTertiary, dayTertiary, f)
             outCol = lerpSilkColor(goldenOutline, dayOutline, f)
-            txtPrimCol = lerpSilkColor(goldenTextPrimary, dayTextPrimary, f)
-            txtSecCol = lerpSilkColor(goldenTextSecondary, dayTextSecondary, f)
-            txtTertCol = lerpSilkColor(goldenTextTertiary, dayTextTertiary, f)
         }
         sunAlt in 0.0..10.0 -> {
-            isDark = false
             phaseName = "Golden Hour"
             val f = (sunAlt / 10.0).toFloat()
-            bgCol = lerpSilkColor(civilBg, goldenBg, f)
-            surfCol = lerpSilkColor(civilSurface, goldenSurface, f)
-            surfVarCol = lerpSilkColor(civilSurfaceVar, goldenSurfaceVar, f)
+            bgCol = lerpSilkColor(goldenBg, goldenBg, f)
+            surfCol = lerpSilkColor(goldenSurface, goldenSurface, f)
+            surfVarCol = lerpSilkColor(goldenSurfaceVar, goldenSurfaceVar, f)
             primCol = lerpSilkColor(civilPrimary, goldenPrimary, f)
             secCol = lerpSilkColor(civilSecondary, goldenSecondary, f)
             tertCol = lerpSilkColor(civilTertiary, goldenTertiary, f)
             outCol = lerpSilkColor(civilOutline, goldenOutline, f)
-            txtPrimCol = lerpSilkColor(civilTextPrimary, goldenTextPrimary, f)
-            txtSecCol = lerpSilkColor(civilTextSecondary, goldenTextSecondary, f)
-            txtTertCol = lerpSilkColor(civilTextTertiary, goldenTextTertiary, f)
         }
         sunAlt in -6.0..0.0 -> {
-            isDark = true
             phaseName = "Civil Twilight"
             val f = ((sunAlt + 6.0) / 6.0).toFloat()
             bgCol = lerpSilkColor(nauticalBg, civilBg, f)
@@ -288,12 +296,8 @@ fun calculateCelestialLighting(
             secCol = lerpSilkColor(nauticalSecondary, civilSecondary, f)
             tertCol = lerpSilkColor(nauticalTertiary, civilTertiary, f)
             outCol = lerpSilkColor(nauticalOutline, civilOutline, f)
-            txtPrimCol = lerpSilkColor(nauticalTextPrimary, civilTextPrimary, f)
-            txtSecCol = lerpSilkColor(nauticalTextSecondary, civilTextSecondary, f)
-            txtTertCol = lerpSilkColor(nauticalTextTertiary, civilTextTertiary, f)
         }
         sunAlt in -12.0..-6.0 -> {
-            isDark = true
             phaseName = "Nautical Twilight"
             val f = ((sunAlt + 12.0) / 6.0).toFloat()
             bgCol = lerpSilkColor(astroBg, nauticalBg, f)
@@ -303,12 +307,8 @@ fun calculateCelestialLighting(
             secCol = lerpSilkColor(astroSecondary, nauticalSecondary, f)
             tertCol = lerpSilkColor(astroTertiary, nauticalTertiary, f)
             outCol = lerpSilkColor(astroOutline, nauticalOutline, f)
-            txtPrimCol = lerpSilkColor(astroTextPrimary, nauticalTextPrimary, f)
-            txtSecCol = lerpSilkColor(astroTextSecondary, nauticalTextSecondary, f)
-            txtTertCol = lerpSilkColor(astroTextTertiary, nauticalTextTertiary, f)
         }
         sunAlt in -18.0..-12.0 -> {
-            isDark = true
             phaseName = "Astronomical Twilight"
             val f = ((sunAlt + 18.0) / 6.0).toFloat()
             bgCol = lerpSilkColor(nightBg, astroBg, f)
@@ -318,18 +318,19 @@ fun calculateCelestialLighting(
             secCol = lerpSilkColor(nightSecondary, astroSecondary, f)
             tertCol = lerpSilkColor(nightTertiary, astroTertiary, f)
             outCol = lerpSilkColor(nightOutline, astroOutline, f)
-            txtPrimCol = lerpSilkColor(nightTextPrimary, astroTextPrimary, f)
-            txtSecCol = lerpSilkColor(nightTextSecondary, astroTextSecondary, f)
-            txtTertCol = lerpSilkColor(nightTextTertiary, astroTextTertiary, f)
         }
         else -> {
-            isDark = true
             phaseName = "Night (True Dark)"
             bgCol = nightBg; surfCol = nightSurface; surfVarCol = nightSurfaceVar
             primCol = nightPrimary; secCol = nightSecondary; tertCol = nightTertiary
-            outCol = nightOutline; txtPrimCol = nightTextPrimary; txtSecCol = nightTextSecondary; txtTertCol = nightTextTertiary
+            outCol = nightOutline
         }
     }
+
+    // Dynamic contrast determination based on surface luminance
+    val surfaceLuminance = calculateRelativeLuminance(surfCol)
+    val isDark = surfaceLuminance < 0.35f
+    val (txtPrimCol, txtSecCol, txtTertCol) = deriveDynamicTextColors(surfCol, seasonFactor)
 
     // 5. Living Astronomical Sheen (Driven strictly by Sun or Moon position)
     val sheenDir: Offset
