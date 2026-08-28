@@ -525,6 +525,7 @@ fun ISSScreen(
                 ) {
                     val w = size.width
                     val h = size.height
+                    if (w <= 0f || h <= 0f) return@Canvas
 
                     // 0. Ocean Background
                     drawRect(color = mapPalette.oceanColor)
@@ -569,8 +570,8 @@ fun ISSScreen(
                     }
 
                     // 2. Draw Accurate Earth Continents & Landmasses
-                    val scaleX = w * zoomScale
-                    val scaleY = h * zoomScale
+                    val scaleX = (w * zoomScale).coerceAtLeast(0.001f)
+                    val scaleY = (h * zoomScale).coerceAtLeast(0.001f)
                     val translateX = centerX * (1f - zoomScale) + panOffsetX
                     val translateY = centerY * (1f - zoomScale) + panOffsetY
 
@@ -578,12 +579,13 @@ fun ISSScreen(
                     drawContext.canvas.translate(translateX, translateY)
                     drawContext.canvas.scale(scaleX, scaleY)
 
+                    val strokeW = ((if (mapPalette.isDarkBackground) 1.2f else 1.0f) / scaleX).coerceIn(0.001f, 5.0f)
                     for (unitPath in WorldGeographyData.normalizedPaths) {
                         drawPath(path = unitPath, color = landColor, style = Fill)
                         drawPath(
                             path = unitPath,
                             color = landStroke,
-                            style = Stroke(width = (if (mapPalette.isDarkBackground) 1.2f else 1.0f) / scaleX)
+                            style = Stroke(width = strokeW)
                         )
                     }
                     drawContext.canvas.restore()

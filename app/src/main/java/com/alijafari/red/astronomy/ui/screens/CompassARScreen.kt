@@ -918,6 +918,8 @@ fun CompassARScreen(
         ) {
             val canvasWidth = size.width
             val canvasHeight = size.height
+            if (canvasWidth <= 0f || canvasHeight <= 0f) return@Canvas
+
             val centerX = canvasWidth / 2f
             val centerY = canvasHeight / 2f
 
@@ -926,7 +928,7 @@ fun CompassARScreen(
                 screenHeightPx = canvasHeight,
                 intrinsics = cameraIntrinsics,
                 zoomFactor = zoomFactor
-            )
+            ).coerceAtLeast(1.0)
             val pixelsPerDegree = canvasWidth / fovX
 
             // Starry night background if camera disabled

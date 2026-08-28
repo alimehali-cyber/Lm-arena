@@ -216,7 +216,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .then(
-                                        if (backdrop != null) {
+                                        if (backdrop != null && uiState.selectedTab != 3) {
                                             Modifier.layerBackdrop(backdrop)
                                         } else {
                                             Modifier
