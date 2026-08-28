@@ -224,32 +224,36 @@ class MainActivity : ComponentActivity() {
                                     )
                                     .padding(top = innerPadding.calculateTopPadding())
                             ) {
-                                Crossfade(
-                                    targetState = uiState.selectedTab,
-                                    label = "TabSwitch"
-                                ) { tab ->
-                                    when (tab) {
-                                        0 -> LabScreen(
-                                            uiState = uiState,
-                                            viewModel = viewModel
-                                        )
-                                        1 -> ISSScreen(
-                                            uiState = uiState,
-                                            viewModel = viewModel
-                                        )
-                                        2 -> MoonScreen(
-                                            uiState = uiState,
-                                            viewModel = viewModel
-                                        )
-                                        3 -> CompassARScreen(
-                                            uiState = uiState,
-                                            viewModel = viewModel
-                                        )
-                                        4 -> HomeScreen(
-                                            uiState = uiState,
-                                            viewModel = viewModel,
-                                            onNavigateToTab = { viewModel.selectTab(it) }
-                                        )
+                                CompositionLocalProvider(
+                                    com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassBackdrop provides null
+                                ) {
+                                    Crossfade(
+                                        targetState = uiState.selectedTab,
+                                        label = "TabSwitch"
+                                    ) { tab ->
+                                        when (tab) {
+                                            0 -> LabScreen(
+                                                uiState = uiState,
+                                                viewModel = viewModel
+                                            )
+                                            1 -> ISSScreen(
+                                                uiState = uiState,
+                                                viewModel = viewModel
+                                            )
+                                            2 -> MoonScreen(
+                                                uiState = uiState,
+                                                viewModel = viewModel
+                                            )
+                                            3 -> CompassARScreen(
+                                                uiState = uiState,
+                                                viewModel = viewModel
+                                            )
+                                            4 -> HomeScreen(
+                                                uiState = uiState,
+                                                viewModel = viewModel,
+                                                onNavigateToTab = { viewModel.selectTab(it) }
+                                            )
+                                        }
                                     }
                                 }
                             }
