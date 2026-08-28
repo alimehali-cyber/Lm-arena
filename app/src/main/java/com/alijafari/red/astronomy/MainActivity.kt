@@ -11,6 +11,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -151,7 +152,8 @@ class MainActivity : ComponentActivity() {
 
                     CompositionLocalProvider(
                         com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassEnabled provides (uiState.liquidGlassConfig.enabled && com.alijafari.red.astronomy.ui.theme.isLiquidGlassSupported()),
-                        com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassConfig provides uiState.liquidGlassConfig
+                        com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassConfig provides uiState.liquidGlassConfig,
+                        com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassBackdrop provides backdrop
                     ) {
                         Box(
                             modifier = Modifier
@@ -171,20 +173,24 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .statusBarsPadding()
-                                            .height(52.dp)
-                                            .padding(horizontal = com.alijafari.red.astronomy.ui.theme.RedSpacing.lg),
+                                            .padding(horizontal = com.alijafari.red.astronomy.ui.theme.RedSpacing.lg, vertical = com.alijafari.red.astronomy.ui.theme.RedSpacing.sm),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         IconButton(
                                             onClick = { viewModel.selectTab(4) },
-                                            modifier = Modifier.size(36.dp)
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(CircleShape)
+                                                .background(com.alijafari.red.astronomy.ui.theme.RedTheme.colors.surfaceElevated.copy(alpha = 0.7f))
+                                                .border(0.5.dp, com.alijafari.red.astronomy.ui.theme.RedTheme.colors.border.copy(alpha = 0.4f), CircleShape)
+                                                .testTag("tab_top_back_button")
                                         ) {
                                             Icon(
-                                                imageVector = if (isFa) Icons.AutoMirrored.Filled.ArrowForward else Icons.AutoMirrored.Filled.ArrowBack,
+                                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                                 contentDescription = "Back",
-                                                tint = com.alijafari.red.astronomy.ui.theme.RedTheme.colors.textSecondary,
-                                                modifier = Modifier.size(com.alijafari.red.astronomy.ui.theme.RedIconSize.md)
+                                                tint = com.alijafari.red.astronomy.ui.theme.RedTheme.colors.textPrimary,
+                                                modifier = Modifier.size(com.alijafari.red.astronomy.ui.theme.RedIconSize.sm)
                                             )
                                         }
 

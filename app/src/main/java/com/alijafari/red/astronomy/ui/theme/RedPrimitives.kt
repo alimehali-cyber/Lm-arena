@@ -1,34 +1,50 @@
 package com.alijafari.red.astronomy.ui.theme
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RangeSlider
+import androidx.compose.material3.RangeSliderState
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -305,12 +321,13 @@ fun RedControl(
 
 /**
  * Shared RED Slider
- * Modern Apple-inspired slider:
- * - Slim refined track with clean rounded ends
- * - High-contrast active track using RedTheme.colors.accentRed
+ * Modern Apple-inspired unified premium slider:
+ * - Very thin, refined horizontal capsule track (4dp)
+ * - Pure circular thumb (18dp idle -> 22dp pressed/dragged) with smooth spring animation
+ * - Solid crisp surface with micro-border and subtle drop shadow
+ * - High-contrast active track using RedTheme.colors.accentRed (or custom accentColor)
  * - Restrained subtle inactive track adapting to surface
- * - Refined circular thumb with subtle elevation & clean accent border
- * - Generous touch target meeting accessibility standards
+ * - Seamless RTL support, accessibility, and zero bulky Material3 gaps
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -321,8 +338,32 @@ fun RedSlider(
     enabled: Boolean = true,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     steps: Int = 0,
-    onValueChangeFinished: (() -> Unit)? = null
+    onValueChangeFinished: (() -> Unit)? = null,
+    accentColor: Color = RedTheme.colors.accentRed,
+    inactiveTrackColor: Color = RedTheme.colors.border.copy(alpha = if (RedTheme.colors.isDark) 0.35f else 0.45f),
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
 ) {
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val isDragged by interactionSource.collectIsDraggedAsState()
+    val isInteracting = isPressed || isDragged
+
+    val thumbSize by animateDpAsState(
+        targetValue = if (isInteracting && enabled) 22.dp else 18.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "redSliderThumbSize"
+    )
+
+    val thumbElevation by animateDpAsState(
+        targetValue = if (isInteracting && enabled) 4.dp else 2.dp,
+        animationSpec = tween(150),
+        label = "redSliderThumbElevation"
+    )
+
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+
     Slider(
         value = value,
         onValueChange = onValueChange,
@@ -331,16 +372,255 @@ fun RedSlider(
         valueRange = valueRange,
         steps = steps,
         onValueChangeFinished = onValueChangeFinished,
+        interactionSource = interactionSource,
         colors = SliderDefaults.colors(
-            thumbColor = RedTheme.colors.accentRed,
-            activeTrackColor = RedTheme.colors.accentRed,
-            inactiveTrackColor = RedTheme.colors.surfaceGrouped,
+            thumbColor = Color.Transparent,
+            activeTrackColor = Color.Transparent,
+            inactiveTrackColor = Color.Transparent,
             activeTickColor = Color.Transparent,
-            inactiveTickColor = Color.Transparent,
-            disabledThumbColor = RedTheme.colors.textTertiary,
-            disabledActiveTrackColor = RedTheme.colors.separator,
-            disabledInactiveTrackColor = RedTheme.colors.border
-        )
+            inactiveTickColor = Color.Transparent
+        ),
+        thumb = {
+            Box(
+                modifier = Modifier
+                    .size(thumbSize)
+                    .shadow(
+                        elevation = if (enabled) thumbElevation else 0.dp,
+                        shape = CircleShape,
+                        clip = false
+                    )
+                    .background(
+                        color = if (enabled) {
+                            if (RedTheme.colors.isDark) Color(0xFFFCFCFF) else Color.White
+                        } else {
+                            RedTheme.colors.border
+                        },
+                        shape = CircleShape
+                    )
+                    .border(
+                        width = 0.5.dp,
+                        color = if (enabled) {
+                            if (RedTheme.colors.isDark) Color(0x33000000) else Color(0x1F000000)
+                        } else {
+                            RedTheme.colors.separator
+                        },
+                        shape = CircleShape
+                    )
+            )
+        },
+        track = { sliderState ->
+            val activeColor = if (enabled) accentColor else RedTheme.colors.textTertiary.copy(alpha = 0.35f)
+            val inactiveColor = if (enabled) inactiveTrackColor else RedTheme.colors.surfaceGrouped.copy(alpha = 0.25f)
+
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+            ) {
+                val trackHeight = size.height
+                val cornerRadius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
+
+                // 1. Draw subtle inactive track (full width capsule)
+                drawRoundRect(
+                    color = inactiveColor,
+                    topLeft = Offset.Zero,
+                    size = size,
+                    cornerRadius = cornerRadius
+                )
+
+                // 2. Compute active fraction and draw active capsule
+                val startVal = sliderState.valueRange.start
+                val endVal = sliderState.valueRange.endInclusive
+                val totalSpan = endVal - startVal
+                val fraction = if (totalSpan > 0f) {
+                    ((sliderState.value - startVal) / totalSpan).coerceIn(0f, 1f)
+                } else 0f
+
+                val activeWidth = size.width * fraction
+                if (activeWidth > 0f) {
+                    if (isRtl) {
+                        drawRoundRect(
+                            color = activeColor,
+                            topLeft = Offset(size.width - activeWidth, 0f),
+                            size = Size(activeWidth, trackHeight),
+                            cornerRadius = cornerRadius
+                        )
+                    } else {
+                        drawRoundRect(
+                            color = activeColor,
+                            topLeft = Offset.Zero,
+                            size = Size(activeWidth, trackHeight),
+                            cornerRadius = cornerRadius
+                        )
+                    }
+                }
+            }
+        }
+    )
+}
+
+/**
+ * Shared RED Range Slider
+ * Modern Apple-inspired unified premium dual-thumb range slider
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RedRangeSlider(
+    value: ClosedFloatingPointRange<Float>,
+    onValueChange: (ClosedFloatingPointRange<Float>) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+    steps: Int = 0,
+    onValueChangeFinished: (() -> Unit)? = null,
+    accentColor: Color = RedTheme.colors.accentRed,
+    inactiveTrackColor: Color = RedTheme.colors.border.copy(alpha = if (RedTheme.colors.isDark) 0.35f else 0.45f),
+    startInteractionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    endInteractionSource: MutableInteractionSource = remember { MutableInteractionSource() }
+) {
+    val startPressed by startInteractionSource.collectIsPressedAsState()
+    val startDragged by startInteractionSource.collectIsDraggedAsState()
+    val isStartInteracting = startPressed || startDragged
+
+    val endPressed by endInteractionSource.collectIsPressedAsState()
+    val endDragged by endInteractionSource.collectIsDraggedAsState()
+    val isEndInteracting = endPressed || endDragged
+
+    val startThumbSize by animateDpAsState(
+        targetValue = if (isStartInteracting && enabled) 22.dp else 18.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "redRangeSliderStartThumbSize"
+    )
+
+    val endThumbSize by animateDpAsState(
+        targetValue = if (isEndInteracting && enabled) 22.dp else 18.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "redRangeSliderEndThumbSize"
+    )
+
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+
+    RangeSlider(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        enabled = enabled,
+        valueRange = valueRange,
+        steps = steps,
+        onValueChangeFinished = onValueChangeFinished,
+        startInteractionSource = startInteractionSource,
+        endInteractionSource = endInteractionSource,
+        colors = SliderDefaults.colors(
+            thumbColor = Color.Transparent,
+            activeTrackColor = Color.Transparent,
+            inactiveTrackColor = Color.Transparent,
+            activeTickColor = Color.Transparent,
+            inactiveTickColor = Color.Transparent
+        ),
+        startThumb = {
+            Box(
+                modifier = Modifier
+                    .size(startThumbSize)
+                    .shadow(
+                        elevation = if (enabled) (if (isStartInteracting) 4.dp else 2.dp) else 0.dp,
+                        shape = CircleShape,
+                        clip = false
+                    )
+                    .background(
+                        color = if (enabled) {
+                            if (RedTheme.colors.isDark) Color(0xFFFCFCFF) else Color.White
+                        } else {
+                            RedTheme.colors.border
+                        },
+                        shape = CircleShape
+                    )
+                    .border(
+                        width = 0.5.dp,
+                        color = if (enabled) {
+                            if (RedTheme.colors.isDark) Color(0x33000000) else Color(0x1F000000)
+                        } else {
+                            RedTheme.colors.separator
+                        },
+                        shape = CircleShape
+                    )
+            )
+        },
+        endThumb = {
+            Box(
+                modifier = Modifier
+                    .size(endThumbSize)
+                    .shadow(
+                        elevation = if (enabled) (if (isEndInteracting) 4.dp else 2.dp) else 0.dp,
+                        shape = CircleShape,
+                        clip = false
+                    )
+                    .background(
+                        color = if (enabled) {
+                            if (RedTheme.colors.isDark) Color(0xFFFCFCFF) else Color.White
+                        } else {
+                            RedTheme.colors.border
+                        },
+                        shape = CircleShape
+                    )
+                    .border(
+                        width = 0.5.dp,
+                        color = if (enabled) {
+                            if (RedTheme.colors.isDark) Color(0x33000000) else Color(0x1F000000)
+                        } else {
+                            RedTheme.colors.separator
+                        },
+                        shape = CircleShape
+                    )
+            )
+        },
+        track = { rangeSliderState ->
+            val activeColor = if (enabled) accentColor else RedTheme.colors.textTertiary.copy(alpha = 0.35f)
+            val inactiveColor = if (enabled) inactiveTrackColor else RedTheme.colors.surfaceGrouped.copy(alpha = 0.25f)
+
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+            ) {
+                val trackHeight = size.height
+                val cornerRadius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
+
+                // 1. Inactive track
+                drawRoundRect(
+                    color = inactiveColor,
+                    topLeft = Offset.Zero,
+                    size = size,
+                    cornerRadius = cornerRadius
+                )
+
+                // 2. Active span
+                val startRange = rangeSliderState.valueRange.start
+                val endRange = rangeSliderState.valueRange.endInclusive
+                val totalSpan = endRange - startRange
+                if (totalSpan > 0f) {
+                    val startFraction = ((rangeSliderState.activeRangeStart - startRange) / totalSpan).coerceIn(0f, 1f)
+                    val endFraction = ((rangeSliderState.activeRangeEnd - startRange) / totalSpan).coerceIn(0f, 1f)
+
+                    val startX = if (isRtl) size.width * (1f - endFraction) else size.width * startFraction
+                    val spanWidth = size.width * (endFraction - startFraction).coerceAtLeast(0f)
+
+                    if (spanWidth > 0f) {
+                        drawRoundRect(
+                            color = activeColor,
+                            topLeft = Offset(startX, 0f),
+                            size = Size(spanWidth, trackHeight),
+                            cornerRadius = cornerRadius
+                        )
+                    }
+                }
+            }
+        }
     )
 }
 

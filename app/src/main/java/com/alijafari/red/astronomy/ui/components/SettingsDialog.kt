@@ -302,15 +302,12 @@ fun SettingsDialog(
                         style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
                         color = RedTheme.colors.textPrimary
                     )
-                    Slider(
+                    RedSlider(
                         value = uiState.bortleClass.toFloat(),
                         onValueChange = { viewModel.setBortleClass(it.toInt()) },
                         valueRange = 1f..9f,
                         steps = 7,
-                        colors = SliderDefaults.colors(
-                            thumbColor = RedTheme.colors.accentRed,
-                            activeTrackColor = RedTheme.colors.accentRed
-                        )
+                        modifier = Modifier.fillMaxWidth().testTag("bortle_class_slider")
                     )
                 }
 

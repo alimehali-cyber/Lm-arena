@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -34,7 +35,7 @@ import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
-import com.alijafari.red.astronomy.ui.theme.AccentPrimary
+import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.text.SimpleDateFormat
 import java.util.*
@@ -145,92 +146,91 @@ fun SatelliteDetailScreen(
     }
 
     Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("satellite_detail_screen"),
         topBar = {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                tonalElevation = 2.dp,
-                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(RedTheme.colors.surfaceElevated.copy(alpha = 0.7f))
+                            .border(0.5.dp, RedTheme.colors.border.copy(alpha = 0.4f), CircleShape)
+                            .testTag("sat_detail_back")
                     ) {
-                        IconButton(
-                            onClick = onBack,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .testTag("sat_detail_back")
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = if (isFa) satelliteItem.nameFa else satelliteItem.nameEn,
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "NORAD ${satelliteItem.noradId} • ${satelliteItem.designation}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = RedTheme.colors.textPrimary,
+                            modifier = Modifier.size(RedIconSize.sm)
+                        )
                     }
 
-                    if (!isOnline) {
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.errorContainer,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                    Column {
+                        Text(
+                            text = if (isFa) satelliteItem.nameFa else satelliteItem.nameEn,
+                            style = RedTypographyTokens.sectionHeading,
+                            color = RedTheme.colors.textPrimary
+                        )
+                        Text(
+                            text = if (isFa) "شناسه نوراد: ${satelliteItem.noradId} • ${satelliteItem.designation}".toPersianDigits()
+                            else "NORAD ${satelliteItem.noradId} • ${satelliteItem.designation}",
+                            style = RedTypographyTokens.caption,
+                            color = RedTheme.colors.textSecondary
+                        )
+                    }
+                }
+
+                if (!isOnline) {
+                    Surface(
+                        shape = RoundedCornerShape(RedCornerRadius.full),
+                        color = RedTheme.colors.statusError.copy(alpha = 0.15f),
+                        border = BorderStroke(0.5.dp, RedTheme.colors.statusError.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.WifiOff,
-                                    contentDescription = "Offline",
-                                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = if (isFa) "آفلاین" else "Offline",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.WifiOff,
+                                contentDescription = "Offline",
+                                tint = RedTheme.colors.statusError,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = if (isFa) "آفلاین" else "Offline",
+                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                                color = RedTheme.colors.statusError
+                            )
                         }
                     }
                 }
             }
         },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.md),
+            verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
         ) {
             // 1. Hero Status Card
             Surface(

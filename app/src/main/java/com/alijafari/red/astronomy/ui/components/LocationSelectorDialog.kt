@@ -8,11 +8,11 @@ import android.location.Location
 import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,9 +27,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -49,7 +46,7 @@ import com.alijafari.red.astronomy.data.catalog.GeoLocationCatalog
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.ui.MainUiState
-import com.alijafari.red.astronomy.ui.theme.IranSans
+import com.alijafari.red.astronomy.ui.theme.*
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,255 +105,156 @@ fun LocationSelectorDialog(
         }
     }
 
-    // Glowing animation for Nurabad City (NC)
-    val infiniteTransition = rememberInfiniteTransition(label = "nurabadGlow")
-    val cornflowerGlowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 0.95f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1300, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "cornflowerGlow"
-    )
-
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
+        Box(
             modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.90f)
-                .clip(RoundedCornerShape(24.dp))
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.35f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                ),
+            contentAlignment = Alignment.Center
         ) {
-            Column(
+            // LOCATION SELECTION WINDOW BACKDROP → Liquid Glass (blur strength: 1 / 24)
+            LiquidGlassSurface(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 16.dp)
+                    .fillMaxWidth(0.94f)
+                    .fillMaxHeight(0.88f)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {} // Intercept clicks so window doesn't dismiss
+                    )
+                    .testTag("location_selector_glass_window"),
+                shape = RoundedCornerShape(RedCornerRadius.xxl),
+                style = LiquidGlassDefaults.Window,
+                glassTint = RedTheme.colors.surfaceElevated.copy(alpha = if (RedTheme.colors.isDark) 0.65f else 0.75f),
+                glassBorder = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
+                fallbackColor = RedTheme.colors.surfaceElevated,
+                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                fallbackShadowElevation = RedElevation.modal
             ) {
-                // Header with Title and Close Button
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = if (isFa) "انتخاب موقعیت رصد" else "Observation Location",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontFamily = if (isFa) IranSans else null,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (isFa) "پایگاه داده آفلاین رصد و شهرهای جهان" else "Offline-first Astronomy Geo Database",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = if (isFa) IranSans else null
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.testTag("close_location_dialog_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = if (isFa) "بستن" else "Close",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 1. SEARCH BAR (Sticky at Top)
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .testTag("location_search_input"),
-                    placeholder = {
-                        Text(
-                            text = if (isFa) "جستجوی شهر، استان، کشور (فارسی / انگلیسی)..." else "Search city, province, country...",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = if (isFa) IranSans else null
-                            )
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = if (isFa) "پاک کردن" else "Clear",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    ),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() })
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Scrollable Content List
-                LazyColumn(
+                Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .weight(1f),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(top = RedSpacing.lg)
                 ) {
-                    // 2. NURABAD CITY (NC) - PERMANENTLY PINNED BELOW SEARCH BAR
-                    item(key = "nurabad_pinned_base") {
-                        val isNurabadSelected = isLocationMatching(uiState.userLocation, GeoLocationCatalog.NURABAD_CITY)
-                        val cornflowerBlue = Color(0xFF6495ED)
-                        val cornflowerGlowColor = cornflowerBlue.copy(alpha = cornflowerGlowAlpha)
-
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(
-                                    elevation = 8.dp,
-                                    shape = RoundedCornerShape(18.dp),
-                                    ambientColor = cornflowerBlue,
-                                    spotColor = cornflowerBlue
-                                )
-                                .border(
-                                    width = if (isNurabadSelected) 2.5.dp else 1.8.dp,
-                                    brush = Brush.linearGradient(
-                                        listOf(
-                                            cornflowerGlowColor,
-                                            cornflowerBlue,
-                                            Color(0xFF4169E1)
-                                        )
-                                    ),
-                                    shape = RoundedCornerShape(18.dp)
-                                )
-                                .clip(RoundedCornerShape(18.dp))
-                                .clickable {
-                                    onSelectLocation(GeoLocationCatalog.NURABAD_CITY)
-                                }
-                                .testTag("pinned_nurabad_card"),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isNurabadSelected)
-                                    cornflowerBlue.copy(alpha = 0.22f)
-                                else
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                    // Header with Title, Subtitle, and Close Button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = RedSpacing.lg),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = if (isFa) "انتخاب موقعیت رصد" else "Observation Location",
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontFamily = if (isFa) IranSans else null,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = RedTheme.colors.textPrimary
                             )
+                            Text(
+                                text = if (isFa) "پایگاه داده آفلاین رصد و شهرهای جهان" else "Offline-first Astronomy Geo Database",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = if (isFa) IranSans else null
+                                ),
+                                color = RedTheme.colors.textSecondary
+                            )
+                        }
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .testTag("close_location_dialog_button")
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                // Pulsing badge icon
-                                Box(
-                                    modifier = Modifier
-                                        .size(46.dp)
-                                        .background(cornflowerBlue.copy(alpha = 0.25f), CircleShape)
-                                        .border(1.5.dp, cornflowerGlowColor, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Stars,
-                                        contentDescription = null,
-                                        tint = cornflowerBlue,
-                                        modifier = Modifier.size(26.dp)
-                                    )
-                                }
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Text(
-                                            text = if (isFa) GeoLocationCatalog.NURABAD_CITY.nameFa else GeoLocationCatalog.NURABAD_CITY.nameEn,
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontFamily = if (isFa) IranSans else null,
-                                                fontWeight = FontWeight.ExtraBold
-                                            ),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Surface(
-                                            color = cornflowerBlue.copy(alpha = 0.2f),
-                                            shape = RoundedCornerShape(6.dp)
-                                        ) {
-                                            Text(
-                                                text = if (isFa) "پایگاه همیشگی" else "Permanent Base",
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontFamily = if (isFa) IranSans else null,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 10.sp
-                                                ),
-                                                color = cornflowerBlue
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.height(3.dp))
-
-                                    Text(
-                                        text = if (isFa) "استان فارس، ایران • ۳۰.۱۱° N, ۵۱.۵۲° E • ۹۴۰ متر" else "Fars, Iran • 30.11° N, 51.52° E • 940m",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = if (isFa) IranSans else null
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-
-                                if (isNurabadSelected) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = "Selected",
-                                        tint = cornflowerBlue,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = if (isFa) "بستن" else "Close",
+                                tint = RedTheme.colors.textPrimary,
+                                modifier = Modifier.size(RedIconSize.md)
+                            )
                         }
                     }
 
-                    // 3. GPS / LIVE DEVICE LOCATION
-                    item(key = "gps_device_location") {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                    RoundedCornerShape(16.dp)
-                                )
-                                .clickable {
+                    Spacer(modifier = Modifier.height(RedSpacing.md))
+
+                    // 1. MINIMAL SEARCH BAR (Sticky at Top)
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = RedSpacing.lg)
+                            .testTag("location_search_input"),
+                        placeholder = {
+                            Text(
+                                text = if (isFa) "جستجوی شهر، استان، کشور (فارسی / انگلیسی)..." else "Search city, province, country...",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontFamily = if (isFa) IranSans else null
+                                ),
+                                color = RedTheme.colors.textTertiary
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = RedTheme.colors.textSecondary,
+                                modifier = Modifier.size(RedIconSize.sm)
+                            )
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = if (isFa) "پاک کردن" else "Clear",
+                                        tint = RedTheme.colors.textSecondary,
+                                        modifier = Modifier.size(RedIconSize.xs)
+                                    )
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(RedCornerRadius.md),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = RedTheme.colors.accentRed,
+                            unfocusedBorderColor = RedTheme.colors.border,
+                            focusedContainerColor = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.50f else 0.60f),
+                            unfocusedContainerColor = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.35f else 0.45f),
+                            focusedTextColor = RedTheme.colors.textPrimary,
+                            unfocusedTextColor = RedTheme.colors.textPrimary,
+                            cursorColor = RedTheme.colors.accentRed
+                        ),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() })
+                    )
+
+                    Spacer(modifier = Modifier.height(RedSpacing.sm))
+
+                    // Scrollable Content List
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f),
+                        contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                    ) {
+                        // 2. GPS / LIVE DEVICE LOCATION CARD (Liquid Glass: 12 / 24)
+                        item(key = "gps_device_location") {
+                            LiquidGlassSurface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("gps_location_card"),
+                                onClick = {
                                     val fineGranted = ContextCompat.checkSelfPermission(
                                         context,
                                         Manifest.permission.ACCESS_FINE_LOCATION
@@ -385,321 +283,360 @@ fun LocationSelectorDialog(
                                             )
                                         )
                                     }
-                                }
-                                .testTag("gps_location_card"),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (isGpsFetching || uiState.isGpsLocating) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(20.dp),
-                                            strokeWidth = 2.dp,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Default.MyLocation,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                }
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = if (isFa) "موقعیت زنده GPS دستگاه" else "Use Live GPS Location",
-                                        style = MaterialTheme.typography.titleSmall.copy(
-                                            fontFamily = if (isFa) IranSans else null,
-                                            fontWeight = FontWeight.Bold
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = if (isFa) "تشخیص آفلاین نزدیک‌ترین شهر + سنسور ارتفاع" else "Offline nearest-city lookup + live coordinates",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = if (isFa) IranSans else null
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    if (gpsError != null) {
-                                        Text(
-                                            text = gpsError ?: "",
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontFamily = if (isFa) IranSans else null
-                                            ),
-                                            color = MaterialTheme.colorScheme.error
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // 4. FAVOURITES (SHOWN ONLY WHEN USER HAS FAVOURITES, MAX 5)
-                    if (uiState.favoriteLocations.isNotEmpty()) {
-                        item(key = "favorites_header") {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 4.dp, bottom = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = null,
-                                    tint = Color(0xFFFFB800),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Text(
-                                    text = if (isFa) "مکان‌های برگزیده (${uiState.favoriteLocations.size} از ۵)" else "Favourites (${uiState.favoriteLocations.size}/5)",
-                                    style = MaterialTheme.typography.titleSmall.copy(
-                                        fontFamily = if (isFa) IranSans else null,
-                                        fontWeight = FontWeight.Bold
-                                    ),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-
-                        items(uiState.favoriteLocations, key = { "fav_${it.id}" }) { favCity ->
-                            val isSelected = isLocationMatching(uiState.userLocation, favCity)
-                            CityItemCard(
-                                city = favCity,
-                                isSelected = isSelected,
-                                isFavorite = true,
-                                isFa = isFa,
-                                onSelect = { onSelectLocation(favCity) },
-                                onToggleFavorite = { onRemoveFavorite(favCity.id) }
-                            )
-                        }
-                    }
-
-                    // 5. SEARCH RESULTS / LOCAL CITY DATABASE
-                    item(key = "catalog_header") {
-                        val headerTitle = if (searchQuery.isNotBlank()) {
-                            if (isFa) "نتایج جستجو (${filteredCities.size} مورد)" else "Search Results (${filteredCities.size} found)"
-                        } else {
-                            if (isFa) "همه شهرها و پایتخت‌ها" else "All Cities & World Capitals"
-                        }
-                        Text(
-                            text = headerTitle,
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontFamily = if (isFa) IranSans else null,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
-                        )
-                    }
-
-                    if (filteredCities.isEmpty()) {
-                        item(key = "no_search_results") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 24.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (isFa) "شهری با این نام پیدا نشد. می‌توانید مختصات را دستی وارد کنید." else "No cities match query. You can enter manual coordinates below.",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = if (isFa) IranSans else null
-                                    ),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    } else {
-                        items(filteredCities, key = { "city_${it.id}" }) { city ->
-                            val isSelected = isLocationMatching(uiState.userLocation, city)
-                            val isFav = uiState.favoriteLocations.any { it.id == city.id }
-                            CityItemCard(
-                                city = city,
-                                isSelected = isSelected,
-                                isFavorite = isFav,
-                                isFa = isFa,
-                                onSelect = { onSelectLocation(city) },
-                                onToggleFavorite = { onToggleFavorite(city) }
-                            )
-                        }
-                    }
-
-                    // 6. MANUAL COORDINATES (EXPANDABLE CARD AT BOTTOM)
-                    item(key = "manual_coordinates_section") {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                    RoundedCornerShape(16.dp)
-                                )
-                                .testTag("manual_coordinates_card"),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp)
+                                },
+                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                style = LiquidGlassDefaults.LocationCard,
+                                glassTint = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.40f else 0.50f),
+                                glassBorder = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.35f)),
+                                fallbackColor = RedTheme.colors.surfaceElevated,
+                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                                fallbackShadowElevation = RedElevation.card
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { isManualExpanded = !isManualExpanded },
+                                        .padding(horizontal = RedSpacing.md, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .background(RedTheme.colors.accentRedSubtle, CircleShape),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.EditLocation,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                        if (isGpsFetching || uiState.isGpsLocating) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(18.dp),
+                                                strokeWidth = 2.dp,
+                                                color = RedTheme.colors.accentRed
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Default.MyLocation,
+                                                contentDescription = null,
+                                                tint = RedTheme.colors.accentRed,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = if (isFa) "ورود دستی مختصات جغرافیایی" else "Enter Coordinates Manually",
+                                            text = if (isFa) "موقعیت زنده GPS دستگاه" else "Use Live GPS Location",
                                             style = MaterialTheme.typography.titleSmall.copy(
                                                 fontFamily = if (isFa) IranSans else null,
                                                 fontWeight = FontWeight.Bold
                                             ),
-                                            color = MaterialTheme.colorScheme.onSurface
+                                            color = RedTheme.colors.textPrimary
                                         )
-                                    }
-                                    IconButton(
-                                        onClick = { isManualExpanded = !isManualExpanded },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isManualExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        Text(
+                                            text = if (isFa) "تشخیص آفلاین نزدیک‌ترین شهر + سنسور ارتفاع" else "Offline nearest-city lookup + live coordinates",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = if (isFa) IranSans else null,
+                                                fontSize = 11.sp
+                                            ),
+                                            color = RedTheme.colors.textSecondary
                                         )
+                                        if (gpsError != null) {
+                                            Text(
+                                                text = gpsError ?: "",
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontFamily = if (isFa) IranSans else null
+                                                ),
+                                                color = RedTheme.colors.statusError
+                                            )
+                                        }
                                     }
                                 }
+                            }
+                        }
 
-                                if (isManualExpanded) {
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    OutlinedTextField(
-                                        value = manualLat,
-                                        onValueChange = { manualLat = it; manualError = null },
-                                        label = { Text(if (isFa) "عرض جغرافیایی (-۹۰ تا +۹۰)" else "Latitude (-90.0 to +90.0)") },
-                                        modifier = Modifier.fillMaxWidth().testTag("manual_lat_input"),
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(12.dp)
+                        // 3. FAVORITES (SHOWN WHEN USER HAS FAVORITES, MAX 5)
+                        if (uiState.favoriteLocations.isNotEmpty()) {
+                            item(key = "favorites_header") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp, bottom = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFFB800),
+                                        modifier = Modifier.size(16.dp)
                                     )
-
-                                    Spacer(modifier = Modifier.height(8.dp))
-
-                                    OutlinedTextField(
-                                        value = manualLon,
-                                        onValueChange = { manualLon = it; manualError = null },
-                                        label = { Text(if (isFa) "طول جغرافیایی (-۱۸۰ تا +۱۸۰)" else "Longitude (-180.0 to +180.0)") },
-                                        modifier = Modifier.fillMaxWidth().testTag("manual_lon_input"),
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(12.dp)
+                                    Text(
+                                        text = if (isFa) "مکان‌های برگزیده (${uiState.favoriteLocations.size} از ۵)" else "Favourites (${uiState.favoriteLocations.size}/5)",
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontFamily = if (isFa) IranSans else null,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = RedTheme.colors.textSecondary
                                     )
+                                }
+                            }
 
-                                    Spacer(modifier = Modifier.height(8.dp))
+                            items(uiState.favoriteLocations, key = { "fav_${it.id}" }) { favCity ->
+                                val isSelected = isLocationMatching(uiState.userLocation, favCity)
+                                CityItemCard(
+                                    city = favCity,
+                                    isSelected = isSelected,
+                                    isFavorite = true,
+                                    isFa = isFa,
+                                    onSelect = { onSelectLocation(favCity) },
+                                    onToggleFavorite = { onRemoveFavorite(favCity.id) }
+                                )
+                            }
+                        }
 
+                        // 4. SEARCH RESULTS / ALL CITIES & CAPITALS
+                        item(key = "catalog_header") {
+                            val headerTitle = if (searchQuery.isNotBlank()) {
+                                if (isFa) "نتایج جستجو (${filteredCities.size} مورد)" else "Search Results (${filteredCities.size} found)"
+                            } else {
+                                if (isFa) "همه شهرها و پایتخت‌ها" else "All Cities & World Capitals"
+                            }
+                            Text(
+                                text = headerTitle,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontFamily = if (isFa) IranSans else null,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = RedTheme.colors.textSecondary,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                            )
+                        }
+
+                        if (filteredCities.isEmpty()) {
+                            item(key = "no_search_results") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (isFa) "شهری با این نام پیدا نشد. می‌توانید مختصات را دستی وارد کنید." else "No cities match query. You can enter manual coordinates below.",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = if (isFa) IranSans else null
+                                        ),
+                                        color = RedTheme.colors.textSecondary,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        } else {
+                            items(filteredCities, key = { "city_${it.id}" }) { city ->
+                                val isSelected = isLocationMatching(uiState.userLocation, city)
+                                val isFav = uiState.favoriteLocations.any { it.id == city.id }
+                                CityItemCard(
+                                    city = city,
+                                    isSelected = isSelected,
+                                    isFavorite = isFav,
+                                    isFa = isFa,
+                                    onSelect = { onSelectLocation(city) },
+                                    onToggleFavorite = { onToggleFavorite(city) }
+                                )
+                            }
+                        }
+
+                        // 5. MANUAL COORDINATES (EXPANDABLE CARD AT BOTTOM)
+                        item(key = "manual_coordinates_section") {
+                            LiquidGlassSurface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("manual_coordinates_card"),
+                                shape = RoundedCornerShape(RedCornerRadius.md),
+                                style = LiquidGlassDefaults.LocationCard,
+                                glassTint = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.35f else 0.45f),
+                                glassBorder = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.35f)),
+                                fallbackColor = RedTheme.colors.surfaceElevated,
+                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                                fallbackShadowElevation = RedElevation.card
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = RedSpacing.md, vertical = 10.dp)
+                                ) {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        OutlinedTextField(
-                                            value = manualElev,
-                                            onValueChange = { manualElev = it },
-                                            label = { Text(if (isFa) "ارتفاع (متر - اختیاری)" else "Elevation (m - opt)") },
-                                            modifier = Modifier.weight(1f).testTag("manual_elev_input"),
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(12.dp)
-                                        )
-                                        OutlinedTextField(
-                                            value = manualName,
-                                            onValueChange = { manualName = it },
-                                            label = { Text(if (isFa) "نام مکان (اختیاری)" else "Name (opt)") },
-                                            modifier = Modifier.weight(1f).testTag("manual_name_input"),
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(12.dp)
-                                        )
-                                    }
-
-                                    if (manualError != null) {
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text(
-                                            text = manualError ?: "",
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = if (isFa) IranSans else null
-                                            ),
-                                            color = MaterialTheme.colorScheme.error
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(12.dp))
-
-                                    Button(
-                                        onClick = {
-                                            val lat = manualLat.toDoubleOrNull()
-                                            val lon = manualLon.toDoubleOrNull()
-                                            val elev = manualElev.toDoubleOrNull() ?: 0.0
-
-                                            if (lat == null || lat < -90.0 || lat > 90.0) {
-                                                manualError = if (isFa) "عرض جغرافیایی باید عددی بین -۹۰ و +۹۰ باشد." else "Latitude must be between -90 and +90."
-                                                return@Button
-                                            }
-                                            if (lon == null || lon < -180.0 || lon > 180.0) {
-                                                manualError = if (isFa) "طول جغرافیایی باید عددی بین -۱۸۰ و +۱۸۰ باشد." else "Longitude must be between -180 and +180."
-                                                return@Button
-                                            }
-
-                                            val customName = manualName.trim().ifEmpty {
-                                                if (isFa) "موقعیت سفارشی (${String.format(Locale.US, "%.2f, %.2f", lat, lon)})"
-                                                else "Custom Location (${String.format(Locale.US, "%.2f, %.2f", lat, lon)})"
-                                            }
-
-                                            onSelectCoordinates(lat, lon, elev, customName, customName)
-                                        },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(48.dp)
-                                            .testTag("apply_manual_coordinates_button"),
-                                        shape = RoundedCornerShape(12.dp)
+                                            .clickable { isManualExpanded = !isManualExpanded },
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Icon(imageVector = Icons.Default.Check, contentDescription = null)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = if (isFa) "ثبت و اعمال مختصات" else "Apply Coordinates",
-                                            style = MaterialTheme.typography.titleSmall.copy(
-                                                fontFamily = if (isFa) IranSans else null,
-                                                fontWeight = FontWeight.Bold
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.EditLocation,
+                                                contentDescription = null,
+                                                tint = RedTheme.colors.textSecondary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Text(
+                                                text = if (isFa) "ورود دستی مختصات جغرافیایی" else "Enter Coordinates Manually",
+                                                style = MaterialTheme.typography.titleSmall.copy(
+                                                    fontFamily = if (isFa) IranSans else null,
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                color = RedTheme.colors.textPrimary
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { isManualExpanded = !isManualExpanded },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isManualExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                                contentDescription = null,
+                                                tint = RedTheme.colors.textSecondary
+                                            )
+                                        }
+                                    }
+
+                                    if (isManualExpanded) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        OutlinedTextField(
+                                            value = manualLat,
+                                            onValueChange = { manualLat = it; manualError = null },
+                                            label = { Text(if (isFa) "عرض جغرافیایی (-۹۰ تا +۹۰)" else "Latitude (-90.0 to +90.0)") },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("manual_lat_input"),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(RedCornerRadius.sm),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = RedTheme.colors.accentRed,
+                                                unfocusedBorderColor = RedTheme.colors.border,
+                                                focusedTextColor = RedTheme.colors.textPrimary,
+                                                unfocusedTextColor = RedTheme.colors.textPrimary
                                             )
                                         )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        OutlinedTextField(
+                                            value = manualLon,
+                                            onValueChange = { manualLon = it; manualError = null },
+                                            label = { Text(if (isFa) "طول جغرافیایی (-۱۸۰ تا +۱۸۰)" else "Longitude (-180.0 to +180.0)") },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("manual_lon_input"),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(RedCornerRadius.sm),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = RedTheme.colors.accentRed,
+                                                unfocusedBorderColor = RedTheme.colors.border,
+                                                focusedTextColor = RedTheme.colors.textPrimary,
+                                                unfocusedTextColor = RedTheme.colors.textPrimary
+                                            )
+                                        )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            OutlinedTextField(
+                                                value = manualElev,
+                                                onValueChange = { manualElev = it },
+                                                label = { Text(if (isFa) "ارتفاع (متر)" else "Elevation (m)") },
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .testTag("manual_elev_input"),
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                singleLine = true,
+                                                shape = RoundedCornerShape(RedCornerRadius.sm),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = RedTheme.colors.accentRed,
+                                                    unfocusedBorderColor = RedTheme.colors.border,
+                                                    focusedTextColor = RedTheme.colors.textPrimary,
+                                                    unfocusedTextColor = RedTheme.colors.textPrimary
+                                                )
+                                            )
+                                            OutlinedTextField(
+                                                value = manualName,
+                                                onValueChange = { manualName = it },
+                                                label = { Text(if (isFa) "نام مکان" else "Name") },
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .testTag("manual_name_input"),
+                                                singleLine = true,
+                                                shape = RoundedCornerShape(RedCornerRadius.sm),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = RedTheme.colors.accentRed,
+                                                    unfocusedBorderColor = RedTheme.colors.border,
+                                                    focusedTextColor = RedTheme.colors.textPrimary,
+                                                    unfocusedTextColor = RedTheme.colors.textPrimary
+                                                )
+                                            )
+                                        }
+
+                                        if (manualError != null) {
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = manualError ?: "",
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontFamily = if (isFa) IranSans else null
+                                                ),
+                                                color = RedTheme.colors.statusError
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(12.dp))
+
+                                        Button(
+                                            onClick = {
+                                                val lat = manualLat.toDoubleOrNull()
+                                                val lon = manualLon.toDoubleOrNull()
+                                                val elev = manualElev.toDoubleOrNull() ?: 0.0
+
+                                                if (lat == null || lat < -90.0 || lat > 90.0) {
+                                                    manualError = if (isFa) "عرض جغرافیایی باید عددی بین -۹۰ و +۹۰ باشد." else "Latitude must be between -90 and +90."
+                                                    return@Button
+                                                }
+                                                if (lon == null || lon < -180.0 || lon > 180.0) {
+                                                    manualError = if (isFa) "طول جغرافیایی باید عددی بین -۱۸۰ و +۱۸۰ باشد." else "Longitude must be between -180 and +180."
+                                                    return@Button
+                                                }
+
+                                                val customName = manualName.trim().ifEmpty {
+                                                    if (isFa) "موقعیت سفارشی (${String.format(Locale.US, "%.2f, %.2f", lat, lon)})"
+                                                    else "Custom Location (${String.format(Locale.US, "%.2f, %.2f", lat, lon)})"
+                                                }
+
+                                                onSelectCoordinates(lat, lon, elev, customName, customName)
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(44.dp)
+                                                .testTag("apply_manual_coordinates_button"),
+                                            shape = RoundedCornerShape(RedCornerRadius.md),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = RedTheme.colors.accentRed,
+                                                contentColor = Color.White
+                                            )
+                                        ) {
+                                            Icon(imageVector = Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = if (isFa) "ثبت و اعمال مختصات" else "Apply Coordinates",
+                                                style = MaterialTheme.typography.titleSmall.copy(
+                                                    fontFamily = if (isFa) IranSans else null,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -711,6 +648,10 @@ fun LocationSelectorDialog(
     }
 }
 
+/**
+ * Individual Location Item Card rendered with Liquid Glass (12 / 24 blur strength)
+ * and special dynamic contrast-aware royal treatment for Nurabad (NC).
+ */
 @Composable
 private fun CityItemCard(
     city: GeoCity,
@@ -720,29 +661,66 @@ private fun CityItemCard(
     onSelect: () -> Unit,
     onToggleFavorite: () -> Unit
 ) {
-    val cardBorderColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-        label = "border"
+    val isNurabad = city.id == GeoLocationCatalog.NURABAD_CITY.id || city.nameEn.contains("Nurabad", ignoreCase = true)
+    val isDark = RedTheme.colors.isDark
+
+    // Subtle, elegant shimmer transition for Nurabad (NC)
+    val royalShimmerTransition = rememberInfiniteTransition(label = "nurabadRoyalShimmer")
+    val royalShimmerAlpha by royalShimmerTransition.animateFloat(
+        initialValue = 0.90f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "royalAlpha"
     )
 
-    Card(
+    // Dynamic contrast-aware Royal Color:
+    // Dark/OLED mode: Warm rich royal gold (WCAG > 7:1)
+    // Light mode: High-contrast deep royal plum/burgundy with pristine readability on light surfaces
+    val nurabadTitleColor = when {
+        isDark -> RedTheme.colors.accentGold.copy(alpha = royalShimmerAlpha)
+        else -> Color(0xFF7A1C30)
+    }
+
+    val cardBorder = if (isSelected) {
+        BorderStroke(1.2.dp, RedTheme.colors.accentRed.copy(alpha = 0.85f))
+    } else if (isNurabad) {
+        BorderStroke(0.75.dp, if (isDark) RedTheme.colors.accentGold.copy(alpha = 0.45f) else Color(0xFF7A1C30).copy(alpha = 0.35f))
+    } else {
+        BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.35f))
+    }
+
+    val cardGlassTint = when {
+        isSelected -> RedTheme.colors.accentRedSubtle.copy(alpha = if (isDark) 0.22f else 0.15f)
+        isNurabad -> if (isDark) RedTheme.colors.accentGold.copy(alpha = 0.08f) else Color(0xFF7A1C30).copy(alpha = 0.05f)
+        else -> RedTheme.colors.surfaceGrouped.copy(alpha = if (isDark) 0.40f else 0.50f)
+    }
+
+    val cardFallbackColor = when {
+        isSelected -> RedTheme.colors.surfaceGrouped
+        isNurabad -> RedTheme.colors.surfaceGrouped
+        else -> RedTheme.colors.surfaceElevated
+    }
+
+    LiquidGlassSurface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .border(if (isSelected) 1.8.dp else 1.dp, cardBorderColor, RoundedCornerShape(14.dp))
-            .clickable { onSelect() }
             .testTag("city_card_${city.id}"),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-            else
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-        )
+        onClick = onSelect,
+        shape = RoundedCornerShape(RedCornerRadius.md),
+        style = LiquidGlassDefaults.LocationCard,
+        glassTint = cardGlassTint,
+        glassBorder = cardBorder,
+        fallbackColor = cardFallbackColor,
+        fallbackBorder = cardBorder,
+        fallbackShadowElevation = RedElevation.card
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = RedSpacing.md, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -755,25 +733,41 @@ private fun CityItemCard(
                         text = if (isFa) city.nameFa else city.nameEn,
                         style = MaterialTheme.typography.titleSmall.copy(
                             fontFamily = if (isFa) IranSans else null,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = if (isNurabad) FontWeight.ExtraBold else FontWeight.Bold
                         ),
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = if (isNurabad) nurabadTitleColor else RedTheme.colors.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (city.isCapital) {
+
+                    if (isNurabad) {
                         Surface(
-                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
-                            shape = RoundedCornerShape(4.dp)
+                            color = if (isDark) RedTheme.colors.accentGold.copy(alpha = 0.18f) else Color(0xFF7A1C30).copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(RedCornerRadius.xs)
+                        ) {
+                            Text(
+                                text = "NC",
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                ),
+                                color = if (isDark) RedTheme.colors.accentGold else Color(0xFF7A1C30)
+                            )
+                        }
+                    } else if (city.isCapital) {
+                        Surface(
+                            color = RedTheme.colors.surfaceVariant.copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(RedCornerRadius.xs)
                         ) {
                             Text(
                                 text = if (isFa) "مرکز" else "Capital",
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.SemiBold
                                 ),
-                                color = MaterialTheme.colorScheme.tertiary
+                                color = RedTheme.colors.textSecondary
                             )
                         }
                     }
@@ -805,7 +799,7 @@ private fun CityItemCard(
                         fontFamily = if (isFa) IranSans else null,
                         fontSize = 11.sp
                     ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = RedTheme.colors.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -817,12 +811,14 @@ private fun CityItemCard(
             ) {
                 IconButton(
                     onClick = onToggleFavorite,
-                    modifier = Modifier.size(36.dp).testTag("fav_btn_${city.id}")
+                    modifier = Modifier
+                        .size(36.dp)
+                        .testTag("fav_btn_${city.id}")
                 ) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
                         contentDescription = if (isFa) "نشان‌گذاری" else "Favorite",
-                        tint = if (isFavorite) Color(0xFFFFB800) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        tint = if (isFavorite) Color(0xFFFFB800) else RedTheme.colors.textTertiary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -831,7 +827,7 @@ private fun CityItemCard(
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = "Selected",
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = RedTheme.colors.accentRed,
                         modifier = Modifier.size(20.dp)
                     )
                 }

@@ -34,6 +34,7 @@ import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 
 val LocalLiquidGlassEnabled = staticCompositionLocalOf { true }
+val LocalLiquidGlassBackdrop = staticCompositionLocalOf<Backdrop?> { null }
 
 /**
  * User-configurable Liquid Glass optical characteristics.
@@ -132,6 +133,26 @@ object LiquidGlassDefaults {
         shadowRadius = 16.dp,
         innerShadowRadius = 3.dp
     )
+
+    val Window = LiquidGlassStyle(
+        blurRadius = 1.dp, // 1 / 24 blur intensity for floating sheets and dialog backdrop
+        refractionHeight = 16.dp,
+        refractionAmount = 16.dp,
+        chromaticAberration = true,
+        hasHighlight = true,
+        shadowRadius = 16.dp,
+        innerShadowRadius = 2.dp
+    )
+
+    val LocationCard = LiquidGlassStyle(
+        blurRadius = 12.dp, // 12 / 24 blur intensity for location cards
+        refractionHeight = 24.dp,
+        refractionAmount = 24.dp,
+        chromaticAberration = true,
+        hasHighlight = true,
+        shadowRadius = 8.dp,
+        innerShadowRadius = 1.5.dp
+    )
 }
 
 /**
@@ -144,7 +165,7 @@ object LiquidGlassDefaults {
  */
 @Composable
 fun Modifier.liquidGlass(
-    backdrop: Backdrop? = null,
+    backdrop: Backdrop? = LocalLiquidGlassBackdrop.current,
     shape: Shape = RoundedCornerShape(32.dp),
     style: LiquidGlassStyle = LiquidGlassDefaults.NavigationBar,
     fallbackColor: Color = RedTheme.colors.surfaceElevated,
@@ -221,7 +242,7 @@ fun Modifier.liquidGlass(
 @Composable
 fun LiquidGlassSurface(
     modifier: Modifier = Modifier,
-    backdrop: Backdrop? = null,
+    backdrop: Backdrop? = LocalLiquidGlassBackdrop.current,
     style: LiquidGlassStyle = LiquidGlassDefaults.Card,
     shape: Shape = RoundedCornerShape(RedCornerRadius.xl),
     fallbackColor: Color = RedTheme.colors.surfaceElevated,

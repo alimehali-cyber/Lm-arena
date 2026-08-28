@@ -51,6 +51,7 @@ import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.astro_engine.*
 import com.alijafari.red.astronomy.domain.AppLanguage
+import com.alijafari.red.astronomy.domain.CalendarSystem
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.util.toPersianDigits
@@ -918,14 +919,29 @@ fun ISSScreen(
                                 modifier = Modifier.size(16.dp)
                             )
 
-                            val sdf = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.US) }
-                            val timeStr = sdf.format(Date(currentSimulationMs))
-                            val offsetStr = if (timeOffsetHours == 0f) (if (isFa) "اکنون (زمان زنده)" else "Now (Live)")
-                            else if (timeOffsetHours > 0) "+${String.format(Locale.US, "%.1fh", timeOffsetHours)}"
-                            else String.format(Locale.US, "%.1fh", timeOffsetHours)
+                            val isPersianCalendar = isFa || uiState.calendarSystem == CalendarSystem.SOLAR_HIJRI
+                            val timeStr = remember(currentSimulationMs, isPersianCalendar, isFa) {
+                                if (isPersianCalendar) {
+                                    val sh = TimeEngine.toSolarHijri(currentSimulationMs, TimeEngine.TEHRAN_TIME_ZONE)
+                                    val timePart = SimpleDateFormat("HH:mm", Locale.US).apply { timeZone = TimeEngine.TEHRAN_TIME_ZONE }.format(Date(currentSimulationMs))
+                                    val raw = "${sh.day} ${sh.monthNameFa}، $timePart"
+                                    if (isFa) raw.toPersianDigits() else raw
+                                } else {
+                                    val sdf = SimpleDateFormat("MMM dd, HH:mm", Locale.US)
+                                    sdf.format(Date(currentSimulationMs))
+                                }
+                            }
+                            val offsetStr = if (timeOffsetHours == 0f) (if (isFa) "زنده" else "Live")
+                            else if (timeOffsetHours > 0) {
+                                val raw = "+${String.format(Locale.US, "%.1fh", timeOffsetHours)}"
+                                if (isFa) raw.toPersianDigits() else raw
+                            } else {
+                                val raw = String.format(Locale.US, "%.1fh", timeOffsetHours)
+                                if (isFa) raw.toPersianDigits() else raw
+                            }
 
                             Text(
-                                text = if (isFa) "$timeStr ($offsetStr)".toPersianDigits() else "$timeStr ($offsetStr)",
+                                text = "$timeStr ($offsetStr)",
                                 style = RedTypography.titleMedium.copy(fontWeight = FontWeight.Bold),
                                 color = RedTheme.colors.textPrimary
                             )
@@ -941,7 +957,7 @@ fun ISSScreen(
                                     .testTag("time_reset_now")
                             ) {
                                 Text(
-                                    text = if (isFa) "زمان زنده" else "Now",
+                                    text = if (isFa) "زنده" else "Live",
                                     style = RedTypography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                     color = RedTheme.colors.accentRed,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -973,7 +989,7 @@ fun ISSScreen(
                             color = RedTheme.colors.textSecondary
                         )
                         Text(
-                            text = if (isFa) "زمان زنده" else "Now",
+                            text = if (isFa) "زنده" else "Live",
                             style = RedTypography.labelSmall,
                             color = RedTheme.colors.accentRed
                         )

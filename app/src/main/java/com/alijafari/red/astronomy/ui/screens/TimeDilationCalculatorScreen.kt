@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -60,6 +61,11 @@ fun TimeDilationCalculatorScreen(
     onBackToLab: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Intercept Android System Back button/gesture to return to Lab
+    BackHandler(enabled = true) {
+        onBackToLab()
+    }
+
     val isFa = uiState.language == AppLanguage.PERSIAN
     val allCatalogObjects = remember { AstronomyCatalog.getAllObjects() }
 
@@ -142,68 +148,63 @@ fun TimeDilationCalculatorScreen(
             .testTag("time_dilation_screen"),
         containerColor = Color.Transparent,
         topBar = {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = RedTheme.colors.surfaceElevated,
-                border = BorderStroke(1.dp, RedTheme.colors.border)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
-                    ) {
-                        IconButton(
-                            onClick = onBackToLab,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(RedTheme.colors.surfaceElevated)
-                                .border(1.dp, RedTheme.colors.border, CircleShape)
-                                .testTag("time_dilation_back_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back to Lab",
-                                tint = RedTheme.colors.textPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = if (isFa) "محاسبه‌گر انقباض زمان" else "Time Dilation Calculator",
-                                style = RedTypography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = RedTheme.colors.textPrimary
-                            )
-                            Text(
-                                text = if (isFa) "سفر بین‌ستاره‌ای با نسبیت خاص" else "Relativistic Journey Simulator",
-                                style = RedTypography.labelSmall,
-                                color = RedTheme.colors.textSecondary
-                            )
-                        }
-                    }
-
                     IconButton(
-                        onClick = { showHowItWorksDialog = true },
+                        onClick = onBackToLab,
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(RedTheme.colors.accentRed.copy(alpha = 0.12f))
-                            .testTag("time_dilation_info_button")
+                            .background(RedTheme.colors.surfaceElevated.copy(alpha = 0.7f))
+                            .border(0.5.dp, RedTheme.colors.border.copy(alpha = 0.4f), CircleShape)
+                            .testTag("time_dilation_back_button")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.HelpOutline,
-                            contentDescription = "How it works",
-                            tint = RedTheme.colors.accentRed,
-                            modifier = Modifier.size(18.dp)
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back to Lab",
+                            tint = RedTheme.colors.textPrimary,
+                            modifier = Modifier.size(RedIconSize.sm)
                         )
                     }
+
+                    Column {
+                        Text(
+                            text = if (isFa) "محاسبه‌گر انقباض زمان" else "Time Dilation Calculator",
+                            style = RedTypographyTokens.sectionHeading,
+                            color = RedTheme.colors.textPrimary
+                        )
+                        Text(
+                            text = if (isFa) "سفر بین‌ستاره‌ای با نسبیت خاص" else "Relativistic Journey Simulator",
+                            style = RedTypographyTokens.caption,
+                            color = RedTheme.colors.textSecondary
+                        )
+                    }
+                }
+
+                IconButton(
+                    onClick = { showHowItWorksDialog = true },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(RedTheme.colors.accentRed.copy(alpha = 0.12f))
+                        .border(0.5.dp, RedTheme.colors.accentRed.copy(alpha = 0.3f), CircleShape)
+                        .testTag("time_dilation_info_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.HelpOutline,
+                        contentDescription = "How it works",
+                        tint = RedTheme.colors.accentRed,
+                        modifier = Modifier.size(RedIconSize.sm)
+                    )
                 }
             }
         }
