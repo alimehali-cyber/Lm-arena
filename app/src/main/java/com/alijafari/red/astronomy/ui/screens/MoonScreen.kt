@@ -94,475 +94,413 @@ fun MoonScreen(
             .fillMaxSize()
             .testTag("moon_screen"),
         contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
-        verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
+        verticalArrangement = Arrangement.spacedBy(RedSpacing.xl)
     ) {
-        // 1. MOON HERO CARD
+        // 1. MOON HERO SECTION (Clean, unboxed & breathable)
         item {
-            RedElevatedCard(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(vertical = RedSpacing.xs)
                     .testTag("moon_hero_card"),
-                shape = RoundedCornerShape(RedCornerRadius.xl),
-                backgroundColor = RedTheme.colors.surfaceElevated,
-                borderColor = RedTheme.colors.border,
-                contentPadding = PaddingValues(0.dp)
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
             ) {
-                Box(
+                // Date Navigator Pill
+                Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight()
+                        .clip(CircleShape)
+                        .background(RedTheme.colors.surfaceGrouped)
+                        .border(0.75.dp, RedTheme.colors.border, CircleShape)
+                        .padding(horizontal = RedSpacing.xs, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs)
                 ) {
-                    // Subtle Starfield Background
-                    val starColor = RedTheme.colors.textPrimary
-                    Canvas(modifier = Modifier.matchParentSize()) {
-                        if (size.width <= 0f || size.height <= 0f) return@Canvas
-                        val random = Random(42)
-                        val width = size.width
-                        val height = size.height
-                        for (i in 0..60) {
-                            val x = random.nextFloat() * width
-                            val y = random.nextFloat() * height
-                            val alpha = 0.04f + random.nextFloat() * 0.10f
-                            val radius = 0.8f + random.nextFloat() * 1.4f
-                            drawCircle(
-                                color = starColor.copy(alpha = alpha),
-                                radius = radius,
-                                center = Offset(x, y)
-                            )
-                        }
+                    IconButton(
+                        onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat - 1f).coerceIn(-30f, 30f) },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isFa) Icons.AutoMirrored.Filled.ArrowForward else Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Previous Day",
+                            tint = RedTheme.colors.textSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.lg),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
+                    val dateStr = TimeEngine.formatDate(selectedCalendar.timeInMillis, uiState.calendarSystem, isFa).let {
+                        if (isFa) it.toPersianDigits() else it
+                    }
+                    val offsetBadge = when {
+                        dayOffsetInt == 0 -> if (isFa) "امروز — $dateStr" else "Today — $dateStr"
+                        dayOffsetInt > 0 -> if (isFa) "+${dayOffsetInt} روز — $dateStr".toPersianDigits() else "+${dayOffsetInt}d — $dateStr"
+                        else -> if (isFa) "${dayOffsetInt} روز — $dateStr".toPersianDigits() else "${dayOffsetInt}d — $dateStr"
+                    }
+
+                    Text(
+                        text = offsetBadge,
+                        style = RedTypographyTokens.caption.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = RedTheme.colors.textPrimary
+                        ),
+                        modifier = Modifier.padding(horizontal = RedSpacing.xs)
+                    )
+
+                    IconButton(
+                        onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat + 1f).coerceIn(-30f, 30f) },
+                        modifier = Modifier.size(32.dp)
                     ) {
-                        // Date Navigator Pill
-                        Row(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(RedTheme.colors.surfaceGrouped)
-                                .border(0.75.dp, RedTheme.colors.border, CircleShape)
-                                .padding(horizontal = RedSpacing.xs, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs)
-                        ) {
-                            IconButton(
-                                onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat - 1f).coerceIn(-30f, 30f) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isFa) Icons.AutoMirrored.Filled.ArrowForward else Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Previous Day",
-                                    tint = RedTheme.colors.textSecondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-
-                            val dateStr = TimeEngine.formatDate(selectedCalendar.timeInMillis, uiState.calendarSystem, isFa).let {
-                                if (isFa) it.toPersianDigits() else it
-                            }
-                            val offsetBadge = when {
-                                dayOffsetInt == 0 -> if (isFa) "امروز — $dateStr" else "Today — $dateStr"
-                                dayOffsetInt > 0 -> if (isFa) "+${dayOffsetInt} روز — $dateStr".toPersianDigits() else "+${dayOffsetInt}d — $dateStr"
-                                else -> if (isFa) "${dayOffsetInt} روز — $dateStr".toPersianDigits() else "${dayOffsetInt}d — $dateStr"
-                            }
-
-                            Text(
-                                text = offsetBadge,
-                                style = RedTypographyTokens.caption.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = RedTheme.colors.textPrimary
-                                ),
-                                modifier = Modifier.padding(horizontal = RedSpacing.xs)
-                            )
-
-                            IconButton(
-                                onClick = { selectedDayOffsetFloat = (selectedDayOffsetFloat + 1f).coerceIn(-30f, 30f) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isFa) Icons.AutoMirrored.Filled.ArrowBack else Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "Next Day",
-                                    tint = RedTheme.colors.textSecondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-
-                        // Interactive Scrubber Drag Pill
-                        Row(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(RedTheme.colors.accentRed.copy(alpha = 0.08f))
-                                .border(0.75.dp, RedTheme.colors.accentRed.copy(alpha = 0.2f), CircleShape)
-                                .padding(horizontal = RedSpacing.md, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Swipe,
-                                contentDescription = null,
-                                tint = RedTheme.colors.accentRed,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Text(
-                                text = if (isFa) "برای جابجایی روزها ماه را افقی بکشید" else "Swipe horizontally to scrub days",
-                                style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                                color = RedTheme.colors.textPrimary
-                            )
-                            if (dayOffsetInt != 0) {
-                                Surface(
-                                    onClick = { selectedDayOffsetFloat = 0f },
-                                    shape = RoundedCornerShape(RedCornerRadius.xs),
-                                    color = RedTheme.colors.accentRed.copy(alpha = 0.2f)
-                                ) {
-                                    Text(
-                                        text = if (isFa) "امروز" else "Reset",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 10.sp,
-                                            color = RedTheme.colors.accentRed
-                                        ),
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        // Realistic Photographic Moon Visualization with Horizontal Scrubber Drag
-                        PhotographicMoonView(
-                            moonData = moonData,
-                            sunHoriz = sunHoriz,
-                            latitude = uiState.userLocation.latitude,
-                            longitude = uiState.userLocation.longitude,
-                            jd = currentJd,
-                            onDragDelta = { dragAmount ->
-                                val deltaDays = dragAmount / 16f
-                                selectedDayOffsetFloat = (selectedDayOffsetFloat + deltaDays).coerceIn(-30f, 30f)
-                            },
-                            modifier = Modifier.size(260.dp)
+                        Icon(
+                            imageVector = if (isFa) Icons.AutoMirrored.Filled.ArrowBack else Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Next Day",
+                            tint = RedTheme.colors.textSecondary,
+                            modifier = Modifier.size(16.dp)
                         )
+                    }
+                }
 
-                        // Phase Name & Illumination Text below moon
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                // Interactive Scrubber Drag Pill
+                Row(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(RedTheme.colors.accentRed.copy(alpha = 0.08f))
+                        .border(0.75.dp, RedTheme.colors.accentRed.copy(alpha = 0.2f), CircleShape)
+                        .padding(horizontal = RedSpacing.md, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Swipe,
+                        contentDescription = null,
+                        tint = RedTheme.colors.accentRed,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Text(
+                        text = if (isFa) "برای جابجایی روزها ماه را افقی بکشید" else "Swipe horizontally to scrub days",
+                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                        color = RedTheme.colors.textPrimary
+                    )
+                    if (dayOffsetInt != 0) {
+                        Surface(
+                            onClick = { selectedDayOffsetFloat = 0f },
+                            shape = RoundedCornerShape(RedCornerRadius.xs),
+                            color = RedTheme.colors.accentRed.copy(alpha = 0.2f)
                         ) {
                             Text(
-                                text = if (isFa) moonData.phaseNameFa else moonData.phaseNameEn,
-                                style = RedTypographyTokens.sectionHeading.copy(fontSize = 22.sp),
-                                color = RedTheme.colors.textPrimary,
-                                textAlign = TextAlign.Center
-                            )
-
-                            val illFormatted = String.format("%.0f", moonData.illuminationPercent).let {
-                                if (isFa) "${it}٪ روشن".toPersianDigits() else "$it% Illuminated"
-                            }
-                            Text(
-                                text = illFormatted,
-                                style = RedTypographyTokens.bodyPrimary.copy(
-                                    fontWeight = FontWeight.SemiBold,
+                                text = if (isFa) "امروز" else "Reset",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp,
                                     color = RedTheme.colors.accentRed
                                 ),
-                                textAlign = TextAlign.Center
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
                 }
+
+                // Realistic Photographic Moon Visualization with Horizontal Scrubber Drag
+                PhotographicMoonView(
+                    moonData = moonData,
+                    sunHoriz = sunHoriz,
+                    latitude = uiState.userLocation.latitude,
+                    longitude = uiState.userLocation.longitude,
+                    jd = currentJd,
+                    onDragDelta = { dragAmount ->
+                        val deltaDays = dragAmount / 16f
+                        selectedDayOffsetFloat = (selectedDayOffsetFloat + deltaDays).coerceIn(-30f, 30f)
+                    },
+                    modifier = Modifier.size(260.dp)
+                )
+
+                // Phase Name & Illumination Text below moon
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = if (isFa) moonData.phaseNameFa else moonData.phaseNameEn,
+                        style = RedTypographyTokens.sectionHeading.copy(fontSize = 22.sp),
+                        color = RedTheme.colors.textPrimary,
+                        textAlign = TextAlign.Center
+                    )
+
+                    val illFormatted = String.format("%.0f", moonData.illuminationPercent).let {
+                        if (isFa) "${it}٪ روشن".toPersianDigits() else "$it% Illuminated"
+                    }
+                    Text(
+                        text = illFormatted,
+                        style = RedTypographyTokens.bodyPrimary.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            color = RedTheme.colors.accentRed
+                        ),
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         }
 
-        // 2. ORBITAL & TIMING DETAILS CARD
+        // 2. ORBITAL & TIMING DETAILS SECTION (Clean & unboxed)
         item {
-            RedElevatedCard(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("moon_details_card"),
-                shape = RoundedCornerShape(RedCornerRadius.xl),
-                backgroundColor = RedTheme.colors.surfaceElevated,
-                borderColor = RedTheme.colors.border,
-                contentPadding = PaddingValues(RedSpacing.lg)
+                verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.md)) {
-                    RedSectionHeader(
-                        title = if (isFa) "مشخصات مداری و زمان‌بندی" else "Orbital & Timing Parameters",
-                        subtitle = if (isFa) "طلوع، غروب، فاصله و مشخصات فیزیکی" else "Rise, set, distance & physical ephemeris"
-                    )
+                RedSectionHeader(
+                    title = if (isFa) "مشخصات مداری و زمان‌بندی" else "Orbital & Timing Parameters",
+                    subtitle = if (isFa) "طلوع، غروب، فاصله و مشخصات فیزیکی" else "Rise, set, distance & physical ephemeris"
+                )
 
-                    val riseStr = moonData.moonriseTimeMs?.let {
-                        TimeEngine.formatTime24h(it, isFa)
-                    } ?: if (isFa) "--:--" else "--:--"
+                val riseStr = moonData.moonriseTimeMs?.let {
+                    TimeEngine.formatTime24h(it, isFa)
+                } ?: if (isFa) "--:--" else "--:--"
 
-                    val setStr = moonData.moonsetTimeMs?.let {
-                        TimeEngine.formatTime24h(it, isFa)
-                    } ?: if (isFa) "--:--" else "--:--"
+                val setStr = moonData.moonsetTimeMs?.let {
+                    TimeEngine.formatTime24h(it, isFa)
+                } ?: if (isFa) "--:--" else "--:--"
 
-                    val distStr = String.format("%,d", moonData.distanceKm.toInt()).let {
-                        if (isFa) "$it کیلومتر".toPersianDigits() else "$it km"
-                    }
+                val distStr = String.format("%,d", moonData.distanceKm.toInt()).let {
+                    if (isFa) "$it کیلومتر".toPersianDigits() else "$it km"
+                }
 
-                    val altStr = String.format("%.1f", moonData.altitudeDeg).let {
-                        if (isFa) "$it°".toPersianDigits() else "$it°"
-                    }
+                val altStr = String.format("%.1f", moonData.altitudeDeg).let {
+                    if (isFa) "$it°".toPersianDigits() else "$it°"
+                }
 
-                    val azStr = String.format("%.1f", moonData.azimuthDeg).let {
-                        if (isFa) "$it°".toPersianDigits() else "$it°"
-                    }
+                val azStr = String.format("%.1f", moonData.azimuthDeg).let {
+                    if (isFa) "$it°".toPersianDigits() else "$it°"
+                }
 
-                    val ageStr = String.format("%.1f", moonData.ageDays).let {
-                        if (isFa) "$it روز".toPersianDigits() else "$it days"
-                    }
+                val ageStr = String.format("%.1f", moonData.ageDays).let {
+                    if (isFa) "$it روز".toPersianDigits() else "$it days"
+                }
 
-                    Column(
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(RedCornerRadius.lg))
-                            .background(RedTheme.colors.surfaceGrouped)
-                            .border(0.75.dp, RedTheme.colors.border, RoundedCornerShape(RedCornerRadius.lg))
+                            .padding(vertical = RedSpacing.xs),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = RedSpacing.md, vertical = RedSpacing.md),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            MoonMetricItem(
-                                icon = Icons.Outlined.WbSunny,
-                                label = if (isFa) "طلوع ماه" else "Moonrise",
-                                value = if (isFa) riseStr.toPersianDigits() else riseStr,
-                                modifier = Modifier.weight(1f)
-                            )
-                            MoonMetricItem(
-                                icon = Icons.Outlined.NightsStay,
-                                label = if (isFa) "غروب ماه" else "Moonset",
-                                value = if (isFa) setStr.toPersianDigits() else setStr,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                        MoonMetricItem(
+                            icon = Icons.Outlined.WbSunny,
+                            label = if (isFa) "طلوع ماه" else "Moonrise",
+                            value = if (isFa) riseStr.toPersianDigits() else riseStr,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MoonMetricItem(
+                            icon = Icons.Outlined.NightsStay,
+                            label = if (isFa) "غروب ماه" else "Moonset",
+                            value = if (isFa) setStr.toPersianDigits() else setStr,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
-                        RedHairlineDivider()
+                    RedHairlineDivider()
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = RedSpacing.md, vertical = RedSpacing.md),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            MoonMetricItem(
-                                icon = Icons.Outlined.Straighten,
-                                label = if (isFa) "فاصله از زمین" else "Distance",
-                                value = distStr,
-                                modifier = Modifier.weight(1f)
-                            )
-                            MoonMetricItem(
-                                icon = Icons.Outlined.Schedule,
-                                label = if (isFa) "سن ماه" else "Lunar Age",
-                                value = ageStr,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = RedSpacing.xs),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MoonMetricItem(
+                            icon = Icons.Outlined.Straighten,
+                            label = if (isFa) "فاصله از زمین" else "Distance",
+                            value = distStr,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MoonMetricItem(
+                            icon = Icons.Outlined.Schedule,
+                            label = if (isFa) "سن ماه" else "Lunar Age",
+                            value = ageStr,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
-                        RedHairlineDivider()
+                    RedHairlineDivider()
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = RedSpacing.md, vertical = RedSpacing.md),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            MoonMetricItem(
-                                icon = Icons.Outlined.Navigation,
-                                label = if (isFa) "ارتفاع مداری" else "Altitude",
-                                value = altStr,
-                                modifier = Modifier.weight(1f)
-                            )
-                            MoonMetricItem(
-                                icon = Icons.Outlined.Explore,
-                                label = if (isFa) "سمت (زاویه افقی)" else "Azimuth",
-                                value = azStr,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = RedSpacing.xs),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MoonMetricItem(
+                            icon = Icons.Outlined.Navigation,
+                            label = if (isFa) "ارتفاع مداری" else "Altitude",
+                            value = altStr,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MoonMetricItem(
+                            icon = Icons.Outlined.Explore,
+                            label = if (isFa) "سمت (زاویه افقی)" else "Azimuth",
+                            value = azStr,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
         }
 
-        // 3. PHYSICAL & EPHEMERIS PROPERTIES CARD
+        // 3. PHYSICAL & EPHEMERIS PROPERTIES SECTION (Clean & unboxed)
         item {
-            RedElevatedCard(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("moon_ephemeris_card"),
-                shape = RoundedCornerShape(RedCornerRadius.xl),
-                backgroundColor = RedTheme.colors.surfaceElevated,
-                borderColor = RedTheme.colors.border,
-                contentPadding = PaddingValues(RedSpacing.lg)
+                verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.md)) {
-                    RedSectionHeader(
-                        title = if (isFa) "پارامترهای فیزیکی و رصدی" else "Physical & Observational Data",
-                        subtitle = if (isFa) "قطر ظاهری، رخ‌گردی و درخشش زمین‌تاب" else "Angular diameter, libration & earthshine"
-                    )
+                RedSectionHeader(
+                    title = if (isFa) "پارامترهای فیزیکی و رصدی" else "Physical & Observational Data",
+                    subtitle = if (isFa) "قطر ظاهری، رخ‌گردی و درخشش زمین‌تاب" else "Angular diameter, libration & earthshine"
+                )
 
-                    val angDiamStr = String.format("%.1f′", moonData.angularDiameterArcmin).let {
-                        if (isFa) it.toPersianDigits() else it
-                    }
+                val angDiamStr = String.format("%.1f′", moonData.angularDiameterArcmin).let {
+                    if (isFa) it.toPersianDigits() else it
+                }
 
-                    val libLonStr = String.format("%+.1f°", moonData.librationLonDeg).let {
-                        if (isFa) it.toPersianDigits() else it
-                    }
+                val libLonStr = String.format("%+.1f°", moonData.librationLonDeg).let {
+                    if (isFa) it.toPersianDigits() else it
+                }
 
-                    val libLatStr = String.format("%+.1f°", moonData.librationLatDeg).let {
-                        if (isFa) it.toPersianDigits() else it
-                    }
+                val libLatStr = String.format("%+.1f°", moonData.librationLatDeg).let {
+                    if (isFa) it.toPersianDigits() else it
+                }
 
-                    val earthshineStr = String.format("%.0f%%", moonData.earthshinePercent * 100.0).let {
-                        if (isFa) it.toPersianDigits() else it
-                    }
+                val earthshineStr = String.format("%.0f%%", moonData.earthshinePercent * 100.0).let {
+                    if (isFa) it.toPersianDigits() else it
+                }
 
-                    Column(
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(RedCornerRadius.lg))
-                            .background(RedTheme.colors.surfaceGrouped)
-                            .border(0.75.dp, RedTheme.colors.border, RoundedCornerShape(RedCornerRadius.lg))
+                            .padding(vertical = RedSpacing.xs),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = RedSpacing.md, vertical = RedSpacing.md),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            MoonMetricItem(
-                                icon = Icons.Outlined.FitScreen,
-                                label = if (isFa) "قطر زاویه‌ای" else "Angular Diameter",
-                                value = angDiamStr,
-                                modifier = Modifier.weight(1f)
-                            )
-                            MoonMetricItem(
-                                icon = Icons.Outlined.LightMode,
-                                label = if (isFa) "زمین‌تاب" else "Earthshine",
-                                value = earthshineStr,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                        MoonMetricItem(
+                            icon = Icons.Outlined.FitScreen,
+                            label = if (isFa) "قطر زاویه‌ای" else "Angular Diameter",
+                            value = angDiamStr,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MoonMetricItem(
+                            icon = Icons.Outlined.LightMode,
+                            label = if (isFa) "زمین‌تاب" else "Earthshine",
+                            value = earthshineStr,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
-                        RedHairlineDivider()
+                    RedHairlineDivider()
 
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = RedSpacing.md, vertical = RedSpacing.md),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            MoonMetricItem(
-                                icon = Icons.Outlined.Rotate90DegreesCcw,
-                                label = if (isFa) "رخ‌گردی طولی" else "Libration (Lon)",
-                                value = libLonStr,
-                                modifier = Modifier.weight(1f)
-                            )
-                            MoonMetricItem(
-                                icon = Icons.Outlined.Rotate90DegreesCw,
-                                label = if (isFa) "رخ‌گردی عرضی" else "Libration (Lat)",
-                                value = libLatStr,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = RedSpacing.xs),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        MoonMetricItem(
+                            icon = Icons.Outlined.Rotate90DegreesCcw,
+                            label = if (isFa) "رخ‌گردی طولی" else "Libration (Lon)",
+                            value = libLonStr,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MoonMetricItem(
+                            icon = Icons.Outlined.Rotate90DegreesCw,
+                            label = if (isFa) "رخ‌گردی عرضی" else "Libration (Lat)",
+                            value = libLatStr,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
         }
 
-        // 4. UPCOMING PHASES CARD
+        // 4. UPCOMING PHASES SECTION (Clean & unboxed)
         item {
-            RedElevatedCard(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("moon_upcoming_card"),
-                shape = RoundedCornerShape(RedCornerRadius.xl),
-                backgroundColor = RedTheme.colors.surfaceElevated,
-                borderColor = RedTheme.colors.border,
-                contentPadding = PaddingValues(RedSpacing.lg)
+                verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.md)) {
-                    RedSectionHeader(
-                        title = if (isFa) "فازهای آینده" else "Upcoming Phases",
-                        subtitle = if (isFa) "زمان‌بندی فازهای بعدی ماه" else "Next lunar quarters & full moon schedule"
-                    )
+                RedSectionHeader(
+                    title = if (isFa) "فازهای آینده" else "Upcoming Phases",
+                    subtitle = if (isFa) "زمان‌بندی فازهای بعدی ماه" else "Next lunar quarters & full moon schedule"
+                )
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(RedCornerRadius.lg))
-                            .background(RedTheme.colors.surfaceGrouped)
-                            .border(0.75.dp, RedTheme.colors.border, RoundedCornerShape(RedCornerRadius.lg))
-                    ) {
-                        upcomingPhases.forEachIndexed { idx, phase ->
-                            val name = if (isFa) phase.phaseNameFa else phase.phaseNameEn
-                            val dateText = TimeEngine.formatDate(phase.dateMs, uiState.calendarSystem, isFa).let {
-                                if (isFa) it.toPersianDigits() else it
-                            }
-                            val daysText = if (isFa) "${phase.daysFromNow} روز دیگر".toPersianDigits() else "in ${phase.daysFromNow} days"
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    upcomingPhases.forEachIndexed { idx, phase ->
+                        val name = if (isFa) phase.phaseNameFa else phase.phaseNameEn
+                        val dateText = TimeEngine.formatDate(phase.dateMs, uiState.calendarSystem, isFa).let {
+                            if (isFa) it.toPersianDigits() else it
+                        }
+                        val daysText = if (isFa) "${phase.daysFromNow} روز دیگر".toPersianDigits() else "in ${phase.daysFromNow} days"
 
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = RedSpacing.sm),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = RedSpacing.md, vertical = RedSpacing.md),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(RedTheme.colors.accentRed.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(CircleShape)
-                                            .background(RedTheme.colors.accentRed.copy(alpha = 0.12f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Brightness2,
-                                            contentDescription = null,
-                                            tint = RedTheme.colors.accentRed,
-                                            modifier = Modifier.size(RedIconSize.sm)
-                                        )
-                                    }
-                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        Text(
-                                            text = name,
-                                            style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
-                                            color = RedTheme.colors.textPrimary
-                                        )
-                                        Text(
-                                            text = dateText,
-                                            style = RedTypographyTokens.caption,
-                                            color = RedTheme.colors.textSecondary
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Outlined.Brightness2,
+                                        contentDescription = null,
+                                        tint = RedTheme.colors.accentRed,
+                                        modifier = Modifier.size(RedIconSize.sm)
+                                    )
                                 }
-
-                                RedBadge(
-                                    text = daysText,
-                                    backgroundColor = RedTheme.colors.surface,
-                                    textColor = RedTheme.colors.textSecondary,
-                                    borderColor = RedTheme.colors.border
-                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        text = name,
+                                        style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                                        color = RedTheme.colors.textPrimary
+                                    )
+                                    Text(
+                                        text = dateText,
+                                        style = RedTypographyTokens.caption,
+                                        color = RedTheme.colors.textSecondary
+                                    )
+                                }
                             }
 
-                            if (idx < upcomingPhases.size - 1) {
-                                RedHairlineDivider()
-                            }
+                            RedBadge(
+                                text = daysText,
+                                backgroundColor = RedTheme.colors.surfaceGrouped,
+                                textColor = RedTheme.colors.textSecondary,
+                                borderColor = RedTheme.colors.border
+                            )
+                        }
+
+                        if (idx < upcomingPhases.size - 1) {
+                            RedHairlineDivider()
                         }
                     }
                 }

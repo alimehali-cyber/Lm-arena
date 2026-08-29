@@ -20,13 +20,14 @@ object PlanetRenderer {
         drawScope: DrawScope,
         planets: List<Triple<PlanetEngine.PlanetType, PlanetEngine.PlanetPosition, CoordinateEngine.Horizontal>>,
         frameTimeMs: Long,
-        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL
+        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
+        latitudeDeg: Double = 0.0
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
         planets.forEach { (pType, pPos, horiz) ->
-            val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height)
+            val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
 
             when (theme) {
                 SkyCanvasTheme.ATMOSPHERIC_SKY -> {

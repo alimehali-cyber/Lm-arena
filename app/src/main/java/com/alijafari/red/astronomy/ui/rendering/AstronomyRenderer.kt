@@ -31,13 +31,14 @@ object AstronomyRenderer {
         selectedObjectPos: Offset?,
         frameTimeMs: Long,
         theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY,
-        drawGrid: Boolean = false
+        drawGrid: Boolean = false,
+        latitudeDeg: Double = 0.0
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
         val sunPosPx = if (sunHoriz.altitudeDeg > -12.0) {
-            HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, width, height)
+            HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, width, height, latitudeDeg)
         } else null
 
         // 1. Atmosphere & Sky Gradient
@@ -50,7 +51,7 @@ object AstronomyRenderer {
 
         // 2. Coordinate Grid (if enabled)
         if (drawGrid) {
-            drawCoordinateGrid(drawScope, theme)
+            drawCoordinateGrid(drawScope, theme, latitudeDeg)
         }
 
         // 3. Milky Way Procedural Bands
@@ -59,7 +60,8 @@ object AstronomyRenderer {
             galacticPoints = galacticPoints,
             lightingState = lightingState,
             frameTimeMs = frameTimeMs,
-            theme = theme
+            theme = theme,
+            latitudeDeg = latitudeDeg
         )
 
         // 4. Constellation Lines
@@ -68,7 +70,8 @@ object AstronomyRenderer {
             stars = stars,
             starVisibility = lightingState.starVisibility,
             frameTimeMs = frameTimeMs,
-            theme = theme
+            theme = theme,
+            latitudeDeg = latitudeDeg
         )
 
         // 5. Stars & Deep Sky Objects
@@ -77,7 +80,8 @@ object AstronomyRenderer {
             objects = stars,
             starVisibility = lightingState.starVisibility,
             frameTimeMs = frameTimeMs,
-            theme = theme
+            theme = theme,
+            latitudeDeg = latitudeDeg
         )
 
         // 6. Sun
@@ -93,7 +97,7 @@ object AstronomyRenderer {
 
         // 7. Moon
         if (moonData.altitudeDeg > -12.0) {
-            val moonCenter = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, width, height)
+            val moonCenter = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, width, height, latitudeDeg)
             
             MoonRenderer.drawMoon(
                 drawScope = drawScope,
@@ -116,7 +120,8 @@ object AstronomyRenderer {
             drawScope = drawScope,
             planets = planets,
             frameTimeMs = frameTimeMs,
-            theme = theme
+            theme = theme,
+            latitudeDeg = latitudeDeg
         )
 
         // 9. Horizon Landscape Silhouette
@@ -133,7 +138,7 @@ object AstronomyRenderer {
         }
     }
 
-    private fun drawCoordinateGrid(drawScope: DrawScope, theme: SkyCanvasTheme) {
+    private fun drawCoordinateGrid(drawScope: DrawScope, theme: SkyCanvasTheme, latitudeDeg: Double = 0.0) {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
@@ -146,7 +151,7 @@ object AstronomyRenderer {
 
         // Horizontal Altitude Circles
         for (alt in 15..75 step 15) {
-            val y = HeroSkyProjection.project(0.0, alt.toDouble(), width, height).y
+            val y = HeroSkyProjection.project(0.0, alt.toDouble(), width, height, latitudeDeg).y
             drawScope.drawLine(
                 color = gridColor,
                 start = Offset(0f, y),
@@ -157,7 +162,7 @@ object AstronomyRenderer {
 
         // Vertical Azimuth Lines
         for (az in 45..315 step 45) {
-            val x = HeroSkyProjection.project(az.toDouble(), 0.0, width, height).x
+            val x = HeroSkyProjection.project(az.toDouble(), 0.0, width, height, latitudeDeg).x
             drawScope.drawLine(
                 color = gridColor,
                 start = Offset(x, 0f),

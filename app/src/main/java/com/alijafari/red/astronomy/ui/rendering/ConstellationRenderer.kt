@@ -48,7 +48,8 @@ object ConstellationRenderer {
         stars: List<Pair<CelestialObject, CoordinateEngine.Horizontal>>,
         starVisibility: Float,
         frameTimeMs: Long,
-        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY
+        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY,
+        latitudeDeg: Double = 0.0
     ) {
         if (starVisibility < 0.2f) return
 
@@ -56,7 +57,7 @@ object ConstellationRenderer {
         val height = drawScope.size.height
 
         val starMap = stars.associate { (star, horiz) ->
-            val starPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height)
+            val starPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
             star.id to (starPos to horiz.altitudeDeg)
         }
 

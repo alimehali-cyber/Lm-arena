@@ -242,7 +242,7 @@ fun HeroSkyCanvas(
             .height(320.dp)
             .clip(RoundedCornerShape(28.dp))
             .testTag("hero_sky_canvas_container")
-            .pointerInput(isFa, catalogStars, planetPositions, sunHoriz, moonData) {
+            .pointerInput(isFa, catalogStars, planetPositions, sunHoriz, moonData, userLat) {
                 detectTapGestures { tapOffset ->
                     val canvasW = size.width.toFloat()
                     val canvasH = size.height.toFloat()
@@ -253,7 +253,7 @@ fun HeroSkyCanvas(
 
                     // Check Sun
                     if (sunHoriz.altitudeDeg > -12.0) {
-                        val sunPos = HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH)
+                        val sunPos = HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
                         val dist = HeroSkyProjection.screenDistance(tapOffset, sunPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
@@ -268,7 +268,7 @@ fun HeroSkyCanvas(
 
                     // Check Moon
                     if (moonData.altitudeDeg > -12.0) {
-                        val moonPos = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH)
+                        val moonPos = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
                         val dist = HeroSkyProjection.screenDistance(tapOffset, moonPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
@@ -283,7 +283,7 @@ fun HeroSkyCanvas(
 
                     // Check Planets
                     planetPositions.forEach { (pType, _, horiz) ->
-                        val pPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH)
+                        val pPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH, userLat)
                         val dist = HeroSkyProjection.screenDistance(tapOffset, pPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
@@ -299,7 +299,7 @@ fun HeroSkyCanvas(
 
                     // Check Catalog Stars / Deep Sky
                     catalogStars.forEach { (celestialObj, horiz) ->
-                        val sPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH)
+                        val sPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH, userLat)
                         val dist = HeroSkyProjection.screenDistance(tapOffset, sPos, canvasW)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
@@ -384,7 +384,7 @@ fun HeroSkyCanvas(
             val canvasH = size.height
 
             val sunPosPx = if (sunHoriz.altitudeDeg > -12.0) {
-                HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH)
+                HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
             } else null
 
             // 1. Atmosphere Renderer
@@ -401,7 +401,8 @@ fun HeroSkyCanvas(
                 galacticPoints = galacticPlanePoints,
                 lightingState = lightingState,
                 frameTimeMs = frameTimeMs,
-                theme = uiState.skyCanvasTheme
+                theme = uiState.skyCanvasTheme,
+                latitudeDeg = userLat
             )
 
             // 3. Star Renderer
@@ -410,7 +411,8 @@ fun HeroSkyCanvas(
                 objects = catalogStars,
                 starVisibility = lightingState.starVisibility,
                 frameTimeMs = frameTimeMs,
-                theme = uiState.skyCanvasTheme
+                theme = uiState.skyCanvasTheme,
+                latitudeDeg = userLat
             )
 
             // 4. Sun Renderer
@@ -426,7 +428,7 @@ fun HeroSkyCanvas(
 
             // 5. Moon Renderer
             if (moonData.altitudeDeg > -12.0) {
-                val moonCenter = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH)
+                val moonCenter = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
                 val baseMoonRadius = 26.dp.toPx()
 
                 val limbScreenAngleDeg = CoordinateEngine.calculateMoonLimbScreenAngleDeg(
@@ -458,7 +460,8 @@ fun HeroSkyCanvas(
                 drawScope = this,
                 planets = planetPositions,
                 frameTimeMs = frameTimeMs,
-                theme = uiState.skyCanvasTheme
+                theme = uiState.skyCanvasTheme,
+                latitudeDeg = userLat
             )
 
             // 7. Horizon Landscape Silhouette Layer
@@ -471,17 +474,17 @@ fun HeroSkyCanvas(
             // 7. Tapped Celestial Target Ring Overlay
             selectedCelestial?.let { sel ->
                 val selPos = when {
-                    sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH)
-                    sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH)
+                    sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
+                    sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
                     sel.id.startsWith("planet_") -> {
                         val pName = sel.id.removePrefix("planet_")
                         planetPositions.find { it.first.name.equals(pName, ignoreCase = true) }?.let {
-                            HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH)
+                            HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH, userLat)
                         } ?: sel.position
                     }
                     else -> {
                         catalogStars.find { it.first.id == sel.id }?.let {
-                            HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH)
+                            HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH, userLat)
                         } ?: sel.position
                     }
                 }
@@ -519,17 +522,17 @@ fun HeroSkyCanvas(
             val canvasW = constraints.maxWidth.toFloat()
             val canvasH = constraints.maxHeight.toFloat()
             val livePos = when {
-                sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH)
-                sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH)
+                sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
+                sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
                 sel.id.startsWith("planet_") -> {
                     val pName = sel.id.removePrefix("planet_")
                     planetPositions.find { it.first.name.equals(pName, ignoreCase = true) }?.let {
-                        HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH)
+                        HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH, userLat)
                     } ?: sel.position
                 }
                 else -> {
                     catalogStars.find { it.first.id == sel.id }?.let {
-                        HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH)
+                        HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH, userLat)
                     } ?: sel.position
                 }
             }

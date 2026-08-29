@@ -24,16 +24,17 @@ object StarRenderer {
         objects: List<Pair<CelestialObject, CoordinateEngine.Horizontal>>,
         starVisibility: Float,
         frameTimeMs: Long,
-        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY
+        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY,
+        latitudeDeg: Double = 0.0
     ) {
         if (starVisibility <= 0.05f) return
 
         when (theme) {
-            SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs)
-            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
-            SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs)
-            SkyCanvasTheme.OBSERVATORY -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs)
-            SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftStars(drawScope, objects, starVisibility, frameTimeMs)
+            SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg)
+            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg)
+            SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg)
+            SkyCanvasTheme.OBSERVATORY -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg)
+            SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg)
         }
     }
 
@@ -41,13 +42,14 @@ object StarRenderer {
         drawScope: DrawScope,
         objects: List<Pair<CelestialObject, CoordinateEngine.Horizontal>>,
         starVisibility: Float,
-        frameTimeMs: Long
+        frameTimeMs: Long,
+        latitudeDeg: Double
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
         objects.forEach { (celestialObj, horiz) ->
-            val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height)
+            val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
             val sx = center.x
             val sy = center.y
 
@@ -105,13 +107,14 @@ object StarRenderer {
         drawScope: DrawScope,
         objects: List<Pair<CelestialObject, CoordinateEngine.Horizontal>>,
         starVisibility: Float,
-        frameTimeMs: Long
+        frameTimeMs: Long,
+        latitudeDeg: Double
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
         objects.forEach { (celestialObj, horiz) ->
-            val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height)
+            val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
             val sx = center.x
             val sy = center.y
 
@@ -187,15 +190,16 @@ object StarRenderer {
         drawScope: DrawScope,
         objects: List<Pair<CelestialObject, CoordinateEngine.Horizontal>>,
         starVisibility: Float,
-        frameTimeMs: Long
+        frameTimeMs: Long,
+        latitudeDeg: Double = 0.0
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
         objects.forEach { (celestialObj, horiz) ->
-            val sx = (horiz.azimuthDeg / 360.0 * width).toFloat()
-            val sy = (height - (horiz.altitudeDeg / 90.0 * height)).toFloat()
-            val center = Offset(sx, sy)
+            val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
+            val sx = center.x
+            val sy = center.y
 
             if (celestialObj.type == ObjectType.DEEP_SKY) {
                 drawAndromedaCelestial(drawScope, center, starVisibility, frameTimeMs)
@@ -282,14 +286,15 @@ object StarRenderer {
         drawScope: DrawScope,
         objects: List<Pair<CelestialObject, CoordinateEngine.Horizontal>>,
         starVisibility: Float,
-        frameTimeMs: Long
+        frameTimeMs: Long,
+        latitudeDeg: Double
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
 
         objects.forEach { (celestialObj, horiz) ->
             if (celestialObj.type == ObjectType.STAR || celestialObj.type == ObjectType.DEEP_SKY) {
-                val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height)
+                val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
                 val sx = center.x
                 val sy = center.y
 

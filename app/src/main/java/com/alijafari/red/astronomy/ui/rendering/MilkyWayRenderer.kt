@@ -20,7 +20,8 @@ object MilkyWayRenderer {
         galacticPoints: List<GalacticEngine.GalacticPlanePoint>,
         lightingState: LightingState,
         frameTimeMs: Long,
-        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL
+        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
+        latitudeDeg: Double = 0.0
     ) {
         if (galacticPoints.size < 2 || lightingState.sunAltitudeDeg > -5.0) return
 
@@ -39,7 +40,7 @@ object MilkyWayRenderer {
         val screenPoints = mutableListOf<Offset>()
 
         for (pt in galacticPoints) {
-            val screenPos = HeroSkyProjection.project(pt.azimuthDeg, pt.altitudeDeg, width, height)
+            val screenPos = HeroSkyProjection.project(pt.azimuthDeg, pt.altitudeDeg, width, height, latitudeDeg)
             screenPoints.add(screenPos)
             if (first) {
                 mwPath.moveTo(screenPos.x, screenPos.y)
