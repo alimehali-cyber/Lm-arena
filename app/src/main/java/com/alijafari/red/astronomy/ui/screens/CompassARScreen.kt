@@ -77,6 +77,7 @@ import com.alijafari.red.astronomy.data.catalog.SolarSystemCatalog
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.components.ARSensorCalibrationDialog
 import com.alijafari.red.astronomy.ui.components.TimeMachineControlBar
 import com.alijafari.red.astronomy.ui.rendering.*
 import com.alijafari.red.astronomy.ui.theme.*
@@ -214,7 +215,10 @@ fun CompassARScreen(
     val skyOrientation by orientationProvider.orientation.collectAsState()
     val calibrationState by orientationProvider.calibrationState.collectAsState()
     val arCalibrationOffsets by ARCalibrationManager.calibrationFlow.collectAsState()
+    val autoPromptEnabled by ARCalibrationManager.autoPromptEnabledFlow.collectAsState()
     var showCalibrationDialog by remember { mutableStateOf(false) }
+    var autoPromptDismissedThisSession by remember { mutableStateOf(false) }
+    var showManualSensorPrompt by remember { mutableStateOf(false) }
 
     // Camera Intrinsics & Geometry Engine (Hardware calibration, sensor size, active array)
     val cameraIntrinsics = remember(context) { ARProjectionEngine.getCameraIntrinsics(context) }
@@ -2333,11 +2337,27 @@ fun CompassARScreen(
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = RedTheme.colors.textPrimary
                                                 )
-                                                Text(
-                                                    text = if (isFa) "• وضعیت کالیبراسیون: ${calibrationState.name}" else "• Calibration: ${calibrationState.name}",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = RedTheme.colors.textPrimary
-                                                )
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = if (isFa) "• وضعیت کالیبراسیون سنسور: ${calibrationState.name}" else "• Sensor Calibration: ${calibrationState.name}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = RedTheme.colors.textPrimary
+                                                    )
+                                                    TextButton(
+                                                        onClick = { showManualSensorPrompt = true },
+                                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = if (isFa) "راهنمای شکل ۸" else "Figure-8 Guide",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = AccentPrimary
+                                                        )
+                                                    }
+                                                }
                                                 if (arCalibrationOffsets.isCalibrated) {
                                                     val yawFmt = String.format("%+.1f°", arCalibrationOffsets.yawOffsetDeg)
                                                     val pitchFmt = String.format("%+.1f°", arCalibrationOffsets.pitchOffsetDeg)
@@ -2656,22 +2676,50 @@ fun CompassARScreen(
 
         // Layer 8: Manual AR Pointing Calibration Dialog
         if (showCalibrationDialog) {
+            var isAdjustingSlider by remember { mutableStateOf(false) }
+            val scrimAlpha by animateFloatAsState(
+                targetValue = if (isAdjustingSlider) 0f else 0.55f,
+                animationSpec = tween(100),
+                label = "calibScrimAlpha"
+            )
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.55f))
+                    .background(Color.Black.copy(alpha = scrimAlpha))
                     .padding(horizontal = 12.dp, vertical = 24.dp),
                 contentAlignment = Alignment.Center
             ) {
                 ARCalibrationDialog(
                     isFa = isFa,
+                    userLocation = uiState.userLocation,
+                    currentJd = jd,
+                    currentAzimuth = currentAzimuth,
+                    currentAltitude = currentAltitude,
                     onDismiss = { showCalibrationDialog = false },
-                    onSelectReferenceStar = { star ->
-                        selectedTarget = star
+                    onSelectReferenceTarget = { target ->
+                        selectedTarget = target
                         hasVibratedForArrival = false
+                    },
+                    onAdjustingStateChanged = { isAdjusting ->
+                        isAdjustingSlider = isAdjusting
                     }
                 )
             }
+        }
+
+        // Layer 9: Automatic / Manual Figure-8 Sensor Calibration Prompt
+        if (showManualSensorPrompt || (autoPromptEnabled && !autoPromptDismissedThisSession && !showCalibrationDialog && (calibrationState == CalibrationState.NEEDS_CALIBRATION || calibrationState == CalibrationState.POOR || calibrationState == CalibrationState.UNCALIBRATED))) {
+            ARSensorCalibrationDialog(
+                calibrationState = calibrationState,
+                isFa = isFa,
+                onDismiss = {
+                    autoPromptDismissedThisSession = true
+                    showManualSensorPrompt = false
+                },
+                onDisableAutoPrompt = {
+                    ARCalibrationManager.setAutoPromptEnabled(false, context)
+                }
+            )
         }
     }
 }

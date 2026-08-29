@@ -45,11 +45,15 @@ object ARCalibrationManager {
     private const val KEY_ROLL = "calib_roll_offset_deg"
     private const val KEY_TIME = "calib_timestamp_ms"
     private const val KEY_STAR = "calib_reference_star"
+    private const val KEY_AUTO_PROMPT = "calib_auto_prompt_enabled"
 
     private var sharedPreferences: SharedPreferences? = null
 
     private val _calibrationFlow = MutableStateFlow(ARCalibrationOffsets())
     val calibrationFlow: StateFlow<ARCalibrationOffsets> = _calibrationFlow.asStateFlow()
+
+    private val _autoPromptEnabledFlow = MutableStateFlow(true)
+    val autoPromptEnabledFlow: StateFlow<Boolean> = _autoPromptEnabledFlow.asStateFlow()
 
     fun init(context: Context) {
         if (sharedPreferences == null) {
@@ -60,6 +64,7 @@ object ARCalibrationManager {
             val roll = prefs.getFloat(KEY_ROLL, 0f)
             val time = prefs.getLong(KEY_TIME, 0L)
             val star = prefs.getString(KEY_STAR, "") ?: ""
+            val autoPrompt = prefs.getBoolean(KEY_AUTO_PROMPT, true)
             _calibrationFlow.value = ARCalibrationOffsets(
                 yawOffsetDeg = yaw,
                 pitchOffsetDeg = pitch,
@@ -67,7 +72,16 @@ object ARCalibrationManager {
                 lastCalibratedTimeMs = time,
                 referenceStarName = star
             )
+            _autoPromptEnabledFlow.value = autoPrompt
         }
+    }
+
+    fun isAutoPromptEnabled(): Boolean = _autoPromptEnabledFlow.value
+
+    fun setAutoPromptEnabled(enabled: Boolean, context: Context? = null) {
+        _autoPromptEnabledFlow.value = enabled
+        val prefs = sharedPreferences ?: context?.applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs?.edit()?.putBoolean(KEY_AUTO_PROMPT, enabled)?.apply()
     }
 
     fun getOffsets(): ARCalibrationOffsets = _calibrationFlow.value
