@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">RED</string>
+    <string name="app_name">ZIG</string>
     <string name="app_subtitle">Astronomy Companion</string>
     
     <!-- Navigation Tabs -->
@@ -52,7 +52,7 @@
     <!-- Dialogs & Settings -->
     <string name="favorites_and_history">Favorites &amp; History</string>
     <string name="settings">Settings</string>
-    <string name="app_settings">RED App Settings</string>
+    <string name="app_settings">ZIG App Settings</string>
     <string name="application_language">Application Language:</string>
     <string name="language_persian">فارسی (Persian)</string>
     <string name="language_english">English</string>

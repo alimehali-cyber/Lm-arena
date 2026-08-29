@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">RED</string>
+    <string name="app_name">زیگ</string>
     <string name="app_subtitle">دستیار تخصصی و نقشه‌بردار نجومی</string>
 
     <!-- Navigation Tabs -->
@@ -52,7 +52,7 @@
     <!-- Dialogs & Settings -->
     <string name="favorites_and_history">نشان‌شده‌ها و گزارش‌های رصد</string>
     <string name="settings">تنظیمات</string>
-    <string name="app_settings">تنظیمات دستیار رصد RED</string>
+    <string name="app_settings">تنظیمات دستیار رصد زیگ</string>
     <string name="application_language">زبان برنامه (Language):</string>
     <string name="language_persian">فارسی (Persian)</string>
     <string name="language_english">English</string>

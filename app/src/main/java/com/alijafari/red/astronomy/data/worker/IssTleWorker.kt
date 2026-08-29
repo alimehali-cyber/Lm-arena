@@ -102,7 +102,7 @@ class IssTleWorker(
                 try {
                     val request = Request.Builder()
                         .url(endpoint)
-                        .header("User-Agent", "RED-Astronomy/1.0 (Android; ISS-Tracker)")
+                        .header("User-Agent", "ZIG-Astronomy/1.0 (Android; ISS-Tracker)")
                         .get()
                         .build()
 

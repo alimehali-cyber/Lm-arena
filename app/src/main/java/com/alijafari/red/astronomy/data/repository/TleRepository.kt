@@ -227,7 +227,7 @@ class TleRepository(private val context: Context) {
             try {
                 val request = Request.Builder()
                     .url(endpoint)
-                    .header("User-Agent", "RED-Astronomy/1.0")
+                    .header("User-Agent", "ZIG-Astronomy/1.0")
                     .get()
                     .build()
 
@@ -280,7 +280,7 @@ class TleRepository(private val context: Context) {
                 val issEndpoint = "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=tle"
                 val request = Request.Builder()
                     .url(issEndpoint)
-                    .header("User-Agent", "RED-Astronomy/1.0")
+                    .header("User-Agent", "ZIG-Astronomy/1.0")
                     .get()
                     .build()
 

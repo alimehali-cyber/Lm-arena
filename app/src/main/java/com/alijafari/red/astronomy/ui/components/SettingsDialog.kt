@@ -270,7 +270,7 @@ fun SettingsDialog(
                     testTag = "settings_section_app_theme"
                 ) {
                     SettingsOptionRow(
-                        title = if (isFa) "سرمه‌ای (پیش‌فرض RED)" else "Deep Navy (RED Default)",
+                        title = if (isFa) "سرمه‌ای (پیش‌فرض زیگ)" else "Deep Navy (ZIG Default)",
                         isSelected = uiState.themeMode == ThemeMode.DARK_NAVY,
                         onClick = { viewModel.setThemeMode(ThemeMode.DARK_NAVY) }
                     )
@@ -716,7 +716,7 @@ fun SettingsDialog(
                             }
 
                             Text(
-                                text = "Ali Jafari • RED Astronomy Engine",
+                                text = "Ali Jafari • ZIG Astronomy Engine",
                                 style = RedTypographyTokens.caption,
                                 color = RedTheme.colors.textSecondary
                             )

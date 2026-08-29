@@ -44,7 +44,7 @@ fun SafeAppLogo(
     if (isLoadable) {
         Image(
             painter = painterResource(id = logoResId),
-            contentDescription = "RED App Logo",
+            contentDescription = "ZIG App Logo",
             contentScale = ContentScale.Fit,
             modifier = modifier.clip(RoundedCornerShape(cornerRadius))
         )

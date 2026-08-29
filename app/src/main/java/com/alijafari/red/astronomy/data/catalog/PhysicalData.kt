@@ -1240,7 +1240,7 @@ object PhysicalData {
                 "نور ساطع‌شده از این کهکشان پس از طی مسافت ${String.format("%,.0f", obj.distanceLightYears)} سال نوری به چشم رصدگر می‌رسد.",
                 "برای رصد جزئیات ساختار آن، استفاده از تلسکوپ آماتوری با دهانه ۸ اینچ یا بزرگتر در محیط کویری توصیه می‌شود.",
                 "در مرکز اکثر کهکشان‌ها یک سیاهچاله کلان‌جرم قرار دارد که حرکت ستارگان اطراف را هدایت می‌کند.",
-                "این جرم در کاتالوگ نجومی RED به عنوان یکی از اهداف برجسته فوتومتری مشخص شده است."
+                "این جرم در کاتالوگ نجومی زیگ به عنوان یکی از اهداف برجسته فوتومتری مشخص شده است."
             )
             com.alijafari.red.astronomy.domain.ObjectType.NEBULA -> listOf(
                 "این سحابی زایشگاه یا بقایای تحول ستاره‌ای است که گاز هیدروژن در آن می‌درخشد.",
@@ -1271,7 +1271,7 @@ object PhysicalData {
                 "بهترین زاویه دید، خیره شدن به شعاع ۳۰ درجه‌ای اطراف کانون بارش است."
             )
             else -> listOf(
-                "این جرم با قدر ظاهری ${String.format("%.1f", obj.magnitude)} یکی از نقاط رصدی جذاب در کاتالوگ RED است.",
+                "این جرم با قدر ظاهری ${String.format("%.1f", obj.magnitude)} یکی از نقاط رصدی جذاب در کاتالوگ زیگ است.",
                 "موقعیت لحظه‌ای آن در آسمان بر اساس محاسبات ریاضی دقیق موتور نجومی تعیین می‌شود.",
                 "رصد آن در شرایط بورتل ۱ تا ۴ بیشترین جزئیات را برای رصدگر نمایان می‌سازد.",
                 "عبور آن از نصف‌النهار محلی بهترین شفافیت جوی را برای ثبت عکس‌های نجومی ارائه می‌دهد.",
@@ -1296,7 +1296,7 @@ object PhysicalData {
                 "Photons observed tonight have traveled across deep space for ${String.format("%,.0f", obj.distanceLightYears)} light-years to reach Earth.",
                 "Visualizing core structure and spiral arms is best accomplished with an 8-inch aperture telescope under dark skies.",
                 "Like most massive galaxies, its dynamical core harbors a central supermassive black hole governing orbital mechanics.",
-                "Cataloged as a prominent deep-sky photometric target in the RED astronomical database."
+                "Cataloged as a prominent deep-sky photometric target in the ZIG astronomical database."
             )
             com.alijafari.red.astronomy.domain.ObjectType.NEBULA -> listOf(
                 "This nebula represents an active stellar nursery or evolved supernova remnant glowing with ionized hydrogen gas.",
@@ -1327,7 +1327,7 @@ object PhysicalData {
                 "Best observed by looking toward a sky patch roughly 30 degrees away from the radiant point."
             )
             else -> listOf(
-                "Features an apparent magnitude of ${String.format("%.1f", obj.magnitude)} in the RED astronomical catalog.",
+                "Features an apparent magnitude of ${String.format("%.1f", obj.magnitude)} in the ZIG astronomical catalog.",
                 "Instantaneous celestial coordinates are continuously updated by the high-precision astronomical ephemeris engine.",
                 "Observing under Bortle Class 1-4 sky conditions delivers maximum visual clarity and fine detail.",
                 "Local meridian passage offers the highest elevation angle and cleanest atmospheric transparency.",

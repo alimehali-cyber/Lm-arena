@@ -110,9 +110,9 @@ fun PremiumSplashScreen(
                     },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Main 'RED' Title
+                // Main 'ZIG' Title
                 Text(
-                    text = "RED",
+                    text = "ZIG",
                     color = Color(0xFFFFF1F2),
                     fontSize = 64.sp,
                     fontWeight = FontWeight.Black,

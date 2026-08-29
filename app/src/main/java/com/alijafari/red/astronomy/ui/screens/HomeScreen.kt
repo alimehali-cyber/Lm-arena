@@ -170,14 +170,14 @@ fun HomeScreen(
                             )
                         }
 
-                        // Centered "RED" brand title
+                        // Centered brand title
                         Text(
-                            text = "RED",
+                            text = if (isFa) "زیگ" else "ZIG",
                             style = TextStyle(
                                 fontFamily = IranSans,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 17.sp,
-                                letterSpacing = 3.sp
+                                letterSpacing = if (isFa) 0.sp else 3.sp
                             ),
                             color = RedTheme.colors.textPrimary,
                             modifier = Modifier.testTag("home_red_title")

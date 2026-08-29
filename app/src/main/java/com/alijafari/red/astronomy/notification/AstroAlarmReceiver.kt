@@ -101,7 +101,7 @@ class AstroAlarmReceiver : BroadcastReceiver() {
         val langStr = prefs.getString("language", AppLanguage.PERSIAN.name) ?: AppLanguage.PERSIAN.name
         val isFa = langStr == AppLanguage.PERSIAN.name
 
-        val title = (if (isFa) item.titleFa.ifEmpty { item.titleEn } else item.titleEn.ifEmpty { item.titleFa }).ifEmpty { "RED Astronomy" }
+        val title = (if (isFa) item.titleFa.ifEmpty { item.titleEn } else item.titleEn.ifEmpty { item.titleFa }).ifEmpty { if (isFa) "زیگ" else "ZIG" }
         val contentText = (if (isFa) item.contentFa.ifEmpty { item.contentEn } else item.contentEn.ifEmpty { item.contentFa })
         val channelId = when (item.objectType) {
             "SATELLITE" -> CHANNEL_ISS

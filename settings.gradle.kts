@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "RED"
+rootProject.name = "ZIG"
 
 include(":app")

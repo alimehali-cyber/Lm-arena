@@ -22,7 +22,7 @@ class GreetingScreenshotTest {
 
   @Test
   fun greeting_screenshot() {
-    composeTestRule.setContent { REDTheme { Text("Red Astronomy Sky") } }
+    composeTestRule.setContent { REDTheme { Text("ZIG Astronomy Sky") } }
 
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/greeting.png")
   }
