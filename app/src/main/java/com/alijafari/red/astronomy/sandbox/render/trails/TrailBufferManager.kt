@@ -9,18 +9,27 @@ import com.alijafari.red.astronomy.sandbox.render.model.RenderBodyColor
 /**
  * High-performance circular ring-buffer manager for orbital trails.
  * Tracks orbital path history for up to 20 bodies with zero per-frame garbage collection.
+ *
+ * Supports:
+ * - Authoritative snapshot tracking with smooth sample interpolation.
+ * - Reset and discontinuity detection (time rewind, spatial teleportation).
+ * - Per-body enable/disable and selection accentuation.
+ * - Quadratic/exponential age-based alpha fading.
  */
 class TrailBufferManager(
     val maxBodies: Int = 20,
-    val maxPointsPerBody: Int = 120
+    val maxPointsPerBody: Int = 180
 ) {
     var isEnabled: Boolean = true
+    val isBodyTrailEnabled = BooleanArray(maxBodies) { true }
+    var selectedBodyIndex: Int = -1
 
     // Circular ring buffer storage: [bodyIndex][pointIndex * 3]
     private val ringPositions = Array(maxBodies) { FloatArray(maxPointsPerBody * 3) }
     private val pointCounts = IntArray(maxBodies)
     private val headIndices = IntArray(maxBodies)
-    private val lastAppendedPositions = Array(maxBodies) { FloatArray(3) }
+    private val lastAppendedPositions = Array(maxBodies) { FloatArray(3) { Float.NaN } }
+    private var lastRecordedSimTimeSeconds: Double = -1.0
 
     // Pre-allocated flat buffer for GPU upload (4 floats per vertex: x, y, z, alpha)
     private val uploadBuffer = FloatArray(maxPointsPerBody * 4)
@@ -31,10 +40,9 @@ class TrailBufferManager(
 
     fun init() {
         vao = GlVertexArray().apply { bind() }
-        // Allocate dynamic VBO capable of holding maxPointsPerBody vertices
         vbo = GlBuffer(GLES30.GL_ARRAY_BUFFER, GLES30.GL_DYNAMIC_DRAW)
         vbo?.bind()
-        // Initialize with empty buffer
+
         val empty = FloatArray(maxPointsPerBody * 4)
         vbo?.uploadData(empty)
 
@@ -52,22 +60,56 @@ class TrailBufferManager(
         vbo?.unbind()
     }
 
+    /**
+     * Clears all orbital trail history.
+     */
     fun clear() {
         for (i in 0 until maxBodies) {
-            pointCounts[i] = 0
-            headIndices[i] = 0
-            lastAppendedPositions[i][0] = Float.NaN
-            lastAppendedPositions[i][1] = Float.NaN
-            lastAppendedPositions[i][2] = Float.NaN
+            clearBody(i)
+        }
+        lastRecordedSimTimeSeconds = -1.0
+    }
+
+    /**
+     * Clears orbital trail for an individual body (e.g. on merger, removal, or teleportation).
+     */
+    fun clearBody(bodyIndex: Int) {
+        if (bodyIndex in 0 until maxBodies) {
+            pointCounts[bodyIndex] = 0
+            headIndices[bodyIndex] = 0
+            lastAppendedPositions[bodyIndex][0] = Float.NaN
+            lastAppendedPositions[bodyIndex][1] = Float.NaN
+            lastAppendedPositions[bodyIndex][2] = Float.NaN
         }
     }
 
     /**
-     * Records a new visual position for body at [bodyIndex].
-     * Only appends if the body moved at least [minVisualDistanceThreshold] to avoid clustering when stationary.
+     * Returns the number of recorded orbital trail points for [bodyIndex].
      */
-    fun addPoint(bodyIndex: Int, x: Float, y: Float, z: Float, minDistanceSq: Float = 0.005f) {
-        if (!isEnabled || bodyIndex !in 0 until maxBodies) return
+    fun getPointCount(bodyIndex: Int): Int {
+        return if (bodyIndex in 0 until maxBodies) pointCounts[bodyIndex] else 0
+    }
+
+    /**
+     * Records a new visual position for body at [bodyIndex].
+     * Includes automatic time-rewind reset and distance-based clustering prevention.
+     */
+    fun addPoint(
+        bodyIndex: Int,
+        x: Float,
+        y: Float,
+        z: Float,
+        currentSimTimeSeconds: Double = 0.0,
+        minDistanceSq: Float = 0.0025f,
+        maxDiscontinuityDistSq: Float = 400.0f
+    ) {
+        if (!isEnabled || bodyIndex !in 0 until maxBodies || !isBodyTrailEnabled[bodyIndex]) return
+
+        // Check for simulation rewind / reset
+        if (lastRecordedSimTimeSeconds >= 0.0 && currentSimTimeSeconds < lastRecordedSimTimeSeconds - 0.001) {
+            clear()
+        }
+        lastRecordedSimTimeSeconds = currentSimTimeSeconds
 
         val last = lastAppendedPositions[bodyIndex]
         if (!last[0].isNaN()) {
@@ -75,8 +117,12 @@ class TrailBufferManager(
             val dy = y - last[1]
             val dz = z - last[2]
             val distSq = dx * dx + dy * dy + dz * dz
-            if (distSq < minDistanceSq) {
-                return // Has not moved enough to warrant new trail segment
+
+            // Discontinuity / Teleport detected -> Reset this body's trail
+            if (distSq > maxDiscontinuityDistSq) {
+                clearBody(bodyIndex)
+            } else if (distSq < minDistanceSq) {
+                return // Has not moved sufficiently to warrant new segment
             }
         }
 
@@ -99,7 +145,7 @@ class TrailBufferManager(
     }
 
     /**
-     * Renders trails for all active bodies.
+     * Renders orbital trails for all active bodies with alpha gradients and selection accentuation.
      */
     fun draw(
         shader: ShaderProgram,
@@ -113,36 +159,52 @@ class TrailBufferManager(
         vbo?.bind()
 
         for (b in 0 until count) {
+            if (!isBodyTrailEnabled[b]) continue
             val numPoints = pointCounts[b]
             if (numPoints < 2) continue
 
+            val isSelected = (b == selectedBodyIndex)
             val head = headIndices[b]
             val posArray = ringPositions[b]
+
+            // Oldest point starts at (head - numPoints + maxPointsPerBody) % maxPointsPerBody
+            val startIdx = (head - numPoints + maxPointsPerBody) % maxPointsPerBody
+
             var outIdx = 0
+            for (i in 0 until numPoints) {
+                val ringIdx = (startIdx + i) % maxPointsPerBody
+                val ringOffset = ringIdx * 3
 
-            // Read from oldest to newest so alpha fades from 0.0 to 1.0
-            val startIdx = if (numPoints == maxPointsPerBody) head else 0
-            for (p in 0 until numPoints) {
-                val ringIdx = (startIdx + p) % maxPointsPerBody
-                val rOffset = ringIdx * 3
+                val x = posArray[ringOffset]
+                val y = posArray[ringOffset + 1]
+                val z = posArray[ringOffset + 2]
 
-                uploadBuffer[outIdx++] = posArray[rOffset]
-                uploadBuffer[outIdx++] = posArray[rOffset + 1]
-                uploadBuffer[outIdx++] = posArray[rOffset + 2]
+                // Linear normalized age: 0.0 (oldest/faintest) -> 1.0 (newest/brightest)
+                val ageNorm = i.toFloat() / (numPoints - 1).coerceAtLeast(1)
 
-                // Alpha gradient: 0.05 at tail, 0.95 at head
-                val alpha = (p.toFloat() / (numPoints - 1)).coerceIn(0.0f, 1.0f)
-                uploadBuffer[outIdx++] = alpha * alpha // Smooth quadratic fade
+                // Smooth quadratic alpha falloff: f(t) = t^1.6
+                val alpha = Math.pow(ageNorm.toDouble(), 1.6).toFloat().coerceIn(0.04f, 1.0f)
+
+                uploadBuffer[outIdx++] = x
+                uploadBuffer[outIdx++] = y
+                uploadBuffer[outIdx++] = z
+                uploadBuffer[outIdx++] = if (isSelected) alpha else alpha * 0.70f
             }
 
-            // Upload to GPU
+            // Stream upload to dynamic VBO
             vbo?.uploadSubData(uploadBuffer, 0, outIdx)
 
-            // Set trail color uniform
+            // Uniform color matching the body
             val color = if (b < bodyColors.size) bodyColors[b] else RenderBodyColor.DEFAULT_COLOR
-            shader.setUniform4f("u_TrailColor", color[0], color[1], color[2], 0.75f)
+            shader.setUniform4f(
+                "u_TrailColor",
+                color[0],
+                color[1],
+                color[2],
+                if (isSelected) 1.0f else 0.80f
+            )
 
-            // Draw as continuous line strip
+            GLES30.glLineWidth(if (isSelected) 2.5f else 1.5f)
             GLES30.glDrawArrays(GLES30.GL_LINE_STRIP, 0, numPoints)
         }
 

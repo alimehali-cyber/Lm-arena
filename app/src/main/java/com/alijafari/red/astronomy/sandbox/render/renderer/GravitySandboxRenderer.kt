@@ -5,40 +5,37 @@ import android.opengl.GLSurfaceView
 import android.opengl.Matrix
 import android.util.Log
 import com.alijafari.red.astronomy.sandbox.model.SandboxBodyType
+import com.alijafari.red.astronomy.sandbox.render.barycenter.BarycenterRenderer
 import com.alijafari.red.astronomy.sandbox.render.camera.RayCaster
 import com.alijafari.red.astronomy.sandbox.render.camera.SandboxCamera
 import com.alijafari.red.astronomy.sandbox.render.celestial.CelestialBodyConfig
 import com.alijafari.red.astronomy.sandbox.render.celestial.CelestialPropertiesRegistry
 import com.alijafari.red.astronomy.sandbox.render.celestial.CelestialRotationManager
+import com.alijafari.red.astronomy.sandbox.render.collision.CollisionVisualizer
 import com.alijafari.red.astronomy.sandbox.render.diagnostics.SandboxRenderDiagnostics
 import com.alijafari.red.astronomy.sandbox.render.geometry.*
+import com.alijafari.red.astronomy.sandbox.render.gl.GlBuffer
+import com.alijafari.red.astronomy.sandbox.render.gl.GlVertexArray
 import com.alijafari.red.astronomy.sandbox.render.gl.QualityLevel
 import com.alijafari.red.astronomy.sandbox.render.gl.ShaderProgram
 import com.alijafari.red.astronomy.sandbox.render.model.RenderBodyColor
+import com.alijafari.red.astronomy.sandbox.render.prediction.TrajectoryPredictor
+import com.alijafari.red.astronomy.sandbox.render.relativistic.RelativisticBodyRenderer
 import com.alijafari.red.astronomy.sandbox.render.scale.RenderScaleManager
 import com.alijafari.red.astronomy.sandbox.render.shaders.CelestialShaderSources
 import com.alijafari.red.astronomy.sandbox.render.shaders.ShaderSources
+import com.alijafari.red.astronomy.sandbox.render.shaders.TrajectoryShaderSources
 import com.alijafari.red.astronomy.sandbox.render.trails.TrailBufferManager
+import com.alijafari.red.astronomy.sandbox.render.vectors.VectorOverlayRenderer
 import com.alijafari.red.astronomy.sandbox.snapshot.DoubleBufferSnapshotManager
 import com.alijafari.red.astronomy.sandbox.snapshot.SandboxRenderFrame
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
- * Production-grade OpenGL ES 3.0 Renderer for the ZIG Gravity Sandbox (Phase 3).
- *
- * Research-Driven Celestial Architecture:
- * 1. Layered Planet Shaders: Procedural Earth land/oceans with specular glint, Moon craters & maria,
- *    Mars iron-oxide dust & polar ice caps, Jupiter turbulent cloud belts & Great Red Spot,
- *    Venus sulfuric atmosphere, and Uranus/Neptune methane absorption profiles.
- * 2. Dedicated Ring Engine: Saturn ring geometry with radial optical density, Cassini division,
- *    and mutual planet-to-ring and ring-to-planet shadow projection.
- * 3. Multi-Layer Cloud & Atmosphere Shells: Rayleigh/Mie limb scattering shells and independently
- *    rotating Earth weather cloud systems.
- * 4. Stellar Physics: Convective solar granulation, limb darkening, and pulsating corona/flares.
- * 5. Isolated Visual Rotation: Physical simulation trajectory remains strictly untouched SI units.
- * 6. Dynamic Sun Lighting: True 3D solar vectors dictate terminators, specular highlights, and phase angles.
- * 7. Zero Allocation Loop: Pre-allocated scratch buffers ensure zero garbage collection at 60/120 FPS.
+ * Production-grade OpenGL ES 3.0 Renderer for the ZIG Gravity Sandbox (Phase 4).
  */
 class GravitySandboxRenderer(
     private val snapshotManager: DoubleBufferSnapshotManager,
@@ -72,11 +69,24 @@ class GravitySandboxRenderer(
     val diagnostics = SandboxRenderDiagnostics()
     val rotationManager = CelestialRotationManager()
     var trailManager = TrailBufferManager(maxBodies = MAX_BODIES, maxPointsPerBody = qualityLevel.maxTrailPointsPerBody)
+    val trajectoryPredictor = TrajectoryPredictor(maxBodies = MAX_BODIES)
+    val barycenterRenderer = BarycenterRenderer()
+    val vectorOverlayRenderer = VectorOverlayRenderer(maxBodies = MAX_BODIES)
+    val collisionVisualizer = CollisionVisualizer()
+    val relativisticRenderer = RelativisticBodyRenderer()
 
     // --- Configuration ---
     var theme: RenderTheme = RenderTheme.DARK
     var isGridVisible: Boolean = true
     var isStarfieldVisible: Boolean = true
+    var selectedBodyId: String? = null
+        set(value) {
+            field = value
+            trajectoryPredictor.selectedBodyId = value
+            vectorOverlayRenderer.selectedBodyId = value
+            camera.focusedBodyId = value
+        }
+
     var onBodySelectedListener: ((String?) -> Unit)? = null
 
     // --- Shader Programs ---
@@ -87,6 +97,11 @@ class GravitySandboxRenderer(
     private var sunCoronaShader: ShaderProgram? = null
     private var starfieldShader: ShaderProgram? = null
     private var trailShader: ShaderProgram? = null
+    private var predictionShader: ShaderProgram? = null
+    private var vectorShader: ShaderProgram? = null
+    private var barycenterShader: ShaderProgram? = null
+    private var shockwaveShader: ShaderProgram? = null
+    private var selectionRingShader: ShaderProgram? = null
     private var gridShader: ShaderProgram? = null
     private var fullscreenShader: ShaderProgram? = null
 
@@ -96,6 +111,11 @@ class GravitySandboxRenderer(
     private var gridGeometry: GridGeometry? = null
     private var starfieldGeometry: StarfieldGeometry? = null
     private var fullscreenQuad: FullscreenQuad? = null
+
+    // Selection ring geometry (equatorial circle)
+    private var selectionRingVao: GlVertexArray? = null
+    private var selectionRingVbo: GlBuffer? = null
+    private val selectionRingSegments = 48
 
     // --- Scratch Matrices & Vectors (Pre-allocated for Zero GC) ---
     private val modelMatrix = FloatArray(16)
@@ -109,6 +129,7 @@ class GravitySandboxRenderer(
     private val bodyRadii = FloatArray(MAX_BODIES)
     private val bodyColors = Array(MAX_BODIES) { FloatArray(4) }
     private val bodyConfigs = arrayOfNulls<CelestialBodyConfig>(MAX_BODIES)
+    private val bodyIdList = ArrayList<String>(MAX_BODIES)
 
     // Raycast scratch buffers
     private val pickRayOrigin = FloatArray(3)
@@ -120,7 +141,7 @@ class GravitySandboxRenderer(
     private var accumulatedSimTimeSec: Double = 0.0
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
-        Log.i(TAG, "OpenGL ES 3.0 Surface Created. Initializing Celestial Rendering Pipelines...")
+        Log.i(TAG, "OpenGL ES 3.0 Surface Created. Initializing Phase 4 Visualization & Celestial Pipelines...")
 
         // Configure GL states
         GLES30.glEnable(GLES30.GL_DEPTH_TEST)
@@ -155,10 +176,6 @@ class GravitySandboxRenderer(
             ShaderSources.STARFIELD_VERTEX_SHADER,
             ShaderSources.STARFIELD_FRAGMENT_SHADER
         )
-        trailShader = ShaderProgram.build(
-            ShaderSources.TRAIL_VERTEX_SHADER,
-            ShaderSources.TRAIL_FRAGMENT_SHADER
-        )
         gridShader = ShaderProgram.build(
             ShaderSources.GRID_VERTEX_SHADER,
             ShaderSources.GRID_FRAGMENT_SHADER
@@ -168,16 +185,77 @@ class GravitySandboxRenderer(
             CelestialShaderSources.TONE_MAPPING_FRAGMENT_SHADER
         )
 
+        // Phase 4 Visualization Shaders
+        trailShader = ShaderProgram.build(
+            TrajectoryShaderSources.TRAIL_VERTEX_SHADER,
+            TrajectoryShaderSources.TRAIL_FRAGMENT_SHADER
+        )
+        predictionShader = ShaderProgram.build(
+            TrajectoryShaderSources.PREDICTION_VERTEX_SHADER,
+            TrajectoryShaderSources.PREDICTION_FRAGMENT_SHADER
+        )
+        vectorShader = ShaderProgram.build(
+            TrajectoryShaderSources.VECTOR_VERTEX_SHADER,
+            TrajectoryShaderSources.VECTOR_FRAGMENT_SHADER
+        )
+        barycenterShader = ShaderProgram.build(
+            TrajectoryShaderSources.BARYCENTER_VERTEX_SHADER,
+            TrajectoryShaderSources.BARYCENTER_FRAGMENT_SHADER
+        )
+        shockwaveShader = ShaderProgram.build(
+            TrajectoryShaderSources.SHOCKWAVE_VERTEX_SHADER,
+            TrajectoryShaderSources.SHOCKWAVE_FRAGMENT_SHADER
+        )
+        selectionRingShader = ShaderProgram.build(
+            TrajectoryShaderSources.SELECTION_RING_VERTEX_SHADER,
+            TrajectoryShaderSources.SELECTION_RING_FRAGMENT_SHADER
+        )
+
         // Initialize Geometry
         sphereMesh = SphereMesh(rings = qualityLevel.sphereRings, sectors = qualityLevel.sphereSectors).apply { init() }
         ringMesh = RingMesh().apply { init() }
         gridGeometry = GridGeometry().apply { init() }
         starfieldGeometry = StarfieldGeometry(starCount = qualityLevel.starCount).apply { init() }
         fullscreenQuad = FullscreenQuad().apply { init() }
+
+        // Initialize Phase 4 Renderers
         trailManager.init()
+        trajectoryPredictor.init()
+        barycenterRenderer.init()
+        vectorOverlayRenderer.init()
+        collisionVisualizer.init()
+        relativisticRenderer.qualityLevel = qualityLevel
+        relativisticRenderer.init()
+
+        // Build Selection Ring Geometry
+        initSelectionRing()
 
         lastRenderTimeNs = System.nanoTime()
-        Log.i(TAG, "Celestial Rendering Pipeline Initialized Successfully.")
+        Log.i(TAG, "Phase 4 Visualization Pipeline Initialized Successfully.")
+    }
+
+    private fun initSelectionRing() {
+        selectionRingVao = GlVertexArray().apply { bind() }
+        selectionRingVbo = GlBuffer(GLES30.GL_ARRAY_BUFFER, GLES30.GL_STATIC_DRAW)
+        selectionRingVbo?.bind()
+
+        val ringVerts = FloatArray(selectionRingSegments * 2 * 3)
+        var idx = 0
+        for (i in 0 until selectionRingSegments) {
+            val theta1 = (i.toFloat() / selectionRingSegments) * 2.0f * Math.PI.toFloat()
+            val theta2 = ((i + 1).toFloat() / selectionRingSegments) * 2.0f * Math.PI.toFloat()
+
+            ringVerts[idx++] = cos(theta1); ringVerts[idx++] = 0.0f; ringVerts[idx++] = sin(theta1)
+            ringVerts[idx++] = cos(theta2); ringVerts[idx++] = 0.0f; ringVerts[idx++] = sin(theta2)
+        }
+
+        selectionRingVbo?.uploadData(ringVerts)
+
+        GLES30.glEnableVertexAttribArray(0)
+        GLES30.glVertexAttribPointer(0, 3, GLES30.GL_FLOAT, false, 3 * 4, 0)
+
+        selectionRingVao?.unbind()
+        selectionRingVbo?.unbind()
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -208,6 +286,7 @@ class GravitySandboxRenderer(
         val bodies = activeFrame?.bodies ?: emptyList()
         val activeCount = bodies.size.coerceAtMost(MAX_BODIES)
 
+        bodyIdList.clear()
         var primaryLightX = 0.0f
         var primaryLightY = 15.0f
         var primaryLightZ = 0.0f
@@ -216,17 +295,20 @@ class GravitySandboxRenderer(
         var focusedBodyPosX = Float.NaN
         var focusedBodyPosY = Float.NaN
         var focusedBodyPosZ = Float.NaN
+        var selectedBodyIndex = -1
 
         for (i in 0 until activeCount) {
             val b = bodies[i]
+            bodyIdList.add(b.id)
             val px = b.posX
             val py = b.posY
             val pz = b.posZ
             val radius = b.radiusMeters
             val type = b.type
-            val isStar = type == SandboxBodyType.SUN
+            val isStar = type == SandboxBodyType.SUN || type == SandboxBodyType.BLACK_HOLE
 
             scaleManager.physicsToRenderPosition(px, py, pz, tempVec3)
+
             val outIdx = i * 3
             bodyPositions[outIdx] = tempVec3[0]
             bodyPositions[outIdx + 1] = tempVec3[1]
@@ -236,26 +318,40 @@ class GravitySandboxRenderer(
             bodyColors[i] = RenderBodyColor.getColorForBodyType(type)
             bodyConfigs[i] = CelestialPropertiesRegistry.getConfig(type)
 
-            // Track primary star light source (true simulated Sun position)
-            if (isStar && !hasStarLight) {
+            // Track primary star light source
+            if (type == SandboxBodyType.SUN && !hasStarLight) {
                 primaryLightX = tempVec3[0]
                 primaryLightY = tempVec3[1]
                 primaryLightZ = tempVec3[2]
                 hasStarLight = true
             }
 
-            // Check focused body tracking
-            if (camera.focusedBodyId != null && camera.focusedBodyId == b.id) {
+            // Check selected body
+            if (selectedBodyId != null && selectedBodyId == b.id) {
+                selectedBodyIndex = i
                 focusedBodyPosX = tempVec3[0]
                 focusedBodyPosY = tempVec3[1]
                 focusedBodyPosZ = tempVec3[2]
             }
 
             // Record trail history
-            trailManager.addPoint(i, tempVec3[0], tempVec3[1], tempVec3[2])
+            trailManager.addPoint(i, tempVec3[0], tempVec3[1], tempVec3[2], currentSimTimeSeconds = accumulatedSimTimeSec)
         }
 
-        // Fallback lighting if no active star exists in sandbox
+        trailManager.selectedBodyIndex = selectedBodyIndex
+
+        // Process recent collisions
+        activeFrame?.recentCollisions?.let { collisions ->
+            collisionVisualizer.processCollisionEvents(
+                events = collisions,
+                currentSimTimeSec = accumulatedSimTimeSec,
+                scaleManager = scaleManager,
+                trailManager = trailManager,
+                bodyIds = bodyIdList
+            )
+        }
+
+        // Fallback lighting if no active star exists
         if (!hasStarLight) {
             primaryLightX = camera.eyeX + camera.upX * 10.0f
             primaryLightY = camera.eyeY + 20.0f
@@ -303,7 +399,7 @@ class GravitySandboxRenderer(
             drawCallCount++
         }
 
-        // 3. Render Orbital Trails
+        // 3. Render Historical Orbital Trails
         if (trailShader != null && activeCount > 0) {
             trailShader?.use()
             trailShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
@@ -311,7 +407,23 @@ class GravitySandboxRenderer(
             drawCallCount += activeCount
         }
 
-        // 4. Render Celestial Bodies (Surface, Oceans, Bands, Craters, Granulation)
+        // 4. Render Forward Trajectory Predictions (Dashed / Stippled)
+        if (predictionShader != null && activeFrame != null && activeCount > 0) {
+            predictionShader?.use()
+            predictionShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
+            trajectoryPredictor.draw(predictionShader!!, activeFrame, scaleManager, bodyColors)
+            drawCallCount++
+        }
+
+        // 5. Render Collision & Merger Shockwaves
+        if (shockwaveShader != null) {
+            shockwaveShader?.use()
+            shockwaveShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
+            collisionVisualizer.draw(shockwaveShader!!, accumulatedSimTimeSec)
+            drawCallCount++
+        }
+
+        // 6. Render Celestial Bodies (Surface, Oceans, Bands, Craters, Granulation)
         if (planetShader != null && sphereMesh != null && activeCount > 0) {
             planetShader?.use()
             planetShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
@@ -328,16 +440,18 @@ class GravitySandboxRenderer(
 
             for (i in 0 until activeCount) {
                 val b = bodies[i]
+                val type = b.type
+                if (type == SandboxBodyType.BLACK_HOLE || type == SandboxBodyType.THEORETICAL_WORMHOLE) {
+                    continue // Handled by Relativistic Raymarching Pipeline
+                }
                 val idx = i * 3
                 val x = bodyPositions[idx]
                 val y = bodyPositions[idx + 1]
                 val z = bodyPositions[idx + 2]
                 val r = bodyRadii[i]
-                val type = b.type
                 val config = bodyConfigs[i] ?: CelestialPropertiesRegistry.getConfig(type)
                 val color = bodyColors[i]
 
-                // Compute isolated visual rotation & axial tilt
                 rotationManager.computeOrientationMatrix(
                     bodyType = type,
                     simTimeSeconds = accumulatedSimTimeSec,
@@ -346,12 +460,10 @@ class GravitySandboxRenderer(
                     isCloudLayer = false
                 )
 
-                // Model Matrix = Translate * Scale
                 Matrix.setIdentityM(modelMatrix, 0)
                 Matrix.translateM(modelMatrix, 0, x, y, z)
                 Matrix.scaleM(modelMatrix, 0, r, r, r)
 
-                // Normal Matrix = transpose(inverse(modelMatrix))
                 Matrix.invertM(normalMatrix4, 0, modelMatrix, 0)
                 Matrix.transposeM(normalMatrix4, 0, normalMatrix4, 0)
                 normalMatrix3[0] = normalMatrix4[0]
@@ -377,7 +489,6 @@ class GravitySandboxRenderer(
                 planetShader?.setUniform1f("u_Roughness", config.roughness)
                 planetShader?.setUniform1f("u_AmbientIntensity", if (theme.isDarkTheme) 0.08f else 0.20f)
 
-                // Saturn ring-to-planet shadow parameters
                 val hasRingShadow = config.hasRings && qualityLevel != QualityLevel.LOW
                 planetShader?.setUniform1f("u_HasRingShadow", if (hasRingShadow) 1.0f else 0.0f)
                 planetShader?.setUniform1f("u_RingInnerRadius", config.ringInnerRadiusFactor)
@@ -388,9 +499,9 @@ class GravitySandboxRenderer(
             }
         }
 
-        // 5. Render Saturn Rings System
+        // 7. Render Saturn Rings System
         if (ringShader != null && ringMesh != null && qualityLevel != QualityLevel.LOW && activeCount > 0) {
-            GLES30.glDisable(GLES30.GL_CULL_FACE) // Double-sided ring illumination
+            GLES30.glDisable(GLES30.GL_CULL_FACE)
 
             ringShader?.use()
             ringShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
@@ -450,7 +561,7 @@ class GravitySandboxRenderer(
             GLES30.glEnable(GLES30.GL_CULL_FACE)
         }
 
-        // 6. Render Earth Clouds Layer
+        // 8. Render Earth Clouds Layer
         if (cloudShader != null && sphereMesh != null && qualityLevel != QualityLevel.LOW && activeCount > 0) {
             cloudShader?.use()
             cloudShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
@@ -508,7 +619,7 @@ class GravitySandboxRenderer(
             }
         }
 
-        // 7. Render Atmospheric Rayleigh/Mie Scattering Shells
+        // 9. Render Atmospheric Rayleigh/Mie Scattering Shells
         if (atmosphereShader != null && sphereMesh != null && qualityLevel != QualityLevel.LOW && activeCount > 0) {
             atmosphereShader?.use()
             atmosphereShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
@@ -564,7 +675,7 @@ class GravitySandboxRenderer(
             }
         }
 
-        // 8. Render Sun Corona Outer Halo
+        // 10. Render Sun Corona Outer Halo
         if (sunCoronaShader != null && sphereMesh != null && qualityLevel != QualityLevel.LOW && activeCount > 0) {
             sunCoronaShader?.use()
             sunCoronaShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
@@ -593,6 +704,57 @@ class GravitySandboxRenderer(
             }
         }
 
+        // 10.5 Render Relativistic Black Holes & Theoretical Wormholes (Ray-marching Geodesics)
+        relativisticRenderer.qualityLevel = qualityLevel
+        drawCallCount += relativisticRenderer.draw(
+            camera = camera,
+            scaleManager = scaleManager,
+            bodies = bodies,
+            bodyPositions = bodyPositions,
+            bodyRadii = bodyRadii,
+            simTimeSeconds = accumulatedSimTimeSec
+        )
+
+        // 11. Render Selection Halo Ring (around selected body)
+        if (selectionRingShader != null && selectionRingVao != null && selectedBodyIndex in 0 until activeCount) {
+            val idx = selectedBodyIndex * 3
+            val sx = bodyPositions[idx]
+            val sy = bodyPositions[idx + 1]
+            val sz = bodyPositions[idx + 2]
+            val ringRadius = bodyRadii[selectedBodyIndex] * 1.55f
+
+            Matrix.setIdentityM(modelMatrix, 0)
+            Matrix.translateM(modelMatrix, 0, sx, sy, sz)
+            Matrix.scaleM(modelMatrix, 0, ringRadius, ringRadius, ringRadius)
+
+            selectionRingShader?.use()
+            selectionRingShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
+            selectionRingShader?.setUniformMatrix4fv("u_ModelMatrix", modelMatrix)
+            selectionRingShader?.setUniform4f("u_RingColor", 0.0f, 0.90f, 1.0f, 0.85f)
+
+            selectionRingVao?.bind()
+            GLES30.glLineWidth(2.2f)
+            GLES30.glDrawArrays(GLES30.GL_LINES, 0, selectionRingSegments * 2)
+            selectionRingVao?.unbind()
+            drawCallCount++
+        }
+
+        // 12. Render Barycenter Marker Reticle (Center of Mass)
+        if (barycenterShader != null && activeCount > 1) {
+            barycenterShader?.use()
+            barycenterShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
+            barycenterRenderer.draw(barycenterShader!!, bodies, scaleManager, camera.distance)
+            drawCallCount++
+        }
+
+        // 13. Render 3D Vector Overlays (Velocity & Gravitational Acceleration)
+        if (vectorShader != null && activeCount > 0) {
+            vectorShader?.use()
+            vectorShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
+            vectorOverlayRenderer.draw(vectorShader!!, bodies, scaleManager, camera.distance)
+            drawCallCount++
+        }
+
         // Record Diagnostics
         diagnostics.onFrameEnd(
             frameStartNs = frameStartNs,
@@ -606,9 +768,6 @@ class GravitySandboxRenderer(
         )
     }
 
-    /**
-     * Performs ray-casting to pick a celestial body at screen touch coordinates.
-     */
     fun pickBodyAt(touchX: Float, touchY: Float): String? {
         camera.computePickRay(touchX, touchY, pickRayOrigin, pickRayDirection)
         val activeFrame = lastRenderedFrame ?: return null
@@ -661,13 +820,30 @@ class GravitySandboxRenderer(
         sunCoronaShader?.destroy()
         starfieldShader?.destroy()
         trailShader?.destroy()
+        predictionShader?.destroy()
+        vectorShader?.destroy()
+        barycenterShader?.destroy()
+        shockwaveShader?.destroy()
+        selectionRingShader?.destroy()
         gridShader?.destroy()
         fullscreenShader?.destroy()
+
         sphereMesh?.destroy()
         ringMesh?.destroy()
         gridGeometry?.destroy()
         starfieldGeometry?.destroy()
         fullscreenQuad?.destroy()
+
+        selectionRingVao?.destroy()
+        selectionRingVbo?.destroy()
+        selectionRingVao = null
+        selectionRingVbo = null
+
         trailManager.destroy()
+        trajectoryPredictor.destroy()
+        barycenterRenderer.destroy()
+        vectorOverlayRenderer.destroy()
+        collisionVisualizer.destroy()
+        relativisticRenderer.destroy()
     }
 }

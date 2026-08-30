@@ -648,6 +648,54 @@ object SandboxPresetCatalog {
         }
     )
 
+    val KERR_ROTATING_BLACK_HOLE = SandboxPreset(
+        id = "preset_kerr_black_hole",
+        titleEn = "Kerr Rotating Black Hole (Gargantua)",
+        titleFa = "سیاه‌چاله چرخان کِر (گارگنتوا)",
+        subtitleEn = "Frame Dragging & Ergosphere (a/M = 0.94)",
+        subtitleFa = "کشش چارچوب و قرص برافزایشی با چرخش شدید",
+        descriptionEn = "An extreme Kerr rotating black hole featuring frame-dragging, asymmetric shadow distortion, relativistic Doppler beaming, and a brilliant multi-order accretion disk.",
+        descriptionFa = "سیاه‌چاله چرخان کِر با چرخش فضا-زمان، اعوجاج سایه افق رویداد، تقویت دوپلر نسبیتی و قرص درخشان برافزایشی با دمای بالا.",
+        recommendedBaseTimestepSeconds = 300.0,
+        recommendedTimeSpeedMultiplier = 86400.0 * 1.5,
+        cameraTargetDistanceMeters = 5.0e11,
+        bodyFactory = {
+            val mBh = 15.0 * AstroPhysicsConstants.SOLAR_MASS_KG
+            val au = AstroPhysicsConstants.ASTRONOMICAL_UNIT_METERS
+
+            listOf(
+                SandboxBody(
+                    id = "kerr_black_hole",
+                    type = SandboxBodyType.BLACK_HOLE,
+                    nameEn = "Kerr Black Hole (a = 0.94)",
+                    nameFa = "سیاه‌چاله چرخان کِر",
+                    massKg = mBh,
+                    radiusMeters = 4.43e4,
+                    position = Vector3D.ZERO,
+                    velocity = Vector3D.ZERO,
+                    collisionPolicy = CollisionPolicy.BLACK_HOLE_ACCEDE,
+                    theoreticalMetadata = mapOf(
+                        "spin_parameter_a" to "0.94",
+                        "metric" to "Kerr Spacetime",
+                        "ergosphere_r_theta" to "M + sqrt(M^2 - a^2 cos^2 theta)",
+                        "isco_radius" to "1.5 M"
+                    )
+                ),
+                SandboxBody(
+                    id = "accretion_feeder",
+                    type = SandboxBodyType.ASTEROID,
+                    nameEn = "Accretion Prograde Feeder",
+                    nameFa = "جرم تزریق‌کننده ماده مستقیم‌گرد",
+                    massKg = 2.0e24,
+                    radiusMeters = 2.0e6,
+                    position = Vector3D(1.8 * au, 0.0, 0.0),
+                    velocity = Vector3D(0.0, sqrt(AstroPhysicsConstants.G * mBh / (1.8 * au)), 0.0),
+                    colorHex = 0xFFFFAB40L
+                )
+            )
+        }
+    )
+
     val ALL_PRESETS = listOf(
         SUN_ONLY,
         SUN_EARTH,
@@ -660,6 +708,7 @@ object SandboxPresetCatalog {
         LAGRANGE_POINTS_TROJAN,
         ORBITAL_VS_ESCAPE_VELOCITY,
         BLACK_HOLE_ACCRETION_DEMO,
+        KERR_ROTATING_BLACK_HOLE,
         THEORETICAL_WORMHOLE_SYSTEM
     )
 
