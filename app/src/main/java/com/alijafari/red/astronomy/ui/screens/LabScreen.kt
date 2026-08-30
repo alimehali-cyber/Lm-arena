@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.domain.AppLanguage
+import com.alijafari.red.astronomy.sandbox.render.view.GravitySandboxScreen
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.theme.*
@@ -36,6 +37,16 @@ enum class LabFeatureType(
     val icon: ImageVector,
     val isAvailable: Boolean
 ) {
+    GRAVITY_SANDBOX(
+        titleEn = "Gravity Sandbox 3D",
+        titleFa = "شبیه‌ساز سه‌بعدی گرانش",
+        subtitleEn = "N-Body Physics & Orbital Dynamics",
+        subtitleFa = "دینامیک مداری و فیزیک N-جسمی",
+        descriptionEn = "Real-time 3D Newtonian gravitation simulator with symplectic numerical integration and GPU visualization.",
+        descriptionFa = "شبیه‌ساز سه‌بعدی تعاملی گرانش نیوتونی با حل‌کننده سیمپلکتیک و رندرینگ شتاب‌یافته گرافیکی.",
+        icon = Icons.Default.Public,
+        isAvailable = true
+    ),
     TIME_DILATION(
         titleEn = "Time Dilation",
         titleFa = "انقباض زمان و نسبیت",
@@ -77,7 +88,13 @@ fun LabScreen(
     val isFa = uiState.language == AppLanguage.PERSIAN
     var selectedFeature by remember { mutableStateOf<LabFeatureType?>(null) }
 
-    if (selectedFeature == LabFeatureType.TIME_DILATION) {
+    if (selectedFeature == LabFeatureType.GRAVITY_SANDBOX) {
+        GravitySandboxScreen(
+            uiState = uiState,
+            onBackToLab = { selectedFeature = null },
+            modifier = modifier
+        )
+    } else if (selectedFeature == LabFeatureType.TIME_DILATION) {
         TimeDilationCalculatorScreen(
             uiState = uiState,
             onBackToLab = { selectedFeature = null },

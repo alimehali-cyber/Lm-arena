@@ -26,7 +26,7 @@ object CanonicalAstroCatalog {
         nameEn = "Sun (Sol)",
         nameFa = "خورشید (مهر / هور)",
         searchAliasesEn = listOf("sol", "sun", "solar"),
-        searchAliasesFa = listOf("خورشید", "مهر", "سولارس", "افتاب"),
+        searchAliasesFa = listOf("خورشید", "مهر", "هور", "آفتاب"),
         childIds = listOf(
             "planet_mercury", "planet_venus", "planet_earth", "planet_mars",
             "planet_jupiter", "planet_saturn", "planet_uranus", "planet_neptune", "planet_pluto"

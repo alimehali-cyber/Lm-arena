@@ -270,7 +270,7 @@ object DeepSkyCatalog {
                 id = "dso_eta_carinae_nebula",
                 type = ObjectType.NEBULA,
                 nameEn = "Carina Nebula (NGC 3372 / Eta Carinae)",
-                nameFa = "سحابی شاه‌تخته / اتا قنطورس (NGC 3372)",
+                nameFa = "سحابی شاه‌تخته (زورق / NGC 3372)",
                 raDeg = 161.260,
                 decDeg = -59.870,
                 magnitude = 1.0,
