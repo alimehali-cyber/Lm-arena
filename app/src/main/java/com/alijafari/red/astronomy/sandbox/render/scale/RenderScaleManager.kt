@@ -33,19 +33,20 @@ class RenderScaleManager(
 
     /**
      * Converts a 3D physical position in SI meters to a 3D visual position in OpenGL world coordinates.
-     * Output values are written directly into [outPosition] (indices 0, 1, 2 = x, y, z) to avoid per-frame allocations.
+     * Output values are written directly into [outPosition] at [outOffset] (x, y, z) to avoid per-frame allocations.
      */
     fun physicsToRenderPosition(
         physX: Double,
         physY: Double,
         physZ: Double,
-        outPosition: FloatArray
+        outPosition: FloatArray,
+        outOffset: Int = 0
     ) {
         val distMeters = sqrt(physX * physX + physY * physY + physZ * physZ)
         if (distMeters < 1e-6) {
-            outPosition[0] = 0f
-            outPosition[1] = 0f
-            outPosition[2] = 0f
+            outPosition[outOffset] = 0f
+            outPosition[outOffset + 1] = 0f
+            outPosition[outOffset + 2] = 0f
             return
         }
 
@@ -79,9 +80,109 @@ class RenderScaleManager(
             }
         }
 
-        outPosition[0] = dirX * visualDist
-        outPosition[1] = dirY * visualDist
-        outPosition[2] = dirZ * visualDist
+        outPosition[outOffset] = dirX * visualDist
+        outPosition[outOffset + 1] = dirY * visualDist
+        outPosition[outOffset + 2] = dirZ * visualDist
+    }
+
+    /**
+     * Computes render positions and radii for a list of active bodies.
+     * Automatically handles hierarchical satellite systems (e.g. Moon orbiting Earth)
+     * so that moons/satellites remain distinctly visible and separated from their parent planets
+     * while accurately tracking their physics orbital phase.
+     */
+    fun computeRenderPositions(
+        bodies: List<com.alijafari.red.astronomy.sandbox.snapshot.BodyRenderState>,
+        outPositions: FloatArray,
+        outRadii: FloatArray
+    ) {
+        val count = minOf(bodies.size, outRadii.size)
+        val parents = IntArray(count) { -1 }
+
+        // 1. Compute visual radii
+        for (i in 0 until count) {
+            val b = bodies[i]
+            val isStar = (b.type == com.alijafari.red.astronomy.sandbox.model.SandboxBodyType.SUN ||
+                    b.type == com.alijafari.red.astronomy.sandbox.model.SandboxBodyType.BLACK_HOLE)
+            outRadii[i] = physicsToRenderRadius(b.radiusMeters, isStar)
+        }
+
+        // 2. Identify hierarchical parents (e.g. Earth for Moon)
+        if (scaleMode == ScaleMode.SOLAR_SYSTEM_COMPRESSED || scaleMode == ScaleMode.LINEAR) {
+            for (i in 0 until count) {
+                val bi = bodies[i]
+                if (bi.type == com.alijafari.red.astronomy.sandbox.model.SandboxBodyType.SUN ||
+                    bi.type == com.alijafari.red.astronomy.sandbox.model.SandboxBodyType.BLACK_HOLE ||
+                    bi.massKg >= 1.0e29) continue
+
+                var bestParent = -1
+                var bestDist = Double.MAX_VALUE
+
+                for (j in 0 until count) {
+                    if (i == j) continue
+                    val bj = bodies[j]
+                    if (bj.massKg <= bi.massKg * 5.0) continue // Parent must be heavier
+
+                    val dx = bi.posX - bj.posX
+                    val dy = bi.posY - bj.posY
+                    val dz = bi.posZ - bj.posZ
+                    val d = sqrt(dx * dx + dy * dy + dz * dz)
+
+                    // Within planetary gravitational influence domain (<= 5 million km)
+                    if (d < 5.0e9 && d < bestDist) {
+                        bestDist = d
+                        bestParent = j
+                    }
+                }
+                parents[i] = bestParent
+            }
+        }
+
+        // 3. Compute primary non-satellite positions
+        for (i in 0 until count) {
+            if (parents[i] == -1) {
+                val b = bodies[i]
+                val outIdx = i * 3
+                physicsToRenderPosition(b.posX, b.posY, b.posZ, outPositions, outIdx)
+            }
+        }
+
+        // 4. Compute satellite positions relative to their parent
+        for (i in 0 until count) {
+            val p = parents[i]
+            if (p >= 0) {
+                val bi = bodies[i]
+                val bp = bodies[p]
+
+                val pIdx = p * 3
+                val parentX = outPositions[pIdx]
+                val parentY = outPositions[pIdx + 1]
+                val parentZ = outPositions[pIdx + 2]
+
+                val dx = bi.posX - bp.posX
+                val dy = bi.posY - bp.posY
+                val dz = bi.posZ - bp.posZ
+                val physDist = sqrt(dx * dx + dy * dy + dz * dz)
+
+                val outIdx = i * 3
+                if (physDist < 1e-3) {
+                    outPositions[outIdx] = parentX
+                    outPositions[outIdx + 1] = parentY
+                    outPositions[outIdx + 2] = parentZ
+                } else {
+                    val dirX = (dx / physDist).toFloat()
+                    val dirY = (dy / physDist).toFloat()
+                    val dirZ = (dz / physDist).toFloat()
+
+                    // Separate satellite clearly from parent (e.g. 1.5 units + radii)
+                    val visualOffset = (physDist / 3.844e8).toFloat() * 1.5f + outRadii[p] + outRadii[i] * 0.6f
+
+                    outPositions[outIdx] = parentX + dirX * visualOffset
+                    outPositions[outIdx + 1] = parentY + dirY * visualOffset
+                    outPositions[outIdx + 2] = parentZ + dirZ * visualOffset
+                }
+            }
+        }
     }
 
     /**

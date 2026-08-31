@@ -72,7 +72,7 @@ object SandboxPresetCatalog {
                     massKg = mSun,
                     radiusMeters = AstroPhysicsConstants.SOLAR_RADIUS_METERS,
                     position = Vector3D(-rSun, 0.0, 0.0),
-                    velocity = Vector3D(0.0, -vSun, 0.0)
+                    velocity = Vector3D(0.0, 0.0, -vSun)
                 ),
                 SandboxBody(
                     id = "earth",
@@ -82,7 +82,7 @@ object SandboxPresetCatalog {
                     massKg = mEarth,
                     radiusMeters = AstroPhysicsConstants.EARTH_RADIUS_METERS,
                     position = Vector3D(rEarth, 0.0, 0.0),
-                    velocity = Vector3D(0.0, vEarth, 0.0)
+                    velocity = Vector3D(0.0, 0.0, vEarth)
                 )
             )
         }
@@ -120,7 +120,7 @@ object SandboxPresetCatalog {
                     massKg = mEarth,
                     radiusMeters = AstroPhysicsConstants.EARTH_RADIUS_METERS,
                     position = Vector3D(-rEarth, 0.0, 0.0),
-                    velocity = Vector3D(0.0, -vEarth, 0.0)
+                    velocity = Vector3D(0.0, 0.0, -vEarth)
                 ),
                 SandboxBody(
                     id = "moon",
@@ -130,7 +130,7 @@ object SandboxPresetCatalog {
                     massKg = mMoon,
                     radiusMeters = AstroPhysicsConstants.MOON_RADIUS_METERS,
                     position = Vector3D(rMoon, 0.0, 0.0),
-                    velocity = Vector3D(0.0, vMoon, 0.0)
+                    velocity = Vector3D(0.0, 0.0, vMoon)
                 )
             )
         }
@@ -144,8 +144,8 @@ object SandboxPresetCatalog {
         subtitleFa = "سامانه سلسله‌مراتبی سه‌جسمی",
         descriptionEn = "Hierarchical three-body system demonstrating lunar orbital perturbations as Earth orbits the Sun.",
         descriptionFa = "سامانه سه‌جسمی واقعی شامل اختلالات گرانشی خورشید بر مدار ماه در حین گردش زمین.",
-        recommendedBaseTimestepSeconds = 120.0,
-        recommendedTimeSpeedMultiplier = 86400.0 * 5.0,
+        recommendedBaseTimestepSeconds = 300.0,
+        recommendedTimeSpeedMultiplier = 86400.0 * 2.0,
         cameraTargetDistanceMeters = 3.5e11,
         bodyFactory = {
             val rAu = AstroPhysicsConstants.ASTRONOMICAL_UNIT_METERS
@@ -176,7 +176,7 @@ object SandboxPresetCatalog {
                     massKg = mEarth,
                     radiusMeters = AstroPhysicsConstants.EARTH_RADIUS_METERS,
                     position = Vector3D(rAu, 0.0, 0.0),
-                    velocity = Vector3D(0.0, vEarthOrbital, 0.0)
+                    velocity = Vector3D(0.0, 0.0, vEarthOrbital)
                 ),
                 SandboxBody(
                     id = "moon",
@@ -186,7 +186,7 @@ object SandboxPresetCatalog {
                     massKg = mMoon,
                     radiusMeters = AstroPhysicsConstants.MOON_RADIUS_METERS,
                     position = Vector3D(rAu + dMoon, 0.0, 0.0),
-                    velocity = Vector3D(0.0, vEarthOrbital + vMoonRel, 0.0)
+                    velocity = Vector3D(0.0, 0.0, vEarthOrbital + vMoonRel)
                 )
             )
         }
@@ -250,9 +250,9 @@ object SandboxPresetCatalog {
                 val sinA = sin(p.angleRad)
 
                 val posX = distMeters * cosA
-                val posY = distMeters * sinA
+                val posZ = distMeters * sinA
                 val velX = -vMag * sinA
-                val velY = vMag * cosA
+                val velZ = vMag * cosA
 
                 list.add(
                     SandboxBody(
@@ -262,8 +262,8 @@ object SandboxPresetCatalog {
                         nameFa = p.nameFa,
                         massKg = p.mass,
                         radiusMeters = p.radius,
-                        position = Vector3D(posX, posY, 0.0),
-                        velocity = Vector3D(velX, velY, 0.0)
+                        position = Vector3D(posX, 0.0, posZ),
+                        velocity = Vector3D(velX, 0.0, velZ)
                     )
                 )
             }
@@ -298,7 +298,7 @@ object SandboxPresetCatalog {
                     massKg = m,
                     radiusMeters = AstroPhysicsConstants.SOLAR_RADIUS_METERS,
                     position = Vector3D(-rAu, 0.0, 0.0),
-                    velocity = Vector3D(0.0, -vOrb, 0.0),
+                    velocity = Vector3D(0.0, 0.0, -vOrb),
                     colorHex = 0xFFFFD54FL
                 ),
                 SandboxBody(
@@ -309,7 +309,7 @@ object SandboxPresetCatalog {
                     massKg = m,
                     radiusMeters = AstroPhysicsConstants.SOLAR_RADIUS_METERS,
                     position = Vector3D(rAu, 0.0, 0.0),
-                    velocity = Vector3D(0.0, vOrb, 0.0),
+                    velocity = Vector3D(0.0, 0.0, vOrb),
                     colorHex = 0xFFFF8A65L
                 )
             )
@@ -333,13 +333,13 @@ object SandboxPresetCatalog {
             val scaleV = sqrt(AstroPhysicsConstants.G * m / scaleR)
 
             val x1 = -0.97000436 * scaleR
-            val y1 = 0.24308753 * scaleR
+            val z1 = 0.24308753 * scaleR
 
             val vx3 = -2.0 * (-0.46620531) * scaleV
-            val vy3 = -2.0 * (-0.43236573) * scaleV
+            val vz3 = -2.0 * (-0.43236573) * scaleV
 
             val vx1 = -0.46620531 * scaleV
-            val vy1 = -0.43236573 * scaleV
+            val vz1 = -0.43236573 * scaleV
 
             listOf(
                 SandboxBody(
@@ -349,8 +349,8 @@ object SandboxPresetCatalog {
                     nameFa = "جرم ۱ (آلفا)",
                     massKg = m,
                     radiusMeters = AstroPhysicsConstants.SOLAR_RADIUS_METERS * 0.5,
-                    position = Vector3D(x1, y1, 0.0),
-                    velocity = Vector3D(vx1, vy1, 0.0),
+                    position = Vector3D(x1, 0.0, z1),
+                    velocity = Vector3D(vx1, 0.0, vz1),
                     colorHex = 0xFF42A5F5L
                 ),
                 SandboxBody(
@@ -360,8 +360,8 @@ object SandboxPresetCatalog {
                     nameFa = "جرم ۲ (بتا)",
                     massKg = m,
                     radiusMeters = AstroPhysicsConstants.SOLAR_RADIUS_METERS * 0.5,
-                    position = Vector3D(-x1, -y1, 0.0),
-                    velocity = Vector3D(vx1, vy1, 0.0),
+                    position = Vector3D(-x1, 0.0, -z1),
+                    velocity = Vector3D(vx1, 0.0, vz1),
                     colorHex = 0xFFFF7043L
                 ),
                 SandboxBody(
@@ -372,7 +372,7 @@ object SandboxPresetCatalog {
                     massKg = m,
                     radiusMeters = AstroPhysicsConstants.SOLAR_RADIUS_METERS * 0.5,
                     position = Vector3D(0.0, 0.0, 0.0),
-                    velocity = Vector3D(vx3, vy3, 0.0),
+                    velocity = Vector3D(vx3, 0.0, vz3),
                     colorHex = 0xFF66BB6AL
                 )
             )
@@ -402,7 +402,7 @@ object SandboxPresetCatalog {
                     nameFa = "جرم ۳ (۳ برابر خورشید)",
                     massKg = 3.0 * m,
                     radiusMeters = AstroPhysicsConstants.SOLAR_RADIUS_METERS,
-                    position = Vector3D(1.0 * au, 3.0 * au, 0.0),
+                    position = Vector3D(1.0 * au, 0.0, 3.0 * au),
                     velocity = Vector3D.ZERO,
                     colorHex = 0xFFFFCA28L
                 ),
@@ -413,7 +413,7 @@ object SandboxPresetCatalog {
                     nameFa = "جرم ۴ (۴ برابر خورشید)",
                     massKg = 4.0 * m,
                     radiusMeters = AstroPhysicsConstants.SOLAR_RADIUS_METERS * 1.2,
-                    position = Vector3D(-2.0 * au, -1.0 * au, 0.0),
+                    position = Vector3D(-2.0 * au, 0.0, -1.0 * au),
                     velocity = Vector3D.ZERO,
                     colorHex = 0xFFAB47BCL
                 ),
@@ -424,7 +424,7 @@ object SandboxPresetCatalog {
                     nameFa = "جرم ۵ (۵ برابر خورشید)",
                     massKg = 5.0 * m,
                     radiusMeters = AstroPhysicsConstants.SOLAR_RADIUS_METERS * 1.4,
-                    position = Vector3D(1.0 * au, -1.0 * au, 0.0),
+                    position = Vector3D(1.0 * au, 0.0, -1.0 * au),
                     velocity = Vector3D.ZERO,
                     colorHex = 0xFF26A69AL
                 )
@@ -449,12 +449,12 @@ object SandboxPresetCatalog {
             val mEarth = AstroPhysicsConstants.EARTH_MASS_KG
             val vOrb = sqrt(AstroPhysicsConstants.G * mSun / rAu)
 
-            // L4 is located at 60 degrees ahead of Earth
+            // L4 is located at 60 degrees ahead of Earth on XZ plane
             val angleL4 = Math.PI / 3.0 // 60 deg
             val posL4X = rAu * cos(angleL4)
-            val posL4Y = rAu * sin(angleL4)
+            val posL4Z = rAu * sin(angleL4)
             val velL4X = -vOrb * sin(angleL4)
-            val velL4Y = vOrb * cos(angleL4)
+            val velL4Z = vOrb * cos(angleL4)
 
             listOf(
                 SandboxBody(
@@ -475,7 +475,7 @@ object SandboxPresetCatalog {
                     massKg = mEarth,
                     radiusMeters = AstroPhysicsConstants.EARTH_RADIUS_METERS,
                     position = Vector3D(rAu, 0.0, 0.0),
-                    velocity = Vector3D(0.0, vOrb, 0.0)
+                    velocity = Vector3D(0.0, 0.0, vOrb)
                 ),
                 SandboxBody(
                     id = "trojan_asteroid",
@@ -484,8 +484,8 @@ object SandboxPresetCatalog {
                     nameFa = "سیارک تروجان (نقطه L4)",
                     massKg = 9.393e20, // Ceres mass
                     radiusMeters = 4.73e5,
-                    position = Vector3D(posL4X, posL4Y, 0.0),
-                    velocity = Vector3D(velL4X, velL4Y, 0.0),
+                    position = Vector3D(posL4X, 0.0, posL4Z),
+                    velocity = Vector3D(velL4X, 0.0, velL4Z),
                     colorHex = 0xFFFFEE58L
                 )
             )
@@ -529,7 +529,7 @@ object SandboxPresetCatalog {
                     massKg = 1000.0,
                     radiusMeters = 1.0e5,
                     position = Vector3D(rOrbit, 0.0, 0.0),
-                    velocity = Vector3D(0.0, vCirc, 0.0),
+                    velocity = Vector3D(0.0, 0.0, vCirc),
                     colorHex = 0xFF42A5F5L
                 ),
                 SandboxBody(
@@ -539,7 +539,7 @@ object SandboxPresetCatalog {
                     nameFa = "کاوشگر ۲ (سرعت فرار سهموی)",
                     massKg = 1000.0,
                     radiusMeters = 1.0e5,
-                    position = Vector3D(0.0, rOrbit, 0.0),
+                    position = Vector3D(0.0, 0.0, rOrbit),
                     velocity = Vector3D(-vEsc, 0.0, 0.0),
                     colorHex = 0xFFFF5252L
                 )
@@ -581,8 +581,8 @@ object SandboxPresetCatalog {
                     nameFa = "خرده‌سیاره ورودی آلفا",
                     massKg = 5.0e23,
                     radiusMeters = 1.5e6,
-                    position = Vector3D(2.0 * au, 0.5 * au, 0.0),
-                    velocity = Vector3D(-25000.0, 10000.0, 0.0),
+                    position = Vector3D(2.0 * au, 0.0, 0.5 * au),
+                    velocity = Vector3D(-25000.0, 0.0, 10000.0),
                     colorHex = 0xFFFFB74DL
                 ),
                 SandboxBody(
@@ -592,7 +592,7 @@ object SandboxPresetCatalog {
                     nameFa = "سیاره مداری بتا",
                     massKg = 6.4171e23,
                     radiusMeters = 3.3895e6,
-                    position = Vector3D(0.0, 1.5 * au, 0.0),
+                    position = Vector3D(0.0, 0.0, 1.5 * au),
                     velocity = Vector3D(sqrt(AstroPhysicsConstants.G * mBh / (1.5 * au)), 0.0, 0.0),
                     colorHex = 0xFFFF7043L
                 )
@@ -641,7 +641,7 @@ object SandboxPresetCatalog {
                     massKg = 10000.0,
                     radiusMeters = 1.0e6,
                     position = Vector3D(1.2 * au, 0.0, 0.0),
-                    velocity = Vector3D(0.0, sqrt(AstroPhysicsConstants.G * (mSun * 0.5) / (1.2 * au)), 0.0),
+                    velocity = Vector3D(0.0, 0.0, sqrt(AstroPhysicsConstants.G * (mSun * 0.5) / (1.2 * au))),
                     colorHex = 0xFF00E5FFL
                 )
             )
@@ -689,7 +689,7 @@ object SandboxPresetCatalog {
                     massKg = 2.0e24,
                     radiusMeters = 2.0e6,
                     position = Vector3D(1.8 * au, 0.0, 0.0),
-                    velocity = Vector3D(0.0, sqrt(AstroPhysicsConstants.G * mBh / (1.8 * au)), 0.0),
+                    velocity = Vector3D(0.0, 0.0, sqrt(AstroPhysicsConstants.G * mBh / (1.8 * au))),
                     colorHex = 0xFFFFAB40L
                 )
             )

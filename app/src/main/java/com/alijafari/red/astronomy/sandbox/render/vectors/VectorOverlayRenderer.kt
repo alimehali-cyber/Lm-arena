@@ -133,7 +133,9 @@ class VectorOverlayRenderer(
         shader: ShaderProgram,
         bodies: List<BodyRenderState>,
         scaleManager: RenderScaleManager,
-        cameraDistance: Float
+        cameraDistance: Float,
+        bodyRenderPositions: FloatArray? = null,
+        bodyRenderRadii: FloatArray? = null
     ) {
         if ((!showVelocityVectors && !showAccelerationVectors) || vao == null || vbo == null || bodies.isEmpty()) {
             return
@@ -154,11 +156,10 @@ class VectorOverlayRenderer(
         if (targetIndices.isEmpty()) return
 
         vao?.bind()
-        vbo?.bind()
 
-        val baseArrowLength = (cameraDistance * 0.08f).coerceIn(1.5f, 15.0f)
+        val baseArrowLength = (cameraDistance * 0.09f).coerceIn(2.0f, 15.0f)
 
-        // 1. Draw Velocity Vectors (Cyan)
+        // 1. Draw Velocity Vectors (Cyan / Aqua)
         if (showVelocityVectors) {
             var outIdx = 0
             for (idx in targetIndices) {
@@ -166,15 +167,30 @@ class VectorOverlayRenderer(
                 val speed = sqrt(b.velX * b.velX + b.velY * b.velY + b.velZ * b.velZ)
                 if (speed < 1e-3) continue
 
-                scaleManager.physicsToRenderPosition(b.posX, b.posY, b.posZ, scratchOrigin)
-                val isStar = b.type == SandboxBodyType.SUN || b.type == SandboxBodyType.BLACK_HOLE
-                val bodyRadius = scaleManager.physicsToRenderRadius(b.radiusMeters, isStar)
+                val ox: Float
+                val oy: Float
+                val oz: Float
+                val bodyRadius: Float
 
-                val logSpeedFactor = (Math.log10(1.0 + speed) / 4.5).coerceIn(0.5, 2.0).toFloat()
+                if (bodyRenderPositions != null && idx * 3 + 2 < bodyRenderPositions.size) {
+                    ox = bodyRenderPositions[idx * 3]
+                    oy = bodyRenderPositions[idx * 3 + 1]
+                    oz = bodyRenderPositions[idx * 3 + 2]
+                    bodyRadius = bodyRenderRadii?.getOrNull(idx) ?: 0.3f
+                } else {
+                    scaleManager.physicsToRenderPosition(b.posX, b.posY, b.posZ, scratchOrigin)
+                    ox = scratchOrigin[0]
+                    oy = scratchOrigin[1]
+                    oz = scratchOrigin[2]
+                    val isStar = b.type == SandboxBodyType.SUN || b.type == SandboxBodyType.BLACK_HOLE
+                    bodyRadius = scaleManager.physicsToRenderRadius(b.radiusMeters, isStar)
+                }
+
+                val logSpeedFactor = (Math.log10(1.0 + speed) / 4.5).coerceIn(0.6, 2.2).toFloat()
                 val arrowLen = baseArrowLength * logSpeedFactor + bodyRadius
 
                 outIdx = buildArrowGeometry(
-                    ox = scratchOrigin[0], oy = scratchOrigin[1], oz = scratchOrigin[2],
+                    ox = ox, oy = oy, oz = oz,
                     dx = b.velX.toFloat(), dy = b.velY.toFloat(), dz = b.velZ.toFloat(),
                     arrowLength = arrowLen,
                     buffer = uploadBuffer,
@@ -184,30 +200,73 @@ class VectorOverlayRenderer(
 
             if (outIdx > 0) {
                 vbo?.uploadSubData(uploadBuffer, 0, outIdx)
-                shader.setUniform4f("u_VectorColor", 0.0f, 0.90f, 1.0f, 0.92f)
-                GLES30.glLineWidth(2.2f)
+                shader.setUniform4f("u_VectorColor", 0.0f, 0.95f, 1.0f, 0.95f)
+                GLES30.glLineWidth(2.5f)
                 GLES30.glDrawArrays(GLES30.GL_LINES, 0, outIdx / 4)
             }
         }
 
-        // 2. Draw Acceleration Vectors (Amber)
+        // 2. Draw Gravitational Acceleration Vectors (Amber / Orange)
         if (showAccelerationVectors) {
             var outIdx = 0
             for (idx in targetIndices) {
                 val b = bodies[idx]
-                val accMag = sqrt(b.accX * b.accX + b.accY * b.accY + b.accZ * b.accZ)
-                if (accMag < 1e-9) continue
+                var accX = b.accX
+                var accY = b.accY
+                var accZ = b.accZ
+                var accMag = sqrt(accX * accX + accY * accY + accZ * accZ)
 
-                scaleManager.physicsToRenderPosition(b.posX, b.posY, b.posZ, scratchOrigin)
-                val isStar = b.type == SandboxBodyType.SUN || b.type == SandboxBodyType.BLACK_HOLE
-                val bodyRadius = scaleManager.physicsToRenderRadius(b.radiusMeters, isStar)
+                // If physics worker has zero recorded acc (e.g. initial frame), compute instantaneous Newtonian sum
+                if (accMag < 1e-12) {
+                    var sumAx = 0.0
+                    var sumAy = 0.0
+                    var sumAz = 0.0
+                    for (j in bodies.indices) {
+                        if (j == idx || !bodies[j].isActive) continue
+                        val bj = bodies[j]
+                        val dx = bj.posX - b.posX
+                        val dy = bj.posY - b.posY
+                        val dz = bj.posZ - b.posZ
+                        val distSq = (dx * dx + dy * dy + dz * dz).coerceAtLeast(1.0)
+                        val dist = sqrt(distSq)
+                        val forceMag = com.alijafari.red.astronomy.sandbox.physics.AstroPhysicsConstants.G * bj.massKg / distSq
+                        sumAx += forceMag * (dx / dist)
+                        sumAy += forceMag * (dy / dist)
+                        sumAz += forceMag * (dz / dist)
+                    }
+                    accX = sumAx
+                    accY = sumAy
+                    accZ = sumAz
+                    accMag = sqrt(accX * accX + accY * accY + accZ * accZ)
+                }
 
-                val logAccFactor = (Math.log10(1.0 + accMag * 1e4) / 4.0).coerceIn(0.6, 2.2).toFloat()
-                val arrowLen = baseArrowLength * 0.9f * logAccFactor + bodyRadius
+                if (accMag < 1e-12) continue
+
+                val ox: Float
+                val oy: Float
+                val oz: Float
+                val bodyRadius: Float
+
+                if (bodyRenderPositions != null && idx * 3 + 2 < bodyRenderPositions.size) {
+                    ox = bodyRenderPositions[idx * 3]
+                    oy = bodyRenderPositions[idx * 3 + 1]
+                    oz = bodyRenderPositions[idx * 3 + 2]
+                    bodyRadius = bodyRenderRadii?.getOrNull(idx) ?: 0.3f
+                } else {
+                    scaleManager.physicsToRenderPosition(b.posX, b.posY, b.posZ, scratchOrigin)
+                    ox = scratchOrigin[0]
+                    oy = scratchOrigin[1]
+                    oz = scratchOrigin[2]
+                    val isStar = b.type == SandboxBodyType.SUN || b.type == SandboxBodyType.BLACK_HOLE
+                    bodyRadius = scaleManager.physicsToRenderRadius(b.radiusMeters, isStar)
+                }
+
+                val logAccFactor = (Math.log10(1.0 + accMag * 1e5) / 4.0).coerceIn(0.7, 2.5).toFloat()
+                val arrowLen = baseArrowLength * 0.95f * logAccFactor + bodyRadius
 
                 outIdx = buildArrowGeometry(
-                    ox = scratchOrigin[0], oy = scratchOrigin[1], oz = scratchOrigin[2],
-                    dx = b.accX.toFloat(), dy = b.accY.toFloat(), dz = b.accZ.toFloat(),
+                    ox = ox, oy = oy, oz = oz,
+                    dx = accX.toFloat(), dy = accY.toFloat(), dz = accZ.toFloat(),
                     arrowLength = arrowLen,
                     buffer = uploadBuffer,
                     startIndex = outIdx
@@ -216,13 +275,12 @@ class VectorOverlayRenderer(
 
             if (outIdx > 0) {
                 vbo?.uploadSubData(uploadBuffer, 0, outIdx)
-                shader.setUniform4f("u_VectorColor", 1.0f, 0.60f, 0.0f, 0.92f)
-                GLES30.glLineWidth(2.2f)
+                shader.setUniform4f("u_VectorColor", 1.0f, 0.65f, 0.0f, 0.95f)
+                GLES30.glLineWidth(2.5f)
                 GLES30.glDrawArrays(GLES30.GL_LINES, 0, outIdx / 4)
             }
         }
 
-        vbo?.unbind()
         vao?.unbind()
     }
 

@@ -297,45 +297,40 @@ class GravitySandboxRenderer(
         var focusedBodyPosZ = Float.NaN
         var selectedBodyIndex = -1
 
+        // Compute render positions and radii (with hierarchical satellite support)
+        scaleManager.computeRenderPositions(bodies, bodyPositions, bodyRadii)
+
         for (i in 0 until activeCount) {
             val b = bodies[i]
             bodyIdList.add(b.id)
-            val px = b.posX
-            val py = b.posY
-            val pz = b.posZ
-            val radius = b.radiusMeters
             val type = b.type
-            val isStar = type == SandboxBodyType.SUN || type == SandboxBodyType.BLACK_HOLE
-
-            scaleManager.physicsToRenderPosition(px, py, pz, tempVec3)
 
             val outIdx = i * 3
-            bodyPositions[outIdx] = tempVec3[0]
-            bodyPositions[outIdx + 1] = tempVec3[1]
-            bodyPositions[outIdx + 2] = tempVec3[2]
+            val posX = bodyPositions[outIdx]
+            val posY = bodyPositions[outIdx + 1]
+            val posZ = bodyPositions[outIdx + 2]
 
-            bodyRadii[i] = scaleManager.physicsToRenderRadius(radius, isStar)
             bodyColors[i] = RenderBodyColor.getColorForBodyType(type)
             bodyConfigs[i] = CelestialPropertiesRegistry.getConfig(type)
 
             // Track primary star light source
             if (type == SandboxBodyType.SUN && !hasStarLight) {
-                primaryLightX = tempVec3[0]
-                primaryLightY = tempVec3[1]
-                primaryLightZ = tempVec3[2]
+                primaryLightX = posX
+                primaryLightY = posY
+                primaryLightZ = posZ
                 hasStarLight = true
             }
 
             // Check selected body
             if (selectedBodyId != null && selectedBodyId == b.id) {
                 selectedBodyIndex = i
-                focusedBodyPosX = tempVec3[0]
-                focusedBodyPosY = tempVec3[1]
-                focusedBodyPosZ = tempVec3[2]
+                focusedBodyPosX = posX
+                focusedBodyPosY = posY
+                focusedBodyPosZ = posZ
             }
 
-            // Record trail history
-            trailManager.addPoint(i, tempVec3[0], tempVec3[1], tempVec3[2], currentSimTimeSeconds = accumulatedSimTimeSec)
+            // Record trail history at visual rendered coordinates
+            trailManager.addPoint(i, posX, posY, posZ, currentSimTimeSeconds = accumulatedSimTimeSec)
         }
 
         trailManager.selectedBodyIndex = selectedBodyIndex
@@ -762,7 +757,14 @@ class GravitySandboxRenderer(
             GLES30.glDisable(GLES30.GL_DEPTH_TEST)
             vectorShader?.use()
             vectorShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
-            vectorOverlayRenderer.draw(vectorShader!!, bodies, scaleManager, camera.distance)
+            vectorOverlayRenderer.draw(
+                shader = vectorShader!!,
+                bodies = bodies,
+                scaleManager = scaleManager,
+                cameraDistance = camera.distance,
+                bodyRenderPositions = bodyPositions,
+                bodyRenderRadii = bodyRadii
+            )
             GLES30.glEnable(GLES30.GL_DEPTH_TEST)
             drawCallCount++
         }

@@ -42,16 +42,23 @@ class GlBuffer(
         unbind()
     }
 
+    private var streamingDirectBuffer: FloatBuffer? = null
+    private var streamingCapacity: Int = 0
+
     fun uploadSubData(data: FloatArray, offsetBytes: Int, count: Int) {
-        val buffer = ByteBuffer.allocateDirect(count * 4)
-            .order(ByteOrder.nativeOrder())
-            .asFloatBuffer()
+        if (streamingDirectBuffer == null || streamingCapacity < count) {
+            streamingCapacity = maxOf(count, 1024)
+            streamingDirectBuffer = ByteBuffer.allocateDirect(streamingCapacity * 4)
+                .order(ByteOrder.nativeOrder())
+                .asFloatBuffer()
+        }
+        val buffer = streamingDirectBuffer!!
+        buffer.clear()
         buffer.put(data, 0, count)
         buffer.position(0)
 
         bind()
         GLES30.glBufferSubData(target, offsetBytes, count * 4, buffer)
-        unbind()
     }
 
     fun uploadData(data: ShortArray, usageOverride: Int = usage) {

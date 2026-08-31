@@ -168,13 +168,33 @@ class TrajectoryPredictor(
         if (targetIndices.isEmpty()) return
 
         vao?.bind()
-        vbo?.bind()
 
         for (targetIdx in targetIndices) {
             cloneSnapshotToIsolatedState(bodies)
             val dt = computePredictionDtForBody(targetIdx, bodies)
 
+            // Check if this body is a satellite of a parent planet (e.g. Moon of Earth)
+            var parentIdx = -1
+            val targetMass = isolatedState.mass[targetIdx]
+            val isTargetStar = (isolatedState.type[targetIdx] == com.alijafari.red.astronomy.sandbox.model.SandboxBodyType.SUN ||
+                    isolatedState.type[targetIdx] == com.alijafari.red.astronomy.sandbox.model.SandboxBodyType.BLACK_HOLE)
+            if (!isTargetStar && targetMass < 1.0e29) {
+                var bestD = Double.MAX_VALUE
+                for (j in 0 until isolatedState.activeCount) {
+                    if (j == targetIdx || isolatedState.mass[j] <= targetMass * 5.0) continue
+                    val dx = isolatedState.posX[targetIdx] - isolatedState.posX[j]
+                    val dy = isolatedState.posY[targetIdx] - isolatedState.posY[j]
+                    val dz = isolatedState.posZ[targetIdx] - isolatedState.posZ[j]
+                    val d = kotlin.math.sqrt(dx * dx + dy * dy + dz * dz)
+                    if (d < 5.0e9 && d < bestD) {
+                        bestD = d
+                        parentIdx = j
+                    }
+                }
+            }
+
             var outIdx = 0
+            val parentScratch = FloatArray(3)
 
             for (step in 0 until predictionSteps) {
                 integrator.step(isolatedState, dt)
@@ -183,7 +203,32 @@ class TrajectoryPredictor(
                 val mappedY = isolatedState.posY[targetIdx]
                 val mappedZ = isolatedState.posZ[targetIdx]
 
-                scaleManager.physicsToRenderPosition(mappedX, mappedY, mappedZ, scratchPos)
+                if (parentIdx >= 0) {
+                    val pX = isolatedState.posX[parentIdx]
+                    val pY = isolatedState.posY[parentIdx]
+                    val pZ = isolatedState.posZ[parentIdx]
+                    scaleManager.physicsToRenderPosition(pX, pY, pZ, parentScratch)
+
+                    val dx = mappedX - pX
+                    val dy = mappedY - pY
+                    val dz = mappedZ - pZ
+                    val physD = kotlin.math.sqrt(dx * dx + dy * dy + dz * dz)
+                    if (physD < 1e-3) {
+                        scratchPos[0] = parentScratch[0]
+                        scratchPos[1] = parentScratch[1]
+                        scratchPos[2] = parentScratch[2]
+                    } else {
+                        val dirX = (dx / physD).toFloat()
+                        val dirY = (dy / physD).toFloat()
+                        val dirZ = (dz / physD).toFloat()
+                        val visualOffset = (physD / 3.844e8).toFloat() * 1.5f + 0.6f
+                        scratchPos[0] = parentScratch[0] + dirX * visualOffset
+                        scratchPos[1] = parentScratch[1] + dirY * visualOffset
+                        scratchPos[2] = parentScratch[2] + dirZ * visualOffset
+                    }
+                } else {
+                    scaleManager.physicsToRenderPosition(mappedX, mappedY, mappedZ, scratchPos)
+                }
 
                 val progress = step.toFloat() / (predictionSteps - 1).coerceAtLeast(1)
 
@@ -210,7 +255,6 @@ class TrajectoryPredictor(
             GLES30.glDrawArrays(GLES30.GL_LINE_STRIP, 0, predictionSteps)
         }
 
-        vbo?.unbind()
         vao?.unbind()
     }
 

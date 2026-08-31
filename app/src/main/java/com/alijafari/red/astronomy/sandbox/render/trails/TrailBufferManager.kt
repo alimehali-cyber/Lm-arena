@@ -156,7 +156,6 @@ class TrailBufferManager(
 
         val count = activeBodyCount.coerceAtMost(maxBodies)
         vao?.bind()
-        vbo?.bind()
 
         for (b in 0 until count) {
             if (!isBodyTrailEnabled[b]) continue
@@ -182,7 +181,7 @@ class TrailBufferManager(
                 // Linear normalized age: 0.0 (oldest/faintest) -> 1.0 (newest/brightest)
                 val ageNorm = i.toFloat() / (numPoints - 1).coerceAtLeast(1)
 
-                // Smooth quadratic alpha falloff: f(t) = t^1.6
+                // Smooth quadratic alpha falloff: f(t) = t^1.4
                 val alpha = Math.pow(ageNorm.toDouble(), 1.4).toFloat().coerceIn(0.10f, 1.0f)
 
                 uploadBuffer[outIdx++] = x
@@ -209,7 +208,6 @@ class TrailBufferManager(
             GLES30.glDrawArrays(GLES30.GL_LINE_STRIP, 0, numPoints)
         }
 
-        vbo?.unbind()
         vao?.unbind()
     }
 
