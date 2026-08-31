@@ -7,12 +7,7 @@ import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -173,7 +168,7 @@ class MainActivity : ComponentActivity() {
                             containerColor = Color.Transparent,
                             contentWindowInsets = WindowInsets(0, 0, 0, 0),
                             topBar = {
-                                if (uiState.selectedTab != 4 && uiState.selectedTab != 3 && uiState.isBottomBarVisible) {
+                                if (uiState.selectedTab != 4 && uiState.selectedTab != 3) {
                                     val isFa = uiState.language == com.alijafari.red.astronomy.domain.AppLanguage.PERSIAN
                                     Row(
                                         modifier = Modifier
@@ -266,19 +261,12 @@ class MainActivity : ComponentActivity() {
                         }
 
                         // Floating Navigation Bar with Real Kyant0 Liquid Glass Backdrop sampling
-                        AnimatedVisibility(
-                            visible = uiState.isBottomBarVisible,
-                            enter = fadeIn() + slideInVertically { it },
-                            exit = fadeOut() + slideOutVertically { it },
+                        com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
+                            backdrop = backdrop,
+                            selectedTab = uiState.selectedTab,
+                            onTabSelected = { viewModel.selectTab(it) },
                             modifier = Modifier.align(Alignment.BottomCenter)
-                        ) {
-                            com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
-                                backdrop = backdrop,
-                                selectedTab = uiState.selectedTab,
-                                onTabSelected = { viewModel.selectTab(it) },
-                                modifier = Modifier
-                            )
-                        }
+                        )
 
                         // Dialogs and Modals (Promoted sibling overlays with Real Kyant0 Liquid Glass Backdrop sampling)
                         if (uiState.showLocationSelector) {

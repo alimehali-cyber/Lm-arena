@@ -49,8 +49,7 @@ data class MainUiState(
     val selectedTargetObject: CelestialObject? = null,
     val selectedSatelliteId: String? = null,
     val isLiquidGlassEnabled: Boolean = true,
-    val liquidGlassConfig: LiquidGlassConfig = LiquidGlassConfig(),
-    val isBottomBarVisible: Boolean = true
+    val liquidGlassConfig: LiquidGlassConfig = LiquidGlassConfig()
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -233,10 +232,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun resetLiquidGlassConfig() {
         val defaultConfig = LiquidGlassConfig()
         updateLiquidGlassConfig(defaultConfig)
-    }
-
-    fun setBottomBarVisible(visible: Boolean) {
-        _uiState.update { it.copy(isBottomBarVisible = visible) }
     }
 
     fun setSkyCanvasTheme(theme: SkyCanvasTheme) {

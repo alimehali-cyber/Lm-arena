@@ -85,19 +85,4 @@
     <string name="no_logs_yet">هنوز گزارش یا یادداشت رصدی ثبت نشده است.</string>
     <string name="delete">حذف</string>
     <string name="close">بستن</string>
-
-    <!-- Gravity Sandbox Phase 4 -->
-    <string name="sandbox_orbital_trail">مسیر مداری</string>
-    <string name="sandbox_predicted_trajectory">مسیر پیش‌بینی‌شده</string>
-    <string name="sandbox_barycenter">مرکز جرم</string>
-    <string name="sandbox_velocity">سرعت</string>
-    <string name="sandbox_acceleration">شتاب گرانشی</string>
-    <string name="sandbox_historical_trajectory">مسیر پیموده‌شده</string>
-    <string name="sandbox_vector_visual_scale_note">نمایش برداری (مقیاس‌شده جهت وضوح)</string>
-    <string name="sandbox_collision_merger">رویداد ادغام اجرام</string>
-    <string name="sandbox_clear_trails">پاکسازی رد مداری</string>
-    <string name="sandbox_visual_modes">حالت‌های نمایش بصری</string>
-    <string name="sandbox_focus_body">تمرکز دید</string>
-    <string name="sandbox_center_barycenter">تمرکز بر مرکز جرم</string>
-    <string name="sandbox_distance_to_barycenter">فاصله تا مرکز جرم</string>
 </resources>
