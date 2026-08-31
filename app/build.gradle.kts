@@ -8,12 +8,12 @@ plugins {
 
 android {
   namespace = "com.alijafari.red.astronomy"
-  compileSdk = 35
+  compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
     applicationId = "com.alijafari.red.astronomy"
     minSdk = 24
-    targetSdk = 35
+    targetSdk = 36
     versionCode = 2
     versionName = "1.1"
 
