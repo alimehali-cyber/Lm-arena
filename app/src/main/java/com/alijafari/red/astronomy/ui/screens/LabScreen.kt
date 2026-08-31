@@ -88,6 +88,15 @@ fun LabScreen(
     val isFa = uiState.language == AppLanguage.PERSIAN
     var selectedFeature by remember { mutableStateOf<LabFeatureType?>(null) }
 
+    DisposableEffect(selectedFeature) {
+        if (selectedFeature == LabFeatureType.GRAVITY_SANDBOX || selectedFeature == LabFeatureType.TIME_DILATION) {
+            viewModel.setBottomBarVisible(false)
+        }
+        onDispose {
+            viewModel.setBottomBarVisible(true)
+        }
+    }
+
     if (selectedFeature == LabFeatureType.GRAVITY_SANDBOX) {
         GravitySandboxScreen(
             uiState = uiState,

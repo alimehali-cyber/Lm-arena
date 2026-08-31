@@ -19,7 +19,7 @@ class VectorOverlayRenderer(
 ) {
     var showVelocityVectors: Boolean = true
     var showAccelerationVectors: Boolean = true
-    var selectedOnly: Boolean = true
+    var selectedOnly: Boolean = false
     var selectedBodyId: String? = null
 
     private val maxVertsPerVector = 10

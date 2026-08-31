@@ -26,9 +26,9 @@ class TrajectoryPredictor(
     private val integrator: VelocityVerletIntegrator = VelocityVerletIntegrator(forceSolver)
 ) {
     var isEnabled: Boolean = true
-    var predictSelectedOnly: Boolean = true
+    var predictSelectedOnly: Boolean = false
     var selectedBodyId: String? = null
-    var stippleFrequency: Float = 14.0f // Number of dashes along trajectory
+    var stippleFrequency: Float = 12.0f // Number of dashes along trajectory
 
     // Isolated prediction state buffer (never touches live physics state)
     private val isolatedState = PhysicsStateBuffer(maxBodies)
@@ -93,41 +93,50 @@ class TrajectoryPredictor(
         forceSolver.computeAccelerations(isolatedState)
     }
 
-    private fun computePredictionDt(bodies: List<BodyRenderState>): Double {
-        if (bodies.isEmpty()) return 3600.0
+    /**
+     * Calculates the optimal forward integration timestep dt for a specific target body,
+     * ensuring the prediction horizon covers approximately 1 full orbital period.
+     */
+    fun computePredictionDtForBody(targetIdx: Int, bodies: List<BodyRenderState>): Double {
+        if (bodies.isEmpty() || targetIdx !in bodies.indices) return 3600.0
 
-        var maxMass = 0.0
-        var centralIdx = 0
-        for (i in bodies.indices) {
-            if (bodies[i].massKg > maxMass) {
-                maxMass = bodies[i].massKg
-                centralIdx = i
+        val target = bodies[targetIdx]
+        if (target.isFixed || !target.isActive) return 3600.0
+
+        // Find primary gravitational attractor (max G * M / r^2)
+        var maxGravity = 0.0
+        var primaryAttractorIdx = -1
+        var distToAttractor = 1.0e11
+
+        for (j in bodies.indices) {
+            if (j == targetIdx || !bodies[j].isActive || bodies[j].massKg <= 0.0) continue
+            val dx = target.posX - bodies[j].posX
+            val dy = target.posY - bodies[j].posY
+            val dz = target.posZ - bodies[j].posZ
+            val rSq = (dx * dx + dy * dy + dz * dz).coerceAtLeast(1.0)
+            val grav = (AstroPhysicsConstants.G * bodies[j].massKg) / rSq
+
+            if (grav > maxGravity) {
+                maxGravity = grav
+                primaryAttractorIdx = j
+                distToAttractor = Math.sqrt(rSq)
             }
         }
 
-        val c = bodies[centralIdx]
-        var minOrbitDist = Double.MAX_VALUE
-        for (i in bodies.indices) {
-            if (i == centralIdx || !bodies[i].isActive) continue
-            val dx = bodies[i].posX - c.posX
-            val dy = bodies[i].posY - c.posY
-            val dz = bodies[i].posZ - c.posZ
-            val dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
-            if (dist in 1.0..minOrbitDist) {
-                minOrbitDist = dist
-            }
+        val periodSeconds = if (primaryAttractorIdx >= 0) {
+            val attractor = bodies[primaryAttractorIdx]
+            val totalM = (attractor.massKg + target.massKg).coerceAtLeast(1.0e20)
+            val gM = AstroPhysicsConstants.G * totalM
+            // Kepler's Third Law period T = 2 * pi * sqrt(a^3 / GM)
+            2.0 * Math.PI * Math.sqrt((distToAttractor * distToAttractor * distToAttractor) / gM)
+        } else {
+            // Unbound body: calculate time to cross typical system span based on current velocity
+            val v = Math.sqrt(target.velX * target.velX + target.velY * target.velY + target.velZ * target.velZ)
+            if (v > 1.0) (distToAttractor / v) else 86400.0 * 30.0
         }
 
-        if (minOrbitDist == Double.MAX_VALUE || minOrbitDist <= 0.0) {
-            return 3600.0
-        }
-
-        val gM = AstroPhysicsConstants.G * maxMass.coerceAtLeast(1e20)
-        val period = 2.0 * Math.PI * Math.sqrt((minOrbitDist * minOrbitDist * minOrbitDist) / gM)
-        
-        val targetSpan = period * 1.5
-        val dt = (targetSpan / predictionSteps).coerceIn(60.0, 86400.0 * 15.0)
-        return dt
+        val targetHorizon = periodSeconds * 1.15
+        return (targetHorizon / predictionSteps).coerceIn(10.0, 86400.0 * 30.0)
     }
 
     fun draw(
@@ -161,10 +170,9 @@ class TrajectoryPredictor(
         vao?.bind()
         vbo?.bind()
 
-        val dt = computePredictionDt(bodies)
-
         for (targetIdx in targetIndices) {
             cloneSnapshotToIsolatedState(bodies)
+            val dt = computePredictionDtForBody(targetIdx, bodies)
 
             var outIdx = 0
 
@@ -188,10 +196,17 @@ class TrajectoryPredictor(
             vbo?.uploadSubData(uploadBuffer, 0, outIdx)
 
             val color = if (targetIdx < bodyColors.size) bodyColors[targetIdx] else RenderBodyColor.DEFAULT_COLOR
-            shader.setUniform4f("u_PredictionColor", color[0], color[1], color[2], 0.80f)
+            val isSelected = (bodies[targetIdx].id == selectedBodyId)
+            shader.setUniform4f(
+                "u_PredictionColor",
+                color[0],
+                color[1],
+                color[2],
+                if (isSelected) 1.0f else 0.85f
+            )
             shader.setUniform1f("u_StippleFrequency", stippleFrequency)
 
-            GLES30.glLineWidth(1.8f)
+            GLES30.glLineWidth(if (isSelected) 2.5f else 1.8f)
             GLES30.glDrawArrays(GLES30.GL_LINE_STRIP, 0, predictionSteps)
         }
 

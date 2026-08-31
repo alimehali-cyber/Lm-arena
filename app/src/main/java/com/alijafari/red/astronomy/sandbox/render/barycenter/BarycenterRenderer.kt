@@ -107,16 +107,16 @@ class BarycenterRenderer(
         scaleManager.physicsToRenderPosition(p.x, p.y, p.z, scratchPos)
 
         // Scale marker adaptively with camera distance so it remains sharp and visible
-        val markerScale = (cameraDistance * 0.035f).coerceIn(0.4f, 8.0f)
+        val markerScale = (cameraDistance * 0.05f).coerceIn(0.8f, 15.0f)
 
         vao?.bind()
 
         shader.setUniform3f("u_BarycenterWorldPos", scratchPos[0], scratchPos[1], scratchPos[2])
         shader.setUniform1f("u_MarkerScale", markerScale)
         // High-visibility Gold / Amber scientific color
-        shader.setUniform4f("u_BarycenterColor", 1.0f, 0.76f, 0.03f, 0.90f)
+        shader.setUniform4f("u_BarycenterColor", 1.0f, 0.84f, 0.0f, 0.95f)
 
-        GLES30.glLineWidth(2.0f)
+        GLES30.glLineWidth(2.5f)
         GLES30.glDrawArrays(GLES30.GL_LINES, 0, totalVertexCount)
 
         vao?.unbind()

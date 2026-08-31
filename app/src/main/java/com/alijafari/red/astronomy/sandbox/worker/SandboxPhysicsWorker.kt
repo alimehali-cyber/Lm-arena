@@ -91,11 +91,15 @@ class SandboxPhysicsWorker(
         snapshotManager.publishSnapshot(engine, duration, 1)
     }
 
-    fun loadPreset(preset: SandboxPreset) {
+    fun loadPreset(preset: SandboxPreset, userMultiplier: Double? = null) {
         val wasRunning = !isPaused.get()
         pause()
         engine.timestepController.baseTimestepSeconds = preset.recommendedBaseTimestepSeconds
-        engine.timestepController.timeSpeedMultiplier = preset.recommendedTimeSpeedMultiplier
+        engine.timestepController.presetBaseSpeedMultiplier = preset.recommendedTimeSpeedMultiplier
+        if (userMultiplier != null) {
+            engine.timestepController.userSpeedMultiplier = userMultiplier
+        }
+        engine.timestepController.reset()
         engine.loadBodies(preset.bodyFactory(), resetTime = true)
         snapshotManager.publishSnapshot(engine, 0, 0)
         if (wasRunning) {
@@ -114,7 +118,7 @@ class SandboxPhysicsWorker(
     }
 
     fun setTimeMultiplier(multiplier: Double) {
-        engine.timestepController.timeSpeedMultiplier = multiplier.coerceIn(0.01, 100_000.0)
+        engine.timestepController.userSpeedMultiplier = multiplier.coerceIn(0.01, 100_000.0)
     }
 
     fun getLatestRenderFrame(): SandboxRenderFrame {

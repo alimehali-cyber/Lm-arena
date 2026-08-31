@@ -100,7 +100,7 @@ class TrailBufferManager(
         y: Float,
         z: Float,
         currentSimTimeSeconds: Double = 0.0,
-        minDistanceSq: Float = 0.0025f,
+        minDistanceSq: Float = 0.0001f,
         maxDiscontinuityDistSq: Float = 400.0f
     ) {
         if (!isEnabled || bodyIndex !in 0 until maxBodies || !isBodyTrailEnabled[bodyIndex]) return
@@ -183,12 +183,12 @@ class TrailBufferManager(
                 val ageNorm = i.toFloat() / (numPoints - 1).coerceAtLeast(1)
 
                 // Smooth quadratic alpha falloff: f(t) = t^1.6
-                val alpha = Math.pow(ageNorm.toDouble(), 1.6).toFloat().coerceIn(0.04f, 1.0f)
+                val alpha = Math.pow(ageNorm.toDouble(), 1.4).toFloat().coerceIn(0.10f, 1.0f)
 
                 uploadBuffer[outIdx++] = x
                 uploadBuffer[outIdx++] = y
                 uploadBuffer[outIdx++] = z
-                uploadBuffer[outIdx++] = if (isSelected) alpha else alpha * 0.70f
+                uploadBuffer[outIdx++] = if (isSelected) alpha else alpha * 0.85f
             }
 
             // Stream upload to dynamic VBO
@@ -201,10 +201,11 @@ class TrailBufferManager(
                 color[0],
                 color[1],
                 color[2],
-                if (isSelected) 1.0f else 0.80f
+                if (isSelected) 1.0f else 0.85f
             )
+            shader.setUniform1f("u_IsSelected", if (isSelected) 1.0f else 0.0f)
 
-            GLES30.glLineWidth(if (isSelected) 2.5f else 1.5f)
+            GLES30.glLineWidth(if (isSelected) 3.0f else 2.0f)
             GLES30.glDrawArrays(GLES30.GL_LINE_STRIP, 0, numPoints)
         }
 

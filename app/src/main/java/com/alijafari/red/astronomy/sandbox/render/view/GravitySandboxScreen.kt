@@ -159,6 +159,12 @@ fun GravitySandboxScreen(
                 ).also { view ->
                     surfaceViewRef = view
                     view.renderer.theme = RenderTheme.DARK
+                    view.renderer.trailManager.isEnabled = isTrailsEnabled
+                    view.renderer.trajectoryPredictor.isEnabled = isPredictionEnabled
+                    view.renderer.vectorOverlayRenderer.showVelocityVectors = isVelocityVectorEnabled
+                    view.renderer.vectorOverlayRenderer.showAccelerationVectors = isAccelVectorEnabled
+                    view.renderer.barycenterRenderer.isEnabled = isBarycenterEnabled
+                    view.renderer.isGridVisible = isGridEnabled
                     view.renderer.onBodySelectedListener = { bodyId ->
                         selectedBodyId = bodyId
                         view.renderer.selectedBodyId = bodyId
@@ -513,7 +519,7 @@ fun GravitySandboxScreen(
                     // Reset Time / Preset
                     IconButton(
                         onClick = {
-                            physicsWorker.loadPreset(activePreset)
+                            physicsWorker.loadPreset(activePreset, currentSpeedMultiplier)
                             surfaceViewRef?.renderer?.clearTrails()
                             surfaceViewRef?.renderer?.fitAllBodies()
                         },
@@ -624,7 +630,7 @@ fun GravitySandboxScreen(
                         onClick = {
                             selectedPresetName = "Kerr Black Hole"
                             activePreset = SandboxPresetCatalog.KERR_ROTATING_BLACK_HOLE
-                            physicsWorker.loadPreset(SandboxPresetCatalog.KERR_ROTATING_BLACK_HOLE)
+                            physicsWorker.loadPreset(SandboxPresetCatalog.KERR_ROTATING_BLACK_HOLE, currentSpeedMultiplier)
                             surfaceViewRef?.renderer?.clearTrails()
                             surfaceViewRef?.renderer?.fitAllBodies()
                         },
@@ -637,7 +643,7 @@ fun GravitySandboxScreen(
                         onClick = {
                             selectedPresetName = "Black Hole Infall"
                             activePreset = SandboxPresetCatalog.BLACK_HOLE_ACCRETION_DEMO
-                            physicsWorker.loadPreset(SandboxPresetCatalog.BLACK_HOLE_ACCRETION_DEMO)
+                            physicsWorker.loadPreset(SandboxPresetCatalog.BLACK_HOLE_ACCRETION_DEMO, currentSpeedMultiplier)
                             surfaceViewRef?.renderer?.clearTrails()
                             surfaceViewRef?.renderer?.fitAllBodies()
                         },
@@ -650,7 +656,7 @@ fun GravitySandboxScreen(
                         onClick = {
                             selectedPresetName = "Wormhole Bridge"
                             activePreset = SandboxPresetCatalog.THEORETICAL_WORMHOLE_SYSTEM
-                            physicsWorker.loadPreset(SandboxPresetCatalog.THEORETICAL_WORMHOLE_SYSTEM)
+                            physicsWorker.loadPreset(SandboxPresetCatalog.THEORETICAL_WORMHOLE_SYSTEM, currentSpeedMultiplier)
                             surfaceViewRef?.renderer?.clearTrails()
                             surfaceViewRef?.renderer?.fitAllBodies()
                         },
@@ -663,7 +669,7 @@ fun GravitySandboxScreen(
                         onClick = {
                             selectedPresetName = "Sun & Earth"
                             activePreset = SandboxPresetCatalog.SUN_EARTH
-                            physicsWorker.loadPreset(SandboxPresetCatalog.SUN_EARTH)
+                            physicsWorker.loadPreset(SandboxPresetCatalog.SUN_EARTH, currentSpeedMultiplier)
                             surfaceViewRef?.renderer?.clearTrails()
                             surfaceViewRef?.renderer?.fitAllBodies()
                         },
@@ -676,7 +682,7 @@ fun GravitySandboxScreen(
                         onClick = {
                             selectedPresetName = "Earth-Moon"
                             activePreset = SandboxPresetCatalog.EARTH_MOON
-                            physicsWorker.loadPreset(SandboxPresetCatalog.EARTH_MOON)
+                            physicsWorker.loadPreset(SandboxPresetCatalog.EARTH_MOON, currentSpeedMultiplier)
                             surfaceViewRef?.renderer?.clearTrails()
                             surfaceViewRef?.renderer?.fitAllBodies()
                         },
@@ -689,7 +695,7 @@ fun GravitySandboxScreen(
                         onClick = {
                             selectedPresetName = "Solar System"
                             activePreset = SandboxPresetCatalog.FULL_SOLAR_SYSTEM
-                            physicsWorker.loadPreset(SandboxPresetCatalog.FULL_SOLAR_SYSTEM)
+                            physicsWorker.loadPreset(SandboxPresetCatalog.FULL_SOLAR_SYSTEM, currentSpeedMultiplier)
                             surfaceViewRef?.renderer?.clearTrails()
                             surfaceViewRef?.renderer?.fitAllBodies()
                         },

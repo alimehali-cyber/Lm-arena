@@ -1,5 +1,8 @@
 package com.alijafari.red.astronomy.sandbox.physics
 
+import kotlin.math.ceil
+import kotlin.math.pow
+
 /**
  * Manages simulation time progression, decoupling physical integration step size
  * from user-perceived playback speed multiplier.
@@ -8,20 +11,35 @@ package com.alijafari.red.astronomy.sandbox.physics
  */
 class SimulationTimestepController(
     /**
-     * Base integration timestep in physical seconds (e.g., 60.0s for planetary systems).
+     * Base integration timestep in physical seconds (e.g., 3600.0s for planetary systems).
      */
     var baseTimestepSeconds: Double = DEFAULT_BASE_TIMESTEP_SECONDS,
 
     /**
-     * User playback time multiplier (e.g., 1.0 = real-time, 1000.0 = 1000x real-time).
+     * Preset recommended base speed multiplier in physical seconds per real wall second.
      */
-    var timeSpeedMultiplier: Double = 1.0,
+    var presetBaseSpeedMultiplier: Double = 86400.0,
+
+    /**
+     * User speed multiplier selection (1.0, 10.0, 100.0, 1000.0).
+     */
+    var userSpeedMultiplier: Double = 1.0,
 
     /**
      * Maximum number of physical sub-steps allowed per frame to protect CPU budget.
      */
-    var maxSubstepsPerFrame: Int = 100
+    var maxSubstepsPerFrame: Int = 120
 ) {
+    /**
+     * Total effective speed multiplier (physical seconds per real wall second).
+     */
+    var timeSpeedMultiplier: Double
+        get() = presetBaseSpeedMultiplier * userSpeedMultiplier
+        set(value) {
+            presetBaseSpeedMultiplier = value
+            userSpeedMultiplier = 1.0
+        }
+
     /**
      * Accumulated fractional remainder of physical time to step across frames.
      */
@@ -52,32 +70,36 @@ class SimulationTimestepController(
         val targetSimDelta = dtWallClockSeconds * timeSpeedMultiplier
         timeAccumulatorSeconds += targetSimDelta
 
-        val steps = ArrayList<Double>()
-        var remainingTime = timeAccumulatorSeconds
-        val baseStep = baseTimestepSeconds
-
         val isCloseEncounter = currentProximityRatio < closeEncounterThreshold
+        val steps = ArrayList<Double>()
 
-        while (remainingTime >= baseStep && steps.size < maxSubstepsPerFrame) {
-            if (isCloseEncounter) {
-                val microDt = baseStep / closeEncounterSubdivisions
-                for (k in 0 until closeEncounterSubdivisions) {
-                    if (steps.size < maxSubstepsPerFrame) {
-                        steps.add(microDt)
-                    }
-                }
-            } else {
-                steps.add(baseStep)
-            }
-            remainingTime -= baseStep
+        // When accumulator is very small (e.g. paused or tiny step), wait for more time
+        val minStepThreshold = (baseTimestepSeconds * 0.05).coerceAtLeast(0.01)
+        if (timeAccumulatorSeconds < minStepThreshold) {
+            return steps
         }
 
-        // Keep unstepped remainder for next frame
-        timeAccumulatorSeconds = remainingTime
+        // Calculate max allowable step dt to maintain symplectic Verlet stability
+        val maxAllowedDt = if (isCloseEncounter) {
+            (baseTimestepSeconds / closeEncounterSubdivisions).coerceAtLeast(0.1)
+        } else {
+            val userScaleFactor = userSpeedMultiplier.coerceAtLeast(1.0).pow(0.5).coerceIn(1.0, 32.0)
+            baseTimestepSeconds * userScaleFactor
+        }
+
+        val neededSteps = ceil(timeAccumulatorSeconds / maxAllowedDt).toInt().coerceIn(1, maxSubstepsPerFrame)
+        val stepDt = timeAccumulatorSeconds / neededSteps
+
+        for (k in 0 until neededSteps) {
+            steps.add(stepDt)
+        }
+
+        // Clear accumulator since the full target time is distributed into discrete steps
+        timeAccumulatorSeconds = 0.0
         return steps
     }
 
     companion object {
-        const val DEFAULT_BASE_TIMESTEP_SECONDS = 60.0 // 1 minute per physics step
+        const val DEFAULT_BASE_TIMESTEP_SECONDS = 3600.0 // 1 hour per physics step default
     }
 }

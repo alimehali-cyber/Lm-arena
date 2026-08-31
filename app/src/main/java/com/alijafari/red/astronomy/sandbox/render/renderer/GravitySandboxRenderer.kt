@@ -392,27 +392,33 @@ class GravitySandboxRenderer(
 
         // 2. Render Reference Grid (Y = 0 orbital plane)
         if (isGridVisible && gridShader != null && gridGeometry != null) {
+            GLES30.glDepthMask(false)
             gridShader?.use()
             gridShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
             gridShader?.setUniform3f("u_CameraPosition", camera.eyeX, camera.eyeY, camera.eyeZ)
             gridGeometry?.draw()
             drawCallCount++
+            GLES30.glDepthMask(true)
         }
 
         // 3. Render Historical Orbital Trails
         if (trailShader != null && activeCount > 0) {
+            GLES30.glDepthMask(false)
             trailShader?.use()
             trailShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
             trailManager.draw(trailShader!!, activeCount, bodyColors)
             drawCallCount += activeCount
+            GLES30.glDepthMask(true)
         }
 
         // 4. Render Forward Trajectory Predictions (Dashed / Stippled)
         if (predictionShader != null && activeFrame != null && activeCount > 0) {
+            GLES30.glDepthMask(false)
             predictionShader?.use()
             predictionShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
             trajectoryPredictor.draw(predictionShader!!, activeFrame, scaleManager, bodyColors)
             drawCallCount++
+            GLES30.glDepthMask(true)
         }
 
         // 5. Render Collision & Merger Shockwaves
@@ -727,31 +733,37 @@ class GravitySandboxRenderer(
             Matrix.translateM(modelMatrix, 0, sx, sy, sz)
             Matrix.scaleM(modelMatrix, 0, ringRadius, ringRadius, ringRadius)
 
+            GLES30.glDisable(GLES30.GL_DEPTH_TEST)
             selectionRingShader?.use()
             selectionRingShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
             selectionRingShader?.setUniformMatrix4fv("u_ModelMatrix", modelMatrix)
             selectionRingShader?.setUniform4f("u_RingColor", 0.0f, 0.90f, 1.0f, 0.85f)
 
             selectionRingVao?.bind()
-            GLES30.glLineWidth(2.2f)
+            GLES30.glLineWidth(2.5f)
             GLES30.glDrawArrays(GLES30.GL_LINES, 0, selectionRingSegments * 2)
             selectionRingVao?.unbind()
+            GLES30.glEnable(GLES30.GL_DEPTH_TEST)
             drawCallCount++
         }
 
         // 12. Render Barycenter Marker Reticle (Center of Mass)
         if (barycenterShader != null && activeCount > 1) {
+            GLES30.glDisable(GLES30.GL_DEPTH_TEST)
             barycenterShader?.use()
             barycenterShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
             barycenterRenderer.draw(barycenterShader!!, bodies, scaleManager, camera.distance)
+            GLES30.glEnable(GLES30.GL_DEPTH_TEST)
             drawCallCount++
         }
 
         // 13. Render 3D Vector Overlays (Velocity & Gravitational Acceleration)
         if (vectorShader != null && activeCount > 0) {
+            GLES30.glDisable(GLES30.GL_DEPTH_TEST)
             vectorShader?.use()
             vectorShader?.setUniformMatrix4fv("u_ViewProjectionMatrix", camera.viewProjectionMatrix)
             vectorOverlayRenderer.draw(vectorShader!!, bodies, scaleManager, camera.distance)
+            GLES30.glEnable(GLES30.GL_DEPTH_TEST)
             drawCallCount++
         }
 
