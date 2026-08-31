@@ -297,6 +297,10 @@ fun GravitySandboxScreen(
             // Interactive Physics Canvas
             val spatialScaleMeters = remember(currentScenario) { getSpatialScale(currentScenario) }
 
+            // Read in Composable scope: RedTheme.colors is a @Composable accessor and
+            // cannot be used inside the non-composable Canvas draw lambda below.
+            val selectionRingColor = RedTheme.colors.accentRed
+
             Canvas(
                 modifier = Modifier
                     .fillMaxSize()
@@ -472,7 +476,7 @@ fun GravitySandboxScreen(
                     )
 
                     drawCircle(
-                        color = if (selectedBody?.id == body.id) RedTheme.colors.accentRed else bodyColor.copy(alpha = 0.8f),
+                        color = if (selectedBody?.id == body.id) selectionRingColor else bodyColor.copy(alpha = 0.8f),
                         radius = visualRadius + (if (selectedBody?.id == body.id) 3.dp.toPx() else 0.dp.toPx()),
                         center = Offset(sx, sy),
                         style = Stroke(width = if (selectedBody?.id == body.id) 2.dp.toPx() else 1.dp.toPx())
