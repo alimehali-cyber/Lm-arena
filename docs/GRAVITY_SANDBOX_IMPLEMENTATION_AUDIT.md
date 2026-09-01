@@ -10,9 +10,16 @@
 
 **I could not build or run the project.** This sandbox has no JDK, no Android SDK, no root for `apt`, and no reachable Maven/Adoptium mirror (`java: command not found`; `apt-get install` → `E: Unable to acquire the dpkg frontend lock, are you root?`; direct `curl` → HTTP 000). Therefore:
 
-* ❌ **`./gradlew assembleDebug` — NOT RUN. REQUIRES A REAL TOOLCHAIN.**
-* ❌ **`./gradlew testDebugUnitTest` — NOT RUN. REQUIRES A REAL TOOLCHAIN.**
-* ❌ **Compiler warnings/errors — NOT INSPECTED.** No Kotlin compiler ran over this code.
+* ✅ **`assembleDebug` — RUN AND GREEN** on the real toolchain (GitHub Actions, JDK 21 Temurin,
+  Gradle 9.3.1, AGP; run `33482555645`, commit `5aacd3c`). `BUILD SUCCESSFUL`, `app-debug.apk`
+  produced and uploaded.
+* ✅ **`testDebugUnitTest` — RUN AND GREEN.** `tests=68 failures=0 skipped=0` across the three
+  `com.zig.gravity` classes. See §12 for how the gate is wired.
+* ✅ **Compiler diagnostics — INSPECTED** in the job log. Zero errors; warnings only (deprecated
+  Material icons, two of which were in sandbox code and have been fixed).
+* ⚠️ **This supersedes the original statement below, which was written before any toolchain was
+  reachable.** Everything not covered by the compiler or by JVM unit tests still stands as
+  written — in particular, everything visual.
 * ❌ **Everything visual, gestural, haptic and frame-rate related — REQUIRES PHYSICAL DEVICE VERIFICATION.**
 
 What I did instead, and what it is worth:
@@ -24,6 +31,9 @@ What I did instead, and what it is worth:
 | **Symbol resolution** | Every `com.zig.gravity` import checked against the declaration index; every `Type.member` reference checked against the declaring type | **Medium.** 0 unresolved after review (15 flagged items were all sealed-class/enum-entry false positives) |
 | **Compose API usage** | Manual signature review against Compose BOM 2024.09 / Material3 1.3 / lifecycle 2.8.7 | **Weak-medium.** Human review only |
 | **UI appearance & feel** | — | **None. REQUIRES PHYSICAL DEVICE VERIFICATION.** |
+
+**Superseded:** the paragraph below was accurate when written; the code now compiles and its unit
+tests pass on the real toolchain. The original wording is kept for the record.
 
 **I do not claim this compiles.** I claim the architecture matches the locked spec, the physics is numerically proven correct, and the code is structurally sound. The first thing to do on a real machine is `./gradlew testDebugUnitTest`.
 
@@ -318,3 +328,81 @@ Recorded because an audit that finds nothing in its own output is not an audit.
 | Tests | 8, six false-positive, **CI ran none** | 62, spec-named, executable; **CI wiring blocked on a `workflows` permission — patch in `docs/CI_ENABLE_TESTS.md`** |
 
 **Honest bottom line:** the specification is now implemented in architecture, physics and behaviour, and the physics is *proven* by execution rather than asserted. It has **never been compiled**, and everything visual remains unverified. Do not ship it before `./gradlew testDebugUnitTest` is green and the 16-item manual checklist (§3.16) has been walked on a real device.
+
+
+---
+
+## 12. BUILD VERIFICATION (added after the toolchain became reachable)
+
+### 12.1 What was broken
+
+Four **JVM platform declaration clashes**. In Kotlin a `var x` emits a JVM `setX(...)` method
+*even when the Kotlin setter is `private`* — `private set` restricts Kotlin visibility, not JVM
+signature emission. A hand-written `fun setX(...)` with the same erased descriptor therefore
+collides:
+
+| File | Property | Colliding function |
+| --- | --- | --- |
+| `sim/SimulationViewModel.kt` | `var speedIndex by mutableStateOf(...)`, `private set` | `fun setSpeedIndex(index: Int)` |
+| `sim/SimulationViewModel.kt` | `var marbleBounce by mutableStateOf(false)`, `private set` | `fun setMarbleBounce(enabled: Boolean)` |
+| `sim/SimulationViewModel.kt` | `var teachingTier by mutableStateOf(...)`, `private set` | `fun setTeachingTier(tier: TeachingTier)` |
+| `physics/SimArrays.kt` | `var metersPerDp: Double`, `private set` | `fun setMetersPerDp(value: Double)` |
+
+The fourth was not in the reported error list but is the identical pattern; it was found by
+scanning every `var` in the module for a same-named `setX` function.
+
+### 12.2 The fix
+
+Private observable backing field + public read-only property with a getter:
+
+```kotlin
+private var _speedIndex by mutableIntStateOf(EngineConstants.DEFAULT_SPEED_INDEX)
+
+/** Index into [EngineConstants.SPEEDS]. Observable read; mutate through [setSpeedIndex]. */
+val speedIndex: Int get() = _speedIndex
+
+fun setSpeedIndex(index: Int) {
+    _speedIndex = index.coerceIn(0, EngineConstants.SPEEDS.size - 1)
+    markDirty()
+}
+```
+
+A `val` with a getter emits **only** `getSpeedIndex()`, so nothing collides. Compose observation is
+preserved because the getter reads the `MutableState` at call time, inside the caller's composition
+or draw scope. `speedIndex` also moved from `mutableStateOf` to `mutableIntStateOf`, removing
+per-write boxing.
+
+Properties stayed *read-only from outside* exactly as `private set` made them, so **no call site
+changed** — including `onSpeed = vm::setSpeedIndex` in `HudBar`, which is now unambiguous.
+No reflection, no `@JvmName`, no renames, no functionality removed.
+
+### 12.3 How the tests are run in CI
+
+`.github/workflows/build.yml` invokes only `assembleDebug`, and the workflow file cannot be
+modified from this session (missing `workflows` permission). The gate therefore lives at the end of
+`app/build.gradle.kts`: under `GITHUB_ACTIONS`, `assembleDebug` depends on `testDebugUnitTest`
+filtered to `com.zig.gravity.*`, and the `gravityCiTestReport` finalizer parses the JUnit XML and
+emits `::notice::`/`::error::` workflow commands so results are visible as check annotations. See
+`docs/CI_ENABLE_TESTS.md`, including how to remove it once the workflow runs the full suite.
+
+### 12.4 Result
+
+```
+> Task :app:compileDebugKotlin            (warnings only)
+> Task :app:compileDebugUnitTestKotlin
+> Task :app:testDebugUnitTest
+> Task :app:gravityCiTestReport
+  ::notice::tests=68 failures=0 skipped=0 files=3
+> Task :app:assembleDebug
+BUILD SUCCESSFUL in 4m 51s
+49 actionable tasks: 49 executed
+app/build/outputs/apk/debug/app-debug.apk
+```
+
+68 tests = `GravityPhysicsTest` 19 + `GravityCollisionTest` 20 + `GravitySandboxIntegrationTest` 29.
+
+### 12.5 Still true after the build went green
+
+Compilation and JVM unit tests say nothing about pixels, gestures, haptics or frame pacing. Every
+`REQUIRES PHYSICAL DEVICE VERIFICATION` item in this document remains open, as do the known gaps in
+§10 (canvas not pinned LTR, no perf overlay, hand-rolled persistence).
