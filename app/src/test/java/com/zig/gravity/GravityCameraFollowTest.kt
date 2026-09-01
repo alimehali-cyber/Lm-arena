@@ -412,30 +412,46 @@ class GravityCameraFollowTest {
     }
 
     @Test
-    fun followFeelsTheSameAtEverySimulationSpeed() {
-        // The follow smoothing is framed in wall-clock time, so the same number of frames must
-        // close the same fraction of the gap no matter how fast the simulation is running.
+    fun followSmoothingIsWallClockNotSimulationTime() {
+        // The camera is visual furniture and must not inherit the simulation's time dilation. With
+        // the scene paused the target is stationary, so the residual gap after a fixed number of
+        // frames isolates the smoothing constant from how fast the body happens to be moving. If
+        // the smoothing used simulated seconds these numbers would differ by 100x.
         val gaps = DoubleArray(EngineConstants.SPEEDS.size)
         for (i in EngineConstants.SPEEDS.indices) {
-            val vm = vmWith(Preset.SUN_EARTH)
+            val vm = vmWith(Preset.SUN_EARTH)   // loadPreset leaves the scene paused
             vm.setSpeedIndex(i)
             vm.camera.setPan(0.0, 0.0)
             val target = vm.snapshot.id[1]
             val start = hypot(vm.arrays.x[1], vm.arrays.y[1])
             vm.startFollow(target)
-            run(vm, 20)
-            val slot = vm.arrays.slotOfId(target)
-            gaps[i] = hypot(
-                vm.camera.panX - vm.arrays.x[slot],
-                vm.camera.panY - vm.arrays.y[slot]
-            ) / start
+            advance(vm, 20)
+            gaps[i] = hypot(vm.camera.panX - vm.arrays.x[1], vm.camera.panY - vm.arrays.y[1]) / start
         }
+        assertTrue("the camera must have moved but not arrived", gaps[0] > 0.05 && gaps[0] < 0.95)
         for (i in 1 until gaps.size) {
             assertEquals(
-                "follow smoothing must not change with simulation speed",
-                gaps[0], gaps[i], 0.20
+                "follow smoothing must not change with the ${EngineConstants.SPEED_LABELS[i]} rung",
+                gaps[0], gaps[i], 1.0e-9
             )
         }
+    }
+
+    @Test
+    fun followKeepsUpWithAFastMovingBody() {
+        // At the top rung a planet crosses the table quickly; the camera must still hold it near
+        // the middle of the view rather than being left behind.
+        val vm = vmWith(Preset.SUN_EARTH)
+        vm.setSpeedIndex(EngineConstants.SPEEDS.size - 1)
+        val target = vm.snapshot.id[1]
+        vm.startFollow(target)
+        run(vm, 240)
+
+        val slot = vm.arrays.slotOfId(target)
+        assertTrue("the body must still be there", slot >= 0)
+        val gap = hypot(vm.camera.panX - vm.arrays.x[slot], vm.camera.panY - vm.arrays.y[slot])
+        val orbit = hypot(vm.arrays.x[slot] - vm.arrays.x[0], vm.arrays.y[slot] - vm.arrays.y[0])
+        assertTrue("the camera lost its target at the top speed", gap < orbit)
     }
 
     // ================= §19-§23 presets ===================================================

@@ -208,7 +208,7 @@ object TeachingCatalog {
             moreFa = "اگر سرعت جانبی ماه را صفر کنی، مستقیم سقوط می‌کند. اگر خیلی زیادش کنی، فرار می‌کند. بین این دو، یک بازه سرعت وجود دارد که مدار می‌سازد: نزدیک v = √(GM/r).",
             moreEn = "Set the Moon's sideways speed to zero and it drops straight in. Make it far too large and it escapes. Between those extremes lies the range that makes an orbit, around v = √(GM/r).",
             formula = "v = √(GM / r)"
-        )
+        ),
         // ---- §22/§23 preset intro cards -------------------------------------------------------
         //
         // One card per educational scene, shown when the scene loads. They follow the §24 shape:
