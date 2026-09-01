@@ -48,22 +48,27 @@ data class GravityColors(
     fun shadeOf(base: Color): Color = lerp(base, Color.Black, if (isDark) 0.55f else 0.40f)
 }
 
+// §21 — this is a TABLETOP, not space. The dark theme used to sit at ~12% lightness, which on an
+// OLED panel is indistinguishable from a black sky and made the sandbox read as an astronomy
+// renderer. It is now a neutral slate felt at ~24% lightness: still calm and low-contrast, still
+// dark-theme comfortable, but unmistakably a surface with objects resting on it. The vignette was
+// softened to match, so the corners no longer fall back to black.
 val DarkTabletop = GravityColors(
-    tableTop = Color(0xFF1C1F26),
-    tableBottom = Color(0xFF16181D),
-    vignette = Color(0x66000000),
+    tableTop = Color(0xFF3A414B),
+    tableBottom = Color(0xFF2E343D),
+    vignette = Color(0x3D000000),
     grain = Color(0x0AFFFFFF),
     accent = Color(0xFFD4A853),
     onSurface = Color(0xFFE9E5DC),
     onSurfaceDim = Color(0xFF9A968E),
-    chrome = Color(0xCC1F232B),
+    chrome = Color(0xCC232830),
     chromeBorder = Color(0x33FFFFFF),
-    trail = Color(0x59FFFFFF),
+    trail = Color(0x66FFFFFF),
     prediction = Color(0xCCD4A853),
     velocity = Color(0xFF8FC7D8),
     acceleration = Color(0xFFD98F6E),
     barycenter = Color(0xFFE0C88A),
-    shadow = Color(0x66000000),
+    shadow = Color(0x59000000),
     selection = Color(0xFFD4A853),
     blackHoleBody = Color(0xFF0A0A0C),
     blackHoleRing = Color(0xFFD4A853),

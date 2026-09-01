@@ -162,7 +162,7 @@ class GravitySandboxIntegrationTest {
         assertTrue("accelerations must oppose", s.ax[earth] * s.ax[moon] <= 0.0)
 
         // Visually separate at the locked scene scale, at every moment of a full lap.
-        vm.setSpeedIndex(2) // 100x, so one lap fits inside the test budget
+        vm.setSpeedIndex(3) // 100x, so one lap fits inside the test budget
         val contact = s.radius[earth] + s.radius[moon]
         var minSeparation = Double.MAX_VALUE
         var maxSeparation = 0.0
@@ -470,18 +470,33 @@ class GravitySandboxIntegrationTest {
                 Math.round(steps).toDouble(), steps, 1.0e-6
             )
         }
-        // Each rung must advance measurably more simulated time than the one below it.
+        // Each rung must advance strictly more simulated time than the one below it.
+        //
+        // Note the assertion is a strict inequality rather than a fixed ratio: the ladder is now
+        // 1 / 10 / 69 / 100, and 100/69 is only 1.45, so a "must be 1.5x the previous rung" test
+        // would be scientifically wrong for a correct engine. The ratios against 1x below are the
+        // assertion that actually pins each rung to its label.
         for (i in 1 until results.size) {
             assertTrue(
                 "speed ${EngineConstants.SPEEDS[i]} must outpace ${EngineConstants.SPEEDS[i - 1]}",
-                results[i] > results[i - 1] * 1.5
+                results[i] > results[i - 1]
             )
         }
         // 1x should deliver about BASE simulated seconds per wall-clock second.
         val oneX = results[EngineConstants.DEFAULT_SPEED_INDEX]
         assertTrue("1x delivered $oneX sim-s in one second", oneX in 0.8e6..1.2e6)
+        // Every rung must be within substep-quantisation distance of its own label. This is what
+        // proves the multiplier reaches the real clock instead of being scaled into DT.
+        for (i in EngineConstants.SPEEDS.indices) {
+            val achieved = results[i] / oneX
+            val target = EngineConstants.SPEEDS[i]
+            assertTrue(
+                "rung ${target}x achieved only ${achieved}x",
+                achieved > target * 0.8 && achieved < target * 1.2
+            )
+        }
         // 100x must really be ~100x, which needs the raised substep budget (926 < 1024).
-        assertTrue(results[2] / oneX > 80.0)
+        assertTrue(results[3] / oneX > 80.0)
     }
 
     @Test

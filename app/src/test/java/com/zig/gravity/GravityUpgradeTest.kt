@@ -287,16 +287,32 @@ class GravityUpgradeTest {
     // ================= speed ladder ===================================================
 
     @Test
-    fun speedLadderIsExactlyOneTenAndOneHundred() {
-        assertArrayEqualsD(doubleArrayOf(1.0, 10.0, 100.0), EngineConstants.SPEEDS)
-        assertEquals(3, EngineConstants.SPEED_LABELS.size)
+    fun speedLadderIsExactlyOneTenSixtyNineAndOneHundred() {
+        assertArrayEqualsD(doubleArrayOf(1.0, 10.0, 69.0, 100.0), EngineConstants.SPEEDS)
+        assertEquals(4, EngineConstants.SPEED_LABELS.size)
         assertEquals(0, EngineConstants.DEFAULT_SPEED_INDEX)
+        // §4 — 69 means 69. Not 64, not 70, not "about seventy".
+        assertEquals(69.0, EngineConstants.SPEEDS[2], 0.0)
+        assertEquals("69x", EngineConstants.SPEED_LABELS[2])
+    }
+
+    @Test
+    fun noSpeedRungAnywhereIsSixteen() {
+        // §4 — the forbidden rung must not exist as a value, as a label, or as a substring of one.
+        for (v in EngineConstants.SPEEDS) assertNotEquals16(v)
+        for (label in EngineConstants.SPEED_LABELS) {
+            assertFalse("no 16x label may exist, found: $label", label.contains("16"))
+        }
+    }
+
+    private fun assertNotEquals16(v: Double) {
+        assertTrue("16x must not be a speed rung", abs(v - 16.0) > 1.0e-9)
     }
 
     @Test
     fun eachSpeedAdvancesSimulatedTimeProportionallyWithoutScalingDt() {
-        val elapsed = DoubleArray(3)
-        for (i in 0..2) {
+        val elapsed = DoubleArray(4)
+        for (i in 0..3) {
             val vm = vmWith(Preset.SUN_EARTH)
             vm.setSpeedIndex(i)
             if (vm.paused) vm.togglePlay()
@@ -305,14 +321,21 @@ class GravityUpgradeTest {
             assertTrue("simulated time must advance at ${EngineConstants.SPEEDS[i]}x", elapsed[i] > 0.0)
             assertFalse(elapsed[i].isNaN())
         }
+        // §4 — strictly monotonic in ACTUAL advancement over identical wall-clock intervals.
+        assertTrue("10x must beat 1x", elapsed[1] > elapsed[0])
+        assertTrue("69x must beat 10x", elapsed[2] > elapsed[1])
+        assertTrue("100x must beat 69x", elapsed[3] > elapsed[2])
+        // And the ratios must track the ladder, not merely be ordered. Substep quantisation and
+        // the per-frame budget make this approximate, hence the generous band.
         assertTrue(elapsed[1] > elapsed[0] * 5.0)
-        assertTrue(elapsed[2] > elapsed[1] * 5.0)
+        assertTrue(elapsed[2] / elapsed[0] > 30.0)
+        assertTrue(elapsed[3] / elapsed[0] > 45.0)
     }
 
     @Test
     fun hundredTimesSpeedProducesNoNaNOrTeleport() {
         val vm = vmWith(Preset.FULL_SOLAR_SYSTEM)
-        vm.setSpeedIndex(2)
+        vm.setSpeedIndex(3)
         if (vm.paused) vm.togglePlay()
         advance(vm, 120)
         for (i in 0 until vm.snapshot.n) {
@@ -701,6 +724,259 @@ class GravityUpgradeTest {
         val moved = abs(vm.snapshot.x[1] - x)
         // One frame of catch-up at most, never five seconds of it.
         assertTrue(moved < abs(x) * 0.05)
+    }
+
+
+    // ================= §9/§15 impact energy =============================================
+
+    /** Two bodies placed just outside contact, closing head-on at [closing] m/s. */
+    private fun headOnPair(m1: Double, m2: Double, r1: Double, r2: Double, closing: Double): SimArrays {
+        val s = SimArrays()
+        s.setMetersPerDp(mpd)
+        val a = s.add(BodyType.PLANET, m1, 10.0, -1.0e8, 0.0, closing * 0.5, 0.0)
+        val b = s.add(BodyType.PLANET, m2, 10.0, 1.0e8, 0.0, -closing * 0.5, 0.0)
+        // The collision radius is set explicitly so the energy assertions do not depend on the
+        // dp-to-metres mapping of the test viewport.
+        s.radius[a] = r1
+        s.radius[b] = r2
+        return s
+    }
+
+    @Test
+    fun impactEnergyUsesReducedMassNotTotalKineticEnergy() {
+        val m1 = 5.972e24
+        val m2 = 7.348e22
+        val closing = 4000.0
+        val s = headOnPair(m1, m2, 6.371e6, 1.737e6, closing)
+        val events = mutableListOf<SimEvent>()
+        Collision.emitImpact(s, 0, 1, events, merged = true)
+
+        val impact = events.filterIsInstance<SimEvent.CollisionImpact>().single()
+        val mu = m1 * m2 / (m1 + m2)
+        assertEquals("reduced mass", mu, impact.reducedMass, mu * 1.0e-9)
+        val expected = 0.5 * mu * closing * closing
+        assertEquals("E = 1/2 mu v_rel^2", expected, impact.impactEnergyJ, expected * 1.0e-9)
+
+        // And it must NOT be the naive total kinetic energy of the two bodies, which is dominated
+        // by the heavy body and would be wrong by orders of magnitude.
+        val naive = 0.5 * m1 * (closing * 0.5) * (closing * 0.5) + 0.5 * m2 * (closing * 0.5) * (closing * 0.5)
+        assertTrue("reduced-mass energy must differ from total KE", naive > impact.impactEnergyJ * 10.0)
+    }
+
+    @Test
+    fun impactEnergyIsSymmetricUnderBodyOrder() {
+        val a = headOnPair(3.0e24, 9.0e23, 5.0e6, 3.0e6, 2500.0)
+        val ea = mutableListOf<SimEvent>()
+        Collision.emitImpact(a, 0, 1, ea, merged = true)
+        val b = headOnPair(9.0e23, 3.0e24, 3.0e6, 5.0e6, 2500.0)
+        val eb = mutableListOf<SimEvent>()
+        Collision.emitImpact(b, 0, 1, eb, merged = true)
+        val ia = ea.filterIsInstance<SimEvent.CollisionImpact>().single()
+        val ib = eb.filterIsInstance<SimEvent.CollisionImpact>().single()
+        assertEquals(ia.impactEnergyJ, ib.impactEnergyJ, ia.impactEnergyJ * 1.0e-9)
+        assertEquals(ia.reducedMass, ib.reducedMass, ia.reducedMass * 1.0e-9)
+    }
+
+    @Test
+    fun impactEnergyScalesWithTheSquareOfRelativeSpeed() {
+        val slow = headOnPair(4.0e24, 4.0e24, 5.0e6, 5.0e6, 1000.0)
+        val fast = headOnPair(4.0e24, 4.0e24, 5.0e6, 5.0e6, 3000.0)
+        val es = mutableListOf<SimEvent>()
+        val ef = mutableListOf<SimEvent>()
+        Collision.emitImpact(slow, 0, 1, es, merged = true)
+        Collision.emitImpact(fast, 0, 1, ef, merged = true)
+        val a = es.filterIsInstance<SimEvent.CollisionImpact>().single().impactEnergyJ
+        val b = ef.filterIsInstance<SimEvent.CollisionImpact>().single().impactEnergyJ
+        assertEquals("tripling v_rel must multiply E by nine", 9.0, b / a, 1.0e-6)
+    }
+
+    @Test
+    fun aGentleTouchIsNeverClassifiedAsHighEnergy() {
+        // Two big bodies drifting into each other at walking pace: the escape speed of the pair is
+        // kilometres per second, so this must come out LOW, and the energy must be small.
+        val s = headOnPair(5.972e24, 5.972e24, 6.371e6, 6.371e6, 2.0)
+        val events = mutableListOf<SimEvent>()
+        Collision.emitImpact(s, 0, 1, events, merged = true)
+        val impact = events.filterIsInstance<SimEvent.CollisionImpact>().single()
+        assertEquals(ImpactTier.LOW, impact.tier)
+        assertTrue(impact.impactEnergyJ < 0.5 * impact.reducedMass * 9.0)
+    }
+
+    @Test
+    fun impactEnergyIsZeroWhenABodyIsMassless() {
+        val s = headOnPair(0.0, 5.0e24, 4.0e6, 6.0e6, 3000.0)
+        val events = mutableListOf<SimEvent>()
+        Collision.emitImpact(s, 0, 1, events, merged = true)
+        val impact = events.filterIsInstance<SimEvent.CollisionImpact>().single()
+        assertEquals(0.0, impact.reducedMass, 0.0)
+        assertEquals(0.0, impact.impactEnergyJ, 0.0)
+    }
+
+    @Test
+    fun collisionProducesAnExplanationWithTheRealNumbersInIt() {
+        val vm = vmWith(Preset.EMPTY_TABLE)
+        vm.arrays.add(BodyType.PLANET, EngineConstants.M_EARTH, 10.0, 0.0, 0.0, 0.0, 0.0)
+        vm.arrays.add(BodyType.PLANET, EngineConstants.M_EARTH, 10.0, 10.0 * mpd * 0.5, 0.0, -4.0e4, 0.0)
+        NBodyEngine.computeAccelerations(vm.arrays)
+        if (vm.paused) vm.togglePlay()
+        advance(vm, 4)
+
+        assertNotNull("a real collision must produce an explanation", vm.impactHeadlineEn)
+        assertNotNull(vm.impactHeadlineFa)
+        assertNotNull(vm.impactDetailEn)
+        assertNotNull(vm.impactDetailFa)
+        // The detail must carry actual measurements, not a canned sentence.
+        assertTrue("English detail must quote a speed", vm.impactDetailEn!!.contains("/s"))
+        assertTrue("English detail must quote an energy", vm.impactDetailEn!!.contains("J"))
+        assertTrue("Persian detail must be Persian", vm.impactDetailFa!!.contains("انرژی"))
+    }
+
+    // ================= §13/§14 ghost trajectory =========================================
+
+    @Test
+    fun draggingProducesAGhostPathThatUpdatesWithTheFinger() {
+        val vm = vmWith(Preset.SUN_EARTH)
+        val id = vm.snapshot.id[1]
+        vm.select(id)
+        advance(vm, 2)
+
+        vm.beginDrag(id)
+        vm.dragTo(1.6e11, 0.0)
+        assertTrue("dragging must show a ghost", vm.predictionIsGhost)
+        assertTrue("the ghost must have points", vm.predictionCount > 1)
+        val firstX = vm.predictionXY[0]
+        val firstEndX = vm.predictionXY[(vm.predictionCount - 1) * 2]
+
+        vm.dragTo(-2.4e11, 1.0e11)
+        assertTrue(vm.predictionIsGhost)
+        assertTrue(vm.predictionCount > 1)
+        val secondX = vm.predictionXY[0]
+        val secondEndX = vm.predictionXY[(vm.predictionCount - 1) * 2]
+
+        assertTrue("the ghost must follow the finger", abs(secondX - firstX) > 1.0e10)
+        assertTrue("the whole path must be recomputed", abs(secondEndX - firstEndX) > 1.0e9)
+        vm.endDrag()
+        assertFalse("releasing must clear the ghost", vm.predictionIsGhost)
+    }
+
+    @Test
+    fun theGhostUpdatesEvenWhileTheTableIsPaused() {
+        val vm = vmWith(Preset.SUN_EARTH)
+        val id = vm.snapshot.id[1]
+        vm.select(id)
+        if (!vm.paused) vm.togglePlay()
+        assertTrue(vm.paused)
+
+        vm.beginDrag(id)
+        vm.dragTo(1.3e11, 2.0e10)
+        val a = vm.predictionXY.copyOf(vm.predictionCount * 2)
+        vm.dragTo(2.6e11, 9.0e10)
+        val b = vm.predictionXY.copyOf(vm.predictionCount * 2)
+        assertFalse("a paused ghost must still refresh", a.contentEquals(b))
+        vm.endDrag()
+    }
+
+    @Test
+    fun theGhostNeverMutatesVelocityOrMassAndReleaseCommitsPositionOnly() {
+        val vm = vmWith(Preset.SUN_EARTH)
+        val id = vm.snapshot.id[1]
+        val slot = vm.arrays.slotOfId(id)
+        val vx0 = vm.arrays.vx[slot]
+        val vy0 = vm.arrays.vy[slot]
+        val m0 = vm.arrays.mass[slot]
+        val r0 = vm.arrays.radius[slot]
+
+        vm.select(id)
+        vm.beginDrag(id)
+        repeat(12) { k -> vm.dragTo(1.0e11 + k * 2.0e10, k * 1.0e10) }
+        // Mid-preview: nothing but position may have moved.
+        assertEquals(vx0, vm.arrays.vx[slot], 0.0)
+        assertEquals(vy0, vm.arrays.vy[slot], 0.0)
+        assertEquals(m0, vm.arrays.mass[slot], 0.0)
+        vm.endDrag()
+
+        assertEquals("velocity x must survive the drag exactly", vx0, vm.arrays.vx[slot], 0.0)
+        assertEquals("velocity y must survive the drag exactly", vy0, vm.arrays.vy[slot], 0.0)
+        assertEquals("mass must survive the drag exactly", m0, vm.arrays.mass[slot], 0.0)
+        assertEquals("radius must survive the drag exactly", r0, vm.arrays.radius[slot], 0.0)
+        assertEquals("position is the one thing that commits", 1.0e11 + 11 * 2.0e10, vm.arrays.x[slot], 1.0)
+    }
+
+    @Test
+    fun aSoftCollisionIsNotDescribedAsHighEnergy() {
+        // §15 — the card must never default to "high energy". Two Earth-mass bodies drifting
+        // together at 5 m/s are far below their mutual escape speed and must read as soft.
+        val vm = vmWith(Preset.EMPTY_TABLE)
+        vm.arrays.add(BodyType.PLANET, EngineConstants.M_EARTH, 10.0, 0.0, 0.0, 0.0, 0.0)
+        vm.arrays.add(BodyType.PLANET, EngineConstants.M_EARTH, 10.0, 10.0 * mpd * 0.999, 0.0, -5.0, 0.0)
+        NBodyEngine.computeAccelerations(vm.arrays)
+        if (vm.paused) vm.togglePlay()
+        advance(vm, 4)
+
+        val headline = vm.impactHeadlineEn
+        if (headline != null) {
+            assertFalse("a gentle contact must not read as a catastrophe", headline.contains("High"))
+        }
+    }
+
+    @Test
+    fun theGhostFlagsAnEscapingPreview() {
+        val vm = vmWith(Preset.SUN_EARTH)
+        val id = vm.snapshot.id[1]
+        vm.select(id)
+        vm.beginDrag(id)
+        // Earth keeps its 29.78 km/s velocity but is dragged far out, where that speed is well
+        // above the local escape speed: the preview must say so.
+        // At 4e12 m the Sun's escape speed is ~8.1 km/s; Earth is carrying 29.78 km/s, so the
+        // previewed orbit there is unmistakably hyperbolic.
+        vm.dragTo(4.0e12, 0.0)
+        val escaping = vm.predictionEscapes
+        // Back at 1 AU the same velocity is the circular speed, so the orbit is bound.
+        vm.dragTo(1.496e11, 0.0)
+        val bound = vm.predictionEscapes
+        vm.endDrag()
+        assertTrue("an unbound preview must be flagged", escaping)
+        assertFalse("a bound preview must not be flagged", bound)
+    }
+
+    @Test
+    fun theGhostIsNotShownWhenNothingIsBeingDragged() {
+        val vm = vmWith(Preset.SUN_EARTH)
+        vm.select(vm.snapshot.id[1])
+        advance(vm, 12)
+        assertFalse("a selected but undragged body shows the ordinary prediction", vm.predictionIsGhost)
+    }
+
+    // ================= §5 language ======================================================
+
+    @Test
+    fun theSandboxHasNoLanguageOfItsOwn() {
+        val vm = vmWith(Preset.SUN_EARTH)
+        vm.applyHostLanguage(false)
+        assertFalse(vm.persian)
+        vm.applyHostLanguage(true)
+        assertTrue(vm.persian)
+        // Idempotent: pushing the same locale twice changes nothing.
+        vm.applyHostLanguage(true)
+        assertTrue(vm.persian)
+    }
+
+    @Test
+    fun aRestoredSessionCannotResurrectAStaleSandboxLanguage() {
+        val saved = vmWith(Preset.SUN_EARTH)
+        saved.applyHostLanguage(false)
+        advance(saved, 5)
+        val blob = saved.serialize()
+
+        val fresh = SimulationViewModel()
+        fresh.onViewportChanged(400.0)
+        fresh.onViewportSizePx(1080f, 2000f)
+        fresh.applyHostLanguage(true)
+        assertTrue(fresh.restore(blob))
+        // The restore must not have reached in and set the language back to the saved one.
+        assertTrue("restore must leave the host locale alone", fresh.persian)
+        fresh.applyHostLanguage(false)
+        assertFalse(fresh.persian)
     }
 
     private fun assertArrayEqualsD(expected: DoubleArray, actual: DoubleArray) {

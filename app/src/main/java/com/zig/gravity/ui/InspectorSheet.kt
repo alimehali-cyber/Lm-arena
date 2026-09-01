@@ -3,6 +3,8 @@ package com.zig.gravity.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -92,12 +95,21 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
         contentColor = c.onSurface,
         modifier = Modifier.testTag("inspector_sheet")
     ) {
+        // §16 ROOT CAUSE FIX. This was a plain Column with no scroll modifier, so everything past
+        // the fold was simply unreachable: the content was measured, laid out, and clipped by the
+        // sheet. It now scrolls, keeps clear of the keyboard (imePadding) and of the system
+        // navigation area (navigationBarsPadding), and ends with a spacer so the very last control
+        // can always be scrolled fully clear of the gesture strip.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 12.dp)
-                .navigationBarsPadding(),
+                .imePadding()
+                .navigationBarsPadding()
+                .testTag("inspector_scroll"),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // ---- header ---------------------------------------------------------------------
@@ -334,7 +346,8 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
                     fontSize = 11.sp
                 )
             }
-            Spacer(Modifier.height(4.dp))
+            // Reach clearance so the bottom-most control clears the gesture strip.
+            Spacer(Modifier.height(48.dp))
         }
     }
 }

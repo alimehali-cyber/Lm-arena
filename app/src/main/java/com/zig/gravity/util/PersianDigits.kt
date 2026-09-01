@@ -66,6 +66,20 @@ object SandboxFormat {
         return PersianDigits.localize(body, persian)
     }
 
+    /** Energy in joules, in scientific notation once it leaves everyday range (§15). */
+    fun joules(energyJ: Double, persian: Boolean): String {
+        if (energyJ <= 0.0) return if (persian) "۰ ژول" else "0 J"
+        if (energyJ < 1.0e4) {
+            val body = fixed(energyJ, 1, persian)
+            return if (persian) "$body ژول" else "$body J"
+        }
+        val exp = Math.floor(Math.log10(energyJ)).toInt()
+        val mantissa = energyJ / Math.pow(10.0, exp.toDouble())
+        val body = String.format(java.util.Locale.US, "%.2f×10^%d", mantissa, exp)
+        val localized = PersianDigits.localize(body, persian)
+        return if (persian) "$localized ژول" else "$localized J"
+    }
+
     /** Speed in km/s with a m/s fallback for very slow bodies. */
     fun speed(metersPerSecond: Double, persian: Boolean): String = if (metersPerSecond >= 1000.0) {
         val body = fixed(metersPerSecond / 1000.0, 2, persian)

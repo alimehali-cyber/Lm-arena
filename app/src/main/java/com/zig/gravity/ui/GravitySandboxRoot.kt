@@ -69,6 +69,8 @@ import kotlin.math.PI
 import androidx.compose.material.icons.filled.Public
 import com.zig.gravity.sim.CameraState
 import com.zig.gravity.util.SandboxFormat
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.foundation.layout.height
 
 private const val PREFS_NAME = "zig_gravity_sandbox"
 private const val PREFS_KEY = "session_v1"
@@ -105,6 +107,13 @@ fun GravitySandboxRoot(
             if (!restored) vm.applyHostDefaults(persian = startInPersian, dark = startInDarkTheme)
             vm.markRestoreAttempted()
         }
+    }
+
+    // The sandbox has no language of its own. ZIG's locale is the single source of truth, pushed in
+    // on every entry and again whenever the app's language changes underneath us, so a restored
+    // session can never resurrect a stale sandbox-local language.
+    LaunchedEffect(startInPersian) {
+        vm.applyHostLanguage(startInPersian)
     }
 
     // ---- the host shell hides its bottom navigation while the sandbox owns the screen -----------
@@ -615,13 +624,42 @@ fun GravitySandboxRoot(
                     onToggleTrails = vm::toggleTrails,
                     onToggleTeaching = vm::toggleTeaching,
                     onToggleTheme = vm::toggleTheme,
-                    onToggleLanguage = vm::toggleLanguage,
-                    onAdd = {
-                        addAtScene = null
-                        showAdd = true
-                    },
                     cameraPanelOpen = showCameraPanel,
                     onToggleCameraPanel = { showCameraPanel = !showCameraPanel }
+                )
+            }
+
+            // §6 — the primary creative action of the whole screen. A 64 dp target with a clear
+            // label, sitting above the HUD row so it never overlaps the system gesture area and
+            // never covers the tabletop.
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(bottom = 84.dp, end = 16.dp)
+                    .height(64.dp)
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(c.accent.copy(alpha = if (c.isDark) 0.20f else 0.14f))
+                    .border(1.5.dp, c.accent.copy(alpha = 0.65f), RoundedCornerShape(32.dp))
+                    .clickableTag("hud_add") {
+                        addAtScene = null
+                        showAdd = true
+                    }
+                    .padding(horizontal = 22.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = if (fa) "افزودن جسم" else "Add body",
+                    tint = c.accent,
+                    modifier = Modifier.size(30.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = if (fa) "افزودن" else "Add",
+                    color = c.accent,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
 

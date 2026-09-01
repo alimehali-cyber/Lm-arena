@@ -19,6 +19,8 @@ import com.zig.gravity.physics.Predictor
 import com.zig.gravity.physics.SimArrays
 import com.zig.gravity.physics.SimEvent
 import com.zig.gravity.physics.Wormhole
+import com.zig.gravity.util.SandboxFormat
+import kotlin.math.hypot
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.min
@@ -157,6 +159,27 @@ class SimulationViewModel : ViewModel() {
     var predictionCount: Int = 0
         private set
     var predictionApproximate: Boolean = false
+
+    /**
+     * §13/§14 — true while the displayed prediction is a *preview* of a drag rather than the
+     * committed path. The renderer draws it in the ghost style, and the origin marker with it.
+     */
+    var predictionIsGhost: Boolean = false
+        private set
+
+    /** §14 — the previewed path leaves the neighbourhood instead of coming back around. */
+    var predictionEscapes: Boolean = false
+        private set
+
+    /** §15 — headline/detail for the last meaningful impact, with the real numbers in them. */
+    var impactHeadlineFa: String? = null
+        private set
+    var impactHeadlineEn: String? = null
+        private set
+    var impactDetailFa: String? = null
+        private set
+    var impactDetailEn: String? = null
+        private set
         private set
     private var predictionDirty = true
 
@@ -183,6 +206,21 @@ class SimulationViewModel : ViewModel() {
     }
 
     /** Seeds language/theme from the host app the first time the sandbox opens. */
+    /**
+     * Pushes the host application's language into the sandbox. Called on every entry, before and
+     * after any restore, so the sandbox can never disagree with the rest of ZIG.
+     */
+    /**
+     * §5 — the single entry point for the sandbox's language.
+     *
+     * There is no language selector in the sandbox and no second locale system: the host app's
+     * locale is the only source of truth, and it is re-applied on every entry and on every host
+     * locale change, including for restored sessions.
+     */
+    fun applyHostLanguage(persianFromApp: Boolean) {
+        if (persian != persianFromApp) persian = persianFromApp
+    }
+
     fun applyHostDefaults(persian: Boolean, dark: Boolean) {
         this.persian = persian
         this.darkTheme = dark
@@ -335,6 +373,7 @@ class SimulationViewModel : ViewModel() {
                             ImpactTier.HIGH -> HapticCue.HEAVY
                         }
                     )
+                    describeImpact(e)
                     if (teachingEnabled) {
                         teachingConcept = SimulationDetectors.IMPACT_ENERGY
                         _teachingTier = TeachingTier.WHAT
@@ -364,6 +403,47 @@ class SimulationViewModel : ViewModel() {
                 }
 
                 else -> Unit
+            }
+        }
+    }
+
+    /**
+     * §15 — turns a real collision into a short, honest sentence with the real numbers in it.
+     *
+     * The headline is the classification the physics actually produced; the detail carries the
+     * relative speed and the centre-of-mass impact energy. Nothing here is canned: a gentle touch
+     * never reads as a catastrophe.
+     */
+    private fun describeImpact(e: SimEvent.CollisionImpact) {
+        val speedFa = SandboxFormat.speed(e.relativeSpeed, true)
+        val speedEn = SandboxFormat.speed(e.relativeSpeed, false)
+        val energyFa = SandboxFormat.joules(e.impactEnergyJ, true)
+        val energyEn = SandboxFormat.joules(e.impactEnergyJ, false)
+
+        when (e.tier) {
+            ImpactTier.LOW -> {
+                impactHeadlineFa = "برخورد آرام"
+                impactHeadlineEn = "Soft collision"
+                impactDetailFa = "سرعت نسبی: $speedFa · انرژی برخورد: $energyFa\n" +
+                        "دو جسم نسبت به هم کند حرکت می‌کردند، پس گرانش خودشان توانست آن‌ها را کنار هم نگه دارد."
+                impactDetailEn = "Relative speed: $speedEn · Impact energy: $energyEn\n" +
+                        "They were moving slowly relative to each other, so their own gravity was able to hold them together."
+            }
+            ImpactTier.MODERATE -> {
+                impactHeadlineFa = "برخورد متوسط"
+                impactHeadlineEn = "Moderate collision"
+                impactDetailFa = "سرعت نسبی: $speedFa · انرژی برخورد: $energyFa\n" +
+                        "سرعت نزدیک‌شدن از سرعت گریز این جفت بیشتر بود، پس برخورد محسوس است اما ویرانگر نیست."
+                impactDetailEn = "Relative speed: $speedEn · Impact energy: $energyEn\n" +
+                        "The closing speed was above this pair's escape speed, so the impact is noticeable but not destructive."
+            }
+            ImpactTier.HIGH -> {
+                impactHeadlineFa = "برخورد پرانرژی"
+                impactHeadlineEn = "High-energy collision"
+                impactDetailFa = "سرعت نسبی: $speedFa · انرژی برخورد: $energyFa\n" +
+                        "دو جسم خیلی سریع به هم رسیدند. انرژی جنبشی نسبی‌شان چند برابر چیزی بود که گرانش می‌توانست مهار کند."
+                impactDetailEn = "Relative speed: $speedEn · Impact energy: $energyEn\n" +
+                        "They met very fast. Their relative kinetic energy was several times more than their gravity could contain."
             }
         }
     }
@@ -413,10 +493,6 @@ class SimulationViewModel : ViewModel() {
 
     fun toggleTheme() {
         darkTheme = !darkTheme
-    }
-
-    fun toggleLanguage() {
-        persian = !persian
     }
 
     fun setMarbleBounce(enabled: Boolean) {
@@ -841,6 +917,9 @@ class SimulationViewModel : ViewModel() {
         if (slot < 0) return
         arrays.x[slot] = sceneX
         arrays.y[slot] = sceneY
+        // §13 — the ghost path is recomputed on every move, including while the table is paused,
+        // so the answer to "what happens if I put it HERE?" is always on screen.
+        recomputePrediction()
         // Forces are recomputed on every drag update so a release never uses stale acceleration.
         afterMutation()
     }
@@ -866,6 +945,7 @@ class SimulationViewModel : ViewModel() {
         // The trail before the jump describes a path the body never took from here.
         arrays.trails[slot].clear()
         draggingId = 0L
+        predictionIsGhost = false
         if (teachingEnabled) {
             teachingConcept = SimulationDetectors.POSITION_MOVED
             _teachingTier = TeachingTier.WHAT
@@ -884,6 +964,7 @@ class SimulationViewModel : ViewModel() {
             arrays.vy[slot] = dragHeldVy
         }
         draggingId = 0L
+        predictionIsGhost = false
         afterMutation()
     }
 
@@ -965,11 +1046,19 @@ class SimulationViewModel : ViewModel() {
      * and, while running, at ~10 Hz.
      */
     private fun recomputePrediction() {
-        val targetId = if (slingshotArmedId != 0L) slingshotArmedId else selectedId
+        // §13 — a finger on a body outranks everything else: while dragging, the path shown is
+        // always the path of the body being dragged, whether or not it happens to be selected.
+        val targetId = when {
+            draggingId != 0L -> draggingId
+            slingshotArmedId != 0L -> slingshotArmedId
+            else -> selectedId
+        }
         val slot = arrays.slotOfId(targetId)
         if (slot < 0) {
             predictionCount = 0
             predictionApproximate = false
+            predictionIsGhost = false
+            predictionEscapes = false
             return
         }
         val vx: Double
@@ -994,6 +1083,32 @@ class SimulationViewModel : ViewModel() {
             maxSamples = maxPredictionSamples
         )
         predictionApproximate = Predictor.isApproximate(arrays, arrays.mass[slot])
+        // A drag preview is a ghost: same body, same velocity, same mass, different position.
+        predictionIsGhost = draggingId != 0L && targetId == draggingId
+        predictionEscapes = previewIsUnbound(slot, vx, vy)
+    }
+
+    /**
+     * §14 — will the previewed body come back, or is it leaving for good?
+     *
+     * This is the specific orbital energy relative to the system's dominant attractor,
+     * `e = v_rel^2 / 2 - G*M/r`. Positive means the two-body orbit is unbound. That is an exact
+     * criterion rather than a guess made by eyeballing the end of the sampled path, which is what
+     * matters here: the prediction window is only a few hundred steps long, so a body on a clearly
+     * hyperbolic path that starts far out would barely move within it and would be misread as
+     * bound. The dominant attractor is used because a preview only has to answer "does this stay
+     * in the system?", and in every preset one mass overwhelmingly sets that answer.
+     */
+    private fun previewIsUnbound(slot: Int, vxPreview: Double, vyPreview: Double): Boolean {
+        if (predictionCount < 2) return false
+        val anchor = arrays.dominantAttractor(exceptSlot = slot)
+        if (anchor < 0 || arrays.mass[anchor] <= 0.0) return false
+        val r = hypot(arrays.x[slot] - arrays.x[anchor], arrays.y[slot] - arrays.y[anchor])
+        if (r <= 0.0) return false
+        val rvx = vxPreview - arrays.vx[anchor]
+        val rvy = vyPreview - arrays.vy[anchor]
+        val energy = 0.5 * (rvx * rvx + rvy * rvy) - EngineConstants.G * arrays.mass[anchor] / r
+        return energy > 0.0
     }
 
     // ==== teaching / challenges ==============================================================================
@@ -1058,7 +1173,9 @@ class SimulationViewModel : ViewModel() {
         trailsVisible = session.trailsVisible
         teachingEnabled = session.teachingEnabled
         darkTheme = session.darkTheme
-        persian = session.persian
+        // §5 — deliberately NOT restoring session.persian. The sandbox has no language of its own;
+        // the host app's locale is pushed in by applyHostLanguage on every entry, so a session
+        // saved months ago in the other language can never override the app the user is holding.
         _marbleBounce = session.marbleBounce
         selectedId = session.selectedId
         // Reset must still return to the pristine preset, not to the restored mid-experiment state.

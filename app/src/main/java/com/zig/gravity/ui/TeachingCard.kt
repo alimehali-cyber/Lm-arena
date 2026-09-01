@@ -40,6 +40,7 @@ import com.zig.gravity.edu.Challenges
 import com.zig.gravity.edu.Glossary
 import com.zig.gravity.edu.TeachingCatalog
 import com.zig.gravity.edu.TeachingTier
+import com.zig.gravity.edu.detectors.SimulationDetectors
 import com.zig.gravity.sim.SimulationViewModel
 import com.zig.gravity.ui.theme.LocalGravityColors
 
@@ -74,8 +75,13 @@ fun TeachingCardView(vm: SimulationViewModel, modifier: Modifier = Modifier) {
                     .background(c.accent)
             )
             Spacer(Modifier.width(8.dp))
+            val impactHeadline = if (concept == SimulationDetectors.IMPACT_ENERGY) {
+                if (fa) vm.impactHeadlineFa else vm.impactHeadlineEn
+            } else {
+                null
+            }
             Text(
-                text = if (fa) card.titleFa else card.titleEn,
+                text = impactHeadline ?: (if (fa) card.titleFa else card.titleEn),
                 color = c.onSurface,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -92,12 +98,30 @@ fun TeachingCardView(vm: SimulationViewModel, modifier: Modifier = Modifier) {
             }
         }
 
-        Text(
-            text = TeachingCatalog.text(card, tier, fa),
-            color = c.onSurface.copy(alpha = 0.92f),
-            fontSize = 13.sp,
-            lineHeight = 20.sp
-        )
+        // §15 — when the card is about an impact, the real numbers from the real collision are
+        // shown first, then the plain-language explanation. Progressive disclosure: headline in the
+        // title, one sentence here, the general physics under the WHY/MORE tiers.
+        val impactDetail = if (concept == SimulationDetectors.IMPACT_ENERGY) {
+            if (fa) vm.impactDetailFa else vm.impactDetailEn
+        } else {
+            null
+        }
+        if (impactDetail != null && tier == TeachingTier.WHAT) {
+            Text(
+                text = impactDetail,
+                color = c.onSurface.copy(alpha = 0.92f),
+                fontSize = 13.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.testTag("impact_explanation")
+            )
+        } else {
+            Text(
+                text = TeachingCatalog.text(card, tier, fa),
+                color = c.onSurface.copy(alpha = 0.92f),
+                fontSize = 13.sp,
+                lineHeight = 20.sp
+            )
+        }
 
         if (tier == TeachingTier.MORE && card.formula != null) {
             Text(text = card.formula, color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.Medium)

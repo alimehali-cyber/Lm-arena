@@ -93,8 +93,8 @@ object EngineConstants {
      * 165-year orbit down to ~52 s, which is what makes the full Solar System watchable. Each rung
      * is delivered by running more fixed DT substeps, so the integrator's stability is unchanged.
      */
-    val SPEEDS: DoubleArray = doubleArrayOf(1.0, 10.0, 100.0)
-    val SPEED_LABELS: Array<String> = arrayOf("1x", "10x", "100x")
+    val SPEEDS: DoubleArray = doubleArrayOf(1.0, 10.0, 69.0, 100.0)
+    val SPEED_LABELS: Array<String> = arrayOf("1x", "10x", "69x", "100x")
     const val DEFAULT_SPEED_INDEX: Int = 0
 
     /** Simulated seconds the engine can deliver in one real second at [MAX_SUBSTEPS] and 60 fps. */

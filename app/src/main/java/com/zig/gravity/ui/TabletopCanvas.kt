@@ -68,6 +68,9 @@ private class SceneCache(capacity: Int) {
     var strokeTrailOld: Stroke = Stroke(width = 1f)
     var strokeTrailNew: Stroke = Stroke(width = 1f)
     var strokePrediction: Stroke = Stroke(width = 1f)
+
+    /** §14 — the drag preview: thinner and dotted, so it reads as "not yet real". */
+    var strokeGhost: Stroke = Stroke(width = 1f)
     var strokeRim: Stroke = Stroke(width = 1f)
     var strokeSelection: Stroke = Stroke(width = 1f)
     var strokeRing: Stroke = Stroke(width = 1f)
@@ -128,6 +131,11 @@ fun TabletopCanvas(
                 width = 1.6.dp.toPx(),
                 cap = StrokeCap.Round,
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 9.dp.toPx()), 0f)
+            )
+            cache.strokeGhost = Stroke(
+                width = 1.2.dp.toPx(),
+                cap = StrokeCap.Round,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(1.5.dp.toPx(), 5.dp.toPx()), 0f)
             )
             cache.strokeRim = Stroke(width = 1.dp.toPx())
             cache.strokeSelection = Stroke(width = 1.5.dp.toPx())
@@ -249,7 +257,13 @@ private fun DrawScope.drawScene(
     }
 
     // ---- 2. predicted trajectory (test-particle, never mutates the simulation) ---------------
+    //
+    // §13/§14 — while a body is being dragged this same path becomes the GHOST: the answer to
+    // "if I let go here, what happens next?". It is drawn fainter and dotted rather than dashed so
+    // it can never be confused with the solid historical trail, and it is tinted when the previewed
+    // path escapes the neighbourhood instead of coming back around.
     val predCount = vm.predictionCount
+    val ghost = vm.predictionIsGhost
     if (predCount > 1) {
         val path = cache.prediction
         path.rewind()
@@ -260,7 +274,39 @@ private fun DrawScope.drawScene(
             val py = sy(qx, qy)
             if (p == 0) path.moveTo(px, py) else path.lineTo(px, py)
         }
-        drawPath(path = path, color = colors.prediction, style = cache.strokePrediction)
+        val tone = when {
+            ghost && vm.predictionEscapes -> colors.acceleration.copy(alpha = 0.75f)
+            ghost -> colors.prediction.copy(alpha = 0.55f)
+            else -> colors.prediction
+        }
+        drawPath(
+            path = path,
+            color = tone,
+            style = if (ghost) cache.strokeGhost else cache.strokePrediction
+        )
+    }
+
+    // ---- 2b. §13 the origin marker: where the body was before the finger picked it up ----------
+    if (ghost) {
+        val ox = sx(vm.dragOriginX, vm.dragOriginY)
+        val oy = sy(vm.dragOriginX, vm.dragOriginY)
+        val slot = snap.slotOfId(vm.draggingId)
+        if (slot >= 0) {
+            val r = (cache.radiusPx[slot] * displayScale).coerceAtLeast(minDrawPx)
+            drawCircle(
+                color = colors.onSurfaceDim.copy(alpha = 0.35f),
+                radius = r,
+                center = Offset(ox, oy),
+                style = cache.strokeGhost
+            )
+            drawLine(
+                color = colors.onSurfaceDim.copy(alpha = 0.22f),
+                start = Offset(ox, oy),
+                end = Offset(sx(snap.x[slot], snap.y[slot]), sy(snap.x[slot], snap.y[slot])),
+                strokeWidth = cache.lineThin,
+                pathEffect = dashEffect
+            )
+        }
     }
 
     // ---- 3. bodies ---------------------------------------------------------------------------
@@ -436,12 +482,36 @@ private fun DrawScope.drawScene(
         val pc = fx.particleCount[e]
         if (pc > 0) {
             val alpha = fade * fade
+            val accretion = kind == EffectKind.ACCRETION
             for (p in 0 until pc) {
                 val idx = fx.particleIndex(e, p)
                 val dx = sx(fx.pxArr[idx], fx.pyArr[idx])
                 val dy = sy(fx.pxArr[idx], fx.pyArr[idx])
                 val size = (fx.pSize[idx] * cam.pxPerMeter(w)).toFloat() * (1f - 0.55f * t)
                 if (size <= 0.2f) continue
+
+                if (accretion) {
+                    // §12 — tidal stretching. Each fragment is drawn as a streak pointing at the
+                    // hole, and the streak lengthens as it falls in, because the near side is
+                    // pulled harder than the far side. It also reddens and dims on the way down.
+                    var vx = ox - dx
+                    var vy = oy - dy
+                    val len = kotlin.math.sqrt(vx * vx + vy * vy)
+                    if (len > 0.001f) {
+                        vx /= len
+                        vy /= len
+                        val stretch = size * (1.5f + 6.0f * ease)
+                        val redshift = lerp(tone, colors.acceleration, 0.25f + 0.55f * ease)
+                        drawLine(
+                            color = redshift.copy(alpha = alpha),
+                            start = Offset(dx - vx * stretch * 0.35f, dy - vy * stretch * 0.35f),
+                            end = Offset(dx + vx * stretch * 0.65f, dy + vy * stretch * 0.65f),
+                            strokeWidth = size * 1.1f,
+                            cap = StrokeCap.Round
+                        )
+                        continue
+                    }
+                }
                 drawCircle(tone.copy(alpha = alpha), size, Offset(dx, dy))
             }
         }

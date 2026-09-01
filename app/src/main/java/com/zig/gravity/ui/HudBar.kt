@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Timeline
-import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,8 +53,6 @@ fun HudBar(
     onToggleTrails: () -> Unit,
     onToggleTeaching: () -> Unit,
     onToggleTheme: () -> Unit,
-    onToggleLanguage: () -> Unit,
-    onAdd: () -> Unit,
     cameraPanelOpen: Boolean = false,
     onToggleCameraPanel: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -117,7 +114,6 @@ fun HudBar(
             tag = "hud_theme",
             onClick = onToggleTheme
         )
-        HudIcon(Icons.Filled.Translate, false, if (persian) "زبان" else "Language", "hud_language", onToggleLanguage)
         HudIcon(
             icon = Icons.Filled.CenterFocusStrong,
             active = cameraPanelOpen,
@@ -125,7 +121,6 @@ fun HudBar(
             tag = "hud_camera",
             onClick = onToggleCameraPanel
         )
-        HudIcon(Icons.Filled.Add, false, if (persian) "افزودن جسم" else "Add body", "hud_add", onAdd, emphasised = true)
     }
 }
 

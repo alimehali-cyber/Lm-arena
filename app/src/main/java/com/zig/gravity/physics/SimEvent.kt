@@ -45,7 +45,11 @@ sealed class SimEvent {
         val mutualEscapeSpeed: Double,
         val contactRadius: Double,
         val tier: ImpactTier,
-        val merged: Boolean
+        val merged: Boolean,
+        /** Reduced mass mu = m1*m2/(m1+m2), kg. Zero when either body is massless. */
+        val reducedMass: Double = 0.0,
+        /** Impact energy in the centre-of-mass frame: E = 1/2 * mu * v_rel^2, joules. */
+        val impactEnergyJ: Double = 0.0
     ) : SimEvent()
 
     data class BodyBounced(

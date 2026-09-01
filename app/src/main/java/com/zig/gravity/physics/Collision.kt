@@ -121,6 +121,13 @@ object Collision {
 
         val contact = s.radius[i] + s.radius[j]
         val mSum = s.mass[i] + s.mass[j]
+
+        // §9 — the energy that is actually available to the impact is the kinetic energy in the
+        // pair's centre-of-mass frame, which uses the REDUCED mass and the RELATIVE velocity. The
+        // total kinetic energy of the two bodies would be wrong: most of it is the shared drift of
+        // the pair, which no collision can feel.
+        val mu = if (mSum > 0.0) s.mass[i] * s.mass[j] / mSum else 0.0
+        val impactEnergy = 0.5 * mu * relSpeed * relSpeed
         val vEsc = if (mSum > 0.0 && contact > 0.0) {
             sqrt(2.0 * EngineConstants.G * mSum / contact)
         } else {
@@ -138,7 +145,9 @@ object Collision {
                 mutualEscapeSpeed = vEsc,
                 contactRadius = contact,
                 tier = ImpactTier.of(relSpeed, vEsc),
-                merged = merged
+                merged = merged,
+                reducedMass = mu,
+                impactEnergyJ = impactEnergy
             )
         )
     }
