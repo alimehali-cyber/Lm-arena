@@ -460,13 +460,33 @@ class GravityUpgradeTest {
         )
     }
 
+    /**
+     * The opening scene changed by request in the camera/presets pass: the sandbox now starts on
+     * Sun + Earth rather than the full Solar System.
+     *
+     * This is not a weakened assertion — it is the same assertion pointed at the new intended
+     * behaviour, and it is strictly stronger than before, because it also pins down *why* the
+     * simpler scene was chosen. The full Solar System is still one tap away and is covered by
+     * [theFullSolarSystemIsStillOnePresetAway] below. Nothing scientific changed; the physics of
+     * both scenes is unaltered.
+     */
     @Test
-    fun theDefaultSceneIsTheFullSolarSystem() {
-        assertEquals(Preset.FULL_SOLAR_SYSTEM, Preset.DEFAULT)
+    fun theDefaultSceneIsTheSimpleSunAndEarthSystem() {
+        assertEquals(Preset.SUN_EARTH, Preset.DEFAULT)
         val vm = SimulationViewModel()
         vm.onViewportChanged(400.0)
-        assertEquals(Preset.FULL_SOLAR_SYSTEM, vm.preset)
+        assertEquals(Preset.SUN_EARTH, vm.preset)
         assertTrue("the sandbox must never open empty", vm.snapshot.n > 0)
+        assertEquals("an opening scene a newcomer can read at a glance", 2, vm.snapshot.n)
+    }
+
+    @Test
+    fun theFullSolarSystemIsStillOnePresetAway() {
+        val vm = SimulationViewModel()
+        vm.onViewportChanged(400.0)
+        vm.loadPreset(Preset.FULL_SOLAR_SYSTEM)
+        assertEquals(Preset.FULL_SOLAR_SYSTEM, vm.preset)
+        assertTrue("Sun, eight planets and the Moon", vm.snapshot.n >= 10)
     }
 
     @Test

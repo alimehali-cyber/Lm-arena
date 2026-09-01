@@ -259,23 +259,19 @@ class GravityCameraFollowTest {
     @Test
     fun followIsSmoothAndNeverTeleports() {
         val vm = vmWith(Preset.SUN_EARTH)
-        val earth = vm.snapshot.id[1]
         vm.camera.setPan(-3.0e11, 3.0e11)
-        val startGap = hypot(
-            vm.camera.panX - vm.arrays.x[1],
-            vm.camera.panY - vm.arrays.y[1]
-        )
-        vm.startFollow(earth)
         if (vm.paused) vm.togglePlay()
+        // The first frame only establishes the clock (there is no previous frame to measure
+        // against), so prime it before following; otherwise this would measure a zero-length tick.
+        advance(vm, 1)
 
-        // The very first frame must move the camera part of the way, not all of it.
-        clock += (frame * 1.0e9).toLong()
-        vm.onFrame(clock)
-        val gapAfterOne = hypot(
-            vm.camera.panX - vm.arrays.x[1],
-            vm.camera.panY - vm.arrays.y[1]
-        )
-        assertTrue("must actually approach", gapAfterOne < startGap)
+        val startGap = hypot(vm.camera.panX - vm.arrays.x[1], vm.camera.panY - vm.arrays.y[1])
+        vm.startFollow(vm.snapshot.id[1])
+
+        advance(vm, 1)
+        val gapAfterOne = hypot(vm.camera.panX - vm.arrays.x[1], vm.camera.panY - vm.arrays.y[1])
+
+        assertTrue("one frame must actually approach the target", gapAfterOne < startGap)
         assertTrue("must not snap the whole way in one frame", gapAfterOne > startGap * 0.02)
     }
 
