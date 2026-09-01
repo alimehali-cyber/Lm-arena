@@ -1,0 +1,192 @@
+package com.zig.gravity.edu
+
+import com.zig.gravity.edu.detectors.SimulationDetectors
+
+/**
+ * §3.14 Education — Persian-first, three tiers, opt-in, never blocking.
+ *
+ * Tier ladder (locked wording):
+ *   1. «چه اتفاقی افتاد؟»  — what just happened, one calm sentence
+ *   2. «چرا؟»              — the mechanism
+ *   3. «بیشتر بدانیم»      — the law, with its formula
+ *
+ * Tone: friendly, intelligent, beautiful. Never childish, never stiff, never patronising.
+ */
+data class TeachingCard(
+    val concept: String,
+    val titleFa: String,
+    val titleEn: String,
+    /** Tier 1 — «چه اتفاقی افتاد؟» */
+    val whatFa: String,
+    val whatEn: String,
+    /** Tier 2 — «چرا؟» */
+    val whyFa: String,
+    val whyEn: String,
+    /** Tier 3 — «بیشتر بدانیم» */
+    val moreFa: String,
+    val moreEn: String,
+    val formula: String? = null
+)
+
+enum class TeachingTier { WHAT, WHY, MORE }
+
+object TeachingCatalog {
+
+    val TIER_LABEL_FA = mapOf(
+        TeachingTier.WHAT to "چه اتفاقی افتاد؟",
+        TeachingTier.WHY to "چرا؟",
+        TeachingTier.MORE to "بیشتر بدانیم"
+    )
+
+    val TIER_LABEL_EN = mapOf(
+        TeachingTier.WHAT to "What happened?",
+        TeachingTier.WHY to "Why?",
+        TeachingTier.MORE to "Go deeper"
+    )
+
+    private val cards: Map<String, TeachingCard> = listOf(
+        TeachingCard(
+            concept = SimulationDetectors.ORBIT_STABILIZED,
+            titleFa = "یک مدار پایدار شکل گرفت",
+            titleEn = "A stable orbit formed",
+            whatFa = "دیدی؟ اگر سرعت و فاصله مناسب باشند، جسم می‌تواند به جای سقوط مستقیم، در مدار بماند.",
+            whatEn = "See that? With the right speed at the right distance, a body stays in orbit instead of falling straight in.",
+            whyFa = "جسم در حال سقوط است — اما همزمان آن‌قدر به پهلو حرکت می‌کند که همیشه از کنار جرم مرکزی رد می‌شود. مدار یعنی «سقوط بی‌پایان به دور چیزی».",
+            whyEn = "It really is falling — but it also moves sideways fast enough to keep missing. An orbit is an endless fall around something.",
+            moreFa = "برای مدار دایره‌ای، کشش گرانشی باید دقیقاً همان شتاب مرکزگرای لازم را تأمین کند: GM/r² = v²/r، پس v = √(GM/r). هر چه دورتر، سرعت لازم کمتر و دوره تناوب بیشتر.",
+            moreEn = "For a circular orbit gravity must supply exactly the required centripetal acceleration: GM/r² = v²/r, so v = √(GM/r). Farther out means slower, and a longer period.",
+            formula = "v = √(GM / r)"
+        ),
+        TeachingCard(
+            concept = SimulationDetectors.BODY_ESCAPED,
+            titleFa = "از میدان گرانشی فرار کرد",
+            titleEn = "It escaped the gravity well",
+            whatFa = "از میدان گرانشی فرار کرد. دیگر برنمی‌گردد.",
+            whatEn = "It escaped the gravitational field. It will not come back.",
+            whyFa = "انرژی جنبشی‌اش از انرژی پیوند گرانشی بیشتر شد. گرانش هرگز به صفر نمی‌رسد، اما آن‌قدر ضعیف می‌شود که نمی‌تواند جسم را برگرداند.",
+            whyEn = "Its kinetic energy exceeded the gravitational binding energy. Gravity never reaches zero, but it weakens too fast to pull the body back.",
+            moreFa = "شرط فرار این است که انرژی مکانیکی ویژه منفی نباشد: ε = v²/۲ − GM/r ≥ ۰. از همین‌جا سرعت گریز به دست می‌آید: v_esc = √(2GM/r).",
+            moreEn = "Escape happens when the specific mechanical energy is non-negative: ε = v²/2 − GM/r ≥ 0, which gives v_esc = √(2GM/r).",
+            formula = "v_esc = √(2GM / r)"
+        ),
+        TeachingCard(
+            concept = SimulationDetectors.BODY_MERGED,
+            titleFa = "برخورد و ادغام",
+            titleEn = "Collision and merger",
+            whatFa = "برخورد رخ داد. تکانه قبل و بعد را مقایسه کن — عدد عوض نشده است.",
+            whatEn = "A collision happened. Compare the momentum before and after — the number did not change.",
+            whyFa = "در برخورد کاملاً ناکشسان دو جسم یکی می‌شوند. جرم‌ها جمع می‌شوند و سرعت جدید، میانگین وزنی سرعت‌ها بر حسب جرم است.",
+            whyEn = "In a perfectly inelastic collision the two bodies become one. Masses add, and the new velocity is the mass-weighted average.",
+            moreFa = "پایستگی تکانه خطی: m₁v₁ + m₂v₂ = (m₁+m₂)v′. حجم هم حفظ می‌شود، پس شعاع جسم تازه برابر است با r′ = (r₁³ + r₂³)^⅓ — با فرض چگالی یکسان.",
+            moreEn = "Conservation of linear momentum: m₁v₁ + m₂v₂ = (m₁+m₂)v′. Volume is conserved too, so r′ = (r₁³ + r₂³)^⅓ under the equal-density assumption.",
+            formula = "m₁v₁ + m₂v₂ = (m₁+m₂)v′"
+        ),
+        TeachingCard(
+            concept = SimulationDetectors.BH_CAPTURE,
+            titleFa = "سیاه‌چاله جسم را گرفت",
+            titleEn = "The black hole captured it",
+            whatFa = "جسم از مرز حلقه گذشت و جذب شد. جرم سیاه‌چاله به همان اندازه بیشتر شد.",
+            whatEn = "The body crossed the ring and was absorbed. The hole's mass grew by exactly that amount.",
+            whyFa = "در این شبیه‌سازی، سیاه‌چاله فقط یک جرم نیوتنی است؛ نه جاروبرقی جادویی. از دور، گرانش آن دقیقاً مثل هر جرم هم‌اندازه دیگری است.",
+            whyEn = "In this sandbox a black hole is just a Newtonian mass — not a magic vacuum. From far away its gravity is identical to any other mass of the same size.",
+            moreFa = "حلقه‌ای که می‌بینی یک قرارداد نمایشی است و مرز گرفته‌شدن در همین شبیه‌سازی را نشان می‌دهد. افق رویداد واقعی از شعاع شوارتزشیلد می‌آید: r_s = 2GM/c². این عدد را در بازرس می‌بینی، اما محاسبه‌های ما کاملاً نیوتنی است و نسبیت عام را حل نمی‌کند.",
+            moreEn = "The ring you see is a display convention marking this sandbox's capture boundary. A real event horizon comes from the Schwarzschild radius r_s = 2GM/c². The inspector shows that number, but our maths is purely Newtonian and does not solve general relativity.",
+            formula = "r_s = 2GM / c²"
+        ),
+        TeachingCard(
+            concept = SimulationDetectors.WORMHOLE_TRAVERSAL,
+            titleFa = "عبور از کرم‌چاله (مدل فرضی)",
+            titleEn = "Wormhole traversal (hypothetical model)",
+            whatFa = "جسم از یک دهانه وارد شد و با همان سرعت از دهانه جفت بیرون آمد.",
+            whatEn = "The body entered one mouth and left its partner with exactly the same velocity.",
+            whyFa = "این یک انتخاب مدل‌سازی است، نه یک نتیجه فیزیکی. ما تصمیم گرفته‌ایم بردار سرعت دست‌نخورده بماند، چون هندسه واقعی دهانه کرم‌چاله تعریف‌شده نیست.",
+            whyEn = "This is a modelling choice, not a physical result. We keep the velocity vector untouched because the real geometry of a wormhole mouth is undefined physics.",
+            moreFa = "پل اینشتین-روزن یک جواب ریاضی معتبر در نسبیت عام است، اما هیچ کرم‌چاله قابل‌عبوری هرگز مشاهده نشده و جواب‌های شناخته‌شده به «ماده اگزوتیک» با انرژی منفی نیاز دارند. اینجا کرم‌چاله یک ابزار آموزشی است، نه ادعای علمی.",
+            moreEn = "The Einstein–Rosen bridge is a legitimate mathematical solution in general relativity, but no traversable wormhole has ever been observed and the known solutions require exotic matter with negative energy. Here it is a teaching device, not a scientific claim.",
+            formula = null
+        ),
+        TeachingCard(
+            concept = SimulationDetectors.ORBIT_DECAYED,
+            titleFa = "مدار در حال تنگ‌تر شدن است",
+            titleEn = "The orbit is tightening",
+            whatFa = "مدار دارد کوچک می‌شود. جسم آرام‌آرام به جرم مرکزی نزدیک‌تر می‌شود.",
+            whatEn = "The orbit is shrinking. The body is spiralling slowly inward.",
+            whyFa = "در یک سامانه چندجرمی، هر عبور نزدیک کمی انرژی جابه‌جا می‌کند. کافی است یک جسم سوم مدام مدار را هم بزند تا نیم‌قطر بزرگ کم شود.",
+            whyEn = "In a many-body system every close pass trades a little energy. A third body nudging the orbit is enough to shrink the semi-major axis.",
+            moreFa = "نیم‌قطر بزرگ از انرژی ویژه می‌آید: a = −GM / (2ε). کاهش a یعنی ε منفی‌تر شده، یعنی جسم انرژی از دست داده است.",
+            moreEn = "The semi-major axis follows from the specific energy: a = −GM / (2ε). A smaller a means a more negative ε, so the body has lost energy.",
+            formula = "a = −GM / (2ε)"
+        ),
+        TeachingCard(
+            concept = SimulationDetectors.TWO_BODY_DANCE,
+            titleFa = "رقص دو جرم به دور مرکز مشترک",
+            titleEn = "Two bodies dancing around one point",
+            whatFa = "هیچ‌کدام دور دیگری نمی‌چرخد؛ هر دو به دور یک نقطه خالی می‌چرخند: مرکز جرم مشترک.",
+            whatEn = "Neither one orbits the other: both circle an empty point, their shared barycentre.",
+            whyFa = "گرانش دوطرفه است. زمین ماه را می‌کشد و ماه هم دقیقاً با همان نیرو زمین را می‌کشد؛ فقط چون جرم زمین بیشتر است، کمتر جابه‌جا می‌شود.",
+            whyEn = "Gravity is mutual. Earth pulls the Moon and the Moon pulls Earth with exactly the same force; Earth simply moves less because it is heavier.",
+            moreFa = "مرکز جرم روی خط واصل و طبق m₁r₁ = m₂r₂ قرار می‌گیرد. نشانگر مرکز جرم را روشن کن و ببین که دقیقاً روی مرکز جرم سنگین‌تر نیست.",
+            moreEn = "The barycentre sits on the connecting line where m₁r₁ = m₂r₂. Turn the marker on and notice it is not exactly at the heavier body's centre.",
+            formula = "m₁r₁ = m₂r₂"
+        ),
+        TeachingCard(
+            concept = SimulationDetectors.MASS_CHANGED,
+            titleFa = "جرم را تغییر دادی",
+            titleEn = "You changed the mass",
+            whatFa = "جرم را تغییر دادی. حالا چه چیزی باید تغییر کند؟ به مسیر پیش‌بینی‌شده نگاه کن.",
+            whatEn = "You changed the mass. What should change now? Watch the predicted path.",
+            whyFa = "نیروی گرانش با جرم نسبت مستقیم دارد. جرم بیشتر یعنی کشش قوی‌تر، پس مدارها تنگ‌تر و تندتر می‌شوند.",
+            whyEn = "Gravitational force is proportional to mass. More mass means a stronger pull, so orbits become tighter and faster.",
+            moreFa = "F = G·m₁m₂/r². اما شتابی که هر جسم می‌گیرد به جرم خودش بستگی ندارد: a = GM/r². به همین دلیل پر و سبک با هم می‌افتند.",
+            moreEn = "F = G·m₁m₂/r². Yet the acceleration a body receives does not depend on its own mass: a = GM/r². That is why a feather and a stone fall together.",
+            formula = "F = G·m₁m₂ / r²"
+        ),
+        TeachingCard(
+            concept = SimulationDetectors.MOON_QUESTION,
+            titleFa = "چرا ماه روی زمین نمی‌افتد؟",
+            titleEn = "Why doesn't the Moon fall to Earth?",
+            whatFa = "چرا ماه با وجود کشش زمین، روی زمین نمی‌افتد؟ حدس بزن، بعد نگاه کن.",
+            whatEn = "Earth pulls the Moon constantly — so why doesn't it fall? Make a guess, then watch.",
+            whyFa = "حقیقت این است که ماه واقعاً در حال افتادن است. اما همزمان با سرعت زیادی به پهلو حرکت می‌کند، پس همیشه از کنار زمین رد می‌شود و دوباره می‌افتد.",
+            whyEn = "The truth is that the Moon is falling. But it also moves sideways so fast that it keeps missing Earth — and falls again, forever.",
+            moreFa = "اگر سرعت جانبی ماه را صفر کنی، مستقیم سقوط می‌کند. اگر خیلی زیادش کنی، فرار می‌کند. بین این دو، یک بازه سرعت وجود دارد که مدار می‌سازد: نزدیک v = √(GM/r).",
+            moreEn = "Set the Moon's sideways speed to zero and it drops straight in. Make it far too large and it escapes. Between those extremes lies the range that makes an orbit, around v = √(GM/r).",
+            formula = "v = √(GM / r)"
+        )
+    ).associateBy { it.concept }
+
+    fun card(concept: String): TeachingCard? = cards[concept]
+
+    fun text(card: TeachingCard, tier: TeachingTier, isFa: Boolean): String = when (tier) {
+        TeachingTier.WHAT -> if (isFa) card.whatFa else card.whatEn
+        TeachingTier.WHY -> if (isFa) card.whyFa else card.whyEn
+        TeachingTier.MORE -> if (isFa) card.moreFa else card.moreEn
+    }
+}
+
+/** §3.14 locked glossary — 18 terms, Persian-first. */
+data class GlossaryTerm(val fa: String, val en: String, val meaningFa: String, val meaningEn: String)
+
+object Glossary {
+    val terms: List<GlossaryTerm> = listOf(
+        GlossaryTerm("گرانش", "Gravity", "کششی که هر دو جرم بر یکدیگر وارد می‌کنند.", "The attraction every two masses exert on each other."),
+        GlossaryTerm("مدار", "Orbit", "مسیر بسته‌ای که یک جسم زیر کشش جرم دیگر می‌پیماید.", "The closed path a body follows under another body's pull."),
+        GlossaryTerm("جرم", "Mass", "مقدار ماده جسم؛ سرچشمه گرانش آن.", "How much matter a body has; the source of its gravity."),
+        GlossaryTerm("شعاع", "Radius", "فاصله مرکز جسم تا سطح آن.", "Distance from a body's centre to its surface."),
+        GlossaryTerm("سرعت", "Velocity", "تندی همراه با جهت حرکت.", "Speed together with a direction."),
+        GlossaryTerm("سرعت گریز", "Escape velocity", "کمترین سرعتی که جسم را برای همیشه از چاه گرانشی بیرون می‌برد.", "The smallest speed that frees a body from a gravity well for good."),
+        GlossaryTerm("تکانه", "Momentum", "حاصل‌ضرب جرم در سرعت.", "Mass multiplied by velocity."),
+        GlossaryTerm("پایستگی تکانه", "Conservation of momentum", "تکانه کل یک سامانه بسته تغییر نمی‌کند.", "The total momentum of a closed system never changes."),
+        GlossaryTerm("انرژی جنبشی", "Kinetic energy", "انرژی ناشی از حرکت: ½mv².", "Energy of motion: ½mv²."),
+        GlossaryTerm("انرژی پتانسیل", "Potential energy", "انرژی ذخیره‌شده در چیدمان گرانشی اجسام.", "Energy stored in the gravitational arrangement of bodies."),
+        GlossaryTerm("برخورد", "Collision", "لحظه‌ای که دو جسم به هم می‌رسند.", "The moment two bodies touch."),
+        GlossaryTerm("ادغام", "Merger", "یکی شدن دو جسم پس از برخورد.", "Two bodies becoming one after a collision."),
+        GlossaryTerm("سیاه‌چاله", "Black hole", "جرمی چنان فشرده که در اینجا آن را یک نقطه‌جرم نیوتنی مدل می‌کنیم.", "A mass so compact that we model it here as a Newtonian point mass."),
+        GlossaryTerm("افق رویداد", "Event horizon", "مرزی که در فیزیک واقعی حتی نور از آن بیرون نمی‌آید.", "The boundary that, in real physics, not even light escapes."),
+        GlossaryTerm("کرم‌چاله", "Wormhole", "میان‌بر نظری میان دو نقطه فضازمان؛ فرضی و اثبات‌نشده.", "A theoretical shortcut between two points of spacetime; hypothetical and unproven."),
+        GlossaryTerm("شبیه‌سازی", "Simulation", "بازسازی عددی رفتار یک سامانه فیزیکی.", "A numerical reconstruction of a physical system's behaviour."),
+        GlossaryTerm("پیش‌بینی", "Prediction", "حدس آگاهانه درباره نتیجه، پیش از دیدن آن.", "An informed guess about the outcome, made before seeing it."),
+        GlossaryTerm("جسم آزمایشی", "Test marble", "جسمی بی‌جرم که گرانش را حس می‌کند اما خودش گرانش ندارد.", "A massless body that feels gravity but exerts none."),
+        GlossaryTerm("سیارک", "Asteroid", "سنگ‌آسمانی کوچک با جرم بسیار کم.", "A small rocky body with very little mass.")
+    )
+}

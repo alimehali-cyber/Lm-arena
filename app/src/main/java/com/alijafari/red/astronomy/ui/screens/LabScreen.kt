@@ -94,10 +94,11 @@ fun LabScreen(
             modifier = modifier
         )
     } else if (selectedFeature == LabFeatureType.GRAVITY_SANDBOX) {
-        GravitySandboxScreen(
-            uiState = uiState,
-            onBackToLab = { selectedFeature = null },
-            modifier = modifier
+        com.zig.gravity.ui.GravitySandboxRoot(
+            onBack = { selectedFeature = null },
+            modifier = modifier,
+            startInPersian = isFa,
+            startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
         )
     } else {
         LazyColumn(
