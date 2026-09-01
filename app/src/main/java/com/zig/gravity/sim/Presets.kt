@@ -206,18 +206,25 @@ object Presets {
      * is never parented to Earth — the Earth-Moon relationship is an outcome of the integration.
      */
     private fun buildSolarSystem(s: SimArrays) {
+        // §8/§11 — this is the one scene laid out at true astronomical scale, so its bodies carry
+        // their real SI collision radii. The dp band system that every hand-laid experiment uses
+        // would make Earth 1.1e10 m across, thirty times wider than the Moon's whole orbit, and
+        // the Moon would be shoved out of orbit on the first step. Drawn size is unaffected.
         val sun = BodyCatalog.SUN
-        s.add(sun.type, sun.massKg, sun.dp, 0.0, 0.0, 0.0, 0.0, sun.key)
+        s.add(
+            sun.type, sun.massKg, sun.dp, 0.0, 0.0, 0.0, 0.0, sun.key,
+            physicalRadiusM = BodyCatalog.realRadiusOf(sun.key, sun.type, sun.massKg)
+        )
 
-        addOrbiter(s, BodyCatalog.MERCURY, 5.7909e10, 15.0)
-        addOrbiter(s, BodyCatalog.VENUS, 1.0821e11, 95.0)
+        addOrbiter(s, BodyCatalog.MERCURY, 5.7909e10, 15.0, realRadius = true)
+        addOrbiter(s, BodyCatalog.VENUS, 1.0821e11, 95.0, realRadius = true)
         val earthR = 1.4960e11
-        addOrbiter(s, BodyCatalog.EARTH, earthR, 180.0)
-        addOrbiter(s, BodyCatalog.MARS, 2.2792e11, 250.0)
-        addOrbiter(s, BodyCatalog.JUPITER, 7.7857e11, 40.0)
-        addOrbiter(s, BodyCatalog.SATURN, 1.43353e12, 140.0)
-        addOrbiter(s, BodyCatalog.URANUS, 2.87246e12, 220.0)
-        addOrbiter(s, BodyCatalog.NEPTUNE, 4.49506e12, 310.0)
+        addOrbiter(s, BodyCatalog.EARTH, earthR, 180.0, realRadius = true)
+        addOrbiter(s, BodyCatalog.MARS, 2.2792e11, 250.0, realRadius = true)
+        addOrbiter(s, BodyCatalog.JUPITER, 7.7857e11, 40.0, realRadius = true)
+        addOrbiter(s, BodyCatalog.SATURN, 1.43353e12, 140.0, realRadius = true)
+        addOrbiter(s, BodyCatalog.URANUS, 2.87246e12, 220.0, realRadius = true)
+        addOrbiter(s, BodyCatalog.NEPTUNE, 4.49506e12, 310.0, realRadius = true)
 
         // ---- the Moon: independent state, not attached to anything ------------------------------
         val earthSlot = s.slotOfCatalog(BodyCatalog.EARTH.key)
@@ -233,13 +240,20 @@ object Presets {
                 moon.type, moon.massKg, moon.dp,
                 s.x[earthSlot] + rM * ux, s.y[earthSlot] + rM * uy,
                 s.vx[earthSlot] - vM * uy, s.vy[earthSlot] + vM * ux,
-                moon.key
+                moon.key,
+                physicalRadiusM = BodyCatalog.realRadiusOf(moon.key, moon.type, moon.massKg)
             )
         }
         zeroTotalMomentum(s)
     }
 
-    private fun addOrbiter(s: SimArrays, e: CatalogEntry, r: Double, angleDeg: Double) {
+    private fun addOrbiter(
+        s: SimArrays,
+        e: CatalogEntry,
+        r: Double,
+        angleDeg: Double,
+        realRadius: Boolean = false
+    ) {
         val a = Math.toRadians(angleDeg)
         val px = r * cos(a)
         val py = r * sin(a)
@@ -247,7 +261,10 @@ object Presets {
         // Counter-clockwise tangential direction.
         val vx = -sin(a) * v
         val vy = cos(a) * v
-        s.add(e.type, e.massKg, e.dp, px, py, vx, vy, e.key)
+        s.add(
+            e.type, e.massKg, e.dp, px, py, vx, vy, e.key,
+            physicalRadiusM = if (realRadius) BodyCatalog.realRadiusOf(e.key, e.type, e.massKg) else 0.0
+        )
     }
 
     /**

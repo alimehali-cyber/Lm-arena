@@ -59,8 +59,19 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
     /** Display size in dp — the authority (§3.6a). */
     val radiusDp = DoubleArray(capacity)
 
-    /** Derived: radiusDp * metersPerDp. Collision radius == visual radius. */
+    /** Derived: radiusDp * metersPerDp, unless [physicalRadius] overrides it. */
     val radius = DoubleArray(capacity)
+
+    /**
+     * §11 — a real, SI collision radius in metres, or 0 to mean "derive it from the dp size".
+     *
+     * The dp band system (§3.6a) is right for hand-laid experiments where the table is only a few
+     * hundred dp across, but it cannot express a scene at true Solar-System scale: Earth's 10 dp
+     * would be a 1.1e10 m body, thirty times wider than the Moon's actual orbit. Scenes built from
+     * real distances set this instead, so the drawn size and the collision size are genuinely
+     * independent — which is what the brief demands anyway.
+     */
+    val physicalRadius = DoubleArray(capacity)
 
     val id = LongArray(capacity)
     val type = ByteArray(capacity)
@@ -105,6 +116,7 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
     private val bay = DoubleArray(capacity)
     private val bmass = DoubleArray(capacity)
     private val bradius = DoubleArray(capacity)
+    private val bphysRadius = DoubleArray(capacity)
     private val bradiusDp = DoubleArray(capacity)
     private val bid = LongArray(capacity)
     private val btype = ByteArray(capacity)
@@ -134,8 +146,14 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
     fun setMetersPerDp(value: Double) {
         if (value <= 0.0 || value == _metersPerDp) return
         _metersPerDp = value
-        for (i in 0 until n) radius[i] = radiusDp[i] * value
+        for (i in 0 until n) applyRadius(i)
         accelerationsValid = false
+    }
+
+    /** Collision radius in metres for [slot], honouring a physical override when one is set. */
+    private fun applyRadius(slot: Int) {
+        val phys = physicalRadius[slot]
+        radius[slot] = if (phys > 0.0) phys else radiusDp[slot] * metersPerDp
     }
 
     fun add(
@@ -147,14 +165,16 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
         velX: Double,
         velY: Double,
         catalog: String? = null,
-        explicitId: Long = 0L
+        explicitId: Long = 0L,
+        physicalRadiusM: Double = 0.0
     ): Int {
         if (n >= capacity) return -1
         val s = n
         this.type[s] = type.code
         mass[s] = if (type.massless) 0.0 else massKg
         radiusDp[s] = radiusDpValue.coerceIn(type.minDp, type.maxDp)
-        radius[s] = radiusDp[s] * metersPerDp
+        physicalRadius[s] = if (physicalRadiusM > 0.0) physicalRadiusM else 0.0
+        applyRadius(s)
         x[s] = posX; y[s] = posY
         vx[s] = velX; vy[s] = velY
         ax[s] = 0.0; ay[s] = 0.0
@@ -181,6 +201,7 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
             mass[i] = mass[i + 1]
             radius[i] = radius[i + 1]
             radiusDp[i] = radiusDp[i + 1]
+            physicalRadius[i] = physicalRadius[i + 1]
             id[i] = id[i + 1]
             type[i] = type[i + 1]
             kinematic[i] = kinematic[i + 1]
@@ -223,7 +244,15 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
      */
     fun setRadiusDpRaw(slot: Int, dp: Double) {
         radiusDp[slot] = dp
-        radius[slot] = dp * metersPerDp
+        applyRadius(slot)
+    }
+
+    /** Sets (or clears, with 0) the real collision radius in metres for [slot]. */
+    fun setPhysicalRadius(slot: Int, metres: Double) {
+        if (slot < 0 || slot >= n) return
+        physicalRadius[slot] = if (metres > 0.0) metres else 0.0
+        applyRadius(slot)
+        accelerationsValid = false
     }
 
     fun pushTrailSample() {
@@ -261,6 +290,7 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
             bvx[i] = vx[i]; bvy[i] = vy[i]
             bax[i] = ax[i]; bay[i] = ay[i]
             bmass[i] = mass[i]; bradius[i] = radius[i]; bradiusDp[i] = radiusDp[i]
+            bphysRadius[i] = physicalRadius[i]
             bid[i] = id[i]; btype[i] = type[i]; bkin[i] = kinematic[i]
             bpartner[i] = partnerId[i]; bcool[i] = cooldownUntil[i]; bgate[i] = gateMouthId[i]
         }
@@ -274,6 +304,7 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
             vx[i] = bvx[i]; vy[i] = bvy[i]
             ax[i] = bax[i]; ay[i] = bay[i]
             mass[i] = bmass[i]; radius[i] = bradius[i]; radiusDp[i] = bradiusDp[i]
+            physicalRadius[i] = bphysRadius[i]
             id[i] = bid[i]; type[i] = btype[i]; kinematic[i] = bkin[i]
             partnerId[i] = bpartner[i]; cooldownUntil[i] = bcool[i]; gateMouthId[i] = bgate[i]
         }
@@ -291,7 +322,8 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
                 posX = x[i], posY = y[i],
                 velX = vx[i], velY = vy[i],
                 catalog = catalogKey[i],
-                explicitId = id[i]
+                explicitId = id[i],
+                physicalRadiusM = physicalRadius[i]
             )
             if (s >= 0) {
                 // Raw: a merged body may legitimately exceed its type's dp band (§3.7).

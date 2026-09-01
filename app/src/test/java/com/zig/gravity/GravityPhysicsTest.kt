@@ -216,19 +216,31 @@ class GravityPhysicsTest {
     // ---- 13 ------------------------------------------------------------------------------------
     @Test
     fun accumulatorNeverExplodes() {
-        // A pathological 5-second frame must be clipped and the debt discarded, never spiralled.
-        var accumulator = 0.0
-        val frameSeconds = 5.0
-        accumulator += minOf(frameSeconds, EngineConstants.MAX_FRAME_SECONDS) *
-                EngineConstants.BASE * 16.0
-        var steps = 0
-        while (accumulator >= DT && steps < EngineConstants.MAX_SUBSTEPS) {
-            accumulator -= DT
-            steps++
+        // A pathological 5-second frame must be clipped and any debt the budget cannot pay off
+        // discarded, never spiralled. Checked at every rung of the ladder.
+        for (speed in EngineConstants.SPEEDS) {
+            var accumulator = 0.0
+            val frameSeconds = 5.0
+            accumulator += minOf(frameSeconds, EngineConstants.MAX_FRAME_SECONDS) *
+                    EngineConstants.BASE * speed
+            var steps = 0
+            while (accumulator >= DT && steps < EngineConstants.MAX_SUBSTEPS) {
+                accumulator -= DT
+                steps++
+            }
+            if (steps == EngineConstants.MAX_SUBSTEPS) accumulator = 0.0
+            assertTrue(steps <= EngineConstants.MAX_SUBSTEPS)
+            // Either the budget was spent and the debt dropped, or everything owed was paid and
+            // only a sub-timestep remainder is carried into the next frame. Never a growing debt.
+            assertTrue("accumulator ran away at ${'$'}{speed}x: ${'$'}accumulator", accumulator < DT)
         }
-        if (steps == EngineConstants.MAX_SUBSTEPS) accumulator = 0.0
-        assertTrue(steps <= EngineConstants.MAX_SUBSTEPS)
-        assertEquals(0.0, accumulator, 1.0e-9)
+
+        // The worst case the UI can ask for — 100x at 30 fps — must fit inside the budget.
+        val worstCase = (1.0 / 30.0) * EngineConstants.BASE * EngineConstants.SPEEDS.last() / DT
+        assertTrue(
+            "100x needs ${'$'}worstCase substeps but the cap is ${'$'}{EngineConstants.MAX_SUBSTEPS}",
+            worstCase <= EngineConstants.MAX_SUBSTEPS
+        )
     }
 
     // ---- 28 ------------------------------------------------------------------------------------

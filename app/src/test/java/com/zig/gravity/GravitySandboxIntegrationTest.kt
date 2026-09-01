@@ -40,6 +40,9 @@ class GravitySandboxIntegrationTest {
         val vm = SimulationViewModel()
         vm.onViewportChanged(400.0)
         vm.loadPreset(preset)
+        // §18 loads every scene paused and waits for the user. These tests are about what happens
+        // while the table runs, so they press play, which is what a user does next.
+        if (vm.paused) vm.togglePlay()
         return vm
     }
 

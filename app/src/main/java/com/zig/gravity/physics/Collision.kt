@@ -197,7 +197,17 @@ object Collision {
         s.vy[sv] = newVy
         s.x[sv] = newX
         s.y[sv] = newY
+        // A body carrying a real SI collision radius keeps one after the merge: volumes add, so
+        // the radii add in cubes exactly as the dp sizes do. Captured before setRadiusDpRaw, which
+        // would otherwise reinterpret the survivor's radius through the dp mapping.
+        val physSurvivor = s.physicalRadius[sv]
+        val physAbsorbed = s.physicalRadius[ab]
+        val rPhys1 = if (physSurvivor > 0.0) physSurvivor else s.radius[sv]
+        val rPhys2 = if (physAbsorbed > 0.0) physAbsorbed else s.radius[ab]
         s.setRadiusDpRaw(sv, newDp)
+        if (physSurvivor > 0.0 || physAbsorbed > 0.0) {
+            s.setPhysicalRadius(sv, Math.cbrt(rPhys1 * rPhys1 * rPhys1 + rPhys2 * rPhys2 * rPhys2))
+        }
 
         // The absorbed body's trail disappears with it; the survivor's trail is cut at the merge
         // point because the centre-of-mass jump is a genuine discontinuity (§9 of the brief).
