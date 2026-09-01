@@ -159,6 +159,7 @@ class SimulationViewModel : ViewModel() {
     var predictionCount: Int = 0
         private set
     var predictionApproximate: Boolean = false
+        private set
 
     /**
      * §13/§14 — true while the displayed prediction is a *preview* of a drag rather than the
@@ -172,15 +173,15 @@ class SimulationViewModel : ViewModel() {
         private set
 
     /** §15 — headline/detail for the last meaningful impact, with the real numbers in them. */
-    var impactHeadlineFa: String? = null
+    var impactHeadlineFa by mutableStateOf<String?>(null)
         private set
-    var impactHeadlineEn: String? = null
+    var impactHeadlineEn by mutableStateOf<String?>(null)
         private set
-    var impactDetailFa: String? = null
+    var impactDetailFa by mutableStateOf<String?>(null)
         private set
-    var impactDetailEn: String? = null
+    var impactDetailEn by mutableStateOf<String?>(null)
         private set
-        private set
+
     private var predictionDirty = true
 
     // ---- frame loop bookkeeping -------------------------------------------------------------

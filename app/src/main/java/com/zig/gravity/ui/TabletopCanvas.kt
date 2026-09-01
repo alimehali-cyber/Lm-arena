@@ -461,21 +461,63 @@ private fun DrawScope.drawScene(
                 )
             }
             else -> {
-                // Contact flash: bright, tiny, and gone in the first third of the effect.
+                // §9 — three visibly different grades, driven by the physics, not by taste.
+                //
+                //   BOUNCE  (low)      a compression pulse and a small flash. Nothing leaves.
+                //   MERGE   (moderate) a brighter flash and a single expanding ring, plus debris.
+                //   SHATTER (high)     a brief hard flash, radial fragments, and a fast shockwave
+                //                      ring running out ahead of a slower dust ring.
+                //
+                // Even the top grade is a short, restrained event: a collision is not a nuclear
+                // detonation, and the sandbox never pretends otherwise.
                 val flash = (1f - t * 3f).coerceIn(0f, 1f)
+                val flashGain = when (kind) {
+                    EffectKind.BOUNCE -> 0.30f
+                    EffectKind.SHATTER -> 0.75f
+                    else -> 0.50f
+                }
                 if (flash > 0f) {
                     drawCircle(
-                        color = Color.White.copy(alpha = 0.55f * flash * (0.4f + 0.6f * sev)),
+                        color = Color.White.copy(alpha = flashGain * flash * (0.4f + 0.6f * sev)),
                         radius = ringPx * 0.55f * (0.6f + 0.8f * flash),
                         center = Offset(ox, oy)
                     )
                 }
-                drawCircle(
-                    color = colors.accent.copy(alpha = 0.40f * fade * (0.35f + 0.65f * sev)),
-                    radius = ringPx * ease,
-                    center = Offset(ox, oy),
-                    style = cache.strokeRing
-                )
+
+                if (kind == EffectKind.BOUNCE) {
+                    // Compression: the ring starts wide and squeezes IN, reading as the two
+                    // surfaces pressing together rather than as anything being thrown out.
+                    drawCircle(
+                        color = colors.accent.copy(alpha = 0.30f * fade * (0.35f + 0.65f * sev)),
+                        radius = ringPx * (1.25f - 0.55f * ease),
+                        center = Offset(ox, oy),
+                        style = cache.strokeRingInner
+                    )
+                } else {
+                    drawCircle(
+                        color = colors.accent.copy(alpha = 0.40f * fade * (0.35f + 0.65f * sev)),
+                        radius = ringPx * ease,
+                        center = Offset(ox, oy),
+                        style = cache.strokeRing
+                    )
+                }
+
+                if (kind == EffectKind.SHATTER) {
+                    // The shockwave outruns the debris and fades first; behind it a wider, much
+                    // fainter dust front follows.
+                    val shock = (t * 2.2f).coerceAtMost(1f)
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.22f * (1f - shock) * (0.4f + 0.6f * sev)),
+                        radius = ringPx * (0.4f + 1.5f * shock),
+                        center = Offset(ox, oy),
+                        style = cache.strokeRingInner
+                    )
+                    drawCircle(
+                        color = tone.copy(alpha = 0.10f * fade * sev),
+                        radius = ringPx * (0.6f + 1.1f * ease),
+                        center = Offset(ox, oy)
+                    )
+                }
             }
         }
 
