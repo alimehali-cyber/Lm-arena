@@ -386,7 +386,7 @@ class GravityUpgradeTest {
         // Its own mass, radius, position and velocity — nothing is copied from Earth.
         assertTrue(s.mass[earth] != s.mass[moon])
         assertTrue(s.y[moon] != s.y[earth])
-        assertTrue(s.vy[moon] != s.vy[earth])
+        assertTrue(s.vx[moon] != s.vx[earth])
 
         // Bound: separation near the real value and speed below escape from Earth.
         val sep = hypot(s.x[moon] - s.x[earth], s.y[moon] - s.y[earth])

@@ -1018,6 +1018,12 @@ class SimulationViewModel : ViewModel() {
     fun submitPrediction(optionId: String) {
         challengePrediction = optionId
         challengeRunner.predictedOptionId = optionId
+        // §18 loads every scene paused, including the one a challenge sets up. Committing to a
+        // guess IS the user action that starts it: predict first, then watch it happen.
+        if (paused) {
+            paused = false
+            lastFrameNanos = 0L
+        }
     }
 
     fun closeChallenge() {
