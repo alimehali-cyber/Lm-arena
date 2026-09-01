@@ -214,7 +214,7 @@ private fun stepBody(step: TutorialStep, persian: Boolean): String {
     if (step.id != "time") return base
     val raw = EngineConstants.SPEED_LABELS.joinToString(" · ")
     val rungs = if (persian) PersianDigits.convert(raw.replace("x", "×")) else raw
-    return if (persian) "$base\n$rungs" else "$base\n$rungs"
+    return "$base\n$rungs"
 }
 
 /**
