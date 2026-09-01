@@ -66,7 +66,8 @@ class GravitySandboxIntegrationTest {
         assertEquals(3600.0, EngineConstants.DT, 0.0)
         assertEquals(1.0e6, EngineConstants.BASE, 0.0)
         assertEquals(20, EngineConstants.MAX_BODIES)
-        assertEquals(96, EngineConstants.MAX_SUBSTEPS)
+        // Raised from 96 so 100x (about 926 substeps per 30 fps frame) is never starved.
+        assertEquals(1024, EngineConstants.MAX_SUBSTEPS)
         assertEquals(1.0e6, EngineConstants.V_MAX, 0.0)
         // Earth's orbital speed follows from the charter, it is not a separate magic number.
         assertEquals(
@@ -77,7 +78,9 @@ class GravitySandboxIntegrationTest {
         // Scene scale: 3 AU over 400 dp is 1.122e9 m/dp.
         assertEquals(1.122e9, EngineConstants.metersPerDp(400.0), 1.0e6)
         // Speed ladder is exactly the locked set.
-        assertTrue(EngineConstants.SPEEDS.contentEquals(doubleArrayOf(0.1, 0.25, 1.0, 4.0, 16.0)))
+        // §5: the ladder is exactly 1x / 10x / 100x, applied through substeps, never through DT.
+        assertTrue(EngineConstants.SPEEDS.contentEquals(doubleArrayOf(1.0, 10.0, 100.0)))
+        assertEquals(3600.0, EngineConstants.DT, 0.0)
     }
 
     // ---- 32 --------------------------------------------------------------------------------------
@@ -156,7 +159,7 @@ class GravitySandboxIntegrationTest {
         assertTrue("accelerations must oppose", s.ax[earth] * s.ax[moon] <= 0.0)
 
         // Visually separate at the locked scene scale, at every moment of a full lap.
-        vm.setSpeedIndex(4) // 16x, so one lap fits inside the test budget
+        vm.setSpeedIndex(2) // 100x, so one lap fits inside the test budget
         val contact = s.radius[earth] + s.radius[moon]
         var minSeparation = Double.MAX_VALUE
         var maxSeparation = 0.0
@@ -474,8 +477,8 @@ class GravitySandboxIntegrationTest {
         // 1x should deliver about BASE simulated seconds per wall-clock second.
         val oneX = results[EngineConstants.DEFAULT_SPEED_INDEX]
         assertTrue("1x delivered $oneX sim-s in one second", oneX in 0.8e6..1.2e6)
-        // 16x is 16x more, within the substep cap (74.1 substeps/frame < 96).
-        assertTrue(results[4] / oneX > 12.0)
+        // 100x must really be ~100x, which needs the raised substep budget (926 < 1024).
+        assertTrue(results[2] / oneX > 80.0)
     }
 
     @Test
@@ -491,25 +494,30 @@ class GravitySandboxIntegrationTest {
     // ==== drag / throw ====================================================================================================
 
     @Test
-    fun dragMakesBodyKinematicAndReleaseThrowsIt() {
+    fun dragMakesBodyKinematicAndReleasePreservesItsVelocity() {
         val vm = vmWith(Preset.SUN_EARTH)
         val earthId = vm.arrays.id[1]
-        vm.beginDrag(earthId)
         val slot = vm.arrays.slotOfId(earthId)
+        val vx0 = vm.arrays.vx[slot]
+        val vy0 = vm.arrays.vy[slot]
+        val m0 = vm.arrays.mass[slot]
+
+        vm.beginDrag(earthId)
         assertTrue("held bodies must be kinematic", vm.arrays.kinematic[slot])
 
-        // Move it 3e10 m in 0.1 s of pointer time -> 3e11 m/s, which the engine must clamp.
-        vm.dragTo(1.2e11, 0.0, 0.0)
-        vm.dragTo(1.2e11 + 1.5e10, 0.0, 0.05)
-        vm.dragTo(1.2e11 + 3.0e10, 0.0, 0.10)
+        // A deliberately violent flick. Under the old behaviour this became a throw; §2 forbids it.
+        vm.dragTo(1.2e11, 0.0)
+        vm.dragTo(1.2e11 + 1.5e10, 0.0)
+        vm.dragTo(1.2e11 + 3.0e10, 0.0)
         assertEquals("the body must follow the finger exactly", 1.2e11 + 3.0e10, vm.arrays.x[slot], 1.0)
 
         vm.endDrag()
         assertFalse(vm.arrays.kinematic[slot])
         assertEquals(0L, vm.draggingId)
-        val v = hypot(vm.arrays.vx[slot], vm.arrays.vy[slot])
-        assertTrue("release must impart a throw", v > 0.0)
-        assertTrue("and the engine clamp must hold", v <= EngineConstants.V_MAX + 1.0)
+        // §2: position only. Velocity and mass come back bit-for-bit.
+        assertEquals("dragging must never invent velocity", vx0, vm.arrays.vx[slot], 0.0)
+        assertEquals("dragging must never invent velocity", vy0, vm.arrays.vy[slot], 0.0)
+        assertEquals("dragging must never change mass", m0, vm.arrays.mass[slot], 0.0)
         assertTrue(vm.arrays.accelerationsValid)
     }
 
