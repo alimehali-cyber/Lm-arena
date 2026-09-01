@@ -19,7 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -326,7 +326,7 @@ private fun GlossaryBlock(fa: Boolean) {
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.MenuBook, contentDescription = null, tint = c.onSurfaceDim, modifier = Modifier.size(15.dp))
+            Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null, tint = c.onSurfaceDim, modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(6.dp))
             Text(
                 text = if (fa) "واژه‌نامه" else "Glossary",

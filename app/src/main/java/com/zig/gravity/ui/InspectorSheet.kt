@@ -21,7 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RadioButtonChecked
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -206,7 +206,7 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
             TextAction(
                 text = if (fa) "آماده پرتاب (قلاب‌سنگ)" else "Arm slingshot",
                 tag = "inspector_slingshot",
-                icon = Icons.Filled.Send
+                icon = Icons.AutoMirrored.Filled.Send
             ) {
                 vm.armSlingshot(vm.selectedId)
                 onDismiss()
