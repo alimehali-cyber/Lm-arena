@@ -2,6 +2,8 @@ package com.zig.gravity.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,12 +66,16 @@ fun AddBodySheet(
         contentColor = c.onSurface,
         modifier = Modifier.testTag("add_body_sheet")
     ) {
+        // The catalogue grid scrolls on its own, but the header above it and the scale note below
+        // it can still be pushed off a short screen or a large font scale. The outer scroller
+        // guarantees the last line is reachable; it only engages when the content really overflows.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 12.dp)
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .padding(bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(

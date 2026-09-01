@@ -6,6 +6,12 @@ plugins {
   alias(libs.plugins.secrets)
 }
 
+// Output artefacts are named after the product, not after the Gradle module, so the build produces
+// ZIG-debug.apk / ZIG-release.apk rather than app-debug.apk.
+base {
+  archivesName.set("ZIG")
+}
+
 android {
   namespace = "com.alijafari.red.astronomy"
   compileSdk { version = release(36) { minorApiLevel = 1 } }

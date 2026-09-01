@@ -2,6 +2,7 @@ package com.zig.gravity.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -42,6 +44,15 @@ import com.zig.gravity.ui.theme.LocalGravityColors
  * effects and queued haptics, drops the selection and the prediction, recomputes accelerations and
  * the barycentre, and re-frames the camera. Nothing here mutates simulation state directly, so a
  * switch can never leave a stale body, trail or effect behind.
+ *
+ * ### Scrolling
+ *
+ * The list **must** be inside a scroll container. It was a plain [Column], which silently clipped
+ * whatever did not fit: with nine scenes it just fitted on a tall phone, and the moment the
+ * catalogue grew to fifteen the last six became unreachable — worse on a short screen, in
+ * landscape, or at a large font scale, where even the original nine would have overflowed. The
+ * scroll modifier is applied before the padding so the bottom inset scrolls with the content and
+ * the final row can be brought clear of the navigation bar.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,9 +71,11 @@ fun PresetSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
                 .padding(bottom = 16.dp)
-                .navigationBarsPadding(),
+                .testTag("preset_list"),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(

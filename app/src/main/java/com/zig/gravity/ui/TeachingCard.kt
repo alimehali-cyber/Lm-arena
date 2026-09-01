@@ -2,6 +2,7 @@ package com.zig.gravity.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -182,12 +184,15 @@ fun ChallengeSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
         contentColor = c.onSurface,
         modifier = Modifier.testTag("challenge_sheet")
     ) {
+        // Same reasoning as the other sheets: the challenge list scrolls itself, but the prediction
+        // controls that follow it must stay reachable when the sheet is taller than the screen.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 16.dp)
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             if (active == null) {
