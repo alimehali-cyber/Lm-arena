@@ -197,6 +197,22 @@ class CameraState {
         return -rx * sin(yawRad) + ry * cos(yawRad) + panY
     }
 
+    /**
+     * Snapshots the current pose. Used to remember a preset's initial framing so Reset can put the
+     * camera back exactly where the preset started, rather than at arbitrary default values.
+     */
+    fun snapshot(): CameraPose = CameraPose(panX, panY, zoom, yawRad, tiltRad)
+
+    /** Restores a pose taken by [snapshot]. */
+    fun restore(pose: CameraPose) {
+        panX = pose.panX
+        panY = pose.panY
+        zoom = pose.zoom
+        yawRad = pose.yawRad
+        tiltRad = pose.tiltRad
+        version++
+    }
+
     /** Copies another camera's pose (used when restoring a session). */
     fun copyFrom(other: CameraState) {
         panX = other.panX
@@ -216,6 +232,16 @@ class CameraState {
 
         private const val MIN_COS_TILT: Double = 0.35
         private const val FRAME_MARGIN: Double = 1.12
+
+        /**
+         * Elevation is exposed to the UI as a 0..1 fraction so the slider never has to know about
+         * radians. 0 = straight down on the tabletop, 1 = the shallowest legal side-on angle.
+         */
+        fun tiltFraction(tiltRad: Double): Double =
+            (tiltRad / MAX_TILT).coerceIn(0.0, 1.0)
+
+        fun tiltFromFraction(fraction: Double): Double =
+            (fraction.coerceIn(0.0, 1.0)) * MAX_TILT
 
         fun wrapAngle(a: Double): Double {
             var v = a
@@ -248,3 +274,19 @@ class CameraState {
             max(MIN_DRAW_DP, radiusDp * displayScale(zoom))
     }
 }
+
+/**
+ * An immutable camera pose.
+ *
+ * This exists so that "the camera state this preset started in" can be *stored* rather than
+ * *recomputed*: Reset restores a recorded pose instead of re-deriving one from framing rules that
+ * may have drifted. It is a plain data class, so equality and copying are free and there is no
+ * second mutable camera anywhere in the app.
+ */
+data class CameraPose(
+    val panX: Double,
+    val panY: Double,
+    val zoom: Double,
+    val yawRad: Double,
+    val tiltRad: Double
+)

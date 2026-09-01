@@ -22,6 +22,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.GpsNotFixed
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -140,6 +142,60 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
                 IconAction(Icons.Filled.Delete, if (fa) "حذف" else "Remove", "inspector_remove") {
                     vm.removeSelected()
                     onDismiss()
+                }
+            }
+
+            // ---- §7/§12 follow -------------------------------------------------------------
+            //
+            // A wormhole mouth is scenery, not a body you can ride, so it is the one thing here
+            // that offers no Follow control (§27).
+            if (type != BodyType.WORMHOLE_MOUTH) {
+                val following = vm.followTargetId == vm.selectedId
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            if (following) c.accent.copy(alpha = 0.18f)
+                            else c.onSurface.copy(alpha = 0.05f)
+                        )
+                        .border(
+                            1.dp,
+                            if (following) c.accent.copy(alpha = 0.55f) else c.chromeBorder,
+                            RoundedCornerShape(14.dp)
+                        )
+                        .clickableTag("inspector_follow") { vm.toggleFollow(vm.selectedId) }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        if (following) Icons.Filled.GpsFixed else Icons.Filled.GpsNotFixed,
+                        contentDescription = null,
+                        tint = if (following) c.accent else c.onSurfaceDim,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = if (following) {
+                                if (fa) "دنبال نکن" else "Unfollow"
+                            } else {
+                                if (fa) "دنبال کن" else "Follow"
+                            },
+                            color = if (following) c.accent else c.onSurface,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = if (fa) {
+                                "دوربین این جسم را دنبال می‌کند. حرکت خودِ جسم تغییر نمی‌کند."
+                            } else {
+                                "The camera tracks this body. Its motion is unchanged."
+                            },
+                            color = c.onSurfaceDim,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             }
 

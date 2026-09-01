@@ -36,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -49,6 +50,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -67,13 +70,34 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.PI
 import androidx.compose.material.icons.filled.Public
+import com.zig.gravity.edu.TutorialContent
+import com.zig.gravity.sim.BodyCatalog
 import com.zig.gravity.sim.CameraState
+import com.zig.gravity.sim.TutorialGate
+import com.zig.gravity.sim.TutorialStore
 import com.zig.gravity.util.SandboxFormat
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.foundation.layout.height
 
 private const val PREFS_NAME = "zig_gravity_sandbox"
 private const val PREFS_KEY = "session_v1"
+
+/**
+ * [TutorialStore] over the sandbox's existing preferences file (§15).
+ *
+ * No new persistence mechanism and no new dependency: the same `zig_gravity_sandbox` file that
+ * already holds the serialized session gains one boolean. `commit()` rather than `apply()` on the
+ * write, because the thing it guards against is the process dying immediately afterwards.
+ */
+private class SharedPrefsTutorialStore(context: Context) : TutorialStore {
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    override fun isTutorialSeen(): Boolean = prefs.getBoolean(TutorialGate.PREF_KEY, false)
+    override fun markTutorialSeen() {
+        prefs.edit().putBoolean(TutorialGate.PREF_KEY, true).commit()
+    }
+}
 
 /**
  * The Gravity Sandbox screen.
@@ -157,7 +181,31 @@ fun GravitySandboxRoot(
         }
     }
 
-    BackHandler(enabled = true) { onBack() }
+    // ---- §1/§15/§25 the first-launch tutorial -----------------------------------------------
+    //
+    // "First launch" means the user has never completed or skipped it, ever — not "first time this
+    // composable ran". The flag lives in the sandbox's existing SharedPreferences file, so it
+    // survives leaving the screen, process death and reinstall-free app restarts alike.
+    val tutorialStore = remember(context) { SharedPrefsTutorialStore(context) }
+    var showTutorial by rememberSaveable { mutableStateOf(false) }
+    var tutorialChecked by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!tutorialChecked) {
+            tutorialChecked = true
+            if (TutorialGate.shouldAutoShow(tutorialStore)) showTutorial = true
+        }
+    }
+
+    /** Skip, finish and Back are the same action: close it, and never auto-show it again (§13/§20). */
+    val dismissTutorial: () -> Unit = {
+        showTutorial = false
+        tutorialStore.markTutorialSeen()
+    }
+
+    // §20 — while the tutorial is up, Back closes the tutorial rather than leaving the sandbox.
+    BackHandler(enabled = true) {
+        if (showTutorial) dismissTutorial() else onBack()
+    }
 
     ZigGravityTheme(dark = vm.darkTheme) {
         val c = LocalGravityColors.current
@@ -431,6 +479,28 @@ fun GravitySandboxRoot(
                             fontSize = 11.sp
                         )
                     }
+                    // §16 — the permanent way back into the tutorial. Compact, wordless, and in
+                    // the top bar where help belongs; it shares the header's inset handling, so it
+                    // can never end up under the status bar or behind the + button.
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(c.chrome)
+                            .border(1.dp, c.chromeBorder, CircleShape)
+                            .semantics {
+                                contentDescription = if (fa) {
+                                    TutorialContent.OPEN_HELP_FA
+                                } else {
+                                    TutorialContent.OPEN_HELP_EN
+                                }
+                            }
+                            .clickableTag("open_tutorial") { showTutorial = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("؟".takeIf { fa } ?: "?", color = c.accent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.width(6.dp))
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(16.dp))
@@ -463,6 +533,46 @@ fun GravitySandboxRoot(
                                 fontSize = 11.sp
                             )
                         }
+                    }
+                }
+
+                // §11 — Follow is a mode, and a mode the user cannot see is a mode they will be
+                // confused by. One compact chip, naming the body, with its own way out.
+                if (vm.isFollowing) {
+                    val fSlot = vm.snapshot.slotOfId(vm.followTargetId)
+                    val fName = if (fSlot >= 0) {
+                        BodyCatalog.nameOf(vm.snapshot.catalogKey[fSlot], vm.snapshot.typeOf(fSlot), fa)
+                    } else {
+                        ""
+                    }
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(c.accent.copy(alpha = 0.16f))
+                            .border(1.dp, c.accent.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+                            .clickableTag("follow_indicator") { vm.stopFollow() }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.GpsFixed,
+                            contentDescription = null,
+                            tint = c.accent,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = if (fa) "در حال دنبال کردن $fName" else "Following $fName",
+                            color = c.accent,
+                            fontSize = 11.sp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = if (fa) "پایان دنبال کردن" else "Stop following",
+                            tint = c.accent.copy(alpha = 0.8f),
+                            modifier = Modifier.size(13.dp)
+                        )
                     }
                 }
 
@@ -576,10 +686,17 @@ fun GravitySandboxRoot(
                             .testTag("camera_panel")
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
+                        // §3 ROOT CAUSE. `vm.camera` is a plain class, not Compose state, so a
+                        // composable reading `camera.tiltRad` never recomposed: the slider drove
+                        // the camera correctly but then re-synced its thumb and its readout from a
+                        // value frozen at the last unrelated recomposition, so the control and the
+                        // camera silently drifted apart. Reading `cameraTick` here subscribes this
+                        // panel to every camera mutation — slider, gesture, reset and follow alike.
+                        @Suppress("UNUSED_VARIABLE") val camTick = vm.cameraTick
                         SandboxSlider(
-                            value = vm.camera.tiltRad.toFloat(),
-                            onValueChange = { v -> vm.setCameraTilt(v.toDouble()) },
-                            valueRange = 0f..CameraState.MAX_TILT.toFloat(),
+                            value = vm.cameraTiltFraction.toFloat(),
+                            onValueChange = { v -> vm.setCameraTiltFraction(v.toDouble()) },
+                            valueRange = 0f..1f,
                             label = if (fa) "زاویه دید" else "Viewing angle",
                             readout = SandboxFormat.fixed(vm.camera.tiltRad * 180.0 / PI, 0, fa) + "°",
                             tag = "camera_tilt_slider"
@@ -601,7 +718,7 @@ fun GravitySandboxRoot(
                                     .weight(1f)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(c.accent.copy(alpha = 0.10f))
-                                    .clickableTag("camera_reset") { vm.frameCameraForPreset(vm.preset) }
+                                    .clickableTag("camera_reset") { vm.restorePresetCamera() }
                                     .padding(vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -629,38 +746,48 @@ fun GravitySandboxRoot(
                 )
             }
 
-            // §6 — the primary creative action of the whole screen. A 64 dp target with a clear
-            // label, sitting above the HUD row so it never overlaps the system gesture area and
-            // never covers the tabletop.
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .navigationBarsPadding()
-                    .padding(bottom = 84.dp, end = 16.dp)
-                    .height(64.dp)
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(c.accent.copy(alpha = if (c.isDark) 0.20f else 0.14f))
-                    .border(1.5.dp, c.accent.copy(alpha = 0.65f), RoundedCornerShape(32.dp))
-                    .clickableTag("hud_add") {
-                        addAtScene = null
-                        showAdd = true
+            // §16/§17 — the primary creative action, as a compact wordless disc.
+            //
+            // A 52 dp visible circle inside a 56 dp touch target: comfortably above the 48 dp
+            // minimum without becoming the loudest thing on a screen whose subject is the physics.
+            // It carries no label because a plus needs none, and its meaning does not mirror, so
+            // only its side of the screen follows the layout direction (§18).
+            //
+            // It hides whenever any sheet or panel is open (§17). A floating action button that
+            // sits on top of the very sheet it just opened is the classic version of this bug;
+            // here the button simply is not there while a sheet owns the interaction.
+            val anySheetOpen = showAdd || showInspector || showPresets ||
+                showChallenges || showTutorial || showCameraPanel
+            if (!anySheetOpen) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .navigationBarsPadding()
+                        .padding(bottom = 78.dp, end = 14.dp)
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .clickableTag("hud_add") {
+                            addAtScene = null
+                            showAdd = true
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(CircleShape)
+                            .background(c.accent.copy(alpha = if (c.isDark) 0.22f else 0.16f))
+                            .border(1.5.dp, c.accent.copy(alpha = 0.7f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = if (fa) "افزودن جسم" else "Add body",
+                            tint = c.accent,
+                            modifier = Modifier.size(26.dp)
+                        )
                     }
-                    .padding(horizontal = 22.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Filled.Add,
-                    contentDescription = if (fa) "افزودن جسم" else "Add body",
-                    tint = c.accent,
-                    modifier = Modifier.size(30.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = if (fa) "افزودن" else "Add",
-                    color = c.accent,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                }
             }
 
             if (showInspector && vm.selectedId != 0L) {
@@ -683,6 +810,11 @@ fun GravitySandboxRoot(
             }
             if (showPresets) {
                 PresetSheet(vm = vm, onDismiss = { showPresets = false })
+            }
+            // Rendered last so it sits above every sheet, and given the app's locale rather than
+            // any tutorial-local language state (§2/§23).
+            if (showTutorial) {
+                TutorialOverlay(persian = fa, onDismiss = dismissTutorial)
             }
         }
     }

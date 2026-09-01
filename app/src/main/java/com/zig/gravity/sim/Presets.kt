@@ -27,7 +27,15 @@ enum class Preset(
      * Half-width the camera should frame when this preset loads, in metres. 0 means "the default
      * 3 AU table", which is what every dp-laid-out experiment wants.
      */
-    val frameHalfSpanM: Double = 0.0
+    val frameHalfSpanM: Double = 0.0,
+    /**
+     * Initial camera elevation as a 0..1 fraction of [CameraState.MAX_TILT] (§26).
+     *
+     * Most scenes read best straight down. A couple of them — the ones whose story is about two
+     * bodies swinging around a shared point — gain a little depth from a slight lean, so the
+     * preset carries its own answer instead of the camera guessing.
+     */
+    val initialTiltFraction: Double = 0.0
 ) {
     FULL_SOLAR_SYSTEM(
         "منظومه شمسی کامل", "Full Solar System",
@@ -42,8 +50,9 @@ enum class Preset(
     ),
     EARTH_MOON(
         "زمین و ماه", "Earth and Moon",
-        "چرا ماه با وجود کشش زمین، روی زمین نمی‌افتد؟ فاصله بزرگ‌نمایی شده تا مدار دیده شود؛ برای دیدن یک دور کامل سرعت ۱۶× را بزن.",
-        "Why doesn't the Moon fall onto Earth? The separation is exaggerated so the orbit is readable; use 16x to watch a full lap."
+        "چرا ماه با وجود کشش زمین، روی زمین نمی‌افتد؟ فاصله بزرگ‌نمایی شده تا مدار دیده شود؛ برای دیدن یک دور کامل سرعت ۶۹× را بزن.",
+        "Why doesn't the Moon fall onto Earth? The separation is exaggerated so the orbit is readable; use 69x to watch a full lap.",
+        initialTiltFraction = 0.22
     ),
     INNER_SYSTEM(
         "منظومه داخلی", "Inner system",
@@ -70,6 +79,38 @@ enum class Preset(
         "سه ستاره هم‌جرم روی یک مثلث. این چیدمان راه‌حل بسته ندارد؛ کوچک‌ترین تفاوت، سرنوشت را عوض می‌کند.",
         "Three equal stars on a triangle. This arrangement has no closed solution: the tiniest difference changes its fate."
     ),
+    // ---- §22 educational scenes -----------------------------------------------------------------
+    TWO_BODY_ORBIT(
+        "مدار دوجسمی", "Two-body orbit",
+        "یک جرم سنگین در مرکز و یک جرم کوچک در کنارش. گرانش آن را به داخل می‌کشد، اما حرکت جانبی‌اش نمی‌گذارد سقوط کند.",
+        "One heavy body in the middle, one small body beside it. Gravity pulls it inward; its sideways motion keeps it from falling in."
+    ),
+    ESCAPE_VELOCITY(
+        "سرعت گریز", "Escape velocity",
+        "سه جرم آزمایشی با سه سرعت متفاوت: یکی برمی‌گردد، یکی مرزی است و یکی برای همیشه می‌رود.",
+        "Three test bodies at three different speeds: one comes back, one is borderline, one leaves for good."
+    ),
+    MASS_MATTERS(
+        "نقش جرم", "Mass matters",
+        "دو جرم آزمایشی یکسان در فاصله یکسان. جرم مرکزی را تغییر بده و ببین مسیرشان چطور عوض می‌شود.",
+        "Two identical test bodies at identical distances. Change the central mass and watch both paths change."
+    ),
+    COLLISION_LAB(
+        "آزمایش برخورد", "Collision lab",
+        "دو تیله روی مسیرهای متقاطع. جرم و سرعتشان را عوض کن و نتیجه برخورد را ببین.",
+        "Two marbles on intersecting paths. Change their mass and speed and watch the outcome change."
+    ),
+    PERTURBATION(
+        "آشفتگی مداری", "Orbital perturbation",
+        "خورشید و زمین، به‌علاوه یک همراه سنگین. مدار زمین دیگر تنها نیست.",
+        "The Sun and Earth, plus one heavy companion. Earth's orbit is no longer alone."
+    ),
+    BLACK_HOLE_ENCOUNTER(
+        "برخورد با سیاه‌چاله", "Black hole encounter",
+        "یک جرم آزمایشی از کنار سیاه‌چاله می‌گذرد. از دور، گرانش مثل هر جرم دیگری رفتار می‌کند.",
+        "A test body passes a black hole. From far away its gravity behaves like any other mass."
+    ),
+
     EMPTY_TABLE(
         "میز خالی", "Empty table",
         "هیچ جسمی نیست. با دکمه + شروع کن و ببین گرانش چطور از هیچ، یک سامانه می‌سازد.",
@@ -77,8 +118,16 @@ enum class Preset(
     );
 
     companion object {
-        /** §9: the sandbox opens on the complete Solar System, never on an empty table. */
-        val DEFAULT: Preset = FULL_SOLAR_SYSTEM
+        /**
+         * §20 — the sandbox opens on Sun + Earth.
+         *
+         * It used to open on the full Solar System, which is the most impressive scene and the
+         * worst first impression: at a framing wide enough to hold Neptune, Earth is a couple of
+         * pixels and its orbit takes a visible age. Sun + Earth answers "what is this?" in about
+         * five seconds — one obvious central mass, one obvious orbiter, one obvious orbit — and
+         * the full system is one tap away in Scenes.
+         */
+        val DEFAULT: Preset = SUN_EARTH
     }
 }
 
@@ -179,6 +228,103 @@ object Presets {
                 s.add(marble.type, 0.0, marble.dp, -start, dp(20.0), vIn, 0.0, marble.key)
                 s.add(marble.type, 0.0, marble.dp, -start, dp(55.0), vIn, 0.0, marble.key)
                 s.add(marble.type, 0.0, marble.dp, -start, dp(95.0), vIn, 0.0, marble.key)
+            }
+
+            // ---- §22 educational scenes ------------------------------------------------------
+            //
+            // Every one of these is a real initial condition fed to the same N-body integrator.
+            // Nothing here is scripted, keyframed or drawn along a predetermined path: the
+            // orbits, the escapes and the collisions are all outcomes of the integration.
+
+            Preset.TWO_BODY_ORBIT -> {
+                // §22A — the cleanest possible statement of "gravity makes orbits". One dominant
+                // mass, one small companion, and exactly the circular speed that distance needs.
+                val sun = BodyCatalog.SUN
+                val r = dp(110.0)
+                s.add(sun.type, sun.massKg, sun.dp, 0.0, 0.0, 0.0, 0.0, sun.key)
+                val v = EngineConstants.circularSpeed(sun.massKg, r)
+                s.add(BodyType.PLANET, EngineConstants.M_EARTH, 10.0, r, 0.0, 0.0, v, "earth")
+                zeroTotalMomentum(s)
+            }
+
+            Preset.ESCAPE_VELOCITY -> {
+                // §22B — the same start point and the same direction three times over, at 0.75,
+                // 1.0 and 1.25 of the local escape speed. The threshold is not announced; it is
+                // simply what the three bodies go on to do.
+                val sun = BodyCatalog.SUN
+                s.add(sun.type, sun.massKg, sun.dp, 0.0, 0.0, 0.0, 0.0, sun.key)
+                val r = dp(95.0)
+                val vEsc = EngineConstants.escapeSpeed(sun.massKg, r)
+                val marble = BodyCatalog.MARBLE
+                for ((i, factor) in listOf(0.75, 1.0, 1.25).withIndex()) {
+                    val yOff = dp(14.0) * (i - 1)
+                    s.add(marble.type, marble.massKg, marble.dp, r, yOff, 0.0, vEsc * factor, marble.key)
+                }
+                zeroTotalMomentum(s)
+            }
+
+            Preset.MASS_MATTERS -> {
+                // §22C — two identical test bodies at identical radii, so any difference the user
+                // later sees is unambiguously caused by the mass they edited and by nothing else.
+                val sun = BodyCatalog.SUN
+                s.add(sun.type, sun.massKg, sun.dp, 0.0, 0.0, 0.0, 0.0, sun.key)
+                val marble = BodyCatalog.MARBLE
+                val r = dp(100.0)
+                val v = EngineConstants.circularSpeed(sun.massKg, r)
+                s.add(marble.type, marble.massKg, marble.dp, r, 0.0, 0.0, v, marble.key)
+                s.add(marble.type, marble.massKg, marble.dp, -r, 0.0, 0.0, -v, marble.key)
+                zeroTotalMomentum(s)
+            }
+
+            Preset.COLLISION_LAB -> {
+                // §22D — two bodies aimed at the same point from perpendicular directions, with
+                // deliberately unequal masses so the momentum exchange is visible in the result.
+                // No central mass: the collision must be the only thing happening.
+                //
+                // The masses and the speed are chosen so the default impact lands in the MODERATE
+                // tier rather than pinned at either end. That leaves the user real headroom in
+                // both directions: slow it down or make the pair heavier and it grades soft;
+                // speed it up and it grades high-energy. TEST_MARBLE is deliberately not used
+                // here — that type is massless by definition, and a massless body cannot carry
+                // momentum, which is the entire subject of this scene.
+                val d = dp(55.0)
+                val v = 2.0e3
+                s.add(BodyType.PLANET, 5.0e26, 12.0, -d, 0.0, v, 0.0, "earth")
+                s.add(BodyType.PLANET, 3.0e26, 10.0, 0.0, -d, 0.0, v, "earth")
+            }
+
+            Preset.PERTURBATION -> {
+                // §22G — Sun + Earth exactly as the default scene, plus a Jupiter-mass companion
+                // further out. Earth starts on the same circular orbit it always does, so every
+                // deviation the user watches accumulate is caused by the third body.
+                val sun = BodyCatalog.SUN
+                val earth = BodyCatalog.EARTH
+                val r = EngineConstants.AU
+                s.add(sun.type, sun.massKg, sun.dp, 0.0, 0.0, 0.0, 0.0, sun.key)
+                val vE = EngineConstants.circularSpeed(sun.massKg, r)
+                s.add(earth.type, earth.massKg, earth.dp, r, 0.0, 0.0, vE, earth.key)
+                val rJ = 1.9 * EngineConstants.AU
+                val vJ = EngineConstants.circularSpeed(sun.massKg, rJ)
+                s.add(
+                    BodyCatalog.JUPITER.type, BodyCatalog.JUPITER.massKg, 13.0,
+                    -rJ, 0.0, 0.0, -vJ, BodyCatalog.JUPITER.key
+                )
+                zeroTotalMomentum(s)
+            }
+
+            Preset.BLACK_HOLE_ENCOUNTER -> {
+                // §22H — a single flyby, aimed off-centre so it swings past rather than falling
+                // straight in. The point is that from this distance the hole is just a mass.
+                val bh = BodyCatalog.BLACK_HOLE
+                s.add(bh.type, bh.massKg, bh.dp, 0.0, 0.0, 0.0, 0.0, bh.key)
+                val start = dp(150.0)
+                val impact = dp(45.0)
+                // Below escape speed and off-centre, so the body swings past on a long ellipse and
+                // comes back instead of vanishing in two seconds. That is the lesson: at this
+                // distance the hole is simply a mass, and things orbit it like anything else.
+                val vIn = 0.55 * EngineConstants.escapeSpeed(bh.massKg, start)
+                val marble = BodyCatalog.MARBLE
+                s.add(marble.type, marble.massKg, marble.dp, -start, impact, vIn, 0.0, marble.key)
             }
 
             Preset.WORMHOLE_LAB -> {

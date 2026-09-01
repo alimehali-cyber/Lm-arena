@@ -127,6 +127,22 @@ fun TeachingCardView(vm: SimulationViewModel, modifier: Modifier = Modifier) {
             Text(text = card.formula, color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         }
 
+        // §24 — "Try this". Shown on the first tier, where a newcomer is, and not repeated on the
+        // deeper tiers where they are already reading rather than doing.
+        val tryThis = if (fa) card.tryThisFa else card.tryThisEn
+        if (tier == TeachingTier.WHAT && tryThis != null) {
+            Row(verticalAlignment = Alignment.Top, modifier = Modifier.testTag("teaching_try_this")) {
+                Text(
+                    text = if (fa) "امتحان کن:" else "Try this:",
+                    color = c.accent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(text = tryThis, color = c.onSurfaceDim, fontSize = 12.sp, lineHeight = 18.sp)
+            }
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (t in TeachingTier.entries) {
                 val label = (if (fa) TeachingCatalog.TIER_LABEL_FA else TeachingCatalog.TIER_LABEL_EN)[t] ?: ""

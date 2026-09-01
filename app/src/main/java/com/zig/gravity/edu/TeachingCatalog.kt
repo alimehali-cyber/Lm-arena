@@ -25,12 +25,32 @@ data class TeachingCard(
     /** Tier 3 — «بیشتر بدانیم» */
     val moreFa: String,
     val moreEn: String,
-    val formula: String? = null
+    val formula: String? = null,
+    /**
+     * §24 — "Try this". The one sentence that turns a card from something you read into something
+     * you do. Optional: an event card that fires mid-experiment often has no useful next action,
+     * while every preset intro card does.
+     */
+    val tryThisFa: String? = null,
+    val tryThisEn: String? = null
 )
 
 enum class TeachingTier { WHAT, WHY, MORE }
 
 object TeachingCatalog {
+
+    // ---- §23 preset intro concepts. Namespaced so they can never collide with the event
+    // detectors' concept ids, and looked up from the Preset enum name at load time.
+    const val PRESET_PREFIX = "preset_"
+    const val PRESET_TWO_BODY_ORBIT = "preset_TWO_BODY_ORBIT"
+    const val PRESET_ESCAPE_VELOCITY = "preset_ESCAPE_VELOCITY"
+    const val PRESET_MASS_MATTERS = "preset_MASS_MATTERS"
+    const val PRESET_COLLISION_LAB = "preset_COLLISION_LAB"
+    const val PRESET_PERTURBATION = "preset_PERTURBATION"
+    const val PRESET_BLACK_HOLE_ENCOUNTER = "preset_BLACK_HOLE_ENCOUNTER"
+
+    /** The concept id a preset's intro card is filed under, if it has one. */
+    fun presetConcept(presetName: String): String = PRESET_PREFIX + presetName
 
     val TIER_LABEL_FA = mapOf(
         TeachingTier.WHAT to "چه اتفاقی افتاد؟",
@@ -189,6 +209,93 @@ object TeachingCatalog {
             moreEn = "Set the Moon's sideways speed to zero and it drops straight in. Make it far too large and it escapes. Between those extremes lies the range that makes an orbit, around v = √(GM/r).",
             formula = "v = √(GM / r)"
         )
+        // ---- §22/§23 preset intro cards -------------------------------------------------------
+        //
+        // One card per educational scene, shown when the scene loads. They follow the §24 shape:
+        // what to notice, why it happens, how to go deeper, and something to try. Every claim is
+        // about what the integrator will actually do with that scene's initial conditions.
+        TeachingCard(
+            concept = PRESET_TWO_BODY_ORBIT,
+            titleFa = "چرا زمین همچنان می‌چرخد؟",
+            titleEn = "Why does it keep orbiting?",
+            whatFa = "جسم کوچک مدام به سمت جرم مرکزی سقوط می‌کند — و مدام از کنارش رد می‌شود.",
+            whatEn = "The small body keeps falling toward the central mass, and keeps missing it.",
+            whyFa = "گرانش آن را به داخل می‌کشد، اما جسم همزمان به پهلو حرکت می‌کند. ترکیب این دو، یک منحنی بسته می‌سازد: مدار.",
+            whyEn = "Gravity pulls it inward while it also moves sideways. The two together bend its path into a closed curve: an orbit.",
+            moreFa = "برای مدار دایره‌ای، گرانش باید دقیقاً شتاب مرکزگرای لازم را بدهد: GM/r² = v²/r. پس سرعت لازم فقط به جرم مرکزی و فاصله بستگی دارد، نه به جرم خودِ جسم.",
+            moreEn = "A circular orbit needs gravity to supply exactly the centripetal acceleration: GM/r² = v²/r. The required speed depends only on the central mass and the distance, never on the orbiting body's own mass.",
+            formula = "v = √(GM / r)",
+            tryThisFa = "سرعت جسم را کمی زیاد کن و ببین مدار چطور کشیده می‌شود.",
+            tryThisEn = "Nudge its speed up and watch the orbit stretch."
+        ),
+        TeachingCard(
+            concept = PRESET_ESCAPE_VELOCITY,
+            titleFa = "کِی گرانش دیگر کافی نیست؟",
+            titleEn = "When is gravity not enough?",
+            whatFa = "سه جسم از یک نقطه و در یک جهت شروع می‌کنند، فقط با سرعت‌های متفاوت. سرنوشتشان کاملاً فرق می‌کند.",
+            whatEn = "Three bodies start from the same place in the same direction, differing only in speed. Their fates are completely different.",
+            whyFa = "زیر یک سرعت مشخص، انرژی جنبشی از چاه گرانشی کمتر است و جسم برمی‌گردد. بالای آن، انرژی بیشتر است و جسم هرگز برنمی‌گردد.",
+            whyEn = "Below a certain speed the kinetic energy is less than the depth of the gravity well, so the body comes back. Above it, the body never returns.",
+            moreFa = "مرز دقیقاً جایی است که انرژی کل صفر شود: ½v² = GM/r. سرعت گریز به جرمِ خودِ جسم بستگی ندارد — یک سنگ و یک سفینه سرعت گریز یکسانی دارند.",
+            moreEn = "The threshold is exactly where the total energy reaches zero: ½v² = GM/r. Escape speed does not depend on the escaping body's own mass — a pebble and a spacecraft need the same speed.",
+            formula = "v_esc = √(2GM / r)",
+            tryThisFa = "جسم کندتر را انتخاب کن و سرعتش را کم‌کم زیاد کن تا لحظهٔ گریز را پیدا کنی.",
+            tryThisEn = "Select the slowest body and raise its speed until you find the moment it escapes."
+        ),
+        TeachingCard(
+            concept = PRESET_MASS_MATTERS,
+            titleFa = "جرم چه چیزی را عوض می‌کند؟",
+            titleEn = "What does mass change?",
+            whatFa = "دو جسم آزمایشی، در فاصلهٔ یکسان و با سرعت یکسان. الان مسیرشان قرینه است.",
+            whatEn = "Two test bodies at the same distance with the same speed. Right now their paths mirror each other.",
+            whyFa = "کشش گرانشی به جرم جسم مرکزی بستگی دارد. جرم مرکزی را عوض کن و همان سرعت، دیگر برای مدار دایره‌ای مناسب نیست.",
+            whyEn = "The pull depends on the central body's mass. Change it and the same speed is no longer the right speed for a circular orbit.",
+            moreFa = "نیرو با حاصل‌ضرب دو جرم متناسب است، اما شتابِ جسم سبک فقط به جرم دیگری بستگی دارد — چون m در F = ma حذف می‌شود. برای همین سرعت مداری به جرم خودِ مدارگرد وابسته نیست.",
+            moreEn = "The force scales with the product of both masses, but the light body's acceleration depends only on the other mass, because m cancels in F = ma. That is why orbital speed does not depend on the orbiter's own mass.",
+            formula = "F = G·m₁·m₂ / r²",
+            tryThisFa = "خورشید را انتخاب کن و جرمش را دو برابر کن. هر دو جسم آزمایشی را با هم تماشا کن.",
+            tryThisEn = "Select the star and double its mass. Watch both test bodies at once."
+        ),
+        TeachingCard(
+            concept = PRESET_COLLISION_LAB,
+            titleFa = "وقتی دو جسم به هم می‌رسند",
+            titleEn = "When two bodies meet",
+            whatFa = "دو جسم با جرم متفاوت روی مسیرهای متقاطع. جسم سنگین‌تر کمتر منحرف می‌شود.",
+            whatEn = "Two bodies of different mass on intersecting paths. The heavier one is deflected less.",
+            whyFa = "در برخورد، تکانهٔ کل حفظ می‌شود. سهم هر جسم از تغییر سرعت، وارونهٔ جرمش است: جرم بیشتر یعنی تغییر سرعت کمتر.",
+            whyEn = "Momentum is conserved through the impact. Each body's share of the velocity change is inversely proportional to its mass: more mass, less change.",
+            moreFa = "انرژی‌ای که واقعاً در برخورد آزاد می‌شود از جرم کاهش‌یافته می‌آید، نه از انرژی جنبشی کل: E = ½μv²، با μ = m₁m₂/(m₁+m₂). بخش بزرگی از انرژی جنبشی کل فقط حرکت مشترک این جفت است و در برخورد حس نمی‌شود.",
+            moreEn = "The energy actually released comes from the reduced mass, not the total kinetic energy: E = ½μv², with μ = m₁m₂/(m₁+m₂). Most of the total kinetic energy is just the pair's shared drift, which no collision can feel.",
+            formula = "E = ½·μ·v²  ·  μ = m₁m₂/(m₁+m₂)",
+            tryThisFa = "سرعت یکی از دو جسم را نصف کن و ببین شدت برخورد چقدر فرق می‌کند.",
+            tryThisEn = "Halve one body's speed and see how much gentler the impact grades."
+        ),
+        TeachingCard(
+            concept = PRESET_PERTURBATION,
+            titleFa = "هیچ مداری تنها نیست",
+            titleEn = "No orbit is alone",
+            whatFa = "زمین روی همان مدار همیشگی شروع می‌کند، اما این بار یک همراه سنگین هم هست. مدار کم‌کم تغییر می‌کند.",
+            whatEn = "Earth starts on exactly its usual orbit, but this time there is a heavy companion. The orbit slowly changes.",
+            whyFa = "گرانش فقط بین دو جسم نیست؛ هر جسم روی هر جسم دیگری اثر می‌گذارد. اثر کوچک همراه، در طول زمان جمع می‌شود.",
+            whyEn = "Gravity is not a private arrangement between two bodies. Everything pulls on everything, and the companion's small tug accumulates over time.",
+            moreFa = "به همین دلیل مسئلهٔ چند جسمی راه‌حل بستهٔ ساده ندارد و مدارهای واقعی سیارات را باید عددی محاسبه کرد. کشف نپتون دقیقاً از همین آشفتگی در مدار اورانوس شروع شد.",
+            moreEn = "This is why the many-body problem has no simple closed solution and why real planetary orbits are computed numerically. Neptune was discovered precisely from this kind of perturbation in Uranus's orbit.",
+            tryThisFa = "«رد حرکت» را روشن کن و چند دور صبر کن تا انحراف مدار دیده شود.",
+            tryThisEn = "Turn on trails and wait a few laps until the drift becomes visible."
+        ),
+        TeachingCard(
+            concept = PRESET_BLACK_HOLE_ENCOUNTER,
+            titleFa = "سیاه‌چاله جاروبرقی نیست",
+            titleEn = "A black hole is not a vacuum cleaner",
+            whatFa = "جسم آزمایشی از کنار سیاه‌چاله می‌گذرد، منحرف می‌شود و برمی‌گردد — مثل عبور از کنار هر جرم سنگین دیگری.",
+            whatEn = "The test body swings past the black hole, bends, and comes back — just as it would passing any other heavy mass.",
+            whyFa = "از فاصلهٔ دور، گرانش سیاه‌چاله فقط به جرمش بستگی دارد. اگر خورشید را با سیاه‌چاله‌ای هم‌جرم عوض کنیم، مدار زمین تغییری نمی‌کند.",
+            whyEn = "From far away a black hole's gravity depends only on its mass. Swap the Sun for a black hole of the same mass and Earth's orbit would not change at all.",
+            moreFa = "چیزی که سیاه‌چاله را خاص می‌کند فاصله است، نه کشش: جرم در حجمی چنان کوچک جمع شده که می‌توان بسیار نزدیک شد، و آنجا میدان گرانشی به‌شدت قوی می‌شود. این شبیه‌سازی نیوتنی است و اثرهای نسبیت عام را مدل نمی‌کند.",
+            moreEn = "What makes a black hole special is how close you can get, not how hard it pulls: the mass sits in such a small volume that you can approach very near, and there the field becomes extreme. This sandbox is Newtonian and does not model general relativity.",
+            tryThisFa = "جسم را بکش و نزدیک‌تر رها کن تا ببینی مسیرش چقدر تندتر خم می‌شود.",
+            tryThisEn = "Drag the body closer and release it to see how much harder its path bends."
+        ),
     ).associateBy { it.concept }
 
     fun card(concept: String): TeachingCard? = cards[concept]

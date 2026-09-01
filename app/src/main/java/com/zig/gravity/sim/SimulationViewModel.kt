@@ -50,6 +50,36 @@ class SimulationViewModel : ViewModel() {
     /** §1 camera. Plain state, mutated by the gesture layer, read in the draw phase. */
     val camera = CameraState()
 
+    /**
+     * §1/§26 — the camera pose this preset started in.
+     *
+     * Reset restores this recorded pose rather than re-deriving a framing, so "reset" genuinely
+     * means "put the experiment back the way it started", camera included. It is captured once,
+     * when the preset is built, and again whenever the user explicitly re-frames for the preset.
+     */
+    private var initialCameraPose: CameraPose = camera.snapshot()
+
+    /**
+     * Bumped on every camera mutation the UI needs to see. [camera] is deliberately a plain class
+     * (it is read in the draw phase and by JVM tests), which means a composable reading
+     * `camera.tiltRad` would never recompose. Panels that display camera values read this instead.
+     */
+    var cameraTick by mutableStateOf(0)
+        private set
+
+    // ---- §7-§15 follow --------------------------------------------------------------------------
+
+    /** Id of the body the camera is following, or 0 when Follow is off. */
+    var followId: Long = 0L
+        private set
+
+    /** Compose-visible mirror of [followId], so the HUD and inspector can react to it. */
+    var followTargetId by mutableStateOf(0L)
+        private set
+
+    /** True for the first frames after acquiring a target, while the camera glides onto it. */
+    private var followAcquiring = false
+
     /** §13 pooled impact effects. Bounded, elapsed-time driven, never accumulates. */
     val effects = EffectPool()
 
@@ -298,6 +328,9 @@ class SimulationViewModel : ViewModel() {
         }
         lastFrameSubsteps = steps
         effects.update(dtReal)
+        // §9 — the follow camera is smoothed in wall-clock time, after the physics has advanced
+        // and before the snapshot is taken, so the drawn frame is already correctly framed.
+        updateFollow(dtReal)
 
         snapshot.captureFrom(arrays)
 
@@ -456,6 +489,16 @@ class SimulationViewModel : ViewModel() {
 
     private fun handleIntegrityEvents() {
         for (e in events) {
+            // §14 — if the followed body was absorbed, follow the body that absorbed it. The
+            // survivor genuinely contains the mass we were watching, so transferring is the
+            // honest answer; anything else silently drops the user out of Follow mid-experiment.
+            if (e is SimEvent.BodyMerged && followId == e.absorbedId) {
+                followId = e.survivorId
+                followTargetId = e.survivorId
+                followAcquiring = true
+            }
+            // A body that fell into a black hole or left through a wormhole is simply gone.
+            if (e is SimEvent.BlackHoleCapture && followId == e.capturedId) stopFollow()
             if (e is SimEvent.NumericalFailure && e.consecutiveFailures >= NBodyEngine.FAILURE_LIMIT) {
                 paused = true
                 showNotice(
@@ -521,25 +564,62 @@ class SimulationViewModel : ViewModel() {
         arrays.copyInto(initialState)
         afterHardReset()
         frameCameraForPreset(p)
+        // §23/§25 — a scene that teaches something opens with the card that says what to look for.
+        // Only scenes that actually have a card; the others stay silent rather than showing a stub.
+        if (teachingEnabled) {
+            val concept = TeachingCatalog.presetConcept(p.name)
+            if (TeachingCatalog.card(concept) != null) {
+                teachingConcept = concept
+                _teachingTier = TeachingTier.WHAT
+            }
+        }
     }
 
-    /** The gesture layer moved the camera; redraw even while paused. */
+    /**
+     * The gesture layer moved the camera; redraw even while paused.
+     *
+     * A manual camera gesture also ends Follow: the user has taken the wheel, and having the
+     * camera fight the finger by sliding back to the followed body is the single most annoying
+     * thing a follow camera can do.
+     */
     fun onCameraMoved() {
+        if (followId != 0L) stopFollow()
         frameTick++
+        cameraTick++
     }
 
-    /** §1 camera angle control, exposed to the HUD (0 = straight down). */
-    fun setCameraTilt(value: Double) {
-        camera.setTilt(value)
+    /**
+     * §3/§4 camera elevation, as a 0..1 fraction.
+     *
+     * 0 is straight down on the tabletop; 1 is the shallowest legal side-on angle
+     * ([CameraState.MAX_TILT], about 62 degrees off vertical). The camera cannot pass vertical, so
+     * it can never flip over, and the projection never approaches the singular edge-on case where
+     * the plane would collapse to a line and picking would stop working.
+     *
+     * This changes the camera and **nothing else**: no body position, velocity, mass, radius or
+     * simulated time is touched anywhere on this path.
+     */
+    fun setCameraTiltFraction(fraction: Double) {
+        camera.setTilt(CameraState.tiltFromFraction(fraction))
         frameTick++
+        cameraTick++
     }
+
+    /** Elevation as the same 0..1 fraction the slider works in. */
+    val cameraTiltFraction: Double get() = CameraState.tiltFraction(camera.tiltRad)
 
     fun resetCamera() {
         camera.reset()
         frameTick++
+        cameraTick++
     }
 
-    /** Frames the current preset: its declared span, or the bodies themselves. */
+    /**
+     * Frames [p] and records the result as this preset's initial camera pose (§26).
+     *
+     * Every preset therefore carries a real initial camera state: its declared span if it has one,
+     * the default table if it does not, plus the elevation the preset asks for.
+     */
     fun frameCameraForPreset(p: Preset) {
         val declared = p.frameHalfSpanM
         if (declared > 0.0) {
@@ -547,8 +627,91 @@ class SimulationViewModel : ViewModel() {
         } else {
             camera.reset()
         }
-        camera.setTilt(0.0)
+        camera.setTilt(CameraState.tiltFromFraction(p.initialTiltFraction))
+        initialCameraPose = camera.snapshot()
+        cameraTick++
         markDirty()
+    }
+
+    /** Restores the recorded initial pose for the current preset without rebuilding the scene. */
+    fun restorePresetCamera() {
+        camera.restore(initialCameraPose)
+        cameraTick++
+        markDirty()
+    }
+
+    // ==== §7-§15 follow ===============================================================================
+
+    /**
+     * Starts following [bodyId]. The camera tracks the body; **the body is not touched**.
+     *
+     * Nothing on this path writes to position, velocity, mass, radius, acceleration or simulated
+     * time. Follow is a camera behaviour and only a camera behaviour.
+     */
+    fun startFollow(bodyId: Long) {
+        if (bodyId == 0L || arrays.slotOfId(bodyId) < 0) return
+        followId = bodyId
+        followTargetId = bodyId
+        followAcquiring = true
+        markDirty()
+    }
+
+    /** Ends Follow, leaving the camera exactly where it is (§12). */
+    fun stopFollow() {
+        if (followId == 0L) return
+        followId = 0L
+        followTargetId = 0L
+        followAcquiring = false
+        markDirty()
+    }
+
+    fun toggleFollow(bodyId: Long) {
+        if (followId == bodyId) stopFollow() else startFollow(bodyId)
+    }
+
+    val isFollowing: Boolean get() = followTargetId != 0L
+
+    /**
+     * §9/§10 — one frame of follow.
+     *
+     * Critically damped-ish exponential smoothing toward the target, framed in **wall-clock**
+     * seconds, not simulated seconds. That is what keeps the feel identical at 1x and at 100x: the
+     * camera is a piece of visual furniture and must not inherit the simulation's time dilation.
+     *
+     * The camera is drawn toward the body but is allowed to keep a little of its existing offset,
+     * so a followed planet does not sit welded to the exact centre of the screen with its primary
+     * shoved off-frame (§10). It is never teleported.
+     */
+    private fun updateFollow(dtRealSeconds: Double) {
+        if (followId == 0L) return
+        val slot = arrays.slotOfId(followId)
+        if (slot < 0) {
+            // §14 — the target was merged, captured or deleted while we were watching it.
+            stopFollow()
+            return
+        }
+        val tx = arrays.x[slot]
+        val ty = arrays.y[slot]
+        if (!tx.isFinite() || !ty.isFinite()) {
+            stopFollow()
+            return
+        }
+
+        // Acquisition is quicker than steady-state tracking, so the camera arrives promptly and
+        // then stops drawing attention to itself.
+        val tau = if (followAcquiring) FOLLOW_ACQUIRE_TAU else FOLLOW_TRACK_TAU
+        val dt = dtRealSeconds.coerceIn(0.0, 0.1)
+        val alpha = if (dt <= 0.0) 0.0 else 1.0 - Math.exp(-dt / tau)
+
+        val nx = camera.panX + (tx - camera.panX) * alpha
+        val ny = camera.panY + (ty - camera.panY) * alpha
+        camera.setPan(nx, ny)
+
+        if (followAcquiring) {
+            val remaining = hypot(tx - nx, ty - ny)
+            val scale = EngineConstants.SCENE_WIDTH_AU * EngineConstants.AU / camera.zoom
+            if (remaining < scale * 0.02) followAcquiring = false
+        }
     }
 
     /** Frames everything currently on the table (used by the "fit" control). */
@@ -581,8 +744,21 @@ class SimulationViewModel : ViewModel() {
         arrays.clearTrails()
         NBodyEngine.computeAccelerations(arrays)
         afterHardReset()
+        // §1 — and the camera goes back to where this preset started, not merely the physics.
+        camera.restore(initialCameraPose)
+        cameraTick++
+        markDirty()
     }
 
+    /**
+     * §1/§2 — everything that "start again" has to mean.
+     *
+     * Reset used to restore the physics and leave the camera wherever the user had wandered off
+     * to, which made it impossible to actually re-run an experiment: the same initial conditions
+     * would appear at a different zoom, a different pan and a different angle every time. It now
+     * restores the *whole* experiment, camera included, and drops Follow so no stale target and no
+     * in-flight interpolation survives into the fresh run.
+     */
     private fun afterHardReset() {
         arrays.clearTrails()
         effects.clear()
@@ -595,8 +771,18 @@ class SimulationViewModel : ViewModel() {
         slingshotArmedId = 0L
         slingshotActive = false
         predictionCount = 0
+        predictionIsGhost = false
+        predictionEscapes = false
         teachingConcept = null
+        impactHeadlineFa = null
+        impactHeadlineEn = null
+        impactDetailFa = null
+        impactDetailEn = null
         challengeResultOptionId = null
+        // §2 — no stale follow target, no continuing interpolation, no camera drift.
+        followId = 0L
+        followTargetId = 0L
+        followAcquiring = false
         detectors.reset()
         NBodyEngine.resetFailureCounter()
         snapshot.captureFrom(arrays)
@@ -685,6 +871,7 @@ class SimulationViewModel : ViewModel() {
         if (type == BodyType.WORMHOLE_MOUTH) {
             Wormhole.removeWithPartner(arrays, slot)
         } else {
+            if (followId == arrays.id[slot]) stopFollow()
             arrays.removeAt(slot)
         }
         selectedId = 0L
@@ -1195,4 +1382,13 @@ class SimulationViewModel : ViewModel() {
         val p = Collision.totalMomentum(arrays)
         return sqrt(p[0] * p[0] + p[1] * p[1])
     }
+
+    private companion object {
+        /** Wall-clock seconds to close ~63% of the gap while acquiring a new follow target. */
+        const val FOLLOW_ACQUIRE_TAU = 0.28
+
+        /** Steady-state tracking constant: tight enough to keep up, loose enough to feel calm. */
+        const val FOLLOW_TRACK_TAU = 0.12
+    }
+
 }

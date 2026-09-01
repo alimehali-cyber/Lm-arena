@@ -559,6 +559,31 @@ private fun DrawScope.drawScene(
         }
     }
 
+    // ---- 6c. §11 the followed body gets its own quiet marker ----------------------------------
+    if (vm.followTargetId != 0L) {
+        val fSlot = snap.slotOfId(vm.followTargetId)
+        if (fSlot >= 0) {
+            val fx0 = sx(snap.x[fSlot], snap.y[fSlot])
+            val fy0 = sy(snap.x[fSlot], snap.y[fSlot])
+            val fr = (cache.radiusPx[fSlot] * displayScale).coerceAtLeast(minDrawPx) +
+                cache.selectionPad * 2.2f
+            // A pair of short arcs rather than a full ring, so it reads as a reticle and never
+            // competes with the solid selection outline drawn above.
+            val sweep = 46f
+            for (start in floatArrayOf(-23f, 157f)) {
+                drawArc(
+                    color = colors.accent.copy(alpha = 0.75f),
+                    startAngle = start,
+                    sweepAngle = sweep,
+                    useCenter = false,
+                    topLeft = Offset(fx0 - fr, fy0 - fr),
+                    size = androidx.compose.ui.geometry.Size(fr * 2f, fr * 2f),
+                    style = cache.strokeRing
+                )
+            }
+        }
+    }
+
     // ---- 7. cached label for the selected body ------------------------------------------------------
     if (label != null && selSlot >= 0) {
         val px = sx(snap.x[selSlot], snap.y[selSlot])
