@@ -61,8 +61,10 @@ class SimulationViewModel : ViewModel() {
         private set
     var paused by mutableStateOf(false)
         private set
-    var speedIndex by mutableStateOf(EngineConstants.DEFAULT_SPEED_INDEX)
-        private set
+    private var _speedIndex by mutableIntStateOf(EngineConstants.DEFAULT_SPEED_INDEX)
+
+    /** Index into [EngineConstants.SPEEDS]. Observable read; mutate through [setSpeedIndex]. */
+    val speedIndex: Int get() = _speedIndex
     var trailsVisible by mutableStateOf(true)
         private set
     var teachingEnabled by mutableStateOf(true)
@@ -71,8 +73,10 @@ class SimulationViewModel : ViewModel() {
         private set
     var persian by mutableStateOf(true)
         private set
-    var marbleBounce by mutableStateOf(false)
-        private set
+    private var _marbleBounce by mutableStateOf(false)
+
+    /** §3.7 marble-vs-marble elastic bounce. Observable read; mutate through [setMarbleBounce]. */
+    val marbleBounce: Boolean get() = _marbleBounce
     var showBarycenter by mutableStateOf(true)
         private set
     var showVectors by mutableStateOf(true)
@@ -87,8 +91,10 @@ class SimulationViewModel : ViewModel() {
     val challengeRunner = ChallengeRunner()
     var teachingConcept by mutableStateOf<String?>(null)
         private set
-    var teachingTier by mutableStateOf(TeachingTier.WHAT)
-        private set
+    private var _teachingTier by mutableStateOf(TeachingTier.WHAT)
+
+    /** §3.11 teaching depth of the visible card. Observable read; mutate through [setTeachingTier]. */
+    val teachingTier: TeachingTier get() = _teachingTier
     var challengeResultOptionId by mutableStateOf<String?>(null)
         private set
     var activeChallenge by mutableStateOf<Challenge?>(null)
@@ -236,7 +242,7 @@ class SimulationViewModel : ViewModel() {
             val detection = detectors.observe(snapshot, events, System.currentTimeMillis())
             if (detection != null && TeachingCatalog.card(detection.concept) != null) {
                 teachingConcept = detection.concept
-                teachingTier = TeachingTier.WHAT
+                _teachingTier = TeachingTier.WHAT
             }
         }
         val resolved = challengeRunner.observe(snapshot, events, detectors)
@@ -286,7 +292,7 @@ class SimulationViewModel : ViewModel() {
     }
 
     fun setSpeedIndex(index: Int) {
-        speedIndex = index.coerceIn(0, EngineConstants.SPEEDS.size - 1)
+        _speedIndex = index.coerceIn(0, EngineConstants.SPEEDS.size - 1)
         markDirty()
     }
 
@@ -310,7 +316,7 @@ class SimulationViewModel : ViewModel() {
     }
 
     fun setMarbleBounce(enabled: Boolean) {
-        marbleBounce = enabled
+        _marbleBounce = enabled
     }
 
     fun toggleBarycenter() {
@@ -536,7 +542,7 @@ class SimulationViewModel : ViewModel() {
             val ratio = arrays.mass[slot] / before
             if (ratio >= 1.5 || ratio <= 0.66) {
                 teachingConcept = SimulationDetectors.MASS_CHANGED
-                teachingTier = TeachingTier.WHAT
+                _teachingTier = TeachingTier.WHAT
             }
         }
     }
@@ -810,12 +816,12 @@ class SimulationViewModel : ViewModel() {
     // ==== teaching / challenges ==============================================================================
 
     fun setTeachingTier(tier: TeachingTier) {
-        teachingTier = tier
+        _teachingTier = tier
     }
 
     fun dismissTeaching() {
         teachingConcept = null
-        teachingTier = TeachingTier.WHAT
+        _teachingTier = TeachingTier.WHAT
     }
 
     fun startChallenge(challenge: Challenge) {
@@ -858,13 +864,13 @@ class SimulationViewModel : ViewModel() {
     fun restore(text: String?): Boolean {
         val session = SaveState.decode(text, arrays) ?: return false
         preset = session.preset
-        speedIndex = session.speedIndex.coerceIn(0, EngineConstants.SPEEDS.size - 1)
+        _speedIndex = session.speedIndex.coerceIn(0, EngineConstants.SPEEDS.size - 1)
         paused = session.paused
         trailsVisible = session.trailsVisible
         teachingEnabled = session.teachingEnabled
         darkTheme = session.darkTheme
         persian = session.persian
-        marbleBounce = session.marbleBounce
+        _marbleBounce = session.marbleBounce
         selectedId = session.selectedId
         // Reset must still return to the pristine preset, not to the restored mid-experiment state.
         initialState.setMetersPerDp(arrays.metersPerDp)

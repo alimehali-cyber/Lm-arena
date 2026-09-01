@@ -89,8 +89,10 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
      */
     var accelerationsValid: Boolean = false
 
-    var metersPerDp: Double = EngineConstants.metersPerDp(400.0)
-        private set
+    private var _metersPerDp: Double = EngineConstants.metersPerDp(400.0)
+
+    /** Scene metres represented by one dp. Mutate through [setMetersPerDp]. */
+    val metersPerDp: Double get() = _metersPerDp
 
     private var nextId: Long = 1L
 
@@ -124,8 +126,8 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
 
     /** Recomputes derived scene radii when the viewport changes. dp stays authoritative. */
     fun setMetersPerDp(value: Double) {
-        if (value <= 0.0 || value == metersPerDp) return
-        metersPerDp = value
+        if (value <= 0.0 || value == _metersPerDp) return
+        _metersPerDp = value
         for (i in 0 until n) radius[i] = radiusDp[i] * value
         accelerationsValid = false
     }
