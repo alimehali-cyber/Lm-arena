@@ -81,8 +81,10 @@ class GravitySandboxIntegrationTest {
         // Scene scale: 3 AU over 400 dp is 1.122e9 m/dp.
         assertEquals(1.122e9, EngineConstants.metersPerDp(400.0), 1.0e6)
         // Speed ladder is exactly the locked set.
-        // §5: the ladder is exactly 1x / 10x / 100x, applied through substeps, never through DT.
-        assertTrue(EngineConstants.SPEEDS.contentEquals(doubleArrayOf(1.0, 10.0, 100.0)))
+        // §4: the ladder is exactly 1x / 10x / 69x / 100x, applied through substeps, never
+        // through DT. 69 is a literal requirement, not an approximation of 64 or 70.
+        assertTrue(EngineConstants.SPEEDS.contentEquals(doubleArrayOf(1.0, 10.0, 69.0, 100.0)))
+        assertTrue(EngineConstants.SPEED_LABELS.contentEquals(arrayOf("1x", "10x", "69x", "100x")))
         assertEquals(3600.0, EngineConstants.DT, 0.0)
     }
 
