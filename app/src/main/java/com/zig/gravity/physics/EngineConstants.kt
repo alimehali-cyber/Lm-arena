@@ -46,8 +46,14 @@ object EngineConstants {
 
     const val MAX_BODIES: Int = 20
 
-    /** Counts refined inner steps (§3.6b). */
-    const val MAX_SUBSTEPS: Int = 96
+    /**
+     * Counts refined inner steps per rendered frame (§3.6b).
+     *
+     * Sized for the top of the speed ladder: 100x is 1e8 simulated seconds per real second, so a
+     * 30 fps frame needs 1e8 / 30 / DT = 926 fixed steps. 1024 covers that with headroom, which is
+     * what makes 100x a *real* multiplier instead of a label — the timestep itself never grows.
+     */
+    const val MAX_SUBSTEPS: Int = 1024
 
     /** Adaptive Safety Refinement (§3.6c). */
     const val MAX_REFINE_DEPTH: Int = 3
@@ -80,10 +86,19 @@ object EngineConstants {
     /** §3.9: slingshot / prediction test-particle horizon. */
     const val PREDICTION_STEPS: Int = 600
 
-    /** §3.6b speed ladder. Multiplies BASE, never DT. */
-    val SPEEDS: DoubleArray = doubleArrayOf(0.1, 0.25, 1.0, 4.0, 16.0)
-    val SPEED_LABELS: Array<String> = arrayOf("0.1x", "0.25x", "1x", "4x", "16x")
-    const val DEFAULT_SPEED_INDEX: Int = 2
+    /**
+     * §3.6b speed ladder. Multiplies BASE, NEVER DT.
+     *
+     * 1x = 1e6 simulated seconds per real second (an Earth year in ~31 s); 100x brings Neptune's
+     * 165-year orbit down to ~52 s, which is what makes the full Solar System watchable. Each rung
+     * is delivered by running more fixed DT substeps, so the integrator's stability is unchanged.
+     */
+    val SPEEDS: DoubleArray = doubleArrayOf(1.0, 10.0, 100.0)
+    val SPEED_LABELS: Array<String> = arrayOf("1x", "10x", "100x")
+    const val DEFAULT_SPEED_INDEX: Int = 0
+
+    /** Simulated seconds the engine can deliver in one real second at [MAX_SUBSTEPS] and 60 fps. */
+    const val MAX_SIM_SECONDS_PER_REAL_SECOND: Double = MAX_SUBSTEPS * DT * 60.0
 
     // ---- Derived physics helpers (§3.4) ------------------------------------------------------
 

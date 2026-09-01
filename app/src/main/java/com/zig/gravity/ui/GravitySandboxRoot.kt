@@ -3,9 +3,13 @@ package com.zig.gravity.ui
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateRotation
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,10 +58,17 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.zig.gravity.physics.EngineConstants
+import com.zig.gravity.sim.HapticCue
+import com.zig.gravity.sim.Preset
 import com.zig.gravity.sim.SimulationViewModel
 import com.zig.gravity.ui.theme.LocalGravityColors
 import com.zig.gravity.ui.theme.ZigGravityTheme
 import kotlin.math.roundToInt
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.PI
+import androidx.compose.material.icons.filled.Public
+import com.zig.gravity.sim.CameraState
+import com.zig.gravity.util.SandboxFormat
 
 private const val PREFS_NAME = "zig_gravity_sandbox"
 private const val PREFS_KEY = "session_v1"
@@ -68,6 +79,12 @@ private const val PREFS_KEY = "session_v1"
  * Composition responsibilities only: the frame loop lives in [SimulationViewModel], the drawing
  * lives in [TabletopCanvas], and this file wires gestures, lifecycle, persistence and chrome.
  */
+/** What the single gesture handler decided this touch is. */
+private enum class GestureMode { UNDECIDED, OBJECT, SLINGSHOT, CAMERA, HANDLED }
+
+/** Outcome of the first phase of a gesture, before the mode is fixed. */
+private enum class Verdict { LIFTED, MOVED, SECOND_FINGER }
+
 @Composable
 fun GravitySandboxRoot(
     onBack: () -> Unit,
@@ -106,7 +123,27 @@ fun GravitySandboxRoot(
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             vm.onLifecycleResumed()
             while (true) {
-                withFrameNanos { nanos -> vm.onFrame(nanos) }
+                withFrameNanos { nanos ->
+                    vm.onFrame(nanos)
+                    // §14 — the simulation queues at most one cue per collision event and the
+                    // queue is drained here, on the frame it happened. Draining inside the frame
+                    // callback means haptics never cost a recomposition, and a resting contact
+                    // cannot buzz because no new event is ever queued for it.
+                    val cues = vm.pendingHaptics
+                    if (cues.isNotEmpty()) {
+                        var strongest = HapticCue.LIGHT
+                        for (i in cues.indices) {
+                            if (cues[i].ordinal > strongest.ordinal) strongest = cues[i]
+                        }
+                        vm.clearHaptics()
+                        // The platform honours the user's system haptic setting, and a device
+                        // with no vibrator simply performs nothing.
+                        haptics.performHapticFeedback(
+                            if (strongest == HapticCue.LIGHT) HapticFeedbackType.TextHandleMove
+                            else HapticFeedbackType.LongPress
+                        )
+                    }
+                }
             }
         }
     }
@@ -122,19 +159,17 @@ fun GravitySandboxRoot(
         var showInspector by remember { mutableStateOf(false) }
         var showAdd by remember { mutableStateOf(false) }
         var showChallenges by remember { mutableStateOf(false) }
+        var showPresets by remember { mutableStateOf(false) }
+        var showCameraPanel by remember { mutableStateOf(false) }
         var addAtScene by remember { mutableStateOf<Offset?>(null) }
         var menuBodyId by remember { mutableStateOf(0L) }
         var menuPos by remember { mutableStateOf(Offset.Zero) }
 
-        val pxPerMeter: Double
-        if (canvasWidthPx > 0f) {
-            pxPerMeter = canvasWidthPx / (EngineConstants.SCENE_WIDTH_AU * EngineConstants.AU)
-        } else {
-            pxPerMeter = 1.0
-        }
-
-        fun toSceneX(px: Float): Double = (px - canvasWidthPx / 2f) / pxPerMeter
-        fun toSceneY(py: Float): Double = (canvasHeightPx / 2f - py) / pxPerMeter
+        // §1 — every screen<->scene conversion goes through the camera, so the gesture layer, the
+        // renderer and hit testing can never disagree about where a body is.
+        val cam = vm.camera
+        fun toSceneX(px: Float, py: Float): Double = cam.toSceneX(px, py, canvasWidthPx, canvasHeightPx)
+        fun toSceneY(px: Float, py: Float): Double = cam.toSceneY(px, py, canvasWidthPx, canvasHeightPx)
 
         Box(
             modifier = modifier
@@ -144,108 +179,206 @@ fun GravitySandboxRoot(
                 .onSizeChanged {
                     canvasWidthPx = it.width.toFloat()
                     canvasHeightPx = it.height.toFloat()
+                    vm.onViewportSizePx(canvasWidthPx, canvasHeightPx)
+                    // §3.2 scene scale still derives from the viewport width in dp; the camera
+                    // sits on top of it and never replaces it.
+                    vm.onViewportChanged(canvasWidthPx / density.density.toDouble())
                 }
         ) {
             TabletopCanvas(vm = vm, modifier = Modifier.fillMaxSize())
 
-            // ---- gestures (§3.11) ------------------------------------------------------------
+            // ---- §1 unified gesture layer -----------------------------------------------------
+            //
+            // ONE pointer handler owns tap, long press, object drag, slingshot aim and the camera,
+            // so no two detectors can fight over the same finger. Transitions are explicit:
+            //
+            //   1 finger on a body      -> move that body (position only, never a throw)
+            //   1 finger on empty table -> nothing (deliberately inert: it must not spin the view)
+            //   2 fingers               -> camera pan + pinch zoom + twist orientation
+            //   1 -> 2 fingers          -> the drag ends cleanly, the camera takes over, and the
+            //                              camera baseline is re-seeded so nothing jumps
+            //   2 -> 1 finger           -> stays in camera mode until every finger lifts
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .testTag("gravity_gesture_layer")
                     .pointerInput(vm, canvasWidthPx, canvasHeightPx) {
-                        detectTapGestures(
-                            onTap = { pos ->
-                                menuBodyId = 0L
-                                val hit = vm.hitTest(
-                                    toSceneX(pos.x),
-                                    toSceneY(pos.y),
-                                    12.dp.toPx() / pxPerMeter
-                                )
-                                if (hit != 0L) {
-                                    if (vm.slingshotArmedId != 0L && hit != vm.slingshotArmedId) {
+                        val slop = viewConfiguration.touchSlop
+                        val longPressMs = viewConfiguration.longPressTimeoutMillis
+
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            val startPos = down.position
+                            val tolerance = 14.dp.toPx() / cam.pxPerMeter(canvasWidthPx)
+                            val hitId = vm.hitTest(
+                                toSceneX(startPos.x, startPos.y),
+                                toSceneY(startPos.x, startPos.y),
+                                tolerance
+                            )
+
+                            var mode = GestureMode.UNDECIDED
+                            var stillDown = true
+                            var slingAnchorX = 0.0
+                            var slingAnchorY = 0.0
+
+                            // ---- phase 1: what kind of gesture is this? ----------------------
+                            val verdict = withTimeoutOrNull(longPressMs) {
+                                var outcome = Verdict.LIFTED
+                                while (true) {
+                                    val ev = awaitPointerEvent()
+                                    val pressed = ev.changes.count { it.pressed }
+                                    if (pressed >= 2) {
+                                        outcome = Verdict.SECOND_FINGER
+                                        break
+                                    }
+                                    val ch = ev.changes.firstOrNull { it.id == down.id }
+                                    if (ch == null || !ch.pressed) {
+                                        outcome = Verdict.LIFTED
+                                        break
+                                    }
+                                    if ((ch.position - startPos).getDistance() > slop) {
+                                        outcome = Verdict.MOVED
+                                        break
+                                    }
+                                }
+                                outcome
+                            }
+
+                            when (verdict) {
+                                null -> {
+                                    // Held still past the long-press timeout.
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    if (hitId != 0L) {
+                                        vm.select(hitId)
+                                        menuBodyId = hitId
+                                        menuPos = startPos
+                                    } else {
+                                        addAtScene = Offset(
+                                            toSceneX(startPos.x, startPos.y).toFloat(),
+                                            toSceneY(startPos.x, startPos.y).toFloat()
+                                        )
+                                        showAdd = true
+                                    }
+                                    mode = GestureMode.HANDLED
+                                }
+
+                                Verdict.LIFTED -> {
+                                    // A tap.
+                                    menuBodyId = 0L
+                                    if (hitId != 0L) {
+                                        if (vm.slingshotArmedId != 0L && hitId != vm.slingshotArmedId) {
+                                            vm.cancelSlingshot()
+                                        }
+                                        vm.select(hitId)
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    } else {
                                         vm.cancelSlingshot()
+                                        vm.deselect()
                                     }
-                                    vm.select(hit)
-                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                } else {
-                                    vm.cancelSlingshot()
-                                    vm.deselect()
+                                    mode = GestureMode.HANDLED
+                                    // The finger is already up: awaitEachGesture drains the rest.
+                                    stillDown = false
                                 }
-                            },
-                            onLongPress = { pos ->
-                                val hit = vm.hitTest(
-                                    toSceneX(pos.x),
-                                    toSceneY(pos.y),
-                                    12.dp.toPx() / pxPerMeter
-                                )
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                if (hit != 0L) {
-                                    vm.select(hit)
-                                    menuBodyId = hit
-                                    menuPos = pos
-                                } else {
-                                    // Long-press on empty table opens the add catalog at that spot.
-                                    addAtScene = Offset(toSceneX(pos.x).toFloat(), toSceneY(pos.y).toFloat())
-                                    showAdd = true
+
+                                Verdict.MOVED -> {
+                                    menuBodyId = 0L
+                                    val armed = vm.slingshotArmedId
+                                    if (armed != 0L && (hitId == armed || hitId == 0L)) {
+                                        mode = GestureMode.SLINGSHOT
+                                        val slot = vm.snapshot.slotOfId(armed)
+                                        if (slot >= 0) {
+                                            slingAnchorX = vm.snapshot.x[slot]
+                                            slingAnchorY = vm.snapshot.y[slot]
+                                        }
+                                    } else if (hitId != 0L) {
+                                        mode = GestureMode.OBJECT
+                                        vm.beginDrag(hitId)
+                                    } else {
+                                        // Empty-space one-finger drag does nothing at all.
+                                        mode = GestureMode.HANDLED
+                                    }
+                                }
+
+                                Verdict.SECOND_FINGER -> mode = GestureMode.CAMERA
+                            }
+
+                            // ---- phase 2: run it until the last finger lifts -----------------
+                            var cameraSeeded = false
+                            while (stillDown) {
+                                val ev = awaitPointerEvent()
+                                val pressedCount = ev.changes.count { it.pressed }
+                                if (pressedCount == 0) break
+
+                                if (pressedCount >= 2 && mode != GestureMode.CAMERA) {
+                                    // A second finger always wins. End the object gesture first so
+                                    // the transition can never inject a velocity (§1, §2).
+                                    when (mode) {
+                                        GestureMode.OBJECT -> vm.endDrag()
+                                        GestureMode.SLINGSHOT -> vm.cancelSlingshot()
+                                        else -> Unit
+                                    }
+                                    mode = GestureMode.CAMERA
+                                    cameraSeeded = false
+                                }
+
+                                when (mode) {
+                                    GestureMode.CAMERA -> {
+                                        if (!cameraSeeded) {
+                                            // Skip the first event after the transition: its deltas
+                                            // were measured against the previous finger set.
+                                            cameraSeeded = true
+                                        } else if (pressedCount >= 2) {
+                                            val centroid = ev.calculateCentroid(useCurrent = true)
+                                            if (centroid != Offset.Unspecified) {
+                                                val pan = ev.calculatePan()
+                                                cam.applyTransform(
+                                                    centroidX = centroid.x,
+                                                    centroidY = centroid.y,
+                                                    panPxX = pan.x,
+                                                    panPxY = pan.y,
+                                                    zoomFactor = ev.calculateZoom(),
+                                                    rotationRad = (ev.calculateRotation() * PI / 180.0).toFloat(),
+                                                    viewportWidthPx = canvasWidthPx,
+                                                    viewportHeightPx = canvasHeightPx
+                                                )
+                                                vm.onCameraMoved()
+                                            }
+                                        }
+                                        ev.changes.forEach { if (it.pressed) it.consume() }
+                                    }
+
+                                    GestureMode.OBJECT -> {
+                                        val ch = ev.changes.firstOrNull { it.id == down.id }
+                                        if (ch != null && ch.pressed) {
+                                            vm.dragTo(
+                                                toSceneX(ch.position.x, ch.position.y),
+                                                toSceneY(ch.position.x, ch.position.y)
+                                            )
+                                            ch.consume()
+                                        }
+                                    }
+
+                                    GestureMode.SLINGSHOT -> {
+                                        val ch = ev.changes.firstOrNull { it.id == down.id }
+                                        if (ch != null && ch.pressed) {
+                                            vm.updateSlingshot(
+                                                toSceneX(ch.position.x, ch.position.y) - slingAnchorX,
+                                                toSceneY(ch.position.x, ch.position.y) - slingAnchorY
+                                            )
+                                            ch.consume()
+                                        }
+                                    }
+
+                                    else -> Unit
                                 }
                             }
-                        )
-                    }
-                    .pointerInput(vm, canvasWidthPx, canvasHeightPx) {
-                        var mode = 0 // 0 none, 1 kinematic drag, 2 slingshot aim
-                        var anchorX = 0.0
-                        var anchorY = 0.0
-                        detectDragGestures(
-                            onDragStart = { pos ->
-                                menuBodyId = 0L
-                                val sceneX = toSceneX(pos.x)
-                                val sceneY = toSceneY(pos.y)
-                                val tolerance = 12.dp.toPx() / pxPerMeter
-                                val hit = vm.hitTest(sceneX, sceneY, tolerance)
-                                if (vm.slingshotArmedId != 0L && (hit == vm.slingshotArmedId || hit == 0L)) {
-                                    mode = 2
-                                    val slot = vm.snapshot.slotOfId(vm.slingshotArmedId)
-                                    if (slot >= 0) {
-                                        anchorX = vm.snapshot.x[slot]
-                                        anchorY = vm.snapshot.y[slot]
-                                    }
-                                } else if (hit != 0L) {
-                                    mode = 1
-                                    vm.beginDrag(hit)
-                                } else {
-                                    mode = 0
-                                }
-                            },
-                            onDrag = { change, _ ->
-                                when (mode) {
-                                    1 -> vm.dragTo(
-                                        toSceneX(change.position.x),
-                                        toSceneY(change.position.y),
-                                        System.nanoTime() / 1.0e9
-                                    )
-                                    2 -> vm.updateSlingshot(
-                                        toSceneX(change.position.x) - anchorX,
-                                        toSceneY(change.position.y) - anchorY
-                                    )
-                                }
-                                if (mode != 0) change.consume()
-                            },
-                            onDragEnd = {
-                                when (mode) {
-                                    1 -> vm.endDrag()
-                                    2 -> vm.releaseSlingshot()
-                                }
-                                mode = 0
-                            },
-                            onDragCancel = {
-                                when (mode) {
-                                    1 -> vm.cancelDrag()
-                                    2 -> vm.cancelSlingshot()
-                                }
-                                mode = 0
+
+                            when (mode) {
+                                GestureMode.OBJECT -> vm.endDrag()
+                                GestureMode.SLINGSHOT -> vm.releaseSlingshot()
+                                else -> Unit
                             }
-                        )
+                        }
                     }
             )
 
@@ -289,6 +422,20 @@ fun GravitySandboxRoot(
                             fontSize = 11.sp
                         )
                     }
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(c.chrome)
+                            .border(1.dp, c.chromeBorder, RoundedCornerShape(16.dp))
+                            .clickableTag("open_presets") { showPresets = true }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.Public, contentDescription = null, tint = c.accent, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text(text = if (fa) "صحنه‌ها" else "Scenes", color = c.accent, fontSize = 11.sp)
+                    }
+                    Spacer(Modifier.width(6.dp))
                     if (vm.teachingEnabled) {
                         Row(
                             modifier = Modifier
@@ -408,6 +555,53 @@ fun GravitySandboxRoot(
                         )
                     }
                 }
+                // §1 camera controls. Elevation lives on an explicit control rather than an
+                // ambiguous two-finger vertical drag, so it can never be confused with a pan.
+                if (showCameraPanel) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(c.chrome)
+                            .border(1.dp, c.chromeBorder, RoundedCornerShape(16.dp))
+                            .testTag("camera_panel")
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        SandboxSlider(
+                            value = vm.camera.tiltRad.toFloat(),
+                            onValueChange = { v -> vm.setCameraTilt(v.toDouble()) },
+                            valueRange = 0f..CameraState.MAX_TILT.toFloat(),
+                            label = if (fa) "زاویه دید" else "Viewing angle",
+                            readout = SandboxFormat.fixed(vm.camera.tiltRad * 180.0 / PI, 0, fa) + "°",
+                            tag = "camera_tilt_slider"
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(c.accent.copy(alpha = 0.10f))
+                                    .clickableTag("camera_fit") { vm.frameCameraToContent() }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(if (fa) "جا دادن همه" else "Fit all", color = c.accent, fontSize = 12.sp)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(c.accent.copy(alpha = 0.10f))
+                                    .clickableTag("camera_reset") { vm.frameCameraForPreset(vm.preset) }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(if (fa) "بازنشانی دوربین" else "Reset camera", color = c.accent, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
                 HudBar(
                     paused = vm.paused,
                     speedIndex = vm.speedIndex,
@@ -425,7 +619,9 @@ fun GravitySandboxRoot(
                     onAdd = {
                         addAtScene = null
                         showAdd = true
-                    }
+                    },
+                    cameraPanelOpen = showCameraPanel,
+                    onToggleCameraPanel = { showCameraPanel = !showCameraPanel }
                 )
             }
 
@@ -446,6 +642,9 @@ fun GravitySandboxRoot(
             }
             if (showChallenges) {
                 ChallengeSheet(vm = vm, onDismiss = { showChallenges = false })
+            }
+            if (showPresets) {
+                PresetSheet(vm = vm, onDismiss = { showPresets = false })
             }
         }
     }

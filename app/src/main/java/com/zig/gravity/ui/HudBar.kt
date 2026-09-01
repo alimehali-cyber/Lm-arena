@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Pause
@@ -55,6 +56,8 @@ fun HudBar(
     onToggleTheme: () -> Unit,
     onToggleLanguage: () -> Unit,
     onAdd: () -> Unit,
+    cameraPanelOpen: Boolean = false,
+    onToggleCameraPanel: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val c = LocalGravityColors.current
@@ -115,6 +118,13 @@ fun HudBar(
             onClick = onToggleTheme
         )
         HudIcon(Icons.Filled.Translate, false, if (persian) "زبان" else "Language", "hud_language", onToggleLanguage)
+        HudIcon(
+            icon = Icons.Filled.CenterFocusStrong,
+            active = cameraPanelOpen,
+            description = if (persian) "دوربین" else "Camera",
+            tag = "hud_camera",
+            onClick = onToggleCameraPanel
+        )
         HudIcon(Icons.Filled.Add, false, if (persian) "افزودن جسم" else "Add body", "hud_add", onAdd, emphasised = true)
     }
 }

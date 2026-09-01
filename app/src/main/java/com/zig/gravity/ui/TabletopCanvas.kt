@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.onSizeChanged
@@ -27,6 +28,8 @@ import androidx.compose.ui.unit.sp
 import com.zig.gravity.physics.BodyType
 import com.zig.gravity.physics.EngineConstants
 import com.zig.gravity.sim.BodyCatalog
+import com.zig.gravity.sim.CameraState
+import com.zig.gravity.sim.EffectKind
 import com.zig.gravity.sim.SimulationViewModel
 import com.zig.gravity.ui.theme.GravityColors
 import com.zig.gravity.ui.theme.LocalGravityColors
@@ -199,16 +202,20 @@ private fun DrawScope.drawScene(
     if (tick < 0) return
 
     val snap = vm.snapshot
-    val cx = size.width * 0.5f
-    val cy = size.height * 0.5f
-    // pixels per scene metre: the viewport is always 3 AU wide (§3.2).
-    val k = size.width / (EngineConstants.SCENE_WIDTH_AU * EngineConstants.AU)
+    val cam = vm.camera
+    val w = size.width
+    val h = size.height
 
-    fun sx(x: Double): Float = cx + (x * k).toFloat()
-    fun sy(y: Double): Float = cy - (y * k).toFloat()
+    // §1 — the one and only screen mapping in the app. Pan, zoom, orientation and elevation all
+    // live in CameraState, and hit testing uses the exact inverse of these two functions.
+    fun sx(x: Double, y: Double): Float = cam.toScreenX(x, y, w, h)
+    fun sy(x: Double, y: Double): Float = cam.toScreenY(x, y, w, h)
 
     val density = this.density
     val n = minOf(snap.n, cache.count)
+    // §11 — drawn size follows the documented display policy, not the raw zoom.
+    val displayScale = (CameraState.displayScale(cam.zoom)).toFloat()
+    val minDrawPx = (CameraState.MIN_DRAW_DP * density).toFloat()
 
     // ---- 1. trails: where each body has already been ---------------------------------------
     if (vm.trailsVisible) {
@@ -224,8 +231,10 @@ private fun DrawScope.drawScene(
                 old.rewind()
                 recent.rewind()
                 for (p in 0 until count) {
-                    val px = sx(ring.xAt(p))
-                    val py = sy(ring.yAt(p))
+                    val rx = ring.xAt(p)
+                    val ry = ring.yAt(p)
+                    val px = sx(rx, ry)
+                    val py = sy(rx, ry)
                     if (p <= split) {
                         if (p == 0) old.moveTo(px, py) else old.lineTo(px, py)
                     }
@@ -245,8 +254,10 @@ private fun DrawScope.drawScene(
         val path = cache.prediction
         path.rewind()
         for (p in 0 until predCount) {
-            val px = sx(vm.predictionXY[p * 2])
-            val py = sy(vm.predictionXY[p * 2 + 1])
+            val qx = vm.predictionXY[p * 2]
+            val qy = vm.predictionXY[p * 2 + 1]
+            val px = sx(qx, qy)
+            val py = sy(qx, qy)
             if (p == 0) path.moveTo(px, py) else path.lineTo(px, py)
         }
         drawPath(path = path, color = colors.prediction, style = cache.strokePrediction)
@@ -255,9 +266,10 @@ private fun DrawScope.drawScene(
     // ---- 3. bodies ---------------------------------------------------------------------------
     for (i in 0 until n) {
         val type = snap.typeOf(i)
-        val px = sx(snap.x[i])
-        val py = sy(snap.y[i])
-        val r = cache.radiusPx[i]
+        val px = sx(snap.x[i], snap.y[i])
+        val py = sy(snap.x[i], snap.y[i])
+        val r = (cache.radiusPx[i] * displayScale).coerceAtLeast(minDrawPx)
+        val bodyScale = if (cache.radiusPx[i] > 0f) r / cache.radiusPx[i] else 1f
         val selected = snap.id[i] == vm.selectedId
 
         when (type) {
@@ -279,13 +291,20 @@ private fun DrawScope.drawScene(
             }
 
             else -> {
+                // The cached marble brushes were built for cache.radiusPx; scaling the canvas
+                // around the body reuses them at any zoom without rebuilding a single Brush.
                 translate(px, py + r * 0.42f) {
-                    cache.shadow[i]?.let { drawCircle(it, r * 1.30f, Offset.Zero) }
+                    scale(bodyScale, bodyScale, Offset.Zero) {
+                        cache.shadow[i]?.let { drawCircle(it, cache.radiusPx[i] * 1.30f, Offset.Zero) }
+                    }
                 }
                 translate(px, py) {
-                    cache.base[i]?.let { drawCircle(it, r, Offset.Zero) }
-                    drawCircle(cache.rim[i], r, Offset.Zero, style = cache.strokeRim)
-                    drawCircle(cache.specular[i], r * 0.17f, Offset(-r * 0.34f, -r * 0.38f))
+                    scale(bodyScale, bodyScale, Offset.Zero) {
+                        val rr = cache.radiusPx[i]
+                        cache.base[i]?.let { drawCircle(it, rr, Offset.Zero) }
+                        drawCircle(cache.rim[i], rr, Offset.Zero, style = cache.strokeRim)
+                        drawCircle(cache.specular[i], rr * 0.17f, Offset(-rr * 0.34f, -rr * 0.38f))
+                    }
                 }
             }
         }
@@ -303,9 +322,9 @@ private fun DrawScope.drawScene(
     // ---- 4. vectors for the selected body ------------------------------------------------------
     val selSlot = snap.slotOfId(vm.selectedId)
     if (vm.showVectors && selSlot >= 0) {
-        val px = sx(snap.x[selSlot])
-        val py = sy(snap.y[selSlot])
-        val r = cache.radiusPx[selSlot]
+        val px = sx(snap.x[selSlot], snap.y[selSlot])
+        val py = sy(snap.x[selSlot], snap.y[selSlot])
+        val r = (cache.radiusPx[selSlot] * displayScale).coerceAtLeast(minDrawPx)
 
         val v = sqrt(snap.vx[selSlot] * snap.vx[selSlot] + snap.vy[selSlot] * snap.vy[selSlot])
         if (v > 0.0) {
@@ -330,8 +349,8 @@ private fun DrawScope.drawScene(
 
     // ---- 5. barycentre --------------------------------------------------------------------------
     if (vm.showBarycenter && snap.n > 0) {
-        val bx = sx(snap.barycenter[0])
-        val by = sy(snap.barycenter[1])
+        val bx = sx(snap.barycenter[0], snap.barycenter[1])
+        val by = sy(snap.barycenter[0], snap.barycenter[1])
         val arm = cache.baryArm
         drawCircle(colors.barycenter, cache.baryRadius, Offset(bx, by), style = cache.strokeBary)
         drawLine(colors.barycenter, Offset(bx - arm, by), Offset(bx + arm, by), strokeWidth = cache.lineThin)
@@ -346,8 +365,8 @@ private fun DrawScope.drawScene(
             val vY = vm.slingshotVy
             val speed = sqrt(vX * vX + vY * vY)
             if (speed > 0.0) {
-                val px = sx(snap.x[slot])
-                val py = sy(snap.y[slot])
+                val px = sx(snap.x[slot], snap.y[slot])
+                val py = sy(snap.x[slot], snap.y[slot])
                 drawLine(
                     color = colors.accent.copy(alpha = 0.55f),
                     start = Offset(px, py),
@@ -362,11 +381,77 @@ private fun DrawScope.drawScene(
         }
     }
 
+    // ---- 6b. §13 impact effects ---------------------------------------------------------------
+    val fx = vm.effects
+    for (e in 0 until fx.maxEffects) {
+        if (!fx.active[e]) continue
+        val kind = fx.kind[e] ?: continue
+        val t = fx.progress(e).toFloat()
+        val sev = fx.severity[e].toFloat()
+        val ox = sx(fx.originX[e], fx.originY[e])
+        val oy = sy(fx.originX[e], fx.originY[e])
+        val ringPx = (fx.ringRadius[e] * cam.pxPerMeter(w)).toFloat()
+        val tone = colors.bodyTone(fx.tint[e])
+        // Ease-out: fast at the moment of contact, then a calm settle. Never a cartoon boom.
+        val ease = 1f - (1f - t) * (1f - t)
+        val fade = (1f - t).coerceIn(0f, 1f)
+
+        when (kind) {
+            EffectKind.ACCRETION -> {
+                // §15 — an inward pull, never an outward blast.
+                drawCircle(
+                    color = colors.blackHoleRing.copy(alpha = 0.28f * fade),
+                    radius = ringPx * (2.6f - 1.4f * ease),
+                    center = Offset(ox, oy),
+                    style = cache.strokeRing
+                )
+            }
+            EffectKind.TRAVERSAL -> {
+                drawCircle(
+                    color = colors.wormholeWarm.copy(alpha = 0.45f * fade),
+                    radius = ringPx * (0.6f + 0.9f * ease),
+                    center = Offset(ox, oy),
+                    style = cache.strokeRing
+                )
+            }
+            else -> {
+                // Contact flash: bright, tiny, and gone in the first third of the effect.
+                val flash = (1f - t * 3f).coerceIn(0f, 1f)
+                if (flash > 0f) {
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.55f * flash * (0.4f + 0.6f * sev)),
+                        radius = ringPx * 0.55f * (0.6f + 0.8f * flash),
+                        center = Offset(ox, oy)
+                    )
+                }
+                drawCircle(
+                    color = colors.accent.copy(alpha = 0.40f * fade * (0.35f + 0.65f * sev)),
+                    radius = ringPx * ease,
+                    center = Offset(ox, oy),
+                    style = cache.strokeRing
+                )
+            }
+        }
+
+        val pc = fx.particleCount[e]
+        if (pc > 0) {
+            val alpha = fade * fade
+            for (p in 0 until pc) {
+                val idx = fx.particleIndex(e, p)
+                val dx = sx(fx.pxArr[idx], fx.pyArr[idx])
+                val dy = sy(fx.pxArr[idx], fx.pyArr[idx])
+                val size = (fx.pSize[idx] * cam.pxPerMeter(w)).toFloat() * (1f - 0.55f * t)
+                if (size <= 0.2f) continue
+                drawCircle(tone.copy(alpha = alpha), size, Offset(dx, dy))
+            }
+        }
+    }
+
     // ---- 7. cached label for the selected body ------------------------------------------------------
     if (label != null && selSlot >= 0) {
-        val px = sx(snap.x[selSlot])
-        val py = sy(snap.y[selSlot])
-        val r = cache.radiusPx[selSlot]
+        val px = sx(snap.x[selSlot], snap.y[selSlot])
+        val py = sy(snap.x[selSlot], snap.y[selSlot])
+        val r = (cache.radiusPx[selSlot] * displayScale).coerceAtLeast(minDrawPx)
         drawText(
             textLayoutResult = label,
             topLeft = Offset(px - label.size.width / 2f, py + r + cache.labelGap)

@@ -25,8 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -46,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.zig.gravity.physics.BodyType
 import com.zig.gravity.physics.EngineConstants
 import com.zig.gravity.sim.BodyCatalog
+import com.zig.gravity.sim.CameraState
 import com.zig.gravity.sim.SimulationViewModel
 import com.zig.gravity.ui.theme.LocalGravityColors
 import com.zig.gravity.util.SandboxFormat
@@ -68,6 +67,11 @@ import kotlin.math.sqrt
 fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
     val c = LocalGravityColors.current
     val fa = vm.persian
+    // §4 ROOT CAUSE FIX. `snapshot` is a plain DoubleArray holder, not Compose state, so reading
+    // it alone never re-runs this composable and every slider was permanently stale. Touching the
+    // frame tick here subscribes the sheet to the simulation, so a slider's numeric readout, its
+    // thumb and the tabletop all move together.
+    @Suppress("UNUSED_VARIABLE") val tick = vm.frameTick
     val snap = vm.snapshot
     val slot = snap.slotOfId(vm.selectedId)
     if (slot < 0) {
@@ -129,7 +133,8 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
 
             Divider()
 
-            // ---- mass (log slider) ------------------------------------------------------------
+            // ---- §3 physical mass ---------------------------------------------------------------
+            SectionTitle(if (fa) "جرم فیزیکی" else "Physical mass")
             if (type.massEditable) {
                 val range = BodyType.massRange(type, snap.mass[slot])
                 val lo = log10(maxOf(range.start, 1.0e12))
@@ -140,12 +145,11 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
                     value = SandboxFormat.mass(snap.mass[slot], fa),
                     hint = SandboxFormat.kilograms(snap.mass[slot], fa)
                 )
-                Slider(
+                SandboxSlider(
                     value = current.toFloat(),
                     onValueChange = { v -> vm.setMass(vm.selectedId, 10.0.pow(v.toDouble())) },
                     valueRange = lo.toFloat()..hi.toFloat(),
-                    colors = sliderColors(),
-                    modifier = Modifier.testTag("inspector_mass_slider")
+                    tag = "inspector_mass_slider"
                 )
             } else {
                 LabelRow(
@@ -155,22 +159,71 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
                 )
             }
 
-            // ---- visual size ------------------------------------------------------------------
+            // ---- §3 physical radius (read-only: the catalog owns it) ----------------------------
+            Divider()
+            SectionTitle(if (fa) "شعاع فیزیکی" else "Physical radius")
+            LabelRow(
+                title = if (fa) "شعاع واقعی جسم" else "Real body radius",
+                value = SandboxFormat.distance(BodyCatalog.realRadiusOf(key, type, snap.mass[slot]), fa),
+                hint = (if (fa) "شعاع برخورد در صحنه: " else "Collision radius in the scene: ") +
+                        SandboxFormat.distance(snap.radiusDp[slot] * vm.arrays.metersPerDp, fa)
+            )
+
+            // ---- §3/§11 visual size, kept explicitly separate from the physical radius ----------
+            Divider()
+            SectionTitle(if (fa) "اندازه نمایشی" else "Visual size")
+            Text(
+                text = if (fa)
+                    "اندازه نمایشی فقط برای دیده‌شدن است و شعاع برخورد فیزیکی را تغییر نمی‌دهد."
+                else
+                    "Visual size is for legibility only; it does not change the physical collision radius.",
+                color = c.onSurfaceDim.copy(alpha = 0.75f),
+                fontSize = 10.sp
+            )
             LabelRow(
                 title = if (fa) "اندازه نمایشی" else "Visual size",
                 value = SandboxFormat.fixed(snap.radiusDp[slot], 1, fa) + " dp",
                 hint = (if (fa) "شعاع فیزیکی واقعی: " else "Real physical radius: ") +
                         SandboxFormat.distance(BodyCatalog.realRadiusOf(key, type, snap.mass[slot]), fa)
             )
-            Slider(
+            SandboxSlider(
                 value = snap.radiusDp[slot].toFloat().coerceIn(type.minDp.toFloat(), type.maxDp.toFloat()),
                 onValueChange = { v -> vm.setRadiusDp(vm.selectedId, v.toDouble()) },
                 valueRange = type.minDp.toFloat()..type.maxDp.toFloat(),
-                colors = sliderColors(),
-                modifier = Modifier.testTag("inspector_size_slider")
+                tag = "inspector_size_slider"
             )
 
-            // ---- velocity ------------------------------------------------------------------------
+            // ---- §3/§20 position ---------------------------------------------------------------
+            // Editing these is *exactly* a drag: same ViewModel path, position only, velocity and
+            // mass untouched. The range is the framed view, so a body can never be flung off-table.
+            Divider()
+            SectionTitle(if (fa) "موقعیت" else "Position")
+            val spanM = (EngineConstants.SCENE_WIDTH_AU * EngineConstants.AU) /
+                    vm.camera.zoom.coerceAtLeast(CameraState.MIN_ZOOM)
+            val posLoX = (vm.camera.panX - spanM).toFloat()
+            val posHiX = (vm.camera.panX + spanM).toFloat()
+            val posLoY = (vm.camera.panY - spanM).toFloat()
+            val posHiY = (vm.camera.panY + spanM).toFloat()
+            SandboxSlider(
+                value = snap.x[slot].toFloat().coerceIn(posLoX, posHiX),
+                onValueChange = { v -> vm.setPosition(vm.selectedId, v.toDouble(), snap.y[slot]) },
+                valueRange = posLoX..posHiX,
+                label = if (fa) "موقعیت افقی (X)" else "Position X",
+                readout = SandboxFormat.distance(snap.x[slot], fa),
+                tag = "inspector_position_x_slider"
+            )
+            SandboxSlider(
+                value = snap.y[slot].toFloat().coerceIn(posLoY, posHiY),
+                onValueChange = { v -> vm.setPosition(vm.selectedId, snap.x[slot], v.toDouble()) },
+                valueRange = posLoY..posHiY,
+                label = if (fa) "موقعیت عمودی (Y)" else "Position Y",
+                readout = SandboxFormat.distance(snap.y[slot], fa),
+                tag = "inspector_position_y_slider"
+            )
+
+            // ---- §3/§21 velocity -------------------------------------------------------------
+            Divider()
+            SectionTitle(if (fa) "سرعت" else "Velocity")
             val vxNow = snap.vx[slot]
             val vyNow = snap.vy[slot]
             val speedNow = sqrt(vxNow * vxNow + vyNow * vyNow)
@@ -180,15 +233,17 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
                 value = SandboxFormat.speed(speedNow, fa),
                 hint = (if (fa) "سقف پیشنهادی: " else "Suggested cap: ") + SandboxFormat.speed(guidance, fa)
             )
+            // §21 — magnitude and heading, never raw vector components. Changing either alters the
+            // trajectory from where the body already is; it never teleports it.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Slider(
+                SandboxSlider(
                     value = speedNow.toFloat().coerceIn(0f, guidance.toFloat()),
                     onValueChange = { v -> vm.setSpeedMagnitude(vm.selectedId, v.toDouble()) },
                     valueRange = 0f..guidance.toFloat(),
-                    colors = sliderColors(),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("inspector_speed_slider")
+                    label = if (fa) "تندی" else "Speed",
+                    readout = SandboxFormat.speed(speedNow, fa),
+                    tag = "inspector_speed_slider",
+                    modifier = Modifier.weight(1f)
                 )
                 Spacer(Modifier.width(12.dp))
                 DirectionDial(
@@ -211,6 +266,15 @@ fun InspectorSheet(vm: SimulationViewModel, onDismiss: () -> Unit) {
                 vm.armSlingshot(vm.selectedId)
                 onDismiss()
             }
+
+            // ---- §3 type and collision behaviour --------------------------------------------------
+            Divider()
+            SectionTitle(if (fa) "نوع و رفتار برخورد" else "Type and collision behaviour")
+            LabelRow(
+                title = if (fa) "نوع" else "Type",
+                value = if (fa) BodyCatalog.typeNameFa(type) else BodyCatalog.typeNameEn(type),
+                hint = collisionBehaviourText(type, vm.marbleBounce, fa)
+            )
 
             // ---- type-specific honesty notes ---------------------------------------------------------
             when (type) {
@@ -398,8 +462,33 @@ private fun Divider() {
 }
 
 @Composable
-private fun sliderColors() = SliderDefaults.colors(
-    thumbColor = LocalGravityColors.current.accent,
-    activeTrackColor = LocalGravityColors.current.accent,
-    inactiveTrackColor = LocalGravityColors.current.onSurfaceDim.copy(alpha = 0.25f)
-)
+private fun SectionTitle(text: String) {
+    val c = LocalGravityColors.current
+    Text(
+        text = text,
+        color = c.accent,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold
+    )
+}
+
+/** §3/§12 — plain words for what this body does on contact. */
+private fun collisionBehaviourText(type: BodyType, marbleBounce: Boolean, fa: Boolean): String =
+    when (type) {
+        BodyType.BLACK_HOLE ->
+            if (fa) "هر جسمی که به حلقه برسد گرفته و حذف می‌شود؛ خودِ سیاه‌چاله برخورد نمی‌کند."
+            else "Anything reaching the ring is captured and removed; the hole itself never collides."
+        BodyType.WORMHOLE_MOUTH ->
+            if (fa) "برخورد نمی‌کند؛ جسم را به دهانه جفت منتقل می‌کند."
+            else "Does not collide; it hands the body to its partner mouth."
+        BodyType.TEST_MARBLE ->
+            if (marbleBounce)
+                (if (fa) "با جسم آزمایشی دیگر کمانه می‌کند، وگرنه بر پایه انرژی برخورد ادغام یا متلاشی می‌شود."
+                 else "Bounces off other test marbles; otherwise merges or shatters by impact energy.")
+            else
+                (if (fa) "بر پایه انرژی برخورد: کم‌انرژی کمانه، متوسط ادغام، پرانرژی متلاشی."
+                 else "By impact energy: low bounces, moderate merges, high shatters.")
+        else ->
+            if (fa) "بر پایه انرژی برخورد: کم‌انرژی کمانه، متوسط ادغام، پرانرژی متلاشی."
+            else "By impact energy: low bounces, moderate merges, high shatters."
+    }

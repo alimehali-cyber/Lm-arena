@@ -37,6 +37,11 @@ class SimulationDetectors {
         const val ORBIT_DECAYED = "orbit_decayed"
         const val TWO_BODY_DANCE = "two_body_dance"
         const val MASS_CHANGED = "mass_changed"
+
+        /** §23 manipulation moments: raised by the ViewModel, not by a detector. */
+        const val POSITION_MOVED = "position_moved"
+        const val VELOCITY_CHANGED = "velocity_changed"
+        const val IMPACT_ENERGY = "impact_energy"
         const val MOON_QUESTION = "moon_question"
 
         /** A closed sweep counts as a stable orbit at 300 degrees (§3.14). */

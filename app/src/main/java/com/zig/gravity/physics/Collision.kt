@@ -75,7 +75,12 @@ object Collision {
                         val tI = s.typeOf(i)
                         val tJ = s.typeOf(j)
                         val bothMarbles = tI == BodyType.TEST_MARBLE && tJ == BodyType.TEST_MARBLE
-                        if (marbleBounceEnabled && bothMarbles) {
+                        // §16: a black hole present in the pair always resolves as capture, never
+                        // as an ordinary bounce, whatever the other body is.
+                        val hole = tI == BodyType.BLACK_HOLE || tJ == BodyType.BLACK_HOLE
+                        val willBounce = marbleBounceEnabled && bothMarbles && !hole
+                        emitImpact(s, i, j, events, merged = !willBounce)
+                        if (willBounce) {
                             bounce(s, i, j, events)
                         } else {
                             merge(s, i, j, events)
@@ -91,6 +96,51 @@ object Collision {
             if (!found) break
         }
         return mutated
+    }
+
+    /**
+     * §12 — publishes the energy of a contact before its outcome is applied.
+     *
+     * The closing speed is taken along the contact normal (the component that actually collides);
+     * it is compared with the pair's mutual escape speed, which is the only velocity scale the
+     * configuration itself provides.
+     */
+    fun emitImpact(s: SimArrays, i: Int, j: Int, events: MutableList<SimEvent>, merged: Boolean) {
+        var dx = s.x[j] - s.x[i]
+        var dy = s.y[j] - s.y[i]
+        var dist = sqrt(dx * dx + dy * dy)
+        if (dist <= 0.0) {
+            dx = 1.0; dy = 0.0; dist = 1.0
+        }
+        val nx = dx / dist
+        val ny = dy / dist
+        val rvx = s.vx[j] - s.vx[i]
+        val rvy = s.vy[j] - s.vy[i]
+        val closing = -(rvx * nx + rvy * ny)
+        val relSpeed = if (closing > 0.0) closing else sqrt(rvx * rvx + rvy * rvy)
+
+        val contact = s.radius[i] + s.radius[j]
+        val mSum = s.mass[i] + s.mass[j]
+        val vEsc = if (mSum > 0.0 && contact > 0.0) {
+            sqrt(2.0 * EngineConstants.G * mSum / contact)
+        } else {
+            0.0
+        }
+
+        events.add(
+            SimEvent.CollisionImpact(
+                simTime = s.simTime,
+                aId = s.id[i],
+                bId = s.id[j],
+                x = 0.5 * (s.x[i] + s.x[j]),
+                y = 0.5 * (s.y[i] + s.y[j]),
+                relativeSpeed = relSpeed,
+                mutualEscapeSpeed = vEsc,
+                contactRadius = contact,
+                tier = ImpactTier.of(relSpeed, vEsc),
+                merged = merged
+            )
+        )
     }
 
     private fun overlaps(s: SimArrays, i: Int, j: Int): Boolean {

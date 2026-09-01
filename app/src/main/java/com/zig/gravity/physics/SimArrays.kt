@@ -124,6 +124,12 @@ class SimArrays(val capacity: Int = EngineConstants.MAX_BODIES) {
         return -1
     }
 
+    /** First slot created from the given catalog key, or -1. Used by presets and tests. */
+    fun slotOfCatalog(key: String): Int {
+        for (i in 0 until n) if (catalogKey[i] == key) return i
+        return -1
+    }
+
     /** Recomputes derived scene radii when the viewport changes. dp stays authoritative. */
     fun setMetersPerDp(value: Double) {
         if (value <= 0.0 || value == _metersPerDp) return

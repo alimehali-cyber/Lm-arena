@@ -5,6 +5,7 @@ import com.zig.gravity.physics.EngineConstants
 import com.zig.gravity.physics.NBodyEngine
 import com.zig.gravity.physics.SimArrays
 import com.zig.gravity.physics.Wormhole
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -17,7 +18,23 @@ import kotlin.math.sqrt
  * scale* — masses, G and velocities are real, so the emergent periods, escape speeds and energy
  * exchange are genuinely correct for the configuration the user is looking at.
  */
-enum class Preset(val titleFa: String, val titleEn: String, val noteFa: String, val noteEn: String) {
+enum class Preset(
+    val titleFa: String,
+    val titleEn: String,
+    val noteFa: String,
+    val noteEn: String,
+    /**
+     * Half-width the camera should frame when this preset loads, in metres. 0 means "the default
+     * 3 AU table", which is what every dp-laid-out experiment wants.
+     */
+    val frameHalfSpanM: Double = 0.0
+) {
+    FULL_SOLAR_SYSTEM(
+        "منظومه شمسی کامل", "Full Solar System",
+        "هشت سیاره و ماه، با جرم و فاصله و سرعت واقعی. مدارهای بیرونی خیلی کندند؛ سرعت ۱۰۰× را بزن.",
+        "Eight planets and the Moon at real masses, distances and speeds. The outer orbits are very slow, so try 100x.",
+        frameHalfSpanM = 4.6e12
+    ),
     SUN_EARTH(
         "خورشید و زمین", "Sun and Earth",
         "یک سال زمینی حدود ۳۱ ثانیه طول می‌کشد. مرکز جرم را روشن کن و ببین خورشید هم کمی تکان می‌خورد.",
@@ -47,10 +64,21 @@ enum class Preset(val titleFa: String, val titleEn: String, val noteFa: String, 
         "آزمایش کرم‌چاله", "Wormhole lab",
         "کرم‌چاله یک مدل فرضی است، نه یک پدیده اثبات‌شده. جسم از یک دهانه وارد و از دهانه جفت خارج می‌شود.",
         "The wormhole is a hypothetical model, not an established phenomenon. A body enters one mouth and leaves its partner."
+    ),
+    THREE_BODY(
+        "مسئله سه‌جسم", "Three-body problem",
+        "سه ستاره هم‌جرم روی یک مثلث. این چیدمان راه‌حل بسته ندارد؛ کوچک‌ترین تفاوت، سرنوشت را عوض می‌کند.",
+        "Three equal stars on a triangle. This arrangement has no closed solution: the tiniest difference changes its fate."
+    ),
+    EMPTY_TABLE(
+        "میز خالی", "Empty table",
+        "هیچ جسمی نیست. با دکمه + شروع کن و ببین گرانش چطور از هیچ، یک سامانه می‌سازد.",
+        "Nothing here yet. Start with the + button and watch gravity build a system from scratch."
     );
 
     companion object {
-        val DEFAULT: Preset = SUN_EARTH
+        /** §9: the sandbox opens on the complete Solar System, never on an empty table. */
+        val DEFAULT: Preset = FULL_SOLAR_SYSTEM
     }
 }
 
@@ -63,6 +91,35 @@ object Presets {
         fun dp(v: Double) = v * mpd
 
         when (preset) {
+            Preset.FULL_SOLAR_SYSTEM -> buildSolarSystem(s)
+
+            Preset.THREE_BODY -> {
+                // Lagrange's equilateral configuration: three equal masses on a circle, each moving
+                // perpendicular to its radius at the speed that balances the other two. It is a real
+                // (unstable) solution, so it stays coherent for a while and then visibly falls apart —
+                // which is the point of the scene.
+                val m = EngineConstants.M_SUN
+                val r = dp(90.0)
+                // For an equilateral triangle of side sqrt(3)*r, the net pull on each star is
+                // sqrt(3)*G*m/(sqrt(3)*r)^2 directed inward, giving v = sqrt(G*m/(sqrt(3)*r)).
+                val v = sqrt(EngineConstants.G * m / (sqrt(3.0) * r))
+                for (i in 0 until 3) {
+                    val a = i * 2.0 * PI / 3.0
+                    s.add(
+                        BodyType.SUN, m, 18.0,
+                        r * cos(a), r * sin(a),
+                        -v * sin(a), v * cos(a),
+                        "sun"
+                    )
+                }
+                zeroTotalMomentum(s)
+            }
+
+            Preset.EMPTY_TABLE -> {
+                // Deliberately nothing. §9 keeps this off the default path: it is a scene the user
+                // has to choose, never what the sandbox opens on.
+            }
+
             Preset.SUN_EARTH -> {
                 val r = EngineConstants.AU
                 val sun = BodyCatalog.SUN
@@ -134,6 +191,52 @@ object Presets {
             }
         }
         NBodyEngine.computeAccelerations(s)
+    }
+
+    /**
+     * §8 FULL SOLAR SYSTEM — real masses, real semi-major axes, real circular speeds.
+     *
+     * Nothing here is decorative. Each planet is placed at its true distance from the Sun and given
+     * the circular speed that distance implies, `sqrt(GM/r)`, so the orbital periods that emerge
+     * are the real ones (Neptune really does take 165 years). Starting angles are spread out purely
+     * so the inner planets do not begin in a line.
+     *
+     * The Moon is a fully independent body: its own mass, its own radius, its own absolute position
+     * and its own absolute velocity (Earth's velocity plus its own circular speed about Earth). It
+     * is never parented to Earth — the Earth-Moon relationship is an outcome of the integration.
+     */
+    private fun buildSolarSystem(s: SimArrays) {
+        val sun = BodyCatalog.SUN
+        s.add(sun.type, sun.massKg, sun.dp, 0.0, 0.0, 0.0, 0.0, sun.key)
+
+        addOrbiter(s, BodyCatalog.MERCURY, 5.7909e10, 15.0)
+        addOrbiter(s, BodyCatalog.VENUS, 1.0821e11, 95.0)
+        val earthR = 1.4960e11
+        addOrbiter(s, BodyCatalog.EARTH, earthR, 180.0)
+        addOrbiter(s, BodyCatalog.MARS, 2.2792e11, 250.0)
+        addOrbiter(s, BodyCatalog.JUPITER, 7.7857e11, 40.0)
+        addOrbiter(s, BodyCatalog.SATURN, 1.43353e12, 140.0)
+        addOrbiter(s, BodyCatalog.URANUS, 2.87246e12, 220.0)
+        addOrbiter(s, BodyCatalog.NEPTUNE, 4.49506e12, 310.0)
+
+        // ---- the Moon: independent state, not attached to anything ------------------------------
+        val earthSlot = s.slotOfCatalog(BodyCatalog.EARTH.key)
+        if (earthSlot >= 0) {
+            val moon = BodyCatalog.MOON
+            val rM = EngineConstants.MOON_ORBIT_RADIUS
+            val vM = EngineConstants.circularSpeed(s.mass[earthSlot], rM)
+            // Placed perpendicular to the Earth-Sun line and moving perpendicular to that offset,
+            // which is a real circular orbit about Earth on top of Earth's own motion.
+            val ux = -sin(Math.toRadians(180.0))
+            val uy = cos(Math.toRadians(180.0))
+            s.add(
+                moon.type, moon.massKg, moon.dp,
+                s.x[earthSlot] + rM * ux, s.y[earthSlot] + rM * uy,
+                s.vx[earthSlot] - vM * uy, s.vy[earthSlot] + vM * ux,
+                moon.key
+            )
+        }
+        zeroTotalMomentum(s)
     }
 
     private fun addOrbiter(s: SimArrays, e: CatalogEntry, r: Double, angleDeg: Double) {

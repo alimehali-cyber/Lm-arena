@@ -142,6 +142,42 @@ object TeachingCatalog {
             formula = "F = G·m₁m₂ / r²"
         ),
         TeachingCard(
+            concept = SimulationDetectors.POSITION_MOVED,
+            titleFa = "جای جسم را عوض کردی",
+            titleEn = "You moved the body",
+            whatFa = "فقط جای زمین را عوض کردی؛ سرعتش همان سرعت قبلی است. حالا مدارش چگونه تغییر می‌کند؟",
+            whatEn = "You only changed where it is; its speed is exactly what it was. So how will the orbit change?",
+            whyFa = "مدار از دو چیز ساخته می‌شود: اینکه کجا هستی و با چه سرعتی حرکت می‌کنی. وقتی فقط مکان عوض شود، همان سرعت قدیمی در فاصله جدید معنای تازه‌ای پیدا می‌کند.",
+            whyEn = "An orbit is made of two things: where you are and how fast you are moving. Change only the place, and the old speed means something new at the new distance.",
+            moreFa = "سرعت لازم برای مدار دایره‌ای v = √(GM/r) است. اگر جسم را دورتر ببری و سرعتش را دست نزنی، سرعتش برای آن فاصله زیاد است و مدار کشیده می‌شود؛ اگر نزدیک‌تر ببری، کم است و جسم به سمت داخل می‌افتد.",
+            moreEn = "A circular orbit needs v = √(GM/r). Move a body outward without touching its speed and it is now moving too fast for that distance, so the orbit stretches; move it inward and it is too slow, so it falls inward.",
+            formula = "v = √(GM / r)"
+        ),
+        TeachingCard(
+            concept = SimulationDetectors.VELOCITY_CHANGED,
+            titleFa = "سرعت اولیه را تغییر دادی",
+            titleEn = "You changed the starting speed",
+            whatFa = "سرعت اولیه تغییر کرد؛ ببین مدار جدید چگونه شکل می‌گیرد.",
+            whatEn = "The starting velocity changed; watch how the new orbit takes shape.",
+            whyFa = "گرانش همان است و مکان همان است؛ تنها چیزی که عوض شده سرعت است. کمی تندتر یعنی مدار کشیده‌تر، خیلی تندتر یعنی فرار، و کندتر یعنی سقوط به سمت مرکز.",
+            whyEn = "Gravity is unchanged and the position is unchanged; only the velocity is different. A little faster stretches the orbit, much faster escapes, slower falls inward.",
+            moreFa = "مرز فرار در v = √(2GM/r) است — دقیقاً √۲ برابر سرعت مدار دایره‌ای. جهت سرعت هم به اندازه بزرگی آن مهم است.",
+            moreEn = "The escape boundary sits at v = √(2GM/r) — exactly √2 times the circular speed. Direction matters just as much as magnitude.",
+            formula = "v_esc = √(2GM / r)"
+        ),
+        TeachingCard(
+            concept = SimulationDetectors.IMPACT_ENERGY,
+            titleFa = "برخورد",
+            titleEn = "Impact",
+            whatFa = "دو جرم به هم برخورد کردند. انرژی و تکانه‌ی برخورد تعیین می‌کنند چه اتفاقی بیفتد.",
+            whatEn = "Two masses collided. The energy and momentum of the impact decide what happens next.",
+            whyFa = "اگر سرعت نزدیک‌شدن کم باشد، برخورد ملایم است. اگر خیلی بیشتر از سرعت فرار آن دو جسم باشد، انرژی جنبشی از انرژی پیوند گرانشی‌شان بیشتر است و برخورد ویرانگر می‌شود.",
+            whyEn = "If the closing speed is small the contact is gentle. If it is far above the pair's escape speed, the kinetic energy exceeds their gravitational binding energy and the impact becomes destructive.",
+            moreFa = "در هر برخوردی تکانه پایسته است: p = Σmv قبل و بعد یکی است. انرژی جنبشی اما پایسته نیست؛ بخشی از آن به گرما و تغییر شکل می‌رود. معیار ما نسبت v به √(2G(m₁+m₂)/(r₁+r₂)) است.",
+            moreEn = "Momentum is conserved in every collision: p = Σmv is the same before and after. Kinetic energy is not; some of it becomes heat and deformation. Our yardstick is v against √(2G(m₁+m₂)/(r₁+r₂)).",
+            formula = "p = Σmv"
+        ),
+        TeachingCard(
             concept = SimulationDetectors.MOON_QUESTION,
             titleFa = "چرا ماه روی زمین نمی‌افتد؟",
             titleEn = "Why doesn't the Moon fall to Earth?",

@@ -13,6 +13,7 @@ import com.zig.gravity.edu.detectors.SimulationDetectors
 import com.zig.gravity.physics.BodyType
 import com.zig.gravity.physics.Collision
 import com.zig.gravity.physics.EngineConstants
+import com.zig.gravity.physics.ImpactTier
 import com.zig.gravity.physics.NBodyEngine
 import com.zig.gravity.physics.Predictor
 import com.zig.gravity.physics.SimArrays
@@ -43,6 +44,24 @@ class SimulationViewModel : ViewModel() {
     private val substepBudget = IntArray(1)
 
     val snapshot = SimSnapshot()
+
+    /** §1 camera. Plain state, mutated by the gesture layer, read in the draw phase. */
+    val camera = CameraState()
+
+    /** §13 pooled impact effects. Bounded, elapsed-time driven, never accumulates. */
+    val effects = EffectPool()
+
+    /**
+     * §14 — one entry per *collision event*, drained by the UI once per frame and then cleared.
+     * The physics layer never touches Android, so it publishes intent and the composable vibrates.
+     */
+    val pendingHaptics = ArrayList<HapticCue>(4)
+
+    /** Viewport in pixels, needed by the camera and by hit testing. */
+    var viewportWidthPx: Float = 0f
+        private set
+    var viewportHeightPx: Float = 0f
+        private set
 
     /** Draw-phase invalidation signal. Read ONLY inside the Canvas draw lambda. */
     var frameTick by mutableIntStateOf(0)
@@ -120,10 +139,17 @@ class SimulationViewModel : ViewModel() {
     var slingshotVy: Double = 0.0
         private set
 
-    private val dragHistoryX = DoubleArray(6)
-    private val dragHistoryY = DoubleArray(6)
-    private val dragHistoryT = DoubleArray(6)
-    private var dragHistoryCount = 0
+    /**
+     * State held across a drag so the release can restore it exactly (§2). A drag is allowed to
+     * change the position and nothing else, so everything else the body owns is stashed here.
+     */
+    private var dragHeldVx = 0.0
+    private var dragHeldVy = 0.0
+    private var dragHeldMass = 0.0
+    var dragOriginX: Double = 0.0
+        private set
+    var dragOriginY: Double = 0.0
+        private set
 
     // ---- prediction --------------------------------------------------------------------------
     private val maxPredictionSamples = EngineConstants.PREDICTION_STEPS / Predictor.SAMPLE_STRIDE + 2
@@ -175,6 +201,7 @@ class SimulationViewModel : ViewModel() {
         Presets.build(preset, arrays)
         arrays.copyInto(initialState)
         snapshot.captureFrom(arrays)
+        frameCameraForPreset(preset)
     }
 
     // ==== viewport =================================================================================
@@ -183,6 +210,11 @@ class SimulationViewModel : ViewModel() {
      * §3.2 scene scale: the viewport is always 3 AU wide, so metersPerDp is derived from the live
      * width and never stored as a constant. There is no zoom in v1 (§3.4).
      */
+    fun onViewportSizePx(widthPx: Float, heightPx: Float) {
+        viewportWidthPx = widthPx
+        viewportHeightPx = heightPx
+    }
+
     fun onViewportChanged(widthDp: Double) {
         val mpd = EngineConstants.metersPerDp(widthDp)
         if (mpd == arrays.metersPerDp) return
@@ -193,6 +225,8 @@ class SimulationViewModel : ViewModel() {
             // Nothing has been simulated yet, so re-lay the preset at the true viewport width.
             Presets.build(preset, arrays)
             arrays.copyInto(initialState)
+            // The layout the camera was framed against has just changed underneath it.
+            frameCameraForPreset(preset)
         }
         NBodyEngine.computeAccelerations(arrays)
         visualEpoch++
@@ -224,6 +258,7 @@ class SimulationViewModel : ViewModel() {
             if (advanced) arrays.pushTrailSample()
         }
         lastFrameSubsteps = steps
+        effects.update(dtReal)
 
         snapshot.captureFrom(arrays)
 
@@ -237,6 +272,7 @@ class SimulationViewModel : ViewModel() {
 
         if (events.isNotEmpty()) {
             handleIntegrityEvents()
+            spawnEffectsFor(events)
         }
         if (teachingEnabled) {
             val detection = detectors.observe(snapshot, events, System.currentTimeMillis())
@@ -268,6 +304,74 @@ class SimulationViewModel : ViewModel() {
     }
 
     private fun dragging(): Boolean = draggingId != 0L || slingshotActive
+
+    /**
+     * §13/§14/§15 — turns physics events into one visual effect and at most one haptic cue each.
+     *
+     * Exactly one effect is emitted per event, and the event list is cleared every frame, so a
+     * pair of bodies resting in contact can never produce a stream of flashes or a buzzing device.
+     */
+    private fun spawnEffectsFor(list: List<SimEvent>) {
+        for (e in list) {
+            when (e) {
+                is SimEvent.CollisionImpact -> {
+                    val severity = ImpactTier.severity(e.relativeSpeed, e.mutualEscapeSpeed)
+                    val kind = when {
+                        !e.merged -> EffectKind.BOUNCE
+                        e.tier == ImpactTier.HIGH -> EffectKind.SHATTER
+                        else -> EffectKind.MERGE
+                    }
+                    val slot = arrays.slotOfId(e.aId).let { if (it >= 0) it else arrays.slotOfId(e.bId) }
+                    val tint = if (slot >= 0) {
+                        BodyCatalog.colorOf(arrays.catalogKey[slot], arrays.typeOf(slot))
+                    } else {
+                        0xFFBFC7D5
+                    }
+                    effects.spawn(kind, e.x, e.y, severity, e.contactRadius, tint)
+                    pendingHaptics.add(
+                        when (e.tier) {
+                            ImpactTier.LOW -> HapticCue.LIGHT
+                            ImpactTier.MODERATE -> HapticCue.MEDIUM
+                            ImpactTier.HIGH -> HapticCue.HEAVY
+                        }
+                    )
+                    if (teachingEnabled) {
+                        teachingConcept = SimulationDetectors.IMPACT_ENERGY
+                        _teachingTier = TeachingTier.WHAT
+                    }
+                }
+
+                is SimEvent.BlackHoleCapture -> {
+                    // §15: matter is being captured, so the debris spirals in. The capture event
+                    // already implies a merge event; the accretion effect replaces its burst.
+                    val hole = arrays.slotOfId(e.holeId)
+                    val x = if (hole >= 0) arrays.x[hole] else 0.0
+                    val y = if (hole >= 0) arrays.y[hole] else 0.0
+                    val scale = if (hole >= 0) arrays.radius[hole] else arrays.metersPerDp * 14.0
+                    effects.spawn(EffectKind.ACCRETION, x, y, 1.0, scale, 0xFF6E7C99)
+                    pendingHaptics.add(HapticCue.HEAVY)
+                }
+
+                is SimEvent.WormholeTraversal -> {
+                    val slot = arrays.slotOfId(e.toMouthId)
+                    if (slot >= 0) {
+                        effects.spawn(
+                            EffectKind.TRAVERSAL, arrays.x[slot], arrays.y[slot],
+                            0.4, arrays.radius[slot], BodyCatalog.WORMHOLE.colorArgb
+                        )
+                    }
+                    pendingHaptics.add(HapticCue.LIGHT)
+                }
+
+                else -> Unit
+            }
+        }
+    }
+
+    /** Called by the UI after it has played the queued cues. */
+    fun clearHaptics() {
+        if (pendingHaptics.isNotEmpty()) pendingHaptics.clear()
+    }
 
     private fun handleIntegrityEvents() {
         for (e in events) {
@@ -329,11 +433,69 @@ class SimulationViewModel : ViewModel() {
         markDirty()
     }
 
+    /**
+     * §18 — switching preset replaces the whole simulation: old bodies, trails, effects, selection,
+     * prediction and camera pose all go, and the new table is framed so its content is visible.
+     */
     fun loadPreset(p: Preset) {
         preset = p
+        paused = true
         Presets.build(p, arrays)
         arrays.copyInto(initialState)
         afterHardReset()
+        frameCameraForPreset(p)
+    }
+
+    /** The gesture layer moved the camera; redraw even while paused. */
+    fun onCameraMoved() {
+        frameTick++
+    }
+
+    /** §1 camera angle control, exposed to the HUD (0 = straight down). */
+    fun setCameraTilt(value: Double) {
+        camera.setTilt(value)
+        frameTick++
+    }
+
+    fun resetCamera() {
+        camera.reset()
+        frameTick++
+    }
+
+    /** Frames the current preset: its declared span, or the bodies themselves. */
+    fun frameCameraForPreset(p: Preset) {
+        val declared = p.frameHalfSpanM
+        if (declared > 0.0) {
+            camera.frame(0.0, 0.0, declared)
+        } else {
+            camera.reset()
+        }
+        camera.setTilt(0.0)
+        markDirty()
+    }
+
+    /** Frames everything currently on the table (used by the "fit" control). */
+    fun frameCameraToContent() {
+        if (arrays.n == 0) {
+            camera.reset()
+            markDirty()
+            return
+        }
+        var minX = Double.MAX_VALUE
+        var maxX = -Double.MAX_VALUE
+        var minY = Double.MAX_VALUE
+        var maxY = -Double.MAX_VALUE
+        for (i in 0 until arrays.n) {
+            if (arrays.x[i] < minX) minX = arrays.x[i]
+            if (arrays.x[i] > maxX) maxX = arrays.x[i]
+            if (arrays.y[i] < minY) minY = arrays.y[i]
+            if (arrays.y[i] > maxY) maxY = arrays.y[i]
+        }
+        val cx = 0.5 * (minX + maxX)
+        val cy = 0.5 * (minY + maxY)
+        val half = maxOf((maxX - minX) * 0.5, (maxY - minY) * 0.5, arrays.metersPerDp * 40.0)
+        camera.frame(cx, cy, half)
+        markDirty()
     }
 
     /** §19 — restore a deep copy of the initial experiment, leaving no stale visual state. */
@@ -346,6 +508,8 @@ class SimulationViewModel : ViewModel() {
 
     private fun afterHardReset() {
         arrays.clearTrails()
+        effects.clear()
+        pendingHaptics.clear()
         arrays.simTime = 0.0
         accumulator = 0.0
         lastFrameNanos = 0L
@@ -554,14 +718,27 @@ class SimulationViewModel : ViewModel() {
         afterMutation()
     }
 
+    /**
+     * §20 — numeric position editing is exactly equivalent to dragging: position changes, velocity
+     * and mass are untouched, and the stale trail is cut because the body never travelled that jump.
+     */
     fun setPosition(bodyId: Long, sceneX: Double, sceneY: Double) {
         val slot = arrays.slotOfId(bodyId)
         if (slot < 0) return
         arrays.x[slot] = sceneX
         arrays.y[slot] = sceneY
+        arrays.trails[slot].clear()
         afterMutation()
+        if (teachingEnabled) {
+            teachingConcept = SimulationDetectors.POSITION_MOVED
+            _teachingTier = TeachingTier.WHAT
+        }
     }
 
+    /**
+     * §21 — velocity editing is explicitly *not* dragging: the trajectory changes, the position
+     * does not move and the mass is untouched.
+     */
     fun setVelocity(bodyId: Long, vx: Double, vy: Double) {
         val slot = arrays.slotOfId(bodyId)
         if (slot < 0) return
@@ -569,6 +746,10 @@ class SimulationViewModel : ViewModel() {
         arrays.vy[slot] = vy
         NBodyEngine.clampVelocity(arrays)
         afterMutation()
+        if (teachingEnabled) {
+            teachingConcept = SimulationDetectors.VELOCITY_CHANGED
+            _teachingTier = TeachingTier.WHAT
+        }
     }
 
     /** Keeps direction, changes magnitude. */
@@ -634,74 +815,76 @@ class SimulationViewModel : ViewModel() {
         noticeFramesLeft = 0
     }
 
-    // ==== drag / throw ==================================================================================
+    // ==== drag: position only (§2) ======================================================================
 
-    /** §3.11: the body becomes kinematic while held — physics must not fight the finger. */
+    /**
+     * §2 — the body becomes kinematic while held so the integrator does not fight the finger, and
+     * its velocity is stashed so the release can restore it **exactly**.
+     */
     fun beginDrag(bodyId: Long) {
         val slot = arrays.slotOfId(bodyId)
         if (slot < 0) return
         draggingId = bodyId
         selectedId = bodyId
+        dragOriginX = arrays.x[slot]
+        dragOriginY = arrays.y[slot]
+        dragHeldVx = arrays.vx[slot]
+        dragHeldVy = arrays.vy[slot]
+        dragHeldMass = arrays.mass[slot]
         arrays.kinematic[slot] = true
-        dragHistoryCount = 0
         afterMutation()
     }
 
-    fun dragTo(sceneX: Double, sceneY: Double, timeSeconds: Double) {
+    /** Writes the finger position. Nothing else about the body is touched. */
+    fun dragTo(sceneX: Double, sceneY: Double) {
         val slot = arrays.slotOfId(draggingId)
         if (slot < 0) return
         arrays.x[slot] = sceneX
         arrays.y[slot] = sceneY
-        pushDragSample(sceneX, sceneY, timeSeconds)
         // Forces are recomputed on every drag update so a release never uses stale acceleration.
         afterMutation()
     }
 
-    /** Release velocity is derived from pointer history (§3.11), then clamped by the engine. */
+    /**
+     * §2 — release writes **only** the new position.
+     *
+     * Velocity is restored bit-for-bit from the value the body had when the drag began: no impulse
+     * is applied, no velocity is inferred from the finger's travel, and nothing is zeroed. The
+     * trajectory changes solely because the body now starts from somewhere else, which is the
+     * whole educational point.
+     */
     fun endDrag() {
         val slot = arrays.slotOfId(draggingId)
         if (slot < 0) {
             draggingId = 0L
             return
         }
-        var vx = 0.0
-        var vy = 0.0
-        if (dragHistoryCount >= 2) {
-            val newest = (dragHistoryCount - 1) % dragHistoryX.size
-            val oldestIndex = if (dragHistoryCount > dragHistoryX.size) {
-                dragHistoryCount - dragHistoryX.size
-            } else {
-                0
-            }
-            val oldest = oldestIndex % dragHistoryX.size
-            val dt = dragHistoryT[newest] - dragHistoryT[oldest]
-            if (dt > 1.0e-4) {
-                vx = (dragHistoryX[newest] - dragHistoryX[oldest]) / dt
-                vy = (dragHistoryY[newest] - dragHistoryY[oldest]) / dt
-            }
-        }
         arrays.kinematic[slot] = false
-        arrays.vx[slot] = vx
-        arrays.vy[slot] = vy
-        NBodyEngine.clampVelocity(arrays)
+        arrays.vx[slot] = dragHeldVx
+        arrays.vy[slot] = dragHeldVy
+        arrays.mass[slot] = dragHeldMass
+        // The trail before the jump describes a path the body never took from here.
+        arrays.trails[slot].clear()
         draggingId = 0L
-        dragHistoryCount = 0
+        if (teachingEnabled) {
+            teachingConcept = SimulationDetectors.POSITION_MOVED
+            _teachingTier = TeachingTier.WHAT
+        }
         afterMutation()
     }
 
+    /** Aborts a drag and puts the body back exactly where it was, velocity untouched. */
     fun cancelDrag() {
         val slot = arrays.slotOfId(draggingId)
-        if (slot >= 0) arrays.kinematic[slot] = false
+        if (slot >= 0) {
+            arrays.kinematic[slot] = false
+            arrays.x[slot] = dragOriginX
+            arrays.y[slot] = dragOriginY
+            arrays.vx[slot] = dragHeldVx
+            arrays.vy[slot] = dragHeldVy
+        }
         draggingId = 0L
         afterMutation()
-    }
-
-    private fun pushDragSample(x: Double, y: Double, t: Double) {
-        val i = dragHistoryCount % dragHistoryX.size
-        dragHistoryX[i] = x
-        dragHistoryY[i] = y
-        dragHistoryT[i] = t
-        dragHistoryCount++
     }
 
     // ==== slingshot ======================================================================================
