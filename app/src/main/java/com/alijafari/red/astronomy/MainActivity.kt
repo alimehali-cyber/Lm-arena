@@ -260,13 +260,16 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Floating Navigation Bar with Real Kyant0 Liquid Glass Backdrop sampling
+                        // Floating Navigation Bar with Real Kyant0 Liquid Glass Backdrop sampling.
+                        // Hidden while an immersive screen (the Gravity Sandbox) owns the display.
+                        if (!com.zig.gravity.ui.ImmersiveScreenState.active) {
                         com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
                             backdrop = backdrop,
                             selectedTab = uiState.selectedTab,
                             onTabSelected = { viewModel.selectTab(it) },
                             modifier = Modifier.align(Alignment.BottomCenter)
                         )
+                        }
 
                         // Dialogs and Modals (Promoted sibling overlays with Real Kyant0 Liquid Glass Backdrop sampling)
                         if (uiState.showLocationSelector) {

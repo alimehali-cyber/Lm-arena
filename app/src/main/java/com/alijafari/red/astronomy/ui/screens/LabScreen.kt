@@ -46,6 +46,16 @@ enum class LabFeatureType(
         icon = Icons.Default.HourglassTop,
         isAvailable = true
     ),
+    GRAVITY_SANDBOX(
+        titleEn = "Gravity Sandbox & N-Body Physics",
+        titleFa = "شبیه‌ساز گرانش و برهم‌کنش‌های N-جرم",
+        subtitleEn = "Newton-Kepler Orbital Simulator",
+        subtitleFa = "آزمایشگاه مکانیک سماوی و مدارهای کپلری",
+        descriptionEn = "Simulate multi-body gravitational interactions, planetary orbits, binary stars, Lagrange equilibrium points, and black hole slingshots.",
+        descriptionFa = "شبیه‌سازی برهم‌کنش‌های گرانشی چندجرمی، مدارهای سیاره‌ای، سامانه‌های دوستاره‌ای، نقاط لاگرانژی و قلاب گرانشی سیاهچاله.",
+        icon = Icons.Default.Public,
+        isAvailable = true
+    ),
     ORBITAL_RESONANCE(
         titleEn = "Orbital Resonance & Keplerian Elements",
         titleFa = "رزونانس مداری و عناصر کپلری",
@@ -82,6 +92,13 @@ fun LabScreen(
             uiState = uiState,
             onBackToLab = { selectedFeature = null },
             modifier = modifier
+        )
+    } else if (selectedFeature == LabFeatureType.GRAVITY_SANDBOX) {
+        com.zig.gravity.ui.GravitySandboxRoot(
+            onBack = { selectedFeature = null },
+            modifier = modifier,
+            startInPersian = isFa,
+            startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
         )
     } else {
         LazyColumn(
