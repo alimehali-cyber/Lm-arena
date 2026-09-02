@@ -224,6 +224,23 @@ fun CompassARScreen(
     val cameraIntrinsics = remember(context) { ARProjectionEngine.getCameraIntrinsics(context) }
     var previewViewInstance by remember { mutableStateOf<PreviewView?>(null) }
 
+    // Phase 1 Task 3: Camera frame observer (inert, for future plate solving) — new isolated class
+    val cameraFrameObserver = remember { CameraFrameObserver() }
+
+    // Ensure background executor is cleaned up when screen leaves composition
+    DisposableEffect(cameraFrameObserver) {
+        onDispose {
+            cameraFrameObserver.shutdown()
+        }
+    }
+
+    // Phase 1 Task 4 + Task 3.4: feed sensor timestamps to frame observer for clock-domain cross-check
+    LaunchedEffect(skyOrientation.timestampNanos) {
+        if (skyOrientation.timestampNanos != 0L) {
+            cameraFrameObserver.onSensorTimestamp(skyOrientation.timestampNanos)
+        }
+    }
+
     val displayRotationDegrees = remember(context) {
         try {
             val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
@@ -829,7 +846,13 @@ fun CompassARScreen(
                             }
                             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
                             cameraProvider.unbindAll()
-                            cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview)
+                            // Phase 1 Task 3: bind Preview + ImageAnalysis (inert observer)
+                            cameraProvider.bindToLifecycle(
+                                lifecycleOwner,
+                                cameraSelector,
+                                preview,
+                                cameraFrameObserver.getUseCase()
+                            )
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
