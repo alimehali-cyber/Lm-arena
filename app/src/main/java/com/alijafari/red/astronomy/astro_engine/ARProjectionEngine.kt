@@ -5,8 +5,10 @@ import android.graphics.Matrix
 import android.graphics.Rect
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
+import android.util.Log
 import androidx.camera.view.PreviewView
 import androidx.compose.ui.geometry.Offset
+import com.alijafari.red.astronomy.BuildConfig
 import kotlin.math.*
 
 /**
@@ -51,6 +53,22 @@ import kotlin.math.*
  *      and FILL_CENTER aspect-fill scaling to Compose Canvas dimensions.
  */
 object ARProjectionEngine {
+
+    /**
+     * Phase 1 Task 5: Consolidated fallback FOV.
+     * Previously two independent hardcoded fallbacks existed: 63.5° (vertical FOV in getCameraIntrinsics)
+     * and 55.0° (horizontal FOV fallback in computeEffectiveFovXDeg when focalLengthPx <=0).
+     * Consolidated into single named constant with clear justification:
+     * "default vertical FOV assumption when no device intrinsics are available — approximate typical
+     * smartphone main-camera FOV (main camera ~60-70° vertical, ~70-80° horizontal, varies by device)".
+     * Numeric value kept as 63.5° (the more documented vertical fallback) to avoid arbitrary change;
+     * real-device validation in later phases will determine if this should be tuned.
+     */
+    private const val DEFAULT_FALLBACK_FOV_DEG = 63.5
+
+    // Rate-limited debug logging for intrinsics tier selection (Task 5.2)
+    private var lastIntrinsicsLogMs: Long = 0L
+    private const val TAG = "ARProjectionEngine"
 
     enum class IntrinsicsSource {
         /** True hardware calibration from CameraCharacteristics.LENS_INTRINSIC_CALIBRATION */
@@ -110,7 +128,7 @@ object ARProjectionEngine {
                         // 1. Primary: Hardware intrinsic calibration (API 23+)
                         val intrinsicCal = chars.get(CameraCharacteristics.LENS_INTRINSIC_CALIBRATION)
                         if (intrinsicCal != null && intrinsicCal.size >= 5 && intrinsicCal[0] > 0f && intrinsicCal[1] > 0f) {
-                            return CameraIntrinsics(
+                            val result = CameraIntrinsics(
                                 fx = intrinsicCal[0].toDouble(),
                                 fy = intrinsicCal[1].toDouble(),
                                 cx = intrinsicCal[2].toDouble(),
@@ -122,6 +140,8 @@ object ARProjectionEngine {
                                 isLensFacingBack = isBack,
                                 source = IntrinsicsSource.CALIBRATED_HARDWARE
                             )
+                            logIntrinsicsTier(result.source)
+                            return result
                         }
 
                         // 2. Secondary: Physical sensor size & optical focal lengths
@@ -139,7 +159,7 @@ object ARProjectionEngine {
                             val cx = arrayW.toDouble() / 2.0
                             val cy = arrayH.toDouble() / 2.0
 
-                            return CameraIntrinsics(
+                            val result = CameraIntrinsics(
                                 fx = fx,
                                 fy = fy,
                                 cx = cx,
@@ -151,6 +171,8 @@ object ARProjectionEngine {
                                 isLensFacingBack = isBack,
                                 source = IntrinsicsSource.ESTIMATED_PHYSICAL_SENSOR
                             )
+                            logIntrinsicsTier(result.source)
+                            return result
                         }
                     }
                 }
@@ -160,13 +182,14 @@ object ARProjectionEngine {
         }
 
         // 3. Documented Fallback Model (Identified clearly as FALLBACK_DEFAULT)
+        // Phase 1 Task 5: uses consolidated DEFAULT_FALLBACK_FOV_DEG (was 63.5° vertical, now single source)
         val defaultArrayW = 1920
         val defaultArrayH = 1080
-        val fallbackFovYRad = Math.toRadians(63.5)
+        val fallbackFovYRad = Math.toRadians(DEFAULT_FALLBACK_FOV_DEG)
         val fallbackFy = (defaultArrayH / 2.0) / tan(fallbackFovYRad / 2.0)
         val fallbackFx = fallbackFy
 
-        return CameraIntrinsics(
+        val fallbackResult = CameraIntrinsics(
             fx = fallbackFx,
             fy = fallbackFy,
             cx = defaultArrayW / 2.0,
@@ -178,6 +201,22 @@ object ARProjectionEngine {
             isLensFacingBack = true,
             source = IntrinsicsSource.FALLBACK_DEFAULT
         )
+        logIntrinsicsTier(fallbackResult.source)
+        return fallbackResult
+    }
+
+    /**
+     * Phase 1 Task 5.2: Debug-only, rate-limited logging of intrinsics tier.
+     * Logs which tier was selected (CALIBRATED_HARDWARE / ESTIMATED_PHYSICAL_SENSOR / FALLBACK_DEFAULT)
+     * each time getCameraIntrinsics runs, so real test-device runs in later phases can report tier-hit-rate.
+     * Rate-limited to ~once per second, matching CameraFrameObserver style.
+     */
+    private fun logIntrinsicsTier(source: IntrinsicsSource) {
+        if (!BuildConfig.DEBUG) return
+        val nowMs = System.currentTimeMillis()
+        if (nowMs - lastIntrinsicsLogMs < 1000L) return
+        lastIntrinsicsLogMs = nowMs
+        Log.d(TAG, "Intrinsics tier selected: $source (fallback FOV=$DEFAULT_FALLBACK_FOV_DEG°)")
     }
 
     /**
@@ -419,6 +458,16 @@ object ARProjectionEngine {
 
     /**
      * Computes the effective camera focal length in screen pixels using CameraIntrinsics.
+     *
+     * Phase 1 Task 5.3 — Documented limitation (not fixed yet):
+     * This method currently uses ONLY fy-based scale (intrinsics.fy * scale) and discards fx.
+     * In a true pinhole model with non-square pixels or anamorphic scaling, fx and fy can differ,
+     * and the effective focal length for horizontal FOV should use fx (or an average).
+     * Using only fy assumes square pixels and fy≈fx, which is true for most smartphone cameras
+     * but may introduce small horizontal FOV error if fx != fy.
+     * Expected impact: if fx and fy differ by e.g. 2%, horizontal FOV error ~2% (≈1-1.5° for typical 70° FOV).
+     * This is tracked for later fix once real-device intrinsics tier-hit-rate data is available.
+     * See also: Phase 0 finding D5.2
      */
     fun computeCameraFocalLengthPx(
         context: Context?,
@@ -438,18 +487,22 @@ object ARProjectionEngine {
             intrinsics.activeArrayHeight.toDouble()
         }
         val scale = max(screenWidthPx / wRot, screenHeightPx / hRot)
+        // NOTE: Only fy is used here, fx is discarded — see doc above for limitation
         val baseFocalLengthPx = (intrinsics.fy * scale).toFloat()
         return baseFocalLengthPx * zoomFactor
     }
 
     /**
      * Computes effective horizontal field of view in degrees matching camera intrinsics and canvas size.
+     * Phase 1 Task 5: consolidated fallback — previously returned 55.0° here, now uses DEFAULT_FALLBACK_FOV_DEG (63.5°)
+     * to remove duplication. Numeric change from 55.0 to 63.5 is intentional consolidation; real-device
+     * validation in later phases will tune this value.
      */
     fun computeEffectiveFovXDeg(
         screenWidthPx: Float,
         focalLengthPx: Float
     ): Double {
-        if (focalLengthPx <= 0f) return 55.0
+        if (focalLengthPx <= 0f) return DEFAULT_FALLBACK_FOV_DEG
         val halfW = screenWidthPx / 2.0
         return Math.toDegrees(2.0 * atan(halfW / focalLengthPx))
     }

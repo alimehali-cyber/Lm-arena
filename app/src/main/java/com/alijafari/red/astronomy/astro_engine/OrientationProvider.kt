@@ -15,7 +15,8 @@ data class SkyOrientation(
     val azimuth: Float = 0f,   // True north azimuth, 0-360°, clockwise
     val pitch: Float = 0f,     // Elevation, positive = up, degrees (-90° to +90°)
     val roll: Float = 0f,      // Roll around optical axis, degrees
-    val rotationMatrix: FloatArray = FloatArray(9)
+    val rotationMatrix: FloatArray = FloatArray(9),
+    val timestampNanos: Long = 0L // SensorEvent.timestamp (elapsedRealtimeNanos), Phase 1 Task 4
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -24,6 +25,7 @@ data class SkyOrientation(
         return azimuth == other.azimuth &&
                 pitch == other.pitch &&
                 roll == other.roll &&
+                timestampNanos == other.timestampNanos &&
                 rotationMatrix.contentEquals(other.rotationMatrix)
     }
 
@@ -31,6 +33,7 @@ data class SkyOrientation(
         var result = azimuth.hashCode()
         result = 31 * result + pitch.hashCode()
         result = 31 * result + roll.hashCode()
+        result = 31 * result + timestampNanos.hashCode()
         result = 31 * result + rotationMatrix.contentHashCode()
         return result
     }
@@ -82,6 +85,9 @@ class OrientationProvider(
     // Magnetic accuracy state
     var magneticAccuracy = SensorManager.SENSOR_STATUS_ACCURACY_LOW
         private set
+
+    // Phase 1 Task 4: capture sensor timestamps (elapsedRealtimeNanos) that were previously discarded
+    private var lastSensorTimestampNanos: Long = 0L
 
     private val _orientation = MutableStateFlow(SkyOrientation(0f, 45f, 0f))
     val orientation: StateFlow<SkyOrientation> = _orientation.asStateFlow()
@@ -136,23 +142,26 @@ class OrientationProvider(
     }
 
     override fun onSensorChanged(event: SensorEvent) {
+        // Phase 1 Task 4: capture timestamp that was previously discarded
+        lastSensorTimestampNanos = event.timestamp
+
         when (event.sensor.type) {
             Sensor.TYPE_ROTATION_VECTOR,
             Sensor.TYPE_GAME_ROTATION_VECTOR -> {
-                processRotationVectorEvent(event.values)
+                processRotationVectorEvent(event.values, event.timestamp)
             }
             Sensor.TYPE_ACCELEROMETER -> {
                 System.arraycopy(event.values, 0, gravityValues, 0, 3)
                 hasGravity = true
                 if (rotationVectorSensor == null && gameRotationSensor == null) {
-                    processAccelMag()
+                    processAccelMag(event.timestamp)
                 }
             }
             Sensor.TYPE_MAGNETIC_FIELD -> {
                 System.arraycopy(event.values, 0, geomagneticValues, 0, 3)
                 hasGeomagnetic = true
                 if (rotationVectorSensor == null && gameRotationSensor == null) {
-                    processAccelMag()
+                    processAccelMag(event.timestamp)
                 }
             }
             Sensor.TYPE_GYROSCOPE -> {
@@ -178,7 +187,7 @@ class OrientationProvider(
         }
     }
 
-    private fun processRotationVectorEvent(values: FloatArray) {
+    private fun processRotationVectorEvent(values: FloatArray, timestampNanos: Long = lastSensorTimestampNanos) {
         // Sensor values contain [x*sin(theta/2), y*sin(theta/2), z*sin(theta/2), cos(theta/2)]
         val qx = values[0].toDouble()
         val qy = values[1].toDouble()
@@ -190,10 +199,10 @@ class OrientationProvider(
             if (sinHalfSq <= 1.0) sqrt(1.0 - sinHalfSq) else 0.0
         }
 
-        updateQuaternion(qw, qx, qy, qz)
+        updateQuaternion(qw, qx, qy, qz, timestampNanos)
     }
 
-    private fun processAccelMag() {
+    private fun processAccelMag(timestampNanos: Long = lastSensorTimestampNanos) {
         if (!hasGravity || !hasGeomagnetic) return
         val success = SensorManager.getRotationMatrix(rawRotationMatrix, null, gravityValues, geomagneticValues)
         if (!success) return
@@ -231,10 +240,16 @@ class OrientationProvider(
             qz = 0.25 * s
         }
 
-        updateQuaternion(qw, qx, qy, qz)
+        updateQuaternion(qw, qx, qy, qz, timestampNanos)
     }
 
-    private fun updateQuaternion(targetW: Double, targetX: Double, targetY: Double, targetZ: Double) {
+    private fun updateQuaternion(
+        targetW: Double,
+        targetX: Double,
+        targetY: Double,
+        targetZ: Double,
+        timestampNanos: Long = lastSensorTimestampNanos
+    ) {
         // Normalize target quaternion
         val norm = sqrt(targetW * targetW + targetX * targetX + targetY * targetY + targetZ * targetZ)
         if (norm < 1e-6) return
@@ -385,7 +400,8 @@ class OrientationProvider(
             azimuth = azimuthDeg,
             pitch = pitchDeg,
             roll = rollDeg,
-            rotationMatrix = finalRotationMatrix.copyOf()
+            rotationMatrix = finalRotationMatrix.copyOf(),
+            timestampNanos = timestampNanos
         )
     }
 }

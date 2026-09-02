@@ -633,12 +633,26 @@ class FrameTransformationEngine {
     // ============================================================
 
     /**
-     * Apply atmospheric refraction to apparent altitude.
+     * Apply atmospheric refraction to true altitude to obtain apparent altitude.
      * Uses Bennett's formula (1982).
      *
      * R = 1 / tan(hₐ + 7.31 / (hₐ + 4.4)) arcminutes
      *
      * Only applied for altitudes > -1° (below that, refraction is unpredictable).
+     *
+     * PHASE 1 FINDING (Task 1.3): Independent verification of direction:
+     * - Docstring originally said "Apply atmospheric refraction to apparent altitude"
+     *   which is ambiguous (could be interpreted as apparent->true or true->apparent).
+     * - Code does: alt_apparent = alt_true + R, where R>0.
+     *   Example: alt_true=0° => R~34' => alt_apparent~0.57°, so object appears higher.
+     *   This is the correct physical direction: refraction lifts apparent position.
+     * - Therefore this function implements TRUE -> APPARENT (geometric -> observed).
+     * - Inverse is removeRefraction (apparent -> true), which subtracts R iteratively.
+     * - In equatorialToHorizontal pipeline, true geometric altitude is computed first,
+     *   then applyRefraction is called to get observable altitude — consistent with true->apparent.
+     * - This function is currently reachable via trueEquatorialToHorizontal and
+     *   equatorialToHorizontal, but AstroDispatchEngine.equatorialToHorizontal wrapper
+     *   has zero live callers (verified Task 2). No fix needed now; just documenting.
      */
     fun applyRefraction(altDeg: Double): Double {
         if (altDeg < -1.0) return altDeg

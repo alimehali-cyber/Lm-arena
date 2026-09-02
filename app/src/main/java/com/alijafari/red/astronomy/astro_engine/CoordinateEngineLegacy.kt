@@ -110,12 +110,16 @@ object CoordinateEngineLegacy {
         var azDeg = Math.toDegrees(azRad)
         if (azDeg < 0) azDeg += 360.0
 
-        // Atmospheric Refraction (Bennett formula adjusted for temperature and elevation pressure)
+        // Atmospheric Refraction — Sæmundsson (1986) formula with temperature and pressure correction
+        // Ref: Sæmundsson, T. (1986) "Astronomical Refraction", Sky & Telescope 72, p.70
+        // Formula: R = 1.02 / tan(h + 10.3/(h+5.11)) arcminutes, where h is apparent altitude in degrees
+        // This is often mislabeled as Bennett (1982), but Bennett's coefficients are 7.31/4.4, not 10.3/5.11
+        // See also: Meeus, Astronomical Algorithms Ch.16, and Bennett (1982) QJRAS 23, 158
         if (altDeg > -1.5) {
             val pressurehPa = 1013.25 * (1.0 - 2.25577e-5 * observerElevationM).pow(5.25588)
             val tempK = 288.15 - 0.0065 * observerElevationM
-            val R_bennett = 1.02 / tan(Math.toRadians(altDeg + 10.3 / (altDeg + 5.11))) // arcminutes
-            val refractionArcmin = R_bennett * (pressurehPa / 1010.0) * (283.15 / tempK)
+            val R_saemundsson = 1.02 / tan(Math.toRadians(altDeg + 10.3 / (altDeg + 5.11))) // arcminutes
+            val refractionArcmin = R_saemundsson * (pressurehPa / 1010.0) * (283.15 / tempK)
             altDeg += (refractionArcmin / 60.0)
         }
 
