@@ -1,0 +1,26 @@
+# SYNTHETIC TEST FIXTURE - NOT REAL ASTRONOMICAL DATA
+# Clearly fake IDs for testing only
+# Format: id,ra_deg,dec_deg,magnitude
+# Designed so pairwise separations are easy to verify by hand:
+# - TESTSTAR001 at (0,0) and TESTSTAR002 at (90,0): exactly 90° apart on equator
+# - TESTSTAR003 at (0,90): North pole, 90° from any equatorial point
+# - TESTSTAR004 at (0,-90): South pole
+# - TESTSTAR001 and TESTSTAR005 close together: 1° apart
+# - TESTSTAR006 and TESTSTAR007 antipodal: 180° apart (0,0) vs (180,0)
+# - Others scattered for quad testing
+id,ra_deg,dec_deg,magnitude
+TESTSTAR001,0.0,0.0,2.0
+TESTSTAR002,90.0,0.0,2.5
+TESTSTAR003,0.0,90.0,3.0
+TESTSTAR004,0.0,-90.0,3.0
+TESTSTAR005,1.0,0.0,4.0
+TESTSTAR006,180.0,0.0,2.2
+TESTSTAR007,0.0,0.0,5.0
+TESTSTAR008,45.0,45.0,3.5
+TESTSTAR009,45.0,46.0,4.5
+TESTSTAR010,10.0,10.0,3.0
+TESTSTAR011,20.0,15.0,4.0
+TESTSTAR012,30.0,20.0,5.0
+TESTSTAR013,15.0,12.0,4.2
+TESTSTAR014,25.0,18.0,3.8
+TESTSTAR015,12.0,8.0,4.8
