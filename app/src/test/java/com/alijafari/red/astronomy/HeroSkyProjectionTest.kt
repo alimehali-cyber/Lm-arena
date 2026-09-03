@@ -130,12 +130,17 @@ class HeroSkyProjectionTest {
         )
     }
 
+    // R2-A2 relabel: this is a POSITIVE CHECK (option ii), not a diagnostic and not a
+    // duplicate of testSouthernHemisphereEastWestOrdering_MirroredExpectation. That test
+    // asserts the DIRECTION inequalities (East x > center, West x < center in the south);
+    // THIS test pins the EXACT positions of BOTH hemispheres in one place - the southern
+    // mirror (East = 0.75w, West = 0.25w) AND the unchanged northern ordering
+    // (East = 0.25w, West = 0.75w) - so a regression in either hemisphere trips it.
     @Test
-    fun testSouthernHemisphereActualBehavior_Diagnostic() {
-        // Originally a diagnostic that asserted the then-current BUGGY (unmirrored) behavior.
-        // Updated 2026-09-03 together with the PHASE9 fix (relAz = az - facing, facing=0 in
-        // the south): southern ordering is now MIRRORED - East right, West left - matching
-        // physics (facing North, East is on the right) and the mirrored-expectation test.
+    fun testHemisphereOrderingExactPositions_PositiveCheck() {
+        // History: began life (Phase 1) as a diagnostic asserting the then-current BUGGY
+        // unmirrored southern behavior; updated with the PHASE9 fix (relAz = az - facing,
+        // facing=0 in the south) to pin the FIXED exact positions of both hemispheres.
         val width = 1000f
         val height = 500f
 

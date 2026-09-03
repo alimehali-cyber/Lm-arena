@@ -43,3 +43,13 @@ PASS   HeroSkyProjectionTest.testScreenDistanceCylindricalWraparound
 PASS   HeroSkyProjectionTest.testSouthernHemisphereActualBehavior_Diagnostic
 PASS   HeroSkyProjectionTest.testSouthernHemisphereEastWestOrdering_MirroredExpectation
 Tests run: 7, Failures: 0, Errors: 0
+
+# ============================================================================
+# PASS 2 (2026-09-03, item R2-A2): test renamed and relabelled.
+# testSouthernHemisphereActualBehavior_Diagnostic ->
+# testHemisphereOrderingExactPositions_PositiveCheck
+# (a POSITIVE CHECK pinning EXACT positions 0.25w/0.75w for BOTH hemispheres; NOT a
+#  duplicate of the direction-inequality MirroredExpectation test; original buggy-era
+#  history documented in the test comment.)
+# Full main-harness run after rename (HeroSky now part of the standard 137):
+#   Tests run: 137, Failures: 0, Errors: 0  (incl. all 7 HeroSkyProjectionTest tests)
