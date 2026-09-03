@@ -180,76 +180,32 @@ object CatalogSerializer {
     }
 
     /**
-     * Estimate file size for real catalog extrapolation.
-     * Given fixture file size and fixture counts, extrapolate to 9k-15k stars.
-     * Shows arithmetic, not just assertion.
+     * (R3-A3, 2026-09-04) Model-free serialized-size calculator: estimates bytes from
+     * GIVEN counts. The previous extrapolateFileSize() embedded a hardcoded catalog
+     * model (pairs ~ 0.058*N^2, quads = N*19600/4) that pass-2 measurements showed to be
+     * ~2,900x optimistic on quad count - it is REMOVED. Callers now supply pair/quad
+     * counts from the real builders (or from the exact combinatorial model in
+     * docs/startracker/evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt).
      *
-     * ALL arithmetic here is Long (audit finding B1): with Int arithmetic the quad term
-     * alone for a 9,000-star catalog is 9,000 * 19,600 / 4 * 84 = 3,704,400,000 bytes,
-     * which overflows Int.MAX_VALUE (2,147,483,647) and wrapped negative, making the old
-     * "<50 MB" assertions pass vacuously against a meaningless wrapped value.
+     * Unit costs are MEASURED against the real serialize() output (byte-accounting
+     * mirror validated byte-equal at N=150; see the evidence file):
+     *   - pair: 16 B exactly (double + int + int)
+     *   - quad: 79.93 B measured (4 ints + 6 doubles + quantized-key string, e.g.
+     *     "70-70-70-70-100" -> 80 B typical); 80 used here
+     *   - star: ~50.9 B measured on synthetic ids (id string + 3 doubles + source
+     *     string - varies with id length); 50 used here
+     * History: under the removed model this returned 4,067,730,000 B for 9k stars
+     * ("3.79 GB") - kept only in this comment as a record.
      */
-    fun extrapolateFileSize(
-        fixtureStars: Int,
-        fixturePairs: Int,
-        fixtureQuads: Int,
-        fixtureBytes: Int,
-        targetStars: Int
-    ): ExtrapolationResult {
-        // Pair count scales ~ O(N^2) but limited by maxSeparation cutoff.
-        // For uniform sky distribution, number of pairs within 40° is roughly proportional to N * (density * area)
-        // Density = N / (4π steradians), area within 40° = 2π*(1-cos(40°)) ≈ 1.46 sr
-        // So pairs ≈ N * (density * area) /2 = N * (N/(4π) * 1.46)/2 = N^2 *1.46/(8π) ≈ N^2 *0.058
-        // For extrapolation, we use simple scaling: pairs ∝ N^2, quads ∝ N^2 * avg_nearby^2 (since we only combine nearby)
+    const val PAIR_BYTES: Long = 16L
+    const val QUAD_BYTES: Long = 80L
+    const val STAR_BYTES_APPROX: Long = 50L
+    const val HEADER_BYTES: Long = 20L // magic + version + 3 section counts (5 x 4B)
 
-        val bytesPerStar = fixtureBytes.toDouble() / fixtureStars // rough
-        val pairsPerStarSquared = fixturePairs.toDouble() / (fixtureStars * fixtureStars)
-        val quadsPerStar = fixtureQuads.toDouble() / fixtureStars
-
-        // For target N, estimate pairs = N^2 * pairsPerStarSquared  (Long: N^2 alone overflows Int for N > 46,340)
-        val targetStarsL = targetStars.toLong()
-        val estPairs = (targetStarsL * targetStarsL * pairsPerStarSquared).toLong()
-        // Quads: for real catalog, we would limit to nearby stars, so quads not full C(N,4)
-        // Assume avg nearby stars per star = 50 (from config), then quads per star ≈ C(50,3)=19600, total ≈ N*19600/4
-        // Long arithmetic: 15,000 * 19,600 / 4 = 73,500,000 quads (fits Int, but * 84 bytes/quad = 6,174,000,000 does NOT)
-        val estQuadsNearbyLimited = targetStarsL * 19600L / 4L
-
-        // File size estimation (Long throughout):
-        // Star entry: id ~10 bytes + 2*8 + 8 + source ~10 = ~36 bytes + overhead
-        // Pair entry: 8 + 4+4 = 16 bytes
-        // Quad entry: 4*4=16 + 8 + 5*8=40 + key ~20 = ~84 bytes
-        val starBytes = 50L // approx per star
-        val pairBytes = 16L
-        val quadBytes = 84L
-
-        val estTotalBytes = targetStarsL * starBytes + estPairs * pairBytes + estQuadsNearbyLimited * quadBytes
-
-        return ExtrapolationResult(
-            fixtureStars = fixtureStars,
-            fixturePairs = fixturePairs,
-            fixtureQuads = fixtureQuads,
-            fixtureBytes = fixtureBytes,
-            targetStars = targetStars,
-            estimatedPairs = estPairs,
-            estimatedQuadsNearbyLimited = estQuadsNearbyLimited,
-            estimatedTotalBytes = estTotalBytes,
-            estimatedTotalKB = estTotalBytes / 1024,
-            estimatedTotalMB = estTotalBytes / (1024L * 1024L),
-            estimatedTotalGB = estTotalBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
-        )
+    fun estimateFileSizeBytes(starCount: Int, pairCount: Long, quadCount: Long): Long {
+        return HEADER_BYTES +
+            starCount.toLong() * STAR_BYTES_APPROX +
+            pairCount * PAIR_BYTES +
+            quadCount * QUAD_BYTES
     }
-
-    data class ExtrapolationResult(
-        val fixtureStars: Int,
-        val fixturePairs: Int,
-        val fixtureQuads: Int,
-        val fixtureBytes: Int,
-        val targetStars: Int,
-        val estimatedPairs: Long,
-        val estimatedQuadsNearbyLimited: Long,
-        val estimatedTotalBytes: Long,
-        val estimatedTotalKB: Long,
-        val estimatedTotalMB: Long,
-        val estimatedTotalGB: Double
-    )
 }

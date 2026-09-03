@@ -54,95 +54,54 @@ class CatalogSerializerTest {
         }
     }
 
+        // R3-A3 rewrite: extrapolateFileSize() (with its hardcoded N*19600/4 quad model,
+    // ~2,900x optimistic per pass-2 measurements) is REMOVED from the serializer.
+    // estimateFileSizeBytes() is now a model-free byte calculator over GIVEN counts.
+    // Assertions below use the MEASURED counts from
+    // docs/startracker/evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt:
+    //   9,110 uniform stars -> 4,851,922 pairs, stars+pairs serialize to 78,094,272 B
+    //   (= 74.5 MiB; star section 463,504 B = 50.88 B/star with "CATn" ids).
+    // History only (no longer asserted anywhere): the removed model produced
+    // 4,067,730,000 B ("3.79 GB") for 9k stars.
     @Test
-    fun testFileSizeExtrapolation() {
-        // Use small fixture to measure size, then extrapolate to 9k-15k stars
-        val csv = """
-            id,ra_deg,dec_deg,magnitude
-            TESTSTAR001,0.0,0.0,2.0
-            TESTSTAR002,90.0,0.0,2.5
-            TESTSTAR003,0.0,90.0,3.0
-            TESTSTAR004,1.0,0.0,4.0
-            TESTSTAR005,0.0,1.0,4.0
-            TESTSTAR006,10.0,10.0,3.0
-            TESTSTAR007,20.0,15.0,4.0
-            TESTSTAR008,30.0,20.0,5.0
-            TESTSTAR009,15.0,12.0,4.2
-            TESTSTAR010,25.0,18.0,3.8
-        """.trimIndent()
+    fun testEstimateFromFileCountsMatchesMeasured() {
+        // Exact arithmetic from named constants (guard against silent unit change):
+        val expected9110PairsOnly = CatalogSerializer.HEADER_BYTES +
+            9_110L * CatalogSerializer.STAR_BYTES_APPROX +
+            4_851_922L * CatalogSerializer.PAIR_BYTES
+        assertEquals(expected9110PairsOnly, CatalogSerializer.estimateFileSizeBytes(9_110, 4_851_922L, 0L))
 
-        val stars = CatalogIngestor.parse(csv)
-        val pairIndex = AngularSeparationIndex(stars, maxSeparationRad = 40.0 * PI / 180.0)
-        val quadIndex = QuadPatternIndex(stars, maxSeparationRad = 40.0 * PI / 180.0)
+        // Against the MEASURED serialized size (real serializer, probe run):
+        val measured = 78_094_272L
+        val estimate = CatalogSerializer.estimateFileSizeBytes(9_110, 4_851_922L, 0L)
+        println("9,110 stars + 4,851,922 pairs: estimate $estimate B vs MEASURED $measured B " +
+            "(delta ${measured - estimate} B = star-id length variance; 50 vs 50.88 B/star)")
+        assertTrue("estimate must be within 0.05% of the measured 78,094,272 B",
+            kotlin.math.abs(estimate - measured) < measured / 2_000) // 0.05% = 39,047 B; actual delta 8,000 B
+        assertEquals("measured total is 74.5 MiB", 74.5, measured / (1024.0 * 1024.0), 0.05)
 
-        val bytes = CatalogSerializer.serialize(stars, pairIndex.pairs, quadIndex.quads)
-        println("Fixture: ${stars.size} stars, ${pairIndex.pairs.size} pairs, ${quadIndex.quads.size} quads, ${bytes.size} bytes")
+        // Pair unit cost is exact: measured pair section = 16 B * 4,851,922 = 77,630,752 B
+        assertEquals(77_630_752L, 4_851_922L * CatalogSerializer.PAIR_BYTES)
+    }
 
-        // Extrapolate to 9000 and 15000 stars
-        val extrap9000 = CatalogSerializer.extrapolateFileSize(
-            fixtureStars = stars.size,
-            fixturePairs = pairIndex.pairs.size,
-            fixtureQuads = quadIndex.quads.size,
-            fixtureBytes = bytes.size,
-            targetStars = 9000
-        )
-
-        val extrap15000 = CatalogSerializer.extrapolateFileSize(
-            fixtureStars = stars.size,
-            fixturePairs = pairIndex.pairs.size,
-            fixtureQuads = quadIndex.quads.size,
-            fixtureBytes = bytes.size,
-            targetStars = 15000
-        )
-
-        println("\nExtrapolation to 9000 stars:")
-        println("  Estimated pairs: ${extrap9000.estimatedPairs}")
-        println("  Estimated quads (nearby limited): ${extrap9000.estimatedQuadsNearbyLimited}")
-        println("  Estimated total: ${extrap9000.estimatedTotalBytes} bytes = ${extrap9000.estimatedTotalKB} KB = ${extrap9000.estimatedTotalMB} MB = ${"%.2f".format(extrap9000.estimatedTotalGB)} GB")
-
-        println("\nExtrapolation to 15000 stars:")
-        println("  Estimated pairs: ${extrap15000.estimatedPairs}")
-        println("  Estimated quads: ${extrap15000.estimatedQuadsNearbyLimited}")
-        println("  Estimated total: ${extrap15000.estimatedTotalBytes} bytes = ${extrap15000.estimatedTotalKB} KB = ${extrap15000.estimatedTotalMB} MB = ${"%.2f".format(extrap15000.estimatedTotalGB)} GB")
-
-        println("\nArithmetic shown:")
-        println("  bytesPerStar approx: ${bytes.size}/${stars.size} = ${bytes.size.toDouble()/stars.size}")
-        println("  pairs scale as N^2 * (pairs/N^2) where pairs/N^2 = ${pairIndex.pairs.size}/${stars.size*stars.size} = ${pairIndex.pairs.size.toDouble()/(stars.size*stars.size)}")
-        println("  quads nearby limited: N * C(50,3)/4 = N*19600/4 (per config MAX_STARS_PER_REGION_FOR_QUADS=50)")
-
-        // Audit finding B1: the old assertions ("9000 stars should be <50 MB", "15000 <100 MB") passed
-        // ONLY because Int arithmetic overflowed (e.g. 15,000 * 19,600 / 4 * 84 = 6,174,000,000 wraps
-        // negative against Int.MAX_VALUE = 2,147,483,647) and the wrapped-negative MB trivially satisfied
-        // the "< 50" checks. The real estimates are in the GIGABYTE range, and the assertions below
-        // verify the exact Long-arithmetic values so neither an overflow nor a silent unit change can
-        // masquerade as a pass again.
-
-        // Exact quad-term arithmetic (fixture-independent, pure Long):
-        assertEquals("9,000 stars quad count must be 9000*19600/4", 44_100_000L, extrap9000.estimatedQuadsNearbyLimited)
-        assertEquals("15,000 stars quad count must be 15000*19600/4", 73_500_000L, extrap15000.estimatedQuadsNearbyLimited)
-
-        // Exact total = stars term + pairs term + quads term, recomputed here in Long:
-        val expectedBytes9000 = 9_000L * 50L + extrap9000.estimatedPairs * 16L + 44_100_000L * 84L
-        val expectedBytes15000 = 15_000L * 50L + extrap15000.estimatedPairs * 16L + 73_500_000L * 84L
-        assertEquals(expectedBytes9000, extrap9000.estimatedTotalBytes)
-        assertEquals(expectedBytes15000, extrap15000.estimatedTotalBytes)
-
-        // No overflow / no wrapped-negative values anywhere:
-        assertTrue(extrap9000.estimatedTotalBytes > 0)
-        assertTrue(extrap15000.estimatedTotalBytes > 0)
-        assertTrue(extrap9000.estimatedPairs > 0)
-
-        // The honest headline: the quad term ALONE is ~3.7 GB (9k) / ~6.2 GB (15k) — the opposite
-        // of the previously claimed "10-30 MB". Assert the magnitude explicitly:
-        assertEquals("9k quad-term bytes", 3_704_400_000L, 44_100_000L * 84L)
-        assertEquals("15k quad-term bytes", 6_174_000_000L, 73_500_000L * 84L)
-        assertTrue("9,000-star estimate must exceed the 3.7 GB quad term alone",
-            extrap9000.estimatedTotalBytes > 3_704_400_000L)
-        assertTrue("15,000-star estimate must exceed the 6.2 GB quad term alone",
-            extrap15000.estimatedTotalBytes > 6_174_000_000L)
-        assertTrue("the old '<50 MB' claim is false and must fail: actual is > 3.5 GB",
-            extrap9000.estimatedTotalMB > 3_500L)
-        assertTrue("the old '<100 MB' claim is false and must fail: actual is > 5.8 GB",
-            extrap15000.estimatedTotalMB > 5_800L)
+    @Test
+    fun testCappedQuadIndexCostArithmetic() {
+        // Capped (Tetra3-style k-NN) index costs at 9,110 stars, quads/star = C(k,3)
+        // exactly; assert the byte arithmetic a reader would do by hand (evidence file
+        // addendum: 7.3 / 14.6 / 40.8 MB for k = 5 / 6 / 8 on top of the 74.5 MiB pairs).
+        val pairsBytes = CatalogSerializer.estimateFileSizeBytes(9_110, 4_851_922L, 0L)
+        for ((k, quadsPerStar) in listOf(5 to 10L, 6 to 20L, 8 to 56L)) {
+            val quads = 9_110L * quadsPerStar
+            val total = CatalogSerializer.estimateFileSizeBytes(9_110, 4_851_922L, quads)
+            val quadTerm = quads * CatalogSerializer.QUAD_BYTES
+            println("k=$k: quads=$quads, quad term ${quadTerm / 1_000_000} MB, total with pairs " +
+                "${"%.1f".format(total / (1024.0 * 1024.0))} MiB")
+            assertEquals(pairsBytes + quadTerm, total)
+        }
+        // k=6 lands in the "10-30 MB" band the original docs guessed (for a CAPPED index):
+        val k6 = CatalogSerializer.estimateFileSizeBytes(9_110, 4_851_922L, 9_110L * 20L)
+        assertTrue("k=6 capped quad term is 14-15 MB",
+            9_110L * 20L * CatalogSerializer.QUAD_BYTES in 14_000_000L..15_000_000L)
+        println("k=6 total (pairs+quads): ${"%.1f".format(k6 / (1024.0 * 1024.0))} MiB")
     }
 }
