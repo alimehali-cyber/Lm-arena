@@ -1,13 +1,22 @@
 # Phase 6 Integration Patch — Documented, Ready-to-Apply (Environment Blocked)
 
-**Status:** ENVIRONMENT STILL BLOCKED, LIVE WIRING WAS NOT PERFORMED, DOCUMENTED PATCH PROVIDED INSTEAD
+**Status (updated 2026-09-03, pass 2):** environment PARTIALLY unblocked — the offline
+Kotlin harness (docs/startracker/evidence/HARNESS_DISCLOSURE.md) has executed
+AttitudeBlenderTest: 5/5 PASS (after the pass-1 const-flag testability fix;
+testNoLockPassthrough still proves the disabled-passthrough safety contract on the
+public API). The gate for OrientationProvider live wiring REMAINS UNMET: that file
+imports android.hardware.* and needs the real Android build
+(`./gradlew :app:testDebugUnitTest`, still never run). Patch below remains DOCUMENTED,
+NOT APPLIED.
+
+**Historical status (Phase 6 era):** ENVIRONMENT STILL BLOCKED, LIVE WIRING WAS NOT PERFORMED, DOCUMENTED PATCH PROVIDED INSTEAD
 
 This document contains the exact proposed diff for OrientationProvider.kt showing precisely where and how AttitudeBlender would be called, with before/after excerpts, list of pre-existing tests that MUST pass before and after, and instructions for human engineer.
 
 ## Hard Gate Decision
 
 Per Task 0:
-- Environment recovery: `./gradlew --version` → TLS failure `curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to services.gradle.org:443`, no Java, no JDK via apt (permission denied), but python3 + numpy 2.4.6 available.
+- Environment recovery: `./gradlew --version` → TLS failure `curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to services.gradle.org:443`, no Java, no JDK via apt (permission denied), but python3 + numpy 2.4.6 available. [pass-2 note: numpy was NOT installed in this sandbox during the remediation passes until 2026-09-03 (`pip install --break-system-packages numpy` → 2.4.6, now installed and all phase scripts reproduce their numbers; evidence/A6_NUMPY_CROSSCHECK_REPRO_2026-09-03.txt)]
 - Pre-existing test suite: Cannot run due to blocked Gradle/Java — cannot confirm baseline passes.
 - Decision: **STOP at isolated implementation (Tasks 1-2), do NOT touch OrientationProvider.kt, CompassARScreen.kt, ARProjectionEngine.kt live**. Produce documented patch instead. This is correct disciplined outcome per hard gate.
 
@@ -194,12 +203,12 @@ Per Phase 0 audit, these must pass both before and after applying patch (with fl
 |-------|-------------------------------|------------------------------|------|
 | 1 | No — Gradle TLS failure, no Java | Static analysis, manual calc for refraction | Medium — math/comment only, no logic change |
 | 2 | No — same block | Manual cross-check via Python (weighted centroid error 0.0756 px PASS, sigma-clipped median robust) | High — 1149 lines new code never executed |
-| 3 | No — same block, but python+numpy now available | Python cross-check (haversine vs dot 1e-9 PASS, quad descriptor square 0.707 ratios, k-vector O(1) reasoning) | High — 6 new files 1149 lines, plus 3 phases without execution |
+| 3 | No — same block [pass-2: numpy not actually available in this sandbox then; installed 2026-09-03, script numbers reproduced] | Python cross-check (haversine vs dot 1e-9 PASS, quad descriptor square 0.707 ratios [pass-2: k-vector is NOT flat O(1) — O(1) bracketing + distribution-dependent correction, worst case O(P)]) | High — 6 new files 1149 lines, plus 3 phases without execution |
 | 4 | No — same block, python+numpy available | Python reference Davenport q-method: zero noise 0 arcsec, 0.01° noise 27 arcsec, TRIAD 0 arcsec, Jacobi eigenvalues 1,3,3,4 PASS — Kotlin traced by hand identical K-matrix | Very High — attitude solving nontrivial linear algebra, 4 phases without execution |
 | 5 | No — same block | Synthetic event sequences for state machine, analytic known case for gyro integration (5°/s for 10s → 50° yaw), trigger boundary tests | Very High — tracking loop state machine + quaternion math, 5 phases without execution |
 | 6 | No — same block, hard gate stops live wiring | Isolated AttitudeBlender tests (no-lock passthrough identical within 1e-9) + documented patch | Critical — first phase touching live production code, but blocked by gate, so no regression risk yet, but 6 phases without execution is structural risk |
 
-**Plain-language escalation:** This is now SIX phases in a row (1-6) where new code has shipped without ever being executed by automated test runner. Phases 2-6 total ~3000+ lines of new pure-Kotlin code for star detection, catalog, solver, tracking, fusion — all reasoned about, manually cross-checked via Python where possible, but never run as Kotlin via JUnit. This is a growing structural risk. The project's own Phase 6 hard gate correctly blocks live wiring into OrientationProvider until baseline tests pass before and after — this gate is working as designed to prevent regression. However, the underlying environment blocker (Gradle TLS failure downloading 9.3.1 from services.gradle.org, no JDK) must be resolved by a human with access to proper development machine and network before Phase 6 live wiring and before Phase 7+ can proceed. Do not just note and forget — escalate to human with real device.
+**Plain-language escalation (HISTORICAL, written at Phase 6 time):** This is now SIX phases in a row (1-6) where new code has shipped without ever being executed by automated test runner. Phases 2-6 total ~3000+ lines of new pure-Kotlin code for star detection, catalog, solver, tracking, fusion — all reasoned about, manually cross-checked via Python where possible, but never run as Kotlin via JUnit. This is a growing structural risk. The project's own Phase 6 hard gate correctly blocks live wiring into OrientationProvider until baseline tests pass before and after — this gate is working as designed to prevent regression. However, the underlying environment blocker (Gradle TLS failure downloading 9.3.1 from services.gradle.org, no JDK) must be resolved by a human with access to proper development machine and network before Phase 6 live wiring and before Phase 7+ can proceed. Do not just note and forget — escalate to human with real device.
 
 ## If Environment Not Fixed Before Phase 6, Phase 6 Will Be BLOCKED
 

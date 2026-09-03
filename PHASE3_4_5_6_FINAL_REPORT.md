@@ -1,5 +1,11 @@
 # PHASE 3-6 FINAL REPORT — Catalog, Solver, Tracking, Fusion (Isolated + Gated)
 
+> **HISTORICAL DOCUMENT (phase-2-6 era), corrected in place 2026-09-03.** Written before
+> any of this code had ever been executed. Pass-1/2 remediation corrections are inline
+> and dated; the environment-status tables inside are stamped SUPERSEDED (current status:
+> docs/startracker/PROJECT_STATUS_END_OF_IMPLEMENTATION.md §5). Nothing uncorrected in
+> this file should be read as current fact.
+
 **Branch:** `arena/01a06116-lm-arena` (Arena forced, noted)  
 **Base:** `c0ebb82 Recover Phase 1+2 work` → previous Phase 2 final `7034af4`  
 **Date:** 2026-09-02 UTC  
@@ -68,7 +74,7 @@
 |-------|-------------------------------|------------------------------|------|
 | 1 | No — Gradle TLS failure, no Java | Static analysis, manual calc refraction 34' at 0°, 9.9' at 5°, etc. | Medium — math/comment only |
 | 2 | No — same block | Manual cross-check Python: weighted centroid error 0.0756 px PASS, sigma-clipped median robust 19.77 vs true 20 | High — 1149 lines new never executed |
-| 3 | No — same block, but python+numpy now available 2.4.6 | Python cross-check: haversine vs dot 1e-9 PASS, quad descriptor square ratios 0.707, k-vector O(1) reasoning, binWidth 0.01 tolerates ~0.05° with neighbor bins | High — 6 new files, 3 phases without exec |
+| 3 | No — same block [pass-2: numpy not actually available in this sandbox then] | Python cross-check: haversine vs dot 1e-9 PASS, quad descriptor square ratios 0.707 [pass-2: k-vector NOT flat O(1) — see corrected complexity in AngularSeparationIndex.kt], binWidth 0.01 tolerates ~0.05° with neighbor bins | High — 6 new files, 3 phases without exec |
 | 4 | No — same block, python+numpy available | Python reference Davenport: zero noise 0 arcsec, 0.01° noise 27 arcsec, TRIAD 0 arcsec, Jacobi eigenvalues 1,3,3,4 PASS — Kotlin traced identical K-matrix | Very High — attitude solving 4x4 eigen, nontrivial linear algebra |
 | 5 | No — same block | Synthetic event sequences for confidence state machine, analytic known case for gyro integration (5°/s for 10s → 50° yaw), trigger boundary tests for relock policy | Very High — tracking loop + quaternion math, 5 phases without exec |
 | 6 | No — same block, hard gate stops live wiring | Isolated AttitudeBlender tests: no-lock passthrough identical within 1e-9 (critical safety), full-lock close to star, marginal intermediate, staleness decay, smoothness — plus documented patch | Critical — first phase touching live production code, but blocked by gate so no regression risk yet, but 6 phases without execution is structural risk |

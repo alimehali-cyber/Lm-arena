@@ -122,7 +122,7 @@ This manifest lists every file created or modified for star tracker, organized b
   - `docs/startracker/REAL_DEVICE_FIELD_TEST_PROTOCOL.md` — field test protocol
   - `docs/startracker/PROJECT_STATUS_END_OF_IMPLEMENTATION.md` — final status
 
-## Forbidden Files (Never Touched)
+## Forbidden Files (Never Touched — corrected record, pass 2)
 
 Per Phase3 ABSOLUTE SCOPE BOUNDARY and Phase1-2 constraints:
 
@@ -143,7 +143,7 @@ Totals (reconciled pass 2): 42 Kotlin main files (per New Packages Summary below
 
 ## Environment Status
 
-- Phases 1-10: Gradle TLS failure `curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to services.gradle.org:443`, no Java, no JDK, apt-get permission denied, but python3 3.11.2 + numpy 2.4.6 available for substitute verification
+- Phases 1-10: Gradle TLS failure `curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to services.gradle.org:443`, no Java, no JDK, apt-get permission denied, but python3 3.11.2 available [pass-2 correction: numpy was NOT installed in this sandbox; installed 2026-09-03 (numpy 2.4.6) and all five phase scripts now reproduce their documented numbers — evidence/A6_NUMPY_CROSSCHECK_REPRO_2026-09-03.txt]
 - All Kotlin code is pure, hand-verifiable, no Android dep (except ARProjectionEngine/HeroSkyProjection which are Android but only read for patch docs)
 - All numeric claims from actual computed fixture results or explicitly labeled UNVALIDATED pending real execution
 - Phase2 centroid accuracy ~0.1-0.3px is REASONING not MEASUREMENT — treated as UNVALIDATED, tolerance values named configurable constant with conservative default and comment UNVALIDATED
