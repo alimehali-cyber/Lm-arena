@@ -267,18 +267,23 @@ fun CameraProfile.toCameraIntrinsics(...): CameraIntrinsics = ...
 
 Per Phase 0-6 audit, these must pass both before and after applying patch (with flag OFF, behavior identical):
 
-- RefractionTest (Phase 1, 4 tests)
+- RefractionTest (Phase 1; actually 6 @Test methods, not 4 - count corrected pass 2; all 6 green in the offline harness)
 - GrayscaleImageTest, SyntheticStarFieldGeneratorTest, BackgroundEstimatorTest, StarBlobDetectorTest, CentroiderTest, StarDetectionPipelineTest (Phase 2, 6 files)
 - CatalogIngestorTest, AngularSeparationIndexTest, QuadPatternIndexTest, CatalogSerializerTest (Phase 3, 4 files)
 - SyntheticSkyObserverTest, AttitudeSolverTest (Phase 4, 2 files)
 - ConfidenceStateMachineTest, QuaternionIntegratorTest, RelockPolicyTest (Phase 5, 3 files)
 - AttitudeBlenderTest (Phase 6, 1 file) — safety no-lock passthrough
 - DistortionModelTest, IntrinsicsRefinerTest, DistortionRefinerTest, CameraProfileCacheTest (Phase 7, 4 new files — must pass as isolated before live wiring)
-- SkyOrientationProjectionTest, HeroSkyProjectionTest, FrameTransformationEngineTest, ARCalibrationPromptTest, SatelliteARConsistencyTest, AstroTimeTest, SGP4PropagatorTest (if exist, from Phase 0 baseline)
+- (Pass 2, item C5 - replaced the old "(if exist, from Phase 0 baseline)" guess with actual
+  offline-harness results per file, full details in docs/startracker/evidence/HARNESS_DISCLOSURE.md section 6:)
+  HeroSkyProjectionTest: RAN 7/7 (in main run, via Offset stub) | FrameTransformationEngineTest: RAN 13/13 |
+  AstroTimeTest: RAN 14/14 | SkyOrientationProjectionTest: CANNOT COMPILE (needs ARProjectionEngine.kt/Compose) |
+  ARCalibrationPromptTest: CANNOT COMPILE (Robolectric) | SatelliteARConsistencyTest: CANNOT COMPILE (dep closure reaches Android engines) |
+  SGP4PropagatorTest: CANNOT COMPILE (dep TimeEngine.kt imports android.util.Log)
 
 **Total: ~20+ test files, each named individually, must pass with flag OFF.**
 
-**With flag ON and synthetic calibration data:** IntrinsicsRefinerTest should show recovery within 0.1px RMS for 100 obs 0 noise, DistortionRefinerTest within 1e-4 for k1, and CameraProfileCacheTest merge down-weights a small batch by sample count (count-based weighting only — no quality signal; audit B9 correction).
+**These HAVE NOW RUN (pass 1/2, offline harness) - actuals instead of 'should show':** IntrinsicsRefinerTest testRecoveryPerfectNoNoise PASSES (RMS < 0.01 asserted; these are uniform-noise-labeled tests - '0 noise' means the generator short-circuits to exact points); DistortionRefinerTest testRecoveryPerfectNoNoise PASSES (k1 recovered exactly at 0 noise, asserted within 1e-4); CameraProfileCacheTest PASSES incl. the small-batch-by-count merge test (count-based weighting only - no quality signal; audit B9 correction).
 
 ## Instructions for Human Engineer
 
@@ -299,7 +304,7 @@ Per Phase 0-6 audit, these must pass both before and after applying patch (with 
 |-------|-------------------------------|------------------------------|------|
 | 1 | No — Gradle TLS failure, no Java | Static analysis, manual calc for refraction | Medium |
 | 2 | No — same block | Python weighted centroid error 0.0756 px PASS, sigma-clipped median robust | High — 1149 lines new |
-| 3 | No — same block, python+numpy now available | Python haversine vs dot 1e-9 PASS, quad descriptor square 0.707 ratios, k-vector O(1) | High — 6 new files |
+| 3 | No — same block [pass-2 correction: numpy was NOT available in this sandbox then; the claim was true only of the authoring environment. numpy 2.4.6 now installed and the script numbers reproduced] | Python haversine vs dot 1e-9 PASS, quad descriptor square 0.707 ratios [pass-2 correction: k-vector query complexity is NOT flat O(1) - O(1) bracketing + distribution-dependent correction, worst case O(P); see AngularSeparationIndex.kt docs] | High — 6 new files |
 | 4 | No — same block | Python Davenport q-method: zero noise 0 arcsec, 0.01° noise 27 arcsec, TRIAD 0 arcsec, Jacobi 1,3,3,4 PASS | Very High — nontrivial linear algebra |
 | 5 | No — same block | Synthetic event sequences, analytic gyro 5°/s 10s → 50° yaw, trigger boundaries | Very High — state machine + quaternion |
 | 6 | No — same block, hard gate stops live wiring | Isolated AttitudeBlender no-lock passthrough 1e-9 + documented patch | Critical — first touching live code but blocked |
