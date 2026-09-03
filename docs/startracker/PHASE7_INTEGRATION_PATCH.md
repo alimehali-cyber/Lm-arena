@@ -1,10 +1,37 @@
-# Phase 7 Integration Patch — Self-Calibration Camera Intrinsics & Distortion Refinement (Documented, Ready-to-Apply, Environment Blocked)
+# Phase 7 Integration Patch — Self-Calibration Camera Intrinsics & Distortion Refinement (documented patch, NOT applied)
 
-**Status:** ENVIRONMENT STILL BLOCKED, LIVE WIRING WAS NOT PERFORMED, DOCUMENTED PATCH PROVIDED INSTEAD
+**Status (updated 2026-09-03, remediation pass 2): environment PARTIALLY unblocked; live
+wiring still gated.** The pure-Kotlin offline harness (kotlinc 2.4.10 + jdk4py JRE 25 +
+JUnit shim; full disclosure docs/startracker/evidence/HARNESS_DISCLOSURE.md) now EXISTS
+and has executed the Phase 7 test files with real results:
+
+| Phase 7 test file | Executed result (offline harness) |
+|---|---|
+| DistortionModelTest | 4/4 PASS (incl. the pass-1 real-CPython cross-check at 1e-15) |
+| IntrinsicsRefinerTest | 5/5 PASS (testRecoveryPerfectNoNoise first ran after the zero-noise guard) |
+| DistortionRefinerTest | 4/4 PASS (same guard) |
+| CameraProfileCacheTest | 5/5 PASS (incl. pass-1 B9 pinning test) |
+| SelfCalibrationEngineTest | 2/2 PASS (pass-1 B8 lifecycle tests) |
+
+The gate for ARProjectionEngine live wiring REMAINS UNMET: that file imports
+androidx/android and cannot be compiled or tested in this sandbox — only the real
+Android toolchain (`./gradlew :app:testDebugUnitTest`, still never run) can satisfy the
+project rule. The patch below therefore remains DOCUMENTED, NOT APPLIED.
+
+numpy note (resolved pass 2): `pip install --break-system-packages numpy` succeeds →
+numpy 2.4.6 installed; all five phase python cross-checks re-run and every documented
+number reproduced (evidence/A6_NUMPY_CROSSCHECK_REPRO_2026-09-03.txt). The historical
+header below claimed this availability during Phase 7; it was false then in this sandbox
+and true only of the original authoring environment.
 
 This document contains the exact proposed diff for ARProjectionEngine.kt and StarTrackerConfig / new SelfCalibrationConfig showing precisely where and how self-calibration would be wired, with before/after excerpts, list of pre-existing tests that MUST pass before and after, and instructions for human engineer.
 
 ## Hard Gate Decision (Task 0 / Task 5)
+
+> **SUPERSEDED 2026-09-03 — current environment status lives in
+> PROJECT_STATUS_END_OF_IMPLEMENTATION.md §5.** The decision text below is the correct
+> historical record of the Phase-7-era state (and its outcome — patch, not live edit —
+> still stands).
 
 Per Task 0 lightweight env check:
 - `./gradlew --version` → `curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to services.gradle.org:443` (same as Phases 1-6)
@@ -226,6 +253,9 @@ Per Phase 0-6 audit, these must pass both before and after applying patch (with 
 
 ## Cumulative Environment Status (Phases 1-7)
 
+> **SUPERSEDED 2026-09-03 — the single authoritative environment table is
+> PROJECT_STATUS_END_OF_IMPLEMENTATION.md §5.** Table retained below as history.
+
 | Phase | Automated Execution Achieved? | Substitute Verification Used | Risk |
 |-------|-------------------------------|------------------------------|------|
 | 1 | No — Gradle TLS failure, no Java | Static analysis, manual calc for refraction | Medium |
@@ -236,7 +266,7 @@ Per Phase 0-6 audit, these must pass both before and after applying patch (with 
 | 6 | No — same block, hard gate stops live wiring | Isolated AttitudeBlender no-lock passthrough 1e-9 + documented patch | Critical — first touching live code but blocked |
 | 7 | No — same block, hard gate stops live wiring | Python cross-check Phase7: distortion round-trip <1e-6, intrinsics sweep table, distortion sweep table, clustered decline, cache merge convergence | Critical — 7 phases without execution, ~4000+ lines pure Kotlin never run via JUnit |
 
-**Plain-language escalation:** This is now SEVEN phases in a row where new code has shipped without ever being executed by automated test runner. Phases 2-7 total ~4000+ lines of new pure-Kotlin code for detection, catalog, solver, tracking, fusion, calibration — all reasoned about, manually cross-checked via Python where possible, but never run as Kotlin via JUnit. The project's own Phase 6 and Phase 7 hard gates correctly block live wiring into OrientationProvider and ARProjectionEngine until baseline tests pass before and after — these gates are working as designed to prevent regression. However, the underlying environment blocker (Gradle TLS failure downloading 9.3.1 from services.gradle.org, no JDK) must be resolved by a human with access to proper development machine and network before Phase 6/7 live wiring and before Phase 8+ can proceed. Do not just note and forget — escalate to human with real device.
+**Plain-language escalation (HISTORICAL, written at Phase 7 time):** This is now SEVEN phases in a row where new code has shipped without ever being executed by automated test runner. Phases 2-7 total ~4000+ lines of new pure-Kotlin code for detection, catalog, solver, tracking, fusion, calibration — all reasoned about, manually cross-checked via Python where possible, but never run as Kotlin via JUnit. The project's own Phase 6 and Phase 7 hard gates correctly block live wiring into OrientationProvider and ARProjectionEngine until baseline tests pass before and after — these gates are working as designed to prevent regression. However, the underlying environment blocker (Gradle TLS failure downloading 9.3.1 from services.gradle.org, no JDK) must be resolved by a human with access to proper development machine and network before Phase 6/7 live wiring and before Phase 8+ can proceed. Do not just note and forget — escalate to human with real device.
 
 ## If Environment Not Fixed Before Phase 7, Phase 7 Will Be BLOCKED
 
