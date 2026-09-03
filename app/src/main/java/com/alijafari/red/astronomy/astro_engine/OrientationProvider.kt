@@ -22,10 +22,16 @@ data class SkyOrientation(
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
         other as SkyOrientation
+        // R2-A1(b): timestampNanos is deliberately EXCLUDED from equality (kept as a plain
+        // field). It was added to equals/hashCode in Phase 1 Task 4, which made every
+        // sensor tick produce a distinct SkyOrientation and defeated MutableStateFlow
+        // conflation (every emission == previous except timestamp -> without this fix they
+        // are never equal -> collectors fire on every tick even when stationary). Consumers
+        // that need per-tick keying read the field directly (e.g. CompassARScreen's
+        // LaunchedEffect(skyOrientation.timestampNanos)), which still works unchanged.
         return azimuth == other.azimuth &&
                 pitch == other.pitch &&
                 roll == other.roll &&
-                timestampNanos == other.timestampNanos &&
                 rotationMatrix.contentEquals(other.rotationMatrix)
     }
 
@@ -33,7 +39,6 @@ data class SkyOrientation(
         var result = azimuth.hashCode()
         result = 31 * result + pitch.hashCode()
         result = 31 * result + roll.hashCode()
-        result = 31 * result + timestampNanos.hashCode()
         result = 31 * result + rotationMatrix.contentHashCode()
         return result
     }
