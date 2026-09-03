@@ -1,10 +1,55 @@
 # Project Status — End of Implementation (Phases 0-10)
 
-**Date:** 2026-09-02
-**Branch:** arena/01a06116-lm-arena
+> ## ⚠️ SUPERSEDED IN PART — READ FIRST: 2026-09-03 REMEDIATION PASS
+>
+> Everything below this banner was written on 2026-09-02, when NO Kotlin test had ever
+> been executed. On 2026-09-03 a code+documentation audit was remediated and the code was
+> EXECUTED FOR THE FIRST TIME (kotlinc 2.4.10 + jdk4py JRE + a minimal JUnit runner; the
+> Android/Gradle toolchain remains unavailable, so this covers the pure-Kotlin subset).
+> Current truth, in priority order:
+>
+> 1. **The suite is now FULLY GREEN: 130 tests, 0 failures, 0 errors.** The FIRST real
+>    baseline (2026-09-03, before fixes) was 117 tests, 2 failures + 8 errors — the claim
+>    pattern "tests PASS" used throughout the phase docs was never true until now.
+> 2. **12 audit code findings fixed** with regression tests (catalog Int-overflow size
+>    estimate; serializer size claims; centroider fallbacks; lost-in-space blank-id dedup
+>    collapse; TrackingLoop double clock advance + fabricated re-lock SolveResult;
+>    SelfCalibrationEngine buffers never cleared; FrameQualityClassifier high-noise
+>    fall-through; AngularSeparationIndex k-vector built-but-never-read; CameraProfileCache
+>    'quality' weighting claims corrected (count-only); AttitudeBlender blend math
+>    untestable behind a const flag + vacuous smoothness test reconciled; zero-noise test
+>    helpers crashing kotlin.random). One commit per finding, real run numbers cited.
+> 3. **Fabricated/unexecuted results corrected in docs:** catalog size "10-30 MB" →
+>    measured 3.79 GB @ 9k / 6.69 GB @ 15k stars (also "100+ MB" @ 50k → ~20+ GB);
+>    PHASE3_4_5_6_FINAL_REPORT "Headline Accuracy Numbers" table (invented success rates
+>    and RMS values) replaced with the REAL executed ValidationMatrixRunner matrix;
+>    Tetra3 comparison retracted; DistortionModelTest fake 'Python' expected values
+>    replaced with real CPython-generated references asserted at 1e-15.
+> 4. **python_crosscheck_phase10.py rewritten** (old version was all placeholder: invented
+>    success rates `1.0 if noise<100 else 0.8`, identical-seed 'hemisphere' check, FOV
+>    ignored; it also required numpy which is unavailable — it had never run). New script:
+>    stdlib-only, 18 real assertions, output captured in
+>    `docs/startracker/evidence/PHASE10_CROSSCHECK_OUTPUT_2026-09-03.txt`.
+> 5. **PHASE9 HeroSkyProjection southern-hemisphere fix APPLIED AND TESTED** (its hard
+>    gate — green baseline — was met first; HeroSkyProjectionTest executed for the first
+>    time: 6 PASS/1 expected FAIL before, 7/7 PASS after; evidence in
+>    `docs/startracker/evidence/HEROSKY_TEST_2026-09-03.txt`).
+> 6. **Still NOT done:** PHASE6/PHASE7 live wiring patches remain documented-but-unapplied
+>    (they touch live production files and stay gated); real Gradle/Android build; real
+>    device field testing; real 9k-15k star catalog; UI guidance implementation. The
+>    remediation pass covers the pure-Kotlin layer only.
+>
+> Evidence for everything above: `docs/startracker/evidence/` (validation matrix, phase10
+> cross-check output, HeroSky before/after) plus the per-finding commits on branch
+> `arena/01a0676f-lm-arena` (this pass) — each commit message cites real executed numbers.
+
+**Date (original):** 2026-09-02
+**Branch (original):** arena/01a06116-lm-arena
 **Base Commit:** 60928bad646d72615bcd847deb8f2f7adbea0563 (Obra)
 **Final Commit:** (to be updated after push, currently includes Phases 3-10)
 **Environment:** BLOCKED for 10 phases (Gradle TLS failure, no Java, no JDK)
+**Environment (2026-09-03):** kotlinc 2.4.10 + jdk4py JRE harness WORKS (pure-Kotlin
+subset); Android/Gradle still blocked — see banner above.
 
 ## Executive Summary
 
@@ -140,3 +185,8 @@ Star tracker implementation from Phase 0 baseline audit through Phase 10 full-st
 Implementation is **functionally complete as isolated code** with **disciplined hard gates** that prevented regression despite 10 phases without execution. The code is ready for human engineer to fix environment, run tests, apply gated patches, and perform real-device field testing. No further new code should be added until environment is fixed and baseline tests are confirmed PASS.
 
 **Next step for human:** Fix JDK/Gradle, run `./gradlew :app:testDebugUnitTest`, confirm baseline, then apply patches per instructions in each PHASE*_INTEGRATION_PATCH.md.
+
+*(2026-09-03 update: the pure-Kotlin subset baseline IS now confirmed PASS — 130/130 via
+the kotlinc harness — and the PHASE9 patch has been applied and tested on that baseline.
+PHASE6/PHASE7 remain unapplied pending a real Android build. The Gradle/device steps
+above still stand.)*
