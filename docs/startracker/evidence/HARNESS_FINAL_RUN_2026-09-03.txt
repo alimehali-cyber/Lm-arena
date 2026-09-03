@@ -131,17 +131,12 @@ Fixture with 15 stars:
   maxSep 10?: 0 quads, 0 hash buckets
   Full C(15,4)=1365 possible, but filtered by maxSep
 PASS   com.alijafari.red.astronomy.startracker.catalog.QuadPatternIndexTest.testQuadCountForFixture
-Flat background MAE: 0.02375649881886912, noiseSigma: 1.001516
-PASS   com.alijafari.red.astronomy.startracker.detection.BackgroundEstimatorTest.testFlatBackgroundEstimation
 Gradient background MAE: 0.08908747673034668
 PASS   com.alijafari.red.astronomy.startracker.detection.BackgroundEstimatorTest.testGradientBackgroundEstimation
 Max block estimate with bright stars: 20.110867, globalMean: 20.005142
 PASS   com.alijafari.red.astronomy.startracker.detection.BackgroundEstimatorTest.testRobustnessToStars
-Weighted centroid RMS: 0.0301 px, median 0.0243
-Gaussian fit RMS: 0.3077 px, median 0.3091
-PASS   com.alijafari.red.astronomy.startracker.detection.CentroiderTest.testGaussianFitVsWeighted
-PASS   com.alijafari.red.astronomy.startracker.detection.CentroiderTest.testFullySaturatedBlobCentroidNotAtOrigin
-PASS   com.alijafari.red.astronomy.startracker.detection.CentroiderTest.testPartiallySaturatedBlobUsesUnsaturatedDenominator
+Flat background MAE: 0.02375649881886912, noiseSigma: 1.001516
+PASS   com.alijafari.red.astronomy.startracker.detection.BackgroundEstimatorTest.testFlatBackgroundEstimation
 Low SNR, narrow PSF: 20 matched, RMS=0.0743 px, median=0.0566 px, max=0.1733 px, mean=0.0645 px
 Medium SNR, medium PSF: 20 matched, RMS=0.0426 px, median=0.0401 px, max=0.0698 px, mean=0.0402 px
 High SNR, medium PSF: 20 matched, RMS=0.0306 px, median=0.0288 px, max=0.0626 px, mean=0.0273 px
@@ -151,21 +146,28 @@ Unsaturated RMS: 0.0161 px
 Saturated with handling RMS: 0.0224 px
 Saturated naive (no handling) RMS: 0.0105 px
 PASS   com.alijafari.red.astronomy.startracker.detection.CentroiderTest.testSaturationHandling
+Weighted centroid RMS: 0.0301 px, median 0.0243
+Gaussian fit RMS: 0.3077 px, median 0.3091
+PASS   com.alijafari.red.astronomy.startracker.detection.CentroiderTest.testGaussianFitVsWeighted
+PASS   com.alijafari.red.astronomy.startracker.detection.CentroiderTest.testFullySaturatedBlobCentroidNotAtOrigin
+PASS   com.alijafari.red.astronomy.startracker.detection.CentroiderTest.testPartiallySaturatedBlobUsesUnsaturatedDenominator
 PASS   com.alijafari.red.astronomy.startracker.detection.GrayscaleImageTest.testStats
 PASS   com.alijafari.red.astronomy.startracker.detection.GrayscaleImageTest.testCreateAndGetSet
-Hot pixel test: 5 hot pixels injected, 0 detected as stars (should be 0)
-PASS   com.alijafari.red.astronomy.startracker.detection.StarBlobDetectorTest.testHotPixelRejection
+Bright stars: detected 15 blobs, recall 15/15 = 100.0%, FP=0, noiseSigma=2.0208132
+PASS   com.alijafari.red.astronomy.startracker.detection.StarBlobDetectorTest.testDetectionBrightStars
 Streak test: 3 streaks injected, 0 detected as good stars (should be 0)
 PASS   com.alijafari.red.astronomy.startracker.detection.StarBlobDetectorTest.testStreakRejection
 Low SNR: amp 30.0-50.0, noise 2.0, estNoise 1.998448, recall 10/10=100.0%, FP=0
 Medium SNR: amp 60.0-100.0, noise 2.0, estNoise 1.9990814, recall 10/10=100.0%, FP=0
 High SNR: amp 120.0-200.0, noise 2.0, estNoise 2.0019376, recall 10/10=100.0%, FP=0
 PASS   com.alijafari.red.astronomy.startracker.detection.StarBlobDetectorTest.testVaryingSNR
-Bright stars: detected 15 blobs, recall 15/15 = 100.0%, FP=0, noiseSigma=2.0208132
-PASS   com.alijafari.red.astronomy.startracker.detection.StarBlobDetectorTest.testDetectionBrightStars
+Hot pixel test: 5 hot pixels injected, 0 detected as stars (should be 0)
+PASS   com.alijafari.red.astronomy.startracker.detection.StarBlobDetectorTest.testHotPixelRejection
 Weighted: RMS=0.0331 px, matched 15, total 15.0
 Gaussian: RMS=0.3375 px, matched 15, total 15.0
 PASS   com.alijafari.red.astronomy.startracker.detection.StarDetectionPipelineTest.testPipelineWithGaussianFit
+Low SNR test: 10 true stars, matched 10 = 100.0%, detected 10 total
+PASS   com.alijafari.red.astronomy.startracker.detection.StarDetectionPipelineTest.testPipelineLowSNR
 === End-to-End Pipeline Test ===
 Image: 640x480, 23 injected (true stars: 20, hot: 2, streak: 1)
 Detected: 20 stars, blobs: 20
@@ -174,16 +176,12 @@ Missed: 1, False Positives: 1
 Centroid errors: RMS=0.5460 px, median=0.0352 px, mean=0.1620 px, max=2.3712 px
 Noise sigma estimated: 2.003138, background mean: 23.208746
 PASS   com.alijafari.red.astronomy.startracker.detection.StarDetectionPipelineTest.testEndToEndPipeline
-Low SNR test: 10 true stars, matched 10 = 100.0%, detected 10 total
-PASS   com.alijafari.red.astronomy.startracker.detection.StarDetectionPipelineTest.testPipelineLowSNR
 PASS   com.alijafari.red.astronomy.startracker.detection.SyntheticStarFieldGeneratorTest.testSingleStarProducesLocalMaximum
 PASS   com.alijafari.red.astronomy.startracker.detection.SyntheticStarFieldGeneratorTest.testBackgroundLevel
 PASS   com.alijafari.red.astronomy.startracker.detection.SyntheticStarFieldGeneratorTest.testGradientBackground
 PASS   com.alijafari.red.astronomy.startracker.detection.SyntheticStarFieldGeneratorTest.testSaturationClipping
 PASS   com.alijafari.red.astronomy.startracker.detection.SyntheticStarFieldGeneratorTest.testHotPixel
 PASS   com.alijafari.red.astronomy.startracker.detection.SyntheticStarFieldGeneratorTest.testRandomFieldGeneration
-Clear winner: CLEAR_WINNER, ratio=0.3333333333333333
-PASS   com.alijafari.red.astronomy.startracker.diagnostics.AmbiguityDetectorTest.testClearWinner
 Ambiguous close: AMBIGUOUS, ratio=0.9411764705882354
 PASS   com.alijafari.red.astronomy.startracker.diagnostics.AmbiguityDetectorTest.testAmbiguousCloseScores
 No hypothesis: NO_HYPOTHESIS
@@ -192,6 +190,8 @@ Single hypothesis: CLEAR_WINNER
 PASS   com.alijafari.red.astronomy.startracker.diagnostics.AmbiguityDetectorTest.testSingleHypothesis
 Same inliers close conf: AMBIGUOUS, ratio=0.9866666666666667
 PASS   com.alijafari.red.astronomy.startracker.diagnostics.AmbiguityDetectorTest.testTwoHypothesisSameInliersDifferentConfidence
+Clear winner: CLEAR_WINNER, ratio=0.3333333333333333
+PASS   com.alijafari.red.astronomy.startracker.diagnostics.AmbiguityDetectorTest.testClearWinner
 Bearing cross-check vs ARProjectionEngine expected ordering:
 East relative to South (north hemisphere) -> left: objAz=90.0 facing=180.0 -> rel=-90.0 expected=-90.0 matches=true
 West relative to South (north hemisphere) -> right: objAz=270.0 facing=180.0 -> rel=90.0 expected=90.0 matches=true
@@ -288,12 +288,12 @@ Aging path smoothness (lock acquired -> ages -> expires):
   age 10: jump 0.5000?
 Max jump on aging path between consecutive calls: 2.0500?
 PASS   com.alijafari.red.astronomy.startracker.fusion.AttitudeBlenderTest.testSequentialCallSmoothness
-Davenport zero noise error: 0.0? = 0.0 arcsec
-PASS   com.alijafari.red.astronomy.startracker.solver.AttitudeSolverTest.testDavenportZeroNoise
 Davenport with 0.01? noise error: 0.00972141990976892? = 34.997111675168114 arcsec
 PASS   com.alijafari.red.astronomy.startracker.solver.AttitudeSolverTest.testDavenportWithNoise
 TRIAD error: 0.0?
 PASS   com.alijafari.red.astronomy.startracker.solver.AttitudeSolverTest.testTriad
+Davenport zero noise error: 0.0? = 0.0 arcsec
+PASS   com.alijafari.red.astronomy.startracker.solver.AttitudeSolverTest.testDavenportZeroNoise
 Jacobi eigenvalues: [1.0, 3.0, 3.0, 4.0]
 PASS   com.alijafari.red.astronomy.startracker.solver.AttitudeSolverTest.testJacobiEigenDecomposition
 Assigned-id solve: success=true, inliers=6, conf=1.0, err=none
@@ -325,15 +325,15 @@ After re-lock: state=FULL_LOCK, confidenceValue=1.0
 PASS   com.alijafari.red.astronomy.startracker.tracking.TrackingLoopTest.testRelockUsesRealSolverNumbersNotFabricatedOnes
 End-to-end with distortion: Success with 47 stars, error 2.9 arcsec, error 2.883946742216659 arcsec
 PASS   com.alijafari.red.astronomy.startracker.validation.EndToEndSyntheticTest.testEndToEndWithDistortion
-End-to-end: Success with 45 stars, error 8.7 arcsec
-Error: 8.723924030186383 arcsec, detected=45, matched=45
-PASS   com.alijafari.red.astronomy.startracker.validation.EndToEndSyntheticTest.testEndToEndAttitudeErrorArcsec
 Pixel <-> Unit vector round-trip:
 Vec (0.0, 0.0, 1.0) -> pixel (960.0,540.0) -> vec (0.0, 0.0, 1.0), error 0.0 arcsec
 Vec (0.09950371902099893, 0.0, 0.9950371902099893) -> pixel (1047.263027612586,540.0) -> vec (0.09950371902099879, 0.0, 0.9950371902099893), error 0.0 arcsec
 Vec (0.0, 0.09950371902099893, 0.9950371902099893) -> pixel (960.0,627.2630276125861) -> vec (0.0, 0.09950371902099893, 0.9950371902099893), error 0.0 arcsec
 Vec (-0.19518001458970663, 0.09759000729485331, 0.9759000729485331) -> pixel (785.4739447748277,627.2630276125861) -> vec (-0.19518001458970663, 0.09759000729485331, 0.9759000729485331), error 0.00434670577101264 arcsec
 PASS   com.alijafari.red.astronomy.startracker.validation.EndToEndSyntheticTest.testPixelImageToDetectionToUnitVectorAdapter
+End-to-end: Success with 45 stars, error 8.7 arcsec
+Error: 8.723924030186383 arcsec, detected=45, matched=45
+PASS   com.alijafari.red.astronomy.startracker.validation.EndToEndSyntheticTest.testEndToEndAttitudeErrorArcsec
 Undistort-centroids / forward-distort-overlay split:
 Distorted (960.0,540.0) -> unit (0.0, 0.0, 1.0) -> ideal (960.0,540.0) -> distorted (960.0,540.0), err 0.0
 Distorted (100.0,100.0) -> unit (-0.6296227044606132, -0.32244472905705635, 0.7068271689253497) -> ideal (182.68432991346515,141.91819822066776) -> distorted (99.9999956531102,99.99999779410547), err 4.874568861107659E-6
@@ -401,7 +401,7 @@ PASS   com.alijafari.red.astronomy.HeroSkyProjectionTest.testAzimuthWraparoundDi
 PASS   com.alijafari.red.astronomy.HeroSkyProjectionTest.testScreenDistanceCylindricalWraparound
 PASS   com.alijafari.red.astronomy.HeroSkyProjectionTest.testHeroSkyProjectionCoordinates
 PASS   com.alijafari.red.astronomy.HeroSkyProjectionTest.testSouthernHemisphereEastWestOrdering_MirroredExpectation
-PASS   com.alijafari.red.astronomy.HeroSkyProjectionTest.testSouthernHemisphereActualBehavior_Diagnostic
+PASS   com.alijafari.red.astronomy.HeroSkyProjectionTest.testHemisphereOrderingExactPositions_PositiveCheck
 PASS   com.alijafari.red.astronomy.RefractionTest.test S?mundsson at horizon gives ~29 arcmin not 34
 PASS   com.alijafari.red.astronomy.RefractionTest.test Bennett refraction at horizon ~34-35 arcmin
 PASS   com.alijafari.red.astronomy.RefractionTest.test refraction at 5 degrees ~9_9 arcmin

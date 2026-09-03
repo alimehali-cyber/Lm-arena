@@ -124,16 +124,17 @@ class AngularSeparationIndexTest {
 
     @Test
     fun testKVectorPerformanceReasoning() {
-        // Analytical performance characteristics, not wall-clock benchmark
-        // For N=15 stars, pairs = C(15,2)=105, but with maxSeparation 40°, maybe less
-        // For N=9000 stars, pairs ~ N^2 *0.058 ≈ 9000^2*0.058 ≈ 4.7M pairs (per earlier extrapolation)
-        // Sorting 4.7M pairs: O(P log P) ≈ 4.7M * log2(4.7M) ≈ 4.7M *22 ≈ 100M comparisons
-        // k-vector build O(P) = 4.7M
-        // Range query O(1) for index approx + O(K) for K results
-        // Without k-vector, binary search O(log P) ≈ 22 steps + O(K)
-        // So k-vector saves ~22 steps per query, significant for many queries (e.g., quad building does many queries)
-        // Real benchmarking is open item for when JVM available
-        assertTrue(true) // This test is for documentation, always passes
+        // Documentation test (pass-2 D1 update: comments corrected to measured facts).
+        // MEASURED (evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt, uniform stars, seed 42):
+        // - pair fraction within the 40° window = 11.7% of C(N,2) = (1-cos40°)/2 ≈ 0.117
+        //   (the old '0.058' factor here was 2x off); at N=9,110: 4,851,922 pairs in 7.5 s build.
+        // - query complexity (audit B11 corrected): O(1) k-vector bracketing reads +
+        //   O(correction) walk (small for near-uniform separations, worst case O(P) on
+        //   clustered distributions) + O(K) to emit results - NOT flat O(1). Compared with
+        //   binary search O(log P + K) (~22 steps at P~4.9M), the k-vector trades the hard
+        //   log bound for O(1)-typical with a linear worst case.
+        // This test intentionally asserts only documentation-consistency, not wall-clock.
+        assertTrue(true)
     }
 
     // ---- Audit finding B11: k-vector must be used by the query and stay exact on
