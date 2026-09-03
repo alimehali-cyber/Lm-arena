@@ -99,9 +99,41 @@ Noise (uniform +/-s, normalized) \ Obs | 10 | 30 | 100
 - Merge convergence test: good fx=1000 (200 samples) + bad fx=1500 (10 samples) → merged 1023.81, close to good. CORRECTION (audit B9): this down-weights the second batch because it is SMALL (10 vs 200 samples), not because it is bad — the merge weights by sample count only, with no quality/residual signal
 - DESIGN ONLY SharedPreferences stub doc keyed by CameraCharacteristics lens facing+focal+sensor hash: example `FACING_BACK_F_4.2_S_5.6x4.2`
 
-## Proposed Diff for ARProjectionEngine.kt
+## Proposed change for ARProjectionEngine.kt (SKETCH, not an applicable diff)
 
-### Current tiers (before)
+> **Pass-2 note (item C3): retitled from "Proposed Diff".** Choice made: RETITLE, not
+> make-compilable. Reasons: (1) the section contains placeholder "..." elisions, a
+> hardcoded `isLensFacingBack = true`, and an unspecified `cameraId` — a compilable
+> diff would require inventing those, which is new design work masquerading as
+> formatting; (2) ARProjectionEngine.kt cannot be compiled in this sandbox anyway
+> (androidx imports), so "compilable-by-inspection" claims could not be verified here
+> and would repeat the original sin of asserting unverified properties. When the real
+> toolchain exists, the implementer must turn this sketch into an exact diff against
+> the then-current file and fill in the placeholders deliberately.
+
+### Known design gap (documented pass 2, item C4 — must be fixed by the eventual implementer; NOT implemented here)
+
+1. **Pixel intrinsics are resolution/crop-dependent; the proposed cache key is not.**
+   fx/fy/cx/cy refined from ImageAnalysis frames are valid only for that stream's
+   resolution AND its sensor-crop aspect ratio. The proposed cache key
+   (`FACING_BACK_F_4.2_S_5.6x4.2` — lens facing + focal + sensor size) contains neither
+   the output resolution nor the crop, so a profile refined at e.g. 1600x1200 analysis
+   frames would be misapplied to a different-resolution preview/overlay path, silently
+   scaling cx/cy and fx/fy wrongly. REQUIRED FIX (either): (a) store NORMALIZED
+   intrinsics relative to the sensor's activeArray (fx/fy as fractions of active-array
+   width/height, principal point as normalized coordinates) and denormalize per stream
+   against its crop+resolution, or (b) include the stream resolution and crop in the
+   cache key (accepting cache fragmentation across resolutions). Option (a) is the
+   usual practice.
+2. **`focalLengths.firstOrNull()` is wrong for multi-lens devices.** Camera2 returns
+   focal lengths in unspecified order; on multi-lens devices the first entry need not
+   correspond to the logical camera or the active physical camera actually streaming.
+   The implementer must select the focal length matching the CURRENT camera
+   (CameraManager.getCameraCharacteristics for the active camera id, and for logical
+   multi-cameras the active physical camera's characteristics via
+   CameraCharacteristics.getPhysicalCameraIds()/session parameters), not `firstOrNull()`.
+
+
 
 ```kotlin
 enum class IntrinsicsSource {
