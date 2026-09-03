@@ -49,7 +49,7 @@ class CameraProfileCacheTest {
     }
 
     @Test
-    fun testBadEarlyBatchDownWeighted() {
+    fun testSmallBatchDownWeightedByCountNotQuality() {
         val cache = InMemoryCameraProfileCache()
 
         // Good profile accumulated over many samples
@@ -72,7 +72,8 @@ class CameraProfileCacheTest {
         cache.merge("TEST", badProfile, 10)
 
         val merged = cache.get("TEST")!!
-        // Bad batch should be down-weighted: (200*1000 + 10*1500)/210 = 215000/210 = 1023.8
+        // The small batch is down-weighted by COUNT: (200*1000 + 10*1500)/210 = 215000/210 = 1023.8
+        // (Audit B9: the merge weights by sample count only - being 'bad' plays no role.)
         // Good profile largely preserved
         println("Bad early batch down-weighted: good fx=1000 (200 samples), bad fx=1500 (10 samples), merged fx=${merged.fx}")
         println("Bad batch k1=0.5 vs good k1=0.1, merged k1=${merged.k1}")
@@ -96,5 +97,32 @@ class CameraProfileCacheTest {
 
         assertNotNull(retrieved)
         assertEquals(10, retrieved!!.sampleCount)
+    }
+
+    // Audit finding B9 pinning test: the merge carries NO quality signal.
+    // Two equally-large batches get equal weight even when one would be "bad"
+    // (e.g. high-variance); the merged value is the plain count-weighted midpoint.
+    @Test
+    fun testEqualCountsMergeEquallyRegardlessOfQuality() {
+        val cache = InMemoryCameraProfileCache()
+        val clean = CameraProfile(
+            fx = 1000.0, fy = 1000.0, cx = 960.0, cy = 540.0, sampleCount = 50,
+            deviceLensKey = "B9"
+        )
+        val noisy = CameraProfile(
+            fx = 1500.0, fy = 1500.0, cx = 940.0, cy = 560.0, sampleCount = 50,
+            deviceLensKey = "B9"
+        )
+        cache.merge("B9", clean, 50)
+        cache.merge("B9", noisy, 50)
+        val merged = cache.get("B9")!!
+
+        // Equal counts -> exact midpoint: (50*1000 + 50*1500)/100 = 1250
+        assertEquals("equal-size batches must get equal weight (count-only weighting, audit B9)",
+            1250.0, merged.fx, 1e-9)
+        assertEquals(1250.0, merged.fy, 1e-9)
+        assertEquals(100, merged.sampleCount)
+        println("Equal-count merge: clean fx=1000 (50) + noisy fx=1500 (50) -> fx=" + merged.fx +
+            " (no quality weighting exists; documented honestly)")
     }
 }

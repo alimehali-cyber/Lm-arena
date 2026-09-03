@@ -13,9 +13,17 @@ interface CameraProfileCache {
 
 /**
  * In-memory reference implementation for testing.
- * Merge strategy: weighted running average weighted by each batch's sample count.
- * Example: existing profile has 100 samples, new batch has 20 samples, merged = (100*existing + 20*new)/120
- * This down-weights early bad batches (high noise) rather than corrupting good accumulated estimate.
+ * Merge strategy: running average weighted by each batch's SAMPLE COUNT ONLY.
+ * Example: existing profile has 100 samples, new batch has 20 samples, merged = (100*existing + 20*new)/120.
+ *
+ * HONEST scope of the weighting (audit finding B9): the weights are counts, NOT quality.
+ * A "bad" (noisy) batch is down-weighted only insofar as it is SMALL; a large noisy batch
+ * influences the merged profile exactly as much as an equally large clean batch, because
+ * no residual/variance signal enters this computation anywhere. Claims that this merge
+ * "down-weights bad batches (high noise)" were incorrect and have been corrected wherever
+ * they appeared. Quality-aware weighting (e.g., folding a per-batch mean residual into the
+ * weight) remains future work and would require threading a residual metric through
+ * CameraProfile and the refinement pipeline.
  */
 class InMemoryCameraProfileCache : CameraProfileCache {
 

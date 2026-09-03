@@ -62,7 +62,7 @@ Noise\Obs | 10 | 30 | 100
 - File: `CameraProfileCache.kt`
 - Interface get/put/merge weighted by sampleCount
 - InMemory ref impl: weighted running average (100*existing + 20*new)/120
-- Merge convergence test: good fx=1000 (200 samples) + bad fx=1500 (10 samples) → merged 1023.81, close to good, down-weights early bad batch
+- Merge convergence test: good fx=1000 (200 samples) + bad fx=1500 (10 samples) → merged 1023.81, close to good. CORRECTION (audit B9): this down-weights the second batch because it is SMALL (10 vs 200 samples), not because it is bad — the merge weights by sample count only, with no quality/residual signal
 - DESIGN ONLY SharedPreferences stub doc keyed by CameraCharacteristics lens facing+focal+sensor hash: example `FACING_BACK_F_4.2_S_5.6x4.2`
 
 ## Proposed Diff for ARProjectionEngine.kt
@@ -212,7 +212,7 @@ Per Phase 0-6 audit, these must pass both before and after applying patch (with 
 
 **Total: ~20+ test files, each named individually, must pass with flag OFF.**
 
-**With flag ON and synthetic calibration data:** IntrinsicsRefinerTest should show recovery within 0.1px RMS for 100 obs 0 noise, DistortionRefinerTest within 1e-4 for k1, and CameraProfileCacheTest merge down-weights bad early batch.
+**With flag ON and synthetic calibration data:** IntrinsicsRefinerTest should show recovery within 0.1px RMS for 100 obs 0 noise, DistortionRefinerTest within 1e-4 for k1, and CameraProfileCacheTest merge down-weights a small batch by sample count (count-based weighting only — no quality signal; audit B9 correction).
 
 ## Instructions for Human Engineer
 

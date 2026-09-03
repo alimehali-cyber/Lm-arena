@@ -68,7 +68,7 @@ Star tracker implementation from Phase 0 baseline audit through Phase 10 full-st
 - Undistort iterative fixed-point 20 iterations 1e-8
 - IntrinsicsRefiner: separate LS `u=fx*x+skew*y+cx`, `v=fy*y+cy`, Gaussian elimination partial pivot, minObs 6, distribution check
 - DistortionRefiner: linear LS for k1,k2,p1,p2, minObs 10, minSpan 0.5, overfitting guard
-- CameraProfileCache: weighted running average `(100*existing+20*new)/120`, down-weights early bad batches
+- CameraProfileCache: running average weighted by SAMPLE COUNT only `(100*existing+20*new)/120` — a small batch is down-weighted for being small, not for being bad; no quality/residual signal exists (audit B9 correction)
 - SelfCalibrationEngine: accumulate + min-sample gate, two-stage refine intrinsics then distortion
 - Gated tier SELF_CALIBRATED_CACHED before FALLBACK_DEFAULT, undistort-centroids / forward-distort-overlay split
 
