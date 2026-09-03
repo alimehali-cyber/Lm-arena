@@ -20,7 +20,8 @@
 >    untestable behind a const flag + vacuous smoothness test reconciled; zero-noise test
 >    helpers crashing kotlin.random). One commit per finding, real run numbers cited.
 > 3. **Fabricated/unexecuted results corrected in docs:** catalog size "10-30 MB" →
->    measured 3.79 GB @ 9k / 6.69 GB @ 15k stars (also "100+ MB" @ 50k → ~20+ GB);
+>    measured-extrapolated ~10.2 TB @ 9k stars (pair index alone measured at 74.5 MiB; the pass-1
+>    "3.79/6.69 GB" figures were estimator output under a quad model now measured to be ~2,900× optimistic);
 >    PHASE3_4_5_6_FINAL_REPORT "Headline Accuracy Numbers" table (invented success rates
 >    and RMS values) replaced with the REAL executed ValidationMatrixRunner matrix;
 >    Tetra3 comparison retracted; DistortionModelTest fake 'Python' expected values

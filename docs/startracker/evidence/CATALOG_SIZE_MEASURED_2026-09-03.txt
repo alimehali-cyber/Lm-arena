@@ -1,0 +1,80 @@
+# B1 — Catalog size: MEASURED (pairs, small-N quads) + measured-extrapolated (quads at 9k/15k)
+# Captured: 2026-09-03, remediation pass 2.
+# Probe: tools/kotlin-harness/CatalogSizeProbe.kt (committed), compiled with the REAL catalog
+# sources (app/src/main/.../startracker/catalog/*.kt) by kotlinc 2.4.10, run on JRE 25.0.2.
+# Stars: deterministic seed 42, UNIFORM on the sphere, CONSTANT magnitude 3.0.
+#   (Neither AngularSeparationIndex nor QuadPatternIndex reads `magnitude` during build -
+#   verified by grep - no magnitude filter exists in either builder - so a constant magnitude
+#   is faithful; a N(<m) ∝ 10^(0.6m) distribution would change nothing in these counts.)
+# All index builds use CatalogBuildConfig defaults (MAX_PAIR_SEPARATION 40 deg, MIN 0.1 deg,
+# HASH_BIN_WIDTH 0.01). Byte accounting = counting OutputStream writing the EXACT field
+# sequence of CatalogSerializer.serialize; validated byte-equal against serialize() at N=150
+# (mirror=827699 real=827699 match=true). serialize() itself materializes the full ByteArray,
+# so the mirror is used at larger N to avoid holding GBs in the 3 GB sandbox.
+
+## MEASURED runs (verbatim lines from probe output)
+
+check:
+N=150 mirror=827699 real=827699 match=true
+
+pairs (mode "pairs", quads excluded):
+N=9110  genMs=29 pairCount=4851922 pairBuildMs=7469  quads=0 totalBytes=78094272  starSectionBytes=463504  pairBytes=77630752  heapMaxMB=2048
+N=15000 genMs=36 pairCount=13156786 pairBuildMs=18807 quads=0 totalBytes=211277486 starSectionBytes=768894  pairBytes=210508576 heapMaxMB=2600
+
+quads (mode "quads", full pair+quad build and accounting):
+N=300 genMs=17 pairCount=5248  pairBuildMs=35 quadCount=151296  quadBuildMs=1206  totalBytes=12191561  quadSectionBytes=12092679  bytesPerQuad=79.927  quadsPerStar=504.32  heapMaxMB=2048
+N=400 genMs=17 pairCount=9235  pairBuildMs=42 quadCount=444941  quadBuildMs=3265  totalBytes=35733647  quadSectionBytes=35565973  bytesPerQuad=79.934  quadsPerStar=1112.35 heapMaxMB=2048
+N=500 genMs=22 pairCount=14536 pairBuildMs=50 quadCount=1154238  quadBuildMs=7574  totalBytes=92514176  quadSectionBytes=92256686  bytesPerQuad=79.929  quadsPerStar=2308.48  heapMaxMB=2048
+N=600 genMs=19 pairCount=20886 pairBuildMs=57 quadCount=2384027  quadBuildMs=15400 totalBytes=190906728 quadSectionBytes=190542638 bytesPerQuad=79.925  quadsPerStar=3973.38  heapMaxMB=2800
+
+N=800 at -Xmx2800m: java.lang.OutOfMemoryError (heap exhausted growing the quad ArrayList
+inside QuadPatternIndex.<init>) - the in-memory CatalogQuad representation is far larger
+than its 80 serialized bytes, so even 800 stars cannot complete in a 2.8 GB heap.
+NOTE: the sandbox has 3 GB RAM total; larger heaps are not possible here.
+
+## Derived (arithmetic on the measured points only)
+
+Per-item serialized byte costs (from the serializer's own format, mirror-validated):
+  star  = ~50.9 B (id "CATnnn" + 3 doubles + source string; grows with id length)
+  pair  = 16 B exactly (double + int + int)
+  quad  = 79.93 B measured (4 ints + 6 doubles + quantized key string, e.g. "70-70-70-70-100")
+
+## Quad-count fit and EXTRAPOLATION to target sizes (labelled extrapolated)
+
+Fit: quads(N) = K * C(N,4) with K = quads/C(N,4) measured at each N:
+  N=300: K=4.574e-4 | N=400: K=4.235e-4 | N=500: K=4.486e-4 | N=600: K=4.459e-4
+K is stable within +/-4% (finite-N spread), so quads(N) ~ K*C(N,4) holds; using K=4.459e-4
+(the N=600 anchor; the 300-600 average would change results by <2%):
+  N=9,110 : C(N,4)=2.874e14 -> quads ~ 1.28e11 (~14.0 million quads/star)
+            serialized ~ 1.28e11 * 79.93 B ~ 10.2 TB   [EXTRAPOLATED]
+  N=15,000: C(N,4)=2.108e15 -> quads ~ 9.40e11 (~62.7 million quads/star)
+            serialized ~ 9.40e11 * 79.93 B ~ 75.2 TB   [EXTRAPOLATED]
+Build-time extrapolation (O(N^4) loop, measured 15.4 s at N=600):
+  N=9,110 ~ 9.5 days single-threaded; N=15,000 ~ 70 days  [EXTRAPOLATED]
+
+## Verdict on the Task-4 "N * 19600/4" quad model (4,900 quads/star, 44.1M @ 9k)
+
+- Bytes-per-quad model (84 B): CLOSE to reality (measured 79.93 B).
+- Quad COUNT: catastrophically OPTIMISTIC. The real builder produces ~14 MILLION
+  quads/star at 9k scale (measured trend), ~2,900x more than the model's 4,900/star.
+  Reason: the model assumed a "nearby limited" cap that DOES NOT EXIST in the code -
+  QuadPatternIndex.kt enumerates ALL C(N,4) combinations with only the 40-degree
+  separation filter, and CatalogBuildConfig.MAX_STARS_PER_REGION_FOR_QUADS (50) is
+  declared but has NO consumers (verified by grep).
+- Consequently the pass-1 "3.79 GB / 6.69 GB" figures (which were ESTIMATOR OUTPUT under
+  this model, not measurements - correctly relabelled this pass) are ~2,700x too small:
+  serialized reality at 9k is ~10 TB (extrapolated from measured 300-600 points).
+  The original "10-30 MB" claim was off by ~300,000x.
+
+## Bottom line (what is actually MEASURED vs extrapolated)
+
+- MEASURED: pair index at 9,110 stars = 4,851,922 pairs, 7.5 s build, stars+pairs
+  serialize to 78,094,272 B = 74.5 MiB. At 15,000: 13,156,786 pairs, 18.8 s, 211,277,486 B
+  = 201 MiB. Quad builder at 300-600 stars: counts above, ~80 B/quad, O(N^4) build times,
+  OOM at 800 stars in a 2.8 GB heap.
+- EXTRAPOLATED: at 9,110 stars the full quad index would be ~1.28e11 quads / ~10 TB
+  serialized / ~9.5 days build; at 15,000 ~9.4e11 / ~75 TB / ~70 days. Infeasible in both
+  time and memory AS IMPLEMENTED: the builder needs a per-region star cap (the config
+  constant exists but is unused) or pruned neighbor enumeration, and the representation
+  needs a fundamentally smaller encoding, before a 9k catalog can ship.
+- The pair-only index (74.5 MiB @ 9k, MEASURED) is by itself a shippable size.

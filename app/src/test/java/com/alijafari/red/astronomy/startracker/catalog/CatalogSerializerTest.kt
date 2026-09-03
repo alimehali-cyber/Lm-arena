@@ -6,6 +6,14 @@ import kotlin.math.PI
 
 class CatalogSerializerTest {
 
+    // NOTE (2026-09-03 pass 2, item B1): the numbers asserted below are ESTIMATOR OUTPUT
+    // (CatalogSerializer.estimateSizeOf under the Task-4 "N*19600/4" quad model), NOT
+    // measurements of a serialized catalog. Real measurements now exist and show the quad
+    // model is ~2,900x optimistic: docs/startracker/evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt
+    // (pairs at 9,110 stars measured 4,851,922 / 74.5 MiB; quads measured-extrapolated
+    // ~1.28e11 = ~10.2 TB). This test still guards the estimator's Long arithmetic.
+
+
     @Test
     fun testRoundTripSerialization() {
         val csv = """
