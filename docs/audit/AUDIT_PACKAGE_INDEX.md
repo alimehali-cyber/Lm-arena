@@ -1,6 +1,7 @@
 # Audit Package Index — ZIG Star-Tracker (Phases 0–10)
 
 **File:** `docs/audit/ZIG_STARTRACKER_FULL_AUDIT_PACKAGE.pdf` — 247 pages, ~634 KB
+**Plain-text edition:** `docs/audit/ZIG_STARTRACKER_FULL_AUDIT_PACKAGE.txt` — same content, byte-exact source lines (no wrapping, no substitutions), 16k+ lines.
 **Repo state packaged:** branch `arena/01a0676f-lm-arena`, HEAD `d9c83d278f4c91e12f2bacd6f76d4d18cf1bfc17`, base `60928bad646d72615bcd847deb8f2f7adbea0563`, working tree clean.
 **Generated:** 2026-09-03 (UTC) by Arena.ai Agent Mode — Python 3.11.2 + reportlab 5.0.1, DejaVu Sans Mono; all contents read verbatim from disk at generation time; git outputs captured live; the six Python cross-check scripts were re-executed fresh (all exit 0).
 
