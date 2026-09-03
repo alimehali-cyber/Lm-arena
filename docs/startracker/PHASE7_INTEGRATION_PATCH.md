@@ -61,9 +61,14 @@ Per Task 5 gating rule: "only if pre-existing + Phases1-6 tests all pass else pr
 - Separate linear LS: u = fx*x + skew*y + cx (3 params), v = fy*y + cy (2 params) via normal equations AtA/Atb + Gaussian elimination partial pivot threshold 1e-12
 - Iterative 10 max convergence 1e-6 RMS
 - minObs 6, distribution check span <10% width → decline
-- Sweep results from python_crosscheck_phase7.py (headline table):
+- Sweep results from python_crosscheck_phase7.py (headline table). NOISE LABEL
+  (pass 2, item C2 — corrected): the generator is `rng.uniform(-noise_px, +noise_px)`
+  per axis, i.e. UNIFORM half-width s px, whose RMS is s/sqrt(3) = 0.577 s. That is why
+  residual RMS values are consistently ~0.58x the stated noise (1.0px->0.57, 0.5->0.28,
+  0.2->0.11): the observed RMS is the uniform-noise floor, not an unexplained error.
+  Column labels below mean "uniform +/-s px":
 ```
-Noise\Obs | 4 | 10 | 30 | 100
+Noise (uniform +/-s px) \ Obs | 4 | 10 | 30 | 100
 0.0px | FAIL (expected minObs gate) | rms=0.00 fxErr=0.0 | rms=0.00 fxErr=0.0 | rms=0.00 fxErr=0.0 |
 0.2px | FAIL | rms=0.11 fxErr=0.1 | rms=0.12 fxErr=0.1 | rms=0.11 fxErr=0.0 |
 0.5px | FAIL | rms=0.28 fxErr=0.7 | rms=0.26 fxErr=0.1 | rms=0.28 fxErr=0.0 |
@@ -76,9 +81,11 @@ Noise\Obs | 4 | 10 | 30 | 100
 - Linear LS for k1,k2,p1,p2 given fixed intrinsics: x_d - x = x*r2*k1 + x*r4*k2 + 2*x*y*p1 + (r2+2x^2)*p2, etc.
 - minObs 10, minSpan 0.5, maxR2 <0.1 → decline (clustered near center unobservable)
 - Overfitting guard: |k1|,|k2|>1.0 or |p1|,|p2|>0.1 → decline
-- Sweep from python_crosscheck_phase7.py:
+- Sweep from python_crosscheck_phase7.py. Same NOISE LABEL correction (C2): generator
+  is uniform +/-s in normalized units (RMS = 0.577 s; e.g. s=0.005 -> residual RMS ~0.0029
+  observed - exactly the uniform floor). Labels mean "uniform +/-s (normalized)":
 ```
-Noise\Obs | 10 | 30 | 100
+Noise (uniform +/-s, normalized) \ Obs | 10 | 30 | 100
 0.0 | k1Err=0.0000 k2Err=0.0000 rms=0.00000 | k1Err=0.0000 k2Err=0.0000 rms=0.00000 | k1Err=0.0000 k2Err=0.0000 rms=0.00000 |
 0.001 | k1Err=0.0003 k2Err=0.0003 rms=0.00049 | k1Err=0.0001 k2Err=0.0000 rms=0.00057 | k1Err=0.0000 k2Err=0.0001 rms=0.00057 |
 0.005 | k1Err=0.0019 k2Err=0.0119 rms=0.00251 | k1Err=0.0114 k2Err=0.0144 rms=0.00288 | k1Err=0.0023 k2Err=0.0019 rms=0.00293 |

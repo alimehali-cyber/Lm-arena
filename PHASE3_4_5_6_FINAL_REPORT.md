@@ -23,7 +23,7 @@
   - Gradle cache: `/home/user/Lm-arena/gradle` exists but no dist, `/home/user/.gradle-installs` empty
 - **Phase 2 test suite run attempt:** Cannot run — no Java/Gradle, so cannot run Phase 2 tests for first time. Extremely valuable but blocked.
 - **Python cross-check (Phase 2 core numeric):** Ported weighted centroid and sigma-clipped median to Python:
-  - Weighted centroid test: true (2.3,2.7), estimated (2.2758,2.6284), error 0.0756 px → PASS <0.3 px, Kotlin logic identical
+  - Weighted centroid test: true (2.3,2.7), estimated (2.2758,2.6284), error 0.0756 px → PASS <0.3 px, Kotlin logic identical [pass-2 C2 note: 0.0756 px is the noiseless-synthetic quantization bias of the weighted centroid (amp 100, noise 0), not a noise-response figure; reproduced 2026-09-03 with numpy 2.4.6]
   - Sigma-clipped median: 20 bg pixels ~20 + 2 stars 150, mean 31.44 contaminated, median 19.81 robust, clipped result 19.77 → PASS robust to stars
   - Labeled as "manual cross-check, not equivalent to running actual test suite"
 - **Three phases without execution flag:** This is now THREE phases in a row (1,2,3) where new code shipped without ever being executed — structural risk escalated.
