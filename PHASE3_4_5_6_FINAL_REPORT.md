@@ -414,24 +414,45 @@ After commit: clean.
 
 ## Headline Accuracy Numbers (Synthetic, Not Live)
 
-**Phase 4 Task 5 accuracy table (synthetic ground truth, from Python reference):**
+**CORRECTION (2026-09-03 remediation):** the table that previously stood here —
+"Solve Success Rate (expected)" / "Attitude Error RMS (expected)" per visible-star/
+noise/false-star combination — was FABRICATED. None of those combinations had ever
+been executed by any code (the python "reference" script simulated success rates
+with `1.0 if noise<100 else 0.8 # simulate` and never ran a solver). The invented
+values included fake precision ("~95%", "0.0076 deg = 27 arcsec", "~85%").
 
-| Visible True Stars | Noise | False Stars | Solve Success Rate (expected) | Attitude Error RMS (expected) | Graceful Failure |
-|--------------------|-------|-------------|-------------------------------|-------------------------------|------------------|
-| 4 | 0 | 0 | 100% | 0.000000° = 0 arcsec | — |
-| 4 | 0.01° | 0 | ~95% | 0.0076° = 27 arcsec | — |
-| 6 | 0.01° | 4 | ~90% | ~0.01° = 36 arcsec | — |
-| 10 | 0.01° | 8 | ~85% | ~0.015° = 54 arcsec | — |
-| 20 | 0.01° | 16 | ~80% | ~0.02° = 72 arcsec | — |
-| 4 | 0.1° | 0 | ~70% | ~0.07° = 252 arcsec = 4.2 arcmin | — |
-| 3 | 0 | 0 | 0% (too few) | — | Correctly returns no solution |
-| 4 | 1.0° | 0 | ~20% (too much noise) | ~1° when succeeds | Correctly fails often |
+The table below is the REAL measured validation matrix, produced by the Kotlin
+ValidationMatrixRunner (synthetic 200-star catalog, synthetic attitudes, injected
+angular noise — a statistics-pipeline benchmark, not a pixel-level solver benchmark
+and not a live-device measurement). Full captured output with provenance:
+`docs/startracker/evidence/VALIDATION_MATRIX_2026-09-03.txt` (suite: 130 tests,
+0 failures, 0 errors at capture).
 
-**Comparison to Tetra3 ~10 arcsec:**
-- Tetra3 documented ~10 arcsec accuracy.
-- Our Python reference: 0 arcsec zero noise (perfect), 27 arcsec at 0.01° noise (36 arcsec centroiding error).
-- Same ballpark order of magnitude, slightly worse (27 vs 10) due to higher noise assumption (0.01° = 36 arcsec) and small fixture vs real 9k-star catalog density.
-- Basis shown: Tetra3 10 arcsec vs our 27 arcsec at 0.01° noise, same order, worse due to differing noise assumptions and catalog density.
+| Scenario (50 trials unless noted) | RMS arcsec | Median | 95th | Success | Real failures observed |
+|---|---|---|---|---|---|
+| static bench, 10" noise (20 trials) | 9.45 | 6.70 | 21.6 | 1.00 | none |
+| sky dark 5" | 3.3 | 2.5 | 6.4 | 1.00 | none |
+| sky suburban 20" | 12.7 | 9.3 | 23.8 | 1.00 | none |
+| sky urban 50" | 33.7 | 26.9 | 69.3 | 1.00 | none |
+| sky cloud 100" | 73.4 | 49.4 | 143.3 | 1.00 | none |
+| device 30 deg FOV | 18.0 | 12.6 | 37.0 | 0.82 | TooFewStars x9 |
+| device 60 deg FOV | 7.2 | 5.5 | 12.5 | 1.00 | none |
+| device 90 deg FOV | 3.1 | 2.6 | 6.0 | 1.00 | none |
+| device 120 deg FOV | 2.5 | 2.2 | 3.9 | 1.00 | none |
+| hemisphere north vs south | 7.83 vs 6.65 | - | - | 1.00 / 1.00 | diff 1.19" |
+| rotation sweep 360 deg @10" | bias max-min 5.89 | - | - | - | no yaw-dependent bias |
+
+The previously claimed visible-stars/false-stars sweep (4-20 stars, 0-16 false stars)
+has STILL never been executed; if those rows are wanted they must be measured, not
+re-invented.
+
+**Comparison to Tetra3 ~10 arcsec — RETRACTED (2026-09-03 remediation):**
+the "our Python reference: ... 27 arcsec at 0.01 deg noise" figures came from the same
+fabricated table and are withdrawn. The only real comparison available today: the Kotlin
+synthetic bench at 10 arcsec injected noise measures RMS 9.45 arcsec (median 6.70,
+95th 21.6) over 20 trials — i.e., the error-injection statistics pipeline behaves
+as expected, which is NOT a solver-accuracy measurement. A genuine Tetra3 comparison
+requires a pixel-level end-to-end benchmark that does not exist yet.
 
 **Phase 5 tracking loop error curve (simulated):**
 - Initial full lock at known attitude: error 0

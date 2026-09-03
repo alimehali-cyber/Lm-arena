@@ -1,0 +1,48 @@
+# Validation matrix — REAL executed output (evidence)
+# Captured: 2026-09-03, remediation pass.
+# Source: ValidationMatrixRunnerTest executed via /tmp/toolchain/harness/run_tests.sh
+# (kotlinc 2.4.10 + custom JUnit runner, jdk4py JRE). Suite at capture: 130 tests, 0 failures, 0 errors.
+# Log of capture run: /tmp/toolchain/run_dist.txt (runner output), commit 7a3bb6c.
+#
+# These numbers replace the fabricated "expected" table previously in
+# PHASE3_4_5_6_FINAL_REPORT.md (~L417-427), which was written before any of this
+# code had ever been executed.
+
+Static bench dark 10 arcsec noise, 20 trials:
+RMS=9.453308309268163, median=6.696867324347064, p95=21.60088687197058, successRate=1.0
+
+Confidence ladder with failure reasons (20 trials each):
+dark:        successRate=1.0 (noise 5")
+suburban:    successRate=1.0 (noise 20")
+urban:       successRate=1.0 (noise 50")
+cloud:       successRate=1.0 (noise 100")
+
+Device/lens sweep (50 trials each):
+Scenario | Trials | RMS arcsec | Median | 95th | SuccessRate | Failures
+device_narrow_fov_30deg | 50 | 18.0 | 12.6 | 37.0 | 0.82 | {TooFewStars=9}
+device_normal_fov_60deg | 50 | 7.2 | 5.5 | 12.5 | 1.00 | {}
+device_wide_fov_90deg | 50 | 3.1 | 2.6 | 6.0 | 1.00 | {}
+device_ultrawide_fov_120deg | 50 | 2.5 | 2.2 | 3.9 | 1.00 | {}
+
+Hemisphere mirrored check:
+north: RMS=7.830976043471491, successRate=1.0
+south: RMS=6.645289729188473, successRate=1.0
+Hemisphere RMS diff: 1.1856863142830179 arcsec
+
+Rotation sweep 360 deg (step 30 deg, noise 10"):
+errors arcsec: 3.76, 6.94, 3.93, 5.38, 1.05, 5.69, 5.61, 4.15, 2.58, 2.27, 1.33, 5.30
+Systematic bias (max-min): 5.8936743468635395 arcsec
+
+Sky condition sweep (50 trials each):
+Scenario | Trials | RMS arcsec | Median | 95th | SuccessRate | Failures
+sky_condition_dark | 50 | 3.3 | 2.5 | 6.4 | 1.00 | {}
+sky_condition_suburban | 50 | 12.7 | 9.3 | 23.8 | 1.00 | {}
+sky_condition_urban | 50 | 33.7 | 26.9 | 69.3 | 1.00 | {}
+sky_condition_cloud | 50 | 73.4 | 49.4 | 143.3 | 1.00 | {}
+
+# SCOPE NOTE (honest): these are SYNTHETIC-bench numbers (synthetic 200-star catalog,
+# synthetic attitudes, injected angular noise). They exercise ValidationMatrixRunner's
+# real statistics pipeline — real successRate computation, real RMS/median/p95 — but they
+# are NOT a pixel-level end-to-end solver benchmark and NOT a live-device measurement.
+# The old table's visible-stars/false-stars sweep rows were never executed by anything and
+# are not reconstructed here.
