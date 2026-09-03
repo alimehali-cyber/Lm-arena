@@ -66,6 +66,40 @@ Candidate sources for bright-star extract:
 
 **Conclusion:** 9k-15k stars mag ≤6.5-7.0 is sweet spot for handheld phone star tracker.
 
+### 4a. Size options (OPTIONS, not decisions - measured unit costs so a reader can do the arithmetic)
+
+Measured serialized unit costs (real serializer format, see
+docs/startracker/evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt):
+  star  ~50.9 B   (id string + 3 doubles + source string; grows with id length)
+  pair  = 16 B    (double + int + int)
+  quad  ~79.93 B  (4 ints + 6 doubles + quantized-key string)
+  pair count @ 9,110 uniform stars: 4,851,922 MEASURED (~0.0585 x N^2 ... exactly: 11.7% of C(N,2) lie within the 40 deg window)
+  quad count @ 9,110: ~1.28e11 EXTRAPOLATED from measured 300-600-star builds (no cap in code)
+
+- **Option A - star list only, build indexes on device at first launch.**
+  Ship just stars: measured 463,504 B for 9,110 synthetic stars (~0.46 MB; i.e. ~50.9 B/star,
+  dominated by string ids - integer ids would cut it to ~32-36 B/star => ~0.33 MB).
+  Cost: on-device pair build measured at 7.5 s for 9,110 stars (JVM, single thread) - a
+  one-time launch cost; the quad build is NOT viable on device as implemented (O(N^4),
+  would take days), so this option only works paired with a capped quad strategy (B/C).
+- **Option B - cap neighbours/quads per star (use the existing-but-unused
+  CatalogBuildConfig.MAX_STARS_PER_REGION_FOR_QUADS, or a neighbours-per-star cap).**
+  E.g. top-K brightest neighbours within the 40 deg window with K=10 gives at most
+  C(K,3)-ish quads per star ~O(10^4-10^5) total quads => ~1-10 MB at 80 B/quad. This is
+  the knob that turns the 10 TB extrapolation into a shippable asset; it changes recall
+  (some true quads missing) and needs validation against solve success rate.
+- **Option C - smaller numeric encodings.** float32 instead of float64 for
+  separations/ratios halves the doubles (16 B of the quad's 80 B); ratio quantization to
+  uint16 (ratios are in [0,1]) saves ~24 B more; dropping the string quantizedKey from
+  the serialized form (recomputable from ratios at load) saves ~13-18 B/quad. Combined
+  floor roughly ~24-40 B/quad. Pairs could drop the double (recomputable) -> 8 B/pair.
+- **Option D - pair index only (74.5 MiB @ 9,110, MEASURED), derive quads at runtime
+  from the pair graph.** Runtime quad derivation from pairs is exactly what the solver's
+  QuadCandidateBuilder already does for observations; the same approach on the catalog
+  side avoids materializing the C(N,4) blow-up entirely.
+
+These are options for the eventual implementer, not decisions taken in this pass.
+
 ## 5. Next Steps for Human with Network Access
 
 1. Download Yale BSC5 or Hipparcos catalog from VizieR or other public source.
