@@ -9,9 +9,13 @@ rotation (no pixels, no stars, no solver), fabricated success rates with
 two IDENTICAL seeded calls (diff always 0), ignored the FOV variable in the
 device sweep, used a fixed error axis in the rotation sweep, and ended with
 "All Phase10 cross-checks passed" although several sections asserted nothing.
-It also imported numpy, which is not even available in this environment —
-consistent with it never having been executed. This rewrite uses ONLY the
-Python standard library (math + random) so it actually runs.
+It also imported numpy. [pass-3 retraction: the pass-1 note claimed numpy
+was "not even available in this environment — consistent with it never having
+been executed"; that inference was wrong — numpy availability is environment-
+specific (pass 2 installed numpy 2.4.6 and the original script runs; see
+evidence/ORIGINAL_PHASE10_RERUN_2026-09-04.txt). The fabrication verdict rests
+on the code content above, not on the dependency.] This rewrite uses ONLY the
+Python standard library (math + random) so it runs dependency-free.
 
 WHAT THIS SCRIPT HONESTLY IS: an independent cross-check of the math
 primitives and noise statistics that ValidationMatrixRunner.kt relies on
