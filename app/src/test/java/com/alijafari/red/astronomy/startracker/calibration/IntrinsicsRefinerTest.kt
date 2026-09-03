@@ -32,6 +32,11 @@ class IntrinsicsRefinerTest {
         val rng = Random(seed)
         val observations = mutableListOf<ObservationPair>()
 
+        // kotlin.random.Random.nextDouble(a, b) throws IllegalArgumentException when a == b,
+        // so the zero-noise case must short-circuit instead of calling nextDouble(-0.0, 0.0).
+        // This guard is what un-broke the perfect-recovery tests (baseline: 8 errors).
+        fun noise(): Double = if (noisePx > 0.0) rng.nextDouble(-noisePx, noisePx) else 0.0
+
         for (i in 0 until count) {
             // Random ideal normalized point in [-0.8, 0.8]
             val xIdeal = rng.nextDouble(-0.8, 0.8)
@@ -40,8 +45,8 @@ class IntrinsicsRefinerTest {
             val uPred = trueProfile.fx * xIdeal + trueProfile.skew * yIdeal + trueProfile.cx
             val vPred = trueProfile.fy * yIdeal + trueProfile.cy
 
-            val uObs = uPred + rng.nextDouble(-noisePx, noisePx)
-            val vObs = vPred + rng.nextDouble(-noisePx, noisePx)
+            val uObs = uPred + noise()
+            val vObs = vPred + noise()
 
             observations.add(
                 ObservationPair(

@@ -32,8 +32,9 @@ class DistortionRefinerTest {
 
             val (xDist, yDist) = trueModel.distortIdealToDistortedNormalized(xIdeal, yIdeal)
 
-            val xDistNoisy = xDist + rng.nextDouble(-noiseNorm, noiseNorm)
-            val yDistNoisy = yDist + rng.nextDouble(-noiseNorm, noiseNorm)
+            // Guard: nextDouble(a, a) throws IllegalArgumentException; zero-noise case stays clean
+            val xDistNoisy = xDist + (if (noiseNorm > 0.0) rng.nextDouble(-noiseNorm, noiseNorm) else 0.0)
+            val yDistNoisy = yDist + (if (noiseNorm > 0.0) rng.nextDouble(-noiseNorm, noiseNorm) else 0.0)
 
             obs.add(
                 DistortionObservation(
