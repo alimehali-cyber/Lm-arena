@@ -183,6 +183,11 @@ object CatalogSerializer {
      * Estimate file size for real catalog extrapolation.
      * Given fixture file size and fixture counts, extrapolate to 9k-15k stars.
      * Shows arithmetic, not just assertion.
+     *
+     * ALL arithmetic here is Long (audit finding B1): with Int arithmetic the quad term
+     * alone for a 9,000-star catalog is 9,000 * 19,600 / 4 * 84 = 3,704,400,000 bytes,
+     * which overflows Int.MAX_VALUE (2,147,483,647) and wrapped negative, making the old
+     * "<50 MB" assertions pass vacuously against a meaningless wrapped value.
      */
     fun extrapolateFileSize(
         fixtureStars: Int,
@@ -195,34 +200,29 @@ object CatalogSerializer {
         // For uniform sky distribution, number of pairs within 40° is roughly proportional to N * (density * area)
         // Density = N / (4π steradians), area within 40° = 2π*(1-cos(40°)) ≈ 1.46 sr
         // So pairs ≈ N * (density * area) /2 = N * (N/(4π) * 1.46)/2 = N^2 *1.46/(8π) ≈ N^2 *0.058
-        // For N=15, pairs predicted ~15^2*0.058=13, actual may differ due to test fixture clustering
-        // For extrapolation, we use simple scaling: pairs ∝ N^2, quads ∝ N^4 but limited by nearby search
-
-        // More conservative: assume pairs ∝ N^2, quads ∝ N^2 * avg_nearby^2 (since we only combine nearby)
-        // For simplicity in this phase, we extrapolate using observed fixture ratio and N^2 scaling for pairs,
-        // and for quads we assume scaling ~ N * (avg nearby choose 3)
-
-        // We'll compute two estimates: optimistic (linear) and realistic (quadratic)
+        // For extrapolation, we use simple scaling: pairs ∝ N^2, quads ∝ N^2 * avg_nearby^2 (since we only combine nearby)
 
         val bytesPerStar = fixtureBytes.toDouble() / fixtureStars // rough
         val pairsPerStarSquared = fixturePairs.toDouble() / (fixtureStars * fixtureStars)
         val quadsPerStar = fixtureQuads.toDouble() / fixtureStars
 
-        // For target N, estimate pairs = N^2 * pairsPerStarSquared
-        val estPairs = (targetStars * targetStars * pairsPerStarSquared).toInt()
+        // For target N, estimate pairs = N^2 * pairsPerStarSquared  (Long: N^2 alone overflows Int for N > 46,340)
+        val targetStarsL = targetStars.toLong()
+        val estPairs = (targetStarsL * targetStarsL * pairsPerStarSquared).toLong()
         // Quads: for real catalog, we would limit to nearby stars, so quads not full C(N,4)
         // Assume avg nearby stars per star = 50 (from config), then quads per star ≈ C(50,3)=19600, total ≈ N*19600/4
-        val estQuadsNearbyLimited = (targetStars * 19600 / 4)
+        // Long arithmetic: 15,000 * 19,600 / 4 = 73,500,000 quads (fits Int, but * 84 bytes/quad = 6,174,000,000 does NOT)
+        val estQuadsNearbyLimited = targetStarsL * 19600L / 4L
 
-        // File size estimation:
+        // File size estimation (Long throughout):
         // Star entry: id ~10 bytes + 2*8 + 8 + source ~10 = ~36 bytes + overhead
         // Pair entry: 8 + 4+4 = 16 bytes
         // Quad entry: 4*4=16 + 8 + 5*8=40 + key ~20 = ~84 bytes
-        val starBytes = 50 // approx per star
-        val pairBytes = 16
-        val quadBytes = 84
+        val starBytes = 50L // approx per star
+        val pairBytes = 16L
+        val quadBytes = 84L
 
-        val estTotalBytes = targetStars * starBytes + estPairs * pairBytes + estQuadsNearbyLimited * quadBytes
+        val estTotalBytes = targetStarsL * starBytes + estPairs * pairBytes + estQuadsNearbyLimited * quadBytes
 
         return ExtrapolationResult(
             fixtureStars = fixtureStars,
@@ -234,7 +234,8 @@ object CatalogSerializer {
             estimatedQuadsNearbyLimited = estQuadsNearbyLimited,
             estimatedTotalBytes = estTotalBytes,
             estimatedTotalKB = estTotalBytes / 1024,
-            estimatedTotalMB = estTotalBytes / (1024 * 1024)
+            estimatedTotalMB = estTotalBytes / (1024L * 1024L),
+            estimatedTotalGB = estTotalBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
         )
     }
 
@@ -244,10 +245,11 @@ object CatalogSerializer {
         val fixtureQuads: Int,
         val fixtureBytes: Int,
         val targetStars: Int,
-        val estimatedPairs: Int,
-        val estimatedQuadsNearbyLimited: Int,
-        val estimatedTotalBytes: Int,
-        val estimatedTotalKB: Int,
-        val estimatedTotalMB: Int
+        val estimatedPairs: Long,
+        val estimatedQuadsNearbyLimited: Long,
+        val estimatedTotalBytes: Long,
+        val estimatedTotalKB: Long,
+        val estimatedTotalMB: Long,
+        val estimatedTotalGB: Double
     )
 }
