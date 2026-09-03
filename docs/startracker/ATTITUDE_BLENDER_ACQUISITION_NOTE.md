@@ -54,7 +54,27 @@ path — the current green test documents the snap, it does not endorse it.
   transitions and with the staleness-decay math (needs its own tests); delays the
   mag-weight reduction.
 
-## Not changed in this pass
+## Option 3 — keep the estimate snap, ease in the PRESENTATION layer (recorded future direction)
 
-No code, config, or test was modified for this item. The owner decides; if Option 2 is
-chosen it should land with a new test pinning the ramp shape and the first-frame bound.
+- Mechanism: AttitudeBlender keeps the instant 0.9x acquisition (estimate always jumps
+  straight to the best available attitude); any visual easing is applied downstream in
+  the overlay/UI layer (e.g. animate the rendered attitude toward the estimate over
+  ~200-500 ms). The ESTIMATE therefore never carries known-wrong frames - only the
+  display does, deliberately and visibly.
+- Pros: correctness of the estimate is never sacrificed; UX polish lives where it
+  belongs (rendering); ramp parameters become a UI concern, tunable without touching
+  fusion math or its tests.
+- Cons: presentation-layer easing is Compose/UI work - OUT OF SCOPE for the
+  remediation passes (forbidden scope: Compose layout/styling/animation); consumers
+  other than the animated overlay still see the step.
+- Status: RECORDED as the future direction if the snap proves objectionable in field
+  data (see decision below and the field-protocol logging line).
+
+## DECISION
+
+**DECISION: Option 1 - KEEP the instant acquisition. [2026-09-04, owner]**
+No code, config, or test change. Item status: **PARKED, not closed** - the field-test
+protocol now logs the acquisition discrepancy magnitude on every FULL_LOCK acquisition
+(REAL_DEVICE_FIELD_TEST_PROTOCOL.md), so the keep-vs-ease question is decided from data
+later; Option 3 (presentation-layer easing) is the recorded direction if the data says
+the snap must be softened.

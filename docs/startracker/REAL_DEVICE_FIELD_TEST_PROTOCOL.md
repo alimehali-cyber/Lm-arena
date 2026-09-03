@@ -105,6 +105,7 @@ For each, record:
 
 - Attitude error arcsec: RMS, median, 95th percentile
 - Success rate: % frames with FULL_LOCK or MARGINAL_LOCK
+- Acquisition discrepancy magnitude (degrees) on EVERY FULL_LOCK acquisition (angle between pre-acquisition fused attitude and star-solved attitude at the moment of lock) - logged so the keep-vs-ramp decision for AttitudeBlender's 0.9x acquisition snap (see docs/startracker/ATTITUDE_BLENDER_ACQUISITION_NOTE.md, PARKED) is made from field data
 - Time to first lock
 - Time to relock
 - FailureReason distribution
