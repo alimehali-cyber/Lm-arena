@@ -1,6 +1,7 @@
 package com.alijafari.red.astronomy.startracker.tracking
 
 import com.alijafari.red.astronomy.startracker.solver.SolveResult
+import kotlin.math.exp
 
 /**
  * Confidence State Machine with states FULL_LOCK, MARGINAL_LOCK, NO_LOCK, AMBIGUOUS
