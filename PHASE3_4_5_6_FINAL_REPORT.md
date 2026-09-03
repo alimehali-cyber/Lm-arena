@@ -61,6 +61,9 @@
 
 ## ENVIRONMENT_BLOCKER_ESCALATION (Phase 5 Task 0.4)
 
+> **SUPERSEDED 2026-09-03 — the single authoritative environment-status table is
+> docs/startracker/PROJECT_STATUS_END_OF_IMPLEMENTATION.md §5.**
+
 | Phase | Automated Execution Achieved? | Substitute Verification Used | Risk |
 |-------|-------------------------------|------------------------------|------|
 | 1 | No — Gradle TLS failure, no Java | Static analysis, manual calc refraction 34' at 0°, 9.9' at 5°, etc. | Medium — math/comment only |
@@ -283,6 +286,12 @@
 **Task 5 Documented Patch:** Provided in full in `docs/startracker/PHASE6_INTEGRATION_PATCH.md` — exact proposed diff as code block, list of pre-existing tests that MUST pass before and after, one-paragraph instruction for human engineer. Complete valid high-value deliverable under blocked environment.
 
 ### Cumulative Environment Status (Phases 2-6)
+
+> **SUPERSEDED 2026-09-03 — the single authoritative environment-status table is
+> PROJECT_STATUS_END_OF_IMPLEMENTATION.md §5 (docs/startracker/). Retained below as
+> the Phase-2-6-era historical record; its per-phase "Execution Achieved? No" rows were
+> true when written and are now outdated (pure-Kotlin subset executes in the offline
+> harness).**
 
 | Phase | Automated Execution | Substitute Verification | Risk |
 |-------|---------------------|-------------------------|------|

@@ -186,6 +186,10 @@ Per Phase 0 audit, these must pass both before and after applying patch (with fl
 
 ## Cumulative Environment Status (Phases 1-6)
 
+> **SUPERSEDED 2026-09-03 — the single authoritative environment-status table is
+> PROJECT_STATUS_END_OF_IMPLEMENTATION.md §5.** The table below is retained as the
+> Phase-6-era historical record.
+
 | Phase | Automated Execution Achieved? | Substitute Verification Used | Risk |
 |-------|-------------------------------|------------------------------|------|
 | 1 | No — Gradle TLS failure, no Java | Static analysis, manual calc for refraction | Medium — math/comment only, no logic change |
