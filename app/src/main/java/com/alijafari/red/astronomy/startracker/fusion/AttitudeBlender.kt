@@ -35,10 +35,38 @@ class AttitudeBlender {
         currentMagnetometerWeight: Float
     ): BlendResult {
 
-        // If feature flag disabled, passthrough (handled outside, but also safety here)
+        // If feature flag disabled, passthrough (handled outside, but also safety here).
+        // NOTE: StarTrackerConfig.ENABLED is a `const val`, so with the default false this
+        // branch is compile-time dead code elimination of everything below - the disabled
+        // path is literally 'return passthrough', preserving the zero-behavioral-difference
+        // safety contract. The actual blend math lives in blendActive() so it stays testable
+        // without touching the flag (audit remediation: tests previously asserted blend
+        // behavior through this method and could only ever see passthrough).
         if (!StarTrackerConfig.ENABLED) {
             return BlendResult(existingFusedQuaternion, currentMagnetometerWeight)
         }
+
+        return blendActive(
+            existingFusedQuaternion,
+            starSolvedQuaternion,
+            starLockConfidence,
+            starLockAgeSeconds,
+            currentMagnetometerWeight
+        )
+    }
+
+    /**
+     * The blend computation assuming the feature flag is ON. Internal so production callers
+     * go through blend() (flag-gated); tests exercise this directly since the flag is a
+     * compile-time constant and cannot be flipped at runtime.
+     */
+    internal fun blendActive(
+        existingFusedQuaternion: Quaternion,
+        starSolvedQuaternion: Quaternion?,
+        starLockConfidence: LockConfidence,
+        starLockAgeSeconds: Double,
+        currentMagnetometerWeight: Float
+    ): BlendResult {
 
         // No-star-lock passthrough cases: null, NO_LOCK, AMBIGUOUS, or stale
         if (starSolvedQuaternion == null ||
