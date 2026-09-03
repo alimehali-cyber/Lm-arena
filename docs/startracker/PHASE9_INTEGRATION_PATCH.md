@@ -1,6 +1,16 @@
-# Phase 9 Integration Patch — HeroSkyProjection Hemisphere Fix (Documented, Ready-to-Apply, Environment Blocked)
+# Phase 9 Integration Patch — HeroSkyProjection Hemisphere Fix (Documented; APPLIED 2026-09-03)
 
-**Status:** ENVIRONMENT STILL BLOCKED, LIVE FIX WAS NOT PERFORMED, DOCUMENTED PATCH PROVIDED INSTEAD
+**Status (2026-09-03 remediation): APPLIED AND TESTED.** The hard gate that blocked this
+patch (no JVM / no JUnit) became satisfiable during the remediation pass via a
+kotlinc 2.4.10 + JUnit-runner harness (jdk4py JRE). Gate condition met first: the full
+pure-Kotlin suite passed 130/130 (0 failures, 0 errors). The proposed diff below was then
+applied verbatim (unified `relAz = normalizeSignedAngle(azimuthDeg - facingAz)`), the
+diagnostic test was updated per Instructions step 3, and HeroSkyProjectionTest was
+EXECUTED FOR THE FIRST TIME: 6 PASS + 1 expected FAIL before the fix, 7/7 PASS after.
+Evidence: docs/startracker/evidence/HEROSKY_TEST_2026-09-03.txt. Remaining unverified:
+real-device field check (Instructions step 5) - still open.
+
+**Historical status (as written during Phase 9):** ENVIRONMENT BLOCKED, LIVE FIX NOT PERFORMED, DOCUMENTED PATCH PROVIDED INSTEAD
 
 This document contains hypothesis verification, hand arithmetic, python cross-check, and exact proposed diff for HeroSkyProjection.kt.
 

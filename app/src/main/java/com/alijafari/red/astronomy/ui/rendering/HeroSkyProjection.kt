@@ -12,11 +12,12 @@ import androidx.compose.ui.geometry.Offset
  *   West (270°) is at Right (x = 0.75 * width). North (0°/360°) is at the seam behind the viewer.
  *   Normal daytime diurnal motion flows: East -> South -> West (LEFT -> CENTER -> RIGHT).
  *
- * - In Southern Hemisphere (latitude < 0°):
+ * - In Southern Hemisphere (latitude < 0°) [PHASE9 fix, 2026-09-03 - ordering MIRRORED]:
  *   Viewer faces North (center = 0°).
- *   East (90°) is at Left (x = 0.25 * width), North (0°/360°) is Center (x = 0.5 * width),
- *   West (270°) is at Right (x = 0.75 * width). South (180°) is at the seam behind the viewer.
- *   Normal daytime diurnal motion flows: East -> North -> West (LEFT -> CENTER -> RIGHT).
+ *   West (270°) is at Left (x = 0.25 * width), North (0°/360°) is Center (x = 0.5 * width),
+ *   East (90°) is at Right (x = 0.75 * width). South (180°) is at the seam behind the viewer.
+ *   When facing North, East is on the observer's RIGHT; diurnal motion East -> North -> West
+ *   flows RIGHT -> CENTER -> LEFT (mirror image of the Northern Hemisphere view).
  *
  * - Equator (latitude == 0°):
  *   Stable default facing South (center = 180°).
@@ -60,18 +61,23 @@ object HeroSkyProjection {
             return Offset.Zero
         }
 
-        // Calculate continuous relative azimuth centered on the equator-facing direction:
+        // Continuous relative azimuth centered on the equator-facing direction:
+        // relAz = normalizeSignedAngle(azimuthDeg - facing), where facing = South (180°)
+        // in the Northern Hemisphere and North (0°) in the Southern Hemisphere.
         // - Northern Hemisphere (latitude >= 0°): Center is South (180°).
-        //   relAz = normalizeSignedAngle(azimuthDeg - 180.0)
-        //   East (90°) -> -90°, South (180°) -> 0°, West (270°) -> +90°
-        // - Southern Hemisphere (latitude < 0°): Center is North (0°).
-        //   relAz = normalizeSignedAngle(0.0 - azimuthDeg)
-        //   East (90°) -> -90°, North (0°) -> 0°, West (270°) -> +90°
-        val relAz = if (latitudeDeg >= 0.0) {
-            normalizeSignedAngle(azimuthDeg - 180.0)
-        } else {
-            normalizeSignedAngle(0.0 - azimuthDeg)
-        }
+        //   East (90°) -> -90° (left), South (180°) -> 0°, West (270°) -> +90° (right)
+        // - Southern Hemisphere (latitude < 0°): Center is North (0°), ordering MIRRORED
+        //   (when facing North, East is on the observer's RIGHT):
+        //   West (270°) -> -90° (left), North (0°) -> 0°, East (90°) -> +90° (right)
+        //
+        // PHASE9 fix applied 2026-09-03: the southern branch previously computed
+        // normalizeSignedAngle(0.0 - azimuthDeg) - a REFLECTION (East rendered left in both
+        // hemispheres, contradicting the mirrored physical ordering when facing North).
+        // Verified by docs/startracker/PHASE9_INTEGRATION_PATCH.md (hand arithmetic + python
+        // cross-check + RelativeBearingTest/BearingCrossCheckTest) and by the now-executable
+        // HeroSkyProjectionTest: mirrored-expectation test passes with this fix.
+        val facingAz = if (latitudeDeg >= 0.0) 180.0 else 0.0
+        val relAz = normalizeSignedAngle(azimuthDeg - facingAz)
 
         val x = ((0.5 + relAz / 360.0) * canvasWidth).toFloat()
 

@@ -132,7 +132,10 @@ class HeroSkyProjectionTest {
 
     @Test
     fun testSouthernHemisphereActualBehavior_Diagnostic() {
-        // Diagnostic test that always passes, but logs actual behavior for reporting
+        // Originally a diagnostic that asserted the then-current BUGGY (unmirrored) behavior.
+        // Updated 2026-09-03 together with the PHASE9 fix (relAz = az - facing, facing=0 in
+        // the south): southern ordering is now MIRRORED - East right, West left - matching
+        // physics (facing North, East is on the right) and the mirrored-expectation test.
         val width = 1000f
         val height = 500f
 
@@ -141,15 +144,15 @@ class HeroSkyProjectionTest {
         val eastSouth = HeroSkyProjection.project(90.0, 30.0, width, height, -35.0)
         val westSouth = HeroSkyProjection.project(270.0, 30.0, width, height, -35.0)
 
-        // This test documents actual behavior without asserting mirrored, so it should pass regardless
-        // Northern: East left, West right
+        // Northern: East left, West right (unchanged by the fix)
         assertTrue(eastNorth.x < 500f)
         assertTrue(westNorth.x > 500f)
 
-        // Southern actual: check what it really does
-        // Current implementation gives East left, West right for both (not mirrored)
-        // So we assert actual current behavior to have a passing diagnostic
-        assertTrue("Diagnostic: Southern East is at ${eastSouth.x}, West at ${westSouth.x}", eastSouth.x < 500f && westSouth.x > 500f)
+        // Southern: East right, West left (fixed, mirrored)
+        assertTrue("Southern East should now be RIGHT of center, got ${eastSouth.x}", eastSouth.x > 500f)
+        assertTrue("Southern West should now be LEFT of center, got ${westSouth.x}", westSouth.x < 500f)
+        assertEquals(750f, eastSouth.x, 1f)
+        assertEquals(250f, westSouth.x, 1f)
     }
 
     @Test
