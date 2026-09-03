@@ -253,4 +253,92 @@ class CentroiderTest {
         // Gaussian should be similar or better, but not drastically worse
         assertTrue("Gaussian fit should not be much worse than weighted", statsG.rms < statsW.rms + 0.3)
     }
+
+    // ---- Audit finding B4: fully-saturated blob centroid bias ----
+
+    private fun zeroBackgroundMap(w: Int, h: Int): BackgroundEstimator.BackgroundMap {
+        return BackgroundEstimator.BackgroundMap(
+            width = w, height = h,
+            perPixel = FloatArray(w * h),
+            blockWidth = 1, blockHeight = 1,
+            blockEstimates = FloatArray(1),
+            globalMean = 0f, globalSigma = 0f
+        )
+    }
+
+    private fun makeBlob(pixels: List<Pair<Int, Int>>, peakX: Int, peakY: Int, peakValue: Float): DetectedBlob {
+        return DetectedBlob(
+            id = 0,
+            pixels = pixels,
+            minX = pixels.minOf { it.first },
+            maxX = pixels.maxOf { it.first },
+            minY = pixels.minOf { it.second },
+            maxY = pixels.maxOf { it.second },
+            peakValue = peakValue,
+            peakX = peakX,
+            peakY = peakY,
+            totalFlux = pixels.size * peakValue,
+            meanIntensity = peakValue,
+            elongation = 1f,
+            eccentricity = 0f
+        )
+    }
+
+    @Test
+    fun testFullySaturatedBlobCentroidNotAtOrigin() {
+        // A 5x5 fully-saturated block centered at (100, 76) in a 200x150 image.
+        // Every pixel in and around the blob is at 255 (>= saturationThreshold 250),
+        // so the weighted loop excludes ALL pixels and the binary fallback runs.
+        // Audit B4: the old code divided the (empty) unsaturated sum by the FULL pixel
+        // count and returned (0,0); the centroid must instead land at the blob, not the origin.
+        val w = 200
+        val h = 150
+        val img = GrayscaleImage(w, h, FloatArray(w * h) { 255f })
+        val bgMap = zeroBackgroundMap(w, h)
+
+        val blobPixels = mutableListOf<Pair<Int, Int>>()
+        for (y in 74..78) for (x in 98..102) blobPixels.add(Pair(x, y))
+        val blob = makeBlob(blobPixels, peakX = 100, peakY = 76, peakValue = 255f)
+
+        val centroider = Centroider(saturationThreshold = 250f, excludeSaturated = true)
+        val result = centroider.centroid(img, bgMap, blob)
+
+        // Must be at/near the saturated core's peak (the only sensible estimate), NOT (0,0)
+        assertEquals("fully-saturated blob: x must be the peak, not 0", 100.0, result.x, 1e-9)
+        assertEquals("fully-saturated blob: y must be the peak, not 0", 76.0, result.y, 1e-9)
+        val distFromOrigin = hypot(result.x, result.y)
+        assertTrue("centroid must not collapse to origin (got (" + result.x + ", " + result.y + "))", distFromOrigin > 100.0)
+        assertTrue("blob must be reported saturated", result.isSaturated)
+    }
+
+    @Test
+    fun testPartiallySaturatedBlobUsesUnsaturatedDenominator() {
+        // 4 saturated pixels + 2 unsaturated pixels. The binary fallback centroid must be
+        // the mean of ONLY the 2 unsaturated pixels (audit B4: old code divided by all 6,
+        // biasing the result toward the origin).
+        val w = 100
+        val h = 100
+        val data = FloatArray(w * h) // all zeros
+        // saturated block at (50,50)-(53,53)
+        for (y in 50..53) for (x in 50..53) data[y * w + x] = 255f
+        // unsaturated pixels with positive residual at (60, 62) and (62, 60)
+        data[62 * w + 60] = 40f
+        data[60 * w + 62] = 40f
+        val img = GrayscaleImage(w, h, data)
+        val bgMap = zeroBackgroundMap(w, h)
+
+        val blobPixels = listOf(
+            Pair(50, 50), Pair(51, 50), Pair(52, 50), Pair(53, 50), // saturated
+            Pair(60, 62), Pair(62, 60)                              // unsaturated, residual 40
+        )
+        val blob = makeBlob(blobPixels, peakX = 51, peakY = 50, peakValue = 255f)
+
+        val centroider = Centroider(saturationThreshold = 250f, excludeSaturated = true)
+        val result = centroider.centroid(img, bgMap, blob)
+
+        // Expected: mean of the two unsaturated pixels = ((60+62)/2, (62+60)/2) = (61.0, 61.0).
+        // The old buggy denominator (6 pixels) would have given (20.33, 20.33) instead.
+        assertEquals(61.0, result.x, 1e-9)
+        assertEquals(61.0, result.y, 1e-9)
+    }
 }

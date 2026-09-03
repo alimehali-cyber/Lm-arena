@@ -99,9 +99,14 @@ class Centroider(
             cx = sumX / sumW
             cy = sumY / sumW
         } else {
-            // Fallback: centroid of blob pixels (binary)
+            // Fallback: unweighted centroid of the blob's NON-saturated pixels (binary centroid).
+            // Audit finding B4: this previously divided by blob.pixels.size (the FULL pixel count)
+            // while summing only unsaturated coordinates, so a fully-saturated blob summed nothing
+            // and returned (0,0) — biased toward the origin instead of the blob's location.
+            // The denominator now matches the numerator's pixel set.
             var sx = 0.0
             var sy = 0.0
+            var unsaturatedCount = 0
             for ((x, y) in blob.pixels) {
                 // Skip saturated if excluding
                 if (excludeSaturated) {
@@ -110,13 +115,14 @@ class Centroider(
                 }
                 sx += x
                 sy += y
+                unsaturatedCount++
             }
-            val n = blob.pixels.size.toDouble()
-            if (n > 0) {
-                cx = sx / n
-                cy = sy / n
+            if (unsaturatedCount > 0) {
+                cx = sx / unsaturatedCount
+                cy = sy / unsaturatedCount
             } else {
-                // Ultimate fallback: peak position
+                // Ultimate fallback: peak position (all blob pixels saturated — the saturated
+                // core's peak is the best available estimate of the star's location, NOT (0,0))
                 cx = blob.peakX.toDouble()
                 cy = blob.peakY.toDouble()
             }
