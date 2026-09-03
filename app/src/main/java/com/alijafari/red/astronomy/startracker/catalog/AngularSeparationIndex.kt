@@ -65,18 +65,28 @@ data class SeparationPair(
  * Angular separation index with k-vector range-search structure.
  *
  * For a given star list, compute all pairwise separations up to maxPairSeparationRad,
- * store sorted by separation with k-vector enabling near-constant-time range queries
- * per Mortari's k-vector technique.
+ * store sorted by separation with a k-vector enabling bracketed range queries
+ * per Mortari's k-vector technique. The k-vector array IS used by [queryRange].
  *
  * k-vector implementation:
  * - Sorted array s[0..n-1] of separations ascending
- * - Precompute linear mapping: s_min = s[0], s_max = s[n-1], m = (n-1)/(s_max - s_min), q = -m*s_min
- * - For any separation value v, approximate index k ≈ m*v + q (linear interpolation)
- * - k-vector array K stores for each possible quantized separation bin, the count of elements <= that value?
- *   Simplified version: we store s_sorted and use m,q to get initial guess for binary search, achieving O(1) average
- *   rather than O(log n) binary search, plus we have K array for true k-vector range search.
+ * - n linearly spaced bins from s_min to s_max; K[bin] = index of the last element
+ *   whose separation <= the bin's upper value (built in O(P) with a merge scan)
+ * - A range query maps its bounds to bins, reads K[] directly for bracketing indices
+ *   (O(1) array reads), then corrects by the minimum number of linear steps and
+ *   exact-filters the collected slice.
  *
- * This implements actual sorted-array + linear-interpolation-based range-search, not brute-force filter.
+ * HONEST complexity (audit finding B11 correction — previously claimed flat "O(1)"):
+ * - The index lookup itself is O(1); correctness is guaranteed by the correction walk.
+ * - The correction walk length grows with how far the true boundary deviates from its
+ *   bin-estimated position. For roughly uniform separation distributions it is a few
+ *   elements (near O(1) + O(k) to emit the k results in range).
+ * - On a NON-UNIFORM (clustered/skewed) separation distribution the linear binning
+ *   misestimates boundary positions badly and the correction walk can grow to O(P),
+ *   i.e. the WORST CASE is linear in the number of indexed pairs, not O(1).
+ * - Real astronomical catalogs sit between these extremes (clustered along the Milky
+ *   Way, sparse elsewhere), so treat practical behavior as O(1 + k + correction),
+ *   with correction typically small but unbounded in the worst case.
  */
 class AngularSeparationIndex(
     val stars: List<CatalogStar>,
@@ -160,8 +170,15 @@ class AngularSeparationIndex(
 
     /**
      * Range query: find all pairs with separation in [lowRad, highRad].
-     * Uses k-vector for near O(1) range search.
-     * Returns EXACTLY the pairs within range (no false inclusion/omission).
+     *
+     * Audit finding B11: the k-vector array built in init was never read by this query —
+     * the previous implementation re-derived approximate indices from the linear mapping
+     * (m, q) and linearly walked. The query now actually uses [kVector] per Mortari's
+     * k-vector range search: the k-vector bracketing indices are looked up directly, then
+     * corrected by the minimum unavoidable number of steps.
+     *
+     * Returns EXACTLY the pairs within range (no false inclusion/omission) — verified
+     * against brute force in the tests on uniform AND clustered (non-uniform) fixtures.
      */
     fun queryRange(lowRad: Double, highRad: Double): List<SeparationPair> {
         if (sortedPairs.isEmpty()) return emptyList()
@@ -169,39 +186,39 @@ class AngularSeparationIndex(
 
         val lowClamped = lowRad.coerceAtLeast(sMin)
         val highClamped = highRad.coerceAtMost(sMax)
+        val n = sortedSeparations.size
 
-        // Use k-vector to get approximate indices via linear interpolation
-        // k = m*s + q
-        val kLowApprox = (m * lowClamped + q).toInt().coerceIn(0, sortedSeparations.size - 1)
-        val kHighApprox = (m * highClamped + q).toInt().coerceIn(0, sortedSeparations.size - 1)
+        // k-vector lookup: map the query bounds to bin indices, read the precomputed
+        // bracketing counts directly from the k-vector array (O(1) array reads).
+        val span = sMax - sMin
+        val binLow = if (span > 1e-12) ((lowClamped - sMin) / span * (n - 1)).toInt().coerceIn(0, n - 1) else 0
+        val binHigh = if (span > 1e-12) ((highClamped - sMin) / span * (n - 1)).toInt().coerceIn(0, n - 1) else 0
 
-        // Refine: expand outward until within range
-        var lowIdx = kLowApprox
-        var highIdx = kHighApprox
-
-        // Adjust lowIdx backward until separation < low or at start
-        while (lowIdx > 0 && sortedSeparations[lowIdx] >= lowClamped) {
+        // K[bin] = index of the LAST element whose separation <= the bin's value.
+        // Lower bound: every element at an index <= K[binLow] is <= binLow's value <= lowClamped,
+        // but elements EQUAL to lowClamped (including duplicates) may sit at or before K[binLow],
+        // so bracket from K[binLow], step BACK over anything still >= lowClamped, then step
+        // FORWARD over anything still < lowClamped. Upper bound: elements <= highClamped may
+        // extend past K[binHigh], so step FORWARD from it. (The correction steps are the
+        // distribution-dependent part documented on the class; correctness is exact.)
+        var lowIdx = kVector[binLow].coerceAtLeast(0)
+        while (lowIdx > 0 && sortedSeparations[lowIdx - 1] >= lowClamped) {
             lowIdx--
         }
-        // Now lowIdx is first index where separation < low (or 0), so next is start
-        while (lowIdx < sortedSeparations.size && sortedSeparations[lowIdx] < lowClamped) {
+        while (lowIdx < n && sortedSeparations[lowIdx] < lowClamped) {
             lowIdx++
         }
 
-        // Adjust highIdx forward
-        while (highIdx < sortedSeparations.size - 1 && sortedSeparations[highIdx] <= highClamped) {
+        var highIdx = kVector[binHigh]
+        while (highIdx + 1 < n && sortedSeparations[highIdx + 1] <= highClamped) {
             highIdx++
         }
-        while (highIdx >= 0 && sortedSeparations[highIdx] > highClamped) {
-            highIdx--
-        }
 
-        // Now lowIdx..highIdx inclusive should be within range, but we need to ensure
         if (lowIdx > highIdx) return emptyList()
-        if (lowIdx >= sortedSeparations.size) return emptyList()
+        if (lowIdx >= n) return emptyList()
         if (highIdx < 0) return emptyList()
 
-        // Final linear scan to collect exactly within range (guarantees no false inclusion)
+        // Final filter guarantees exactness regardless of distribution.
         val result = mutableListOf<SeparationPair>()
         for (i in lowIdx..highIdx) {
             if (i < 0 || i >= sortedPairs.size) continue
@@ -221,15 +238,17 @@ class AngularSeparationIndex(
         return pairs.filter { it.separationRad >= lowRad && it.separationRad <= highRad }
     }
 
-    /**
-     * Expected O(1)-ish behavior vs catalog size:
-     * - Pair computation: O(N^2) for N stars, but limited by maxSeparation cutoff
+    /*
+     * Complexity summary (honest, audit finding B11):
+     * - Pair computation: O(N^2) for N stars, limited by maxSeparation cutoff
      * - Sorting: O(P log P) where P = number of pairs within cutoff (P << N^2 for small cutoff)
      * - k-vector build: O(P)
-     * - Range query: O(1) for index approximation via linear interpolation + O(K) for K results within range
-     *   (K = number of pairs in queried range, typically small)
-     * - Without k-vector, binary search would be O(log P + K)
-     * - So k-vector improves from O(log P) to O(1) for index lookup, significant for large P (real catalog 9k stars → P ~ few million)
-     * - Real benchmarking is open item for when JVM available
+     * - Range query: O(1) bracketing reads + O(correction) linear steps + O(K) to emit the
+     *   K results in range. Correction is small for near-uniform separation distributions but
+     *   is NOT bounded by a constant: on skewed/clustered distributions it degrades toward
+     *   O(P). Compared to plain binary search (O(log P + K)), the k-vector trades a hard
+     *   O(log P) bound for O(1)-typical with a linear worst case. A real 9k-star catalog
+     *   benchmark remains an open item (first real JVM execution only became possible
+     *   during the 2026-09-03 remediation pass).
      */
 }

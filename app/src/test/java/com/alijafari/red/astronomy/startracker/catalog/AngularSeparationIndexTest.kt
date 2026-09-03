@@ -135,4 +135,73 @@ class AngularSeparationIndexTest {
         // Real benchmarking is open item for when JVM available
         assertTrue(true) // This test is for documentation, always passes
     }
+
+    // ---- Audit finding B11: k-vector must be used by the query and stay exact on
+    // ---- NON-UNIFORM (clustered) separation distributions, matching brute force exactly.
+
+    private fun clusteredFixtureStars(): List<CatalogStar> {
+        // Two tight clusters (intra-cluster separations ~0.5-3 deg) far apart (~90 deg),
+        // plus isolated stars: a strongly non-uniform separation distribution.
+        val stars = mutableListOf<CatalogStar>()
+        var id = 0
+        fun add(raDeg: Double, decDeg: Double) {
+            stars.add(CatalogStar("C" + id++, Math.toRadians(raDeg), Math.toRadians(decDeg), 3.0, "FIX"))
+        }
+        // cluster A around (0,0)
+        for (i in 0 until 8) add(i * 0.7, (i % 3) * 0.5)
+        // cluster B around (120,40), far from A
+        for (i in 0 until 8) add(120.0 + i * 0.6, 40.0 + (i % 4) * 0.4)
+        // isolated stars at varied distances
+        add(60.0, 20.0); add(200.0, -30.0); add(300.0, 60.0); add(10.0, -60.0)
+        return stars
+    }
+
+    @Test
+    fun testKVectorQueryExactOnNonUniformDistribution() {
+        val stars = clusteredFixtureStars()
+        val index = AngularSeparationIndex(stars, maxSeparationRad = Math.PI) // index everything
+        assertTrue("clustered fixture must produce a non-trivial pair set, got " + index.pairs.size,
+            index.pairs.size >= 50)
+
+        // Sweep many range windows across the full separation span and demand EXACT equality
+        // with brute force (same separations, same multiset), not just equal counts.
+        val sMin = index.sortedSeparations.first()
+        val sMax = index.sortedSeparations.last()
+        val span = sMax - sMin
+        var windows = 0
+        for (i in 0 until 40) {
+            val lo = sMin + span * i / 80.0
+            val hi = sMin + span * (i + 3) / 80.0
+            val viaKVector = index.queryRange(lo, hi).map { it.separationRad }.sorted()
+            val viaBrute = index.queryRangeBruteForce(lo, hi).map { it.separationRad }.sorted()
+            assertEquals("k-vector query must exactly match brute force on NON-UNIFORM fixture window " + lo + ".." + hi,
+                viaBrute, viaKVector)
+            windows++
+        }
+        println("k-vector vs brute force on clustered (non-uniform) fixture: " + windows + " windows, all exact matches")
+    }
+
+    @Test
+    fun testKVectorQueryExactOnUniformDistribution() {
+        // Grid fixture: roughly uniform separations; same exact-equality sweep.
+        val stars = mutableListOf<CatalogStar>()
+        var id = 0
+        for (ra in 0 until 6) {
+            for (dec in 0 until 6) {
+                stars.add(CatalogStar("U" + id++, Math.toRadians(ra * 8.0), Math.toRadians(dec * 8.0 - 20.0), 3.0, "FIX"))
+            }
+        }
+        val index = AngularSeparationIndex(stars, maxSeparationRad = Math.PI)
+        val sMin = index.sortedSeparations.first()
+        val sMax = index.sortedSeparations.last()
+        val span = sMax - sMin
+        for (i in 0 until 30) {
+            val lo = sMin + span * i / 60.0
+            val hi = sMin + span * (i + 2) / 60.0
+            val viaKVector = index.queryRange(lo, hi).map { it.separationRad }.sorted()
+            val viaBrute = index.queryRangeBruteForce(lo, hi).map { it.separationRad }.sorted()
+            assertEquals(viaBrute, viaKVector)
+        }
+        println("k-vector vs brute force on uniform grid fixture: 30 windows, all exact matches")
+    }
 }
