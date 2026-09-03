@@ -46,9 +46,15 @@ all other docs' copies are stamped SUPERSEDED). Harness disclosure =
   pairs, 7.5 s build, **74.5 MiB serialized (MEASURED)**; the quad index is
   **infeasible as implemented** — measured-extrapolated ~1.28×10¹¹ quads ≈ 10.2 TB at
   9,110 stars, O(N⁴) build (~9.5 days extrapolated), heap-OOM at just 800 stars.
-  Earlier claims — "10-30 MB" (unexecuted guess, ~300,000× off) and "3.79/6.69 GB"
-  (estimator output under a quad model now measured to be ~2,900× optimistic) — are
-  corrected everywhere. Evidence: `evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt`.
+  Earlier claims — "10-30 MB" (unexecuted guess, ~300,000× off; roughly right only for
+  a CAPPED index, which was never implemented) and "3.79/6.69 GB" (estimator output
+  under a quad model now measured to be ~2,900× optimistic) — are corrected everywhere.
+  ALGORITHMIC STATUS: QuadPatternIndex as written enumerates all 3-subsets in the
+  40-deg cutoff cone (O(N⁴), quads/star ∝ N³) — NOT the Tetra3 k-NN scheme the docs
+  describe; MAX_STARS_PER_REGION_FOR_QUADS is declared and never read; Phase 3 is
+  complete at fixture scale only — the real-scale index build is UNIMPLEMENTED
+  (neighbour cap is the prerequisite; capped cost: tens of MB, k=5/6/8 → 7.3/14.6/40.8 MB
+  at 9,110 stars). Evidence: `evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt` (+ A1 addendum).
 - **Fabricated validation evidence replaced (pass 1):** the invented "Headline
   Accuracy Numbers" table and Tetra3 comparison in PHASE3_4_5_6_FINAL_REPORT.md were
   replaced with the real executed ValidationMatrixRunner matrix; the placeholder
@@ -70,7 +76,7 @@ executable there (Android/Compose dependency); those tests have still NEVER run.
 | 0 | Baseline audit | read-only | n/a | n/a |
 | 1 | Refraction & FOV consolidation | 63.5° fallback constant; timestamp plumbing; camera observer wiring | RefractionTest YES (6/6 green; "4 tests" was a miscount); HeroSkyProjectionTest YES from pass 1 (7/7 after PHASE9 fix); OrientationProvider/CompassARScreen diffs NOT compiled (Android) | green |
 | 2 | Star detection | 6 files | YES — all 6 test files in the 137 | green (incl. pass-1 Centroider B4 fixes) |
-| 3 | Catalog | 6 files | YES — all 4 test files in the 137 | green; size truth now measured (§1) |
+| 3 | Catalog | 6 files | YES — all 4 test files in the 137 (fixture scale) | green at fixture scale; real-scale quad index build UNIMPLEMENTED (uncapped O(N⁴); cap prerequisite + tens-of-MB capped cost in §1 and CATALOG_SOURCING 4b-prereq) |
 | 4 | Solver | 6 files + synthetic | YES — AttitudeSolverTest, SyntheticSkyObserverTest, LostInSpaceSolverTest in the 137 | green; the old "27 arcsec" python claim REPRODUCED (27.36″) with numpy 2.4.6 |
 | 5 | Tracking loop | 7 files | YES — ConfidenceStateMachineTest, QuaternionIntegratorTest, RelockPolicyTest, TrackingLoopTest in the 137 | green (after B2/B3, B6/B7 fixes) |
 | 6 | Fusion (gated) | StarTrackerConfig flag OFF; AttitudeBlender | YES — AttitudeBlenderTest in the 137 | green (after const-flag testability fix; acquisition behavior documented, awaiting owner decision) |

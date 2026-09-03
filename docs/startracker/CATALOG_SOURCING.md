@@ -57,6 +57,14 @@ Candidate sources for bright-star extract:
 - **Phone camera sensitivity:** Handheld phone camera (main camera, ~f/1.8, ISO 800-3200, exposure 1/30s to 1s) can detect stars down to magnitude ~6-7 under dark sky, maybe mag 4-5 under light pollution. Fainter stars (mag >7) are not reliably detectable, so including them in catalog wastes storage and increases false matches.
 - **Star density:** At mag ≤6.5, average density = 9,110 stars / 41,253 sq deg (full sky) ≈ 0.22 stars/sq deg. A 60°×40° FOV covers ~2,400 sq deg (rectilinear approximation), so ~530 catalog stars per frame worst-case; realistically 20-100 detectable due to sensitivity and light pollution. Manageable for quad search.
 - **Filtering the index builders actually apply (resolves the old '44M quads worst-case ... realistically few million' contradiction):** NONE. Verified in code and by measurement: `AngularSeparationIndex` filters pairs only by MIN/MAX_PAIR_SEPARATION (0.1-40 deg); `QuadPatternIndex` enumerates every C(N,4) combination passing the same separation window. There is no magnitude filter, no region filter, and no per-star quad cap in either builder (`MAX_STARS_PER_REGION_FOR_QUADS` is declared but unused). So the 'realistically few million' hedge had no mechanism behind it - the single real number is the measured-extrapolated ~1.28e11 quads at 9,110 stars (and 4,851,922 measured pairs). Any 'few million' outcome requires IMPLEMENTING a cap first.
+
+- **ALGORITHMIC REFRAME (pass 3, item R3-A2):** QuadPatternIndex as written enumerates
+  ALL 3-subsets of neighbours inside the 40-deg cutoff cone around each star (brute-force
+  O(N^4) build; quads/star grows ∝ N^3 - measured 504/1,112/2,308/3,973 at N=300/400/500/600,
+  ~14.6M at 9,110 by the exact combinatorial model). That is NOT the Tetra3-style
+  k-nearest-neighbour pattern scheme the phase docs describe: CatalogBuildConfig.
+  MAX_STARS_PER_REGION_FOR_QUADS is declared and NEVER READ. **Phase 3 is therefore
+  'complete at fixture scale only - the real-scale index build is UNIMPLEMENTED'.**
 - **Catalog size vs. performance (2026-09-03 pass-2 measurements, see evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt):** MEASURED with the real builders (uniform synthetic stars, seed 42, CatalogBuildConfig defaults): pair index at 9,110 stars = 4,851,922 pairs, 7.5 s build, stars+pairs serialize to 78,094,272 B = 74.5 MiB; at 15,000 stars = 13,156,786 pairs, 201 MiB. Quad builder MEASURED at 300/400/500/600 stars (151k/445k/1.15M/2.38M quads, 79.93 B/quad, O(N⁴) build, heap-OOM at 800 stars / 2.8 GB); EXTRAPOLATED from those measured points to 9,110 stars: ~1.28×10¹¹ quads ≈ 10.2 TB serialized, ~9.5 days build (15,000: ~9.4×10¹¹ ≈ 75 TB). The pass-1 figures '3.79 GB / 6.69 GB' were NOT measurements - they were the CatalogSerializer estimator's output under the Task-4 'N×19600/4' quad model, which is now MEASURED to be ~2,900× optimistic (real trend: ~14M quads/star at 9k scale, no cap exists in code). The original '~10-30 MB' claim was ~300,000× off. NOT shippable as-is: the quad builder needs a per-region cap (CatalogBuildConfig.MAX_STARS_PER_REGION_FOR_QUADS exists but is unused) and a smaller encoding; the pair-only index (74.5 MiB @ 9k) is a shippable size on its own.
 - **Comparison to existing display catalog:** ZIG's `StarCatalog.kt` has only 43 hand-written stars — this new catalog is SEPARATE, NEW asset for plate-solving, NOT merged/replaced. Display catalog remains for UI, plate-solving catalog is for solver.
 
@@ -66,6 +74,26 @@ Candidate sources for bright-star extract:
 
 **Conclusion:** 9k-15k stars mag ≤6.5-7.0 is sweet spot for handheld phone star tracker.
 
+### 4b-prereq. PREREQUISITE for any real-scale quad index: implement a neighbour cap (moved here from 'Size options' pass 3)
+
+The per-star neighbour cap is NOT a size option - it is a PREREQUISITE for building the
+quad index at catalog scale at all. As written the builder is O(N^4) with no cap
+(MAX_STARS_PER_REGION_FOR_QUADS declared, never read): ~9.5 days and heap-OOM at 800
+stars in 2.8 GB (measured). Implementing a Tetra3-style cap (k nearest / brightest
+neighbours per star, quads = star + C(k,3) triples) makes quads/star EXACTLY C(k,3) and
+the cost, at the MEASURED 79.9 B/quad for 9,110 stars:
+
+  k=5: C(5,3)=10  ->  91,100 quads  ->   7.3 MB   (+ the measured 74.5 MiB pair section)
+  k=6: C(6,3)=20  -> 182,200 quads  ->  14.6 MB
+  k=8: C(8,3)=56  -> 510,160 quads  ->  40.8 MB
+
+i.e. a capped index lands in the TENS OF MB. For the record: the original "10-30 MB"
+doc guess was roughly right FOR A CAPPED INDEX - it was wrong in fact only because the
+cap was never implemented (uncapped reality: ~10.7 TB at 9,110 stars by the exact
+combinatorial model, evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt addendum). A cap
+changes recall (some true quads missing) and must be validated against solve success
+rate - it is new algorithm work, deliberately NOT implemented in the remediation passes.
+
 ### 4a. Size options (OPTIONS, not decisions - measured unit costs so a reader can do the arithmetic)
 
 Measured serialized unit costs (real serializer format, see
@@ -74,20 +102,14 @@ docs/startracker/evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt):
   pair  = 16 B    (double + int + int)
   quad  ~79.93 B  (4 ints + 6 doubles + quantized-key string)
   pair count @ 9,110 uniform stars: 4,851,922 MEASURED (~0.0585 x N^2 ... exactly: 11.7% of C(N,2) lie within the 40 deg window)
-  quad count @ 9,110: ~1.28e11 EXTRAPOLATED from measured 300-600-star builds (no cap in code)
+  quad count @ 9,110: ~1.33e11 by the exact combinatorial model f(40deg)*N*C(k,3), f measured (no cap in code) - ~10.7 TB
 
 - **Option A - star list only, build indexes on device at first launch.**
   Ship just stars: measured 463,504 B for 9,110 synthetic stars (~0.46 MB; i.e. ~50.9 B/star,
   dominated by string ids - integer ids would cut it to ~32-36 B/star => ~0.33 MB).
   Cost: on-device pair build measured at 7.5 s for 9,110 stars (JVM, single thread) - a
   one-time launch cost; the quad build is NOT viable on device as implemented (O(N^4),
-  would take days), so this option only works paired with a capped quad strategy (B/C).
-- **Option B - cap neighbours/quads per star (use the existing-but-unused
-  CatalogBuildConfig.MAX_STARS_PER_REGION_FOR_QUADS, or a neighbours-per-star cap).**
-  E.g. top-K brightest neighbours within the 40 deg window with K=10 gives at most
-  C(K,3)-ish quads per star ~O(10^4-10^5) total quads => ~1-10 MB at 80 B/quad. This is
-  the knob that turns the 10 TB extrapolation into a shippable asset; it changes recall
-  (some true quads missing) and needs validation against solve success rate.
+  would take days), so this option only works paired with the capped quad strategy (PREREQUISITE 4b-prereq above).
 - **Option C - smaller numeric encodings.** float32 instead of float64 for
   separations/ratios halves the doubles (16 B of the quad's 80 B); ratio quantization to
   uint16 (ratios are in [0,1]) saves ~24 B more; dropping the string quantizedKey from
@@ -106,7 +128,7 @@ These are options for the eventual implementer, not decisions taken in this pass
 2. Filter to magnitude ≤6.5 (or 7.0) to get ~9k-15k stars.
 3. Convert to CSV format `id,ra_deg,dec_deg,magnitude` per spec above (RA in degrees 0-360, Dec -90 to +90, J2000).
 4. Validate with `CatalogIngestor.parse()` — should parse without errors.
-5. Build offline index via `AngularSeparationIndex` and `QuadPatternIndex` with `CatalogBuildConfig` defaults.
+5. Build the offline pair index via `AngularSeparationIndex` with `CatalogBuildConfig` defaults (MEASURED at 9,110 stars: 4,851,922 pairs, 7.5 s, 74.5 MiB - safe to run). Do NOT build `QuadPatternIndex` at catalog scale with current defaults: it is uncapped O(N^4) - measured ~9.5 days extrapolated and heap-OOM at just 800 stars. Implement the neighbour cap first (see 'PREREQUISITE' 4b-prereq in Section 4; capped cost lands in tens of MB).
 6. Serialize via `CatalogSerializer.serialize()` to binary asset, ship as Android asset (e.g., `app/src/main/assets/startracker_catalog.bin`).
 7. Measure the real file size on the real (BSC5) star list. For reference, synthetic-uniform measurements already exist: pair index 74.5 MiB @ 9,110 stars (see docs/startracker/evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt); the quad index is infeasible as implemented (~10.2 TB extrapolated) and must not be built without a per-region cap.
 

@@ -44,7 +44,7 @@ This manifest lists every file created or modified for star tracker, organized b
 - `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/CatalogStar.kt` — catalog star data class, raRad/decRad/mag, toUnitVector()
 - `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/CatalogIngestor.kt` — ingestor from CSV fixture
 - `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/AngularSeparationIndex.kt` — k-vector index for pair matching: O(1) bracketing + distribution-dependent correction walk (near-uniform: small; clustered worst case: O(P)) + O(K) emit; exact results
-- `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/QuadPatternIndex.kt` — quad descriptor index
+- `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/QuadPatternIndex.kt` — quad descriptor index. PASS-3 REFRAME: as written enumerates ALL 3-subsets in the 40-deg cutoff cone (O(N⁴) build, quads/star ∝ N³) - NOT the Tetra3 k-NN scheme; MAX_STARS_PER_REGION_FOR_QUADS declared, never read; complete at fixture scale only, real-scale index build UNIMPLEMENTED (cap prerequisite; capped cost tens of MB - evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt)
 - `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/CatalogSerializer.kt` — serializer
 - `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/CatalogBuildConfig.kt` — named constants, conservative defaults flagged UNVALIDATED
 - Tests: `CatalogIngestorTest`, `AngularSeparationIndexTest`, `QuadPatternIndexTest`, `CatalogSerializerTest` (4 files)

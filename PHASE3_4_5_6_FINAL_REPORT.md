@@ -102,6 +102,14 @@
 - Performance reasoning (CORRECTED 2026-09-03, audit B11): pairs O(N²) limited by cutoff, sorting O(P log P), k-vector build O(P); query = O(1) bracketing reads + O(correction) linear steps + O(K) emit. The correction walk is small for near-uniform separation distributions but is NOT bounded by a constant - on skewed/clustered distributions it degrades toward O(P) (linear in indexed pairs). The original flat 'O(1)' claim was wrong; vs binary search O(log P + K) the k-vector trades a hard O(log P) bound for O(1)-typical with a linear worst case. (Historical note: the original text here claimed 'query O(1)+O(K) vs binary O(log P)+O(K), for 9k stars P~4.7M, saves ~22 steps per query'.)
 
 **QuadPatternIndex.kt (230 lines):**
+
+> **PASS-3 CORRECTION (2026-09-04, item R3-A2):** the scheme described below is what the
+> docs INTENDED (Tetra3-style neighbour-limited patterns), not what the code DOES. As
+> written the builder enumerates ALL 3-subsets inside the 40-deg cutoff cone — O(N⁴)
+> build, quads/star ∝ N³ (measured 504→3,973 for N=300→600; ~14.6M/star at 9,110 by the
+> exact combinatorial model ≈ 10.7 TB). MAX_STARS_PER_REGION_FOR_QUADS is declared and
+> never read. Phase 3 is complete at fixture scale only — real-scale index build
+> UNIMPLEMENTED; a neighbour cap is the prerequisite (capped index: tens of MB).
 - Quad formation: 4 stars → 6 separations, max as baseline, 5 ratios = otherSeps/max, sorted ascending → scale/rotation invariant, Tetra3 lineage, documented why.
 - Hash quantization: bin ratios via floor(ratio/binWidth), key "bin0-bin1-...", binWidth default 0.01 conservative unvalidated.
 - Offline construction: enumerate quads where all 6 seps within [min,max] (brute-force for fixture, for real catalog would use nearby search via pair index), document quad count for fixture.
