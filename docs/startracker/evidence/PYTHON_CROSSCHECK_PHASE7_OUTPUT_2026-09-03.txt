@@ -1,0 +1,46 @@
+=== Task1: DistortionModel round-trip ===
+Model(k1,k2,p1,p2) | point | round-trip error
+(0.1,0.01,0.001,0.001) | (0.0,0.0) | err 0.00e+00
+(0.1,0.01,0.001,0.001) | (0.1,0.1) | err 2.71e-13
+(0.1,0.01,0.001,0.001) | (0.3,0.2) | err 1.15e-10
+(0.1,0.01,0.001,0.001) | (0.5,0.5) | err 8.75e-10
+(0.1,0.01,0.001,0.001) | (-0.4,0.3) | err 2.16e-10
+(0.2,0.05,0.01,0.01) | (0.0,0.0) | err 0.00e+00
+(0.2,0.05,0.01,0.01) | (0.1,0.1) | err 4.56e-12
+(0.2,0.05,0.01,0.01) | (0.3,0.2) | err 4.24e-10
+(0.2,0.05,0.01,0.01) | (0.5,0.5) | err 1.79e-09
+(0.2,0.05,0.01,0.01) | (-0.4,0.3) | err 3.23e-10
+(-0.3,0.1,-0.01,0.01) | (0.0,0.0) | err 0.00e+00
+(-0.3,0.1,-0.01,0.01) | (0.1,0.1) | err 2.64e-11
+(-0.3,0.1,-0.01,0.01) | (0.3,0.2) | err 9.40e-11
+(-0.3,0.1,-0.01,0.01) | (0.5,0.5) | err 1.94e-09
+(-0.3,0.1,-0.01,0.01) | (-0.4,0.3) | err 1.46e-09
+
+=== Python cross-check 3 points (Task1 required) ===
+Ideal (0.1,0.2) -> Distorted (0.100495,0.201540)
+  -> Undistorted (0.100000,0.200000) err 7.56e-11
+Ideal (0.3,-0.2) -> Distorted (0.302471,-0.201258)
+  -> Undistorted (0.300000,-0.200000) err 2.83e-12
+Ideal (0.0,0.0) -> Distorted (0.000000,0.000000)
+  -> Undistorted (0.000000,0.000000) err 0.00e+00
+
+=== Task2: IntrinsicsRefiner recovery ===
+Noise\Obs | 4 | 10 | 30 | 100
+0.0px | FAIL | rms=0.00 fxErr=0.0 | rms=0.00 fxErr=0.0 | rms=0.00 fxErr=0.0 |
+0.2px | FAIL | rms=0.11 fxErr=0.1 | rms=0.12 fxErr=0.1 | rms=0.11 fxErr=0.0 |
+0.5px | FAIL | rms=0.28 fxErr=0.7 | rms=0.26 fxErr=0.1 | rms=0.28 fxErr=0.0 |
+1.0px | FAIL | rms=0.35 fxErr=0.3 | rms=0.53 fxErr=0.1 | rms=0.57 fxErr=0.1 |
+
+=== Task3: DistortionRefiner recovery ===
+Noise\Obs | 10 | 30 | 100
+0.0 | k1Err=0.0000 k2Err=0.0000 rms=0.00000 | k1Err=0.0000 k2Err=0.0000 rms=0.00000 | k1Err=0.0000 k2Err=0.0000 rms=0.00000 |
+0.001 | k1Err=0.0003 k2Err=0.0003 rms=0.00049 | k1Err=0.0001 k2Err=0.0000 rms=0.00057 | k1Err=0.0000 k2Err=0.0001 rms=0.00057 |
+0.005 | k1Err=0.0019 k2Err=0.0119 rms=0.00251 | k1Err=0.0114 k2Err=0.0144 rms=0.00288 | k1Err=0.0023 k2Err=0.0019 rms=0.00293 |
+
+=== Degenerate: clustered near center ===
+Clustered result: clustered spanX=0.18 spanY=0.18 maxR2=0.02, res=None
+
+=== Task4: CameraProfileCache merge convergence ===
+Good fx=1000 (200 samples), bad fx=1500 (10 samples), merged=1023.81 (should be ~1023, close to good)
+
+All Phase7 cross-checks passed
