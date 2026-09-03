@@ -152,6 +152,10 @@ low, high = math.radians(0.9), math.radians(1.1)
 k_low = int(m*low+q)
 k_high = int(m*high+q)
 print(f"Query 0.9°-1.1°: k_low approx {k_low}, k_high approx {k_high}")
+# NOTE (R3-B1, 2026-09-04): the two O(1) claims printed below reflect the ORIGINAL
+# Phase-3 complexity belief, superseded by audit B11 - the Kotlin query is O(1) bracketing
+# + a distribution-dependent correction walk (worst case O(P)). The printed lines are kept
+# VERBATIM because this script's output is preserved evidence; do not "fix" the strings.
 print("Then refine by expanding outward until within range — O(1) approx + O(K) results")
 print("Without k-vector, binary search O(log P) ≈ log2(10)=3.3 steps + O(K)")
 print("For P=4.7M pairs (9000 stars), binary search ~22 steps, k-vector saves ~22 steps per query")
