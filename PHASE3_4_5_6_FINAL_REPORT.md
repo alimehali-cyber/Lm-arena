@@ -89,8 +89,8 @@
 **AngularSeparationIndex.kt (250 lines):**
 - Separation via haversine numerically stable: `a=sin²((dec2-dec1)/2)+cos(dec1)cos(dec2)sin²((ra2-ra1)/2)`, `c=2*asin(sqrt(a))`, plus dot-product cross-check.
 - Pair index: all pairs within [min,max], sorted, k-vector with linear interpolation m=(n-1)/(sMax-sMin), q=-m*sMin, K array for range search.
-- Range query `queryRange(low,high)` uses k-vector O(1) approx + O(K) results, exact no false inclusion/omission, plus brute-force for validation.
-- Performance reasoning: pairs O(N²) limited by cutoff, sorting O(P log P), k-vector O(P), query O(1)+O(K) vs binary O(log P)+O(K), for 9k stars P~4.7M, saves ~22 steps per query.
+- Range query `queryRange(low,high)`: k-vector bracketing + exact filtering, verified exact (no false inclusion/omission) against brute force in tests on uniform AND clustered distributions, plus brute-force for validation.
+- Performance reasoning (CORRECTED 2026-09-03, audit B11): pairs O(N²) limited by cutoff, sorting O(P log P), k-vector build O(P); query = O(1) bracketing reads + O(correction) linear steps + O(K) emit. The correction walk is small for near-uniform separation distributions but is NOT bounded by a constant - on skewed/clustered distributions it degrades toward O(P) (linear in indexed pairs). The original flat 'O(1)' claim was wrong; vs binary search O(log P + K) the k-vector trades a hard O(log P) bound for O(1)-typical with a linear worst case. (Historical note: the original text here claimed 'query O(1)+O(K) vs binary O(log P)+O(K), for 9k stars P~4.7M, saves ~22 steps per query'.)
 
 **QuadPatternIndex.kt (230 lines):**
 - Quad formation: 4 stars → 6 separations, max as baseline, 5 ratios = otherSeps/max, sorted ascending → scale/rotation invariant, Tetra3 lineage, documented why.

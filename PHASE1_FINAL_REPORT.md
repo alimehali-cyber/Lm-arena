@@ -279,7 +279,7 @@ curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to services.grad
 **Existing tests after changes:**
 - Same 3 tests still pass (no production logic change to projection).
 - New tests:
-  - `RefractionTest` (4 tests) — should pass per manual calculation (cannot run, but logic matches Sæmundsson tables)
+  - `RefractionTest` (actually 6 @Test methods, count corrected 2026-09-03) — should pass per manual calculation (cannot run, but logic matches Sæmundsson tables). [All 6 now executed green in the offline harness, pass 1.]
   - `HeroSkyProjectionTest.testNorthernHemisphereEastWestOrdering` — should PASS
   - `HeroSkyProjectionTest.testSouthernHemisphereEastWestOrdering_MirroredExpectation` — **expected FAIL** (documents bug)
   - `HeroSkyProjectionTest.testSouthernHemisphereActualBehavior_Diagnostic` — should PASS

@@ -31,7 +31,7 @@ This manifest lists every file created or modified for star tracker, organized b
 
 - `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/CatalogStar.kt` — catalog star data class, raRad/decRad/mag, toUnitVector()
 - `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/CatalogIngestor.kt` — ingestor from CSV fixture
-- `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/AngularSeparationIndex.kt` — k-vector index for pair matching O(1)
+- `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/AngularSeparationIndex.kt` — k-vector index for pair matching: O(1) bracketing + distribution-dependent correction walk (near-uniform: small; clustered worst case: O(P)) + O(K) emit; exact results
 - `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/QuadPatternIndex.kt` — quad descriptor index
 - `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/CatalogSerializer.kt` — serializer
 - `app/src/main/java/com/alijafari/red/astronomy/startracker/catalog/CatalogBuildConfig.kt` — named constants, conservative defaults flagged UNVALIDATED
@@ -114,7 +114,7 @@ This manifest lists every file created or modified for star tracker, organized b
 
 Per Phase3 ABSOLUTE SCOPE BOUNDARY and Phase1-2 constraints:
 
-- Liquid Glass, Time Machine, Compose layout/styling/animation, screens not explicitly named, icons/splash/drawables/mipmaps/branding/Persian, Satellite/ISS/SGP4, com.zig.gravity, StarCatalog.kt/CanonicalAstroCatalog.kt/DeepSkyCatalog.kt/AsterismCatalog.kt (43-star DISPLAY catalogs), CoordinateEngine/CoordinateEngineLegacy/FrameTransformationEngine/OrientationProvider/ARCalibrationManager/CompassARScreen.kt/CameraFrameObserver.kt (except Phase6/7/9 narrow gated exceptions documented as patches, not live), GrayscaleImage.kt etc Phase2 detection module read-only after Phase2
+- Liquid Glass, Time Machine, Compose layout/styling/animation, screens not explicitly named, icons/splash/drawables/mipmaps/branding/Persian, Satellite/ISS/SGP4, com.zig.gravity, StarCatalog.kt/CanonicalAstroCatalog.kt/DeepSkyCatalog.kt/AsterismCatalog.kt (43-star DISPLAY catalogs), CoordinateEngine/ARCalibrationManager (never touched). CORRECTION (pass 2, item A3(c)): five files WERE touched in Phase 1 with small disclosed changes - OrientationProvider.kt (timestampNanos field+threading), ARProjectionEngine.kt (fallback-FOV consolidation + tier logging), CoordinateEngineLegacy.kt (comment rename R_bennett->R_saemundsson, no numeric change), FrameTransformationEngine.kt (docstring only), CompassARScreen.kt (CameraFrameObserver wiring + ImageAnalysis binding, now flag-gated). Full table with diff evidence: PROJECT_STATUS_END_OF_IMPLEMENTATION.md 'Forbidden Scope' section. PHASE6/PHASE7 gated patches remain NEVER APPLIED; PHASE9 applied pass 1, kept pass 2, GrayscaleImage.kt etc Phase2 detection module read-only after Phase2
 
 ## New Packages Summary
 
@@ -127,7 +127,7 @@ Per Phase3 ABSOLUTE SCOPE BOUNDARY and Phase1-2 constraints:
 - `startracker.diagnostics` — 7 files (FailureReason, FrameQualityClassifier, AmbiguityDetector, UserGuidanceHint, ConfidenceLadderCoordinator, RelativeBearing, BearingCrossCheck)
 - `startracker.validation` — 2 files
 
-Total new files: ~42 Kotlin files + ~20 test files + 4 python cross-checks + 7 docs
+Total new files: ~42 Kotlin files + ~20 test files + 6 python cross-checks (phase 2, 3, 4, 7, 9, 10) + 7 docs
 
 ## Environment Status
 

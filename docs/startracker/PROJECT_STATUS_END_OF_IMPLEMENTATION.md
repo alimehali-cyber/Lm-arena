@@ -169,6 +169,25 @@ Star tracker implementation from Phase 0 baseline audit through Phase 10 full-st
 
 ## Forbidden Scope — Never Touched (Per Phase3 Absolute Boundary)
 
+### Correction (2026-09-03 pass 2, item A3(c)): five of these files WERE touched in Phase 1
+
+Diffed against the pre-project base commit 60928ba. Actual Phase-1 changes, separating
+"small disclosed Phase-1 change, applied" from "gated patch, never applied":
+
+| File | Actual Phase-1 change (applied) | Gated patch status |
+|---|---|---|
+| OrientationProvider.kt | Task 4: added `timestampNanos` to SkyOrientation (incl. equals/hashCode - equality participation later removed in pass-2 item A1(b) to restore StateFlow conflation) and threaded sensor timestamps through processRotationVectorEvent/processAccelMag. ~26 insertions. | PHASE6 star-blend wiring: NEVER APPLIED |
+| ARProjectionEngine.kt | Task 5: consolidated the two hardcoded fallback FOVs (63.5 vertical / 55.0 horizontal) into one named constant DEFAULT_FALLBACK_FOV_DEG=63.5, and added rate-limited intrinsics-tier debug logging. No projection math changed. | PHASE7 SELF_CALIBRATED_CACHED tier: NEVER APPLIED |
+| CoordinateEngineLegacy.kt | Comment/variable rename only: R_bennett -> R_saemundsson with literature citation (the formula's coefficients 10.3/5.11 are Saemundsson's; Bennett's are 7.31/4.4). Numeric behavior identical. | none |
+| FrameTransformationEngine.kt | Docstring clarification only (Task 1.3): documented that applyRefraction is true->apparent direction; no code change. | none |
+| CompassARScreen.kt | Task 3/4: added CameraFrameObserver instance + DisposableEffect shutdown + LaunchedEffect(sensor-timestamp feed), and bound the ImageAnalysis use case to the camera (previously Preview-only). The ImageAnalysis binding is now gated behind StarTrackerConfig.ENABLED (pass-2 item A1(a), static diff, unexecuted). | PHASE9 (HeroSkyProjection.kt, not this file): applied pass 1, kept pass 2 |
+
+Everything else in the forbidden list (Liquid Glass, Time Machine, Compose UI/layout/
+styling, icons, Persian, satellite/SGP4, com.zig.gravity, hand-written display catalogs,
+CameraFrameObserver.kt itself which was NEW in Phase 1 as an isolated class) remains
+untouched.
+
+
 - Liquid Glass, Time Machine, Compose layout/styling/animation, screens not explicitly named, icons/splash/drawables/mipmaps/branding/Persian, Satellite/ISS/SGP4, com.zig.gravity, StarCatalog.kt/CanonicalAstroCatalog.kt/DeepSkyCatalog.kt/AsterismCatalog.kt (43-star DISPLAY catalogs), CoordinateEngine/CoordinateEngineLegacy/FrameTransformationEngine/OrientationProvider/ARCalibrationManager/CompassARScreen.kt/CameraFrameObserver.kt (except narrow gated exceptions documented as patches), GrayscaleImage.kt etc Phase2 detection module read-only after Phase2
 - Phase7 new package calibration only + gated ARProjectionEngine exception
 - Phase9 narrow exception HeroSkyProjection

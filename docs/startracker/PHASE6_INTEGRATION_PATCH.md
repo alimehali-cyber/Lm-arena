@@ -163,7 +163,7 @@ Per Phase 0 audit, these must pass both before and after applying patch (with fl
 - SatelliteARConsistencyTest (if exists)
 - AstroTimeTest (if exists)
 - SGP4PropagatorTest (if exists)
-- RefractionTest (added Phase 1, 4 tests)
+- RefractionTest (added Phase 1; actually 6 @Test methods - the '4 tests' claim was wrong; count corrected 2026-09-03; all 6 green in the offline harness)
 - GrayscaleImageTest, SyntheticStarFieldGeneratorTest, BackgroundEstimatorTest, StarBlobDetectorTest, CentroiderTest, StarDetectionPipelineTest (Phase 2, 6 files)
 - CatalogIngestorTest, AngularSeparationIndexTest, QuadPatternIndexTest, CatalogSerializerTest (Phase 3, 4 files)
 - SyntheticSkyObserverTest, AttitudeSolverTest (Phase 4, 2 files)
