@@ -67,8 +67,18 @@ class LostInSpaceSolver(
             }
         }
 
-        // Deduplicate correspondences by observed id (keep first)
-        val deduped = allCorrespondences.distinctBy { it.observed.id }
+        // Deduplicate correspondences (keep first).
+        // Audit finding B5: this previously keyed on observed.id alone. StarObservation.id defaults
+        // to "", so on any adapter path that does not assign ids (e.g. a future detection->solver
+        // adapter), EVERY observation shared the key "" and the whole correspondence set collapsed
+        // to a single entry ("Too few correspondences after deduplication: 1") even with a sky full
+        // of stars. Key is now: explicit non-blank id when present (a star genuinely observed twice
+        // still collapses to one correspondence), otherwise per-object identity, which cannot
+        // collide by construction.
+        val deduped = allCorrespondences.distinctBy { corr ->
+            val oid = corr.observed.id
+            if (oid.isNotBlank()) "id:$oid" else "ref:${System.identityHashCode(corr.observed)}"
+        }
 
         if (deduped.size < 2) {
             return SolveResult(false, null, 0, 0.0, "Too few correspondences after deduplication: ${deduped.size}")
