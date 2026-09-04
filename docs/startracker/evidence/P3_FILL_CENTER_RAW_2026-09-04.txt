@@ -1,0 +1,15 @@
+tier=FALLBACK_DEFAULT fx=872.6302761258614 fy=872.6302761258614 array=1920x1080 sensorOri=90
+center                       px/deg= 19.038  radial=    0.0px  theta= 0.00deg  gnomonic f*sec^2= 19.038  ratio=1.0000
+horizontal edge x=540        px/deg= 23.705  radial=  540.0px  theta=26.34deg  gnomonic f*sec^2= 23.704  ratio=1.0000
+vertical edge y=1200         px/deg= 42.112  radial= 1200.9px  theta=47.75deg  gnomonic f*sec^2= 42.112  ratio=1.0000
+corner (540,1200)            px/deg= 44.585  radial= 1185.8px  theta=47.39deg  gnomonic f*sec^2= 41.538  ratio=1.0734
+
+FILL_CENTER: netRot=90 -> wRot=1080 hRot=1920; scale=max(1080/1080,2400/1920)=1.25
+shown sensor px: width 1080/1.25=864 of 1080 (crop 216 = 20%); height 1920/1.25=1536 of 1920 (no crop)
+view HFOV = 2*atan(540/1090.79) = 52.68 deg (not 63.5!); view VFOV = 2*atan(1200/1090.79) = 95.46 deg; diagonal = 2*atan(1316.2/1090.79) = 100.70 deg
+sensor FOVs (pre-crop): short side 63.50 deg (by construction), long side 2*atan(960/871.75) = 95.52 deg, diagonal 103.28 deg
+corner RADIAL            measured=2681.128 px/deg  theory= 46.758  ratio=57.3406
+corner sky point: az=26.3379 alt=-44.5938 -> px=1080.00 py=2400.00 (target 1080,2400)
+corner central angle theta=50.344 deg (theory 50.351)
+corner RADIAL      measured= 45.787 px/deg(arc)  theory= 46.758  ratio=0.9792
+corner TANGENTIAL  measured= 29.753 px/deg(arc)  theory= 29.836  ratio=0.9972
