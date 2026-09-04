@@ -1,0 +1,19 @@
+Z-P2 raw — bash tools/kotlin-harness/run_projection_test.sh (after adding ARProjectionPinholeTest)
+
+== compile OK — running SkyOrientationProjectionTest for the FIRST time ==
+PASS   com.alijafari.red.astronomy.SkyOrientationProjectionTest.test exact center alignment when camera points directly at object
+PASS   com.alijafari.red.astronomy.SkyOrientationProjectionTest.test object to the right projects to screen right
+PASS   com.alijafari.red.astronomy.SkyOrientationProjectionTest.test high altitude object scaling prevents rightward offset distortion
+PASS   com.alijafari.red.astronomy.SkyOrientationProjectionTest.test object behind camera is not rendered
+PASS   com.alijafari.red.astronomy.SkyOrientationProjectionTest.test ARProjectionEngine cardinal directions with phone 90-degree sensor orientation
+PASS   com.alijafari.red.astronomy.ARProjectionPinholeTest.pinhole exactness at 15 30 45 degrees off-axis fallback tier
+
+========================================
+Tests run: 6, Failures: 0, Errors: 0
+OK (all tests passed)
+
+
+== MUTATION (Step4 -> linear asin model) ==
+FAILURE ARProjectionPinholeTest: pinhole radial px at 15.0 deg off-axis expected:<292.2757222235902> but was:<285.56756591796875> (delta 0.5)
+Tests run: 6, Failures: 1, Errors: 0
+== reverted: Tests run: 6, Failures: 0, Errors: 0 ==

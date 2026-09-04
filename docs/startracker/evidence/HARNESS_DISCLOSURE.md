@@ -183,6 +183,7 @@ Probes (not tests): tools/kotlin-harness/probes/{CoordinateOracleProbe,Synthetic
 `run_projection_test.sh` compiles `astro_engine/ARProjectionEngine.kt` and the
 previously-never-run `app/src/test/.../SkyOrientationProjectionTest.kt` UNMODIFIED,
 and executes it (first time ever: **5/0/0**, evidence/P1_PROJECTION_TEST_2026-09-04.txt).
+(Z-P2 added `ARProjectionPinholeTest.kt` to the same runner — now 6/0/0.)
 
 The item mandated shimming ONLY `androidx.compose.ui.geometry.Offset`. That proved
 INSUFFICIENT as literally worded: ARProjectionEngine.kt imports seven further Android

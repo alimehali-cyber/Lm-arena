@@ -21,7 +21,8 @@ kotlinc \
   "$H"/com/alijafari/red/astronomy/BuildConfig.kt \
   "$ENGINE/ARProjectionEngine.kt" \
   "$TEST/SkyOrientationProjectionTest.kt" \
+  "$TEST/ARProjectionPinholeTest.kt" \
   -d "$OUT" 2>&1 | grep -v "^warning:" || true
 test -d "$OUT" || { echo "COMPILE FAILED"; exit 1; }
 echo "== compile OK — running SkyOrientationProjectionTest for the FIRST time =="
-java -cp "$OUT:$KT_HOME/lib/kotlin-stdlib.jar" runner.MainKt com.alijafari.red.astronomy.SkyOrientationProjectionTest
+java -cp "$OUT:$KT_HOME/lib/kotlin-stdlib.jar" runner.MainKt com.alijafari.red.astronomy.SkyOrientationProjectionTest com.alijafari.red.astronomy.ARProjectionPinholeTest
