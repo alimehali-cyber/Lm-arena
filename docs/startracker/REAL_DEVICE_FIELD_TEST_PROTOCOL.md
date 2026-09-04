@@ -1,178 +1,118 @@
-# Real Device Field Test Protocol — Star Tracker End-to-End
+# Real-Device Field Test Protocol — 30-Minute Ordered Bring-Up (Z-W3, 2026-09-04)
 
-**Purpose:** Validate star tracker improves angular accuracy vs existing sensor-only fusion, under real sky conditions, with real device camera and sensors.
+**Purpose.** First on-device validation of the compass/AR accuracy chain and the
+star-tracker adapters, in strict order, every step timed and logged. The offline
+harness (161/0/0) validated the pure-Kotlin chain; this protocol validates the Android
+halves (UNEXECUTED until now). Target duration: ~30 minutes of field time. Device: any
+recent Android phone, rear camera, GPS, dark site, clear night. Bring: this checklist,
+a red flashlight, a note app. Optionally binoculars/star chart for identification.
 
-**Prerequisites:**
-- Environment fixed: JDK 17+, Gradle 9.3.1 works, `./gradlew :app:testDebugUnitTest` passes all ~30+ tests
-- Gated patches applied per MASTER_FILE_MANIFEST.md, with flags OFF by default
-- Real Android device with rear camera, gyroscope, magnetometer, GPS
-- Dark sky location, away from city lights, clear night, minimal cloud
+**Standing rules.**
+- `StarTrackerConfig.ENABLED` stays **false** until Step 7 (and returns to false after
+  the session unless a decision is recorded). All W2 flags default OFF; enable them
+  only in the order of the W2 flag map.
+- Every step: record time, pass/fail, and the number the step asks for. If a step
+  FAILS, stop and log — do not proceed to dependent steps.
+- Logcat filters to watch: `Intrinsics tier selected`, `CameraFrameObserver`,
+  `ARCalibration`, `OD1`.
 
-## Phase 0: Baseline (Flag OFF)
+## Step 1 — Arrival baseline, flag OFF (5 min)
 
-1. Install app with `StarTrackerConfig.ENABLED=false`, `SelfCalibrationConfig.ENABLED=false` (default)
-2. Go to CompassARScreen / AR screen
-3. Point to known bright stars (Sirius, Vega, Polaris, etc.) and record:
-   - Projected position vs actual star position in camera image (pixel error)
-   - Azimuth/altitude error vs known star position from catalog (using GPS time/location)
-   - Time to lock, stability over 10 seconds
-4. Repeat for 10 different sky regions, 5 different device orientations (portrait, landscape, tilted)
-5. Record intrinsics tier selected from logcat: `Intrinsics tier selected: ...` — should be CALIBRATED_HARDWARE or ESTIMATED_PHYSICAL_SENSOR or FALLBACK_DEFAULT
-6. This is baseline for comparison
+1. Cold-start the app with all flags OFF (defaults). GPS on, wait for fix.
+2. Point at **two known landmark bearings** chosen in advance (e.g. a distant mast and
+   a hilltop, bearings from a map; pick objects > 1 km away). For each:
+   - Center the object on the crosshair; compare the app's object azimuth (AR overlay
+     label or finder readout) against the map bearing. **Record the difference in
+   degrees = local magnetic declination error.** With GPS active this should be ≈ 0°
+     ±1–2° (declination is applied at the attitude source — see
+     evidence/V3_DECLINATION_PLACEMENT_2026-09-04.md). A consistent offset ≈ the local
+     declination (check: https://www.ngdc.noaa.gov/geomag/calcalc) means the
+     pre-final-pass pipeline regressed — STOP and report.
+   - Rotate the phone to landscape, confirm the overlay stays glued to the object
+     (display-rotation staleness check from P4). Record any jump.
+3. Record intrinsics tier from logcat (`Intrinsics tier selected: ...`).
 
-## Phase 1: Star Tracker Enabled (Flag ON, No Self-Calibration)
+## Step 2 — Ephemeris spot check: Sun set / planet line-up (3 min)
 
-1. Enable `StarTrackerConfig.ENABLED=true` via override (for test build only, not default)
-2. Repeat same measurements as baseline
-3. Expected: attitude error reduced, especially azimuth (magnetometer is noisy)
-4. Measure:
-   - Attitude error arcsec: compare star-solved attitude vs ground truth (known star positions)
-   - Success rate: % of frames where FULL_LOCK or MARGINAL_LOCK achieved
-   - Time to first lock
-   - Confidence decay when moving fast or pointing to low-star region
-5. Record FailureReason and UserGuidanceHint from logs
+Do this at twilight BEFORE stars are visible. Compare the app's Sun/planet positions
+against the sky (or an independent ephemeris app screenshot):
+- **Sun**: horizon azimuth at sunset within ~1° of an ephemeris app; label position
+  matches visually when on screen.
+- **One bright planet** (whichever is up): separation from its true chart position
+  < 1°.
+Record both numbers. (Offline oracle accuracy was 0.35–0.6′; the extra degrees of
+tolerance are for handheld pointing + clock/GPS errors.)
 
-## Phase 2: Self-Calibration Enabled
+## Step 3 — Overlay-vs-bright-star geometry, 30° and 60° off-centre (5 min)
 
-1. Enable `SelfCalibrationConfig.ENABLED=true` + `StarTrackerConfig.ENABLED=true`
-2. Accumulate observations across locks:
-   - Point to different sky regions, accumulate 20+ observations for intrinsics, 50+ for distortion
-   - Check `SelfCalibrationEngine` accumulated counts
-   - Trigger refinement, check refined profile vs fallback
-3. Verify tier `SELF_CALIBRATED_CACHED` selected in logcat after enough samples
-4. Measure improvement in attitude error vs fallback intrinsics
-5. Test undistort-centroids / forward-distort-overlay split:
-   - Without undistort: attitude error higher at edges/corners where distortion large
-   - With undistort: error reduced, overlay aligns with distorted image
+After dark, center a bright identified star (Vega/Arcturus/Sirius class):
+1. **Centred**: overlay marker on the star; estimate offset in marker-diameters.
+2. **Star at ~30° off-centre** (point the phone so the star sits near the screen
+   edge): record offset again, convert to arcmin (screen ≈ 52.7° across the width on a
+   1080-px-wide canvas → 1 px ≈ 2.9′; a marker ≈ 28 px ≈ 80′). Offsets here probe the
+   FILL_CENTER crop + pinhole math (P2/P3): expected < ~60′ at 30°, < ~90′ at 60°
+   (accumulated intrinsics-tier error dominates; the projection itself is exact).
+3. Repeat at ~60° off-centre (star near the corner). Record arcmin.
+A systematically RADIAL drift growing with off-axis angle → intrinsics scale error
+(fallback tier too wide/narrow); a constant rotation → roll/declination issue.
 
-## Phase 3: Sky Conditions
+## Step 4 — The seven corrected stars (4 min)
 
-Test under different sky conditions per ValidationMatrixRunner sky-condition sweep:
+For each of **Sirius, Vega, Arcturus, Polaris, Betelgeuse, Aldebaran, Antares**
+(or the subset above your horizon): center the star, read the app's on-screen label
+vs the true star; record pass/fail each. All seven should be identified at the
+correct position (they are catalog-corrected to ≤5″ per B3). Also confirm the
+**Moon edge** and, if visible, **Mars/Jupiter/Saturn** labels sit on target.
 
-- **Dark:** rural, no light pollution, clear, new moon — should get FULL_LOCK easily, low RMS error
-- **Suburban:** some light pollution, but still visible stars — should get MARGINAL_LOCK or FULL_LOCK with moderate noise
-- **Urban:** heavy light pollution, only brightest stars visible — may get NO_LOCK or MARGINAL_LOCK, guidance should say POINT_TO_DARK_SKY or DARKER_ENVIRONMENT
-- **Cloud:** overcast, few stars — should get NO_LOCK, guidance HOLD_STEADY or POINT_TO_DARK_SKY, failure reason NO_STARS_DETECTED or TOO_FEW_STARS
+## Step 5 — Lens-cap NO_LOCK (2 min)
 
-For each condition, record:
-- FrameQuality from FrameQualityClassifier
-- FailureReason
-- LockConfidence
-- UserGuidanceHint (should map to appropriate UI proposal)
+Enable ONLY the W2 switch chain up to `PIPELINE_CAMERA_FEED` (`ENABLED=true`,
+`PIPELINE_CAMERA_FEED=true`, `TRACKER_TO_ORIENTATION_PHASE6=false`,
+`PROJECTION_SELF_CALIBRATED_PHASE7=false`). Cap the lens:
+- Expect: no lock ever granted; UI stays sensor-only; logcat shows
+  `no detections (lens cap / blank sky)`; no crash within 60 s; frame dropping visible
+  (no queued backlog: pipeline log lines stop when busy).
+Record: 60 s clean pass/fail. Uncap. **Return `ENABLED=false` if anything but clean
+NO_LOCK.**
 
-## Phase 4: Device/Lens Sweep
+## Step 6 — First live sky lock + OD1 discrepancy logging (6 min)
 
-Test on different devices if available:
+Same flag state, lens uncapped, phone steady on a dark sky region (near the galactic
+plane is easiest):
+- Expect `FULL_LOCK` or `MARGINAL_LOCK` within a few seconds (solve budget ~50 ms on
+  JVM; device slower — accept up to 2 s). Record time-to-lock and lock state.
+- **OD1 (acquisition discrepancy)**: logcat `OrientationProvider` lines comparing the
+  tracker attitude against the sensor attitude at acquisition: record the discrepancy
+  in degrees for the first 5 locks. Expected ≤ ~3° (declination/frame conventions);
+  a consistent offset near 90°/180° means the camera→device frame rotation is wrong —
+  STOP (this is the known open PHASE6 integration point).
+- Confirm the AR overlay does not jump when the lock appears (blend recommendation
+  should be PREFER_SENSOR/PREFER_TRACKER, not a snap).
 
-- Narrow FOV (telephoto lens) ~30° — fewer stars per frame, but higher resolution, should still work but need more precise pointing
-- Normal FOV ~60° — typical main camera, should work well
-- Wide FOV ~90° — ultrawide, more stars, but more distortion, self-calibration should help
-- Ultrawide FOV ~120° — very wide, heavy distortion, need distortion refinement
+## Step 7 — Projection tier PHASE7 (3 min) — only if Steps 5–6 passed
 
-For each, record:
-- Success rate
-- RMS error
-- Distortion coefficients refined vs fallback
-- Whether SELF_CALIBRATED_CACHED tier improves over FALLBACK_DEFAULT
+Set `PROJECTION_SELF_CALIBRATED_PHASE7=true` (requires a published self-calibration
+profile; if none published, the tier silently falls through — confirm from logcat
+which tier is active). Re-run the 30° off-centre check from Step 3; record whether the
+offset shrank. Return flags to OFF afterwards.
 
-## Phase 5: Hemisphere Mirrored
+## Step 8 — Wrap (2 min)
 
-- If possible, test in southern hemisphere (or simulate by setting latitude to -35°)
-- Verify HeroSkyProjection fix: East right, West left when facing North (south hemisphere)
-- Before fix: East left (same as north) — wrong, not mirrored
-- After fix: East right — correct, mirrored, matches ARProjectionEngine expected ordering
-- Test `testSouthernHemisphereEastWestOrdering_MirroredExpectation` should PASS after fix
+- Restore ALL flags OFF (`ENABLED=false`).
+- Note battery drain %, device model, Android version, sky conditions.
+- File results under `docs/startracker/evidence/DEVICE_TRIAL_<date>.md` with: every
+  recorded number from Steps 1–7, pass/fail, and the logcat excerpts
+  (`Intrinsics tier`, `OD1`, `no detections`).
 
-## Phase 6: Dynamic Motion
+## Attribution reminder (data placement)
 
-- Hold device steady, get FULL_LOCK
-- Then move device slowly (gyro integration should maintain attitude with decaying confidence)
-- Then move fast, trigger relock
-- Measure:
-  - QuaternionIntegrator error vs true motion
-  - ConfidenceStateMachine decay
-  - RelockPolicy trigger
-  - Time to relock after fast motion
+The in-app/legal attribution for the star data must read, at first entry point of the
+star-tracker UI (About/legal screen): "Star data from the HYG database (HYG v3.6),
+© astronexus.com, CC BY-SA 4.0. Based on Hipparcos, Yale Bright Star, and Gliese
+catalogues." Verify it renders during Step 5 bring-up (first launch of the tracker
+screen) — this is the HYG attribution placement check.
 
-## Phase 7: Rotation Sweep Systematic Bias
-
-- On tripod, rotate device 360° in yaw, 10° steps
-- At each yaw, measure attitude error
-- Plot error vs yaw — should be flat, no systematic bias (max-min <50 arcsec)
-- If bias present, indicates bug in solver or projection
-
-## Metrics to Record
-
-- Attitude error arcsec: RMS, median, 95th percentile
-- Success rate: % frames with FULL_LOCK or MARGINAL_LOCK
-- Acquisition discrepancy magnitude (degrees) on EVERY FULL_LOCK acquisition (angle between pre-acquisition fused attitude and star-solved attitude at the moment of lock) - logged so the keep-vs-ramp decision for AttitudeBlender's 0.9x acquisition snap (see docs/startracker/ATTITUDE_BLENDER_ACQUISITION_NOTE.md, PARKED) is made from field data
-- Time to first lock
-- Time to relock
-- FailureReason distribution
-- FrameQuality distribution
-- UserGuidanceHint distribution
-- Intrinsics tier hit rate
-- Self-calibration sample counts and refined profile convergence
-
-## Safety Checks
-
-- With flag OFF, behavior identical to before — zero regression
-- With flag ON but NO_LOCK, attitude passthrough identical to existing fused (within 1e-9)
-- AMBIGUOUS never adopts ambiguous attitude, always goes to NO_LOCK and discards
-- No crash, no ANR, no excessive battery drain
-
-## Reporting
-
-Create report with:
-
-- Device model, Android version, camera specs
-- Location, date, time, weather, light pollution estimate
-- For each test condition: table of metrics
-- Comparison baseline vs star tracker enabled vs self-calibration enabled
-- Screenshots of AR overlay alignment
-- Logcat excerpts for intrinsics tier, failure reasons, confidence
-- Conclusion: does star tracker improve angular accuracy? By how much? Under what conditions does it fail gracefully?
-
-## Escalation
-
-If real-device testing shows star tracker does NOT improve accuracy, or introduces regression, or fails to lock in dark sky:
-
-- STOP, do not merge to main
-- File issue with metrics and logs
-- Investigate: is detection failing? Catalog matching failing? Solver failing? Calibration wrong?
-- Use diagnostics: FailureReason, FrameQuality, AmbiguityDetector to pinpoint
-
-If testing shows improvement and graceful degradation:
-
-- Commit live wiring with flag OFF by default
-- Document flag ON for future release
-- Plan for gradual rollout with analytics
-
----
-
-## Final-pass addendum (2026-09-04)
-
-New device-verification items added by the final pass (all UNEXECUTED — no Android
-runtime in this environment):
-
-1. **Compile & install**: the B4 wiring (OrientationProvider.sensorTimestampNanos +
-   CompassARScreen collector) and the R2-A1 camera gate are outside the offline-harness
-   compile set; first `./gradlew :app:assembleDebug` on a real toolchain is part of the
-   runbook.
-2. **Magnetic declination (B1, default ON)**: at a known GPS fix, verify the AR overlay
-   azimuth shifts by the local declination vs the previous build (e.g. +4.97° in Tehran,
-   −26.78° in Cape Town — evidence/DECLINATION_TABLE_2026-09-04.txt); verify the
-   one-time legacy-yaw rebase fired (marker `calib_yaw_declination_rebased_v1`) and that
-   a previously calibrated device still overlays stars correctly.
-3. **Star positions (A/B3)**: spot-check Mizar, Alkaid, Schedar, Alnilam, Mintaka, Caph,
-   Shaula and the SMC against the real sky (previously 0.6°–3.4° off).
-4. **Sun/Moon/planets (A)**: overlay should now match reality to ~1 arcmin (was up to
-   degrees for planets).
-5. **Star tracker (C/D/E)**: remains behind `StarTrackerConfig.ENABLED = false`. Do NOT
-   enable on device until the D6 false-lock blocker (15% of clean-sky solves lock wrong)
-   is fixed; if experimenting, the quad index build (mag≤5.5, K=6, 3.6 MB) and the
-   catalog CSV (data/startracker/hyg_v36_vle6.5_j2000.csv, must be added to assets)
-   are the pieces to wire.
-6. **HYG attribution**: if the HYG-derived catalog ships in an APK, the CC BY-SA 4.0
-   attribution text from docs/startracker/E1_CATALOG_PROVENANCE.md must appear in the
-   app's About/license screen.
+**Status header for the filed report:** device trial NOT YET PERFORMED; the offline
+gate (S3: FL 0/10,000 joint, 0 at FULL_LOCK) is passed, so this protocol may be
+executed. `StarTrackerConfig.ENABLED` is false in the repo and must stay false in
+committed code.
