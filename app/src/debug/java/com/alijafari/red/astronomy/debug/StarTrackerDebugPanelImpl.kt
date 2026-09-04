@@ -3,6 +3,8 @@ package com.alijafari.red.astronomy.debug
 import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
+import android.content.Intent
+import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +21,11 @@ import com.alijafari.red.astronomy.astro_engine.ARProjectionEngine
 import com.alijafari.red.astronomy.startracker.calibration.DistortionModelSource
 import com.alijafari.red.astronomy.startracker.calibration.HardwareDistortionReader
 import com.alijafari.red.astronomy.startracker.debug.StarTrackerDebugHost
+import com.alijafari.red.astronomy.startracker.diagnostics.TrialLogLine
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import com.alijafari.red.astronomy.startracker.fusion.StarTrackerConfig
 import com.alijafari.red.astronomy.startracker.fusion.StarTrackerDebugFlags
 import java.util.ArrayDeque
@@ -63,6 +70,37 @@ object StarTrackerDebugPanelImpl : StarTrackerDebugPanel {
             access.orientationProvider.sensorTimestampNanos.collect { sensor.onTimestamp(it) }
         }
 
+        // D3 trial logger state
+        val trialLogger = remember(context) { TrialLogger(context) }
+        var trialActive by remember { mutableStateOf(false) }
+        var nextStep by remember { mutableStateOf(1) }
+        var trialStatus by remember { mutableStateOf("no trial file yet") }
+
+        // Gathers every D2 field + GPS + marker into one JSON line (schema: TrialLogLine).
+        val buildLine: (String, Int?) -> TrialLogLine = { event, step ->
+            val gps = TrialLogger.lastKnownGps(context)
+            TrialLogLine(
+                epochMs = System.currentTimeMillis(),
+                iso8601 = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                    .apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date()),
+                event = event, step = step,
+                enabled = resolution.enabled,
+                pipelineCameraFeed = resolution.pipelineCameraFeed,
+                trackerToOrientationPhase6 = resolution.trackerToOrientationPhase6,
+                projectionSelfCalibratedPhase7 = resolution.projectionSelfCalibratedPhase7,
+                declinationDeg = access.orientationProvider.appliedDeclinationDeg.toDouble(),
+                intrinsicsTier = intrinsics?.source?.name, fx = intrinsics?.fx, fy = intrinsics?.fy,
+                cx = intrinsics?.cx, cy = intrinsics?.cy,
+                distortionTier = distortionTier.name, k1 = distortion?.k1, k2 = distortion?.k2,
+                sensorHz = if (sensor.hz.isNaN()) null else sensor.hz,
+                sensorTsDeltaMs = if (sensor.meanDeltaMs.isNaN()) null else sensor.meanDeltaMs,
+                trackerState = "NOT_WIRED", lockConfidence = null, matched = null, detected = null,
+                solveMs = null, discrepancyDeg = null, failureReason = null,
+                gpsLat = gps?.latitude, gpsLon = gps?.longitude, gpsAccuracyM = gps?.accuracy?.toDouble(),
+                deviceModel = Build.MODEL, deviceSdk = Build.VERSION.SDK_INT
+            )
+        }
+
         Dialog(onDismissRequest = { StarTrackerDebugHost.close() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(modifier = Modifier.fillMaxSize(), color = Color(0xF0101018)) {
                 Column(
@@ -104,6 +142,35 @@ object StarTrackerDebugPanelImpl : StarTrackerDebugPanel {
                         DiagRow("solve ms", "n/a")
                         DiagRow("acquisition discrepancy", "n/a deg")
                         DiagRow("last FailureReason", "n/a")
+                    }
+
+                    Section("Trial logger (D3 — JSON lines to app-private storage, share at the end)") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(enabled = !trialActive, onClick = {
+                                val f = trialLogger.start()
+                                trialLogger.append(buildLine("start", null))
+                                trialActive = true; nextStep = 1
+                                trialStatus = "${f.name} — logging"
+                            }) { Text("Start trial") }
+                            Button(enabled = trialActive, onClick = {
+                                trialLogger.append(buildLine("stop", null)); trialActive = false
+                                trialStatus = "stopped at step ${nextStep - 1} — share it"
+                            }) { Text("Stop") }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            OutlinedButton(enabled = nextStep > 1, onClick = { nextStep-- }) { Text("−") }
+                            Text("step $nextStep", color = Color.White)
+                            OutlinedButton(enabled = nextStep < 99, onClick = { nextStep++ }) { Text("+") }
+                            Button(enabled = trialActive, onClick = {
+                                if (trialLogger.append(buildLine("step", nextStep))) nextStep++
+                            }) { Text("Mark step $nextStep") }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(enabled = !trialActive && !trialLogger.content().isNullOrEmpty(), onClick = {
+                                trialLogger.shareIntent()?.let { context.startActivity(Intent.createChooser(it, "Share trial log")) }
+                            }) { Text("Share trial log") }
+                        }
+                        Text(trialStatus + "  (${trialLogger.lines} lines, files/startracker-trials/)", color = Color(0xFF9AA4B2), fontSize = 11.sp)
                     }
 
                     Section("Runtime flag overrides (D1 — persist in SharedPreferences; release reads consts)") {
