@@ -38,13 +38,13 @@ jobs:
             base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || base64 --decode debug.keystore.base64 > debug.keystore 2>/dev/null || true
           fi
 
-      - name: Build APK with Gradle
+      - name: Build APKs with Gradle (D4: both variants)
         run: |
           set -eo pipefail
           if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle_build.log
+            ./gradlew assembleDebug assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle_build.log
           else
-            gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle_build.log
+            gradle assembleDebug assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle_build.log
           fi
 
       - name: Build log artifact (on failure)
@@ -60,21 +60,37 @@ jobs:
           echo "Generated APKs:"
           find app/build/outputs -type f
 
-      - name: Upload APK Artifact
+      - name: D4 - assert debug-only screen absent from release APK (dex inspection)
+        run: |
+          debug_apk=$(find app/build/outputs/apk/debug -name '*.apk' | head -1)
+          release_apk=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          echo "debug apk:   $debug_apk"
+          echo "release apk: $release_apk"
+          [ -n "$debug_apk" ] && [ -n "$release_apk" ]
+          .github/scripts/assert_debug_only.sh "$debug_apk" "$release_apk"
+
+      - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: app/build/outputs/apk/**/*.apk
+          path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: warn
 
-      - name: Rolling pre-release with the APK
+      - name: Upload release APK artifact (unsigned when no CI keystore)
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
+
+      - name: Rolling pre-release with the DEBUG APK
         if: success()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ci-debug-apk
           name: "CI debug APK (rolling)"
           prerelease: true
-          files: app/build/outputs/apk/**/*.apk
+          files: app/build/outputs/apk/debug/*.apk
 
   unit-tests:
     runs-on: ubuntu-latest
