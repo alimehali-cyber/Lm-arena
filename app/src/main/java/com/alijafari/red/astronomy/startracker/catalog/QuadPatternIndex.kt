@@ -53,14 +53,25 @@ class QuadPatternIndex(
     val stars: List<CatalogStar>,
     val maxSeparationRad: Double = CatalogBuildConfig.MAX_PAIR_SEPARATION_RAD,
     val minSeparationRad: Double = CatalogBuildConfig.MIN_PAIR_SEPARATION_RAD,
-    val binWidth: Double = CatalogBuildConfig.HASH_BIN_WIDTH
+    val binWidth: Double = CatalogBuildConfig.HASH_BIN_WIDTH,
+    /*
+     * C (final pass): capped construction path. When non-null, the constructor SKIPS the
+     * O(N^4) brute-force enumeration and installs exactly this precomputed quad list
+     * (hash table is still built here so the public shape is unchanged). Produced by
+     * QuadPatternIndex.capped(...). Default null = legacy brute-force behavior,
+     * bit-identical to before this change.
+     */
+    private val prebuiltQuads: List<CatalogQuad>? = null
 ) {
 
     val quads: List<CatalogQuad>
     val hashTable: Map<String, List<CatalogQuad>> // quantized key -> list of quads
 
     init {
-        val tempQuads = mutableListOf<CatalogQuad>()
+        val tempQuads: List<CatalogQuad> = if (prebuiltQuads != null) {
+            prebuiltQuads
+        } else {
+        val acc = mutableListOf<CatalogQuad>()
 
         // Offline index construction: enumerate quads formed from stars within maxSeparation of each other
         // Do NOT do full combinatorial explosion over whole catalog — use maxSeparation to limit
@@ -118,7 +129,7 @@ class QuadPatternIndex(
 
                         val key = descriptor.quantizedKey(binWidth)
 
-                        tempQuads.add(
+                        acc.add(
                             CatalogQuad(
                                 starIndices = indices,
                                 starIds = ids,
@@ -130,6 +141,8 @@ class QuadPatternIndex(
                 }
             }
         }
+        acc
+        }
 
         quads = tempQuads
 
@@ -139,6 +152,134 @@ class QuadPatternIndex(
             table.getOrPut(quad.quantizedKey) { mutableListOf() }.add(quad)
         }
         hashTable = table
+    }
+
+    companion object {
+        /**
+         * C (final pass): CAPPED quad index construction for real catalogs (O(N^2) neighbor
+         * pass + bounded per-star enumeration instead of the O(N^4) brute force that OOMs
+         * beyond ~800 stars).
+         *
+         * Algorithm (deterministic):
+         *  1. Quad-eligible stars: magnitude <= [maxMagnitudeForQuads]; ties and ordering
+         *     resolved by (magnitude, id) so builds are reproducible.
+         *  2. For each eligible anchor, find eligible neighbors with separation in
+         *     [minSeparationRad, maxSeparationRad], keep the [neighborsPerStar] NEAREST
+         *     (tie-break: lower catalog index).
+         *  3. Enumerate 4-combinations anchor+3 neighbors, keeping quads whose 6 pairwise
+         *     separations all lie in [min, max]; canonicalize by sorted star indices and
+         *     dedupe globally (an quad reachable from several anchors is emitted once).
+         *  4. Hard safety cap [maxQuads]: if exceeded, keep the first maxQuads quads in
+         *     deterministic (anchor magnitude, anchor index, combination) order.
+         *
+         * With neighborsPerStar >= (eligible count - 1) and maxMagnitudeForQuads >= all
+         * magnitudes, the result is EXACTLY the brute-force quad set (unit-tested).
+         */
+        fun capped(
+            stars: List<CatalogStar>,
+            maxSeparationRad: Double = CatalogBuildConfig.MAX_PAIR_SEPARATION_RAD,
+            minSeparationRad: Double = CatalogBuildConfig.MIN_PAIR_SEPARATION_RAD,
+            binWidth: Double = CatalogBuildConfig.HASH_BIN_WIDTH,
+            maxMagnitudeForQuads: Double = CatalogBuildConfig.QUAD_BUILD_MAX_MAGNITUDE,
+            neighborsPerStar: Int = CatalogBuildConfig.QUAD_NEIGHBORS_PER_STAR,
+            maxQuads: Int = CatalogBuildConfig.QUAD_MAX_QUADS
+        ): QuadPatternIndex {
+            require(stars.size < 32768) { "capped() dedupe key packing supports < 32768 stars (got ${stars.size})" }
+            val eligibleWithIdx = stars.withIndex()
+                .filter { it.value.magnitude <= maxMagnitudeForQuads }
+                .sortedWith(compareBy({ it.value.magnitude }, { it.value.id }))
+            val eligibleIdx = eligibleWithIdx.map { it.index }
+
+            // neighbor lists among eligible stars (circular separations, O(E^2))
+            data class Nb(val idx: Int, val sep: Double)
+            val neighbors = HashMap<Int, List<Nb>>(eligibleIdx.size * 2)
+            for (a in eligibleIdx.indices) {
+                val i = eligibleIdx[a]
+                val nbs = ArrayList<Nb>(64)
+                for (b in eligibleIdx.indices) {
+                    if (a == b) continue
+                    val j = eligibleIdx[b]
+                    val sep = AngularSeparation.between(stars[i], stars[j])
+                    if (sep < minSeparationRad || sep > maxSeparationRad) continue
+                    nbs.add(Nb(j, sep))
+                }
+                nbs.sortWith(compareBy({ it.sep }, { it.idx }))
+                neighbors[i] = if (nbs.size > neighborsPerStar) nbs.subList(0, neighborsPerStar) else nbs
+            }
+
+            val seen = HashSet<Long>()
+            val quadList = ArrayList<CatalogQuad>()
+            outer@ for (anchor in eligibleWithIdx) {  // deterministic: brightest anchors first
+                val i = anchor.index
+                val nb = neighbors[i] ?: continue
+                if (nb.size < 3) continue
+                // combinations of 3 neighbors
+                val c = nb.size
+                for (x in 0 until c) {
+                    for (y in x + 1 until c) {
+                        for (z in y + 1 until c) {
+                            val j = nb[x].idx; val k = nb[y].idx; val l = nb[z].idx
+                            val seps = listOf(
+                                nb[x].sep,
+                                AngularSeparation.between(stars[j], stars[k]),
+                                AngularSeparation.between(stars[j], stars[l]),
+                                nb[y].sep,
+                                nb[z].sep,
+                                AngularSeparation.between(stars[k], stars[l])
+                            )
+                            if (seps.any { it < minSeparationRad || it > maxSeparationRad }) continue
+                            val sortedIdx = listOf(i, j, k, l).sorted()
+                            // canonical dedupe key: pack 4 indices (catalog < 2^15 stars each -> 60 bits)
+                            val key = (sortedIdx[0].toLong() shl 45) or (sortedIdx[1].toLong() shl 30) or
+                                (sortedIdx[2].toLong() shl 15) or sortedIdx[3].toLong()
+                            if (!seen.add(key)) continue
+                            val quad = makeQuad(stars, sortedIdx, seps, binWidth) ?: continue
+                            quadList.add(quad)
+                            if (quadList.size >= maxQuads) break@outer
+                        }
+                    }
+                }
+            }
+            return QuadPatternIndex(
+                stars = stars,
+                maxSeparationRad = maxSeparationRad,
+                minSeparationRad = minSeparationRad,
+                binWidth = binWidth,
+                prebuiltQuads = quadList
+            )
+        }
+
+        /**
+         * Build one CatalogQuad from canonical (sorted) star indices and the 6 precomputed
+         * pairwise separations in order (ij, ik, il, jk, jl, kl) — same descriptor math as
+         * the brute-force path.
+         */
+        private fun makeQuad(
+            stars: List<CatalogStar>,
+            sortedIdx: List<Int>,
+            seps: List<Double>,
+            binWidth: Double
+        ): CatalogQuad? {
+            val maxSep = seps.maxOrNull() ?: 0.0
+            if (maxSep < 1e-9) return null
+            val sortedSeps = seps.sortedDescending()
+            val dMax = sortedSeps[0]
+            val otherSeps = sortedSeps.drop(1)
+            val ratioList = otherSeps.map { it / dMax }.sorted()
+            val ids = sortedIdx.map { stars[it].id }
+            val descriptor = QuadDescriptor(
+                ratios = ratioList,
+                maxSeparationRad = dMax,
+                starIndices = sortedIdx,
+                starIds = ids
+            )
+            return CatalogQuad(
+                starIndices = sortedIdx,
+                starIds = ids,
+                descriptor = descriptor,
+                quantizedKey = descriptor.quantizedKey(binWidth)
+            )
+        }
     }
 
     /**

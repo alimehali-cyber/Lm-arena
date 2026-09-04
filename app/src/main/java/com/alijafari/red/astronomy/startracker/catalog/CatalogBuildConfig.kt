@@ -66,6 +66,27 @@ object CatalogBuildConfig {
      */
     const val HASH_BIN_WIDTH: Double = 0.01
 
+    // ===== C (final pass): CAPPED quad index defaults =====
+    // See QuadPatternIndex.capped(...). All three UNVALIDATED pending the D synthetic-E2E
+    // sweep (solve-success / false-lock / index-size curves); starting points from the A1
+    // sizing model (sky fraction 0.07272 @ 63.5-deg FOV, k=5 stars/FOV -> ~7 MB asset target).
+
+    /**
+     * Only stars brighter than or equal to this magnitude participate in quad BUILDING
+     * (the full catalog is still shipped for verification/tracking). V=5.5 keeps the
+     * quad builder dense enough in sparse sky regions while bounding quad count.
+     */
+    const val QUAD_BUILD_MAX_MAGNITUDE: Double = 5.5
+
+    /**
+     * Per-anchor neighbor cap: each quad-eligible star contributes quads only with its
+     * N nearest eligible neighbors -> at most C(N,3) quads per anchor before dedupe.
+     */
+    const val QUAD_NEIGHBORS_PER_STAR: Int = 6
+
+    /** Hard deterministic ceiling on total quads (safety net for dense regions). */
+    const val QUAD_MAX_QUADS: Int = 120_000
+
     /**
      * Pyramid consistency tolerance for matching observed quad to catalog quad.
      * Angular separation must agree within this tolerance (radians).
