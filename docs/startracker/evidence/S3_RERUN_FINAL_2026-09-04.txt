@@ -1,0 +1,24 @@
+S3 re-run on final code (after W1 refit + verification-confidence), 2026-09-04, same seeds as original S3
+
+== baseline ==
+cell=baseline 0.3px/0f n=1000 solved=727 FL=0 FLfull=0 medianALL=0.020' p95ALL=0.05' solveMsMean=52 solveMsMax=383
+
+== noise sweep ==
+cell=noise 0.0px/0f n=1000 solved=750 FL=0 medianALL=0.000' p95ALL=0.00' ms=52
+cell=noise 0.1px/0f n=1000 solved=752 FL=0 medianALL=0.007' p95ALL=0.02' ms=55
+cell=noise 0.3px/0f n=1000 solved=754 FL=0 medianALL=0.021' p95ALL=0.05' ms=54
+cell=noise 0.5px/0f n=1000 solved=749 FL=0 medianALL=0.036' p95ALL=0.10' ms=52
+cell=noise 1.0px/0f n=1000 solved=723 FL=0 medianALL=0.076' p95ALL=0.67' ms=51
+cell=noise 2.0px/0f n=1000 solved=656 FL=0 medianALL=0.202' p95ALL=2.68' ms=50
+cell=noise 3.0px/0f n=1000 solved=554 FL=0 medianALL=0.585' p95ALL=4.79' ms=49
+
+== false sweep ==
+cell=false 0.3px/0f n=1000 solved=735 FL=[] FLfull=[] medianALL=0.021' p95ALL=0.05' solveMsMean=53 solveMsMax=439
+cell=false 0.3px/5f n=1000 solved=586 FL=[] FLfull=[] medianALL=0.021' p95ALL=0.05' solveMsMean=49 solveMsMax=129
+cell=false 0.3px/10f n=1000 solved=426 FL=[] FLfull=[] medianALL=0.022' p95ALL=0.05' solveMsMean=46 solveMsMax=90
+cell=false 0.3px/20f n=1000 solved=199 FL=[] FLfull=[] medianALL=0.022' p95ALL=0.05' solveMsMean=43 solveMsMax=84
+cell=false 0.3px/40f n=1000 solved=30 FL=[] FLfull=[] medianALL=0.020' p95ALL=0.04' solveMsMean=40 solveMsMax=68
+
+== joint ==
+JOINT n=10000 solved=4817 FL=0 (0.000%) FLfull=0 medianALL=0.066' p95ALL=1.15' solveMsMean=46
+confidence-bin calibration (bin: n, FL rate): [0.0-0.30): n=0 FLrate=n/a] , [0.3-0.50): n=0 FLrate=n/a] , [0.5-0.70): n=0 FLrate=n/a] , [0.7-1.0): n=4817 FLrate=0.0000] 

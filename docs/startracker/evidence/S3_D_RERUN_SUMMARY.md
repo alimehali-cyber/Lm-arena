@@ -69,3 +69,12 @@ contaminated fields never reach — in the joint MC the maximum observed confide
 - ~2.7% of clean-field trials still end NO_LOCK from "RANSAC inliers < 4" /
   no-quad-match — same family.
 - All numbers SYNTHETIC-SKY; no MEASURED device data.
+
+
+## ADDENDUM (Z-W1, 2026-09-04): re-run on FINAL code (W1 refit + verification confidence)
+
+Same disjoint seeds; accuracy improved ~16x median / up to 70x p95; solved rates
+identical (+/-1 trial); FL 0 everywhere incl. joint 0/10,000 (0.000%) and 0
+FULL_LOCK-grade; solve time 35 -> ~50 ms. Headline joint numbers now: solved 4,817,
+median 0.066', p95 1.15'. ACCEPTANCE re-verified. Full table:
+evidence/W1_PIPELINE_2026-09-04.md + raw evidence/S3_RERUN_FINAL_2026-09-04.txt.
