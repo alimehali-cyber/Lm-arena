@@ -210,3 +210,22 @@ Should run all ~30+ test files, list each by name, must pass before and after an
 `evidence/T3_HYGIENE_2026-09-04.md`; PROJECT_STATUS_END_OF_IMPLEMENTATION.md rewritten
 (final, T5) — authoritative ordered device list §8; CLOSING_PASS_REPORT §8(i)/§9
 corrected; HARNESS_DISCLOSURE gate-pass section appended.
+
+
+## Debug-diagnostics pass (D1–D4, 2026-09-04) — additions
+
+- `startracker/fusion/StarTrackerDebugFlags.kt` + `StarTrackerConfig` W2 consts —
+  D1 runtime flag overrides (release: consts, bit-identical); 4 tests.
+- `startracker/debug/StarTrackerDebugHost.kt` — the ONE seam hosting the debug overlay
+  (BuildConfig.DEBUG-guarded, reflection-loaded) + `OrientationProvider
+  .appliedDeclinationDeg` read-only getter.
+- `app/src/debug/java/com/alijafari/red/astronomy/debug/` — StarTrackerDebugPanelImpl
+  (the ONE debug-only screen: D2 diagnostics + D1 flag switches + D3 trial buttons)
+  and TrialLogger; absent from release APK (CI dex-proven).
+- `startracker/diagnostics/TrialLogLine.kt` — pure-Kotlin JSONL schema; 4 tests.
+- `.github/scripts/assert_debug_only.sh` + workflow dual-variant build — D4 proof +
+  `app-debug-apk` / `app-release-apk` artifacts.
+- `REAL_DEVICE_FIELD_TEST_PROTOCOL.md` — per-step button instructions; Steps 5–7
+  BLOCKED pending the W2 adapter pass.
+- Evidence: `evidence/D_DEBUG_DIAGNOSTICS_2026-09-04.md` (green run 33899685082:
+  67 files / 466 tests / 0 failures; dex: debug ≥1, release 0).

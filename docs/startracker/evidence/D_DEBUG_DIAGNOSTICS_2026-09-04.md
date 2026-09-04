@@ -74,9 +74,26 @@ D3 `b410d05`, D4 `818961e` + ci fix `4639d13`.
   a step name, zero jobs). Both fixed in-commit (`9cf637d`, `4639d13`); the
   definitive D4 run is recorded below.
 
-## CI outcome (D4 verification)
+## CI outcome (D4 verification) — GREEN
 
-PENDING — run on `4639d13` (both variants + dex assertion + unit tests).
+Definitive run **`33899685082`** (head `81fd8e3`, 2026-09-04):
+
+- `build` job ✓ — steps: *Build APKs with Gradle (D4 — both variants)* ✓,
+  **D4 - assert debug-only screen absent from release APK (dex inspection)** ✓
+  (dex occurrences of `Lcom/alijafari/red/astronomy/debug/`: debug ≥ 1, release = 0 —
+  the script fails the job otherwise), *Upload debug APK artifact* ✓
+  (`app-debug-apk`), *Upload release APK artifact* ✓ (`app-release-apk`, unsigned —
+  no keystore in CI), rolling `ci-debug-apk` pre-release updated (debug only).
+- `unit-tests` job ✓ — **67 files / 466 tests / 0 failures** (458 gate-pass +
+  StarTrackerDebugFlagsTest 4/4 + TrialLogLineTest 4/4; HardwareDistortionReaderTest
+  remains harness-only by design).
+
+Failure history on the way (all fixed in-commit, none hidden):
+`33897882074` panel interface import missing → `9cf637d`;
+`33898451869` workflow YAML broken by a colon in a step name (zero jobs) → `4639d13`;
+`33898528862` SharedPreferences.getString has no 1-arg overload (×5) + TrialLogger
+start() return type → `db500a2`; `33899128409` SensorRateEstimator ctor param used in
+a member body (needs `val`) → `81fd8e3`.
 
 ## Harness
 

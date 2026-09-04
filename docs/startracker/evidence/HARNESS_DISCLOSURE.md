@@ -234,3 +234,16 @@ Changes this pass:
   npm kotlin-compiler were gone); the restore recipe (pip --break-system-packages
   jdk4py + npm i -g kotlin-compiler; versions unchanged: kotlinc 2.4.10, JRE 25) is
   proven; run_tests.sh re-derives JAVA_HOME from jdk4py on every run.
+
+
+## D-pass update (debug diagnostics, 2026-09-04)
+
+Harness: **175/0/0** (171 + 4 StarTrackerDebugFlagsTest + 4 TrialLogLineTest). The
+main-source package `startracker/debug/` (StarTrackerDebugHost seam) is EXCLUDED from
+the harness compile — Android-only (Context, Compose runtime, BuildConfig,
+OrientationProvider); CI compiles it in BOTH variants (assembleDebug + assembleRelease,
+run 33899685082). New debug SOURCE SET (`app/src/debug/java/com/alijafari/red/astronomy/
+debug/`: panel + TrialLogger) is CI-debug-variant-only and PROVEN absent from the
+release APK by dex inspection (assert_debug_only.sh step, same run). New harness tests
+tree additions: none (StarTrackerDebugFlagsTest + TrialLogLineTest live in app/src/test
+and run in both harness and CI).
