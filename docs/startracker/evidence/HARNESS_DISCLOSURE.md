@@ -176,3 +176,34 @@ VSOP87Engine,MagneticDeclination}, domain/Models.kt. No new shims; existing shim
 unchanged. Toolchain: kotlinc 2.4.10 (npm kotlin-compiler), JRE 25 via jdk4py.
 Probes (not tests): tools/kotlin-harness/probes/{CoordinateOracleProbe,SyntheticE2EProbe}
 + CatalogSizeProbe modes ingest/cappedcsv.
+
+
+## §9 Z-P1 (2026-09-04): ARProjectionEngine + SkyOrientationProjectionTest shim set
+
+`run_projection_test.sh` compiles `astro_engine/ARProjectionEngine.kt` and the
+previously-never-run `app/src/test/.../SkyOrientationProjectionTest.kt` UNMODIFIED,
+and executes it (first time ever: **5/0/0**, evidence/P1_PROJECTION_TEST_2026-09-04.txt).
+
+The item mandated shimming ONLY `androidx.compose.ui.geometry.Offset`. That proved
+INSUFFICIENT as literally worded: ARProjectionEngine.kt imports seven further Android
+symbols at file scope (Context, Matrix, Rect, CameraCharacteristics, CameraManager,
+Log, PreviewView) plus the Gradle-generated `BuildConfig`, and Kotlin rejects
+unresolved imports at compile time — the file either compiles whole or not at all.
+Resolution: those symbols are provided as COMPILE-ONLY stubs under
+`tools/kotlin-harness/src/` (one file per package), each individually documented.
+None carries semantics on any executed path:
+- Context.getSystemService → null ⇒ getCameraIntrinsics falls to its documented
+  FALLBACK_DEFAULT tier; the device-intrinsics path is uncallable by construction
+  (CameraCharacteristics.get additionally returns null for every key).
+- Matrix.mapPoints reached only via a non-null sensorToViewMatrix — every test passes
+  null; Log.d no-op; BuildConfig.DEBUG=false; PreviewView appears only in KDoc;
+  Rect/Size members never execute (their sources always return null).
+- Offset remains the existing pure-value shim from the HeroSky work (x, y, ctor).
+
+**CLASSPATH WARNING**: every shim in this section is a Kotlin source file that must
+NEVER be compiled or present on a classpath together with the real Android/Compose/
+CameraX artifacts (duplicate class definitions, and the stubs' no-op semantics would
+silently disable the device code paths). The shims live ONLY under
+`tools/kotlin-harness/src/` and are consumed ONLY by `run_projection_test.sh`
+(and `run_tests.sh`, which already used the junit/Offset/ICU subset). Gradle builds
+never see this directory.
