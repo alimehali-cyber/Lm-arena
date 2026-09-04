@@ -100,6 +100,17 @@ Reference (S3 joint, flat 300″ verifier, k1=0): 4,817 solved (48.2 %), **FL 0*
   almost nothing — which is what the pipeline did before T4(b) whenever the model
   was missing.
 
+## CI validation
+
+- Run `33881862650` (head `1d11b4d`, T4 1/2): **failure**, predicted — the first cut of
+  HardwareDistortionReaderTest lived under app/src/test and cannot compile against the
+  real android.jar (assigns final `Build.VERSION.SDK_INT`; CameraCharacteristics has no
+  public ctor). Caught before CI reported; no behavior ever shipped in that state.
+- Run `33881977744` (head `a67e715`, T4 2/2): **success** — build ✓, unit-tests ✓,
+  **65 files / 458 tests / 0 failures** = the 456 of T1 + the 2 new T4(b)
+  FullFieldVerifierTest tests (the 4 HardwareDistortionReaderTest tests are
+  harness-only by design; see HARNESS_DISCLOSURE gate-pass section).
+
 ## Harness evidence
 
 `run_tests.sh` after T4: **167/0/0** (163 prior + 2 FullFieldVerifierTest T4b tests +
