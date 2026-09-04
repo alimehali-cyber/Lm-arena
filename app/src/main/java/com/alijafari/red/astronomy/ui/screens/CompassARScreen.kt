@@ -91,9 +91,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.drawscope.rotate
 import java.util.Locale
 import kotlin.math.*
-import android.hardware.GeomagneticField
-import com.alijafari.red.astronomy.startracker.fusion.StarTrackerConfig
-import com.alijafari.red.astronomy.astro_engine.MagneticDeclination
 
 
     // F-A5 KIND-B: catalog stars / deep-sky objects store J2000.0 coordinates; precess to the
@@ -402,33 +399,16 @@ fun CompassARScreen(
     var manualAzimuthOffset by remember { mutableStateOf(0.0) }
     var manualPitchOffset by remember { mutableStateOf(0.0) }
 
-    // OD4 (final pass B1): local magnetic declination, east-positive degrees, from the
-    // Android framework's WMM wrapper. Guardrails: flag off -> 0.0 (identical to pre-fix);
-    // no GPS fix/permission -> 0.0 (identical to pre-fix). The manual-drag branch below is
-    // NOT corrected: the user aligns rendered sky (true frame) against the real sky by eye,
-    // so the manual value is already a true azimuth.
-    val magneticDeclinationDeg = remember(uiState.userLocation, isGpsActive, hasLocationPermission) {
-        if (!StarTrackerConfig.APPLY_MAGNETIC_DECLINATION || !isGpsActive || !hasLocationPermission) 0.0
-        else try {
-            GeomagneticField(
-                uiState.userLocation.latitude.toFloat(),
-                uiState.userLocation.longitude.toFloat(),
-                uiState.userLocation.elevationMeters.toFloat(),
-                System.currentTimeMillis()
-            ).declination.toDouble()
-        } catch (e: Exception) { 0.0 }
-    }
-
-    // OD4 one-time rebase of a legacy yaw calibration (marker-guarded, see ARCalibrationManager)
-    LaunchedEffect(magneticDeclinationDeg, arCalibrationOffsets) {
-        if (magneticDeclinationDeg != 0.0 && arCalibrationOffsets.yawOffsetDeg != 0f) {
-            ARCalibrationManager.rebaseYawForDeclinationOnce(magneticDeclinationDeg.toFloat(), context)
-        }
-    }
-
-    // SINGLE true-azimuth entry point: sensor azimuth is magnetic-north referenced
-    // (rotation-vector world frame), sky coordinates are true-north referenced.
-    val currentAzimuth = if (isSensorActive) MagneticDeclination.trueAzimuth(skyOrientation.azimuth.toDouble(), magneticDeclinationDeg) else manualAzimuthOffset
+    // Z-V3 (2026-09-04): magnetic declination is NOT applied here. It is already applied
+    // at the attitude SOURCE: OrientationProvider.updateLocation() (called from the GPS
+    // listeners above) sets the WMM declination and the provider rotates the sensor world
+    // frame by it (R_true = R_declination * R_sensor) BEFORE exposing both the rotation
+    // matrix and the scalar azimuth — so skyOrientation.azimuth is already TRUE-north.
+    // The final-pass B1 scalar correction here double-corrected every scalar consumer
+    // (hit-test dAz, FinderEngine, horizon loop, arrows) by +D when GPS was active, and
+    // its legacy-yaw rebase would have corrupted stored calibrations. Both reverted.
+    // See evidence/V3_DECLINATION_PLACEMENT_2026-09-04.md.
+    val currentAzimuth = if (isSensorActive) skyOrientation.azimuth.toDouble() else manualAzimuthOffset
     val currentAltitude = if (isSensorActive) skyOrientation.pitch.toDouble() else manualPitchOffset
 
     DisposableEffect(uiState.userLocation, isSensorActive) {
