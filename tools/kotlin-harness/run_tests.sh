@@ -50,6 +50,7 @@ kotlinc \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/MagneticDeclinationTest.kt" \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/ui/rendering/HeroSkyProjection.kt" \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/HeroSkyProjectionTest.kt" \
+  "$REPO/tools/kotlin-harness/tests/HardwareDistortionReaderTest.kt" \
   -d "$OUT/classes" 2>&1 | grep -E "error|warning" | head -40
 
 echo "== compile done, running =="

@@ -10,6 +10,11 @@ import org.junit.Test
  * T4(a): tier selection (HARDWARE_DISTORTION > SELF_CALIBRATED > NONE) and metadata
  * parsing, tested OFFLINE against the harness CameraCharacteristics/Build shims.
  * The reader is UNEXECUTED against real camera2 HAL metadata until the device trial.
+ *
+ * HARNESS-ONLY TEST: this file deliberately does NOT live under app/src/test — it
+ * assigns Build.VERSION.SDK_INT and constructs CameraCharacteristics directly, which
+ * the harness shims allow but the real android.jar forbids (final field / package-
+ * private ctor). CI therefore never compiles it; run via tools/kotlin-harness/run_tests.sh.
  */
 class HardwareDistortionReaderTest {
 
