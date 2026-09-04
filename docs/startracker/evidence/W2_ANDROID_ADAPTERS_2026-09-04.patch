@@ -1,0 +1,187 @@
+# Z-W2 — Android adapters for the star tracker, as UNEXECUTED unified diffs.
+# NOT applied to the source tree. Every path is flag-gated default-OFF
+# (StarTrackerConfig). Apply order = the flag map in W2_ANDROID_ADAPTERS_2026-09-04.md.
+# Apply with: git apply docs/startracker/evidence/W2_ANDROID_ADAPTERS_2026-09-04.patch
+# (after stripping these comment lines: sed -i '1,6d' the file first).
+
+--- a/app/src/main/java/com/alijafari/red/astronomy/ui/screens/CameraFrameObserver.kt
++++ b/app/src/main/java/com/alijafari/red/astronomy/ui/screens/CameraFrameObserver.kt
+@@
+ import androidx.camera.core.ImageProxy
++import com.alijafari.red.astronomy.startracker.detection.GrayscaleImage
++import com.alijafari.red.astronomy.startracker.fusion.StarTrackerConfig
++import com.alijafari.red.astronomy.startracker.fusion.StarTrackerPipeline
++import java.util.concurrent.atomic.AtomicBoolean
+@@
+ class CameraFrameObserver {
++
++    /** W2 (PHASE5): star-tracker pipeline consumer. Set by CompassARScreen when
++     *  StarTrackerConfig.ENABLED && StarTrackerConfig.PIPELINE_CAMERA_FEED. */
++    @Volatile
++    var starTrackerPipeline: StarTrackerPipeline? = null
++
++    /** W2: result sink for the UI/orientation layer (PHASE6 wiring consumes this). */
++    @Volatile
++    var onPipelineResult: ((StarTrackerPipeline.PipelineResult) -> Unit)? = null
++
++    /** W2: drop-not-queue latch. If a frame arrives while the pipeline is busy the
++     *  frame is DROPPED (closed immediately) — never queued: a stale sky frame is
++     *  worthless for attitude and would only add latency. */
++    private val pipelineBusy = AtomicBoolean(false)
+@@
+                         // NO pixel processing beyond metadata in this phase
+                         // Future phases will access imageProxy.planes[0].buffer etc.
++                        // W2 (PHASE5): feed the star-tracker pipeline OFF the main
++                        // thread (this analyzer already runs on backgroundExecutor),
++                        // drop-not-queue, flag-gated.
++                        if (StarTrackerConfig.ENABLED && StarTrackerConfig.PIPELINE_CAMERA_FEED) {
++                            val pipeline = starTrackerPipeline
++                            val sink = onPipelineResult
++                            if (pipeline != null && sink != null && pipelineBusy.compareAndSet(false, true)) {
++                                try {
++                                    val gray = toGrayscale(imageProxy)
++                                    if (gray != null) {
++                                        sink(pipeline.process(gray))
++                                    }
++                                } catch (e: Exception) {
++                                    if (BuildConfig.DEBUG) Log.w(TAG, "pipeline exception", e)
++                                } finally {
++                                    pipelineBusy.set(false)
++                                }
++                            } // else: frame dropped by design (KEEP_ONLY_LATEST + busy latch)
++                        }
+@@
+     fun shutdown() {
+@@
+     }
++
++    /** W2: Y plane -> GrayscaleImage (luminance only; the pipeline's background
++     *  estimator handles illumination). Rows are copied row-stride aware. Returns
++     *  null for non-YUV formats. UNEXECUTED — validated only by harness unit tests
++     *  of the pure pipeline, never on a device. */
++    private fun toGrayscale(imageProxy: ImageProxy): GrayscaleImage? {
++        if (imageProxy.format != android.graphics.ImageFormat.YUV_420_888) return null
++        val plane = imageProxy.planes[0]   // Y
++        val w = imageProxy.width
++        val h = imageProxy.height
++        val data = FloatArray(w * h)
++        val buf = plane.buffer
++        val rowStride = plane.rowStride
++        for (row in 0 until h) {
++            for (col in 0 until w) {
++                data[row * w + col] = buf.get(row * rowStride + col).toFloat() and 0xFF
++            }
++        }
++        return GrayscaleImage(w, h, data)
++    }
+
+--- a/app/src/main/java/com/alijafari/red/astronomy/astro_engine/OrientationProvider.kt
++++ b/app/src/main/java/com/alijafari/red/astronomy/astro_engine/OrientationProvider.kt
+@@
++import com.alijafari.red.astronomy.startracker.fusion.StarTrackerConfig
++import com.alijafari.red.astronomy.startracker.fusion.StarTrackerPipeline
++import com.alijafari.red.astronomy.startracker.solver.Quaternion
++import com.alijafari.red.astronomy.startracker.tracking.LockConfidence
+@@
+ class OrientationProvider {
++
++    // W2 (PHASE6): latest star-tracker result + receive loop. The tracker attitude
++    // is in the CAMERA frame (catalog->camera). Conversion to the provider's world
++    // frame is the device-trial integration step (runbook OD1 logs the discrepancy).
++    @Volatile
++    private var latestStarTrackerAttitude: Quaternion? = null
++    @Volatile
++    private var latestStarTrackerLock: LockConfidence = LockConfidence.NO_LOCK
++    @Volatile
++    private var latestStarTrackerTimestampNanos: Long = 0L
++
++    /** W2 (PHASE6): called by the CameraFrameObserver result sink (off main thread).
++     *  Flag-gated: records the result always (for OD1 discrepancy logging), but the
++     *  emitted orientation only changes when TRACKER_TO_ORIENTATION_PHASE6 is set. */
++    fun onStarTrackerResult(result: StarTrackerPipeline.PipelineResult) {
++        latestStarTrackerAttitude = result.attitude
++        latestStarTrackerLock = result.lockConfidence
++        latestStarTrackerTimestampNanos = System.nanoTime()
++        // Emission path (PHASE6 blend) deliberately NOT implemented here yet: the
++        // AttitudeBlender wiring requires the camera->device frame rotation from the
++        // live sensorOrientation/displayRotation, which only exists on device. This
++        // method records and exposes; blending happens in the device trial branch.
++    }
+
+--- a/app/src/main/java/com/alijafari/red/astronomy/astro_engine/ARProjectionEngine.kt
++++ b/app/src/main/java/com/alijafari/red/astronomy/astro_engine/ARProjectionEngine.kt
+@@
+     enum class IntrinsicsSource {
+         /** True hardware calibration from CameraCharacteristics.LENS_INTRINSIC_CALIBRATION */
+         CALIBRATED_HARDWARE,
++
++        /** W2 (PHASE7): cached result of SelfCalibrationEngine refinement, normalized
++         *  to active-array pixels. Preferred over ESTIMATED_PHYSICAL_SENSOR when
++         *  present; never over CALIBRATED_HARDWARE. */
++        SELF_CALIBRATED_CACHED,
+ 
+         /** Estimated from physical sensor size (SENSOR_INFO_PHYSICAL_SIZE) and focal length */
+         ESTIMATED_PHYSICAL_SENSOR,
+@@
+     fun getCameraIntrinsics(context: Context?): CameraIntrinsics {
++        // W2 (PHASE7 + gap fix): tier order is CALIBRATED_HARDWARE > SELF_CALIBRATED_CACHED
++        // > ESTIMATED_PHYSICAL_SENSOR > FALLBACK_DEFAULT. The GAP being fixed: the
++        // self-calibration profile is expressed in NORMALIZED units (fx,fy as fractions
++        // of the array width/height, principal point normalized to [0,1]) so the cache
++        // survives array-size changes; de-normalization happens here against the live
++        // active array, closing the normalized-vs-pixels gap that would otherwise
++        // mis-scale the overlay after a resolution change.
++        if (cachedSelfCalibrated != null && StarTrackerConfig.PROJECTION_SELF_CALIBRATED_PHASE7) {
++            logIntrinsicsTier(cachedSelfCalibrated!!.source)
++            return cachedSelfCalibrated!!
++        }
+         if (context != null) {
+@@
+     }
++
++    // W2 (PHASE7): cache of the last SelfCalibrationEngine refinement, de-normalized
++    // to the active array. Written by the calibration flow (device only).
++    @Volatile
++    private var cachedSelfCalibrated: CameraIntrinsics? = null
++
++    /** W2 (PHASE7): publish a normalized self-calibration profile.
++     *  @param normalizedFx fx as a fraction of active-array width (e.g. 0.91)
++     *  @param normalizedFy fy as a fraction of active-array height
++     *  @param normalizedCx, normalizedCy principal point in [0,1] (array center = 0.5)
++     *  UNEXECUTED: no production caller until the device-trial branch. */
++    fun publishSelfCalibratedIntrinsics(
++        normalizedFx: Double, normalizedFy: Double,
++        normalizedCx: Double, normalizedCy: Double,
++        activeArrayWidth: Int, activeArrayHeight: Int,
++        sensorOrientation: Int
++    ) {
++        cachedSelfCalibrated = CameraIntrinsics(
++            fx = normalizedFx * activeArrayWidth,
++            fy = normalizedFy * activeArrayHeight,
++            cx = normalizedCx * activeArrayWidth,
++            cy = normalizedCy * activeArrayHeight,
++            skew = 0.0,
++            activeArrayWidth = activeArrayWidth,
++            activeArrayHeight = activeArrayHeight,
++            sensorOrientation = sensorOrientation,
++            isLensFacingBack = true,
++            source = IntrinsicsSource.SELF_CALIBRATED_CACHED
++        )
++    }
+
+--- a/app/src/main/java/com/alijafari/red/astronomy/startracker/fusion/StarTrackerConfig.kt
++++ b/app/src/main/java/com/alijafari/red/astronomy/startracker/fusion/StarTrackerConfig.kt
+@@
+ object StarTrackerConfig {
++
++    /** W2 switch 1 (PHASE5): feed camera frames to StarTrackerPipeline.
++     *  Master gate StarTrackerConfig.ENABLED (below) must also be true. */
++    const val PIPELINE_CAMERA_FEED: Boolean = false
++
++    /** W2 switch 2 (PHASE6): let OrientationProvider consume tracker results. */
++    const val TRACKER_TO_ORIENTATION_PHASE6: Boolean = false
++
++    /** W2 switch 3 (PHASE7): prefer SELF_CALIBRATED_CACHED intrinsics in the overlay. */
++    const val PROJECTION_SELF_CALIBRATED_PHASE7: Boolean = false
++
++    // (existing flags follow, unchanged)
