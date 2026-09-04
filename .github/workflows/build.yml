@@ -47,19 +47,13 @@ jobs:
             gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle_build.log
           fi
 
-      - name: Publish build log on failure
+      - name: Build log artifact (on failure)
         if: failure()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch --depth=5 origin "$GITHUB_REF_NAME" || true
-          git checkout "$GITHUB_REF_NAME" 2>/dev/null || git checkout -b "$GITHUB_REF_NAME" origin/"$GITHUB_REF_NAME"
-          mkdir -p buildlogs
-          cp gradle_build.log "buildlogs/${GITHUB_SHA:0:8}.log" 2>/dev/null || true
-          # also capture compile errors from any daemon logs if present
-          git add buildlogs
-          git commit -m "ci: build log for ${GITHUB_SHA:0:8} [skip ci]" || echo "nothing to commit"
-          git push origin "$GITHUB_REF_NAME" || echo "log push failed"
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: gradle_build.log
+          if-no-files-found: ignore
 
       - name: Diagnostic - List Generated APKs
         run: |
@@ -73,22 +67,14 @@ jobs:
           path: app/build/outputs/apk/**/*.apk
           if-no-files-found: warn
 
-      - name: Deliver APK via git branch (ci/apk)
+      - name: Rolling pre-release with the APK
         if: success()
-        run: |
-          APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
-          if [ -z "$APK" ]; then echo "no APK found"; exit 1; fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch --depth=1 origin ci/apk || true
-          git checkout --orphan ci/apk || git checkout ci/apk
-          git rm -rf --quiet . 2>/dev/null || true
-          cp "$APK" ./app-debug.apk
-          SHA=$(git rev-parse HEAD 2>/dev/null || echo none)
-          echo "$GITHUB_SHA" > BUILD_INFO.txt
-          git add app-debug.apk BUILD_INFO.txt
-          git commit -m "ci: APK from $GITHUB_SHA [skip ci]" || echo "no changes"
-          git push origin ci/apk --force
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-debug-apk
+          name: "CI debug APK (rolling)"
+          prerelease: true
+          files: app/build/outputs/apk/**/*.apk
 
   unit-tests:
     runs-on: ubuntu-latest

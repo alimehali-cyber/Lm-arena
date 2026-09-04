@@ -51,16 +51,18 @@ class CameraFrameObserver {
         private set
 
     private val imageAnalysis: ImageAnalysis by lazy {
+        // T3: the property below is a non-null val (type ExecutorService, from a
+        // non-null factory), but this Kotlin/camera-core pairing mis-infers it as
+        // platform/nullable in the setAnalyzer argument position (the PR#3-era
+        // compileDebugKotlin error). Hoisting it into a local val typed as the
+        // declared parameter type (java.util.concurrent.Executor) pins the inference
+        // with no runtime assertion at all.
+        val executor: java.util.concurrent.Executor = backgroundExecutor
         ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             // .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888) // default
             .build().apply {
-                // Explicit non-null assertion: newer camera-core marks setAnalyzer's
-                // Executor parameter @NonNull and this Kotlin/camera-core pairing
-                // mis-infers the property as platform/nullable here (compileDebugKotlin
-                // error since PR #3); the property is a non-null val, so !! is a
-                // compile-time-only fix and can never throw at runtime.
-                setAnalyzer(backgroundExecutor!!) { imageProxy: ImageProxy ->
+                setAnalyzer(executor) { imageProxy: ImageProxy ->
                     try {
                         // Capture metadata for later clock-domain analysis
                         latestImageTimestampNanos = imageProxy.imageInfo.timestamp
