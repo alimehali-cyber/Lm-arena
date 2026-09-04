@@ -27,7 +27,13 @@ class LocalRelockSearch(
         val attitude: Quaternion?,
         val candidateSetSizeReduction: String, // e.g., "full N=1000, local M=50"
         val usedLocal: Boolean,
-        val fallbackToFull: Boolean
+        val fallbackToFull: Boolean,
+        /**
+         * The REAL underlying SolveResult from whichever solver actually ran (local or full
+         * blind fallback), with its actual inlier count and confidence. Audit finding B7:
+         * callers previously had to invent these numbers because they were discarded here.
+         */
+        val solveResult: com.alijafari.red.astronomy.startracker.solver.SolveResult? = null
     )
 
     /**
@@ -58,7 +64,8 @@ class LocalRelockSearch(
                 attitude = fullResult.attitude,
                 candidateSetSizeReduction = "full blind (nearby too few: ${nearbyStars.size})",
                 usedLocal = false,
-                fallbackToFull = true
+                fallbackToFull = true,
+                solveResult = fullResult
             )
         }
 
@@ -82,7 +89,8 @@ class LocalRelockSearch(
                 attitude = localResult.attitude,
                 candidateSetSizeReduction = "full N=$fullQuadCount, local M=$localQuadCount, reduction ${(1 - localQuadCount.toDouble()/fullQuadCount)*100}%",
                 usedLocal = true,
-                fallbackToFull = false
+                fallbackToFull = false,
+                solveResult = localResult
             )
         }
 
@@ -93,7 +101,8 @@ class LocalRelockSearch(
             attitude = fullResult.attitude,
             candidateSetSizeReduction = "local failed (M=$localQuadCount), full N=$fullQuadCount, fallback",
             usedLocal = false,
-            fallbackToFull = true
+            fallbackToFull = true,
+            solveResult = fullResult
         )
     }
 }

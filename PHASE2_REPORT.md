@@ -332,7 +332,7 @@ Grand total: 2052 lines
 ```
 
 ### 5. Full test suite results (all existing + all new), before/after, pass/fail
-- **Before Phase 2 (Phase 1 final):** Existing tests (HeroSkyProjectionTest 3 tests, RefractionTest 4 tests) should PASS conceptually, but cannot run due to blocked Gradle (same as Phase 1). Phase 1 report noted gradle blocked.
+- **Before Phase 2 (Phase 1 final):** Existing tests should PASS conceptually, but cannot run due to blocked Gradle (same as Phase 1). Phase 1 report noted gradle blocked. [Count corrections 2026-09-03: RefractionTest has 6 @Test methods, HeroSkyProjectionTest has 7; both suites now executed green in the offline harness.]
 - **After Phase 2:** Existing tests unchanged, new tests added (12 test files total). **Cannot run** — blocked environment. No test run attempted beyond static analysis.
 - **Attempted `./gradlew :app:testDebugUnitTest`:** BLOCKED — `curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL...`
 - **Status:** All new tests are pure Kotlin, no Android dependency, so they WOULD run on any machine with Java/Gradle, but cannot be validated in this sandbox.

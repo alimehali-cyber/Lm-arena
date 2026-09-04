@@ -48,9 +48,12 @@ class FrameQualityClassifier(
             return FrameQuality.POOR_LOW_STARS
         }
 
-        // High noise: background std high, many small blobs but low mean brightness
-        if (stats.backgroundStd > highNoiseThreshold && stats.blobCount > minStarsForGood * 3) {
-            // Many blobs but noisy background suggests false detections
+        // High noise: background std above threshold -> POOR_HIGH_NOISE regardless of blob count.
+        // Audit finding B10: this previously ALSO required blobCount > minStarsForGood * 3 (>15),
+        // and the final borderline fallback returned GOOD for any blobCount >= lowStarsThreshold,
+        // so a MODERATE blob count (2..15) on a noisy background fell through to GOOD.
+        // Confirmed by trace and by the new testHighNoiseModerateBlobCount regression test.
+        if (stats.backgroundStd > highNoiseThreshold) {
             return FrameQuality.POOR_HIGH_NOISE
         }
 
@@ -59,12 +62,12 @@ class FrameQualityClassifier(
             return FrameQuality.POOR_BLUR
         }
 
-        // Good if enough stars and reasonable stats
-        if (stats.blobCount >= minStarsForGood && stats.backgroundStd < highNoiseThreshold) {
+        // Good if enough stars (background noise already known below threshold here)
+        if (stats.blobCount >= minStarsForGood) {
             return FrameQuality.GOOD
         }
 
-        // Borderline cases
+        // Borderline cases: 2..minStarsForGood-1 blobs on a clean background
         return if (stats.blobCount >= lowStarsThreshold) {
             FrameQuality.GOOD
         } else {

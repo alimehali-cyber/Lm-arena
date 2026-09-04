@@ -1,10 +1,37 @@
-# Phase 7 Integration Patch — Self-Calibration Camera Intrinsics & Distortion Refinement (Documented, Ready-to-Apply, Environment Blocked)
+# Phase 7 Integration Patch — Self-Calibration Camera Intrinsics & Distortion Refinement (documented patch, NOT applied)
 
-**Status:** ENVIRONMENT STILL BLOCKED, LIVE WIRING WAS NOT PERFORMED, DOCUMENTED PATCH PROVIDED INSTEAD
+**Status (updated 2026-09-03, remediation pass 2): environment PARTIALLY unblocked; live
+wiring still gated.** The pure-Kotlin offline harness (kotlinc 2.4.10 + jdk4py JRE 25 +
+JUnit shim; full disclosure docs/startracker/evidence/HARNESS_DISCLOSURE.md) now EXISTS
+and has executed the Phase 7 test files with real results:
+
+| Phase 7 test file | Executed result (offline harness) |
+|---|---|
+| DistortionModelTest | 4/4 PASS (incl. the pass-1 real-CPython cross-check at 1e-15) |
+| IntrinsicsRefinerTest | 5/5 PASS (testRecoveryPerfectNoNoise first ran after the zero-noise guard) |
+| DistortionRefinerTest | 4/4 PASS (same guard) |
+| CameraProfileCacheTest | 5/5 PASS (incl. pass-1 B9 pinning test) |
+| SelfCalibrationEngineTest | 2/2 PASS (pass-1 B8 lifecycle tests) |
+
+The gate for ARProjectionEngine live wiring REMAINS UNMET: that file imports
+androidx/android and cannot be compiled or tested in this sandbox — only the real
+Android toolchain (`./gradlew :app:testDebugUnitTest`, still never run) can satisfy the
+project rule. The patch below therefore remains DOCUMENTED, NOT APPLIED.
+
+numpy note (resolved pass 2): `pip install --break-system-packages numpy` succeeds →
+numpy 2.4.6 installed; all five phase python cross-checks re-run and every documented
+number reproduced (evidence/A6_NUMPY_CROSSCHECK_REPRO_2026-09-03.txt). The historical
+header below claimed this availability during Phase 7; it was false then in this sandbox
+and true only of the original authoring environment.
 
 This document contains the exact proposed diff for ARProjectionEngine.kt and StarTrackerConfig / new SelfCalibrationConfig showing precisely where and how self-calibration would be wired, with before/after excerpts, list of pre-existing tests that MUST pass before and after, and instructions for human engineer.
 
 ## Hard Gate Decision (Task 0 / Task 5)
+
+> **SUPERSEDED 2026-09-03 — current environment status lives in
+> PROJECT_STATUS_END_OF_IMPLEMENTATION.md §5.** The decision text below is the correct
+> historical record of the Phase-7-era state (and its outcome — patch, not live edit —
+> still stands).
 
 Per Task 0 lightweight env check:
 - `./gradlew --version` → `curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to services.gradle.org:443` (same as Phases 1-6)
@@ -34,9 +61,14 @@ Per Task 5 gating rule: "only if pre-existing + Phases1-6 tests all pass else pr
 - Separate linear LS: u = fx*x + skew*y + cx (3 params), v = fy*y + cy (2 params) via normal equations AtA/Atb + Gaussian elimination partial pivot threshold 1e-12
 - Iterative 10 max convergence 1e-6 RMS
 - minObs 6, distribution check span <10% width → decline
-- Sweep results from python_crosscheck_phase7.py (headline table):
+- Sweep results from python_crosscheck_phase7.py (headline table). NOISE LABEL
+  (pass 2, item C2 — corrected): the generator is `rng.uniform(-noise_px, +noise_px)`
+  per axis, i.e. UNIFORM half-width s px, whose RMS is s/sqrt(3) = 0.577 s. That is why
+  residual RMS values are consistently ~0.58x the stated noise (1.0px->0.57, 0.5->0.28,
+  0.2->0.11): the observed RMS is the uniform-noise floor, not an unexplained error.
+  Column labels below mean "uniform +/-s px":
 ```
-Noise\Obs | 4 | 10 | 30 | 100
+Noise (uniform +/-s px) \ Obs | 4 | 10 | 30 | 100
 0.0px | FAIL (expected minObs gate) | rms=0.00 fxErr=0.0 | rms=0.00 fxErr=0.0 | rms=0.00 fxErr=0.0 |
 0.2px | FAIL | rms=0.11 fxErr=0.1 | rms=0.12 fxErr=0.1 | rms=0.11 fxErr=0.0 |
 0.5px | FAIL | rms=0.28 fxErr=0.7 | rms=0.26 fxErr=0.1 | rms=0.28 fxErr=0.0 |
@@ -49,9 +81,11 @@ Noise\Obs | 4 | 10 | 30 | 100
 - Linear LS for k1,k2,p1,p2 given fixed intrinsics: x_d - x = x*r2*k1 + x*r4*k2 + 2*x*y*p1 + (r2+2x^2)*p2, etc.
 - minObs 10, minSpan 0.5, maxR2 <0.1 → decline (clustered near center unobservable)
 - Overfitting guard: |k1|,|k2|>1.0 or |p1|,|p2|>0.1 → decline
-- Sweep from python_crosscheck_phase7.py:
+- Sweep from python_crosscheck_phase7.py. Same NOISE LABEL correction (C2): generator
+  is uniform +/-s in normalized units (RMS = 0.577 s; e.g. s=0.005 -> residual RMS ~0.0029
+  observed - exactly the uniform floor). Labels mean "uniform +/-s (normalized)":
 ```
-Noise\Obs | 10 | 30 | 100
+Noise (uniform +/-s, normalized) \ Obs | 10 | 30 | 100
 0.0 | k1Err=0.0000 k2Err=0.0000 rms=0.00000 | k1Err=0.0000 k2Err=0.0000 rms=0.00000 | k1Err=0.0000 k2Err=0.0000 rms=0.00000 |
 0.001 | k1Err=0.0003 k2Err=0.0003 rms=0.00049 | k1Err=0.0001 k2Err=0.0000 rms=0.00057 | k1Err=0.0000 k2Err=0.0001 rms=0.00057 |
 0.005 | k1Err=0.0019 k2Err=0.0119 rms=0.00251 | k1Err=0.0114 k2Err=0.0144 rms=0.00288 | k1Err=0.0023 k2Err=0.0019 rms=0.00293 |
@@ -62,12 +96,44 @@ Noise\Obs | 10 | 30 | 100
 - File: `CameraProfileCache.kt`
 - Interface get/put/merge weighted by sampleCount
 - InMemory ref impl: weighted running average (100*existing + 20*new)/120
-- Merge convergence test: good fx=1000 (200 samples) + bad fx=1500 (10 samples) → merged 1023.81, close to good, down-weights early bad batch
+- Merge convergence test: good fx=1000 (200 samples) + bad fx=1500 (10 samples) → merged 1023.81, close to good. CORRECTION (audit B9): this down-weights the second batch because it is SMALL (10 vs 200 samples), not because it is bad — the merge weights by sample count only, with no quality/residual signal
 - DESIGN ONLY SharedPreferences stub doc keyed by CameraCharacteristics lens facing+focal+sensor hash: example `FACING_BACK_F_4.2_S_5.6x4.2`
 
-## Proposed Diff for ARProjectionEngine.kt
+## Proposed change for ARProjectionEngine.kt (SKETCH, not an applicable diff)
 
-### Current tiers (before)
+> **Pass-2 note (item C3): retitled from "Proposed Diff".** Choice made: RETITLE, not
+> make-compilable. Reasons: (1) the section contains placeholder "..." elisions, a
+> hardcoded `isLensFacingBack = true`, and an unspecified `cameraId` — a compilable
+> diff would require inventing those, which is new design work masquerading as
+> formatting; (2) ARProjectionEngine.kt cannot be compiled in this sandbox anyway
+> (androidx imports), so "compilable-by-inspection" claims could not be verified here
+> and would repeat the original sin of asserting unverified properties. When the real
+> toolchain exists, the implementer must turn this sketch into an exact diff against
+> the then-current file and fill in the placeholders deliberately.
+
+### Known design gap (documented pass 2, item C4 — must be fixed by the eventual implementer; NOT implemented here)
+
+1. **Pixel intrinsics are resolution/crop-dependent; the proposed cache key is not.**
+   fx/fy/cx/cy refined from ImageAnalysis frames are valid only for that stream's
+   resolution AND its sensor-crop aspect ratio. The proposed cache key
+   (`FACING_BACK_F_4.2_S_5.6x4.2` — lens facing + focal + sensor size) contains neither
+   the output resolution nor the crop, so a profile refined at e.g. 1600x1200 analysis
+   frames would be misapplied to a different-resolution preview/overlay path, silently
+   scaling cx/cy and fx/fy wrongly. REQUIRED FIX (either): (a) store NORMALIZED
+   intrinsics relative to the sensor's activeArray (fx/fy as fractions of active-array
+   width/height, principal point as normalized coordinates) and denormalize per stream
+   against its crop+resolution, or (b) include the stream resolution and crop in the
+   cache key (accepting cache fragmentation across resolutions). Option (a) is the
+   usual practice.
+2. **`focalLengths.firstOrNull()` is wrong for multi-lens devices.** Camera2 returns
+   focal lengths in unspecified order; on multi-lens devices the first entry need not
+   correspond to the logical camera or the active physical camera actually streaming.
+   The implementer must select the focal length matching the CURRENT camera
+   (CameraManager.getCameraCharacteristics for the active camera id, and for logical
+   multi-cameras the active physical camera's characteristics via
+   CameraCharacteristics.getPhysicalCameraIds()/session parameters), not `firstOrNull()`.
+
+
 
 ```kotlin
 enum class IntrinsicsSource {
@@ -201,18 +267,23 @@ fun CameraProfile.toCameraIntrinsics(...): CameraIntrinsics = ...
 
 Per Phase 0-6 audit, these must pass both before and after applying patch (with flag OFF, behavior identical):
 
-- RefractionTest (Phase 1, 4 tests)
+- RefractionTest (Phase 1; actually 6 @Test methods, not 4 - count corrected pass 2; all 6 green in the offline harness)
 - GrayscaleImageTest, SyntheticStarFieldGeneratorTest, BackgroundEstimatorTest, StarBlobDetectorTest, CentroiderTest, StarDetectionPipelineTest (Phase 2, 6 files)
 - CatalogIngestorTest, AngularSeparationIndexTest, QuadPatternIndexTest, CatalogSerializerTest (Phase 3, 4 files)
 - SyntheticSkyObserverTest, AttitudeSolverTest (Phase 4, 2 files)
 - ConfidenceStateMachineTest, QuaternionIntegratorTest, RelockPolicyTest (Phase 5, 3 files)
 - AttitudeBlenderTest (Phase 6, 1 file) — safety no-lock passthrough
 - DistortionModelTest, IntrinsicsRefinerTest, DistortionRefinerTest, CameraProfileCacheTest (Phase 7, 4 new files — must pass as isolated before live wiring)
-- SkyOrientationProjectionTest, HeroSkyProjectionTest, FrameTransformationEngineTest, ARCalibrationPromptTest, SatelliteARConsistencyTest, AstroTimeTest, SGP4PropagatorTest (if exist, from Phase 0 baseline)
+- (Pass 2, item C5 - replaced the old "(if exist, from Phase 0 baseline)" guess with actual
+  offline-harness results per file, full details in docs/startracker/evidence/HARNESS_DISCLOSURE.md section 6:)
+  HeroSkyProjectionTest: RAN 7/7 (in main run, via Offset stub) | FrameTransformationEngineTest: RAN 13/13 |
+  AstroTimeTest: RAN 14/14 | SkyOrientationProjectionTest: CANNOT COMPILE (needs ARProjectionEngine.kt/Compose) |
+  ARCalibrationPromptTest: CANNOT COMPILE (Robolectric) | SatelliteARConsistencyTest: CANNOT COMPILE (dep closure reaches Android engines) |
+  SGP4PropagatorTest: CANNOT COMPILE (dep TimeEngine.kt imports android.util.Log)
 
 **Total: ~20+ test files, each named individually, must pass with flag OFF.**
 
-**With flag ON and synthetic calibration data:** IntrinsicsRefinerTest should show recovery within 0.1px RMS for 100 obs 0 noise, DistortionRefinerTest within 1e-4 for k1, and CameraProfileCacheTest merge down-weights bad early batch.
+**These HAVE NOW RUN (pass 1/2, offline harness) - actuals instead of 'should show':** IntrinsicsRefinerTest testRecoveryPerfectNoNoise PASSES (RMS < 0.01 asserted; these are uniform-noise-labeled tests - '0 noise' means the generator short-circuits to exact points); DistortionRefinerTest testRecoveryPerfectNoNoise PASSES (k1 recovered exactly at 0 noise, asserted within 1e-4); CameraProfileCacheTest PASSES incl. the small-batch-by-count merge test (count-based weighting only - no quality signal; audit B9 correction).
 
 ## Instructions for Human Engineer
 
@@ -226,17 +297,20 @@ Per Phase 0-6 audit, these must pass both before and after applying patch (with 
 
 ## Cumulative Environment Status (Phases 1-7)
 
+> **SUPERSEDED 2026-09-03 — the single authoritative environment table is
+> PROJECT_STATUS_END_OF_IMPLEMENTATION.md §5.** Table retained below as history.
+
 | Phase | Automated Execution Achieved? | Substitute Verification Used | Risk |
 |-------|-------------------------------|------------------------------|------|
 | 1 | No — Gradle TLS failure, no Java | Static analysis, manual calc for refraction | Medium |
 | 2 | No — same block | Python weighted centroid error 0.0756 px PASS, sigma-clipped median robust | High — 1149 lines new |
-| 3 | No — same block, python+numpy now available | Python haversine vs dot 1e-9 PASS, quad descriptor square 0.707 ratios, k-vector O(1) | High — 6 new files |
+| 3 | No — same block [pass-2 correction: numpy was NOT available in this sandbox then; the claim was true only of the authoring environment. numpy 2.4.6 now installed and the script numbers reproduced] | Python haversine vs dot 1e-9 PASS, quad descriptor square 0.707 ratios [pass-2 correction: k-vector query complexity is NOT flat O(1) - O(1) bracketing + distribution-dependent correction, worst case O(P); see AngularSeparationIndex.kt docs] | High — 6 new files |
 | 4 | No — same block | Python Davenport q-method: zero noise 0 arcsec, 0.01° noise 27 arcsec, TRIAD 0 arcsec, Jacobi 1,3,3,4 PASS | Very High — nontrivial linear algebra |
 | 5 | No — same block | Synthetic event sequences, analytic gyro 5°/s 10s → 50° yaw, trigger boundaries | Very High — state machine + quaternion |
 | 6 | No — same block, hard gate stops live wiring | Isolated AttitudeBlender no-lock passthrough 1e-9 + documented patch | Critical — first touching live code but blocked |
 | 7 | No — same block, hard gate stops live wiring | Python cross-check Phase7: distortion round-trip <1e-6, intrinsics sweep table, distortion sweep table, clustered decline, cache merge convergence | Critical — 7 phases without execution, ~4000+ lines pure Kotlin never run via JUnit |
 
-**Plain-language escalation:** This is now SEVEN phases in a row where new code has shipped without ever being executed by automated test runner. Phases 2-7 total ~4000+ lines of new pure-Kotlin code for detection, catalog, solver, tracking, fusion, calibration — all reasoned about, manually cross-checked via Python where possible, but never run as Kotlin via JUnit. The project's own Phase 6 and Phase 7 hard gates correctly block live wiring into OrientationProvider and ARProjectionEngine until baseline tests pass before and after — these gates are working as designed to prevent regression. However, the underlying environment blocker (Gradle TLS failure downloading 9.3.1 from services.gradle.org, no JDK) must be resolved by a human with access to proper development machine and network before Phase 6/7 live wiring and before Phase 8+ can proceed. Do not just note and forget — escalate to human with real device.
+**Plain-language escalation (HISTORICAL, written at Phase 7 time):** This is now SEVEN phases in a row where new code has shipped without ever being executed by automated test runner. Phases 2-7 total ~4000+ lines of new pure-Kotlin code for detection, catalog, solver, tracking, fusion, calibration — all reasoned about, manually cross-checked via Python where possible, but never run as Kotlin via JUnit. The project's own Phase 6 and Phase 7 hard gates correctly block live wiring into OrientationProvider and ARProjectionEngine until baseline tests pass before and after — these gates are working as designed to prevent regression. However, the underlying environment blocker (Gradle TLS failure downloading 9.3.1 from services.gradle.org, no JDK) must be resolved by a human with access to proper development machine and network before Phase 6/7 live wiring and before Phase 8+ can proceed. Do not just note and forget — escalate to human with real device.
 
 ## If Environment Not Fixed Before Phase 7, Phase 7 Will Be BLOCKED
 

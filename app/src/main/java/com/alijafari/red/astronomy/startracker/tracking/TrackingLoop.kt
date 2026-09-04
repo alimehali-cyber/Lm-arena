@@ -60,14 +60,17 @@ class TrackingLoop(
     }
 
     /**
-     * On gyro sample: integrate attitude
+     * On gyro sample: integrate attitude.
+     * Audit finding B6: this previously advanced fakeClock(dt) explicitly AND then called
+     * confidenceMachine.updateWithTime(dt), which advances the shared clock again — the clock
+     * advanced 2xdt per gyro sample. The explicit advance is removed; updateWithTime(dt) is
+     * the single clock-advancing call.
      */
     fun onGyroSample(angularVelocity: Vec3, dtSeconds: Double) {
         val newAttitude = integrator.integrate(currentAttitude, angularVelocity, dtSeconds)
         val deltaAngle = computeDeltaAngle(currentAttitude, newAttitude)
         currentAttitude = newAttitude
         relockPolicy.onGyroIntegration(deltaAngle)
-        fakeClock.advance(dtSeconds)
         confidenceMachine.updateWithTime(dtSeconds)
         updateState()
     }
@@ -79,19 +82,21 @@ class TrackingLoop(
         val trigger = relockPolicy.shouldTriggerRelock()
 
         val solveResult = if (trigger != null || confidenceMachine.currentState == LockConfidence.NO_LOCK) {
-            // Try local re-lock first if we have prior close to correct
+            // Try local re-lock first if we have prior close to correct.
+            // Audit finding B7: this previously re-wrapped the local search outcome in a
+            // fabricated SolveResult with hardcoded inlierCount = 6 ("estimate") and
+            // confidence = 0.8, reporting fictitious confidence numbers to the state
+            // machine. LocalRelockSearch now carries the underlying REAL SolveResult
+            // (from the local solver or the full blind fallback), which is used as-is.
             val localResult = localSearch.search(observations, currentAttitude)
-            if (localResult.success && localResult.attitude != null) {
-                com.alijafari.red.astronomy.startracker.solver.SolveResult(
-                    success = true,
-                    attitude = localResult.attitude,
-                    inlierCount = 6, // estimate
-                    confidence = 0.8
+            localResult.solveResult
+                ?: com.alijafari.red.astronomy.startracker.solver.SolveResult(
+                    success = false,
+                    attitude = null,
+                    inlierCount = 0,
+                    confidence = 0.0,
+                    errorMessage = "Local search returned no underlying solve result (honest failure, no fabrication)"
                 )
-            } else {
-                // Fallback to full blind
-                lostInSpaceSolver.solve(observations)
-            }
         } else {
             // No trigger, continue gyro
             null

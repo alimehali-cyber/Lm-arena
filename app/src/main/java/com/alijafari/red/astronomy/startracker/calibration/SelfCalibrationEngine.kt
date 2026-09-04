@@ -47,6 +47,12 @@ class SelfCalibrationEngine(
         // Update cache via merge (weighted by sample count)
         cache.merge(deviceLensKey, result.refinedProfile, accumulatedIntrinsicsObservations.size)
 
+        // Audit finding B8: clear the accumulation buffer after a successful refinement.
+        // Previously the buffer was never cleared here, so the next selfCalibrate() cycle
+        // re-refined and re-merged the SAME observations on top of the already-updated
+        // profile, double-counting stale data indefinitely.
+        accumulatedIntrinsicsObservations.clear()
+
         return result.refinedProfile
     }
 
@@ -71,6 +77,9 @@ class SelfCalibrationEngine(
         )
 
         cache.merge(deviceLensKey, refinedProfile, accumulatedDistortionObservations.size)
+
+        // Audit finding B8: same clear-after-success contract as tryRefineIntrinsics above.
+        accumulatedDistortionObservations.clear()
 
         return refinedProfile
     }

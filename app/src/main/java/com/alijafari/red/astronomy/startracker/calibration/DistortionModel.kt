@@ -140,4 +140,12 @@ class DistortionModel(
     companion object {
         fun noDistortion(): DistortionModel = DistortionModel(0.0, 0.0, 0.0, 0.0)
     }
+
+    /**
+     * True when all distortion coefficients are zero, i.e. the model maps every
+     * point to itself and undistort/forward-distort can be skipped as a no-op.
+     * (Added during the first-ever compilation pass: EndToEndSyntheticTestHelper
+     * called this method but it did not exist, which made the module not compile.)
+     */
+    fun isIdentity(): Boolean = k1 == 0.0 && k2 == 0.0 && p1 == 0.0 && p2 == 0.0
 }

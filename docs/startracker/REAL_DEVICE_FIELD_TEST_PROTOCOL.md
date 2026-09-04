@@ -105,6 +105,7 @@ For each, record:
 
 - Attitude error arcsec: RMS, median, 95th percentile
 - Success rate: % frames with FULL_LOCK or MARGINAL_LOCK
+- Acquisition discrepancy magnitude (degrees) on EVERY FULL_LOCK acquisition (angle between pre-acquisition fused attitude and star-solved attitude at the moment of lock) - logged so the keep-vs-ramp decision for AttitudeBlender's 0.9x acquisition snap (see docs/startracker/ATTITUDE_BLENDER_ACQUISITION_NOTE.md, PARKED) is made from field data
 - Time to first lock
 - Time to relock
 - FailureReason distribution
@@ -146,3 +147,32 @@ If testing shows improvement and graceful degradation:
 - Commit live wiring with flag OFF by default
 - Document flag ON for future release
 - Plan for gradual rollout with analytics
+
+---
+
+## Final-pass addendum (2026-09-04)
+
+New device-verification items added by the final pass (all UNEXECUTED — no Android
+runtime in this environment):
+
+1. **Compile & install**: the B4 wiring (OrientationProvider.sensorTimestampNanos +
+   CompassARScreen collector) and the R2-A1 camera gate are outside the offline-harness
+   compile set; first `./gradlew :app:assembleDebug` on a real toolchain is part of the
+   runbook.
+2. **Magnetic declination (B1, default ON)**: at a known GPS fix, verify the AR overlay
+   azimuth shifts by the local declination vs the previous build (e.g. +4.97° in Tehran,
+   −26.78° in Cape Town — evidence/DECLINATION_TABLE_2026-09-04.txt); verify the
+   one-time legacy-yaw rebase fired (marker `calib_yaw_declination_rebased_v1`) and that
+   a previously calibrated device still overlays stars correctly.
+3. **Star positions (A/B3)**: spot-check Mizar, Alkaid, Schedar, Alnilam, Mintaka, Caph,
+   Shaula and the SMC against the real sky (previously 0.6°–3.4° off).
+4. **Sun/Moon/planets (A)**: overlay should now match reality to ~1 arcmin (was up to
+   degrees for planets).
+5. **Star tracker (C/D/E)**: remains behind `StarTrackerConfig.ENABLED = false`. Do NOT
+   enable on device until the D6 false-lock blocker (15% of clean-sky solves lock wrong)
+   is fixed; if experimenting, the quad index build (mag≤5.5, K=6, 3.6 MB) and the
+   catalog CSV (data/startracker/hyg_v36_vle6.5_j2000.csv, must be added to assets)
+   are the pieces to wire.
+6. **HYG attribution**: if the HYG-derived catalog ships in an APK, the CC BY-SA 4.0
+   attribution text from docs/startracker/E1_CATALOG_PROVENANCE.md must appear in the
+   app's About/license screen.

@@ -898,13 +898,26 @@ fun CompassARScreen(
                             }
                             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
                             cameraProvider.unbindAll()
-                            // Phase 1 Task 3: bind Preview + ImageAnalysis (inert observer)
-                            cameraProvider.bindToLifecycle(
-                                lifecycleOwner,
-                                cameraSelector,
-                                preview,
-                                cameraFrameObserver.getUseCase()
-                            )
+                            // Phase 1 Task 3 + R2-A1 gate: Preview is always bound; the
+                            // ImageAnalysis use case (star-tracker frame feed) is bound ONLY
+                            // when the star tracker master flag is enabled. Flag choice:
+                            // REUSE StarTrackerConfig.ENABLED - it is the documented master
+                            // switch whose safety contract is "flag OFF = zero behavioral
+                            // difference vs pre-project"; a sibling flag would be a second
+                            // switch to keep consistent for no benefit. With the flag off
+                            // (default, compile-time const false, dead-code eliminated) the
+                            // binding is exactly the pre-project call:
+                            //   bindToLifecycle(lifecycleOwner, cameraSelector, preview)
+                            if (com.alijafari.red.astronomy.startracker.fusion.StarTrackerConfig.ENABLED) {
+                                cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    cameraSelector,
+                                    preview,
+                                    cameraFrameObserver.getUseCase()
+                                )
+                            } else {
+                                cameraProvider.bindToLifecycle(lifecycleOwner, cameraSelector, preview)
+                            }
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
