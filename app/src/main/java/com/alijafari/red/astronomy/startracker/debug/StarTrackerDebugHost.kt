@@ -1,6 +1,7 @@
 package com.alijafari.red.astronomy.startracker.debug
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import com.alijafari.red.astronomy.BuildConfig
@@ -26,6 +27,7 @@ interface StarTrackerDebugPanel {
 }
 
 object StarTrackerDebugHost {
+    private const val TAG = "StarTrackerDebugHost"
 
     /** Everything the debug panel may read (read-only diagnostics; it never mutates app state). */
     class Access(val context: Context, val orientationProvider: OrientationProvider)
@@ -44,8 +46,13 @@ object StarTrackerDebugHost {
             panelImpl = runCatching {
                 Class.forName("com.alijafari.red.astronomy.debug.StarTrackerDebugPanelImpl")
                     .kotlin.objectInstance as StarTrackerDebugPanel
+            }.onFailure {
+                Log.e(TAG, "debug panel failed to load (release build or missing debug class)", it)
             }.getOrNull()
         }
+        // Field-test verification aid: logcat filter 'StarTrackerDebugHost' shows every
+        // open request and whether the panel resolved. No-op in release (guard above).
+        Log.d(TAG, "open requested via ${Throwable().stackTrace.getOrNull(1)?.methodName ?: "?"}; panel=${panelImpl != null}")
         visible.value = panelImpl != null
     }
 

@@ -2801,6 +2801,31 @@ fun CompassARScreen(
             )
         }
 
+        // TEMPORARY DIAGNOSTICS BUTTON (debug builds only) — added because the D2
+        // long-press proved unreliable in field use: three pre-existing gesture
+        // consumers own the touch path (zoom detectTransformGestures + manual-offset
+        // detectDragGestures later in this Box's modifier chain, and the full-screen
+        // Layer-2 Canvas tap catcher), so a held press is consumed as drag/zoom long
+        // before the ~500 ms long-press timeout. This button is the ONLY addition: it
+        // calls the SAME StarTrackerDebugHost.open(...) the long-press calls — no new
+        // diagnostics UI. REMOVE AFTER FIELD TESTING together with the long-press and
+        // the hosting line below (see evidence/D_DEBUG_DIAGNOSTICS section 'fix pass').
+        if (BuildConfig.DEBUG) {
+            Button(
+                onClick = { StarTrackerDebugHost.open(context, orientationProvider) },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(end = 16.dp, bottom = 28.dp),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFE53935),
+                    contentColor = Color.White
+                )
+            ) {
+                Text("DIAGNOSTICS", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            }
+        }
+
         // D2: host the debug-only diagnostics overlay. Release: BuildConfig.DEBUG is a
         // compile-time false constant -> this branch does not exist; the panel class is
         // absent from the release compile (debug source set) -> provably unreachable.
