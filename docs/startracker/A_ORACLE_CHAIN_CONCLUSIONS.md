@@ -69,7 +69,7 @@ Post-fix evidence: `evidence/ORACLE_RESIDUALS_AFTER_FIX.txt`, raw cases
 ## A5 — permanent oracle test
 
 `app/src/test/java/com/alijafari/red/astronomy/CoordinateOracleTest.kt` (3 tests), wired
-into `tools/kotlin-harness/run_tests.sh` (harness now 141/0/0,
+into `tools/kotlin-harness/run_tests.sh` (harness now 155/0/0 — the earlier '141' was a hand-tally artifact, machine count at the pass-3 tip is 138, see evidence/V5_TEST_COUNT_RECONCILIATION_2026-09-04.md;
 `evidence/HARNESS_FINAL_RUN_2026-09-04.txt`). Recomputes the LIVE call sequence (same as
 CompassARScreen / AstroDispatchEngine) and asserts vs the frozen oracle CSVs.
 

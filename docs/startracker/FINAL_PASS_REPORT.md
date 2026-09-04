@@ -163,7 +163,7 @@ Not all Gradle hosts reachable → `./gradlew :app:testDebugUnitTest` NOT admitt
 
 ## 10. Final harness + standalone counts
 
-- **Offline harness (the gate): `bash tools/kotlin-harness/run_tests.sh` → 155 / 0 / 0** (`evidence/HARNESS_FINAL_RUN_2026-09-04.txt`). Composition: 141 pre-final-pass tests + CoordinateOracleTest (3) + MagneticDeclinationTest (7) + CappedQuadIndexTest (6) − recount artifacts; historical: 138/0/0 pre-final-pass, 116/2/8 pre-fix @ deb748f.
+- **Offline harness (the gate): `bash tools/kotlin-harness/run_tests.sh` → 155 / 0 / 0** (`evidence/HARNESS_FINAL_RUN_2026-09-04.txt`). Composition (Z-V5 machine-verified): 138 pre-final-pass tests + CoordinateOracleTest (3, d8a2e1e) + MagneticDeclinationTest (7, 43e360e) + CappedQuadIndexTest (6, 2bf1d05) + SyntheticE2ETest (1, b7fb71e) = 155; the earlier '141 pre-final-pass' was a hand-tally artifact (reconciled in evidence/V5_TEST_COUNT_RECONCILIATION_2026-09-04.md); historical: 116/2/8 pre-fix @ deb748f.
 - **Standalone app tests: 108/108 green in pass 2** (13 files could not compile offline — documented `PROJECT_STATUS_END_OF_IMPLEMENTATION.md:38`).
 - **Mutation proofs (all reproduced):** oracle tests vs pre-fix code (star 26.5′ max, saturn 527′, ΔT 101.27 s); B1 sign-flip (4 failures); C combo-min-sep (equivalence break) and dedupe (296 vs 74); D flag-flip (exact 0/20 signature).
 
