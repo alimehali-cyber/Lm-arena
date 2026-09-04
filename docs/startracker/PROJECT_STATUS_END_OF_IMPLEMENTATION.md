@@ -145,3 +145,26 @@ The audit's fabrication and correctness findings are remediated with regression 
 and the remaining gap is precisely known: the real Android toolchain, the gated live
 wiring, the catalog acquisition, and field validation. No claims in this file rest on
 unexecuted code; where something is estimated or extrapolated it says so.
+
+---
+
+# FINAL PASS (2026-09-04) — end state
+
+Commits on `arena/01a0676f-lm-arena` (base d9c83d2): d8a2e1e (A/Kind-B oracle fixes),
+43e360e (B1 declination), 60155a3 (B3 catalog values), b0ee15a (E real catalog),
+2bf1d05 (C capped quad index), b7fb71e (D synthetic E2E + local candidates),
+a3a1ca0 (B4 timestamp flow), 1ec3406 (F glue + runbook + F1).
+(Originals were lost in a sandbox rebuild — fresh clone dropped unpushed local commits;
+all commits reconstructed with identical content boundaries, each labeled RECONSTRUCTED.)
+
+- Live-path sky accuracy: ALL routes within acceptance vs astropy oracle (stars 0.42′
+  rms, sun 0.35′, moon 0.15′, planets 0.4–0.6′) — evidence/ORACLE_*; permanent
+  CoordinateOracleTest.
+- Magnetic declination: applied, DEFAULT ON (OD4), single entry point + one-time rebase.
+- Display catalogs: 7 star + 1 DSO position corrections (values only, OD3).
+- Star tracker: real HYG v3.6 catalog (8,870 stars, provenance in E1 doc), capped quad
+  index (3.6 MB), synthetic E2E 20/20 @≤1px with 0.1–1.0′ median — but 15% false locks
+  (D6) ⇒ ENABLED stays false. 78 MB pair index documented as build-time scaffolding.
+- Harness: 155/0/0 (tools/kotlin-harness/run_tests.sh). Gradle hosts unreachable (F1)
+  ⇒ offline harness remains the gate.
+- Everything Android-runtime-dependent: UNEXECUTED (runbook addendum lists the checks).

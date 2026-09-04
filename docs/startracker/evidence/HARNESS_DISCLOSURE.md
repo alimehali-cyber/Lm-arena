@@ -161,3 +161,18 @@ when a needed dependency itself imports `android.*`/`androidx.*`.
 
 Aggregate of the standalone RAN files: 108 tests, 108 PASS, 0 failures, 0 errors.
 Nothing found in them was modified — this section is report-only, per instructions.
+
+## Final-pass update (2026-09-04)
+
+Harness: 155 tests / 0 failures / 0 errors (`bash tools/kotlin-harness/run_tests.sh`).
+Added since last disclosure: CoordinateOracleTest (3, reads frozen astropy oracle CSVs
+from docs/startracker/evidence/ — MEASURED-oracle regression), MagneticDeclinationTest
+(7, pure math), CappedQuadIndexTest (6, incl. real-catalog 8,870-star build),
+SyntheticE2ETest (1, SYNTHETIC-SKY lost-in-space on the real catalog; skips silently if
+data/startracker CSV absent). Main-code sources added to the compile set:
+astro_engine/{CoordinateEngine,CoordinateEngineLegacy,TimeEngine,AstroTime,
+FrameTransformationEngine,SunEngine,MoonEngine,LunarSolarEngine,PlanetEngine,
+VSOP87Engine,MagneticDeclination}, domain/Models.kt. No new shims; existing shims
+unchanged. Toolchain: kotlinc 2.4.10 (npm kotlin-compiler), JRE 25 via jdk4py.
+Probes (not tests): tools/kotlin-harness/probes/{CoordinateOracleProbe,SyntheticE2EProbe}
++ CatalogSizeProbe modes ingest/cappedcsv.

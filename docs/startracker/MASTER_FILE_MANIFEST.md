@@ -166,3 +166,19 @@ Should run all ~30+ test files, list each by name, must pass before and after an
 6. Re-run tests with flag OFF, confirm zero change
 7. Re-run with flag ON and synthetic data, confirm improvement
 8. Real-device field testing per REAL_DEVICE_FIELD_TEST_PROTOCOL.md
+
+## Final-pass additions (2026-09-04)
+
+- data/startracker/hyg_v36_vle6.5_j2000.csv — 8,870-star real catalog (HYG v3.6, CC
+  BY-SA 4.0; provenance + SHA-256 in E1_CATALOG_PROVENANCE.md); raw/ git-ignored.
+- tools/oracle/{astropy_oracle.py,build_probe.sh,gen_vsop87_tables.py} — oracle
+  generation, probe build, VSOP87D table regenerator.
+- tools/kotlin-harness/{run_tests.sh,CatalogSizeProbe.kt,probes/*} — offline gate.
+- app/src/test/.../{CoordinateOracleTest,MagneticDeclinationTest}.kt,
+  startracker/catalog/CappedQuadIndexTest.kt, startracker/solver/SyntheticE2ETest.kt.
+- app/src/main/.../astro_engine/MagneticDeclination.kt (new); startracker catalog
+  (QuadPatternIndex.capped, CatalogBuildConfig constants), solver (local candidates).
+- docs/startracker/{A_ORACLE_CHAIN_CONCLUSIONS,B1_MAGNETIC_DECLINATION,
+  B3_CATALOG_VERIFICATION,C_CAPPED_QUAD_INDEX,D_SYNTHETIC_E2E,E1_CATALOG_PROVENANCE}.md
+  + evidence/{ORACLE_*,DECLINATION_TABLE,MUTATION_PROOF_B1,MUTATION_PROOF_C,
+  C4_CAPPED_SWEEP,E2_REAL_INGEST,D_SYNTHETIC_E2E,F1_HOST_PROBE}_2026-09-04.
