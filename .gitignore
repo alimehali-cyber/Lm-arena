@@ -18,3 +18,14 @@ local.properties
 debug.keystore
 !build-outputs/
 !build-outputs/*.apk
+
+# kotlin test-harness toolchain & build output — external to the repo
+# (see tools/kotlin-harness/README.md; the harness builds to /tmp, never in-repo)
+tools/kotlin-harness/jdk/
+tools/kotlin-harness/kotlinc/
+tools/kotlin-harness/out/
+tools/kotlin-harness/build/
+tools/kotlin-harness/*.jar
+
+# star tracker raw catalog sources (regenerable; provenance in docs/startracker/E1_CATALOG_PROVENANCE.md)
+data/startracker/raw/
