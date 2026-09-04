@@ -42,6 +42,8 @@ kotlinc \
   "$HARNESS_SRC"/org/shredzone/commons/suncalc/MoonTimes.kt \
   "$HARNESS_SRC"/com/alijafari/red/astronomy/astro_engine/EclipseEngineShim.kt \
   "$HARNESS_SRC"/android/icu/util/IcuShim.kt \
+  "$HARNESS_SRC"/android/os/Build.kt \
+  "$HARNESS_SRC"/android/hardware/camera2/CameraCharacteristics.kt \
   $(find "$ST_TEST" -name '*.kt') \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/RefractionTest.kt" \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/CoordinateOracleTest.kt" \

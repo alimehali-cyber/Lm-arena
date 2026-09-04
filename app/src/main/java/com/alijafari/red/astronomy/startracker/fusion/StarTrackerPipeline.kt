@@ -13,6 +13,7 @@ import com.alijafari.red.astronomy.startracker.diagnostics.FrameQuality
 import com.alijafari.red.astronomy.startracker.diagnostics.FrameQualityClassifier
 import com.alijafari.red.astronomy.startracker.diagnostics.FailureReason
 import com.alijafari.red.astronomy.startracker.diagnostics.SolverDiagnostics
+import com.alijafari.red.astronomy.startracker.solver.FullFieldVerifier
 import com.alijafari.red.astronomy.startracker.solver.LostInSpaceSolver
 import com.alijafari.red.astronomy.startracker.solver.Quaternion
 import com.alijafari.red.astronomy.startracker.solver.StarObservation
@@ -35,7 +36,7 @@ import kotlin.math.sqrt
  * frame dropping and the feature flag.
  */
 class StarTrackerPipeline(
-    val solver: LostInSpaceSolver,
+    solver: LostInSpaceSolver,
     val cameraProfile: CameraProfile,
     val distortionModel: DistortionModel = DistortionModel.noDistortion(),
     val backgroundEstimator: BackgroundEstimator = BackgroundEstimator(),
@@ -45,6 +46,35 @@ class StarTrackerPipeline(
     val coordinator: ConfidenceLadderCoordinator = ConfidenceLadderCoordinator(),
     val trackingLoop: TrackingLoop = TrackingLoop(solver.catalogStars, solver.quadIndex)
 ) {
+
+    /** Solver actually used in process(): T4(b)-upgraded when no distortion model. */
+    val solver: LostInSpaceSolver =
+        if (distortionModel.isIdentity()) upgradeSolverForUnmodelledDistortion(solver) else solver
+
+    companion object {
+        /**
+         * T4(b): when NO distortion model is available (identity), the solver's verifier
+         * is upgraded to the radial tolerance envelope (|k1| <= 0.08 over the tier), so
+         * a correct solve on an uncalibrated phone is not rejected at the field edge.
+         * When a distortion model IS present, the flat tolerance stands (it must: the
+         * pipeline undistorts detections before solving).
+         */
+        fun upgradeSolverForUnmodelledDistortion(solver: LostInSpaceSolver): LostInSpaceSolver {
+            val v = solver.fullFieldVerifier ?: return solver
+            if (v.radialToleranceCoefficientC != 0.0) return solver
+            return LostInSpaceSolver(
+                quadIndex = solver.quadIndex,
+                catalogStars = solver.catalogStars,
+                catalogStarsById = solver.catalogStarsById,
+                quadBuilder = solver.quadBuilder,
+                matcher = solver.matcher,
+                ransac = solver.ransac,
+                attitudeSolver = solver.attitudeSolver,
+                fullFieldVerifier = FullFieldVerifier.withUnmodelledDistortionAllowance()
+            )
+        }
+    }
+
 
     enum class BlendRecommendation {
         /** Star tracker attitude should dominate the fusion (tracker healthy). */
@@ -118,6 +148,7 @@ class StarTrackerPipeline(
 
         // 5) S2-verified lost-in-space solve
         val res = solver.solve(observations)
+
         // Full-field MEDIAN residual of matched detections in px (57"/px scale).
         // Median, not mean: a handful of near-tolerance matches (merged blob centroids)
         // skew the mean far above the typical residual; the coordinator's Rule 4

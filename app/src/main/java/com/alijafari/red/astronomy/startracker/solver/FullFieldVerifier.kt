@@ -21,6 +21,15 @@ import kotlin.math.acos
  */
 class FullFieldVerifier(
     val toleranceRad: Double = Math.toRadians(300.0 / 3600.0), // 300" = 5 px @ 57"/px: >2.6 sigma at 2 px noise, ~7x below the RANSAC threshold
+    /**
+     * T4(b): radial tolerance coefficient c for tol(theta) = toleranceRad + c*tan^2(theta)
+     * (theta = detection angular radius from the boresight). 0.0 (default) = flat S2
+     * behavior, byte-identical. When no distortion model is available, c =
+     * unmodelledDistortionAllowanceC() makes the tolerance envelope the Brown-Conrady
+     * displacement |k1|*tan^3(theta) for |k1| <= 0.08 across the 63.5-deg tier, so a
+     * correct solve on an uncalibrated phone is not rejected at the field edge.
+     */
+    val radialToleranceCoefficientC: Double = 0.0,
     val magLimit: Double = 6.5,          // detection limit of the shipped extract
     val minMatchedCount: Int = 8,        // chance coincidences at 300" are ~3 per real field
     val minMatchedFraction: Double = 0.25, // leaves headroom for injected false stars (~20/100)
@@ -47,6 +56,37 @@ class FullFieldVerifier(
      * positions under [attitude]. Returns accepted matches as
      * (detection, predictedUnitVector, angular distance).
      */
+    companion object {
+        /**
+         * T4(b): c such that c*r^2 >= |k1|max * r^3 for all r <= tan(edgeAngleDeg)
+         * (r = tan(theta), normalized gnomonic radius): c = |k1|max * tan(edge).
+         * Default covers |k1| <= 0.08 over the 63.5-deg tier half-diagonal (31.75 deg):
+         * c = 0.08 * tan(31.75 deg) = 0.04951. Derived from the D5 table (k1=-0.05 ->
+         * -1.292/-4.362/-10.339 px at 50/75/100% half-width, exactly cubic in r_norm).
+         */
+        fun unmodelledDistortionAllowanceC(
+            k1Max: Double = 0.08,
+            edgeAngleDeg: Double = 31.75
+        ): Double = k1Max * Math.tan(Math.toRadians(edgeAngleDeg))
+
+        /** Convenience factory: verifier with the T4(b) unmodelled-distortion allowance. */
+        fun withUnmodelledDistortionAllowance(
+            k1Max: Double = 0.08,
+            edgeAngleDeg: Double = 31.75
+        ): FullFieldVerifier = FullFieldVerifier(
+            toleranceRad = Math.toRadians(300.0 / 3600.0),
+            radialToleranceCoefficientC = unmodelledDistortionAllowanceC(k1Max, edgeAngleDeg)
+        )
+    }
+
+    /** Per-detection tolerance: flat base, or base + c*tan^2(theta) when c > 0 (T4b). */
+    internal fun toleranceFor(unitVectorCamera: Triple<Double, Double, Double>): Double {
+        if (radialToleranceCoefficientC == 0.0) return toleranceRad
+        val t = unitVectorCamera.third
+        val tan2 = if (t <= 1e-9) Double.MAX_VALUE else (1.0 - t * t) / (t * t)
+        return toleranceRad + radialToleranceCoefficientC * tan2
+    }
+
     data class FieldMatch(
         val detection: StarObservation,
         val catalogStar: CatalogStar,
@@ -79,7 +119,7 @@ class FullFieldVerifier(
             }
             if (bestJ >= 0) {
                 val ang = acos(bestDot)
-                if (ang <= toleranceRad) cands.add(Triple(di, bestJ, ang))
+                if (ang <= toleranceFor(dv)) cands.add(Triple(di, bestJ, ang))
             }
         }
         cands.sortBy { it.third }
