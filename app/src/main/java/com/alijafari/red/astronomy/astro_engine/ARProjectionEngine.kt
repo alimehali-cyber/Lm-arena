@@ -74,6 +74,12 @@ object ARProjectionEngine {
         /** True hardware calibration from CameraCharacteristics.LENS_INTRINSIC_CALIBRATION */
         CALIBRATED_HARDWARE,
 
+        /** G-P0 (W2 PHASE7 applied): cached SelfCalibrationEngine refinement, de-normalized
+         *  to the live active array. Preferred over ESTIMATED_PHYSICAL_SENSOR, never over
+         *  CALIBRATED_HARDWARE. Only readable when the PHASE7 runtime flag is set (release:
+         *  const false -> this tier is unreachable). */
+        SELF_CALIBRATED_CACHED,
+
         /** Estimated from physical sensor size (SENSOR_INFO_PHYSICAL_SIZE) and focal length */
         ESTIMATED_PHYSICAL_SENSOR,
 
@@ -103,7 +109,48 @@ object ARProjectionEngine {
     /**
      * Queries CameraManager for the rear camera's intrinsic calibration and sensor geometry.
      */
+    // G-P0 (W2 PHASE7 applied): cache of the last SelfCalibrationEngine refinement,
+    // de-normalized to the active array. Written only by the debug calibration flow.
+    @Volatile
+    private var cachedSelfCalibrated: CameraIntrinsics? = null
+
+    /**
+     * G-P0 (W2 PHASE7 applied): publish a NORMALIZED self-calibration profile.
+     * Normalized units survive array-size changes; de-normalization happens here.
+     * No release caller exists.
+     */
+    fun publishSelfCalibratedIntrinsics(
+        normalizedFx: Double, normalizedFy: Double,
+        normalizedCx: Double, normalizedCy: Double,
+        activeArrayWidth: Int, activeArrayHeight: Int,
+        sensorOrientation: Int
+    ) {
+        cachedSelfCalibrated = CameraIntrinsics(
+            fx = normalizedFx * activeArrayWidth,
+            fy = normalizedFy * activeArrayHeight,
+            cx = normalizedCx * activeArrayWidth,
+            cy = normalizedCy * activeArrayHeight,
+            skew = 0.0,
+            activeArrayWidth = activeArrayWidth,
+            activeArrayHeight = activeArrayHeight,
+            sensorOrientation = sensorOrientation,
+            isLensFacingBack = true,
+            source = IntrinsicsSource.SELF_CALIBRATED_CACHED
+        )
+    }
+
     fun getCameraIntrinsics(context: Context?): CameraIntrinsics {
+        // G-P0 (W2 PHASE7 applied, runtime-gated): tier order CALIBRATED_HARDWARE >
+        // SELF_CALIBRATED_CACHED > ESTIMATED_PHYSICAL_SENSOR > FALLBACK_DEFAULT.
+        // Release resolves the consts (PHASE7=false) so this branch is dead code there.
+        if (cachedSelfCalibrated != null &&
+            com.alijafari.red.astronomy.startracker.fusion.StarTrackerDebugFlags.runtime()
+                .projectionSelfCalibratedPhase7
+        ) {
+            val cached = cachedSelfCalibrated!!
+            if (BuildConfig.DEBUG) Log.d(TAG, "Intrinsics tier selected: " + cached.source)
+            return cached
+        }
         if (context != null) {
             try {
                 val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager

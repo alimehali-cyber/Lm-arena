@@ -46,6 +46,32 @@ object StarTrackerDebugFlags {
     /** Release path: the consts, directly. Also the fallback when no provider exists. */
     val RELEASE_DEFAULTS: Resolution = Resolution.fromConsts()
 
+    @Volatile
+    private var overridesProvider: ((String) -> String?)? = null
+
+    @Volatile
+    private var cachedRuntime: Resolution? = null
+
+    /**
+     * G-P0: install (or replace/null) the overrides provider. Called ONLY by the
+     * debug UI (SharedPreferences-backed); release builds never install one, so
+     * [runtime] there is the consts, bit-identical (cached once, ~zero per-frame cost).
+     * Re-installing refreshes the cache — that is the debug toggle path.
+     */
+    fun installOverridesProvider(provider: ((String) -> String?)?) {
+        overridesProvider = provider
+        cachedRuntime = null
+    }
+
+    /** G-P0: resolution for RUNTIME consumers (camera-feed gate, bind gate, PHASE7 tier). */
+    fun runtime(): Resolution {
+        val p0 = cachedRuntime
+        if (p0 != null) return p0
+        val r = resolve(overridesProvider)
+        cachedRuntime = r
+        return r
+    }
+
     /**
      * Resolve the four flags against an overrides provider (null = no overrides).
      * Pure function; harness- and CI-testable.

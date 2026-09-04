@@ -101,6 +101,32 @@ class OrientationProvider(
     private val _orientation = MutableStateFlow(SkyOrientation(0f, 45f, 0f))
     val orientation: StateFlow<SkyOrientation> = _orientation.asStateFlow()
 
+    // G-P0 (W2 PHASE6 applied): latest star-tracker result, recorded for the OD1
+    // acquisition-discrepancy question. The tracker attitude is in the CAMERA frame
+    // (catalog->camera); conversion to this provider's world frame is the documented
+    // device-trial integration step. Records only — emission/blend is NOT implemented
+    // here (requires the live camera->device rotation), so orientation output is
+    // unchanged in every build.
+    @Volatile
+    var starTrackerAttitude: com.alijafari.red.astronomy.startracker.solver.Quaternion? = null
+        private set
+
+    @Volatile
+    var starTrackerLock: com.alijafari.red.astronomy.startracker.tracking.LockConfidence =
+        com.alijafari.red.astronomy.startracker.tracking.LockConfidence.NO_LOCK
+        private set
+
+    @Volatile
+    var starTrackerResultNanos: Long = 0L
+        private set
+
+    /** Called by the debug field-trial runtime (off main thread). Flag-independent record. */
+    fun onStarTrackerResult(result: com.alijafari.red.astronomy.startracker.fusion.StarTrackerPipeline.PipelineResult) {
+        starTrackerAttitude = result.attitude
+        starTrackerLock = result.lockConfidence
+        starTrackerResultNanos = System.nanoTime()
+    }
+
     // OD6 / R3-B4 (applied 2026-09-04): dedicated per-tick sensor-timestamp channel.
     // R2-A1(b) deliberately excludes timestampNanos from SkyOrientation equality so
     // StateFlow conflation can drop content-identical ticks (stationary device) — but

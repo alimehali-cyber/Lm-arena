@@ -899,7 +899,10 @@ fun CompassARScreen(
                             // (default, compile-time const false, dead-code eliminated) the
                             // binding is exactly the pre-project call:
                             //   bindToLifecycle(lifecycleOwner, cameraSelector, preview)
-                            if (com.alijafari.red.astronomy.startracker.fusion.StarTrackerConfig.ENABLED) {
+                            // G-P0: runtime-resolved gate (debug field trial can enable the
+                            // analysis feed live); release resolves the consts (false) and
+                            // binds exactly the pre-project call.
+                            if (com.alijafari.red.astronomy.startracker.fusion.StarTrackerDebugFlags.runtime().enabled) {
                                 cameraProvider.bindToLifecycle(
                                     lifecycleOwner,
                                     cameraSelector,

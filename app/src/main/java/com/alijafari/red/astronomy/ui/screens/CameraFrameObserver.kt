@@ -4,8 +4,12 @@ import android.util.Log
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.alijafari.red.astronomy.BuildConfig
+import com.alijafari.red.astronomy.startracker.detection.GrayscaleImage
+import com.alijafari.red.astronomy.startracker.fusion.StarTrackerDebugFlags
+import com.alijafari.red.astronomy.startracker.fusion.StarTrackerPipeline
 import java.util.concurrent.Executors
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Phase 1 Task 3 — Camera Frame Access prerequisite.
@@ -46,6 +50,36 @@ class CameraFrameObserver {
     var latestImageTimestampNanos: Long = 0L
         private set
 
+    /**
+     * G-P0 (W2 PHASE5 applied): star-tracker pipeline consumer. Attached ONLY by the
+     * debug field-trial runtime; the feed branch below is gated by the D1 runtime
+     * resolution (release: consts, always false -> this whole path is dead code).
+     */
+    @Volatile
+    var starTrackerPipeline: StarTrackerPipeline? = null
+
+    /** G-P0: result sink (probe collector / OrientationProvider recording), off main thread. */
+    @Volatile
+    var onPipelineResult: ((StarTrackerPipeline.PipelineResult) -> Unit)? = null
+
+    /** G-P0 (2.5 frame capture): raw grayscale frame tap for the debug field trial. */
+    @Volatile
+    var onRawFrame: ((GrayscaleImage, Long) -> Unit)? = null
+
+    /** Last analyzed frame's rotationDegrees (for offline camera->device frame conversion). */
+    @Volatile
+    var latestRotationDegrees: Int = 0
+        private set
+
+    /** G-P0 (2.5 probe): wall time of the last pipeline.process() call, ms (0 when none). */
+    @Volatile
+    var latestPipelineProcessMs: Double = 0.0
+        private set
+
+    /** W2 drop-not-queue latch: if a frame arrives while the pipeline is busy it is
+     *  DROPPED (closed immediately) — never queued; a stale sky frame is worthless. */
+    private val pipelineBusy = AtomicBoolean(false)
+
     @Volatile
     var latestSensorTimestampNanos: Long = 0L
         private set
@@ -66,6 +100,7 @@ class CameraFrameObserver {
                     try {
                         // Capture metadata for later clock-domain analysis
                         latestImageTimestampNanos = imageProxy.imageInfo.timestamp
+                        latestRotationDegrees = imageProxy.imageInfo.rotationDegrees
 
                         // Rate-limited debug logging (~once per second)
                         val nowMs = System.currentTimeMillis()
@@ -85,8 +120,38 @@ class CameraFrameObserver {
                             }
                         }
 
-                        // NO pixel processing beyond metadata in this phase
-                        // Future phases will access imageProxy.planes[0].buffer etc.
+                        // G-P0 (W2 PHASE5 applied): feed the star-tracker pipeline when the
+                        // RUNTIME gate is on. Off main thread (dedicated analyzer executor),
+                        // drop-not-queue via the busy latch; release resolves consts (false).
+                        val flags = StarTrackerDebugFlags.runtime()
+                        if (flags.enabled && flags.pipelineCameraFeed) {
+                            val rawTap = onRawFrame
+                            if (rawTap != null && pipelineBusy.compareAndSet(false, true)) {
+                                try {
+                                    val g = toGrayscale(imageProxy)
+                                    if (g != null) rawTap(g, imageProxy.imageInfo.timestamp)
+                                } finally {
+                                    pipelineBusy.set(false)
+                                }
+                            }
+                            val pipeline = starTrackerPipeline
+                            val sink = onPipelineResult
+                            if (pipeline != null && sink != null && pipelineBusy.compareAndSet(false, true)) {
+                                try {
+                                    val gray = toGrayscale(imageProxy)
+                                    if (gray != null) {
+                                        val t0 = System.nanoTime()
+                                        val result = pipeline.process(gray)
+                                        latestPipelineProcessMs = (System.nanoTime() - t0) / 1e6
+                                        sink(result)
+                                    }
+                                } catch (e: Exception) {
+                                    if (BuildConfig.DEBUG) Log.w(TAG, "pipeline exception", e)
+                                } finally {
+                                    pipelineBusy.set(false)
+                                }
+                            } // else: frame dropped by design (KEEP_ONLY_LATEST + busy latch)
+                        }
 
                     } catch (e: Exception) {
                         if (BuildConfig.DEBUG) {
@@ -112,6 +177,29 @@ class CameraFrameObserver {
      */
     fun onSensorTimestamp(sensorTimestampNanos: Long) {
         latestSensorTimestampNanos = sensorTimestampNanos
+    }
+
+    /**
+     * G-P0 (W2 PHASE5 applied): Y plane -> GrayscaleImage (luminance only). Row-stride
+     * and pixel-stride aware copy. Returns null for non-YUV_420_888 formats.
+     */
+    private fun toGrayscale(imageProxy: ImageProxy): GrayscaleImage? {
+        if (imageProxy.format != android.graphics.ImageFormat.YUV_420_888) return null
+        val plane = imageProxy.planes[0]   // Y
+        val w = imageProxy.width
+        val h = imageProxy.height
+        val data = FloatArray(w * h)
+        val buf = plane.buffer
+        val rowStride = plane.rowStride
+        val pixelStride = plane.pixelStride
+        for (row in 0 until h) {
+            val rowBase = row * rowStride
+            val outBase = row * w
+            for (col in 0 until w) {
+                data[outBase + col] = (buf.get(rowBase + col * pixelStride).toInt() and 0xFF).toFloat()
+            }
+        }
+        return GrayscaleImage(w, h, data)
     }
 
     fun shutdown() {
