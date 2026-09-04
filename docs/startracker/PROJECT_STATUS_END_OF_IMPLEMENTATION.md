@@ -168,3 +168,7 @@ all commits reconstructed with identical content boundaries, each labeled RECONS
 - Harness: 155/0/0 (tools/kotlin-harness/run_tests.sh). Gradle hosts unreachable (F1)
   ⇒ offline harness remains the gate.
 - Everything Android-runtime-dependent: UNEXECUTED (runbook addendum lists the checks).
+
+## Pre-existing test coverage: what it did not catch (T2, 2026-09-04)
+
+Before this work the sky-position tests existed but were range-only, which is exactly how a 20° Mercury error, an 11.5° Mars error and a 125′ Sun error all passed green: the pre-work `VSOP87EngineTest` asserted Mercury only by DISTANCE (`"Mercury distance … should be between 0.30 and 0.47 AU"` — no angular assertion of any kind), asserted Earth/Jupiter only inside ±2.5°/±2.5° hand-picked longitude bands, and covered Mars solely through a generic loop whose positional checks were `longitudeDeg in 0.0..360.0` and `distanceAu > 0.0`; the pre-work `LunarSolarEngineTest` asserted the Sun only as `"Sun distance should be near 1 AU"`, `"Sun declination in August should be positive"` (a SIGN check) and `"Sun RA should be in [0, 360)"`. The VSOP87 tables themselves had NO test before this work — no assertion anywhere compared a table-derived series value against an external source, so the τ-unit and millennium-index defects (pass A, commit d8a2e1e) were invisible to the suite; they are now pinned by CoordinateOracleTest (astropy, 0.35–0.6′ end-to-end) plus the Meeus Ch.25 and Earth-heliocentric oracle tests added in Z-V1.
