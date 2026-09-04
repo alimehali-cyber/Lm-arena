@@ -56,6 +56,7 @@ kotlinc \
   $(find "$REPO/app/src/debug/java/com/alijafari/red/astronomy/fieldtrial/engine" -name '*.kt') \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/EnginePreludeTest.kt" \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/InverseProjectionTest.kt" \
+  "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/TapMeasurementTest.kt" \
   -d "$OUT/classes" 2>&1 | grep -E "error|warning" | head -40
 
 echo "== compile done, running =="
