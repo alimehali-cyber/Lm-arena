@@ -272,7 +272,7 @@ object StarTrackerDebugPanelImpl : StarTrackerDebugPanel {
         }.getOrNull()
 
     /** Rolling-window sensor rate estimator over the dedicated timestamp flow. */
-    private class SensorRateEstimator(window: Int = 32) {
+    private class SensorRateEstimator(private val window: Int = 32) {
         private val deltas = ArrayDeque<Long>()
         private var last: Long = 0L
         var hz by mutableStateOf(Double.NaN)
