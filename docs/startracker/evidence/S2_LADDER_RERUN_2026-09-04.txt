@@ -1,0 +1,12 @@
+catalog: 8870 stars
+capped index: 39960 quads (1276 ms)
+
+cell (noisePx / falseStars) | trials | solved | falseLocks | medianErr' | p95Err' | notes
+noise=0.0px false= 0 | 20 | 17 | 0 | ALL:      0.00 /       1.94 | CORRECT-ONLY:    0.000 /    1.936 | 1x Full-field verification failed: matched=6/673 frac
+noise=0.1px false= 0 | 20 | 17 | 0 | ALL:      0.10 /       2.03 | CORRECT-ONLY:    0.099 /    2.034 | 1x Full-field verification failed: matched=6/673 frac
+noise=0.3px false= 0 | 20 | 17 | 0 | ALL:      0.31 /       5.90 | CORRECT-ONLY:    0.307 /    5.902 | 1x Full-field verification failed: matched=6/673 frac
+noise=1.0px false= 0 | 20 | 16 | 0 | ALL:      1.02 /      11.46 | CORRECT-ONLY:    1.024 /   11.460 | 1x Full-field verification failed: matched=6/673 frac
+noise=2.0px false= 0 | 20 | 14 | 0 | ALL:      2.05 /       4.17 | CORRECT-ONLY:    2.048 /    4.168 | 1x Full-field verification failed: matched=53/567 fra
+noise=0.3px false= 5 | 20 | 12 | 0 | ALL:      0.32 /       4.42 | CORRECT-ONLY:    0.319 /    4.419 | 1x Full-field verification failed: matched=4/746 frac
+noise=0.3px false=20 | 20 | 5 | 0 | ALL:      2.47 /       3.02 | CORRECT-ONLY:    2.466 /    3.017 | 3x RANSAC inliers 3 < 4
+noise=1.0px false=20 | 20 | 5 | 0 | ALL:      3.62 /      10.06 | CORRECT-ONLY:    3.625 /   10.064 | 3x RANSAC inliers 3 < 4

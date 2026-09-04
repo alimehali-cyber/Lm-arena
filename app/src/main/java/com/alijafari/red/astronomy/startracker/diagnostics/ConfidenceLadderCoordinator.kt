@@ -31,7 +31,11 @@ data class SolverDiagnostics(
     val inlierCount: Int,
     val confidence: Double,
     val rmsError: Double,
-    val success: Boolean
+    val success: Boolean,
+    // S2 full-field verification (defaults preserve legacy behavior for old callers:
+    // absent data cannot constrain the ladder).
+    val fullFieldMatched: Int = Int.MAX_VALUE,
+    val fullFieldFraction: Double = 1.0
 )
 
 data class CoordinatorInput(
@@ -53,7 +57,11 @@ class ConfidenceLadderCoordinator(
     val fullLockInlierThreshold: Int = 4,
     val marginalInlierThreshold: Int = 2,
     val fullLockConfidenceThreshold: Double = 0.7,
-    val rmsErrorThreshold: Double = 1.0 // pixel RMS, UNVALIDATED conservative default
+    val rmsErrorThreshold: Double = 1.0, // pixel RMS, UNVALIDATED conservative default
+    // S2: FULL_LOCK additionally requires a strongly verified full field
+    // (stricter than the solver-level MARGINAL gate of 8 / 0.25).
+    val fullLockFullFieldMinCount: Int = 20,
+    val fullLockFullFieldMinFraction: Double = 0.5
 ) {
 
     fun coordinate(input: CoordinatorInput): CoordinatorOutput {
@@ -147,7 +155,8 @@ class ConfidenceLadderCoordinator(
 
         // Rule 5: Normal confidence ladder based on inlier count and confidence
         val lockConfidence = when {
-            solver.inlierCount >= fullLockInlierThreshold && solver.confidence >= fullLockConfidenceThreshold -> LockConfidence.FULL_LOCK
+            solver.inlierCount >= fullLockInlierThreshold && solver.confidence >= fullLockConfidenceThreshold &&
+                solver.fullFieldMatched >= fullLockFullFieldMinCount && solver.fullFieldFraction >= fullLockFullFieldMinFraction -> LockConfidence.FULL_LOCK
             solver.inlierCount >= marginalInlierThreshold -> LockConfidence.MARGINAL_LOCK
             else -> LockConfidence.NO_LOCK
         }

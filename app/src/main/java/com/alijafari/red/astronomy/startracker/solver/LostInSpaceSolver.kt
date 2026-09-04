@@ -14,7 +14,10 @@ data class SolveResult(
     val attitude: Quaternion?,
     val inlierCount: Int,
     val confidence: Double, // 0..1
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    // S2 full-field verification result (0.0/0 when the verifier did not run)
+    val fullFieldMatched: Int = 0,
+    val fullFieldFraction: Double = 0.0
 )
 
 class LostInSpaceSolver(
@@ -24,7 +27,9 @@ class LostInSpaceSolver(
     val quadBuilder: QuadCandidateBuilder = QuadCandidateBuilder(topN = CatalogBuildConfig.TOP_N_BRIGHTEST_FOR_QUAD_CANDIDATES),
     val matcher: CatalogMatcher = CatalogMatcher(quadIndex),
     val ransac: RansacOutlierRejector = RansacOutlierRejector(),
-    val attitudeSolver: AttitudeSolver = AttitudeSolver()
+    val attitudeSolver: AttitudeSolver = AttitudeSolver(),
+    // S2 (KIND-B): Tetra3-style full-field verification gate; null disables (legacy behavior).
+    val fullFieldVerifier: FullFieldVerifier? = FullFieldVerifier()
 ) {
 
     fun solve(
@@ -105,6 +110,17 @@ class LostInSpaceSolver(
             return SolveResult(false, null, ransacResult.inlierCount, 0.0, "RANSAC failed to produce attitude")
         }
 
+        // S2 (KIND-B): full-field verification before ANY confidence is granted.
+        // Rationale: S1 showed 4-inlier chance collisions passing RANSAC at zero noise.
+        val ff = fullFieldVerifier?.verify(bestAttitude, observations, catalogStars)
+        if (ff != null && !ff.pass) {
+            return SolveResult(
+                success = false, attitude = null, inlierCount = ransacResult.inlierCount, confidence = 0.0,
+                errorMessage = "Full-field verification failed: matched=${ff.matchedDetections}/${ff.totalDetections} fraction=${"%.3f".format(ff.fraction)}",
+                fullFieldMatched = ff.matchedDetections, fullFieldFraction = ff.fraction
+            )
+        }
+
         // Confidence based on inlier count and ratio
         val inlierRatio = ransacResult.inlierCount.toDouble() / deduped.size
         val confidence = (inlierRatio * 0.5 + (ransacResult.inlierCount.toDouble() / observations.size).coerceAtMost(1.0) * 0.5).coerceIn(0.0, 1.0)
@@ -114,7 +130,9 @@ class LostInSpaceSolver(
             attitude = bestAttitude,
             inlierCount = ransacResult.inlierCount,
             confidence = confidence,
-            errorMessage = null
+            errorMessage = null,
+            fullFieldMatched = ff?.matchedDetections ?: 0,
+            fullFieldFraction = ff?.fraction ?: 0.0
         )
     }
 }
