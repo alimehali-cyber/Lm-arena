@@ -72,3 +72,20 @@ jobs:
           name: app-debug-apk
           path: app/build/outputs/apk/**/*.apk
           if-no-files-found: warn
+
+      - name: Deliver APK via git branch (ci/apk)
+        if: success()
+        run: |
+          APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          if [ -z "$APK" ]; then echo "no APK found"; exit 1; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --depth=1 origin ci/apk || true
+          git checkout --orphan ci/apk || git checkout ci/apk
+          git rm -rf --quiet . 2>/dev/null || true
+          cp "$APK" ./app-debug.apk
+          SHA=$(git rev-parse HEAD 2>/dev/null || echo none)
+          echo "$GITHUB_SHA" > BUILD_INFO.txt
+          git add app-debug.apk BUILD_INFO.txt
+          git commit -m "ci: APK from $GITHUB_SHA [skip ci]" || echo "no changes"
+          git push origin ci/apk --force
