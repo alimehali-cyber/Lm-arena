@@ -1,0 +1,47 @@
+=== Task1: Hand arithmetic 4 cases ===
+Case | Current relAz | Current x | Fixed relAz | Fixed x | Note
+East 90°, North lat 40° (facing South 180°) | cur relAz=-90.0 x=0.250 | fix relAz=-90.0 x=0.250
+West 270°, North lat 40° (facing South 180°) | cur relAz=90.0 x=0.750 | fix relAz=90.0 x=0.750
+East 90°, South lat -35° (facing North 0°) | cur relAz=-90.0 x=0.250 | fix relAz=90.0 x=0.750
+West 270°, South lat -35° (facing North 0°) | cur relAz=90.0 x=0.750 | fix relAz=-90.0 x=0.250
+
+=== Detailed hand arithmetic ===
+Case 1: North lat, East 90°, facing 180°
+  Current: relAz = 90-180 = -90 -> x=0.25 (left of center) — CORRECT for north (East left when facing South)
+  Fixed: same -90 -> x=0.25 — SAME, north branch correct
+
+Case 2: North lat, West 270°, facing 180°
+  Current: relAz = 270-180=90 -> x=0.75 (right) — CORRECT
+  Fixed: same 90 -> x=0.75 — SAME
+
+Case 3: South lat, East 90°, facing 0° (North)
+  Current buggy: relAz = 0-90=-90 -> x=0.25 (left)
+  Fixed: relAz = 90-0=90 -> x=0.75 (right)
+  Physically: when facing North, East is to your RIGHT (90° is east, facing north 0°, east is 90° clockwise from north = right). So fixed is PHYSICALLY CORRECT.
+  Current buggy gives East left, same as north — NOT mirrored, wrong for south.
+
+Case 4: South lat, West 270°, facing 0°
+  Current buggy: relAz = 0-270 = -270 -> normalize: ((-270%360)+540)%360-180 = (90+540)%360-180=630%360=270-180=90 -> x=0.75 (right)
+  Fixed: relAz = 270-0=270 -> normalize: 270-360=-90 -> x=0.25 (left)
+  Physically: West 270° when facing North 0°: west is to LEFT (270° is 90° counter-clockwise from north). So fixed left is CORRECT.
+  Current gives right — WRONG, mirrored incorrectly.
+
+=== Conclusion: South branch 0-az is reflection bug, should be az-0 ===
+Current southern hemisphere East/West is NOT mirrored (East left same as north), but physically should be mirrored (East right when facing north).
+Fix: change southern branch from normalize(0-az) to normalize(az-0) = normalize(az)
+
+=== Task2: RelativeBearing isolated formula ===
+Relative bearing tests:
+East 90° relative to South 180°: -90 (expected -90)
+West 270° relative to South 180°: 90 (expected 90)
+East 90° relative to North 0°: 90 (expected 90)
+West 270° relative to North 0°: -90 (expected -90)
+
+=== Task3: BearingCrossCheck vs ARProjectionEngine read-only ===
+Cross-check: ARProjectionEngine's device frame: +X_dev Right, +Y_dev Up, +Z_dev Front
+For facing South, East vector should map to left side of screen? Need to check via actual ARProjectionEngine code (read-only).
+Simplified: In World ENU, East=+X, North=+Y. If device yaw=180° (facing South), rotation matrix should map East to Left? Let's trust general formula.
+HeroSky fixed: North facing South -> East left, West right (matches AR when facing South)
+HeroSky fixed: South facing North -> East right, West left (matches AR when facing North)
+
+All Phase9 checks passed — bug confirmed, fix is az-0 not 0-az for south

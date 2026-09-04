@@ -1,0 +1,8 @@
+E2 real-catalog ingest through CatalogIngestor + AngularSeparationIndex (2026-09-04, MEASURED)
+cmd: java -Xmx2g probe.CatalogSizeProbeKt ingest data/startracker/hyg_v36_vle6.5_j2000.csv
+ingest file=data/startracker/hyg_v36_vle6.5_j2000.csv stars=8870 parseMs=81 magRange=[-1.44,6.5] north=4255 south=4615 pairCount=4872798 pairBuildMs=5682 starSectionBytes=435204 pairBytes=77964768 totalBytesNoQuads=78399988
+
+Reading: 8,870 stars parse clean (81 ms); pair index (CatalogBuildConfig defaults, max sep 40 deg)
+has 4,872,798 pairs = 77,964,768 bytes serialized (~78 MB) — far too large to ship; item C (capped
+quad index) must sparsify. Star section only 435 KB. Deterministic; re-run via
+tools/oracle/build style: kotlinc CatalogSizeProbe.kt + startracker/catalog/*.kt.

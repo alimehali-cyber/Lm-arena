@@ -101,10 +101,19 @@ class AstroTime(utcMs: Long) {
         val year = 2000.0 + (jd - 2451545.0) / 365.25
 
         return when {
-            // Years 2000-2050: Espenak-Meeus polynomial
-            year in 2000.0..2050.0 -> {
+            // F-A5 KIND-B fix (2026-09-04): the previous branch invented a cubic term
+            // (+0.001727 t^3) giving DeltaT=96.3s for 2025 — the real value is ~69s
+            // (IERS finals; Espenak-Meeus 2005-2050 formula gives ~74s). The 27s excess
+            // fed every TT-based series 27s late (Moon error ~0.25 arcmin). Replaced with
+            // the genuine Espenak-Meeus piecewise: 1986-2005 quadratic for 2000-2005,
+            // 2005-2050 quadratic beyond (documented residual <=6s => <=0.05' on the Moon).
+            year in 2000.0..2005.0 -> {
                 val t = year - 2000.0
-                63.86 + 0.3345 * t - 0.006037 * t * t + 0.001727 * t * t * t
+                63.86 + 0.3345 * t - 0.006037 * t * t
+            }
+            year in 2005.0..2050.0 -> {
+                val t = year - 2000.0
+                62.92 + 0.32217 * t + 0.005589 * t * t
             }
             // Years 2050-2150: Espenak-Meeus polynomial
             year in 2050.0..2150.0 -> {

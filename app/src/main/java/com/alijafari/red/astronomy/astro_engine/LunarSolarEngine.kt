@@ -336,7 +336,16 @@ class LunarSolarEngine {
      * @return Solar geocentric position
      */
     fun calculateSun(astroTime: AstroTime): SolarPosition {
-        val t = astroTime.jcTt
+        // F-A5 KIND-B fix (2026-09-04): this VSOP87D-truncated series (Meeus Ch.32 scale)
+        // must be evaluated with tau in 100-Julian-century units, like VSOP87Engine.
+        // Two defects: (a) time argument was Julian CENTURIES (phases run at 1/10 speed
+        // -> oscillating multi-degree apparent-longitude error vs astropy/pymeeus, e.g.
+        // -3.77 deg on 2025-04-11, +6.6' at the Meeus 1992 worked example); (b) the L1
+        // constant was the per-century value 62833196674.7 while every other constant
+        // here is per-millennium (Meeus Table 32.A: 628331966747.09). With tau=t/10 and
+        // the millennium L1 constant the truncated series reproduces pymeeus full
+        // VSOP87D to <=0.36 arcsec over 1992-2030 (measured, evidence/ORACLE_CASES.csv).
+        val t = astroTime.jcTt / 10.0  // VSOP87 tau: 100 Julian centuries in TT
 
         val L0 = (
             175347046.0 + 0.0 * t +
@@ -406,7 +415,8 @@ class LunarSolarEngine {
         )
 
         val L1 = (
-            62833196674.7 +
+            // F-A5: millennium-scale constant (Meeus Table 32.A row L1-1); was 62833196674.7
+            628331966747.09 +
             206059.0 * cos((2.678235 + 6283.075850 * t)) +
             4303.0 * cos((2.6351 + 12566.1517 * t)) +
             425.0 * cos((1.590 + 3.523 * t)) +

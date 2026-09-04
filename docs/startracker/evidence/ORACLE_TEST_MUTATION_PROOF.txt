@@ -1,0 +1,12 @@
+FAILURE com.alijafari.red.astronomy.CoordinateOracleTest.testStarRouteAgainstOracle -> star_live recomputed vs astropy(app-weather refr): max=26.546' rms=15.473' exceeds 2.0' (pre-fix baseline ~17.5' median 2026 ? evidence/ORACLE_RESIDUALS_BEFORE_FIX.txt)
+FAILURE com.alijafari.red.astronomy.CoordinateOracleTest.testBodiesAgainstOracle -> planet_saturn at CapeTown/2026-09-04T20:00:00: 527.0399215087408' exceeds 2.0'
+FAILURE com.alijafari.red.astronomy.CoordinateOracleTest.testDeltaTModernEra -> ?T(2026) = 101.269807826489s, expected ?69-76s (pre-fix bug gave 96.3s)
+
+========================================
+Tests run: 3, Failures: 3, Errors: 0
+--- failure details ---
+com.alijafari.red.astronomy.CoordinateOracleTest.testStarRouteAgainstOracle: [FAILURE] star_live recomputed vs astropy(app-weather refr): max=26.546' rms=15.473' exceeds 2.0' (pre-fix baseline ~17.5' median 2026 ? evidence/ORACLE_RESIDUALS_BEFORE_FIX.txt)
+com.alijafari.red.astronomy.CoordinateOracleTest.testBodiesAgainstOracle: [FAILURE] planet_saturn at CapeTown/2026-09-04T20:00:00: 527.0399215087408' exceeds 2.0'
+com.alijafari.red.astronomy.CoordinateOracleTest.testDeltaTModernEra: [FAILURE] ?T(2026) = 101.269807826489s, expected ?69-76s (pre-fix bug gave 96.3s)
+========================================
+

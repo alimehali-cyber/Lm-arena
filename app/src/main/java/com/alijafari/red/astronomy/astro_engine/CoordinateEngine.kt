@@ -51,6 +51,21 @@ object CoordinateEngine {
     )
 
     fun calculateNutation(jd: Double) = CoordinateEngineLegacy.calculateNutation(jd)
+    /**
+     * F-A5 KIND-B (2026-09-04): the display catalogs store J2000.0 coordinates, but the live
+     * overlay transform (equatorialToHorizontal) works against Local APPARENT Sidereal Time,
+     * i.e. coordinates of date. Feeding J2000 positions straight in skips J2000->date
+     * precession — a growing error (~50.3"/yr, ~17.5' by 2026, measured across 2000-2030 in
+     * docs/startracker/evidence/ORACLE_CASES.csv, route star_live_j2000raw). This helper
+     * precesses catalog J2000 positions to the mean equator of date (nutation <=17" is below
+     * the 2' acceptance and intentionally not applied — see ORACLE evidence).
+     */
+    fun precessJ2000EquatorialToDate(raDeg: Double, decDeg: Double, jdUtc: Double): Equatorial {
+        val fte = FrameTransformationEngine()
+        val eq = fte.precessJ2000ToDate(raDeg, decDeg, AstroTime.fromJd(jdUtc))
+        return Equatorial(eq.raDeg, eq.decDeg)
+    }
+
     fun equatorialToHorizontal(equatorial: Equatorial, lastDeg: Double, latitudeDeg: Double, observerElevationM: Double = 0.0): Horizontal {
         val legacyHoriz = CoordinateEngineLegacy.equatorialToHorizontal(
             CoordinateEngineLegacy.Equatorial(equatorial.raDeg, equatorial.decDeg),

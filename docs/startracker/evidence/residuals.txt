@@ -1,0 +1,93 @@
+
+== ROUTE star_live vs oracle NO-refraction (app adds refraction; expect refraction-sized excess) (alt>10deg, n=651) ==
+  dAz  arcmin: mean=   0.217  rms=  22.824  max= 107.731
+  dAlt arcmin: mean=   1.320  rms=  10.932  max=  28.979
+  on-sky sep  : mean=  13.695  rms=  15.534  max=  29.202
+
+== ROUTE star_live vs oracle refr1010 (alt>10deg, n=651) ==
+  dAz  arcmin: mean=   0.217  rms=  22.824  max= 107.731
+  dAlt arcmin: mean=  -0.339  rms=  10.793  max=  25.882
+  on-sky sep  : mean=  13.479  rms=  15.435  max=  26.107
+
+== ROUTE star_live vs oracle refr app-weather(elev0=1013.25/15C sea-level model) (alt>10deg, n=651) ==
+  dAz  arcmin: mean=   0.217  rms=  22.824  max= 107.731
+  dAlt arcmin: mean=  -0.217  rms=  10.793  max=  26.324
+  on-sky sep  : mean=  13.479  rms=  15.435  max=  26.546
+
+== ROUTE star_live_elev vs oracle refr app-weather (alt>10deg, n=651) ==
+  dAz  arcmin: mean=   0.217  rms=  22.824  max= 107.731
+  dAlt arcmin: mean=  -0.217  rms=  10.793  max=  26.324
+  on-sky sep  : mean=  13.479  rms=  15.435  max=  26.546
+
+== ROUTE star_live DSOs vs oracle refr app-weather (alt>10deg, n=227) ==
+  dAz  arcmin: mean=   3.174  rms=  24.674  max= 231.271
+  dAlt arcmin: mean=   0.068  rms=  10.606  max=  25.431
+  on-sky sep  : mean=  13.231  rms=  15.587  max=  26.160
+
+== ROUTE fte vs oracle refr1010 (alt>10deg, n=651) ==
+  dAz  arcmin: mean=   0.217  rms=  22.824  max= 107.731
+  dAlt arcmin: mean=  -0.339  rms=  10.793  max=  25.882
+  on-sky sep  : mean=  13.479  rms=  15.435  max=  26.107
+
+== ROUTE sun vs oracle no-refraction (alt>10deg, n=14) ==
+  dAz  arcmin: mean=  -7.193  rms=  55.242  max= 138.033
+  dAlt arcmin: mean=  -2.642  rms=  56.047  max= 111.967
+  on-sky sep  : mean=  51.983  rms=  73.175  max= 126.091
+
+== ROUTE sun vs oracle refr app-weather (alt>10deg, n=14) ==
+  dAz  arcmin: mean=  -7.193  rms=  55.242  max= 138.033
+  dAlt arcmin: mean=  -4.128  rms=  56.365  max= 110.668
+  on-sky sep  : mean=  52.028  rms=  73.414  max= 125.210
+
+== ROUTE moon vs oracle no-refraction (alt>10deg, n=16) ==
+  dAz  arcmin: mean=  -0.052  rms=   0.288  max=   0.454
+  dAlt arcmin: mean=   2.038  rms=   2.493  max=   4.827
+  on-sky sep  : mean=   2.056  rms=   2.503  max=   4.827
+
+== ROUTE moon_geocentric vs oracle (parallax defect size) (alt>10deg, n=16) ==
+  dAz  arcmin: mean=  -0.064  rms=   0.324  max=   0.456
+  dAlt arcmin: mean=  47.597  rms=  48.595  max=  61.845
+  on-sky sep  : mean=  47.598  rms=  48.596  max=  61.845
+
+== ROUTE planet_mercury vs oracle no-refraction (alt>10deg, n=14) ==
+  dAz  arcmin: mean= 190.676  rms=1216.437  max=2536.347
+  dAlt arcmin: mean= 127.084  rms= 926.095  max=1784.606
+  on-sky sep  : mean=1080.251  rms=1223.584  max=2072.795
+
+== ROUTE planet_venus vs oracle no-refraction (alt>10deg, n=12) ==
+  dAz  arcmin: mean=   1.136  rms=  97.376  max= 183.704
+  dAlt arcmin: mean=  -7.484  rms=  56.251  max= 107.156
+  on-sky sep  : mean=  67.522  rms=  69.869  max= 107.552
+
+== ROUTE planet_mars vs oracle no-refraction (alt>10deg, n=15) ==
+  dAz  arcmin: mean= -56.722  rms= 585.935  max=1078.545
+  dAlt arcmin: mean= -44.469  rms= 493.440  max= 649.794
+  on-sky sep  : mean= 581.444  rms= 693.569  max=1120.311
+
+== ROUTE planet_jupiter vs oracle no-refraction (alt>10deg, n=15) ==
+  dAz  arcmin: mean=  85.265  rms= 381.643  max= 971.863
+  dAlt arcmin: mean=  50.235  rms= 247.389  max= 387.051
+  on-sky sep  : mean= 323.696  rms= 346.487  max= 434.250
+
+== ROUTE planet_saturn vs oracle no-refraction (alt>10deg, n=16) ==
+  dAz  arcmin: mean= -63.181  rms= 432.439  max= 684.780
+  dAlt arcmin: mean=  20.559  rms= 280.291  max= 460.574
+  on-sky sep  : mean= 391.487  rms= 416.250  max= 533.032
+
+== ROUTE planet_uranus vs oracle no-refraction (alt>10deg, n=15) ==
+  dAz  arcmin: mean= -33.811  rms= 194.823  max= 204.804
+  dAlt arcmin: mean=   2.907  rms=  84.772  max= 154.891
+  on-sky sep  : mean= 135.630  rms= 141.322  max= 176.871
+
+== ROUTE planet_neptune vs oracle no-refraction (alt>10deg, n=15) ==
+  dAz  arcmin: mean=  15.613  rms=  87.972  max= 253.806
+  dAlt arcmin: mean=  10.964  rms=  58.498  max=  80.399
+  on-sky sep  : mean=  76.193  rms=  76.434  max=  86.258
+
+== star_live on-sky error vs instant (precession signature; vs no-refraction oracle) ==
+  2000-01-01T12:00:00: median=   1.227'  max=   5.348'
+  2015-12-31T23:59:59: median=  11.176'  max=  16.300'
+  2026-03-20T12:00:00: median=  18.222'  max=  24.190'
+  2026-07-15T02:30:00: median=  17.966'  max=  25.890'
+  2026-09-04T20:00:00: median=  17.518'  max=  23.921'
+  2030-06-21T00:00:00: median=  20.227'  max=  29.202'

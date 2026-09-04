@@ -1,0 +1,48 @@
+=== Phase 4 Manual Cross-Check: Davenport q-method ===
+numpy 2.4.6
+
+--- Test Case 1: Known attitude 30° yaw ---
+Ground truth quaternion [w,x,y,z]: [0.96592583 0.         0.         0.25881905]
+Solved quaternion [w,x,y,z]: [0.96592583 0.         0.         0.25881905]
+K matrix:
+[[-1.499849    0.86576386  0.          0.        ]
+ [ 0.86576386 -0.500151    0.          0.        ]
+ [ 0.          0.         -1.59781467  1.499849  ]
+ [ 0.          0.          1.499849    3.59781467]]
+Eigenvalues: [-1.999698e+00 -1.999698e+00 -3.020000e-04  3.999698e+00]
+Angular error: 0.000000° = 0.00 arcsec
+Expected: <0.0001° for zero noise
+
+--- Test Case 2: With noise 0.01° ---
+Noisy solved quaternion: [-9.65928695e-01 -5.62045305e-05  3.34049522e-05 -2.58808330e-01]
+Angular error with 0.01° noise: 0.007599° = 0.4560 arcmin = 27.36 arcsec
+
+--- Test Case 3: Random attitude ---
+GT quat: [0.92387953 0.27059805 0.27059805 0.        ]
+Solved quat: [9.23879533e-01 2.70598050e-01 2.70598050e-01 2.53689342e-16]
+Angular error: 0.000000° = 0.00 arcsec
+K matrix for this case:
+[[-1.41400002  0.79283983  0.35338675  1.64631125]
+ [ 0.79283983 -2.12100002  0.85353774  1.85338675]
+ [ 0.35338675  0.85353774 -0.43966016 -0.3535    ]
+ [ 1.64631125  1.85338675 -0.3535      3.97466019]]
+
+--- TRIAD Test (2 stars) ---
+TRIAD solved quat: [0.96592583 0.         0.         0.25881905]
+TRIAD angular error: 0.000000° = 0.00 arcsec
+Rotation matrix:
+[[ 0.8660254 -0.5        0.       ]
+ [ 0.5        0.8660254  0.       ]
+ [ 0.         0.         1.       ]]
+
+=== Summary ===
+Test1 zero noise error: 0.000000° (0.00 arcsec) — Python reference recovers attitude essentially perfectly
+Test2 0.01° noise error: 0.007599° (27.36 arcsec)
+Test3 random attitude error: 0.000000° (0.00 arcsec)
+TRIAD error: 0.000000° (0.00 arcsec)
+
+Kotlin logic, traced by hand step-by-step, produces identical K-matrix construction:
+  B = Σ w*b*r^T, S = B+B^T, z = Σ w*(b×r), sigma=trace(B), K=[[S-sigma*I, z],[z^T, sigma]]
+  Jacobi iteration on 4x4 symmetric matrix to find largest eigenvector — same as numpy eigh
+  Would be expected to converge to same result, but this has NOT been executed as Kotlin code
+  (JVM still blocked, 4 phases without automated execution)

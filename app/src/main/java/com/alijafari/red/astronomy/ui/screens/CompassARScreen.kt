@@ -91,7 +91,29 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.drawscope.rotate
 import java.util.Locale
 import kotlin.math.*
+import android.hardware.GeomagneticField
+import com.alijafari.red.astronomy.startracker.fusion.StarTrackerConfig
+import com.alijafari.red.astronomy.astro_engine.MagneticDeclination
 
+
+    // F-A5 KIND-B: catalog stars / deep-sky objects store J2000.0 coordinates; precess to the
+    // equator of date before the horizontal transform (was: raw J2000 fed against LAST ->
+    // ~17.5' sky-position error in 2026, see evidence/ORACLE_CASES.csv). Dynamic objects
+    // (sun/moon/planets/satellites) already produce coordinates of date and must NOT be
+    // precessed again.
+    fun staticObjectEquatorial(obj: CelestialObject, jd: Double): CoordinateEngine.Equatorial {
+        val isStaticCatalogObject = when (obj.type) {
+            ObjectType.STAR, ObjectType.ASTERISM, ObjectType.DEEP_SKY, ObjectType.GALAXY,
+            ObjectType.NEBULA, ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER,
+            ObjectType.BLACK_HOLE -> true
+            else -> false
+        }
+        return if (isStaticCatalogObject) {
+            CoordinateEngine.precessJ2000EquatorialToDate(obj.raDeg, obj.decDeg, jd)
+        } else {
+            CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg)
+        }
+    }
 enum class ArExpandedPanel {
     SEARCH, TIME_MACHINE, FILTERS, SENSORS
 }
@@ -757,7 +779,7 @@ fun CompassARScreen(
                 val hJd = activeJd + (step * 0.25 / 24.0)
                 val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
                 val hHoriz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(targetObj.raDeg, targetObj.decDeg),
+                    staticObjectEquatorial(targetObj, hJd),
                     hLast,
                     uiState.userLocation.latitude
                 )
@@ -767,7 +789,7 @@ fun CompassARScreen(
                 val hJd = activeJd + (step * 0.25 / 24.0)
                 val hLast = TimeEngine.getLAST(hJd, uiState.userLocation.longitude)
                 val hMoon = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(targetObj.raDeg, targetObj.decDeg),
+                    staticObjectEquatorial(targetObj, hJd),
                     hLast,
                     uiState.userLocation.latitude
                 )
@@ -914,7 +936,7 @@ fun CompassARScreen(
                                 val horiz = if (obj.type == ObjectType.SUN) activeSunHoriz
                                 else if (obj.id == "moon") activeMoonHoriz
                                 else if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) activeSatellitePositions[obj.id] ?: activeSatellitePositions[com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id)] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
-                                else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), activeLastDeg, activeUserLat)
+                                else CoordinateEngine.equatorialToHorizontal(staticObjectEquatorial(obj, jd), activeLastDeg, activeUserLat)
 
                                 val pt = ARProjectionEngine.projectAltAz(
                                     azimuthDeg = horiz.azimuthDeg,
@@ -2530,7 +2552,7 @@ fun CompassARScreen(
                 val horiz = if (obj.type == ObjectType.SUN) sunHoriz
                 else if (obj.id == "moon") moonHoriz
                 else if (obj.type == ObjectType.SATELLITE || obj.id.startsWith("sat_")) satellitePositions[obj.id] ?: satellitePositions[com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id)] ?: CoordinateEngine.Horizontal(-90.0, 0.0)
-                else CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg), lastDeg, uiState.userLocation.latitude)
+                else CoordinateEngine.equatorialToHorizontal(staticObjectEquatorial(obj, jd), lastDeg, uiState.userLocation.latitude)
 
                 val projPt = ARProjectionEngine.projectAltAz(
                     azimuthDeg = horiz.azimuthDeg,

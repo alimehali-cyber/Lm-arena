@@ -1,0 +1,46 @@
+=== 1. Quaternion primitives (mirror of solver/Quaternion.kt ops) ===
+  [PASS] rotation preserves vector norm
+  [PASS] q * q_conj rotates a vector back to itself
+  [PASS] rotation then inverse-rotation returns original
+  [PASS] composed rotation == sequential rotations
+  [PASS] double cover: error(q, -q) == 0 — error=2.98e-08 rad
+  [PASS] known axis-angle magnitude: 10 deg from identity
+
+=== 2. Camera pixel<->ray round-trip (pinhole + skew) ===
+  worst round-trip error over 200 random rays: 0.005324 arcsec
+  [PASS] pixel<->ray round-trip < 0.01 arcsec (double precision)
+  [PASS] center ray -> principal point
+
+=== 3. Statistical check of the bench's injected-noise model ===
+  [PASS] RMS(injected error) ~= sigma at 5" — RMS=4.979
+  [PASS] median/sigma ~= 0.6745 (half-normal) at 5" — ratio=0.6649
+  sigma=5": RMS=4.98, median=3.32, p95=9.65 arcsec
+  [PASS] RMS(injected error) ~= sigma at 10" — RMS=9.958
+  [PASS] median/sigma ~= 0.6745 (half-normal) at 10" — ratio=0.6649
+  sigma=10": RMS=9.96, median=6.65, p95=19.31 arcsec
+  [PASS] RMS(injected error) ~= sigma at 50" — RMS=49.789
+  [PASS] median/sigma ~= 0.6745 (half-normal) at 50" — ratio=0.6649
+  sigma=50": RMS=49.79, median=33.24, p95=96.55 arcsec
+
+=== 4. FOV-dependent error scaling (geometry, explains the Kotlin device sweep) ===
+  FOV  30 deg: 1 px =  56.25 arcsec
+  FOV  60 deg: 1 px = 112.50 arcsec
+  FOV  90 deg: 1 px = 168.75 arcsec
+  FOV 120 deg: 1 px = 225.00 arcsec
+  [PASS] pixel scale 30deg/120deg == 0.25 (finer at narrow FOV) — ratio=0.2500
+  [PASS] Kotlin measured degradation at narrow FOV INVERTS the pixel-scale benefit (star-count effect dominates) — measured 7.20x worse at 30deg despite 4x finer pixel scale
+  [PASS] Kotlin measured RMS decreases monotonically with wider FOV
+
+=== 5. Hemisphere equivalence done honestly (different seeds AND hemisphere-restricted attitudes) ===
+  north RMS 9.90", south RMS 10.09", |diff| 0.19" (distinct seeds, 400 trials each)
+  [PASS] hemisphere RMS equivalence within sampling tolerance — tol=1.77"
+
+=== 6. What this script does NOT do (no fabrication) ===
+  - It runs no star-tracker solver, no centroider, no matcher: 'success rate'
+    of an actual solve is NOT computed here. Real synthetic-bench numbers are
+    produced by the Kotlin ValidationMatrixRunnerTest and captured in
+    docs/startracker/evidence/VALIDATION_MATRIX_2026-09-03.txt.
+  - The old fabricated per-condition success rates (1.0 if noise<100 else 0.8)
+    are gone. The old identical-seed 'hemisphere' check is gone.
+
+All REAL cross-checks in this script passed (nothing simulated).

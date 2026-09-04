@@ -1,0 +1,127 @@
+# B1 — Catalog size: MEASURED (pairs, small-N quads) + measured-extrapolated (quads at 9k/15k)
+# Captured: 2026-09-03, remediation pass 2.
+# Probe: tools/kotlin-harness/CatalogSizeProbe.kt (committed), compiled with the REAL catalog
+# sources (app/src/main/.../startracker/catalog/*.kt) by kotlinc 2.4.10, run on JRE 25.0.2.
+# Stars: deterministic seed 42, UNIFORM on the sphere, CONSTANT magnitude 3.0.
+#   (Neither AngularSeparationIndex nor QuadPatternIndex reads `magnitude` during build -
+#   verified by grep - no magnitude filter exists in either builder - so a constant magnitude
+#   is faithful; a N(<m) ∝ 10^(0.6m) distribution would change nothing in these counts.)
+# All index builds use CatalogBuildConfig defaults (MAX_PAIR_SEPARATION 40 deg, MIN 0.1 deg,
+# HASH_BIN_WIDTH 0.01). Byte accounting = counting OutputStream writing the EXACT field
+# sequence of CatalogSerializer.serialize; validated byte-equal against serialize() at N=150
+# (mirror=827699 real=827699 match=true). serialize() itself materializes the full ByteArray,
+# so the mirror is used at larger N to avoid holding GBs in the 3 GB sandbox.
+
+## MEASURED runs (verbatim lines from probe output)
+
+check:
+N=150 mirror=827699 real=827699 match=true
+
+pairs (mode "pairs", quads excluded):
+N=9110  genMs=29 pairCount=4851922 pairBuildMs=7469  quads=0 totalBytes=78094272  starSectionBytes=463504  pairBytes=77630752  heapMaxMB=2048
+N=15000 genMs=36 pairCount=13156786 pairBuildMs=18807 quads=0 totalBytes=211277486 starSectionBytes=768894  pairBytes=210508576 heapMaxMB=2600
+
+quads (mode "quads", full pair+quad build and accounting):
+N=300 genMs=17 pairCount=5248  pairBuildMs=35 quadCount=151296  quadBuildMs=1206  totalBytes=12191561  quadSectionBytes=12092679  bytesPerQuad=79.927  quadsPerStar=504.32  heapMaxMB=2048
+N=400 genMs=17 pairCount=9235  pairBuildMs=42 quadCount=444941  quadBuildMs=3265  totalBytes=35733647  quadSectionBytes=35565973  bytesPerQuad=79.934  quadsPerStar=1112.35 heapMaxMB=2048
+N=500 genMs=22 pairCount=14536 pairBuildMs=50 quadCount=1154238  quadBuildMs=7574  totalBytes=92514176  quadSectionBytes=92256686  bytesPerQuad=79.929  quadsPerStar=2308.48  heapMaxMB=2048
+N=600 genMs=19 pairCount=20886 pairBuildMs=57 quadCount=2384027  quadBuildMs=15400 totalBytes=190906728 quadSectionBytes=190542638 bytesPerQuad=79.925  quadsPerStar=3973.38  heapMaxMB=2800
+
+N=800 at -Xmx2800m: java.lang.OutOfMemoryError (heap exhausted growing the quad ArrayList
+inside QuadPatternIndex.<init>) - the in-memory CatalogQuad representation is far larger
+than its 80 serialized bytes, so even 800 stars cannot complete in a 2.8 GB heap.
+NOTE: the sandbox has 3 GB RAM total; larger heaps are not possible here.
+
+## Derived (arithmetic on the measured points only)
+
+Per-item serialized byte costs (from the serializer's own format, mirror-validated):
+  star  = ~50.9 B (id "CATnnn" + 3 doubles + source string; grows with id length)
+  pair  = 16 B exactly (double + int + int)
+  quad  = 79.93 B measured (4 ints + 6 doubles + quantized key string, e.g. "70-70-70-70-100")
+
+## Quad-count fit and EXTRAPOLATION to target sizes (labelled extrapolated)
+
+Fit: quads(N) = K * C(N,4) with K = quads/C(N,4) measured at each N:
+  N=300: K=4.574e-4 | N=400: K=4.235e-4 | N=500: K=4.486e-4 | N=600: K=4.459e-4
+K is stable within +/-4% (finite-N spread), so quads(N) ~ K*C(N,4) holds; using K=4.459e-4
+(the N=600 anchor; the 300-600 average would change results by <2%):
+  N=9,110 : C(N,4)=2.874e14 -> quads ~ 1.28e11 (~14.0 million quads/star)
+            serialized ~ 1.28e11 * 79.93 B ~ 10.2 TB   [EXTRAPOLATED]
+  N=15,000: C(N,4)=2.108e15 -> quads ~ 9.40e11 (~62.7 million quads/star)
+            serialized ~ 9.40e11 * 79.93 B ~ 75.2 TB   [EXTRAPOLATED]
+Build-time extrapolation (O(N^4) loop, measured 15.4 s at N=600):
+  N=9,110 ~ 9.5 days single-threaded; N=15,000 ~ 70 days  [EXTRAPOLATED]
+
+## Verdict on the Task-4 "N * 19600/4" quad model (4,900 quads/star, 44.1M @ 9k)
+
+- Bytes-per-quad model (84 B): CLOSE to reality (measured 79.93 B).
+- Quad COUNT: catastrophically OPTIMISTIC. The real builder produces ~14 MILLION
+  quads/star at 9k scale (measured trend), ~2,900x more than the model's 4,900/star.
+  Reason: the model assumed a "nearby limited" cap that DOES NOT EXIST in the code -
+  QuadPatternIndex.kt enumerates ALL C(N,4) combinations with only the 40-degree
+  separation filter, and CatalogBuildConfig.MAX_STARS_PER_REGION_FOR_QUADS (50) is
+  declared but has NO consumers (verified by grep).
+- Consequently the pass-1 "3.79 GB / 6.69 GB" figures (which were ESTIMATOR OUTPUT under
+  this model, not measurements - correctly relabelled this pass) are ~2,700x too small:
+  serialized reality at 9k is ~10 TB (extrapolated from measured 300-600 points).
+  The original "10-30 MB" claim was off by ~300,000x.
+
+## Bottom line (what is actually MEASURED vs extrapolated)
+
+- MEASURED: pair index at 9,110 stars = 4,851,922 pairs, 7.5 s build, stars+pairs
+  serialize to 78,094,272 B = 74.5 MiB. At 15,000: 13,156,786 pairs, 18.8 s, 211,277,486 B
+  = 201 MiB. Quad builder at 300-600 stars: counts above, ~80 B/quad, O(N^4) build times,
+  OOM at 800 stars in a 2.8 GB heap.
+- EXTRAPOLATED: at 9,110 stars the full quad index would be ~1.28e11 quads / ~10 TB
+  serialized / ~9.5 days build; at 15,000 ~9.4e11 / ~75 TB / ~70 days. Infeasible in both
+  time and memory AS IMPLEMENTED: the builder needs a per-region star cap (the config
+  constant exists but is unused) or pruned neighbor enumeration, and the representation
+  needs a fundamentally smaller encoding, before a 9k catalog can ship.
+- The pair-only index (74.5 MiB @ 9k, MEASURED) is by itself a shippable size.
+
+# ============================================================================
+# ADDENDUM 2026-09-04 (pass 3, item R3-A1): exact combinatorial model
+# ============================================================================
+
+Derivation (uniform sphere, CatalogBuildConfig defaults read from source):
+  theta = MAX_PAIR_SEPARATION_DEG = 40.0 deg (the ONLY cutoff the quad builder applies;
+  MIN_PAIR_SEPARATION 0.1 deg excludes (1-cos0.1)/2 = 7.6e-7 of pairs - negligible).
+  c = (1 - cos theta)/2 = 0.116978  <- fraction of the sphere within theta of any point.
+  INDEPENDENT CONFIRMATION: this is exactly the measured pair fraction (11.7% of C(N,2)).
+
+  Candidate closed form (as proposed): quads/star = C(k,3), k = N*c.
+  MEASURED VERDICT: the N^3 SCALING is right, the constant is not. The builder requires
+  ALL SIX pairwise separations <= theta (a diameter/clique constraint), not merely
+  "3 stars within theta of the anchor" - 3 cap-mates can be up to 2*theta apart. The
+  exact form is therefore
+
+      quads/star = f(theta) * C(k,3),   k = N*(1-cos theta)/2
+
+  where f(theta) = P[3 uniform points in the theta-cap are pairwise within theta] is an
+  N-independent shape constant. From the four measured points:
+
+    N=300: k=35.09  C(k,3)= 6,599  measured 504.3/star  -> f=0.07642
+    N=400: k=46.79  C(k,3)=15,995  measured 1,112.4/star -> f=0.06954
+    N=500: k=58.49  C(k,3)=31,657  measured 2,308.5/star -> f=0.07292
+    N=600: k=70.19  C(k,3)=55,186  measured 3,973.4/star -> f=0.07200
+    f(40 deg) = 0.07272 +/- 0.0047 (±4.7% across N)  i.e. raw C(k,3) overestimates ~13.8x.
+
+  Predicted f*C(k,3) vs measured quads/star:
+    N=300: 480 vs 504.3 (-4.8%) | N=400: 1,163 vs 1,112.4 (+4.6%)
+    N=500: 2,302 vs 2,308.5 (-0.3%) | N=600: 4,013 vs 3,973.4 (+1.0%)
+
+  Targets restated as MEASURED POINTS + EXACT COMBINATORIAL MODEL (not a curve fit;
+  the only empirical input is f(theta), measured constant, N-independent):
+    N= 9,110: k=1,065.7 -> 14.63e6 quads/star -> 1.333e11 quads -> ~10.7 TB at 79.93 B/quad
+    N=15,000: k=1,754.7 -> 65.37e6 quads/star -> 9.805e11 quads -> ~78.4 TB
+  (Consistent with the pass-2 K*C(N,4) extrapolation 1.279e11 / 9.403e11 within ~5% -
+  same model family; the pass-2 "10.2 TB / 75.2 TB" labels stand, refined to 10.7/78.4 TB.)
+
+  Capped-index arithmetic (what a Tetra3-style k-nearest-neighbour cap WOULD cost at
+  9,110 stars, at the MEASURED 79.9 B/quad, quads/star = C(k,3) exactly under a cap):
+    k=5: C(5,3)=10  ->  91,100 quads  ->   7.3 MB   (+74.5 MiB measured pair section)
+    k=6: C(6,3)=20  -> 182,200 quads  ->  14.6 MB
+    k=8: C(8,3)=56  -> 510,160 quads  ->  40.8 MB
+  i.e. a capped index lands in the TENS OF MB - the original "10-30 MB" doc guess was
+  roughly right FOR A CAPPED INDEX and wrong in fact only because the cap was never
+  implemented (QuadPatternIndex enumerates all C(N,4) passing the 40-deg filter).
