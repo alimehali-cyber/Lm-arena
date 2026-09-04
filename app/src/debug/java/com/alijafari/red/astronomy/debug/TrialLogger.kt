@@ -33,9 +33,10 @@ class TrialLogger(private val context: Context) {
         val dir = File(context.filesDir, "startracker-trials").apply { mkdirs() }
         val stamp = SimpleDateFormat("yyyyMMdd'T'HHmmss", Locale.US)
             .apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date())
-        file = File(dir, "trial-$stamp.jsonl")
+        val f = File(dir, "trial-$stamp.jsonl")
+        file = f
         lineCount = 0
-        return file
+        return f
     }
 
     fun append(line: TrialLogLine): Boolean = runCatching {

@@ -75,7 +75,7 @@ object StarTrackerDebugPanelImpl : StarTrackerDebugPanel {
 
         val prefs = remember(context) { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
         var resolution by remember {
-            mutableStateOf(StarTrackerDebugFlags.resolve({ prefs.getString(it) }))
+            mutableStateOf(StarTrackerDebugFlags.resolve({ prefs.getString(it, null) }))
         }
         val intrinsics = remember(context) { runCatching { ARProjectionEngine.getCameraIntrinsics(context) }.getOrNull() }
         val distortion = remember(context) { readDistortion(context) }
@@ -223,19 +223,19 @@ object StarTrackerDebugPanelImpl : StarTrackerDebugPanel {
                     section("Runtime flag overrides (D1 — persist in SharedPreferences; release reads consts)") {
                         flagRow("ENABLED", StarTrackerConfig.ENABLED, resolution.enabled) { v ->
                             prefs.edit().putString(StarTrackerDebugFlags.KEY_ENABLED, if (v) "true" else "false").apply()
-                            resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it) })
+                            resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it, null) })
                         }
                         flagRow("PIPELINE_CAMERA_FEED (analysis gate)", StarTrackerConfig.PIPELINE_CAMERA_FEED, resolution.pipelineCameraFeed) { v ->
                             prefs.edit().putString(StarTrackerDebugFlags.KEY_PIPELINE_CAMERA_FEED, if (v) "true" else "false").apply()
-                            resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it) })
+                            resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it, null) })
                         }
                         flagRow("TRACKER_TO_ORIENTATION_PHASE6", StarTrackerConfig.TRACKER_TO_ORIENTATION_PHASE6, resolution.trackerToOrientationPhase6) { v ->
                             prefs.edit().putString(StarTrackerDebugFlags.KEY_TRACKER_TO_ORIENTATION_PHASE6, if (v) "true" else "false").apply()
-                            resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it) })
+                            resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it, null) })
                         }
                         flagRow("PROJECTION_SELF_CALIBRATED_PHASE7", StarTrackerConfig.PROJECTION_SELF_CALIBRATED_PHASE7, resolution.projectionSelfCalibratedPhase7) { v ->
                             prefs.edit().putString(StarTrackerDebugFlags.KEY_PROJECTION_SELF_CALIBRATED_PHASE7, if (v) "true" else "false").apply()
-                            resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it) })
+                            resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it, null) })
                         }
                         Text(
                             "Note: the W2 adapters that would consume these flags are not applied in this " +
