@@ -99,7 +99,10 @@ jobs:
       - name: Unit tests (THE gate, T1)
         run: |
           set -eo pipefail
-          ./gradlew :app:testDebugUnitTest --continue 2>&1 | tee unit_test.log
+          # -Pgravity.ci.tests=false disables the default com.zig.gravity.* test filter
+          # (app/build.gradle.kts gates every Test task on that property) so the WHOLE
+          # unit-test suite runs.
+          ./gradlew :app:testDebugUnitTest --continue -Pgravity.ci.tests=false 2>&1 | tee unit_test.log
 
       - name: Extract compile errors (if any)
         if: failure()
