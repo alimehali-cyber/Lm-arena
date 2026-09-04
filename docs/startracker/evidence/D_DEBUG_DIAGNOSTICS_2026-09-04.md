@@ -101,3 +101,63 @@ a member body (needs `val`) → `81fd8e3`.
 + 4 TrialLogLineTest). The `startracker/debug/` main-source package is excluded
 from the harness compile (Android-only: Context/Compose/BuildConfig/
 OrientationProvider) — CI compiles it in both variants instead.
+
+
+## Fix pass (2026-09-04, commit `5112eef`): long-press dead in the field -> explicit DIAGNOSTICS button
+
+**Reported:** with the debug APK from run 33899685082, long-pressing anywhere on the
+AR screen did NOT open the overlay.
+
+**Root cause (code-traced, CompassARScreen):** the D2 long-press detector was added
+as a `pointerInput` on the root AR `Box`, but three PRE-EXISTING gesture consumers
+own that touch path and starve it:
+
+1. the zoom `detectTransformGestures` (:856) chained AFTER the long-press input —
+   later filters in a modifier chain receive events first, and it consumes position
+   changes once past touch slop (~8 px);
+2. the manual-offset `detectDragGestures` (:863) on the same chain, which explicitly
+   `change.consume()`s after slop;
+3. the full-screen Layer-2 AR Canvas (:918) — the actual hit-test target for nearly
+   every touch — with its own `detectTapGestures` (press/tap) handler.
+
+A long press must survive ~500 ms with nothing consumed; on a hand-held phone aimed
+at the sky, micro-movement exceeds slop, the zoom/drag detectors consume the gesture,
+and the parent long-press is cancelled. Interactive controls cover much of the rest.
+The gesture had no visual affordance or feedback either. (Exact per-detector split
+cannot be distinguished without a device, but the consumption conflicts are
+structural — any one of them kills the press.)
+
+**Fix (minimal, reversible, NO new diagnostics UI):** ONE temporary
+`if (BuildConfig.DEBUG) { Button("DIAGNOSTICS") }` as the last child of the same AR
+`Box` — bottom-end corner, red (`0xFFE53935`), bold label, above the nav bar, drawn
+on top. Its `onClick` calls the SAME existing entry point the long-press used:
+`StarTrackerDebugHost.open(context, orientationProvider)` — nothing else. The
+long-press and the D2/D3 panel/logger are untouched. `open()` additionally logs
+`StarTrackerDebugHost: open requested … panel=<resolved>` so field testers can
+confirm invocation via logcat if ever needed.
+
+**UI path (button -> overlay):** Button onClick -> `StarTrackerDebugHost.open`
+(BuildConfig.DEBUG-guarded; sets `Access`, reflection-loads
+`com.alijafari.red.astronomy.debug.StarTrackerDebugPanelImpl` — present in the debug
+APK per the D4 dex assert — sets `visible=true`) -> the Box's existing hosting branch
+`if (BuildConfig.DEBUG && StarTrackerDebugHost.visible.value) HostContent()` ->
+`panelImpl.Content()` -> the D2 dialog (read-only rows + D1 switches + D3 trial
+buttons) over the AR screen. D3 chain unchanged: Start trial / Mark step N / Stop /
+Share -> `filesDir/startracker-trials/trial-*.jsonl`.
+
+**Release:** the button branch is `BuildConfig.DEBUG`-gated (compile-time false in
+release — eliminated), the panel/logger classes are absent from the release compile
+entirely (debug source set; D4 dex assert still enforced in CI).
+
+**REMOVAL NOTE (after field testing):** delete the button block in
+CompassARScreen.kt (marked `TEMPORARY DIAGNOSTICS BUTTON`), the long-press
+`.then(...)` block, and the hosting `if` — three small, clearly-commented regions;
+no engine/projection/sensor code is involved.
+
+**Verification:** CI run **`33906477868`** (head `5112eef`) — GREEN:
+`build` ✓ (assembleDebug + assembleRelease, D4 dex assert ✓: debug ≥ 1 / release 0 —
+the release APK still contains no diagnostics classes), `unit-tests` ✓
+(67 files / 466 tests / 0 failures). Harness 175/0/0. The new debug APK with the
+button is the `app-debug-apk` artifact / `ci-debug-apk` rolling pre-release of that
+run. On-device tap verification is the field tester's first action (logcat filter
+`StarTrackerDebugHost` shows `open requested … panel=true` on success).
