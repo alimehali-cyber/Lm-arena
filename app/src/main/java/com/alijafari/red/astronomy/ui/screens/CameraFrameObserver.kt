@@ -55,7 +55,12 @@ class CameraFrameObserver {
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             // .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888) // default
             .build().apply {
-                setAnalyzer(backgroundExecutor) { imageProxy: ImageProxy ->
+                // Explicit non-null assertion: newer camera-core marks setAnalyzer's
+                // Executor parameter @NonNull and this Kotlin/camera-core pairing
+                // mis-infers the property as platform/nullable here (compileDebugKotlin
+                // error since PR #3); the property is a non-null val, so !! is a
+                // compile-time-only fix and can never throw at runtime.
+                setAnalyzer(backgroundExecutor!!) { imageProxy: ImageProxy ->
                     try {
                         // Capture metadata for later clock-domain analysis
                         latestImageTimestampNanos = imageProxy.imageInfo.timestamp
