@@ -1,0 +1,33 @@
+D SYNTHETIC-SKY END-TO-END (2026-09-04) - all numbers SYNTHETIC-SKY (no device data)
+Chain: real HYG v3.6 V<=6.5 CSV -> CatalogIngestor -> QuadPatternIndex.capped (C defaults
+mag<=5.5 K=6) -> SyntheticSkyObserver (63.5-deg FOV, 57 arcsec/px) -> LostInSpaceSolver
+(full lost-in-space, NO ground-truth hints) -> attitude error vs truth.
+20 deterministic random attitudes per cell (seed 20260904); false lock = error > 0.5 deg.
+
+D1 FINDING (legacy candidate builder, global C(N,4) of top-10 brightest):
+  ALL cells 0/20 solved ('No quad matches found from 210 candidates'). Root cause:
+  global-brightest-combo quads are nearly DISJOINT from the capped index's
+  nearest-neighbor quads (measured on one field: 22/210 candidates in-range, 0 indexed).
+
+FIX: QuadCandidateBuilder.buildLocalCandidates (anchor + nearest neighbors from the
+bright pool, mirroring index construction) wired into LostInSpaceSolver behind
+CatalogBuildConfig.USE_LOCAL_QUAD_CANDIDATES (default true; false = legacy builder).
+
+LADDER, pool=25 (initial):
+noise=0.0px f=0: 9/20 solved, 6 FALSE LOCKS | 0.1px: 9/20, 6 FL | 0.3px: 8/20, 5 FL
+1.0px: 9/20, 6 FL | 2.0px: 7/20, 4 FL | 0.3px+5 false: 7/20, 5 FL | 0.3px+20 false:
+2/20 | 1.0px+20 false: 2/20. Median error when correctly locked: 0.00-1.93'.
+
+LADDER, pool=40 (ADOPTED as CANDIDATE_POOL_SIZE=40):
+noise=0.0px f= 0 | 20 | 20 solved | 3 falseLocks | median 0.000' | p95  1.936'
+noise=0.1px f= 0 | 20 | 20 solved | 3 falseLocks | median 0.099' | p95  2.034'
+noise=0.3px f= 0 | 20 | 20 solved | 3 falseLocks | median 0.307' | p95  5.902'
+noise=1.0px f= 0 | 20 | 20 solved | 3 falseLocks | median 1.024' | p95 19.680'
+noise=2.0px f= 0 | 20 | 19 solved | 4 falseLocks | median 2.048' | p95 23.003'
+noise=0.3px f= 5 | 20 | 19 solved | 7 falseLocks | median 0.319' | p95  4.419'
+noise=0.3px f=20 | 20 | 15 solved |10 falseLocks | median 2.466' | p95  3.017'
+noise=1.0px f=20 | 20 | 15 solved |10 falseLocks | median 3.625' | p95 10.064'
+
+MUTATION PROOF: USE_LOCAL_QUAD_CANDIDATES=false (legacy builder restored) ->
+SyntheticE2ETest FAILURE 'solve failed: No quad matches found from 210 candidates'
+(the exact D1 signature); 155/0/0 with the fix.

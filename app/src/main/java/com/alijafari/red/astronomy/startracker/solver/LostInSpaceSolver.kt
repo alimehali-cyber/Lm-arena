@@ -41,8 +41,17 @@ class LostInSpaceSolver(
             )
         }
 
-        // Step 1: Quad candidate formation
-        val quadCandidates = quadBuilder.buildCandidates(observations)
+        // Step 1: Quad candidate formation.
+        // D (final pass): local candidates mirror the capped index construction
+        // (anchor + nearest neighbors from the bright pool). The legacy global
+        // C(N,4)-of-top-N builder produces quads nearly DISJOINT from the capped
+        // index (D1 finding: 0/20 lost-in-space solves on the real catalog).
+        // Config-gated: USE_LOCAL_QUAD_CANDIDATES=false restores the legacy builder.
+        val quadCandidates = if (com.alijafari.red.astronomy.startracker.catalog.CatalogBuildConfig.USE_LOCAL_QUAD_CANDIDATES) {
+            quadBuilder.buildLocalCandidates(observations)
+        } else {
+            quadBuilder.buildCandidates(observations)
+        }
         if (quadCandidates.isEmpty()) {
             return SolveResult(false, null, 0, 0.0, "No quad candidates from ${observations.size} observations")
         }
@@ -67,8 +76,18 @@ class LostInSpaceSolver(
             }
         }
 
-        // Deduplicate correspondences by observed id (keep first)
-        val deduped = allCorrespondences.distinctBy { it.observed.id }
+        // Deduplicate correspondences (keep first).
+        // Audit finding B5: this previously keyed on observed.id alone. StarObservation.id defaults
+        // to "", so on any adapter path that does not assign ids (e.g. a future detection->solver
+        // adapter), EVERY observation shared the key "" and the whole correspondence set collapsed
+        // to a single entry ("Too few correspondences after deduplication: 1") even with a sky full
+        // of stars. Key is now: explicit non-blank id when present (a star genuinely observed twice
+        // still collapses to one correspondence), otherwise per-object identity, which cannot
+        // collide by construction.
+        val deduped = allCorrespondences.distinctBy { corr ->
+            val oid = corr.observed.id
+            if (oid.isNotBlank()) "id:$oid" else "ref:${System.identityHashCode(corr.observed)}"
+        }
 
         if (deduped.size < 2) {
             return SolveResult(false, null, 0, 0.0, "Too few correspondences after deduplication: ${deduped.size}")

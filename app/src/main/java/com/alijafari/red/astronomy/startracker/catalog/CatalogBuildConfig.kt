@@ -88,6 +88,22 @@ object CatalogBuildConfig {
     const val QUAD_MAX_QUADS: Int = 120_000
 
     /**
+     * D (final pass): runtime quad-candidate formation pool. The solver forms observed
+     * quads from the brightest ~40 detections in the frame using the SAME structural
+     * family as the capped index (anchor + nearest neighbors). See
+     * QuadCandidateBuilder.buildLocalCandidates — the D1 finding (global C(N,4)
+     * candidates are nearly disjoint from nearest-neighbor index quads -> 0/20 solves)
+     * is documented in docs/startracker/D_SYNTHETIC_E2E.md. UNVALIDATED pending device.
+     */
+    const val CANDIDATE_POOL_SIZE: Int = 40
+
+    /**
+     * D: use the local (index-mirroring) candidate builder in LostInSpaceSolver.
+     * Default true; false restores the legacy global top-N C(N,4) builder exactly.
+     */
+    const val USE_LOCAL_QUAD_CANDIDATES: Boolean = true
+
+    /**
      * Pyramid consistency tolerance for matching observed quad to catalog quad.
      * Angular separation must agree within this tolerance (radians).
      * Default: 0.01 rad = 0.57° = 34 arcminutes — very conservative, allows large centroiding error.
