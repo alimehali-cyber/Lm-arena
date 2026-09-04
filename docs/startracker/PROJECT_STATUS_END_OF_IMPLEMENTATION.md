@@ -1,174 +1,146 @@
-# Project Status — End of Implementation (Phases 0-10), rewritten 2026-09-03
+# Project Status — End of Implementation (final rewrite, 2026-09-04, T5)
 
-**This file was rewritten top-to-bottom in remediation pass 2 (item A4).** The original
-2026-09-02 document is preserved verbatim at
-`docs/startracker/history/PROJECT_STATUS_2026-09-02_ORIGINAL.md`; it honestly described
-a state in which nothing had ever been executed, and contained claims falsified since.
-This rewrite is the single current-status document; every number below traces to an
-executed run or is labelled estimated/modeled/extrapolated.
+**Authoritative current-status document.** Rewritten three times, honestly each time:
+2026-09-02 original (nothing had ever run — preserved at
+`history/PROJECT_STATUS_2026-09-02_ORIGINAL.md`), 2026-09-03 pass 2, and this final
+rewrite after the Z-series + gate pass (T1–T5). Every number below traces to an
+executed run (CI run id or evidence file) or is labelled UNEXECUTED / SYNTHETIC.
 
-**Live status authority:** environment status table = §5 (the only authoritative one;
-all other docs' copies are stamped SUPERSEDED). Harness disclosure =
-`docs/startracker/evidence/HARNESS_DISCLOSURE.md`. Evidence directory =
-`docs/startracker/evidence/`.
-
----
-
-## 1. Executive summary
-
-- **The headline historical fact: the code as shipped did not compile.** First-ever
-  compilation (2026-09-03, pass 1) found two compile-blocking errors in the startracker
-  module: `ConfidenceStateMachine.kt` used `exp()` with no import, and
-  `EndToEndSyntheticTestHelper.kt` called `DistortionModel.isIdentity()`, which did not
-  exist (fixed in commit deb748f). Ten phases of work were delivered without either of
-  these ever being caught because NO automated execution of any kind had ever run.
-- **First-ever executed baseline (116 tests, 2 failures + 8 errors).** At the
-  compile-fix commit, running the shipped test files unchanged: **116 tests, 2
-  failures, 8 errors** (re-verified in pass 2 by re-running that exact commit). The
-  number 117 that also appears in pass-1 records is the same suite AFTER the pass's
-  first test rewrite (ConfidenceStateMachineTest) added one test — 116 is the baseline.
-  Failures: AttitudeBlenderTest (blend math unreachable behind a `const` flag, tests
-  asserted behavior they could never observe); Errors: IntrinsicsRefinerTest /
-  DistortionRefinerTest (`kotlin.random.nextDouble(0,0)` throws on the zero-noise
-  tests — those tests had never actually run).
-- **Current state: the offline-harness suite is fully green — 137 tests, 0 failures,
-  0 errors** (30 startracker test files + RefractionTest + HeroSkyProjectionTest via a
-  Compose Offset stub; kotlinc 2.4.10 + jdk4py JRE 25 + JUnit shim — NOT the project's
-  Gradle/Android toolchain, which remains unavailable). An additional 10 pure-Kotlin
-  app test files ran standalone green (108/108) in pass 2; 13 files cannot compile
-  without Android/Robolectric/Compose (per-file: HARNESS_DISCLOSURE.md §6).
-- **12 audit code findings fixed** (pass 1, one commit each, regression-tested) plus 2
-  new findings found by execution (zero-noise Random crash; const-flag-unreachable
-  blend math). One code fix applied beyond the audit list with an instruction
-  violation, disclosed and kept by owner decision: the PHASE9 HeroSky southern-
-  hemisphere fix (see PHASE9_INTEGRATION_PATCH.md status header).
-- **Catalog size truth (pass 2, measured):** pair index at 9,110 stars = 4,851,922
-  pairs, 7.5 s build, **74.5 MiB serialized (MEASURED)**; the quad index is
-  **infeasible as implemented** — measured-extrapolated ~1.28×10¹¹ quads ≈ 10.2 TB at
-  9,110 stars, O(N⁴) build (~9.5 days extrapolated), heap-OOM at just 800 stars.
-  Earlier claims — "10-30 MB" (unexecuted guess, ~300,000× off; roughly right only for
-  a CAPPED index, which was never implemented) and "3.79/6.69 GB" (estimator output
-  under a quad model now measured to be ~2,900× optimistic) — are corrected everywhere.
-  ALGORITHMIC STATUS: QuadPatternIndex as written enumerates all 3-subsets in the
-  40-deg cutoff cone (O(N⁴), quads/star ∝ N³) — NOT the Tetra3 k-NN scheme the docs
-  describe; MAX_STARS_PER_REGION_FOR_QUADS is declared and never read; Phase 3 is
-  complete at fixture scale only — the real-scale index build is UNIMPLEMENTED
-  (neighbour cap is the prerequisite; capped cost: tens of MB, k=5/6/8 → 7.3/14.6/40.8 MB
-  at 9,110 stars). Evidence: `evidence/CATALOG_SIZE_MEASURED_2026-09-03.txt` (+ A1 addendum).
-- **Fabricated validation evidence replaced (pass 1):** the invented "Headline
-  Accuracy Numbers" table and Tetra3 comparison in PHASE3_4_5_6_FINAL_REPORT.md were
-  replaced with the real executed ValidationMatrixRunner matrix; the placeholder
-  python_crosscheck_phase10.py was rewritten stdlib-only with 18 real assertions.
-  Pass 2 installed numpy 2.4.6 and re-ran all five remaining phase scripts: **every
-  doc-attributed number reproduced** (`evidence/A6_NUMPY_CROSSCHECK_REPRO_2026-09-03.txt`).
-- **Still NOT done:** PHASE6/PHASE7 live wiring (gated patches, never applied — target
-  files need the Android build); the real Gradle build and full Android test suite;
-  real-device field testing; the real 9k-15k star catalog; UI guidance implementation;
-  live-scope static diffs from pass 2 (item A1) await human execution.
-
-## 2. Phase-by-phase status (with Executed? column)
-
-"Executed" = ran in the offline harness (pure-Kotlin subset), pass 1/2. "—" = not
-executable there (Android/Compose dependency); those tests have still NEVER run.
-
-| Phase | Title | Code | Executed? (harness) | Result |
-|---|---|---|---|---|
-| 0 | Baseline audit | read-only | n/a | n/a |
-| 1 | Refraction & FOV consolidation | 63.5° fallback constant; timestamp plumbing; camera observer wiring | RefractionTest YES (6/6 green; "4 tests" was a miscount); HeroSkyProjectionTest YES from pass 1 (7/7 after PHASE9 fix); OrientationProvider/CompassARScreen diffs NOT compiled (Android) | green |
-| 2 | Star detection | 6 files | YES — all 6 test files in the 137 | green (incl. pass-1 Centroider B4 fixes) |
-| 3 | Catalog | 6 files | YES — all 4 test files in the 137 (fixture scale) | green at fixture scale; real-scale quad index build UNIMPLEMENTED (uncapped O(N⁴); cap prerequisite + tens-of-MB capped cost in §1 and CATALOG_SOURCING 4b-prereq) |
-| 4 | Solver | 6 files + synthetic | YES — AttitudeSolverTest, SyntheticSkyObserverTest, LostInSpaceSolverTest in the 137 | green; the old "27 arcsec" python claim REPRODUCED (27.36″) with numpy 2.4.6 |
-| 5 | Tracking loop | 7 files | YES — ConfidenceStateMachineTest, QuaternionIntegratorTest, RelockPolicyTest, TrackingLoopTest in the 137 | green (after B2/B3, B6/B7 fixes) |
-| 6 | Fusion (gated) | StarTrackerConfig flag OFF; AttitudeBlender | YES — AttitudeBlenderTest in the 137 | green (after const-flag testability fix; acquisition behavior documented, awaiting owner decision) |
-| 7 | Self-calibration | 6 files | YES — DistortionModelTest, IntrinsicsRefinerTest, DistortionRefinerTest, CameraProfileCacheTest, SelfCalibrationEngineTest in the 137 | green (after B8/B9, zero-noise guard, DistortionModelTest real cross-check) |
-| 8 | Diagnostics & confidence ladder | 5 files | YES — AmbiguityDetectorTest, FrameQualityClassifierTest, ConfidenceLadderCoordinatorTest (+ RelativeBearing/BearingCrossCheck from phase 9 work) in the 137 | green (after B10) |
-| 9 | HeroSky hemisphere fix | RelativeBearing, BearingCrossCheck + HeroSkyProjection fix | YES — HeroSkyProjectionTest executed pass 1 for the first time | fix applied (instruction violation disclosed), KEPT by owner decision pass 2; 7/7 green |
-| 10 | Full-stack synthetic validation | ValidationMatrixRunner + EndToEnd helper | YES — ValidationMatrixRunnerTest, EndToEndSyntheticTest in the 137 | green; the real matrix is in `evidence/VALIDATION_MATRIX_2026-09-03.txt`; the phase-10 python script was fabricated and was rewritten (pass 1) |
-
-The one **non-startracker** pure-Kotlin main dependency pair compiled into the harness:
-`astro_engine/FrameTransformationEngine.kt`, `astro_engine/AstroTime.kt`.
-
-## 3. What each "Python cross-check" actually is (6 scripts, not 4)
-
-`python_crosscheck_phase{2,3,4,7,9,10}.py` at repo root. Phase 2/3/4/7/9 were re-run
-2026-09-03 with numpy 2.4.6 and their documented numbers all reproduced (see §1);
-phase 10 was the fabricated one, rewritten pass 1. Outputs verbatim:
-`evidence/PYTHON_CROSSCHECK_PHASE*_OUTPUT_2026-09-03.txt`.
-
-## 4. Forbidden scope — corrected record (pass 2, item A3(c))
-
-Five files listed as "never touched" had small disclosed Phase-1 changes (diffed
-against base 60928ba): OrientationProvider.kt (timestampNanos field + threading;
-equality participation removed in pass-2 A1(b) to restore StateFlow conflation),
-ARProjectionEngine.kt (fallback-FOV consolidation + tier logging), CoordinateEngineLegacy.kt
-(comment rename R_bennett→R_saemundsson, no numeric change), FrameTransformationEngine.kt
-(docstring only), CompassARScreen.kt (CameraFrameObserver wiring + ImageAnalysis
-binding — now gated behind StarTrackerConfig.ENABLED by pass-2 A1(a), static diff,
-unexecuted). Gated patches PHASE6 (OrientationProvider star-blend) and PHASE7
-(ARProjectionEngine calibration tier) were NEVER applied. PHASE9 was applied pass 1
-(disclosure in its doc) and kept pass 2. Everything else in the forbidden list
-remains untouched.
-
-## 5. Environment status — THE authoritative table
-
-| Capability | Status |
-|---|---|
-| Gradle download / Android SDK / Compose build | BLOCKED since Phase 1 (TLS failure against services.gradle.org; no Android SDK in sandbox). Never resolved. `./gradlew :app:testDebugUnitTest` has NEVER run. |
-| Offline Kotlin harness (kotlinc 2.4.10 npm + jdk4py JRE 25 + JUnit shim) | WORKING (pass 1, rebuilt + committed in-repo pass 2: `tools/kotlin-harness/`). Runs the pure-Kotlin subset only. |
-| Python + numpy | python3 3.11 always available; numpy 2.4.6 INSTALLED pass 2 (`pip install --break-system-packages numpy`) — the historical "numpy 2.4.6 available" claim is now true again, and all five phase scripts reproduce their numbers. |
-| Robolectric / Compose UI / Android-instrumented tests | NEVER RUN (cannot compile in sandbox; per-file reasons in HARNESS_DISCLOSURE.md §6). |
-| Real device / real catalog | NEVER available in this environment. |
-
-**Escalation that still stands:** nothing in this repo is validated by the project's
-own build system. Before any release: fix the real toolchain, run the real full suite,
-apply+verify the PHASE6/PHASE7 gated patches under their flags, execute the pass-2 A1
-static diffs' verification steps, and do real-device field testing per
-REAL_DEVICE_FIELD_TEST_PROTOCOL.md.
-
-## 6. Deliverables (current)
-
-- Startracker sources + tests (see MASTER_FILE_MANIFEST.md, reconciled pass 2).
-- `tools/kotlin-harness/` — offline harness (shims, runner, run_tests.sh, try_test.sh,
-  CatalogSizeProbe.kt).
-- `docs/startracker/evidence/` — 12 evidence files (harness runs, catalog measurements,
-  numpy reproductions, HeroSky before/after, unexecuted-diff disclosures).
-- Phase patch docs PHASE6/7/9 (9 = fix applied + kept; 6/7 = still patches),
-  CATALOG_SOURCING.md (measured size + options), UI_GUIDANCE_PROPOSAL.md,
-  REAL_DEVICE_FIELD_TEST_PROTOCOL.md, ATTITUDE_BLENDER_ACQUISITION_NOTE.md (pass 2).
-- Phase reports at repo root (corrected in place, corrections dated).
-
-## 7. Conclusion
-
-Implementation is complete as ISOLATED code and, for the pure-Kotlin subset, now
-actually executed and green (137/137 offline-harness; plus 108 standalone app tests).
-The audit's fabrication and correctness findings are remediated with regression tests,
-and the remaining gap is precisely known: the real Android toolchain, the gated live
-wiring, the catalog acquisition, and field validation. No claims in this file rest on
-unexecuted code; where something is estimated or extrapolated it says so.
+**Live status authority:** CI JUnit (from T1 on) is THE gate
+(`docs/startracker/evidence/T1_CI_JUNIT_2026-09-04.md`); the offline harness
+(`tools/kotlin-harness/`, 167/0/0 at this tip) is a fast local pre-check.
+Harness disclosure: `evidence/HARNESS_DISCLOSURE.md`. File inventory:
+`MASTER_FILE_MANIFEST.md`. Closing narrative: `CLOSING_PASS_REPORT.md`.
 
 ---
 
-# FINAL PASS (2026-09-04) — end state
+## 1. The four headline facts
 
-Commits on `arena/01a0676f-lm-arena` (base d9c83d2): d8a2e1e (A/Kind-B oracle fixes),
-43e360e (B1 declination), 60155a3 (B3 catalog values), b0ee15a (E real catalog),
-2bf1d05 (C capped quad index), b7fb71e (D synthetic E2E + local candidates),
-a3a1ca0 (B4 timestamp flow), 1ec3406 (F glue + runbook + F1).
-(Originals were lost in a sandbox rebuild — fresh clone dropped unpushed local commits;
-all commits reconstructed with identical content boundaries, each labeled RECONSTRUCTED.)
+1. **The app never compiled on this branch until 2026-09-04.** Ten phases + the final
+   pass shipped without a single successful `assembleDebug`: one compile error
+   (`CameraFrameObserver.kt:58` — `Executor?` passed where `@NonNull Executor` was
+   required, verbatim in `evidence/T3_HYGIENE_2026-09-04.md`) had blocked the Gradle
+   build since PR #3. First green build: Z-BUILD3, commit `a8157b5`, CI run
+   `33872506560`. APK: 28,019,185 B (SHA-256 `5e8a8459…`), rolling pre-release
+   `ci-debug-apk`.
+2. **The star tracker never compiled until pass 1 (2026-09-03):** `ConfidenceStateMachine.kt`
+   used `exp()` with no import; `EndToEndSyntheticTestHelper.kt` called a nonexistent
+   `DistortionModel.isIdentity()` (fixed `deb748f`). Nothing startracker-side had ever
+   executed before that date.
+3. **The live sky overlay was wrong, quietly, and is now correct and oracle-verified.**
+   Pre-work errors (all passed green by range-only assertions — see T2 section below):
+   star overlay ~17′ rms, Sun up to 125′, Mercury up to 20° / Mars 11.5°, and 7 display
+   stars off by up to 3.4° (plus 1 DSO). All corrected; pinned by the astropy oracle
+   (MEASURED, offline): stars **0.418′ rms**, Sun **0.350′**, Moon **0.145′**, planets
+   **0.4–0.6′** end-to-end (`evidence/ORACLE_*`, regression-pinned by
+   `CoordinateOracleTest`).
+4. **The star tracker is synthetic-ready, device-unproven, and DISABLED.** W1 E2E on the
+   real catalog: FULL_LOCK 393/395, lens-cap NO_LOCK. S3 joint Monte-Carlo (10,000
+   random attitudes, noise U(0,2) px, false stars {0,5,10,20}): 4,817 solved, **0 false
+   locks**, median 0.066′. `StarTrackerConfig.ENABLED = false`; everything beyond this
+   point **requires a phone under a clear sky**
+   (`REAL_DEVICE_FIELD_TEST_PROTOCOL.md`, 8 steps, ~30 min).
 
-- Live-path sky accuracy: ALL routes within acceptance vs astropy oracle (stars 0.42′
-  rms, sun 0.35′, moon 0.15′, planets 0.4–0.6′) — evidence/ORACLE_*; permanent
-  CoordinateOracleTest.
-- Magnetic declination: applied, DEFAULT ON (OD4), single entry point + one-time rebase.
-- Display catalogs: 7 star + 1 DSO position corrections (values only, OD3).
-- Star tracker: real HYG v3.6 catalog (8,870 stars, provenance in E1 doc), capped quad
-  index (3.6 MB), synthetic E2E 20/20 @≤1px with 0.1–1.0′ median — but 15% false locks
-  (D6) ⇒ ENABLED stays false. 78 MB pair index documented as build-time scaffolding.
-- Harness: 155/0/0 (tools/kotlin-harness/run_tests.sh). Gradle hosts unreachable (F1)
-  ⇒ offline harness remains the gate.
-- Everything Android-runtime-dependent: UNEXECUTED (runbook addendum lists the checks).
+## 2. CI is the gate (T1, 2026-09-04)
 
-## Pre-existing test coverage: what it did not catch (T2, 2026-09-04)
+- Run `33879125683` (head `d44f782`): `:app:testDebugUnitTest --continue` with
+  `-Pgravity.ci.tests=false` — **65 test files, 456 tests, 0 failures, 0 errors,
+  0 skipped**, Robolectric and screenshot tests included. Full per-file table:
+  `evidence/T1_CI_JUNIT_2026-09-04.md`.
+- All **13 test files that had never compiled** on this branch (SkyOrientationProjection,
+  ARCalibrationPrompt, SGP4Propagator, ISSPassPrediction, EclipseEngine,
+  ClassificationAudit, Phase4, Phase5, Relativistic, SatelliteAR, IssTleWorker,
+  ExampleRobolectric, GreetingScreenshot) compile, run and pass on CI.
+- **CI vs harness: discrepancies NONE** (38 shared files, identical outcomes/counts).
+- T1 finding (harness-era blind spot in CI itself): `app/build.gradle.kts` :158–176
+  silently restricted every CI test task to `com.zig.gravity.*` (179 tests) whenever
+  `GITHUB_ACTIONS=true`; the first "full" run `33878462925` was green but gravity-only.
+  Fixed in `c41e15e`.
+- JUnit XML ships as CI artifacts (`junit-xml`, `unit-test-log`), never in git (T3).
 
-Before this work the sky-position tests existed but were range-only, which is exactly how a 20° Mercury error, an 11.5° Mars error and a 125′ Sun error all passed green: the pre-work `VSOP87EngineTest` asserted Mercury only by DISTANCE (`"Mercury distance … should be between 0.30 and 0.47 AU"` — no angular assertion of any kind), asserted Earth/Jupiter only inside ±2.5°/±2.5° hand-picked longitude bands, and covered Mars solely through a generic loop whose positional checks were `longitudeDeg in 0.0..360.0` and `distanceAu > 0.0`; the pre-work `LunarSolarEngineTest` asserted the Sun only as `"Sun distance should be near 1 AU"`, `"Sun declination in August should be positive"` (a SIGN check) and `"Sun RA should be in [0, 360)"`. The VSOP87 tables themselves had NO test before this work — no assertion anywhere compared a table-derived series value against an external source, so the τ-unit and millennium-index defects (pass A, commit d8a2e1e) were invisible to the suite; they are now pinned by CoordinateOracleTest (astropy, 0.35–0.6′ end-to-end) plus the Meeus Ch.25 and Earth-heliocentric oracle tests added in Z-V1.
+## 3. Pre-existing test coverage: what it did not catch (T2, 2026-09-04)
+
+Before this work the sky-position tests existed but were range-only, which is exactly how a 20° Mercury error, an 11.5° Mars error and a 125′ Sun error all passed green: the pre-work `VSOP87EngineTest` asserted Mercury only by DISTANCE (`"Mercury distance … should be between 0.30 and 0.47 AU"` — no angular assertion of any kind), asserted Earth/Jupiter only inside ±2.5°/±2.5° hand-picked longitude bands, and covered Mars solely through a generic loop whose positional checks were `longitudeDeg in 0.0..360.0` and `distanceAu > 0.0`; the pre-work `LunarSolarEngineTest` asserted the Sun only as `"Sun distance should be near 1 AU"`, `"Sun declination in August should be positive"` (a SIGN check) and `"Sun RA should be in [0, 360)"`. The VSOP87 tables themselves had NO test before this work — no assertion anywhere compared a table-derived series value against an external source, so the τ-unit and millennium-index defects (pass A, commit `d8a2e1e`) were invisible to the suite; they are now pinned by CoordinateOracleTest (astropy, 0.35–0.6′ end-to-end) plus the Meeus Ch.25 and Earth-heliocentric oracle tests added in Z-V1.
+
+## 4. Distortion bootstrap (T4, 2026-09-04) — `evidence/T4_DISTORTION_2026-09-04.md`
+
+- **(a) HARDWARE_DISTORTION tier (UNEXECUTED on device):**
+  `HardwareDistortionReader.kt` reads `LENS_RADIAL_DISTORTION` (API 33+) /
+  `LENS_DISTORTION` (API 30+) → Brown-Conrady k1/k2; tier order HARDWARE_DISTORTION >
+  SELF_CALIBRATED > NONE (identity ⇒ T4(b) allowance). Harness-tested via new camera2
+  shims (4/4); first real execution is the device trial.
+- **(b) Radius-dependent tolerance when no model:** `tol(θ) = 300″ + 0.04951·tan²θ`
+  envelopes |k1| ≤ 0.08 across the 63.5° tier (D5-derived); default c=0 is
+  byte-identical to the old flat gate; pipeline auto-applies it only when the
+  distortion model is identity. S3 joint MC re-run (same seeds, unmodelled k1):
+  k1=0 → 50.2 % solved / FLfull 1; k1=−0.03 → 49.4 % / median 1.03′; k1=−0.08 →
+  42.7 % / FL 4.87 % but **FLfull 0**. Honest cost at k1=0: FL 0.54 % vs 0.00 % with
+  the flat gate. Loosened: none.
+
+## 5. Hygiene (T3, 2026-09-04) — `evidence/T3_HYGIENE_2026-09-04.md`
+
+`ci/apk` orphan branch deleted; buildlogs/ removed from the tree (27 MB repo →
+GitHub recompute pending); APK + logs are CI artifacts + rolling pre-release
+`ci-debug-apk` only; the `!!` non-null assertion replaced by a typed local
+`Executor` hoist (the sole PR#3-era compile error, quoted verbatim in the evidence);
+sizes recorded before/after.
+
+## 6. Catalog & validation numbers (V5/V6, machine-verified)
+
+- **Test counts** (V5, `evidence/V5_TEST_COUNT_RECONCILIATION_2026-09-04.md`):
+  pass-3 tip `edef03d` = 138/0/0; final-pass tip = 155/0/0 (decomposition 138+17);
+  closing pass (W1–W3 additions, incl. `StarTrackerPipelineTest`) = 161/0/0
+  (`evidence/R_FINAL_HARNESS_2026-09-04.txt`); gate-pass tip = **167/0/0**
+  (+2 `FullFieldVerifierTest` T4b tests, +4 `HardwareDistortionReaderTest`). CI side:
+  456 tests at `d44f782`, 462 expected with T4's two verifier tests. The separate
+  projection runner (`run_projection_test.sh`) holds SkyOrientationProjection 5/0/0 +
+  ARProjectionPinhole 1/0/0. The "141" interim tally was wrong and is corrected in place.
+- **Which extract the index uses:** the **J2000 file**
+  (`data/startracker/hyg_v36_vle6.5_j2000.csv`) — referenced by CappedQuadIndexTest,
+  SyntheticE2ETest, harness probes, D/S-ladder runs. The PM-propagated **2026.5**
+  extract sits alongside (not swapped in): swap-in is a device-trial decision since
+  median shift is <1″ at ~3.8′/px harness scale (`…2026.5.csv.sidecar.md`).
+- **Ten largest 2000→2026.5 proper-motion shifts** (sidecar, full table there):
+  Groombridge 1830 187.0″, 61 Cyg A/B 139.9″/137.1″, Lacaille 8760 124.7″, Keid
+  108.3″, HIP 5336 100.1″, α Cen A/B 98.3″/98.3″, 82 G. Eri 82.8″, 268 G. Cet 61.3″
+  — 11 stars total shift >60″ (1′); everything else moves <10″.
+- Provenance: HYG v3.6 raw gz re-fetched twice 2026-09-04, SHA-256 `784fd90e…468`
+  unchanged (Z-V7); attribution text finalized (CC BY-SA 4.0) — in-app placement is
+  device-trial Step 5.
+
+## 7. G9 items (i)–(vii) — corrected statuses
+
+(i) Real-toolchain compile: **MET, and now complete** — assembleDebug green since
+`33872506560`; `:app:testDebugUnitTest` green since T1 run `33879125683` (65 files /
+456 / 0). (ii) Declination on device, default ON: superseded/closed by Z-V3
+(landmark check = protocol Step 1). (iii) Star spot-checks on device: **NOT MET on
+device** (offline 0.418′ rms; 7-star check = Step 4). (iv) Sun/Moon/planet overlay on
+device: **NOT MET** (offline 0.35–0.6′; Step 2). (v) Tracker DISABLED until false-lock
+blocker fixed: **MET** — S1–S3 fixed it (FL 0/10,000 flat gate; T4 allowance variant
+documented separately), ENABLED verified false. (vi) HYG attribution in-app: **NOT MET
+in-app** (text finalized; Step 5). (vii) HYG re-fetch + SHA: **MET** (Z-V7).
+
+## 8. Ordered device list (what a human does next, in order)
+
+1. ~~Push everything~~ **DONE** — all commits through T5 are on
+   `arena/01a0676f-lm-arena`.
+2. ~~Compile + run tests on the real toolchain~~ **DONE** (Z-BUILD1–4 + T1).
+3. Install the `ci-debug-apk` pre-release APK on a phone and execute
+   `REAL_DEVICE_FIELD_TEST_PROTOCOL.md` (8 steps, ~30 min, needs a clear sky),
+   recording every number into `DEVICE_TRIAL_<date>.md`.
+4. Decide PHASE6/PHASE7 enablement from Step 6/7 results (OD1 discrepancy log).
+5. Place the HYG attribution text in the About/licence screen (Step 5 check).
+6. Before PHASE7: read the device k1 via HardwareDistortionReader (T4a,
+   HARDWARE_DISTORTION tier) — if the device reports none, self-calibrate via
+   SelfCalibrationEngine (D5: unmodelled k1=−0.05 already breaches the flat gate at
+   the field edge; T4b quantifies the unmodelled case).
+7. After the trial: decide the 2026.5 catalog swap-in (sidecar; sub-pixel for 99.9 %
+   of stars) and revisit `AttitudeBlender` acquisition behavior (owner decision
+   pending since pass 2).
+
+## 9. What remains not done (unchanged in kind, now precisely bounded)
+
+Device trial (Steps 1–8) and everything downstream of it: PHASE6/PHASE7 live
+enablement, on-sky tracker validation, attribution placement, k1 read/calibration,
+2026.5 swap-in decision. No claims in this file rest on unexecuted code; everything
+executed is cited by run id or evidence file, everything else says UNEXECUTED.

@@ -208,3 +208,29 @@ silently disable the device code paths). The shims live ONLY under
 `tools/kotlin-harness/src/` and are consumed ONLY by `run_projection_test.sh`
 (and `run_tests.sh`, which already used the junit/Offset/ICU subset). Gradle builds
 never see this directory.
+
+
+## Gate-pass update (T1–T5, 2026-09-04)
+
+Harness at gate-pass tip: **167/0/0** (`run_tests.sh`; 161 closing-pass + 2
+FullFieldVerifierTest T4(b) tests + 4 HardwareDistortionReaderTest). **CI JUnit is now
+THE gate** (run 33879125683: 65 files / 456 tests / 0 failures — see
+T1_CI_JUNIT_2026-09-04.md); this harness is a fast local pre-check; per-file
+comparison found ZERO outcome discrepancies across the 38 shared files.
+
+Changes this pass:
+- New shims: `android/os/Build.kt` (SDK_INT var), `android/hardware/camera2/
+  CameraCharacteristics.kt` (metadata bag + the two distortion keys, unchecked-cast
+  `get`) — added to the run_tests.sh compile set.
+- New harness-only test tree `tools/kotlin-harness/tests/`:
+  HardwareDistortionReaderTest lives there, NOT under app/src/test, because it assigns
+  `Build.VERSION.SDK_INT` and constructs CameraCharacteristics directly — legal against
+  the shims, impossible against the real android.jar (final field / package-private
+  ctor). CI therefore never compiles it (deliberate).
+- New probe: `probes/S3DistortionProbe.kt` (T4(b) MC, unmodelled k1, same seeds as S3).
+- Main-source additions to the compile set: none beyond the startracker tree itself
+  (HardwareDistortionReader.kt is inside it; its imports resolve via the new shims).
+- Toolchain note: a sandbox rebuild wiped the toolchain mid-pass (both jdk4py and the
+  npm kotlin-compiler were gone); the restore recipe (pip --break-system-packages
+  jdk4py + npm i -g kotlin-compiler; versions unchanged: kotlinc 2.4.10, JRE 25) is
+  proven; run_tests.sh re-derives JAVA_HOME from jdk4py on every run.

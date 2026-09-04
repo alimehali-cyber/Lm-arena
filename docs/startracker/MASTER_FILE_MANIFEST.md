@@ -182,3 +182,31 @@ Should run all ~30+ test files, list each by name, must pass before and after an
   B3_CATALOG_VERIFICATION,C_CAPPED_QUAD_INDEX,D_SYNTHETIC_E2E,E1_CATALOG_PROVENANCE}.md
   + evidence/{ORACLE_*,DECLINATION_TABLE,MUTATION_PROOF_B1,MUTATION_PROOF_C,
   C4_CAPPED_SWEEP,E2_REAL_INGEST,D_SYNTHETIC_E2E,F1_HOST_PROBE}_2026-09-04.
+
+
+## Gate pass (T1–T5, 2026-09-04) — additions
+
+**CI (now THE gate):**
+- `.github/workflows/build.yml` — job `unit-tests`: `:app:testDebugUnitTest --continue`
+  `-Pgravity.ci.tests=false` (T1; the gravity-only filter was a harness-era blind spot),
+  junit_summary.py → step summary + annotations, artifacts `junit-xml` / `unit-test-log`;
+  job `build`: APK artifact + rolling pre-release `ci-debug-apk` (ci/apk branch deleted, T3).
+- `.github/scripts/junit_summary.py` — per-file r/p/f/e/s chunks.
+- Evidence: `evidence/T1_CI_JUNIT_2026-09-04.md` (65 files / 456 / 0; comparison table).
+
+**T4 distortion bootstrap:**
+- `startracker/calibration/HardwareDistortionReader.kt` — HARDWARE_DISTORTION tier
+  (LENS_RADIAL_DISTORTION API 33+ / LENS_DISTORTION API 30+ → Brown-Conrady k1/k2);
+  UNEXECUTED on device; tier select = pure Kotlin.
+- `startracker/solver/FullFieldVerifier.kt` — radial tolerance
+  `tol=toleranceRad+c·tan²θ` (c=0.04951 for |k1|≤0.08), default c=0 unchanged.
+- `startracker/fusion/StarTrackerPipeline.kt` — verifier upgrade when model identity.
+- Harness: shims `android/os/Build.kt`, `android/hardware/camera2/CameraCharacteristics.kt`;
+  harness-only test `tools/kotlin-harness/tests/HardwareDistortionReaderTest.kt`;
+  probe `probes/S3DistortionProbe.kt`; +2 tests in FullFieldVerifierTest.
+- Evidence: `evidence/T4_DISTORTION_2026-09-04.md` (curve table, MC k1∈{0,−0.03,−0.08}).
+
+**Status docs (T2/T3/T5):** T2 paragraph now §3 of PROJECT_STATUS; T3 evidence
+`evidence/T3_HYGIENE_2026-09-04.md`; PROJECT_STATUS_END_OF_IMPLEMENTATION.md rewritten
+(final, T5) — authoritative ordered device list §8; CLOSING_PASS_REPORT §8(i)/§9
+corrected; HARNESS_DISCLOSURE gate-pass section appended.

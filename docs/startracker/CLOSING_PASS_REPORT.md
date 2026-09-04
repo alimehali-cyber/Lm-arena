@@ -117,11 +117,12 @@ better medians.
 
 ## 8. G9 items (i)–(vii) — MET / NOT MET
 
-(i) Real-toolchain compile: **MET for assembleDebug** (Z-BUILD1–4, 2026-09-04): CI
-run 33872506560 built `app-debug.apk` (27.1 MB; ci/apk branch; SHA-256 5e8a8459…) —
-first green workflow run since PR #2; the entire app incl. B4 wiring, the R2-A1 gate,
-all startracker code and the V3-fixed screen compiles. Still open on a real toolchain:
-executing `:app:testDebugUnitTest` there; runtime behavior still needs a device.
+(i) Real-toolchain compile: **MET, and COMPLETE (corrected T5, 2026-09-04)** —
+assembleDebug green since Z-BUILD3/4 (run 33872506560; APK 28,019,185 B, SHA-256
+5e8a8459…, now the rolling `ci-debug-apk` pre-release + run artifact, ci/apk branch
+deleted in T3); and `:app:testDebugUnitTest` green since T1 run 33879125683 (65 files /
+456 tests / 0 failures, incl. the 13 never-compiled files — evidence/T1_CI_JUNIT).
+Runtime behavior still needs a device.
 (ii) Declination on device, default ON: **SUPERSEDED — item closed by Z-V3** (declination
 was already ON at the source; the B1 default-ON change was a double correction and is
 reverted; landmark check = protocol Step 1). (iii) Star spot-checks (Mizar…SMC):
@@ -136,16 +137,21 @@ unchanged; J2000 extract re-derived byte-identical; PM 2026.5 extract + sidecar 
 
 ## 9. Ordered device list (what a human does next, in order)
 
-1. Reconnect GitHub auth; push queued commits S4/W1/W2/W3 (Z-S3..Z-W3).
-2. ~~Compile on a real toolchain~~ **DONE (Z-BUILD1–4)**: assembleDebug green in CI
-   (run 33872506560; APK on the ci/apk branch and as run artifact). Remaining there:
-   run `:app:testDebugUnitTest` on the Gradle toolchain and record results.
+1. ~~Reconnect GitHub auth; push queued commits~~ **DONE (corrected T5, 2026-09-04)** —
+   everything through the gate pass (T1–T5) is pushed to `arena/01a0676f-lm-arena`.
+2. ~~Compile on a real toolchain~~ **DONE (Z-BUILD1–4 + T1)**: assembleDebug green
+   (run 33872506560) AND `:app:testDebugUnitTest` green (run 33879125683: 65 files /
+   456 tests / 0 failures; per-file table in evidence/T1_CI_JUNIT_2026-09-04.md).
+   Superseded copy — the live ordered list is PROJECT_STATUS_END_OF_IMPLEMENTATION §8.
 3. Execute `docs/startracker/REAL_DEVICE_FIELD_TEST_PROTOCOL.md` (30 min, Steps 1–8),
    filing DEVICE_TRIAL_<date>.md with every recorded number.
 4. Decide PHASE6/PHASE7 enablement based on Step 6/7 results (OD1 discrepancies).
 5. Place the HYG attribution text in the About/licence screen (Step 5 check).
-6. Device calibration of k1 (D5: unmodelled k1=−0.05 breaches the verification
-   tolerance at the field edge) via SelfCalibrationEngine before PHASE7.
+6. Device k1 before PHASE7 (D5: unmodelled k1=−0.05 breaches the flat verification
+   tolerance at the field edge): first read the hardware tier (T4a
+   HardwareDistortionReader — LENS_DISTORTION/LENS_RADIAL_DISTORTION); only if the
+   device reports none, self-calibrate via SelfCalibrationEngine. Until then the T4(b)
+   radial tolerance (tol=300″+0.04951·tan²θ) keeps uncalibrated solves verifiable.
 
 ## 10. New findings flagged (this pass)
 
