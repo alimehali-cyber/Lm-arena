@@ -38,7 +38,7 @@ jobs:
             base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || base64 --decode debug.keystore.base64 > debug.keystore 2>/dev/null || true
           fi
 
-      - name: Build APKs with Gradle (D4: both variants)
+      - name: Build APKs with Gradle (D4 — both variants)
         run: |
           set -eo pipefail
           if [ -f "./gradlew" ]; then
