@@ -46,8 +46,6 @@ object ARCalibrationManager {
     private const val KEY_TIME = "calib_timestamp_ms"
     private const val KEY_STAR = "calib_reference_star"
     private const val KEY_AUTO_PROMPT = "calib_auto_prompt_enabled"
-    // OD4 one-time legacy-yaw rebase marker (versioned: bump suffix to force another rebase)
-    private const val KEY_YAW_DECLINATION_REBASED_V1 = "calib_yaw_declination_rebased_v1"
 
     private var sharedPreferences: SharedPreferences? = null
 
@@ -133,32 +131,6 @@ object ARCalibrationManager {
             putLong(KEY_TIME, 0L)
             putString(KEY_STAR, "")
             apply()
-        }
-    }
-
-    /**
-     * OD4 one-time legacy yaw rebase. Called from CompassARScreen at the first moment
-     * after upgrade when BOTH a GPS location is available and a legacy yaw offset exists.
-     * Subtracts the local declination from the stored yaw offset (the legacy offset had
-     * absorbed it while the app azimuth was still magnetic-referenced) and writes the
-     * versioned marker so it never runs twice. Pure no-op when already rebased.
-     */
-    fun rebaseYawForDeclinationOnce(declinationDeg: Float, context: Context? = null) {
-        val prefs = sharedPreferences ?: context?.applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            ?: return
-        if (prefs.getBoolean(KEY_YAW_DECLINATION_REBASED_V1, false)) return
-        val current = _calibrationFlow.value
-        if (current.yawOffsetDeg != 0f) {
-            val rebased = MagneticDeclination.rebaseLegacyYawOffset(current.yawOffsetDeg, declinationDeg)
-            _calibrationFlow.value = current.copy(yawOffsetDeg = rebased)
-            prefs.edit().apply {
-                putFloat(KEY_YAW, rebased)
-                putBoolean(KEY_YAW_DECLINATION_REBASED_V1, true)
-                apply()
-            }
-        } else {
-            // nothing to rebase, but mark done so we don't check on every frame
-            prefs.edit().putBoolean(KEY_YAW_DECLINATION_REBASED_V1, true).apply()
         }
     }
 

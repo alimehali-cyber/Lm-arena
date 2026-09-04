@@ -64,3 +64,18 @@ legacy rebase arithmetic, guardrail semantics. Mutation proof (sign flip of D):
 On-device behavior (GeomagneticField value, rebase effect on a real stored calibration)
 is UNEXECUTED — no Android runtime in this environment. The pure math and the rebase
 arithmetic are harness-verified; wiring follows the single-application-point rule.
+
+---
+
+## RETRACTION (Z-V3, 2026-09-04): the finding below was WRONG — read first
+
+V3's placement audit (evidence/V3_DECLINATION_PLACEMENT_2026-09-04.md) found that
+magnetic declination was ALREADY applied at the attitude source before this pass:
+OrientationProvider.updateLocation() loads the WMM declination and builds
+R_true = R_declination * R_sensor, and skyOrientation.azimuth is derived from that
+corrected matrix. The "finding" and table below correctly describe WMM declination
+VALUES but the claimed app defect (true-vs-magnetic mismatch) did not exist; the B1
+scalar correction double-corrected scalar consumers by +D with GPS active. The B1
+wiring (screen block, rebase API, default-on flag) was REVERTED in Z-V3;
+MagneticDeclination.kt + tests are retained as pure utilities. The original (wrong)
+text follows for the decision trail.
