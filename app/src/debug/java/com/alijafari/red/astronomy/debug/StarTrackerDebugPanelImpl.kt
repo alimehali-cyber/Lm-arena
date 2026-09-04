@@ -1,34 +1,53 @@
 package com.alijafari.red.astronomy.debug
 
 import android.content.Context
+import android.content.Intent
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
-import android.content.Intent
 import android.os.Build
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.alijafari.red.astronomy.astro_engine.ARProjectionEngine
+import com.alijafari.red.astronomy.startracker.calibration.DistortionModel
 import com.alijafari.red.astronomy.startracker.calibration.DistortionModelSource
 import com.alijafari.red.astronomy.startracker.calibration.HardwareDistortionReader
 import com.alijafari.red.astronomy.startracker.debug.StarTrackerDebugHost
+import com.alijafari.red.astronomy.startracker.debug.StarTrackerDebugPanel
 import com.alijafari.red.astronomy.startracker.diagnostics.TrialLogLine
+import com.alijafari.red.astronomy.startracker.fusion.StarTrackerConfig
+import com.alijafari.red.astronomy.startracker.fusion.StarTrackerDebugFlags
 import java.text.SimpleDateFormat
+import java.util.ArrayDeque
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-import com.alijafari.red.astronomy.startracker.fusion.StarTrackerConfig
-import com.alijafari.red.astronomy.startracker.fusion.StarTrackerDebugFlags
-import java.util.ArrayDeque
 
 /**
  * D2 (debug-diagnostics pass, 2026-09-04): the ONE debug-only overlay. Lives in the
@@ -40,10 +59,10 @@ import java.util.ArrayDeque
  * dex-exclusion are CI-verified. First real execution = the device trial.
  *
  * Content is a READ-ONLY diagnostics display. The ONLY interactive elements are the
- * four D1 runtime flag overrides (SharedPreferences) — the declination is shown as
- * text and can never be toggled here (it is applied at the attitude source; Z-V3
- * tombstone). Tracker fields appear as n/a until the W2 adapters are applied in a
- * future pass; with the tracker unwired there is no pipeline state to read.
+ * four D1 runtime flag overrides (SharedPreferences) and the D3 trial-logger buttons —
+ * the declination is shown as text and can never be toggled here (it is applied at the
+ * attitude source; Z-V3 tombstone). Tracker fields appear as n/a until the W2 adapters
+ * are applied in a future pass; with the tracker unwired there is no pipeline state.
  */
 object StarTrackerDebugPanelImpl : StarTrackerDebugPanel {
 
@@ -101,7 +120,30 @@ object StarTrackerDebugPanelImpl : StarTrackerDebugPanel {
             )
         }
 
-        Dialog(onDismissRequest = { StarTrackerDebugHost.close() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        @Composable
+        fun section(title: String, content: @Composable ColumnScope.() -> Unit) {
+            Text(title, color = Color(0xFF8AB4F8), fontSize = 13.sp)
+            Surface(color = Color(0x14FFFFFF), shape = MaterialTheme.shapes.small) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    content = content
+                )
+            }
+        }
+
+        @Composable
+        fun row(label: String, value: String) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(label, color = Color(0xFFC7CDD6), fontSize = 12.sp, modifier = Modifier.width(170.dp))
+                Text(value, color = Color.White, fontSize = 12.sp)
+            }
+        }
+
+        Dialog(
+            onDismissRequest = { StarTrackerDebugHost.close() },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             Surface(modifier = Modifier.fillMaxSize(), color = Color(0xF0101018)) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
@@ -113,87 +155,92 @@ object StarTrackerDebugPanelImpl : StarTrackerDebugPanel {
                     }
                     Text("debug build only — long-press the AR view to reopen", color = Color(0xFF9AA4B2), fontSize = 11.sp)
 
-                    Section("Attitude / sensors (read-only)") {
-                        DiagRow("Applied declination", "%.2f°".format(access.orientationProvider.appliedDeclinationDeg) + "  (applied at source — read-only, never toggled here)")
-                        DiagRow("Sensor rate (measured)", if (sensor.hz.isNaN()) "measuring…" else "%.1f Hz".format(sensor.hz))
-                        DiagRow("sensorTsDelta (mean)", if (sensor.meanDeltaMs.isNaN()) "measuring…" else "%.1f ms".format(sensor.meanDeltaMs))
+                    section("Attitude / sensors (read-only)") {
+                        row("Applied declination", "%.2f°".format(access.orientationProvider.appliedDeclinationDeg) + "  (applied at source — read-only, never toggled here)")
+                        row("Sensor rate (measured)", if (sensor.hz.isNaN()) "measuring…" else "%.1f Hz".format(sensor.hz))
+                        row("sensorTsDelta (mean)", if (sensor.meanDeltaMs.isNaN()) "measuring…" else "%.1f ms".format(sensor.meanDeltaMs))
                     }
 
-                    Section("Camera intrinsics (read-only)") {
-                        DiagRow("Tier", intrinsics?.source?.name ?: "unavailable")
-                        DiagRow("fx / fy", intrinsics?.let { "%.1f / %.1f".format(it.fx, it.fy) } ?: "—")
-                        DiagRow("cx / cy", intrinsics?.let { "%.1f / %.1f".format(it.cx, it.cy) } ?: "—")
-                        DiagRow("FOV fallback", "%.1f° (vertical, when no device intrinsics)".format(63.5))
+                    section("Camera intrinsics (read-only)") {
+                        row("Tier", intrinsics?.source?.name ?: "unavailable")
+                        row("fx / fy", intrinsics?.let { "%.1f / %.1f".format(it.fx, it.fy) } ?: "—")
+                        row("cx / cy", intrinsics?.let { "%.1f / %.1f".format(it.cx, it.cy) } ?: "—")
+                        row("FOV fallback", "63.5° (vertical, when no device intrinsics)")
                     }
 
-                    Section("Distortion (read-only — HardwareDistortionReader, first live use)") {
-                        DiagRow("Tier", when (distortionTier) {
+                    section("Distortion (read-only — HardwareDistortionReader, first live use)") {
+                        row("Tier", when (distortionTier) {
                             DistortionModelSource.HARDWARE_DISTORTION -> "HARDWARE_DISTORTION"
                             DistortionModelSource.SELF_CALIBRATED -> "SELF_CALIBRATED"
                             DistortionModelSource.NONE -> "NONE (identity) → T4(b) radial allowance in verifier"
                         })
-                        DiagRow("k1 / k2", distortion?.let { "%.5f / %.5f".format(it.k1, it.k2) } ?: "— (no camera2 distortion metadata / API<30)")
+                        row("k1 / k2", distortion?.let { "%.5f / %.5f".format(it.k1, it.k2) } ?: "— (no camera2 distortion metadata / API<30)")
                     }
 
-                    Section("Star tracker (read-only)") {
-                        DiagRow("State", "NOT WIRED — W2 adapters unapplied; pipeline has no camera feed in this build")
-                        DiagRow("LockConfidence", "n/a")
-                        DiagRow("matched / detected", "n/a")
-                        DiagRow("solve ms", "n/a")
-                        DiagRow("acquisition discrepancy", "n/a deg")
-                        DiagRow("last FailureReason", "n/a")
+                    section("Star tracker (read-only)") {
+                        row("State", "NOT WIRED — W2 adapters unapplied; pipeline has no camera feed in this build")
+                        row("LockConfidence", "n/a")
+                        row("matched / detected", "n/a")
+                        row("solve ms", "n/a")
+                        row("acquisition discrepancy", "n/a deg")
+                        row("last FailureReason", "n/a")
                     }
 
-                    Section("Trial logger (D3 — JSON lines to app-private storage, share at the end)") {
+                    section("Trial logger (D3 — JSON lines to app-private storage, share at the end)") {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             Button(enabled = !trialActive, onClick = {
                                 val f = trialLogger.start()
                                 trialLogger.append(buildLine("start", null))
                                 trialActive = true; nextStep = 1
-                                trialStatus = "${f.name} — logging"
+                                trialStatus = f.name + " — logging"
                             }) { Text("Start trial") }
                             Button(enabled = trialActive, onClick = {
                                 trialLogger.append(buildLine("stop", null)); trialActive = false
-                                trialStatus = "stopped at step ${nextStep - 1} — share it"
+                                trialStatus = "stopped at step " + (nextStep - 1) + " — share it"
                             }) { Text("Stop") }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             OutlinedButton(enabled = nextStep > 1, onClick = { nextStep-- }) { Text("−") }
-                            Text("step $nextStep", color = Color.White)
+                            Text("step " + nextStep, color = Color.White)
                             OutlinedButton(enabled = nextStep < 99, onClick = { nextStep++ }) { Text("+") }
                             Button(enabled = trialActive, onClick = {
                                 if (trialLogger.append(buildLine("step", nextStep))) nextStep++
-                            }) { Text("Mark step $nextStep") }
+                            }) { Text("Mark step " + nextStep) }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                            OutlinedButton(enabled = !trialActive && !trialLogger.content().isNullOrEmpty(), onClick = {
-                                trialLogger.shareIntent()?.let { context.startActivity(Intent.createChooser(it, "Share trial log")) }
-                            }) { Text("Share trial log") }
+                            OutlinedButton(
+                                enabled = !trialActive && !trialLogger.content().isNullOrEmpty(),
+                                onClick = {
+                                    trialLogger.shareIntent()?.let {
+                                        context.startActivity(Intent.createChooser(it, "Share trial log"))
+                                    }
+                                }
+                            ) { Text("Share trial log") }
                         }
-                        Text(trialStatus + "  (${trialLogger.lines} lines, files/startracker-trials/)", color = Color(0xFF9AA4B2), fontSize = 11.sp)
+                        Text(trialStatus + "  (" + trialLogger.lines + " lines, files/startracker-trials/)", color = Color(0xFF9AA4B2), fontSize = 11.sp)
                     }
 
-                    Section("Runtime flag overrides (D1 — persist in SharedPreferences; release reads consts)") {
-                        FlagRow("ENABLED", StarTrackerConfig.ENABLED, resolution.enabled) { v ->
+                    section("Runtime flag overrides (D1 — persist in SharedPreferences; release reads consts)") {
+                        flagRow("ENABLED", StarTrackerConfig.ENABLED, resolution.enabled) { v ->
                             prefs.edit().putString(StarTrackerDebugFlags.KEY_ENABLED, if (v) "true" else "false").apply()
                             resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it) })
                         }
-                        FlagRow("PIPELINE_CAMERA_FEED (analysis gate)", StarTrackerConfig.PIPELINE_CAMERA_FEED, resolution.pipelineCameraFeed) { v ->
+                        flagRow("PIPELINE_CAMERA_FEED (analysis gate)", StarTrackerConfig.PIPELINE_CAMERA_FEED, resolution.pipelineCameraFeed) { v ->
                             prefs.edit().putString(StarTrackerDebugFlags.KEY_PIPELINE_CAMERA_FEED, if (v) "true" else "false").apply()
                             resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it) })
                         }
-                        FlagRow("TRACKER_TO_ORIENTATION_PHASE6", StarTrackerConfig.TRACKER_TO_ORIENTATION_PHASE6, resolution.trackerToOrientationPhase6) { v ->
+                        flagRow("TRACKER_TO_ORIENTATION_PHASE6", StarTrackerConfig.TRACKER_TO_ORIENTATION_PHASE6, resolution.trackerToOrientationPhase6) { v ->
                             prefs.edit().putString(StarTrackerDebugFlags.KEY_TRACKER_TO_ORIENTATION_PHASE6, if (v) "true" else "false").apply()
                             resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it) })
                         }
-                        FlagRow("PROJECTION_SELF_CALIBRATED_PHASE7", StarTrackerConfig.PROJECTION_SELF_CALIBRATED_PHASE7, resolution.projectionSelfCalibratedPhase7) { v ->
+                        flagRow("PROJECTION_SELF_CALIBRATED_PHASE7", StarTrackerConfig.PROJECTION_SELF_CALIBRATED_PHASE7, resolution.projectionSelfCalibratedPhase7) { v ->
                             prefs.edit().putString(StarTrackerDebugFlags.KEY_PROJECTION_SELF_CALIBRATED_PHASE7, if (v) "true" else "false").apply()
                             resolution = StarTrackerDebugFlags.resolve({ prefs.getString(it) })
                         }
                         Text(
-                            "Note: the W2 adapters that would consume these flags are not applied in this build, " +
-                                "so toggles persist + display but do not yet change runtime wiring. Flag use begins " +
-                                "with the PHASE5/6/7 adapter pass.",
+                            "Note: the W2 adapters that would consume these flags are not applied in this " +
+                                "build, so toggles persist + display but do not yet change runtime wiring. " +
+                                "Flag use begins with the PHASE5/6/7 adapter pass.",
                             color = Color(0xFF9AA4B2), fontSize = 11.sp
                         )
                     }
@@ -202,8 +249,20 @@ object StarTrackerDebugPanelImpl : StarTrackerDebugPanel {
         }
     }
 
+    /** D1 flag row: const default, resolved value, and the override switch. */
+    @Composable
+    private fun flagRow(label: String, constDefault: Boolean, resolved: Boolean, onToggle: (Boolean) -> Unit) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, color = Color(0xFFC7CDD6), fontSize = 12.sp)
+                Text("const=" + constDefault + "  resolved=" + resolved, color = Color(0xFF9AA4B2), fontSize = 10.sp)
+            }
+            Switch(checked = resolved, onCheckedChange = onToggle)
+        }
+    }
+
     /** Reads device distortion metadata directly (the reader's first live call path). */
-    private fun readDistortion(context: Context): com.alijafari.red.astronomy.startracker.calibration.DistortionModel? =
+    private fun readDistortion(context: Context): DistortionModel? =
         runCatching {
             val cm = context.getSystemService(Context.CAMERA_SERVICE) as? CameraManager ?: return null
             val id = cm.cameraIdList.firstOrNull { id ->
@@ -232,32 +291,5 @@ object StarTrackerDebugPanelImpl : StarTrackerDebugPanel {
             }
             last = ts
         }
-    }
-}
-
-@Composable
-private fun Section(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Text(title, color = Color(0xFF8AB4F8), fontSize = 13.sp)
-    Surface(color = Color(0x14FFFFFF), shape = MaterialTheme.shapes.small) {
-        Column(modifier = Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp), content = content)
-    }
-}
-
-@Composable
-private fun DiagRow(label: String, value: String) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, color = Color(0xFFC7CDD6), fontSize = 12.sp, modifier = Modifier.width(170.dp))
-        Text(value, color = Color.White, fontSize = 12.sp)
-    }
-}
-
-@Composable
-private fun FlagRow(label: String, constDefault: Boolean, resolved: Boolean, onToggle: (Boolean) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, color = Color(0xFFC7CDD6), fontSize = 12.sp)
-            Text("const=$constDefault  resolved=$resolved", color = Color(0xFF9AA4B2), fontSize = 10.sp)
-        }
-        Switch(checked = resolved, onCheckedChange = onToggle)
     }
 }
