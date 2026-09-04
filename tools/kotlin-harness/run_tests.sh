@@ -41,6 +41,7 @@ kotlinc \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/astro_engine/PlanetEngine.kt" \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/astro_engine/VSOP87Engine.kt" \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/domain/Models.kt" \
+  "$REPO/app/src/main/java/com/alijafari/red/astronomy/data/catalog/StarCatalog.kt" \
   "$HARNESS_SRC"/org/shredzone/commons/suncalc/MoonTimes.kt \
   "$HARNESS_SRC"/com/alijafari/red/astronomy/astro_engine/EclipseEngineShim.kt \
   "$HARNESS_SRC"/android/icu/util/IcuShim.kt \
@@ -57,6 +58,7 @@ kotlinc \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/EnginePreludeTest.kt" \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/InverseProjectionTest.kt" \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/TapMeasurementTest.kt" \
+  "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/TargetPickerTest.kt" \
   -d "$OUT/classes" 2>&1 | grep -E "error|warning" | head -40
 
 echo "== compile done, running =="
