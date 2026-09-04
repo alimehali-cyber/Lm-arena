@@ -27,6 +27,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import com.alijafari.red.astronomy.BuildConfig
+import com.alijafari.red.astronomy.startracker.debug.StarTrackerDebugHost
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -842,6 +844,15 @@ fun CompassARScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF060810))
+            // D2: long-press opens the debug-only diagnostics overlay (debug builds only;
+            // release compiles this branch to `Modifier`, a no-op).
+            .then(
+                if (BuildConfig.DEBUG) Modifier.pointerInput("st-debug-overlay") {
+                    detectTapGestures(onLongPress = {
+                        StarTrackerDebugHost.open(context, orientationProvider)
+                    })
+                } else Modifier
+            )
             .pointerInput(Unit) {
                 detectTransformGestures { _, _, zoom, _ ->
                     if (zoom != 1.0f) {
@@ -2788,6 +2799,13 @@ fun CompassARScreen(
                     ARCalibrationManager.setAutoPromptEnabled(false, context)
                 }
             )
+        }
+
+        // D2: host the debug-only diagnostics overlay. Release: BuildConfig.DEBUG is a
+        // compile-time false constant -> this branch does not exist; the panel class is
+        // absent from the release compile (debug source set) -> provably unreachable.
+        if (BuildConfig.DEBUG && StarTrackerDebugHost.visible.value) {
+            StarTrackerDebugHost.HostContent()
         }
     }
 }

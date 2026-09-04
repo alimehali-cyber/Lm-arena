@@ -21,12 +21,14 @@ echo "== toolchain: $(kotlinc -version 2>&1) | java: $(java -version 2>&1 | head
 
 # Sources: harness shims + startracker main + the non-startracker pure-Kotlin deps of the
 # startracker code + startracker tests + other pure-Kotlin tests runnable without Android.
+# NB: startracker/debug/ (D2 host seam) is excluded from the find below — Android-only
+# (Context, Compose runtime, BuildConfig, OrientationProvider); CI compiles it instead.
 kotlinc \
   "$HARNESS_SRC"/org/junit/Test.kt \
   "$HARNESS_SRC"/org/junit/Assert.kt \
   "$HARNESS_SRC"/runner/Main.kt \
   "$HARNESS_SRC"/androidx/compose/ui/geometry/Offset.kt \
-  $(find "$ST_MAIN" -name '*.kt') \
+  $(find "$ST_MAIN" -name '*.kt' ! -path "*$ST_MAIN/debug/*") \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/astro_engine/FrameTransformationEngine.kt" \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/astro_engine/AstroTime.kt" \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/astro_engine/MagneticDeclination.kt" \

@@ -87,6 +87,10 @@ class OrientationProvider(
     // Magnetic declination (degrees, positive = east)
     private var magneticDeclination = 0f
 
+    /** D2 (debug-diagnostics pass): read-only view of the declination APPLIED at this
+     *  source (R_true = R_declination * R_sensor), for the debug overlay. Never settable. */
+    val appliedDeclinationDeg: Float get() = magneticDeclination
+
     // Magnetic accuracy state
     var magneticAccuracy = SensorManager.SENSOR_STATUS_ACCURACY_LOW
         private set
