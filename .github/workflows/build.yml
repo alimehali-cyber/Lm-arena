@@ -40,10 +40,11 @@ jobs:
 
       - name: Build APK with Gradle
         run: |
+          set -eo pipefail
           if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug --no-daemon 2>&1 | tee gradle_build.log
+            ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle_build.log
           else
-            gradle assembleDebug --no-daemon 2>&1 | tee gradle_build.log
+            gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee gradle_build.log
           fi
 
       - name: Publish build log on failure
