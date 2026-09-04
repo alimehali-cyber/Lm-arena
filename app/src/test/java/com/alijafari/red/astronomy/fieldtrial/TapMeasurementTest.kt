@@ -24,8 +24,12 @@ class TapMeasurementTest {
         )
         assertEquals(1.0, m.dAzDeg, 1e-9)
         assertEquals(0.0, m.dAltDeg, 1e-9)
-        // 1 deg of azimuth at alt 30 deg is cos(30 deg) = 0.866 deg on the sky
-        assertEquals(kotlin.math.cos(Math.toRadians(30.0)), m.separationDeg, 1e-6)
+        // exact: acos(sin^2(30) + cos^2(30) cos(1 deg)) — small-angle approx is 0.866
+        val expected = kotlin.math.acos(
+            kotlin.math.sin(Math.toRadians(30.0)).let { it * it } +
+                kotlin.math.cos(Math.toRadians(30.0)).let { it * it } * kotlin.math.cos(Math.toRadians(1.0))
+        ).let { Math.toDegrees(it) }
+        assertEquals(expected, m.separationDeg, 1e-9)
         assertEquals(20.0, m.screenOffsetPx, 1e-9)
     }
 
