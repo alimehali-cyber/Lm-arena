@@ -1,0 +1,45 @@
+====================================================================================================
+FALSE LOCK trial=2 attitudeErr=103.619 deg  solverInliers=4 confidence=0.169 obsCount=729
+quad candidates=479 quad matches=3
+  match[0] descLinf=0.01466 descCat=0.1673.. obs:[0.326, 0.461, 0.483, 0.526, 0.647] corr: OBS256->HIP12843(truth=HIP102098), OBS301->HIP12770(truth=HIP104060), OBS283->HIP11783(truth=HIP103413), OBS315->HIP11029(truth=HIP104887)
+  match[1] descLinf=0.01380 descCat=0.1605.. obs:[0.490, 0.547, 0.555, 0.566, 0.704] corr: OBS28->HIP48883(truth=HIP746), OBS75->HIP49029(truth=HIP2599), OBS110->HIP47508(truth=HIP3821), OBS192->HIP47310(truth=HIP6686)
+  match[2] descLinf=0.00000 descCat=0.1170.. obs:[0.195, 0.694, 0.748, 0.870, 0.888] corr: OBS603->HIP113881=TRUE, OBS570->HIP112748=TRUE, OBS551->HIP112158=TRUE, OBS561->HIP112440=TRUE
+deduped=12 ransacInliers=4 ransacOutliers=8 (threshold=0.01 rad = 2062.6 arcsec)
+   inlier OBS28->HIP48883 residualUnderReturned=   1054.0" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP746)
+   inlier OBS75->HIP49029 residualUnderReturned=    993.8" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP2599)
+   inlier OBS110->HIP47508 residualUnderReturned=    809.1" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP3821)
+   inlier OBS192->HIP47310 residualUnderReturned=    840.6" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP6686)
+inliers rmsUnderReturned=930.0" trueCorrespondencesAmongInliers=0/4
+Wahba det(B) over inliers = 0.0002  -> proper rotation fit
+refit rms: identity=   930.02"  flipX= 13058.99"  flipY= 13058.99"  flipZ= 13058.99"
+====================================================================================================
+FALSE LOCK trial=14 attitudeErr=122.734 deg  solverInliers=4 confidence=0.503 obsCount=673
+quad candidates=502 quad matches=1
+  match[0] descLinf=0.01674 descCat=0.1853.. obs:[0.431, 0.502, 0.572, 0.769, 0.823] corr: OBS303->HIP87833(truth=HIP89931), OBS334->HIP89981(truth=HIP90496), OBS428->HIP88788(truth=HIP92855), OBS279->HIP92689(truth=HIP89341)
+deduped=4 ransacInliers=4 ransacOutliers=0 (threshold=0.01 rad = 2062.6 arcsec)
+   inlier OBS303->HIP87833 residualUnderReturned=    192.3" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP89931)
+   inlier OBS334->HIP89981 residualUnderReturned=    260.1" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP90496)
+   inlier OBS428->HIP88788 residualUnderReturned=    415.6" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP92855)
+   inlier OBS279->HIP92689 residualUnderReturned=    441.1" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP89341)
+inliers rmsUnderReturned=343.5" trueCorrespondencesAmongInliers=0/4
+Wahba det(B) over inliers = 0.0006  -> proper rotation fit
+refit rms: identity=   343.47"  flipX= 19668.73"  flipY= 19668.73"  flipZ= 19668.73"
+====================================================================================================
+FALSE LOCK trial=18 attitudeErr=82.405 deg  solverInliers=4 confidence=0.115 obsCount=549
+quad candidates=510 quad matches=7
+  match[0] descLinf=0.01889 descCat=0.1837.. obs:[0.228, 0.433, 0.480, 0.584, 0.798] corr: OBS155->HIP76219(truth=HIP37826), OBS126->HIP75379(truth=HIP36962), OBS124->HIP76333(truth=HIP36850), OBS84->HIP73473(truth=HIP35550)
+  match[1] descLinf=0.01085 descCat=0.1449.. obs:[0.144, 0.388, 0.616, 0.629, 0.960] corr: OBS124->HIP43409(truth=HIP36850), OBS111->HIP43825(truth=HIP36366), OBS126->HIP43352(truth=HIP36962), OBS154->HIP42515(truth=HIP37740)
+  match[2] descLinf=0.01579 descCat=0.2726.. obs:[0.138, 0.374, 0.501, 0.502, 0.638] corr: OBS328->HIP51362(truth=HIP43813), OBS306->HIP51437(truth=HIP43109), OBS380->HIP50414(truth=HIP45336), OBS229->HIP51775(truth=HIP40526)
+  match[3] descLinf=0.01641 descCat=0.2051.. obs:[0.098, 0.458, 0.517, 0.531, 0.909] corr: OBS343->HIP60697(truth=HIP44127), OBS355->HIP60742(truth=HIP44471), OBS347->HIP61309(truth=HIP44248), OBS388->HIP60646(truth=HIP45688)
+  match[4] descLinf=0.01229 descCat=0.2051.. obs:[0.098, 0.458, 0.517, 0.531, 0.909] corr: OBS343->HIP60697(truth=HIP44127), OBS355->HIP60742(truth=HIP44471), OBS347->HIP59856(truth=HIP44248), OBS388->HIP60646(truth=HIP45688)
+  match[5] descLinf=0.01441 descCat=0.2726.. obs:[0.149, 0.395, 0.501, 0.502, 0.612] corr: OBS306->HIP51437(truth=HIP43109), OBS282->HIP51362(truth=HIP42313), OBS229->HIP50414(truth=HIP40526), OBS380->HIP51775(truth=HIP45336)
+  match[6] descLinf=0.00401 descCat=0.3048.. obs:[0.226, 0.337, 0.496, 0.504, 0.698] corr: OBS48->HIP60129(truth=HIP34088), OBS84->HIP60172(truth=HIP35550), OBS100->HIP58590(truth=HIP36046), OBS11->HIP61740(truth=HIP32362)
+deduped=18 ransacInliers=4 ransacOutliers=14 (threshold=0.01 rad = 2062.6 arcsec)
+   inlier OBS328->HIP51362 residualUnderReturned=    532.6" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP43813)
+   inlier OBS306->HIP51437 residualUnderReturned=    737.8" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP43109)
+   inlier OBS380->HIP50414 residualUnderReturned=    551.4" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP45336)
+   inlier OBS229->HIP51775 residualUnderReturned=   1030.0" residualUnderTruth=      0.0" WRONG-CORR(truth=HIP40526)
+inliers rmsUnderReturned=740.4" trueCorrespondencesAmongInliers=0/4
+Wahba det(B) over inliers = 0.0001  -> proper rotation fit
+refit rms: identity=   740.45"  flipX=  3985.40"  flipY=  3985.40"  flipZ=  3985.40"
+====================================================================================================
