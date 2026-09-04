@@ -55,6 +55,7 @@ kotlinc \
   "$REPO/tools/kotlin-harness/tests/HardwareDistortionReaderTest.kt" \
   $(find "$REPO/app/src/debug/java/com/alijafari/red/astronomy/fieldtrial/engine" -name '*.kt') \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/EnginePreludeTest.kt" \
+  "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/InverseProjectionTest.kt" \
   -d "$OUT/classes" 2>&1 | grep -E "error|warning" | head -40
 
 echo "== compile done, running =="
