@@ -6,6 +6,16 @@ package com.alijafari.red.astronomy.startracker.fusion
  */
 object StarTrackerConfig {
 
+    /** W2 switch 1 (PHASE5): feed camera frames to StarTrackerPipeline.
+     *  Master gate StarTrackerConfig.ENABLED (below) must also be true. */
+    const val PIPELINE_CAMERA_FEED: Boolean = false
+
+    /** W2 switch 2 (PHASE6): let OrientationProvider consume tracker results. */
+    const val TRACKER_TO_ORIENTATION_PHASE6: Boolean = false
+
+    /** W2 switch 3 (PHASE7): prefer SELF_CALIBRATED_CACHED intrinsics in the overlay. */
+    const val PROJECTION_SELF_CALIBRATED_PHASE7: Boolean = false
+
     /**
      * Master feature flag — MUST default to disabled/false.
      * When false, existing app behavior must be provably identical to before this phase.
