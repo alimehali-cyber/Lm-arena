@@ -193,7 +193,7 @@ object StarTrackerRuntime {
                             acquisitionDiscrepancyDeg = disc
                         )
                     )
-                    if (result.lock == LockConfidence.FULL_LOCK) maybeCaptureAtFirstLock()
+                    if (result.lockConfidence == LockConfidence.FULL_LOCK) maybeCaptureAtFirstLock()
                 }
 
                 val buildAtSize: (Int, Int) -> StarTrackerPipeline = { w, h ->
