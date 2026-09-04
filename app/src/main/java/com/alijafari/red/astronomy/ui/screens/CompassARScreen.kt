@@ -256,10 +256,14 @@ fun CompassARScreen(
         }
     }
 
-    // Phase 1 Task 4 + Task 3.4: feed sensor timestamps to frame observer for clock-domain cross-check
-    LaunchedEffect(skyOrientation.timestampNanos) {
-        if (skyOrientation.timestampNanos != 0L) {
-            cameraFrameObserver.onSensorTimestamp(skyOrientation.timestampNanos)
+    // Phase 1 Task 4 + Task 3.4 + OD6/R3-B4: feed sensor timestamps to frame observer for
+    // clock-domain cross-check. Reads the DEDICATED StateFlow<Long> (never conflated away
+    // on a stationary device) instead of the equality-excluded SkyOrientation field, whose
+    // conflation-starved LaunchedEffect froze this feed (see B4_TIMESTAMP_READERS.md).
+    val sensorTimestampNanos by orientationProvider.sensorTimestampNanos.collectAsState()
+    LaunchedEffect(sensorTimestampNanos) {
+        if (sensorTimestampNanos != 0L) {
+            cameraFrameObserver.onSensorTimestamp(sensorTimestampNanos)
         }
     }
 

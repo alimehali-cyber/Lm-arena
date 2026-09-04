@@ -22,10 +22,16 @@ data class SkyOrientation(
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
         other as SkyOrientation
+        // R2-A1(b): timestampNanos is deliberately EXCLUDED from equality (kept as a plain
+        // field). It was added to equals/hashCode in Phase 1 Task 4, which made every
+        // sensor tick produce a distinct SkyOrientation and defeated MutableStateFlow
+        // conflation (every emission == previous except timestamp -> without this fix they
+        // are never equal -> collectors fire on every tick even when stationary). Consumers
+        // that need per-tick keying read the field directly (e.g. CompassARScreen's
+        // LaunchedEffect(skyOrientation.timestampNanos)), which still works unchanged.
         return azimuth == other.azimuth &&
                 pitch == other.pitch &&
                 roll == other.roll &&
-                timestampNanos == other.timestampNanos &&
                 rotationMatrix.contentEquals(other.rotationMatrix)
     }
 
@@ -33,7 +39,6 @@ data class SkyOrientation(
         var result = azimuth.hashCode()
         result = 31 * result + pitch.hashCode()
         result = 31 * result + roll.hashCode()
-        result = 31 * result + timestampNanos.hashCode()
         result = 31 * result + rotationMatrix.contentHashCode()
         return result
     }
@@ -91,6 +96,19 @@ class OrientationProvider(
 
     private val _orientation = MutableStateFlow(SkyOrientation(0f, 45f, 0f))
     val orientation: StateFlow<SkyOrientation> = _orientation.asStateFlow()
+
+    // OD6 / R3-B4 (applied 2026-09-04): dedicated per-tick sensor-timestamp channel.
+    // R2-A1(b) deliberately excludes timestampNanos from SkyOrientation equality so
+    // StateFlow conflation can drop content-identical ticks (stationary device) — but
+    // that starved the ONLY timestamp reader (CompassARScreen's
+    // LaunchedEffect(skyOrientation.timestampNanos) -> cameraFrameObserver.onSensorTimestamp),
+    // freezing the star-tracker clock-domain cross-check on a stationary device.
+    // This dedicated flow is NOT conflated away (Long changes every tick), restoring the
+    // feed without reintroducing the recomposition storm R2-A1(b) fixed.
+    // UNEXECUTED on device (no Android runtime in this environment) — see
+    // docs/startracker/B4_TIMESTAMP_READERS.md addendum.
+    private val _sensorTimestampNanos = MutableStateFlow(0L)
+    val sensorTimestampNanos: StateFlow<Long> = _sensorTimestampNanos.asStateFlow()
 
     private val _calibrationState = MutableStateFlow(CalibrationState.UNCALIBRATED)
     val calibrationState: StateFlow<CalibrationState> = _calibrationState.asStateFlow()
@@ -396,6 +414,7 @@ class OrientationProvider(
             Math.toDegrees(atan2(rz.toDouble(), finalRotationMatrix[7].toDouble())).toFloat()
         }
 
+        _sensorTimestampNanos.value = timestampNanos
         _orientation.value = SkyOrientation(
             azimuth = azimuthDeg,
             pitch = pitchDeg,
