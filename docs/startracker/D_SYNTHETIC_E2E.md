@@ -12,17 +12,22 @@ device enablement until the matcher is hardened (see D6).
 
 ## Cells (success / false-lock / median error, 20 trials each)
 
-| noise | false stars | solved | false locks | median err | p95 err |
-|---|---|---|---|---|---|
-| 0 px | 0 | 20/20 | 3 | 0.000′ | 1.94′ |
-| 0.1 px | 0 | 20/20 | 3 | 0.099′ | 2.03′ |
-| 0.3 px | 0 | 20/20 | 3 | 0.307′ | 5.90′ |
-| 1.0 px | 0 | 20/20 | 3 | 1.024′ | 19.68′ |
-| 2.0 px | 0 | 19/20 | 4 | 2.048′ | 23.00′ |
-| 0.3 px | 5 | 19/20 | 7 | 0.319′ | 4.42′ |
-| 0.3 px | 20 | 15/20 | 10 | 2.466′ | 3.02′ |
-| 1.0 px | 20 | 15/20 | 10 | 3.625′ | 10.06′ |
+| noise | false | solved | false locks | median ALL (incl. FL) | p95 ALL | median CORRECT-ONLY | p95 CORRECT-ONLY |
+|---|---|---|---|---|---|---|---|
+| 0 px | 0 | 20/20 | 3 | 0.00′ | 7364.02′ | 0.000′ | 1.936′ |
+| 0.1 px | 0 | 20/20 | 3 | 0.12′ | 7364.16′ | 0.099′ | 2.034′ |
+| 0.3 px | 0 | 20/20 | 3 | 0.38′ | 7364.45′ | 0.307′ | 5.902′ |
+| 1.0 px | 0 | 20/20 | 3 | 1.25′ | 9398.54′ | 1.024′ | 19.680′ |
+| 2.0 px | 0 | 19/20 | 4 | 2.33′ | 9399.84′ | 2.048′ | 23.003′ |
+| 0.3 px | 5 | 19/20 | 7 | 0.50′ | 10658.34′ | 0.319′ | 4.419′ |
+| 0.3 px | 20 | 15/20 | 10 | 5389.17′ | 9842.52′ | 2.466′ | 3.017′ |
+| 1.0 px | 20 | 15/20 | 10 | 5389.25′ | 9838.90′ | 3.625′ | 10.064′ |
 
+(Z-V4, 2026-09-04: the previous version of this table reported the CORRECT-ONLY columns
+unlabeled as "median err / p95 err", which hid the false locks from the percentiles —
+at 0 px, p95 including false locks is 7364′, not 1.94′. Both columns now explicit;
+raw output in evidence/V4_D_METRIC_RECOMPUTE_2026-09-04.txt. Percentile convention:
+median = element at index n/2 of the sorted list; p95 = index n*95/100.)
 Pool-size tuning curve (median-of-cells): pool 25 → 35–45% solve rate, 67% of solves
 false-locked; pool 40 → 75–100% solve rate, 15–20% of solves false-locked. **Adopted
 `CANDIDATE_POOL_SIZE = 40`** (CatalogBuildConfig).

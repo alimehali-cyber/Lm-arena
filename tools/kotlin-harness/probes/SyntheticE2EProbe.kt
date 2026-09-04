@@ -67,7 +67,8 @@ fun main(args: Array<String>) {
     for (cell in cells) {
         val noiseArcsec = cell.noisePx * pxArcsec
         var solved = 0; var falseLocks = 0
-        val errs = mutableListOf<Double>()
+        val errs = mutableListOf<Double>()      // correct solves only
+        val allErrs = mutableListOf<Double>()   // every solve incl. false locks (Z-V4)
         val failMsgs = HashMap<String, Int>()
         for ((t, qTrue) in attitudes.withIndex()) {
             val obs = SyntheticSkyObserver().observe(
@@ -82,19 +83,25 @@ fun main(args: Array<String>) {
             if (res.success && res.attitude != null) {
                 solved++
                 val e = angErrDeg(qTrue, res.attitude)
+                // Z-V4: percentiles must INCLUDE false locks (they are errors too);
+                // a separate correct-solves-only list is reported as its own column.
+                allErrs.add(e * 60.0)
                 if (e > falseLockThresholdDeg) falseLocks++ else errs.add(e * 60.0)
             } else {
                 failMsgs[res.errorMessage ?: "?"] = (failMsgs[res.errorMessage ?: "?"] ?: 0) + 1
             }
         }
-        errs.sort()
-        val med = if (errs.isEmpty()) Double.NaN else errs[errs.size / 2]
-        val p95 = if (errs.isEmpty()) Double.NaN else errs[(errs.size * 95 / 100).coerceAtMost(errs.size - 1)]
+        errs.sort(); allErrs.sort()
+        fun med(v: List<Double>) = if (v.isEmpty()) Double.NaN else v[v.size / 2]
+        fun p95(v: List<Double>) = if (v.isEmpty()) Double.NaN else v[(v.size * 95 / 100).coerceAtMost(v.size - 1)]
+        val med = med(errs); val p95v = p95(errs)                 // correct solves only
+        val medAll = med(allErrs); val p95All = p95(allErrs)       // incl. false locks
         val topFail = failMsgs.entries.sortedByDescending { it.value }.take(1).joinToString { "${it.value}x ${it.key.take(50)}" }
         println(
             "noise=${cell.noisePx}px false=${cell.falseStars.toString().padStart(2)} | $trials | " +
             "$solved | $falseLocks | " +
-            "${if (med.isNaN()) "n/a" else "%8.3f".format(med)} | ${if (p95.isNaN()) "n/a" else "%8.3f".format(p95)} | $topFail"
+            "ALL: ${if (medAll.isNaN()) "n/a" else "%9.2f".format(medAll)} / ${if (p95All.isNaN()) "n/a" else "%10.2f".format(p95All)} | " +
+            "CORRECT-ONLY: ${if (med.isNaN()) "n/a" else "%8.3f".format(med)} / ${if (p95v.isNaN()) "n/a" else "%8.3f".format(p95v)} | $topFail"
         )
     }
 }

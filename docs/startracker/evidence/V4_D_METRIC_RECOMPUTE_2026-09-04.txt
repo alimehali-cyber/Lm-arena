@@ -1,0 +1,18 @@
+Z-V4 — D metric recomputation (2026-09-04): the D ladder's median/p95 previously
+excluded false-lock trials unlabeled (e.g. "0 px: p95 1.94'" alongside 3/20 false locks
+was an inconsistent presentation — those 3 trials carry ~7,000-10,000' errors).
+Probe now reports BOTH: percentiles over ALL solves (false locks included, as they must
+be — a false lock is a multi-degree error) and over CORRECT solves only (labelled).
+Raw rerun (20 deterministic attitudes/cell, seed 20260904, same as D):
+catalog: 8870 stars
+capped index: 39960 quads (1446 ms)
+
+cell (noisePx / falseStars) | trials | solved | falseLocks | medianErr' | p95Err' | notes
+noise=0.0px false= 0 | 20 | 20 | 3 | ALL:      0.00 /    7364.02 | CORRECT-ONLY:    0.000 /    1.936 | 
+noise=0.1px false= 0 | 20 | 20 | 3 | ALL:      0.12 /    7364.16 | CORRECT-ONLY:    0.099 /    2.034 | 
+noise=0.3px false= 0 | 20 | 20 | 3 | ALL:      0.38 /    7364.45 | CORRECT-ONLY:    0.307 /    5.902 | 
+noise=1.0px false= 0 | 20 | 20 | 3 | ALL:      1.25 /    9398.54 | CORRECT-ONLY:    1.024 /   19.680 | 
+noise=2.0px false= 0 | 20 | 19 | 4 | ALL:      2.33 /    9399.84 | CORRECT-ONLY:    2.048 /   23.003 | 1x No quad matches found from 492 candidates
+noise=0.3px false= 5 | 20 | 19 | 7 | ALL:      0.50 /   10658.34 | CORRECT-ONLY:    0.319 /    4.419 | 1x RANSAC inliers 2 < 4
+noise=0.3px false=20 | 20 | 15 | 10 | ALL:   5389.17 /    9842.52 | CORRECT-ONLY:    2.466 /    3.017 | 3x RANSAC inliers 3 < 4
+noise=1.0px false=20 | 20 | 15 | 10 | ALL:   5389.25 /    9838.90 | CORRECT-ONLY:    3.625 /   10.064 | 3x RANSAC inliers 3 < 4
