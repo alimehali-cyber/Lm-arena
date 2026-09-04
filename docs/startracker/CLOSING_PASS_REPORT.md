@@ -32,6 +32,15 @@ Z-S3..Z-R (030da66..c1e024d); all six were pushed 2026-09-04 after reconnect
 (remote branch confirmed at c1e024d). Every other commit was pushed immediately
 per the standing rule.
 
+**Post-series CI fixes (Z-BUILD1–4, 2026-09-04):** the "Build Android APK" workflow
+was executed and made green — run 33872506560 produced `app-debug.apk` (27.1 MB
+artifact; also delivered via the `ci/apk` git branch, SHA-256 5e8a8459…, built from
+b1ee56e). Two blockers fixed: the PR#3-era camera-core `setAnalyzer` nullability
+compile error (the reason every workflow run since d9c83d2 failed) and the Z-V3
+revert residue (see §4 correction). Workflow hardened: pipefail (a `tee` pipe had
+masked Gradle's exit code), failure logs published to `buildlogs/`, APK delivered
+via git (Actions log/artifact storage is egress-blocked from the dev sandbox).
+
 ## 2. V1 — standalone rerun
 
 Raw: `evidence/STANDALONE_RERUN_2026-09-04.txt` (109/111 initial → 111/0/0 final;
@@ -62,6 +71,13 @@ The final-pass B1 scalar correction was therefore a DOUBLE correction (reverted 
 the rebase API; MagneticDeclination.kt pure math kept; flag retired to false). No
 heading-number UI exists; all displayed numbers are true-referenced. UNEXECUTED on
 device — landmark check is Step 1 of the new protocol.
+
+*Z-BUILD1 correction:* the CompassARScreen block removal inside the original Z-V3
+commit silently failed (its patch assert mismatched one comment word and the failure
+was misdiagnosed), leaving the block referencing the removed rebase API. Impact was
+compile-blocking only — at runtime nothing shipped misbehaved, because Z-V3 had
+already retired `APPLY_MAGNETIC_DECLINATION` to false, making the block inert. The
+block and its three now-unused imports were actually removed in Z-BUILD1.
 
 ## 5. P2/P3 tables
 
@@ -101,8 +117,11 @@ better medians.
 
 ## 8. G9 items (i)–(vii) — MET / NOT MET
 
-(i) Real-toolchain compile: **NOT MET (still needs device)** — B4 wiring/R2-A1 gate
-remain outside the offline compile set; nothing regressed (V2 audit + 161/0/0).
+(i) Real-toolchain compile: **MET for assembleDebug** (Z-BUILD1–4, 2026-09-04): CI
+run 33872506560 built `app-debug.apk` (27.1 MB; ci/apk branch; SHA-256 5e8a8459…) —
+first green workflow run since PR #2; the entire app incl. B4 wiring, the R2-A1 gate,
+all startracker code and the V3-fixed screen compiles. Still open on a real toolchain:
+executing `:app:testDebugUnitTest` there; runtime behavior still needs a device.
 (ii) Declination on device, default ON: **SUPERSEDED — item closed by Z-V3** (declination
 was already ON at the source; the B1 default-ON change was a double correction and is
 reverted; landmark check = protocol Step 1). (iii) Star spot-checks (Mizar…SMC):
@@ -118,8 +137,9 @@ unchanged; J2000 extract re-derived byte-identical; PM 2026.5 extract + sidecar 
 ## 9. Ordered device list (what a human does next, in order)
 
 1. Reconnect GitHub auth; push queued commits S4/W1/W2/W3 (Z-S3..Z-W3).
-2. Compile on a real toolchain (`./gradlew :app:testDebugUnitTest`,
-   `:app:assembleDebug`) — first actual compile of B4/R2-A1/W2-adjacent code.
+2. ~~Compile on a real toolchain~~ **DONE (Z-BUILD1–4)**: assembleDebug green in CI
+   (run 33872506560; APK on the ci/apk branch and as run artifact). Remaining there:
+   run `:app:testDebugUnitTest` on the Gradle toolchain and record results.
 3. Execute `docs/startracker/REAL_DEVICE_FIELD_TEST_PROTOCOL.md` (30 min, Steps 1–8),
    filing DEVICE_TRIAL_<date>.md with every recorded number.
 4. Decide PHASE6/PHASE7 enablement based on Step 6/7 results (OD1 discrepancies).
@@ -143,5 +163,15 @@ unchanged; J2000 extract re-derived byte-identical; PM 2026.5 extract + sidecar 
 7. **Push auth outage (resolved)**: GH_TOKEN expired mid-pass, pausing pushes for
    Z-S3..Z-R; all queued commits were pushed immediately after reconnect (remote at
    c1e024d).
+8. **CI never green since PR #3**: a single camera-core `setAnalyzer(Executor)`
+   nullability error (CameraFrameObserver.kt:58) failed EVERY workflow run from
+   d9c83d2 onward. Fixed in Z-BUILD3 (`backgroundExecutor!!` — compile-time-only on
+   a non-null val).
+9. **Workflow hazards**: `| tee` masked Gradle's exit code (a prior "green" run had
+   ZERO artifacts — fixed with pipefail); pushes by the bot token that modify
+   `.github/workflows/*.yml` do not trigger runs (empty "ci: trigger" commits used);
+   Actions log/artifact blob storage is egress-blocked from the dev sandbox, so CI
+   now publishes failure logs to `buildlogs/` and the APK to the `ci/apk` branch
+   through git (which works).
 
 — END OF CLOSING-PASS REPORT —
