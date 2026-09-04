@@ -27,9 +27,9 @@ MEASURED (vs an external oracle), UNEXECUTED (Android-only, cannot run offline).
 | W2 | DONE | 01a30d5 | evidence/W2_ANDROID_ADAPTERS_2026-09-04.md |
 | W3 | DONE | e7edce7 | REAL_DEVICE_FIELD_TEST_PROTOCOL.md (replaced) |
 
-All 18 items DONE; none `NOT DONE`. Commits Z-S3..Z-W3 (030da66..e7edce7) are
-committed locally but NOT yet pushed: the GitHub token expired mid-pass (see §10);
-push them first thing after reconnecting. Every earlier commit was pushed immediately
+All 18 items DONE; none `NOT DONE`. A GitHub-token outage paused pushes for
+Z-S3..Z-R (030da66..c1e024d); all six were pushed 2026-09-04 after reconnect
+(remote branch confirmed at c1e024d). Every other commit was pushed immediately
 per the standing rule.
 
 ## 2. V1 — standalone rerun
@@ -140,7 +140,8 @@ unchanged; J2000 extract re-derived byte-identical; PM 2026.5 extract + sidecar 
    full-field tolerance — distortion calibration is REQUIRED before device trials.
 6. **Solve-rate vs false stars**: 19.9% at 20 false stars (candidate formation
    dominated) — the biggest remaining solver weakness.
-7. **Push auth outage**: GH_TOKEN expired mid-pass; commits Z-S3..Z-W3 are committed
-   locally (tree clean) and push automatically once reconnected.
+7. **Push auth outage (resolved)**: GH_TOKEN expired mid-pass, pausing pushes for
+   Z-S3..Z-R; all queued commits were pushed immediately after reconnect (remote at
+   c1e024d).
 
 — END OF CLOSING-PASS REPORT —
