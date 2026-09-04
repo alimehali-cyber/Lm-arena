@@ -13,6 +13,22 @@ object StarTrackerConfig {
     const val ENABLED: Boolean = false
 
     /**
+     * OD4 (final pass B1): apply magnetic declination to the compass azimuth, DEFAULT ON.
+     * The rotation-vector sensor azimuth is MAGNETIC-north referenced while every sky
+     * azimuth in the app is TRUE-north referenced; this flag enables the correction at
+     * the single true-azimuth entry point (CompassARScreen.currentAzimuth, sensor branch).
+     *
+     * Guardrails (see MagneticDeclination.kt):
+     *  - flag false            -> correction 0.0 exactly (identical to pre-fix behavior)
+     *  - no GPS location       -> correction 0.0 exactly (identical to pre-fix behavior)
+     *  - applied ONCE at the single entry point, never compounded
+     *  - legacy user yaw calibration is rebased ONCE at upgrade (versioned marker)
+     * UNEXECUTED on device (offline harness only); declination source on device is
+     * android.hardware.GeomagneticField (WMM).
+     */
+    const val APPLY_MAGNETIC_DECLINATION: Boolean = true
+
+    /**
      * Staleness threshold: if star lock age exceeds this, return passthrough (no star correction).
      * Default 5 seconds, conservative.
      * UNVALIDATED pending real tracking data, but based on gyro drift ~0.1-1°/min engineering estimate.

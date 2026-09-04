@@ -29,6 +29,7 @@ kotlinc \
   $(find "$ST_MAIN" -name '*.kt') \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/astro_engine/FrameTransformationEngine.kt" \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/astro_engine/AstroTime.kt" \
+  "$REPO/app/src/main/java/com/alijafari/red/astronomy/astro_engine/MagneticDeclination.kt" \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/astro_engine/CoordinateEngine.kt" \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/astro_engine/CoordinateEngineLegacy.kt" \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/astro_engine/TimeEngine.kt" \
@@ -44,6 +45,7 @@ kotlinc \
   $(find "$ST_TEST" -name '*.kt') \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/RefractionTest.kt" \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/CoordinateOracleTest.kt" \
+  "$REPO/app/src/test/java/com/alijafari/red/astronomy/MagneticDeclinationTest.kt" \
   "$REPO/app/src/main/java/com/alijafari/red/astronomy/ui/rendering/HeroSkyProjection.kt" \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/HeroSkyProjectionTest.kt" \
   -d "$OUT/classes" 2>&1 | grep -E "error|warning" | head -40

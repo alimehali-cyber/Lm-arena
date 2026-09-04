@@ -398,7 +398,33 @@ fun CompassARScreen(
     var manualAzimuthOffset by remember { mutableStateOf(0.0) }
     var manualPitchOffset by remember { mutableStateOf(0.0) }
 
-    val currentAzimuth = if (isSensorActive) skyOrientation.azimuth.toDouble() else manualAzimuthOffset
+    // OD4 (final pass B1): local magnetic declination, east-positive degrees, from the
+    // Android framework's WMM wrapper. Guardrails: flag off -> 0.0 (identical to pre-fix);
+    // no GPS fix/permission -> 0.0 (identical to pre-fix). The manual-drag branch below is
+    // NOT corrected: the user aligns rendered sky (true frame) against the real sky by eye,
+    // so the manual value is already a true azimuth.
+    val magneticDeclinationDeg = remember(uiState.userLocation, isGpsActive, hasLocationPermission) {
+        if (!StarTrackerConfig.APPLY_MAGNETIC_DECLINATION || !isGpsActive || !hasLocationPermission) 0.0
+        else try {
+            GeomagneticField(
+                uiState.userLocation.latitude.toFloat(),
+                uiState.userLocation.longitude.toFloat(),
+                uiState.userLocation.elevationMeters.toFloat(),
+                System.currentTimeMillis()
+            ).declination.toDouble()
+        } catch (e: Exception) { 0.0 }
+    }
+
+    // OD4 one-time rebase of a legacy yaw calibration (marker-guarded, see ARCalibrationManager)
+    LaunchedEffect(magneticDeclinationDeg, arCalibrationOffsets) {
+        if (magneticDeclinationDeg != 0.0 && arCalibrationOffsets.yawOffsetDeg != 0f) {
+            ARCalibrationManager.rebaseYawForDeclinationOnce(magneticDeclinationDeg.toFloat(), context)
+        }
+    }
+
+    // SINGLE true-azimuth entry point: sensor azimuth is magnetic-north referenced
+    // (rotation-vector world frame), sky coordinates are true-north referenced.
+    val currentAzimuth = if (isSensorActive) MagneticDeclination.trueAzimuth(skyOrientation.azimuth.toDouble(), magneticDeclinationDeg) else manualAzimuthOffset
     val currentAltitude = if (isSensorActive) skyOrientation.pitch.toDouble() else manualPitchOffset
 
     DisposableEffect(uiState.userLocation, isSensorActive) {
