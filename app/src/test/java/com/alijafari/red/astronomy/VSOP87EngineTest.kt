@@ -77,4 +77,21 @@ class VSOP87EngineTest {
             assertTrue("Distance in 2026 for $planet should be positive", coordsPresent.distanceAu > 0.0)
         }
     }
+
+    /**
+     * Z-V1 (2026-09-04): oracle-backed accuracy assertion (category (a) remediation).
+     * The pre-existing tests only checked "computes without throwing" + range validity,
+     * which is exactly why a 20-degree-class planet error (hand-mangled VSOP87 tables,
+     * fixed in the final pass) survived them. MEASURED oracle: astropy 8.0.1 (offline,
+     * builtin ephemeris) geocentric Sun of-date ecliptic longitude at 2026-09-04T20:00 UTC
+     * = 162.30461 deg => Earth HELIOCENTRIC longitude = 342.30461 deg. Engine is geometric
+     * mean-of-date (no nutation ~0.003 deg; VSOP87D truncation 0.008 deg) => 0.05 deg
+     * tolerance, which still fails loudly on degree-scale table corruption.
+     */
+    @Test
+    fun `test Earth heliocentric longitude vs astropy oracle 2026-09-04`() {
+        val at = AstroTime.fromUtcDate(2026, 9, 4, 20, 0, 0)
+        val earth = VSOP87Engine().calculate(VSOP87Engine.Planet.EARTH, at)
+        assertEquals(342.30461, ((earth.longitudeDeg % 360.0) + 360.0) % 360.0, 0.05)
+    }
 }

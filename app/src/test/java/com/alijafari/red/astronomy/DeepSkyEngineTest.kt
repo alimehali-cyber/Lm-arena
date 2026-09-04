@@ -93,4 +93,18 @@ class DeepSkyEngineTest {
     fun `test catalog has 200+ objects`() {
         assertTrue("Catalog should have 200+ objects", DeepSkyCatalog.objects.size >= 200)
     }
+
+    /**
+     * Z-V1 (2026-09-04): oracle-backed position assertion (category (a) remediation).
+     * The pre-existing tests assert lookups/names only, so a 28-arcmin SMC position
+     * error (B3 fix: ra 14.766 -> 13.187) was invisible to them. MEASURED oracle:
+     * NED/Wikipedia J2000 00h52m44.8s, -72d49'43" = (13.1867, -72.8286).
+     */
+    @Test
+    fun `test SMC position matches NED J2000 oracle`() {
+        val smc = com.alijafari.red.astronomy.data.catalog.DeepSkyCatalog.getDeepSkyObjects()
+            .first { it.id == "dso_smc" }
+        assertEquals(13.187, smc.raDeg, 0.01)
+        assertEquals(-72.829, smc.decDeg, 0.01)
+    }
 }

@@ -86,4 +86,23 @@ class LunarSolarEngineTest {
         assertTrue("Sun RA should be in [0, 360)", sun.raDeg in 0.0..360.0)
         assertTrue("Sun Dec should be in [-90, 90]", sun.decDeg in -90.0..90.0)
     }
+
+    /**
+     * Z-V1 (2026-09-04): oracle-backed accuracy assertion (category (a) remediation).
+     * Pre-existing tests asserted only RA/Dec range validity, so the VSOP87 time-units
+     * defect (phases at 1/10 speed; multi-degree longitude error, fixed in the final
+     * pass) stayed within "valid" ranges and passed. MEASURED oracle: Meeus,
+     * Astronomical Algorithms 2nd ed., Chapter 25 worked example — 1992-10-13 0h TD:
+     * apparent lambda = 199.90895 deg (book), 199.90600 deg (astropy 8.0.1 of-date);
+     * engine (VSOP87D truncated, mean frame) gives 199.90737. Tolerances: 0.01 deg on
+     * lambda, 0.02 deg on the derived RA/Dec (book value + mean obliquity 23.439591).
+     */
+    @Test
+    fun `test Sun apparent longitude Meeus chapter 25 worked example`() {
+        val at = AstroTime.fromUtcDate(1992, 10, 13, 0, 0, 0) // TT ~ UTC + 59 s; negligible at 0.02 deg
+        val sun = engine.calculateSun(at)
+        assertEquals(199.90895, sun.apparentLongitudeDeg, 0.01)
+        assertEquals(198.38088, sun.raDeg, 0.02)
+        assertEquals(-7.78495, sun.decDeg, 0.02)
+    }
 }
