@@ -31,6 +31,8 @@ data class MainUiState(
     val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.PAPERCRAFT_DIORAMA,
     val userLocation: UserLocation = UserLocation(),
     val selectedTab: Int = 4,
+    /** Tab to return to when leaving the AR screen via back (the screen shown before AR). */
+    val arReturnTab: Int = 4,
     val searchQuery: String = "",
     val selectedObjectForDetail: CelestialObject? = null,
     val isDetailFavorite: Boolean = false,
@@ -192,7 +194,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectTab(tabIndex: Int) {
-        _uiState.update { it.copy(selectedTab = tabIndex) }
+        _uiState.update {
+            // Entering the AR screen remembers where to return on back.
+            if (tabIndex == 3 && it.selectedTab != 3) {
+                it.copy(selectedTab = tabIndex, arReturnTab = it.selectedTab)
+            } else {
+                it.copy(selectedTab = tabIndex)
+            }
+        }
+    }
+
+    /** Back gesture/button in the AR screen: return to the screen shown before it. */
+    fun backFromArScreen() {
+        _uiState.update { it.copy(selectedTab = it.arReturnTab) }
     }
 
     fun setLanguage(language: AppLanguage) {
@@ -663,7 +677,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 selectedTargetObject = obj,
                 selectedObjectForDetail = null,
-                selectedTab = 3
+                selectedTab = 3,
+                arReturnTab = if (it.selectedTab != 3) it.selectedTab else it.arReturnTab
             )
         }
     }

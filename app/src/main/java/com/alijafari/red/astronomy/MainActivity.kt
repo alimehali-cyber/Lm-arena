@@ -261,14 +261,22 @@ class MainActivity : ComponentActivity() {
                         }
 
                         // Floating Navigation Bar with Real Kyant0 Liquid Glass Backdrop sampling.
-                        // Hidden while an immersive screen (the Gravity Sandbox) owns the display.
-                        if (!com.zig.gravity.ui.ImmersiveScreenState.active) {
+                        // Hidden while an immersive screen (the Gravity Sandbox) owns the display,
+                        // and for the whole AR-screen session: it reappears when back leaves AR.
+                        if (!com.zig.gravity.ui.ImmersiveScreenState.active && uiState.selectedTab != 3) {
                         com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
                             backdrop = backdrop,
                             selectedTab = uiState.selectedTab,
                             onTabSelected = { viewModel.selectTab(it) },
                             modifier = Modifier.align(Alignment.BottomCenter)
                         )
+                        }
+
+                        // AR session exit: back button/gesture leaves the AR screen and returns
+                        // to the previous screen (nav bar reappears with it). Registered only
+                        // while the AR tab is selected, so every other screen keeps default back.
+                        androidx.activity.compose.BackHandler(enabled = uiState.selectedTab == 3) {
+                            viewModel.backFromArScreen()
                         }
 
                         // Dialogs and Modals (Promoted sibling overlays with Real Kyant0 Liquid Glass Backdrop sampling)
