@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shares only cache-dir artifacts (the trial zip). Debug source set only. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="fieldtrial" path="." />
+</paths>

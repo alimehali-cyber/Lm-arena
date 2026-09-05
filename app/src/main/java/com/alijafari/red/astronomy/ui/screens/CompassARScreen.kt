@@ -28,7 +28,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import com.alijafari.red.astronomy.BuildConfig
-import com.alijafari.red.astronomy.startracker.debug.StarTrackerDebugHost
+import com.alijafari.red.astronomy.startracker.debug.FieldTrialHost
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -250,7 +250,15 @@ fun CompassARScreen(
 
     // Ensure background executor is cleaned up when screen leaves composition
     DisposableEffect(cameraFrameObserver) {
+        // G-1: hand the frame observer to the debug field-trial host (the guide's
+        // tracker needs the live camera feed). Release: compile-time false, no-op.
+        if (BuildConfig.DEBUG) {
+            FieldTrialHost.observer = cameraFrameObserver
+        }
         onDispose {
+            if (BuildConfig.DEBUG) {
+                FieldTrialHost.observer = null
+            }
             cameraFrameObserver.shutdown()
         }
     }
@@ -291,6 +299,11 @@ fun CompassARScreen(
     var isGpsActive by remember { mutableStateOf(true) }
     var gpsAccuracyMeters by remember { mutableStateOf<Float?>(null) }
     var isSensorActive by remember { mutableStateOf(true) }
+    // G-1: latest android Location fix (fed to the debug field-trial host; the domain
+    // uiState.userLocation carries lat/lon only, the trial records accuracy too).
+    var lastGpsFix by remember { mutableStateOf<Location?>(null) }
+    // reused buffer: android.graphics.Matrix -> 9 values each frame (no per-frame alloc)
+    val sensorToViewValues = remember { FloatArray(9) }
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -336,6 +349,7 @@ fun CompassARScreen(
                     val lon = location.longitude
                     val alt = location.altitude
                     gpsAccuracyMeters = if (location.hasAccuracy()) location.accuracy else null
+                    lastGpsFix = location
 
                     viewModel.setLocation(
                         cityEn = "Live GPS",
@@ -360,6 +374,7 @@ fun CompassARScreen(
                     ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
                 lastGps?.let { loc ->
                     gpsAccuracyMeters = if (loc.hasAccuracy()) loc.accuracy else null
+                    lastGpsFix = loc
                     viewModel.setLocation("Live GPS", "GPS زنده", loc.latitude, loc.longitude)
                     orientationProvider.updateLocation(loc.latitude, loc.longitude, loc.altitude)
                 }
@@ -844,15 +859,9 @@ fun CompassARScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF060810))
-            // D2: long-press opens the debug-only diagnostics overlay (debug builds only;
-            // release compiles this branch to `Modifier`, a no-op).
-            .then(
-                if (BuildConfig.DEBUG) Modifier.pointerInput("st-debug-overlay") {
-                    detectTapGestures(onLongPress = {
-                        StarTrackerDebugHost.open(context, orientationProvider)
-                    })
-                } else Modifier
-            )
+            // G-pass: the retired D-pass diagnostics long-press entry was removed with
+            // the overlay it opened — the ONLY debug entry point is the "Field Test"
+            // button near the bottom of this screen (see below).
             .pointerInput(Unit) {
                 detectTransformGestures { _, _, zoom, _ ->
                     if (zoom != 1.0f) {
@@ -920,6 +929,30 @@ fun CompassARScreen(
                 },
                 modifier = Modifier.fillMaxSize()
             )
+            // G-1: when the debug field trial opens, rebind with the ImageAnalysis use
+            // case attached even if the debug flag was off at screen entry (the guide's
+            // Part B needs live frames without leaving the AR screen). Release:
+            // BuildConfig.DEBUG is a compile-time false constant — never runs, and the
+            // bind above stays exactly the pre-project call.
+            if (BuildConfig.DEBUG) {
+                LaunchedEffect(FieldTrialHost.active.value) {
+                    if (!FieldTrialHost.active.value) return@LaunchedEffect
+                    runCatching {
+                        val pv = previewViewInstance ?: return@LaunchedEffect
+                        val provider = ProcessCameraProvider.getInstance(context).get()
+                        val preview = Preview.Builder().build().also {
+                            it.setSurfaceProvider(pv.surfaceProvider)
+                        }
+                        provider.unbindAll()
+                        provider.bindToLifecycle(
+                            lifecycleOwner,
+                            CameraSelector.DEFAULT_BACK_CAMERA,
+                            preview,
+                            cameraFrameObserver.getUseCase()
+                        )
+                    }
+                }
+            }
         }
 
         // Layer 2: AR Celestial Overlay Canvas
@@ -1005,6 +1038,27 @@ fun CompassARScreen(
             val canvasWidth = size.width
             val canvasHeight = size.height
             if (canvasWidth <= 0f || canvasHeight <= 0f) return@Canvas
+
+            // G-1: publish the live projection frame to the debug-only field-trial host
+            // (the guide reads attitude, R matrix, zoom, intrinsics, view transform and
+            // the GPS fix on every pass). Release: BuildConfig.DEBUG is a compile-time
+            // false constant — nothing is written and FieldTrialHost is inert.
+            if (BuildConfig.DEBUG) {
+                val stvm = previewViewInstance?.sensorToViewTransform
+                if (stvm != null) stvm.getValues(sensorToViewValues)
+                FieldTrialHost.frame = FieldTrialHost.FrameState(
+                    azimuthDeg = currentAzimuth,
+                    altitudeDeg = currentAltitude,
+                    rollDeg = skyOrientation.roll.toDouble(),
+                    rotationMatrix = if (isSensorActive) skyOrientation.rotationMatrix else null,
+                    sensorActive = isSensorActive,
+                    zoomFactor = zoomFactor,
+                    intrinsics = cameraIntrinsics,
+                    sensorToViewValues = if (stvm != null) sensorToViewValues else null,
+                    displayRotationDegrees = displayRotationDegrees,
+                    gps = lastGpsFix
+                )
+            }
 
             val centerX = canvasWidth / 2f
             val centerY = canvasHeight / 2f
@@ -2807,15 +2861,12 @@ fun CompassARScreen(
         // TEMPORARY DIAGNOSTICS BUTTON (debug builds only) — added because the D2
         // long-press proved unreliable in field use: three pre-existing gesture
         // consumers own the touch path (zoom detectTransformGestures + manual-offset
-        // detectDragGestures later in this Box's modifier chain, and the full-screen
-        // Layer-2 Canvas tap catcher), so a held press is consumed as drag/zoom long
-        // before the ~500 ms long-press timeout. This button is the ONLY addition: it
-        // calls the SAME StarTrackerDebugHost.open(...) the long-press calls — no new
-        // diagnostics UI. REMOVE AFTER FIELD TESTING together with the long-press and
-        // the hosting line below (see evidence/D_DEBUG_DIAGNOSTICS section 'fix pass').
+        // G-1.1: THE debug entry point — the "Field Test" button (debug builds only;
+        // release compiles this branch away). It replaces the retired D-pass
+        // DIAGNOSTICS button + long-press: exactly one debug entry point remains.
         if (BuildConfig.DEBUG) {
             Button(
-                onClick = { StarTrackerDebugHost.open(context, orientationProvider) },
+                onClick = { FieldTrialHost.open(context, orientationProvider) },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .navigationBarsPadding()
@@ -2825,15 +2876,16 @@ fun CompassARScreen(
                     contentColor = Color.White
                 )
             ) {
-                Text("DIAGNOSTICS", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text("Field Test", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             }
         }
 
-        // D2: host the debug-only diagnostics overlay. Release: BuildConfig.DEBUG is a
-        // compile-time false constant -> this branch does not exist; the panel class is
-        // absent from the release compile (debug source set) -> provably unreachable.
-        if (BuildConfig.DEBUG && StarTrackerDebugHost.visible.value) {
-            StarTrackerDebugHost.HostContent()
+        // G-1.2: host the debug-only field-trial guide (retires the D-pass overlay
+        // hosting). Release: BuildConfig.DEBUG is a compile-time false constant ->
+        // this branch does not exist; the guide classes live only in the debug
+        // source set -> provably unreachable and dex-inspected by CI.
+        if (BuildConfig.DEBUG && FieldTrialHost.active.value) {
+            FieldTrialHost.HostContent()
         }
     }
 }

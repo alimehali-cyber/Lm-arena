@@ -100,7 +100,9 @@ object StarTrackerRuntime {
         @Volatile var captures: MutableList<CapturedFrame> = mutableListOf(),
         @Volatile var sensorSnapshot: FloatArray? = null, // latest R_true copy from the UI
         @Volatile var gps: Location? = null,
-        @Volatile var gpsUpdatedMs: Long = 0
+        @Volatile var gpsUpdatedMs: Long = 0,
+        /** catalog the solver actually matched against (L9 green ring uses exactly this) */
+        @Volatile var catalogStars: List<CatalogStar> = emptyList()
     )
 
     val state = State()
@@ -161,6 +163,7 @@ object StarTrackerRuntime {
                 val csv = appContext.assets.open("startracker/hyg_v36_vle6.5_j2000.csv")
                     .bufferedReader().readText()
                 val stars = CatalogIngestor.parse(csv, "HYG_V36_LE6P5")
+                state.catalogStars = stars
                 val index = QuadPatternIndex.capped(stars)
                 val solver = LostInSpaceSolver(index, stars)
 
