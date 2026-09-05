@@ -318,7 +318,7 @@ object GuideUi {
                 }
                 if (level == 9) {
                     val q = access.orientationProvider.starTrackerAttitude
-                    val radec = q?.let { trackerRaDec(controller, target) }
+                    val radec = if (q != null && target != null) trackerRaDec(controller, target) else null
                     if (q != null && radec != null) {
                         TrackerProjector.project(
                             radec.first, radec.second, q,
