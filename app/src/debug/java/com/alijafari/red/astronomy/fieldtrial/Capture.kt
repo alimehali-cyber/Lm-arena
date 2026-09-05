@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.PixelCopy
 import com.alijafari.red.astronomy.fieldtrial.engine.InverseProjection
+import com.alijafari.red.astronomy.fieldtrial.engine.TrackerProjector
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 

@@ -7,6 +7,7 @@ import com.alijafari.red.astronomy.fieldtrial.engine.FieldTrialMachine
 import com.alijafari.red.astronomy.fieldtrial.engine.Json
 import com.alijafari.red.astronomy.fieldtrial.engine.LevelOutcome
 import com.alijafari.red.astronomy.fieldtrial.engine.TapMeasurement
+import com.alijafari.red.astronomy.fieldtrial.engine.TrialDocument
 import com.alijafari.red.astronomy.fieldtrial.engine.TrialSummary
 import com.alijafari.red.astronomy.startracker.tracking.LockConfidence
 import androidx.core.content.FileProvider
@@ -34,8 +35,12 @@ class FieldTrialController(private val context: Context) {
 
     val dir: File get() = File(context.filesDir, "fieldtrial").apply { mkdirs() }
 
-    var document = loadNewest() ?: newDocument()
+    var document: TrialDocument = loadNewest() ?: freshDocument()
         private set
+
+    init {
+        persist() // ensure the (restored or brand-new) trial exists on disk immediately
+    }
 
     /** UI state: card collapsed vs expanded (persisted separately, non-critical). */
     var cardCollapsed = false
@@ -66,9 +71,17 @@ class FieldTrialController(private val context: Context) {
             }
 
     fun newDocument() {
+        document = freshDocument()
+        shots.clear()
+        shotCounter = 0
+        persist()
+    }
+
+    /** Pure builder for a new trial (never touches state). */
+    private fun freshDocument(): TrialDocument {
         val stamp = SimpleDateFormat("yyyyMMdd'T'HHmmss", Locale.US)
             .apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date())
-        document = FieldTrialMachine.newTrial(
+        return FieldTrialMachine.newTrial(
             trialId = stamp,
             nowMs = System.currentTimeMillis(),
             deviceModel = android.os.Build.MODEL ?: "unknown",
@@ -76,9 +89,6 @@ class FieldTrialController(private val context: Context) {
             lat = StarTrackerRuntime.state.gps?.latitude,
             lon = StarTrackerRuntime.state.gps?.longitude
         )
-        shots.clear()
-        shotCounter = 0
-        persist()
     }
 
     private fun <T> mutate(block: () -> T): T {

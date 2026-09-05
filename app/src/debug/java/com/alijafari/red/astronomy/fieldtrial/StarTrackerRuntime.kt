@@ -6,6 +6,7 @@ import com.alijafari.red.astronomy.astro_engine.OrientationProvider
 import com.alijafari.red.astronomy.startracker.calibration.CameraProfile
 import com.alijafari.red.astronomy.startracker.calibration.HardwareDistortionReader
 import com.alijafari.red.astronomy.startracker.catalog.CatalogIngestor
+import com.alijafari.red.astronomy.startracker.catalog.CatalogStar
 import com.alijafari.red.astronomy.startracker.catalog.QuadPatternIndex
 import com.alijafari.red.astronomy.startracker.detection.GrayscaleImage
 import com.alijafari.red.astronomy.startracker.diagnostics.FailureReason
