@@ -43,6 +43,39 @@ data class TapMeasurement(
     val zoomFactor: Double,
     val displayRotationDegrees: Int
 ) {
+    // Data-class generated equals/hashCode use IDENTITY for the two array fields
+    // (sensorQuaternion, sensorRotationMatrix) — restore-from-JSON would never compare
+    // equal. Explicit content-based overrides fix that (harness-pinned by the machine test).
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is TapMeasurement) return false
+        return sensorQuaternion.contentEquals(other.sensorQuaternion) &&
+            (sensorRotationMatrix == null && other.sensorRotationMatrix == null ||
+                sensorRotationMatrix != null && other.sensorRotationMatrix != null &&
+                sensorRotationMatrix.contentEquals(other.sensorRotationMatrix)) &&
+            epochMs == other.epochMs && targetId == other.targetId &&
+            computedAzDeg == other.computedAzDeg && computedAltDeg == other.computedAltDeg &&
+            tappedAzDeg == other.tappedAzDeg && tappedAltDeg == other.tappedAltDeg &&
+            dAzDeg == other.dAzDeg && dAltDeg == other.dAltDeg &&
+            separationDeg == other.separationDeg && screenOffsetPx == other.screenOffsetPx &&
+            sensorAzimuthDeg == other.sensorAzimuthDeg && sensorAltitudeDeg == other.sensorAltitudeDeg &&
+            sensorRollDeg == other.sensorRollDeg &&
+            gpsLat == other.gpsLat && gpsLon == other.gpsLon && gpsAccuracyM == other.gpsAccuracyM &&
+            intrinsicsTier == other.intrinsicsTier &&
+            fx == other.fx && fy == other.fy && cx == other.cx && cy == other.cy &&
+            distortionTier == other.distortionTier && k1 == other.k1 && k2 == other.k2 &&
+            appliedDeclinationDeg == other.appliedDeclinationDeg &&
+            zoomFactor == other.zoomFactor && displayRotationDegrees == other.displayRotationDegrees
+    }
+
+    override fun hashCode(): Int {
+        var h = epochMs.hashCode()
+        h = 31 * h + targetId.hashCode()
+        h = 31 * h + sensorQuaternion.contentHashCode()
+        h = 31 * h + (sensorRotationMatrix?.contentHashCode() ?: 0)
+        return h
+    }
+
     companion object {
         /** Signed wrap to (-180, 180]. */
         fun wrap180(d: Double): Double {

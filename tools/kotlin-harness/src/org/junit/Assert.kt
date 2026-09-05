@@ -83,3 +83,14 @@ fun assertArrayEquals(message: String?, expected: DoubleArray, actual: DoubleArr
 
 fun assertArrayEquals(expected: DoubleArray, actual: DoubleArray) =
     assertArrayEquals(null, expected, actual)
+
+/** JUnit 4.13 parity for the offline harness (same shape as the real API). */
+fun <T : Throwable> assertThrows(expected: Class<T>, block: () -> Unit): T {
+    try {
+        block()
+    } catch (t: Throwable) {
+        if (expected.isInstance(t)) return expected.cast(t)
+        throw AssertionError("expected ${expected.simpleName} but got ${t::class.simpleName}: ${t.message}")
+    }
+    throw AssertionError("expected ${expected.simpleName} but nothing was thrown")
+}
