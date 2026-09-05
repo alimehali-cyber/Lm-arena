@@ -519,12 +519,7 @@ object GuideUi {
                                     )
                                     LevelButtons(
                                         controller, level, target, gating, pal, gps,
-                                        onShareStatus = { shareStatus = it },
-                                        onToggleDetails = { detailsOpen = !detailsOpen },
-                                        detailsOpen = detailsOpen,
-                                        nightDim = night && !unDim,
-                                        onToggleDim = { unDim = !unDim },
-                                        canDim = night
+                                        onShareStatus = { shareStatus = it }
                                     )
                                     SecondaryRow(
                                         level, pal, detailsOpen,
