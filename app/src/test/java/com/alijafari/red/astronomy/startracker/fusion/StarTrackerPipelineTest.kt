@@ -34,9 +34,8 @@ class StarTrackerPipelineTest {
 
     companion object {
         private val csvPath: String = listOf(
-            "data/startracker/hyg_v36_vle6.5_j2000.csv",
-            "../data/startracker/hyg_v36_vle6.5_j2000.csv",
-            "../../data/startracker/hyg_v36_vle6.5_j2000.csv"
+            "src/test/resources/startracker/hyg_v36_vle6.5_j2000.csv", // Gradle test cwd (app/)
+            "app/src/test/resources/startracker/hyg_v36_vle6.5_j2000.csv" // repo-root cwd (harness)
         ).firstOrNull { java.io.File(it).exists() } ?: error("HYG extract not found")
 
         private val stars by lazy { CatalogIngestor.parse(java.io.File(csvPath).readText(), "HYG_V36_LE6P5") }

@@ -53,10 +53,8 @@ class CoordinateOracleTest {
 
     private fun loadCsv(name: String): List<Map<String, String>> {
         val candidates = listOf(
-            "docs/startracker/evidence/$name",          // repo root (harness cwd)
-            "app/docs/startracker/evidence/$name",
-            "../docs/startracker/evidence/$name",
-            "../../docs/startracker/evidence/$name"
+            "app/src/test/resources/startracker/$name", // repo root cwd (offline harness)
+            "src/test/resources/startracker/$name"      // Gradle test cwd (app/)
         )
         val f = candidates.map(::File).firstOrNull { it.exists() }
             ?: throw AssertionError("oracle CSV not found: $name (cwd=${File(".").absolutePath})")
