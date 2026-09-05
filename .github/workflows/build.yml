@@ -38,9 +38,13 @@ jobs:
             base64 -d debug.keystore.base64 > debug.keystore 2>/dev/null || base64 --decode debug.keystore.base64 > debug.keystore 2>/dev/null || true
           fi
 
-      - name: Build APKs with Gradle (D4 — both variants)
+      - name: Build APK with Gradle (single deliverable — DEBUG)
         run: |
           set -eo pipefail
+          # assembleDebug is THE deliverable. assembleRelease is compiled only as an
+          # internal input for the debug-only dex assertion below (it proves the
+          # field-trial classes are absent from release); it is NEVER uploaded —
+          # the workflow publishes exactly one APK artifact: the debug build.
           if [ -f "./gradlew" ]; then
             ./gradlew assembleDebug assembleRelease --no-daemon --stacktrace 2>&1 | tee gradle_build.log
           else
@@ -69,18 +73,11 @@ jobs:
           [ -n "$debug_apk" ] && [ -n "$release_apk" ]
           .github/scripts/assert_debug_only.sh "$debug_apk" "$release_apk"
 
-      - name: Upload debug APK artifact
+      - name: Upload debug APK artifact (the only APK artifact)
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: warn
-
-      - name: Upload release APK artifact (unsigned when no CI keystore)
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-apk
-          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: warn
 
       - name: Rolling pre-release with the DEBUG APK
