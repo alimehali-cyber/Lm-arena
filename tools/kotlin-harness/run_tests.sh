@@ -62,6 +62,8 @@ kotlinc \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/MiniJsonTest.kt" \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/FieldTrialMachineTest.kt" \
   "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/TrialSummaryTest.kt" \
+  "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/TrackerProjectorTest.kt" \
+  "$REPO/app/src/test/java/com/alijafari/red/astronomy/fieldtrial/PartBAnalysisTest.kt" \
   -d "$OUT/classes" 2>&1 | grep -E "error|warning" | head -40
 
 echo "== compile done, running =="
