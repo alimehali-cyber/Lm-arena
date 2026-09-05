@@ -54,10 +54,10 @@ class GuideUiSmokeTest {
         ).assertExists()
 
         // collapse to the one-line pill and back
-        composeTestRule.onNodeWithText("^").performClick()
+        composeTestRule.onNodeWithText("Hide").performClick()
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("Level 0 - Get ready").assertExists() // pill keeps the level line
-        composeTestRule.onNodeWithText("v").performClick()
+        composeTestRule.onNodeWithText("Open").performClick()
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("Allow camera and location. Then wave the phone in a figure-8 for 5 seconds.").assertExists()
 
@@ -81,7 +81,7 @@ class GuideUiSmokeTest {
         assertTrue("card top $cardTop not bottom-anchored (root $rootHeight)", cardTop > rootHeight * 0.6f)
 
         // collapsed pill must sit even lower (one line at the very bottom)
-        composeTestRule.onNodeWithText("^").performClick()
+        composeTestRule.onNodeWithText("Hide").performClick()
         composeTestRule.waitForIdle()
         val pillTop = composeTestRule.onNodeWithText("Level 0 - Get ready")
             .fetchSemanticsNode().positionInRoot.y

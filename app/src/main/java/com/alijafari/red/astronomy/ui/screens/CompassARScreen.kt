@@ -2864,7 +2864,9 @@ fun CompassARScreen(
         // G-1.1: THE debug entry point — the "Field Test" button (debug builds only;
         // release compiles this branch away). It replaces the retired D-pass
         // DIAGNOSTICS button + long-press: exactly one debug entry point remains.
-        if (BuildConfig.DEBUG) {
+        // Hidden while the guide is open so it can never overlap/steal taps from
+        // the guide card's buttons at the bottom of the screen.
+        if (BuildConfig.DEBUG && !FieldTrialHost.active.value) {
             Button(
                 onClick = { FieldTrialHost.open(context, orientationProvider) },
                 modifier = Modifier

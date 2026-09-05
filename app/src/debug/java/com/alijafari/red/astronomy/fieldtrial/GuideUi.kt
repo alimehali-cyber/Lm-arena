@@ -5,6 +5,7 @@ package com.alijafari.red.astronomy.fieldtrial
 import android.app.Activity
 import android.content.Intent
 import android.location.Location
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -46,7 +47,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,10 +71,16 @@ import kotlin.math.roundToInt
 
 /**
  * G-1/G-3: the guided field-trial UI (debug source set only). One guide card at the
- * bottom (height <= 18% so it never touches the centre 60%), collapsible to a one-line
+ * bottom (<= 20% height so the centre 60% is never covered), collapsible to a one-line
  * pill, tap-to-measure with a draggable crosshair + Confirm, thin marker rings on the
  * AR canvas, dim-red night palette after civil dusk, Part B watchers, Share zip.
  * The tester never types numbers (G-1.6).
+ *
+ * Reachability contract (fix pass 2026-09-05): EVERY button lives in a FIXED zone at
+ * the bottom of the card — never inside the scrolling message area, never clipped by
+ * a row that is too wide, never overlapped by the Field Test button (hidden while the
+ * guide is open). Level flow auto-opens the next level, so no press can silently
+ * no-op (the state machine ignores mutations when no level is open).
  */
 object GuideUi {
 
@@ -255,8 +261,19 @@ object GuideUi {
         }
 
         val doc = controller.document
+        // CRITICAL FIX (L0 dead button): the state machine no-ops every mutation while
+        // no level is open, and a fresh (or restored-completed) trial has pending=null.
+        // The displayed level is therefore ALWAYS opened before any button can be pressed;
+        // after complete/skip this also auto-opens the next level, so the flow never stalls.
+        LaunchedEffect(doc.pending, doc.nextLevel) {
+            if (controller.document.pending == null) {
+                controller.open(controller.document.nextLevel)
+            }
+        }
+
         val pending = doc.pending
         val level = pending?.level ?: doc.nextLevel
+        val pendingKey = pending?.startedMs ?: 0L
 
         var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
         LaunchedEffect(Unit) { while (true) { nowMs = System.currentTimeMillis(); delay(5_000) } }
@@ -266,6 +283,12 @@ object GuideUi {
         var detailsOpen by remember { mutableStateOf(false) }
         var skipRowOpen by remember { mutableStateOf(false) }
         var crosshair by remember(doc.trialId, level) { mutableStateOf<Offset?>(null) }
+        var shareStatus by remember { mutableStateOf("") }
+
+        // back closes the guide's own layers first (help sheet, then crosshair);
+        // only then does the AR-screen back handler (exit AR) see the gesture
+        BackHandler(enabled = helpVisible) { helpVisible = false }
+        BackHandler(enabled = !helpVisible && crosshair != null) { crosshair = null }
 
         val gps = frame?.gps
         val lat = gps?.latitude ?: 35.7
@@ -278,10 +301,19 @@ object GuideUi {
         }
         val pal = if (night && !unDim) nightPalette() else dayPalette()
 
+        // Part B run states (hoisted so the Start buttons in the FIXED zone and the
+        // watchers in the message zone share them; reset on every level re-open)
+        var l8Started by remember(pendingKey) { mutableStateOf(false) }
+        var l10Started by remember(pendingKey) { mutableStateOf(false) }
+        var l11Started by remember(pendingKey) { mutableStateOf(false) }
+        var l8TimedOut by remember(pendingKey) { mutableStateOf(false) }
+
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val canvasW = maxWidth.value
-            val canvasH = maxHeight.value
-            val cardMax: Dp = maxHeight * 0.18f // G-1.2: never touches the centre 60%
+            // REAL pixel canvas size — pointer offsets, offsets and the projection all
+            // live in px; using Dp here scaled every measurement wrong on real devices.
+            val canvasW = constraints.maxWidth.toFloat()
+            val canvasH = constraints.maxHeight.toFloat()
+            val cardMax = maxHeight * 0.20f // G-1.2: card keeps the centre 60% clear
 
             // --- tap catcher: the ONLY full-screen input the guide adds (tap levels) ---
             if (level in tapLevels && gating.status == LevelStatus.AVAILABLE &&
@@ -339,7 +371,7 @@ object GuideUi {
                 }
             }
 
-            // --- crosshair drag knob + Back/Confirm row (G-1.6) ---
+            // --- crosshair drag knob + Back/Confirm row (G-1.6); clamped on-screen ---
             crosshair?.let { ch ->
                 Box(
                     Modifier
@@ -360,8 +392,8 @@ object GuideUi {
                     Modifier
                         .offset {
                             IntOffset(
-                                ((ch.x - 90).roundToInt()).coerceIn(0, (canvasW - 260f).roundToInt()),
-                                (ch.y + 26).roundToInt()
+                                (ch.x - 110).roundToInt().coerceIn(0, (canvasW - 300f).roundToInt().coerceAtLeast(0)),
+                                (ch.y + 30).roundToInt().coerceIn(0, (canvasH - 140f).roundToInt().coerceAtLeast(0))
                             )
                         }
                         .background(pal.bg, RoundedCornerShape(10.dp))
@@ -396,75 +428,114 @@ object GuideUi {
                         .heightIn(max = cardMax)
                 ) {
                     if (collapsed) {
+                        // one-line pill
                         Row(
                             Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("Level $level - ${levelCopy(level, target).title}", color = pal.fg, fontSize = 16.sp)
                             Spacer(Modifier.weight(1f))
-                            TextButton(onClick = { collapsed = false }) { Text("v", color = pal.accent, fontSize = 18.sp) }
+                            TextButton(onClick = { collapsed = false }) { Text("Open", color = pal.accent, fontSize = 16.sp) }
                         }
                     } else {
-                        Column(
-                            Modifier
-                                .padding(12.dp)
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    "Level $level - ${levelCopy(level, target).title}",
-                                    color = pal.fg, fontSize = 17.sp, fontWeight = FontWeight.Bold
-                                )
-                                Spacer(Modifier.weight(1f))
-                                TextButton(onClick = { collapsed = true }) { Text("^", color = pal.dim, fontSize = 16.sp) }
-                                TextButton(onClick = { helpVisible = true }) { Text("?", color = pal.accent, fontSize = 18.sp) }
-                            }
-                            Text(levelCopy(level, target).instruction, color = pal.fg, fontSize = 16.sp)
-
-                            if (gating.status != LevelStatus.AVAILABLE) {
-                                Text(gatingText(gating), color = pal.dim, fontSize = 15.sp)
-                            }
-                            if (level == 5) {
-                                val below = TargetPicker.sevenStarsNow(nowMs, lat, lon).second
-                                if (below.isNotEmpty()) {
-                                    Text("Below the horizon tonight: ${below.joinToString()}", color = pal.dim, fontSize = 14.sp)
-                                }
-                            }
-
-                            PartBWatchers(controller, level, pal)
-
-                            if (detailsOpen) DetailsBody(level, controller, frame, target, pal)
-
-                            if (skipRowOpen) {
-                                Text("Why are you skipping?", color = pal.fg, fontSize = 15.sp)
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    OutlinedButton(onClick = { skipRowOpen = false; controller.skip(SkipReason.CLOUDS) }) {
-                                        Text(SkipReason.CLOUDS.label, color = pal.fg, fontSize = 14.sp)
+                        Column(Modifier.heightIn(max = cardMax)) {
+                            // ---- message zone (scrolls; contains NO buttons) ----
+                            Column(
+                                Modifier
+                                    .weight(1f, fill = false)
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(start = 12.dp, end = 12.dp, top = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "Level $level - ${levelCopy(level, target).title}",
+                                        color = pal.fg, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    TextButton(onClick = { collapsed = true }, contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp)) {
+                                        Text("Hide", color = pal.dim, fontSize = 15.sp)
                                     }
-                                    OutlinedButton(onClick = { skipRowOpen = false; controller.skip(SkipReason.CANT_FIND) }) {
-                                        Text(SkipReason.CANT_FIND.label, color = pal.fg, fontSize = 14.sp)
+                                    TextButton(onClick = { helpVisible = true }, contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp)) {
+                                        Text("?", color = pal.accent, fontSize = 18.sp)
                                     }
                                 }
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    OutlinedButton(onClick = { skipRowOpen = false; controller.skip(SkipReason.NO_TIME) }) {
-                                        Text(SkipReason.NO_TIME.label, color = pal.fg, fontSize = 14.sp)
-                                    }
-                                    OutlinedButton(onClick = { skipRowOpen = false; controller.skip(SkipReason.OTHER) }) {
-                                        Text(SkipReason.OTHER.label, color = pal.fg, fontSize = 14.sp)
+                                Text(levelCopy(level, target).instruction, color = pal.fg, fontSize = 16.sp)
+
+                                if (gating.status != LevelStatus.AVAILABLE) {
+                                    Text(gatingText(gating), color = pal.dim, fontSize = 15.sp)
+                                }
+                                if (level == 5) {
+                                    val below = TargetPicker.sevenStarsNow(nowMs, lat, lon).second
+                                    if (below.isNotEmpty()) {
+                                        Text("Below the horizon tonight: ${below.joinToString()}", color = pal.dim, fontSize = 14.sp)
                                     }
                                 }
+                                if (shareStatus.isNotEmpty()) {
+                                    Text(shareStatus, color = pal.accent, fontSize = 15.sp)
+                                }
+
+                                PartBStatus(controller, level, pal, l8Started, l8TimedOut, l10Started, l11Started,
+                                    onL8TimedOut = { l8TimedOut = true })
+
+                                if (detailsOpen) DetailsBody(level, controller, frame, target, pal)
                             }
 
-                            LevelButtons(
-                                controller, level, target, gating, pal, gps,
-                                onSkip = { skipRowOpen = !skipRowOpen },
-                                onToggleDetails = { detailsOpen = !detailsOpen },
-                                detailsOpen = detailsOpen,
-                                nightDim = night && !unDim,
-                                onToggleDim = { unDim = !unDim },
-                                canDim = night
-                            )
+                            // ---- FIXED zone: every interactive control, always visible ----
+                            Column(
+                                Modifier.padding(start = 12.dp, end = 12.dp, bottom = 10.dp, top = 4.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                if (skipRowOpen) {
+                                    Text("Why are you skipping?", color = pal.fg, fontSize = 15.sp)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        OutlinedButton(onClick = { skipRowOpen = false; controller.skip(SkipReason.CLOUDS) }) {
+                                            Text(SkipReason.CLOUDS.label, color = pal.fg, fontSize = 14.sp)
+                                        }
+                                        OutlinedButton(onClick = { skipRowOpen = false; controller.skip(SkipReason.CANT_FIND) }) {
+                                            Text(SkipReason.CANT_FIND.label, color = pal.fg, fontSize = 14.sp)
+                                        }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        OutlinedButton(onClick = { skipRowOpen = false; controller.skip(SkipReason.NO_TIME) }) {
+                                            Text(SkipReason.NO_TIME.label, color = pal.fg, fontSize = 14.sp)
+                                        }
+                                        OutlinedButton(onClick = { skipRowOpen = false; controller.skip(SkipReason.OTHER) }) {
+                                            Text(SkipReason.OTHER.label, color = pal.fg, fontSize = 14.sp)
+                                        }
+                                    }
+                                    TextButton(onClick = { skipRowOpen = false }) { Text("Cancel", color = pal.dim, fontSize = 15.sp) }
+                                } else {
+                                    PartBActions(
+                                        controller, level, pal,
+                                        l8Started = l8Started, onL8Start = { l8Started = true },
+                                        l8TimedOut = l8TimedOut, onL8Retry = {
+                                            l8TimedOut = false
+                                            controller.trackerTurnOff()
+                                            controller.open(8)
+                                        },
+                                        l10Started = l10Started, onL10Start = { l10Started = true },
+                                        l11Started = l11Started, onL11Start = { l11Started = true }
+                                    )
+                                    LevelButtons(
+                                        controller, level, target, gating, pal, gps,
+                                        onShareStatus = { shareStatus = it },
+                                        onToggleDetails = { detailsOpen = !detailsOpen },
+                                        detailsOpen = detailsOpen,
+                                        nightDim = night && !unDim,
+                                        onToggleDim = { unDim = !unDim },
+                                        canDim = night
+                                    )
+                                    SecondaryRow(
+                                        level, pal, detailsOpen,
+                                        onSkip = { skipRowOpen = true },
+                                        onToggleDetails = { detailsOpen = !detailsOpen },
+                                        nightDim = night && !unDim,
+                                        onToggleDim = { unDim = !unDim },
+                                        canDim = night
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -522,10 +593,19 @@ object GuideUi {
         }
     }
 
-    // ---------- Part B live logic (L8 lock, L10 cover, L11 sweep) ----------
+    // ---------- Part B: status texts + watchers (message zone) ----------
 
     @Composable
-    private fun PartBWatchers(controller: FieldTrialController, level: Int, pal: Palette) {
+    private fun PartBStatus(
+        controller: FieldTrialController,
+        level: Int,
+        pal: Palette,
+        l8Started: Boolean,
+        l8TimedOut: Boolean,
+        l10Started: Boolean,
+        l11Started: Boolean,
+        onL8TimedOut: () -> Unit
+    ) {
         when (level) {
             0 -> {
                 val gps = FieldTrialHost.frame?.gps
@@ -538,10 +618,8 @@ object GuideUi {
             }
             8 -> {
                 var status by remember(controller.document.pending?.startedMs) { mutableStateOf("Tap Turn on to start.") }
-                // G-3/L8: the 60 s run starts ONLY behind the "Turn on" button
-                var started by remember(controller.document.pending?.startedMs) { mutableStateOf(false) }
-                LaunchedEffect(started, controller.document.pending?.startedMs) {
-                    if (!started) return@LaunchedEffect
+                LaunchedEffect(l8Started, controller.document.pending?.startedMs, l8TimedOut) {
+                    if (!l8Started || l8TimedOut) return@LaunchedEffect
                     if (controller.document.pending?.level != 8) return@LaunchedEffect
                     // fresh run: reset a tracker left on from an earlier level/session
                     if (StarTrackerRuntime.isOn.get()) {
@@ -576,6 +654,7 @@ object GuideUi {
                                 val reason = com.alijafari.red.astronomy.fieldtrial.engine.FailureWording.sentence(last?.failure)
                                 status = "No lock after 60 s. $reason"
                                 controller.addAuto("timeoutReason", Json.JStr(reason))
+                                onL8TimedOut()
                                 return@LaunchedEffect
                             }
                             else -> status = if (last != null) "Stars seen: ${last.detections} - Locking..." else "Waiting for the camera..."
@@ -583,24 +662,16 @@ object GuideUi {
                     }
                 }
                 Text(status, color = pal.accent, fontSize = 16.sp)
-                if (!started && controller.document.pending?.auto?.containsKey("timeoutReason") != true) {
-                    Button(onClick = { started = true }) { Text("Turn on", fontSize = 16.sp) }
-                }
-                if (controller.document.pending?.auto?.containsKey("timeoutReason") == true) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = {
-                            controller.trackerTurnOff()
-                            controller.open(8)
-                        }) { Text("Retry", fontSize = 16.sp) }
-                        Button(onClick = { controller.complete(LevelOutcome.FAIL) }) { Text("Give up", fontSize = 16.sp) }
-                    }
+                if (l8TimedOut) {
+                    Text("You can retry, or give up on this level.", color = pal.dim, fontSize = 14.sp)
                 }
             }
             10 -> {
                 val subSteps = listOf("Cover the lens with your hand", "Point at a lit wall or streetlight", "Point at the ground")
-                var step by remember(controller.document.pending?.startedMs) { mutableStateOf(0) }
+                var step by remember(controller.document.pending?.startedMs) { mutableStateOf(-1) }
                 var remaining by remember { mutableStateOf(20) }
-                LaunchedEffect(controller.document.pending?.startedMs) {
+                LaunchedEffect(l10Started, controller.document.pending?.startedMs) {
+                    if (!l10Started) return@LaunchedEffect
                     if (controller.document.pending?.level != 10) return@LaunchedEffect
                     controller.trackerTurnOn { }
                     var s = 0
@@ -625,19 +696,27 @@ object GuideUi {
                         if (failed) return@LaunchedEffect
                         s++
                     }
+                    step = 3
                     controller.addAuto("allNoLock", Json.JBool(true))
                     controller.complete(LevelOutcome.PASS)
                 }
                 Text(
-                    if (step < 3) "${subSteps[step]} - ${remaining.coerceAtLeast(0)} s" else "Done",
+                    when {
+                        !l10Started -> "Press Start when you're ready to cover the lens."
+                        step < 0 -> "Starting..."
+                        step < 3 -> "${subSteps[step]} - ${remaining.coerceAtLeast(0)} s"
+                        else -> "Done - all three steps stayed honest."
+                    },
                     color = pal.accent, fontSize = 16.sp
                 )
             }
             11 -> {
-                var status by remember { mutableStateOf("Sweeping...") }
-                LaunchedEffect(controller.document.pending?.startedMs) {
+                var status by remember { mutableStateOf("Press Start, then sweep slowly for 30 seconds.") }
+                LaunchedEffect(l11Started, controller.document.pending?.startedMs) {
+                    if (!l11Started) return@LaunchedEffect
                     if (controller.document.pending?.level != 11) return@LaunchedEffect
                     controller.trackerTurnOn { }
+                    status = "Sweeping..."
                     val t0 = System.currentTimeMillis()
                     val samples = ArrayList<StarTrackerRuntime.ProbeSample>()
                     while (System.currentTimeMillis() - t0 < 30_000) {
@@ -663,7 +742,42 @@ object GuideUi {
         }
     }
 
-    // ---------- primary buttons (<= 3 per level, G-1.4) ----------
+    // ---------- Part B action buttons (FIXED zone) ----------
+
+    @Composable
+    private fun PartBActions(
+        controller: FieldTrialController,
+        level: Int,
+        pal: Palette,
+        l8Started: Boolean, onL8Start: () -> Unit,
+        l8TimedOut: Boolean, onL8Retry: () -> Unit,
+        l10Started: Boolean, onL10Start: () -> Unit,
+        l11Started: Boolean, onL11Start: () -> Unit
+    ) {
+        when (level) {
+            8 -> {
+                if (l8TimedOut) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onL8Retry) { Text("Retry", fontSize = 16.sp) }
+                        OutlinedButton(onClick = { controller.complete(LevelOutcome.FAIL) }) {
+                            Text("Give up", color = pal.fg, fontSize = 16.sp)
+                        }
+                    }
+                } else if (!l8Started) {
+                    Button(onClick = onL8Start) { Text("Turn on", fontSize = 16.sp) }
+                }
+                // while running: no button (Cancel = Skip in the secondary row)
+            }
+            10 -> if (!l10Started) {
+                Button(onClick = onL10Start) { Text("Start", fontSize = 16.sp) }
+            }
+            11 -> if (!l11Started) {
+                Button(onClick = onL11Start) { Text("Start sweep", fontSize = 16.sp) }
+            }
+        }
+    }
+
+    // ---------- primary buttons (<= 3 per level, FIXED zone) ----------
 
     @Composable
     private fun LevelButtons(
@@ -673,12 +787,7 @@ object GuideUi {
         gating: Gating,
         pal: Palette,
         gps: Location?,
-        onSkip: () -> Unit,
-        onToggleDetails: () -> Unit,
-        detailsOpen: Boolean,
-        nightDim: Boolean,
-        onToggleDim: () -> Unit,
-        canDim: Boolean
+        onShareStatus: (String) -> Unit
     ) {
         val context = LocalContext.current
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -687,7 +796,7 @@ object GuideUi {
                     enabled = gps != null && gps.accuracy < 20f,
                     onClick = { controller.complete(LevelOutcome.PASS) }
                 ) { Text("I'm ready", fontSize = 16.sp) }
-                1, 2, 3, 4, 5 -> {
+                1, 2, 3, 4, 5, 9 -> {
                     val frame = FieldTrialHost.frame
                     val needed = if (level == 5) {
                         val g = frame?.gps
@@ -696,9 +805,9 @@ object GuideUi {
                     val have = controller.document.pending?.measurements?.size ?: 0
                     if (have >= needed && gating.status == LevelStatus.AVAILABLE) {
                         Button(onClick = { controller.complete(controller.evaluateOpen()) }) {
-                            Text(if (level == 5) "Done (all stars)" else "Done", fontSize = 16.sp)
+                            Text("Done", fontSize = 16.sp)
                         }
-                    } else {
+                    } else if (gating.status == LevelStatus.AVAILABLE) {
                         Text(
                             if (level == 5) "Tap ${have + 1} of $needed" else "Tap the ${target?.name ?: "target"}",
                             color = pal.dim, fontSize = 15.sp
@@ -710,7 +819,7 @@ object GuideUi {
                         Text("Yes, I see it", fontSize = 16.sp)
                     }
                     OutlinedButton(onClick = { controller.addYesNo(false); controller.complete(LevelOutcome.FAIL) }) {
-                        Text("No", fontSize = 16.sp)
+                        Text("No", color = pal.fg, fontSize = 16.sp)
                     }
                 }
                 7 -> {
@@ -718,41 +827,68 @@ object GuideUi {
                         Text("Yes", fontSize = 16.sp)
                     }
                     OutlinedButton(onClick = { controller.addYesNo(false); controller.complete(LevelOutcome.FAIL) }) {
-                        Text("No", fontSize = 16.sp)
+                        Text("No", color = pal.fg, fontSize = 16.sp)
                     }
-                }
-                8 -> {
-                    // primary "Turn on" lives in the L8 watcher above (starts the 60 s run)
                 }
                 12 -> {
                     Button(onClick = {
                         val intent = controller.shareIntent()
                         if (intent != null) {
-                            context.startActivity(Intent.createChooser(intent, "Share field trial results"))
+                            onShareStatus("")
+                            runCatching { context.startActivity(Intent.createChooser(intent, "Share field trial results")) }
+                                .onFailure { onShareStatus("Could not open the share sheet - try again.") }
+                        } else {
+                            onShareStatus("Could not build the results zip - free up some space and try again.")
                         }
                     }) { Text("Share results", fontSize = 16.sp) }
-                    Button(onClick = {
-                        controller.trackerTurnOff()
-                        controller.newDocument()
-                        controller.open(0)
-                    }) { Text("Start a new trial", fontSize = 16.sp) }
+                }
+                // 8/10/11: primary action lives in PartBActions; L12's second action below
+            }
+        }
+        if (level == 12) {
+            // second L12 action on its own full-width row (never clipped)
+            OutlinedButton(
+                onClick = {
+                    controller.trackerTurnOff()
+                    controller.newDocument()
+                    controller.open(0)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Start a new trial", color = pal.fg, fontSize = 16.sp) }
+        }
+    }
+
+    // ---------- secondary row: Skip / Details / Brighten (FIXED zone) ----------
+
+    @Composable
+    private fun SecondaryRow(
+        level: Int,
+        pal: Palette,
+        detailsOpen: Boolean,
+        onSkip: () -> Unit,
+        onToggleDetails: () -> Unit,
+        nightDim: Boolean,
+        onToggleDim: () -> Unit,
+        canDim: Boolean
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (level != 0 && level != 12) {
+                OutlinedButton(onClick = onSkip, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
+                    Text("Skip", color = pal.dim, fontSize = 15.sp)
                 }
             }
-            if (level != 0 && level != 12) {
-                OutlinedButton(onClick = onSkip) { Text("Skip", color = pal.dim, fontSize = 16.sp) }
-            }
-            TextButton(onClick = onToggleDetails) {
-                Text(if (detailsOpen) "Details ^" else "Details v", color = pal.dim, fontSize = 15.sp)
+            TextButton(onClick = onToggleDetails, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
+                Text(if (detailsOpen) "Details ^" else "Details", color = pal.dim, fontSize = 15.sp)
             }
             if (canDim) {
-                TextButton(onClick = onToggleDim) {
+                TextButton(onClick = onToggleDim, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
                     Text(if (nightDim) "Brighten" else "Dim screen", color = pal.dim, fontSize = 15.sp)
                 }
             }
         }
     }
 
-    // ---------- Details (all numbers live behind the chevron, G-1.4) ----------
+    // ---------- Details (all numbers behind the chevron, G-1.4) ----------
 
     @Composable
     private fun DetailsBody(
