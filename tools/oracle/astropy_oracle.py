@@ -47,6 +47,8 @@ def wrap180(d):
 # ---- ORACLE_CASES.csv rows ----
 oc_rows = []
 bodies_rows = []
+import os as _os
+_os.makedirs("docs/startracker/evidence", exist_ok=True)
 oc = open("docs/startracker/evidence/ORACLE_CASES.csv", "w", newline="")
 oc_w = csv.writer(oc)
 oc_w.writerow(["loc","lat_deg","lon_deg","height_m","iso_utc","jd_utc","obj_id","obj_type",

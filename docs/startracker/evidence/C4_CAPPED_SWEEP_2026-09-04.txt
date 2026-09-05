@@ -1,8 +1,0 @@
-cappedcsv file=$(java.io.File(path).name) mag<=4.5 K=5 eligible=919 quads=6522 hashKeys=6487 buildMs=247 totalBytesStarsQuads=956492 bytesPerQuad=79
-cappedcsv file=$(java.io.File(path).name) mag<=4.5 K=6 eligible=919 quads=13022 hashKeys=12940 buildMs=268 totalBytesStarsQuads=1476000 bytesPerQuad=79
-cappedcsv file=$(java.io.File(path).name) mag<=5.0 K=6 eligible=1625 quads=22604 hashKeys=22348 buildMs=517 totalBytesStarsQuads=2241922 bytesPerQuad=79
-cappedcsv file=$(java.io.File(path).name) mag<=5.5 K=6 eligible=2848 quads=39960 hashKeys=39393 buildMs=1265 totalBytesStarsQuads=3629280 bytesPerQuad=79
-cappedcsv file=$(java.io.File(path).name) mag<=5.5 K=8 eligible=2848 quads=109900 hashKeys=107098 buildMs=1611 totalBytesStarsQuads=9219706 bytesPerQuad=79
-cappedcsv file=$(java.io.File(path).name) mag<=6.0 K=6 eligible=5041 quads=70754 hashKeys=69411 buildMs=3270 totalBytesStarsQuads=6090550 bytesPerQuad=79
-cappedcsv file=$(java.io.File(path).name) mag<=5.5 K=10 eligible=2848 quads=232750 hashKeys=222969 buildMs=2000 totalBytesStarsQuads=19038911 bytesPerQuad=79
-cappedcsv file=$(java.io.File(path).name) mag<=6.5 K=6 eligible=8870 quads=125416 hashKeys=122292 buildMs=9900 totalBytesStarsQuads=10460793 bytesPerQuad=79

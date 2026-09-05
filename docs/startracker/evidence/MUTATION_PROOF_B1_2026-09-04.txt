@@ -1,7 +1,0 @@
-MUTATION PROOF (B1, 2026-09-04): sign of declination flipped in MagneticDeclination.trueAzimuth
-(wrap360(mag - D) instead of wrap360(mag + D)); MagneticDeclinationTest failures:
-  east declination adds:           expected:<354.9> but was:<345.1>
-  west declination subtracts:       expected:<344.8> but was:<35.2>
-  wrap-around at 360 boundary:      expected:<5.0> but was:<345.0>
-  accepts out-of-range harmlessly:  expected:<355.0> but was:<345.0>
-4 failures with mutation, 0 without. Tests detect a wrong-sign declination correction.

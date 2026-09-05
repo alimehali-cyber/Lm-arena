@@ -1,3 +1,0 @@
-Tests run: 155, Failures: 0, Errors: 0
-OK (all tests passed)
-
