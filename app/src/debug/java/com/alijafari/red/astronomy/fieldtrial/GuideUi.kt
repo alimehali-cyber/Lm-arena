@@ -127,7 +127,7 @@ object GuideUi {
         3 -> {
             val n = target?.name ?: "the bright star"
             LevelCopy(
-                "A bright star, in the middle",
+                "A bright star",
                 "Find $n - it's the brightest star ${directionPhrase(target)} right now. Put the ring in the middle of the screen, then tap the star.",
                 "How to find $n",
                 (target?.howToFind ?: "Match the brightest steady point of light.") +
@@ -135,7 +135,7 @@ object GuideUi {
             )
         }
         4 -> LevelCopy(
-            "Same star, at the edge",
+            "Star at the edge",
             "Turn slowly until the ring is near the left or right edge of the screen. Tap the star again.",
             "Why the edge?",
             "The middle of the screen is the easy case; the edges stress the camera math. That is why this level asks you to move the star to the side before tapping."
