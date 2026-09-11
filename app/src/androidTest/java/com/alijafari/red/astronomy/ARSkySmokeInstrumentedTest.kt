@@ -86,8 +86,8 @@ class ARSkySmokeInstrumentedTest {
                     obj.type == ObjectType.BLACK_HOLE
         }
 
-        assertEquals(354, allObjects.size)
-        assertEquals(257, deepSkyCount)
+        assertEquals(336, allObjects.size)
+        assertEquals(239, deepSkyCount)
         assertEquals("dso_ngc_869", CanonicalAstroCatalog.getCanonicalObject("NGC 869")?.canonicalId)
         assertEquals("dso_ngc_884", CanonicalAstroCatalog.getCanonicalObject("NGC 884")?.canonicalId)
         assertEquals("dso_ngc_869", CanonicalAstroCatalog.getCanonicalObject("C14")?.canonicalId)

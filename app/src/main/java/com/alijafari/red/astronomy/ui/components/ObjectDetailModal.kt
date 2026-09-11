@@ -268,8 +268,13 @@ fun ObjectDetailModal(
                             )
                         }
                         val constName = if (isFa) obj.constellationFa else obj.constellationEn
+                        val categoryText = if (isFa) {
+                            canonicalObj?.observationalInfo?.categoryFa?.takeIf { it.isNotBlank() } ?: obj.category
+                        } else {
+                            canonicalObj?.observationalInfo?.categoryEn?.takeIf { it.isNotBlank() } ?: obj.category
+                        }
                         Text(
-                            text = "$constName • ${obj.category}",
+                            text = "$constName • $categoryText",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -605,7 +610,11 @@ fun ObjectDetailModal(
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Text(
-                                    text = if (isFa) "۵ حقیقت شگفت‌انگیز و علمی" else "5 Verified Facts & Stories",
+                                    text = if (isFa) {
+                                        "${TimeEngine.formatPersianNumbers(coolFacts.size.toString())} حقیقت شگفت‌انگیز و علمی"
+                                    } else {
+                                        "${coolFacts.size} Verified Facts & Stories"
+                                    },
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = AccentPrimary

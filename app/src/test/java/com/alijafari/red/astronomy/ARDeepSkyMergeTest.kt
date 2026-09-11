@@ -15,16 +15,18 @@ class ARDeepSkyMergeTest {
     fun expandedEngineDeepSkyCatalogIsMergedWithoutCanonicalDuplicates() {
         val report = CanonicalAstroCatalog.getDeepSkyMergeReport()
 
-        assertEquals(253, report.engineCatalogCount)
+        assertEquals(252, report.engineCatalogCount)
         assertEquals(15, report.originalHandAuthoredDsoCount)
         // Ten engine rows overlap hand-authored DSOs by Messier/NGC token. NGC 869 and
         // NGC 884 are intentionally retained as separate selectable components of the
         // Double Cluster; C14 is treated as an alias of NGC 869, not a third component.
+        // Seventeen Caldwell/NGC duplicate rows are merged into the NGC canonical object.
         assertEquals(10, report.skippedCanonicalDuplicateCount)
         assertEquals(1, report.skippedEngineDuplicateCount)
-        assertEquals(242, report.insertedCount)
-        assertEquals(257, report.finalDeepSkyCount)
-        assertEquals(354, report.finalCatalogCount)
+        assertEquals(17, report.mergedCatalogDuplicateCount)
+        assertEquals(224, report.insertedCount)
+        assertEquals(239, report.finalDeepSkyCount)
+        assertEquals(336, report.finalCatalogCount)
         assertTrue(report.duplicateCanonicalIds.isEmpty())
     }
 
@@ -54,6 +56,31 @@ class ARDeepSkyMergeTest {
         assertEquals("dso_ngc_884", ngc884!!.canonicalId)
         assertEquals("dso_ngc_869", c14!!.canonicalId)
         assertNull("The old hand-authored aggregate must not collapse the two NGC clusters", aggregate)
+    }
+
+    @Test
+    fun duplicatedCaldwellDesignationsResolveToSingleNgcCanonicalObjects() {
+        val fireworks = CanonicalAstroCatalog.getCanonicalObject("NGC 6946")
+        val caldwell12 = CanonicalAstroCatalog.getCanonicalObject("C12")
+        val caldwell9 = CanonicalAstroCatalog.getCanonicalObject("C9")
+
+        assertNotNull(fireworks)
+        assertNotNull(caldwell12)
+        assertEquals("dso_ngc_6946", fireworks!!.canonicalId)
+        assertEquals("dso_ngc_6946", caldwell12!!.canonicalId)
+        assertNull("C9 is not NGC 6946 and must not remain as a stale alias", caldwell9)
+    }
+
+    @Test
+    fun messier73IsNotMislabeledAsWinnecke4() {
+        val m40 = CanonicalAstroCatalog.getCanonicalObject("M40")
+        val m73 = CanonicalAstroCatalog.getCanonicalObject("M73")
+
+        assertNotNull(m40)
+        assertNotNull(m73)
+        assertTrue(m40!!.nameEn.contains("Winnecke 4"))
+        assertTrue(m73!!.nameEn.contains("M73 Asterism"))
+        assertTrue(m73.observationalInfo.descriptionEn.contains("unrelated stars"))
     }
 
     @Test

@@ -42,24 +42,16 @@ jobs:
             echo "No signing secret configured; Gradle will fall back to the debug key."
           fi
 
-      - name: Run targeted AR unit tests
+      - name: Run full unit test suite
         run: |
           if [ -f "./gradlew" ]; then
             GRADLE_CMD="./gradlew"
           else
             GRADLE_CMD="gradle"
           fi
-          "$GRADLE_CMD" testDebugUnitTest -Pgravity.ci.tests=false --no-daemon \
-            --tests "com.alijafari.red.astronomy.ARDeepSkyMergeTest" \
-            --tests "com.alijafari.red.astronomy.ARDistanceFormatterTest" \
-            --tests "com.alijafari.red.astronomy.MagneticAnomalyDetectorTest" \
-            --tests "com.alijafari.red.astronomy.ARRecalibrationPromptTest" \
-            --tests "com.alijafari.red.astronomy.AROnePointAlignmentTest" \
-            --tests "com.alijafari.red.astronomy.ARCalibrationPromptTest" \
-            --tests "com.alijafari.red.astronomy.SkyOrientationProjectionTest" \
-            --tests "com.alijafari.red.astronomy.SatelliteARConsistencyTest"
+          "$GRADLE_CMD" testDebugUnitTest -Pgravity.ci.tests=false --no-daemon
 
-      - name: Confirm targeted AR unit test classes
+      - name: Confirm AR/catalog unit test classes
         if: always()
         run: |
           python3 - <<'PY'
@@ -76,6 +68,8 @@ jobs:
               "com.alijafari.red.astronomy.ARCalibrationPromptTest",
               "com.alijafari.red.astronomy.SkyOrientationProjectionTest",
               "com.alijafari.red.astronomy.SatelliteARConsistencyTest",
+              "com.alijafari.red.astronomy.CatalogIntegrityTest",
+              "com.alijafari.red.astronomy.DeepSkyFactCoverageTest",
           ]
           stats = {name: {"tests": 0, "failures": 0, "errors": 0, "skipped": 0} for name in required}
           files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml"))
