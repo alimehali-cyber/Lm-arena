@@ -116,6 +116,7 @@ private fun ArSmartPill(
     label: String,
     isActive: Boolean,
     isHighlighted: Boolean = false,
+    testTag: String? = null,
     onClick: () -> Unit
 ) {
     LiquidGlassSurface(
@@ -128,7 +129,9 @@ private fun ArSmartPill(
             if (isActive) Color.Transparent else if (isHighlighted) RedTheme.colors.accentRed.copy(alpha = 0.6f) else RedTheme.colors.border
         ),
         fallbackShadowElevation = RedElevation.floating,
-        modifier = Modifier.height(36.dp)
+        modifier = Modifier
+            .height(36.dp)
+            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -2447,6 +2450,7 @@ fun CompassARScreen(
                     label = if (isFa) "جستجو" else "Search",
                     isActive = activeExpandedPanel == ArExpandedPanel.SEARCH,
                     isHighlighted = selectedTarget != null,
+                    testTag = "ar_pill_search",
                     onClick = {
                         activeExpandedPanel = if (activeExpandedPanel == ArExpandedPanel.SEARCH) null else ArExpandedPanel.SEARCH
                     }
@@ -2458,6 +2462,7 @@ fun CompassARScreen(
                     label = if (isFa) "زمان" else "Time",
                     isActive = activeExpandedPanel == ArExpandedPanel.TIME_MACHINE,
                     isHighlighted = timeMachineState.mode == TimeMachineMode.SIMULATION,
+                    testTag = "ar_pill_time",
                     onClick = {
                         activeExpandedPanel = if (activeExpandedPanel == ArExpandedPanel.TIME_MACHINE) null else ArExpandedPanel.TIME_MACHINE
                     }
@@ -2469,6 +2474,7 @@ fun CompassARScreen(
                     label = if (isFa) "فیلترها" else "Filters",
                     isActive = activeExpandedPanel == ArExpandedPanel.FILTERS,
                     isHighlighted = !(filterStars && filterConstellations && filterPlanets && filterMoons && filterSun && filterDeepSky && filterSatellites && filterMeteorShowers && filterObjectNames),
+                    testTag = "ar_pill_filters",
                     onClick = {
                         activeExpandedPanel = if (activeExpandedPanel == ArExpandedPanel.FILTERS) null else ArExpandedPanel.FILTERS
                     }
@@ -2480,6 +2486,7 @@ fun CompassARScreen(
                     label = if (isFa) "حسگرها" else "Sensors",
                     isActive = activeExpandedPanel == ArExpandedPanel.SENSORS,
                     isHighlighted = isGpsActive && isSensorActive,
+                    testTag = "ar_pill_sensors",
                     onClick = {
                         activeExpandedPanel = if (activeExpandedPanel == ArExpandedPanel.SENSORS) null else ArExpandedPanel.SENSORS
                     }
@@ -2602,6 +2609,7 @@ fun CompassARScreen(
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
+                                                    .testTag("ar_search_result_${result.celestialObject.id}")
                                                     .clickable {
                                                         selectedTarget = result.celestialObject
                                                         searchQuery = ""
@@ -3251,7 +3259,8 @@ fun CompassARScreen(
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 4.dp),
+                                    .padding(top = 4.dp)
+                                    .testTag("ar_target_detail_button"),
                                 contentPadding = PaddingValues(vertical = 4.dp)
                             ) {
                                 Text(
@@ -3611,7 +3620,7 @@ private fun RecalibrationSuggestionBanner(
 @Composable
 private fun TimeMachineWatermark(label: String, dateTime: String, modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.testTag("ar_time_machine_watermark"),
         shape = RoundedCornerShape(14.dp),
         color = Color.Black.copy(alpha = 0.18f),
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))

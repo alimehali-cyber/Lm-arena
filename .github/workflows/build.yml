@@ -40,6 +40,77 @@ jobs:
             echo "No signing secret configured; Gradle will fall back to the debug key."
           fi
 
+      - name: Run targeted AR unit tests
+        run: |
+          if [ -f "./gradlew" ]; then
+            GRADLE_CMD="./gradlew"
+          else
+            GRADLE_CMD="gradle"
+          fi
+          "$GRADLE_CMD" testDebugUnitTest -Pgravity.ci.tests=false --no-daemon \
+            --tests "com.alijafari.red.astronomy.ARDeepSkyMergeTest" \
+            --tests "com.alijafari.red.astronomy.ARDistanceFormatterTest" \
+            --tests "com.alijafari.red.astronomy.MagneticAnomalyDetectorTest" \
+            --tests "com.alijafari.red.astronomy.ARRecalibrationPromptTest" \
+            --tests "com.alijafari.red.astronomy.AROnePointAlignmentTest" \
+            --tests "com.alijafari.red.astronomy.ARCalibrationPromptTest" \
+            --tests "com.alijafari.red.astronomy.SkyOrientationProjectionTest" \
+            --tests "com.alijafari.red.astronomy.SatelliteARConsistencyTest"
+
+      - name: Confirm targeted AR unit test classes
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob
+          import sys
+          import xml.etree.ElementTree as ET
+
+          required = [
+              "com.alijafari.red.astronomy.ARDeepSkyMergeTest",
+              "com.alijafari.red.astronomy.ARDistanceFormatterTest",
+              "com.alijafari.red.astronomy.MagneticAnomalyDetectorTest",
+              "com.alijafari.red.astronomy.ARRecalibrationPromptTest",
+              "com.alijafari.red.astronomy.AROnePointAlignmentTest",
+              "com.alijafari.red.astronomy.ARCalibrationPromptTest",
+              "com.alijafari.red.astronomy.SkyOrientationProjectionTest",
+              "com.alijafari.red.astronomy.SatelliteARConsistencyTest",
+          ]
+          stats = {name: {"tests": 0, "failures": 0, "errors": 0, "skipped": 0} for name in required}
+          files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml"))
+          print(f"JUnit XML files: {len(files)}")
+          for path in files:
+              root = ET.parse(path).getroot()
+              for testcase in root.iter("testcase"):
+                  classname = testcase.attrib.get("classname", "")
+                  if classname in stats:
+                      stats[classname]["tests"] += 1
+                      if testcase.find("failure") is not None:
+                          stats[classname]["failures"] += 1
+                      if testcase.find("error") is not None:
+                          stats[classname]["errors"] += 1
+                      if testcase.find("skipped") is not None:
+                          stats[classname]["skipped"] += 1
+
+          failed = False
+          for name in required:
+              s = stats[name]
+              status = "PASS" if s["tests"] > 0 and s["failures"] == 0 and s["errors"] == 0 and s["skipped"] == 0 else "FAIL"
+              print(f"{name}: tests={s['tests']} failures={s['failures']} errors={s['errors']} skipped={s['skipped']} status={status}")
+              print(f"::notice title=AR unit test class::{name}: tests={s['tests']} failures={s['failures']} errors={s['errors']} skipped={s['skipped']} status={status}")
+              if status != "PASS":
+                  failed = True
+          if failed:
+              sys.exit("One or more required AR unit test classes were missing, skipped, or failed")
+          PY
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: app/build/test-results/testDebugUnitTest/*.xml
+          if-no-files-found: warn
+
       - name: Build APK with Gradle
         env:
           KEYSTORE_FILE_PATH: ${{ runner.temp }}/keystore.jks
@@ -57,6 +128,82 @@ jobs:
         run: |
           echo "Generated APKs:"
           find app/build/outputs -type f
+
+      - name: Enable KVM for emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run AR emulator smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back emulated
+          script: |
+            set -uo pipefail
+            adb logcat -c || true
+            if [ -f "./gradlew" ]; then
+              GRADLE_CMD="./gradlew"
+            else
+              GRADLE_CMD="gradle"
+            fi
+
+            set +e
+            "$GRADLE_CMD" connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class=com.alijafari.red.astronomy.ARSkySmokeInstrumentedTest \
+              --no-daemon
+            connected_status=$?
+            adb logcat -d -v time > "$RUNNER_TEMP/ar-smoke-logcat.txt" 2>/dev/null
+            python3 - <<'PY'
+            import glob
+            import sys
+            import xml.etree.ElementTree as ET
+
+            files = sorted(glob.glob("app/build/outputs/androidTest-results/connected/**/*.xml", recursive=True))
+            tests = failures = errors = skipped = 0
+            for path in files:
+                root = ET.parse(path).getroot()
+                for testcase in root.iter("testcase"):
+                    if testcase.attrib.get("classname") == "com.alijafari.red.astronomy.ARSkySmokeInstrumentedTest":
+                        tests += 1
+                        failures += 1 if testcase.find("failure") is not None else 0
+                        errors += 1 if testcase.find("error") is not None else 0
+                        skipped += 1 if testcase.find("skipped") is not None else 0
+            status = "PASS" if tests > 0 and failures == 0 and errors == 0 and skipped == 0 else "FAIL"
+            print(f"ARSkySmokeInstrumentedTest: tests={tests} failures={failures} errors={errors} skipped={skipped} status={status}")
+            print(f"::notice title=AR emulator smoke test::ARSkySmokeInstrumentedTest: tests={tests} failures={failures} errors={errors} skipped={skipped} status={status}")
+            sys.exit(0 if status == "PASS" else 1)
+            PY
+            smoke_xml_status=$?
+            if grep -E "FATAL EXCEPTION|AndroidRuntime" "$RUNNER_TEMP/ar-smoke-logcat.txt"; then
+              echo "Fatal exception detected during AR emulator smoke test"
+              fatal_status=1
+            else
+              echo "No fatal exceptions found in logcat during AR emulator smoke test"
+              echo "::notice title=AR emulator logcat::No fatal exceptions found in logcat during AR emulator smoke test"
+              fatal_status=0
+            fi
+
+            if [ "$connected_status" -ne 0 ] || [ "$smoke_xml_status" -ne 0 ] || [ "$fatal_status" -ne 0 ]; then
+              echo "connectedDebugAndroidTest status=$connected_status smoke_xml_status=$smoke_xml_status fatal_status=$fatal_status"
+              exit 1
+            fi
+
+      - name: Upload emulator smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ar-emulator-smoke-results
+          path: |
+            ${{ runner.temp }}/ar-smoke-logcat.txt
+            app/build/outputs/androidTest-results/connected/**/*.xml
+            app/build/reports/androidTests/connected/**
+          if-no-files-found: warn
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
