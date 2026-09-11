@@ -43,13 +43,56 @@ jobs:
           fi
 
       - name: Run full unit test suite
+        shell: bash
         run: |
+          set -o pipefail
           if [ -f "./gradlew" ]; then
             GRADLE_CMD="./gradlew"
           else
             GRADLE_CMD="gradle"
           fi
-          "$GRADLE_CMD" testDebugUnitTest -Pgravity.ci.tests=false --no-daemon
+          set +e
+          "$GRADLE_CMD" testDebugUnitTest -Pgravity.ci.tests=false --no-daemon 2>&1 | tee "$RUNNER_TEMP/unit-test-gradle.log"
+          unit_status=${PIPESTATUS[0]}
+          set -e
+          python3 - "$unit_status" "$RUNNER_TEMP/unit-test-gradle.log" <<'PY'
+          import glob
+          import pathlib
+          import sys
+          import xml.etree.ElementTree as ET
+
+          unit_status = int(sys.argv[1])
+          log_path = pathlib.Path(sys.argv[2])
+          files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml"))
+          tests = failures = errors = skipped = 0
+          failed_cases = []
+          for path in files:
+              root = ET.parse(path).getroot()
+              for testcase in root.iter("testcase"):
+                  tests += 1
+                  failure = testcase.find("failure")
+                  error = testcase.find("error")
+                  skipped_node = testcase.find("skipped")
+                  if failure is not None:
+                      failures += 1
+                      failed_cases.append((testcase.attrib.get("classname", ""), testcase.attrib.get("name", ""), failure.attrib.get("message", "")))
+                  if error is not None:
+                      errors += 1
+                      failed_cases.append((testcase.attrib.get("classname", ""), testcase.attrib.get("name", ""), error.attrib.get("message", "")))
+                  if skipped_node is not None:
+                      skipped += 1
+          print(f"::notice title=Full unit test suite::tests={tests} failures={failures} errors={errors} skipped={skipped} files={len(files)} gradle_status={unit_status}")
+          for classname, name, message in failed_cases[:40]:
+              text = f"{classname}.{name}: {message}".replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")[:900]
+              print(f"::error title=Unit test failure::{text}")
+          if unit_status != 0 and not failed_cases:
+              lines = log_path.read_text(errors="replace").splitlines() if log_path.exists() else []
+              interesting = [line for line in lines if any(token in line for token in ("FAILURE:", "Execution failed", "FAILED", "Exception", "error:", "No tests found", "BUILD FAILED"))]
+              for line in interesting[-40:]:
+                  text = line.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")[:900]
+                  print(f"::error title=Unit Gradle output::{text}")
+          PY
+          exit "$unit_status"
 
       - name: Confirm AR/catalog unit test classes
         if: always()
