@@ -41,9 +41,15 @@ class ARSkySmokeInstrumentedTest {
 
     @Test
     fun arSkyCatalogDetailsAndTimeMachineSmoke() {
+        // The AR screen contains continuously animated/sensor-fed Compose content. Pausing the
+        // test clock keeps the smoke deterministic and avoids false ComposeNotIdle timeouts while
+        // still exercising the real Activity and semantics tree.
+        composeRule.mainClock.autoAdvance = false
+
         waitForTag("main_bottom_navigation", timeoutMillis = 30_000L)
         // Let the splash overlay finish so the bottom navigation can receive the click.
-        Thread.sleep(3_000L)
+        composeRule.mainClock.advanceTimeBy(3_000L)
+        Thread.sleep(500L)
         composeRule.onNodeWithTag("nav_item_arsky", useUnmergedTree = true).performClick()
         waitForTag("ar_pill_search", timeoutMillis = 30_000L)
 
@@ -70,9 +76,7 @@ class ARSkySmokeInstrumentedTest {
         composeRule.onNodeWithTag("tm_play_pause_btn", useUnmergedTree = true).performClick()
         waitForTag("ar_time_machine_watermark", timeoutMillis = 15_000L)
         composeRule.onNodeWithTag("tm_live_btn", useUnmergedTree = true).performClick()
-        composeRule.waitUntil(timeoutMillis = 15_000L) {
-            !hasNodeWithTag("ar_time_machine_watermark")
-        }
+        waitForTagAbsent("ar_time_machine_watermark", timeoutMillis = 15_000L)
     }
 
     private fun assertCatalogCountsAndDoubleClusterResolution() {
@@ -115,19 +119,38 @@ class ARSkySmokeInstrumentedTest {
         composeRule.runOnUiThread {
             composeRule.activity.onBackPressedDispatcher.onBackPressed()
         }
-        composeRule.waitUntil(timeoutMillis = 15_000L) {
-            !hasNodeWithTag("object_detail_modal")
-        }
+        waitForTagAbsent("object_detail_modal", timeoutMillis = 15_000L)
     }
 
     private fun waitForTag(tag: String, timeoutMillis: Long = 10_000L) {
-        composeRule.waitUntil(timeoutMillis = timeoutMillis) { hasNodeWithTag(tag) }
-        assertTrue("Expected Compose node with tag '$tag'", hasNodeWithTag(tag))
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        var found = hasNodeWithTag(tag)
+        while (!found && System.currentTimeMillis() < deadline) {
+            composeRule.mainClock.advanceTimeBy(250L)
+            Thread.sleep(50L)
+            found = hasNodeWithTag(tag)
+        }
+        assertTrue("Expected Compose node with tag '$tag'", found)
+    }
+
+    private fun waitForTagAbsent(tag: String, timeoutMillis: Long = 10_000L) {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        var found = hasNodeWithTag(tag)
+        while (found && System.currentTimeMillis() < deadline) {
+            composeRule.mainClock.advanceTimeBy(250L)
+            Thread.sleep(50L)
+            found = hasNodeWithTag(tag)
+        }
+        assertTrue("Expected Compose node with tag '$tag' to disappear", !found)
     }
 
     private fun hasNodeWithTag(tag: String): Boolean {
-        return composeRule.onAllNodesWithTag(tag, useUnmergedTree = true)
-            .fetchSemanticsNodes(atLeastOneRootRequired = false)
-            .isNotEmpty()
+        return try {
+            composeRule.onAllNodesWithTag(tag, useUnmergedTree = true)
+                .fetchSemanticsNodes(atLeastOneRootRequired = false)
+                .isNotEmpty()
+        } catch (_: Throwable) {
+            false
+        }
     }
 }
