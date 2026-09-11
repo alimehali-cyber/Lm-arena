@@ -2,50 +2,107 @@ package com.alijafari.red.astronomy.astro_engine
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
+import com.alijafari.red.astronomy.domain.CelestialObject
+import com.alijafari.red.astronomy.domain.ObjectType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.acos
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * RED AR Manual Pointing Calibration Calibration Layer.
+ * RED Guided 1-Point Reference Alignment Layer.
  *
- * Provides a mathematically isolated calibration rotation for device-specific pointing offsets:
- * - Yaw offset (delta-azimuth in degrees, around optical boresight/pointing axis)
- * - Pitch offset (delta-elevation in degrees, around camera horizontal pitch axis)
- * - Roll offset (delta-roll in degrees, around camera optical line-of-sight)
+ * Replaces the legacy manual 3-axis (yaw/pitch/roll) slider calibration with a streamlined
+ * heading-only correction:
  *
- * Mathematical Frame:
- * Applied as one explicit rotation in SO(3) to the True-North rotation matrix:
- *   R_calibrated = R_true * R_calib(yaw, pitch, roll)
+ * - Phone accelerometers already provide pitch and roll with <0.1° accuracy, so the residual
+ *   error is almost entirely in the horizontal plane (magnetometer yaw drift of ~1.5°–3.0°).
+ * - The user centers ONE bright celestial target in a crosshair reticle and taps "Align".
+ * - The yaw offset ΔAz = normalize180(Az_target − Az_current) is applied strictly around the
+ *   Earth-fixed vertical axis (Zenith), leaving pitch and roll completely invariant:
  *
- * Isolated and modular so that it can later be substituted by an automated multi-star solver
- * without modifying the underlying camera projection or astronomical coordinate pipelines.
+ *       R_final = M(ΔAz) · R_true
  *
- * Note: Calibration aligns device sensor orientation to visible celestial landmarks and compensates
- * for device chassis misalignment, but does not guarantee sub-degree accuracy under sensor drift.
+ *   where M(ΔAz) is a pure world-Z rotation, so downstream AR projections receive the
+ *   corrected orientation transparently via [OrientationProvider].
+ *
+ * Camera-based image analysis / optical tracking is out of scope: this layer performs pure
+ * orientation-matrix math and runs no camera streams or frame observers.
  */
 data class ARCalibrationOffsets(
     val yawOffsetDeg: Float = 0f,
-    val pitchOffsetDeg: Float = 0f,
-    val rollOffsetDeg: Float = 0f,
     val lastCalibratedTimeMs: Long = 0L,
     val referenceStarName: String = ""
 ) {
     val isCalibrated: Boolean
-        get() = yawOffsetDeg != 0f || pitchOffsetDeg != 0f || rollOffsetDeg != 0f
+        get() = yawOffsetDeg != 0f
 }
+
+/**
+ * A bright celestial candidate for guided 1-point reference alignment.
+ *
+ * @param priority 1 = solar system body (Moon/planets, visible even in Bortle 8–9),
+ *                 2 = 1st-magnitude navigational star.
+ */
+data class AlignmentTarget(
+    val id: String,
+    val nameEn: String,
+    val nameFa: String,
+    val type: ObjectType,
+    val celestialObject: CelestialObject,
+    val azimuthDeg: Double,
+    val altitudeDeg: Double,
+    val magnitude: Double,
+    val priority: Int
+)
+
+/**
+ * Directional guidance from the phone's current boresight toward an [AlignmentTarget].
+ *
+ * @param arrowAngleRad screen angle: 0 points UP, +PI/2 points RIGHT (matches Finder UI).
+ * @param arrowsVisible whether guide arrows should currently be shown (with hysteresis
+ *        between [ARCalibrationManager.GUIDANCE_SHOW_ABOVE_DEG] and
+ *        [ARCalibrationManager.GUIDANCE_HIDE_BELOW_DEG]).
+ */
+data class AlignmentGuidance(
+    val deltaAzimuthDeg: Float,
+    val deltaAltitudeDeg: Float,
+    val separationDeg: Float,
+    val arrowAngleRad: Float,
+    val arrowsVisible: Boolean
+)
 
 object ARCalibrationManager {
 
     private const val PREFS_NAME = "red_ar_calibration_prefs"
     private const val KEY_YAW = "calib_yaw_offset_deg"
-    private const val KEY_PITCH = "calib_pitch_offset_deg"
-    private const val KEY_ROLL = "calib_roll_offset_deg"
     private const val KEY_TIME = "calib_timestamp_ms"
     private const val KEY_STAR = "calib_reference_star"
     private const val KEY_AUTO_PROMPT = "calib_auto_prompt_enabled"
+
+    // Legacy 3-axis keys (pitch/roll) from the retired manual slider system.
+    // No longer read; removed on init so no stale offsets can linger.
+    private const val KEY_PITCH_LEGACY = "calib_pitch_offset_deg"
+    private const val KEY_ROLL_LEGACY = "calib_roll_offset_deg"
+
+    /** Minimum altitude for alignment targets: above buildings and haze. */
+    const val TARGET_MIN_ALTITUDE_DEG = 15.0
+
+    /** Maximum altitude for alignment targets: avoids awkward zenith neck-strain. */
+    const val TARGET_MAX_ALTITUDE_DEG = 80.0
+
+    /** Number of recommended targets presented to the user. */
+    const val MAX_ALIGNMENT_TARGETS = 3
+
+    /** Show guide arrows when the target is farther than this from the reticle center. */
+    const val GUIDANCE_SHOW_ABOVE_DEG = 5.0f
+
+    /** Hide guide arrows once the target is brought closer than this to the center. */
+    const val GUIDANCE_HIDE_BELOW_DEG = 4.0f
 
     private var sharedPreferences: SharedPreferences? = null
 
@@ -60,19 +117,19 @@ object ARCalibrationManager {
             val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             sharedPreferences = prefs
             val yaw = prefs.getFloat(KEY_YAW, 0f)
-            val pitch = prefs.getFloat(KEY_PITCH, 0f)
-            val roll = prefs.getFloat(KEY_ROLL, 0f)
             val time = prefs.getLong(KEY_TIME, 0L)
             val star = prefs.getString(KEY_STAR, "") ?: ""
             val autoPrompt = prefs.getBoolean(KEY_AUTO_PROMPT, true)
             _calibrationFlow.value = ARCalibrationOffsets(
                 yawOffsetDeg = yaw,
-                pitchOffsetDeg = pitch,
-                rollOffsetDeg = roll,
                 lastCalibratedTimeMs = time,
                 referenceStarName = star
             )
             _autoPromptEnabledFlow.value = autoPrompt
+            // One-way migration: drop retired pitch/roll keys if present.
+            if (prefs.contains(KEY_PITCH_LEGACY) || prefs.contains(KEY_ROLL_LEGACY)) {
+                prefs.edit().remove(KEY_PITCH_LEGACY).remove(KEY_ROLL_LEGACY).apply()
+            }
         }
     }
 
@@ -86,48 +143,66 @@ object ARCalibrationManager {
 
     fun getOffsets(): ARCalibrationOffsets = _calibrationFlow.value
 
-    fun updateOffsets(yaw: Float, pitch: Float, roll: Float, referenceStar: String = "") {
-        _calibrationFlow.value = _calibrationFlow.value.copy(
-            yawOffsetDeg = yaw,
-            pitchOffsetDeg = pitch,
-            rollOffsetDeg = roll,
-            referenceStarName = referenceStar
-        )
+    // -------------------------------------------------------------------------
+    // 1-Point Alignment math (heading-only / yaw correction)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Wraps an angle in degrees to the half-open range [-180°, +180°).
+     */
+    fun normalizeAngle180(angleDeg: Double): Double {
+        var a = (angleDeg + 180.0) % 360.0
+        if (a < 0) a += 360.0
+        return a - 180.0
     }
 
-    fun saveCalibration(context: Context? = null, referenceStar: String = "") {
-        val current = _calibrationFlow.value
-        val now = System.currentTimeMillis()
-        val updated = current.copy(
-            lastCalibratedTimeMs = now,
-            referenceStarName = if (referenceStar.isNotEmpty()) referenceStar else current.referenceStarName
+    /**
+     * Computes the yaw correction that snaps the current boresight heading onto the target:
+     *   ΔAz = normalize180(Az_target − Az_current)
+     */
+    fun computeYawOffset(targetAzimuthDeg: Double, currentAzimuthDeg: Double): Float {
+        return normalizeAngle180(targetAzimuthDeg - currentAzimuthDeg).toFloat()
+    }
+
+    /**
+     * Applies a guided 1-point alignment: computes ΔAz from the reference target, stores it
+     * in-memory, persists it, and returns the applied offset in degrees.
+     *
+     * @param referenceName display name of the physical object the user centered (for telemetry).
+     */
+    fun applyOnePointAlignment(
+        targetAzimuthDeg: Double,
+        currentAzimuthDeg: Double,
+        referenceName: String = "",
+        context: Context? = null
+    ): Float {
+        val yawOffset = computeYawOffset(targetAzimuthDeg, currentAzimuthDeg)
+        val updated = ARCalibrationOffsets(
+            yawOffsetDeg = yawOffset,
+            lastCalibratedTimeMs = System.currentTimeMillis(),
+            referenceStarName = referenceName
         )
         _calibrationFlow.value = updated
 
         val prefs = sharedPreferences ?: context?.applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs?.edit()?.apply {
             putFloat(KEY_YAW, updated.yawOffsetDeg)
-            putFloat(KEY_PITCH, updated.pitchOffsetDeg)
-            putFloat(KEY_ROLL, updated.rollOffsetDeg)
             putLong(KEY_TIME, updated.lastCalibratedTimeMs)
             putString(KEY_STAR, updated.referenceStarName)
             apply()
         }
+        return yawOffset
     }
 
-    fun resetCalibration(context: Context? = null) {
+    fun resetAlignment(context: Context? = null) {
         _calibrationFlow.value = ARCalibrationOffsets(
             yawOffsetDeg = 0f,
-            pitchOffsetDeg = 0f,
-            rollOffsetDeg = 0f,
             lastCalibratedTimeMs = 0L,
             referenceStarName = ""
         )
         val prefs = sharedPreferences ?: context?.applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs?.edit()?.apply {
             putFloat(KEY_YAW, 0f)
-            putFloat(KEY_PITCH, 0f)
-            putFloat(KEY_ROLL, 0f)
             putLong(KEY_TIME, 0L)
             putString(KEY_STAR, "")
             apply()
@@ -135,63 +210,42 @@ object ARCalibrationManager {
     }
 
     /**
-     * Builds a 3x3 rotation matrix R_calib for the intrinsic Euler offsets (Yaw-Pitch-Roll in degrees)
-     * in column-major FloatArray (standard Android 9-element 3x3 matrix):
+     * Builds the pure world-Z rotation M(ΔAz) used for heading-only correction.
      *
-     *   R_calib = R_z(yaw) * R_x(pitch) * R_y(roll)
+     * Row-major 3x3 matrix (same convention as the declination correction in
+     * [OrientationProvider]):
+     *   M = [ cosD,  sinD, 0 ]
+     *       [-sinD,  cosD, 0 ]
+     *       [    0,     0, 1 ]
+     *
+     * Applied as R_final = M(ΔAz) · R_true, azimuth shifts by exactly +ΔAz while pitch
+     * and roll remain invariant.
      */
-    fun createCalibrationRotationMatrix(
+    fun createYawOnlyRotationMatrix(
         yawDeg: Float,
-        pitchDeg: Float,
-        rollDeg: Float,
         outMatrix: FloatArray = FloatArray(9)
     ): FloatArray {
-        val yRad = Math.toRadians(yawDeg.toDouble())
-        val pRad = Math.toRadians(pitchDeg.toDouble())
-        val rRad = Math.toRadians(rollDeg.toDouble())
+        val rad = Math.toRadians(yawDeg.toDouble())
+        val c = cos(rad).toFloat()
+        val s = sin(rad).toFloat()
 
-        val cy = cos(yRad).toFloat()
-        val sy = sin(yRad).toFloat()
-        val cp = cos(pRad).toFloat()
-        val sp = sin(pRad).toFloat()
-        val cr = cos(rRad).toFloat()
-        val sr = sin(rRad).toFloat()
+        outMatrix[0] = c
+        outMatrix[1] = s
+        outMatrix[2] = 0f
 
-        // 3x3 matrix multiplication: Rz(yaw) * Rx(pitch) * Ry(roll)
-        // Rz = [ cy, -sy,  0 ]
-        //      [ sy,  cy,  0 ]
-        //      [  0,   0,  1 ]
-        //
-        // Rx = [  1,   0,   0 ]
-        //      [  0,  cp, -sp ]
-        //      [  0,  sp,  cp ]
-        //
-        // Ry = [ cr,   0,  sr ]
-        //      [  0,   1,   0 ]
-        //      [-sr,   0,  cr ]
-        //
-        // Combined R_calib =
-        // [ cy*cr - sy*sp*(-sr),  -sy*cp,   cy*sr + sy*sp*cr ] -> [ cy*cr + sy*sp*sr,  -sy*cp,  cy*sr - sy*sp*cr ]
-        // [ sy*cr + cy*sp*(-sr),   cy*cp,   sy*sr - cy*sp*cr ] -> [ sy*cr - cy*sp*sr,   cy*cp,  sy*sr + cy*sp*cr ]
-        // [ -cp*sr,                sp,      cp*cr            ]
+        outMatrix[3] = -s
+        outMatrix[4] = c
+        outMatrix[5] = 0f
 
-        outMatrix[0] = cy * cr + sy * sp * sr
-        outMatrix[1] = -sy * cp
-        outMatrix[2] = cy * sr - sy * sp * cr
-
-        outMatrix[3] = sy * cr - cy * sp * sr
-        outMatrix[4] = cy * cp
-        outMatrix[5] = sy * sr + cy * sp * cr
-
-        outMatrix[6] = -cp * sr
-        outMatrix[7] = sp
-        outMatrix[8] = cp * cr
+        outMatrix[6] = 0f
+        outMatrix[7] = 0f
+        outMatrix[8] = 1f
 
         return outMatrix
     }
 
     /**
-     * Multiplies two 3x3 matrices in row-major/column-major format: C = A * B
+     * Multiplies two 3x3 matrices in row-major format: C = A * B
      */
     fun multiplyMatrix3x3(a: FloatArray, b: FloatArray, out: FloatArray = FloatArray(9)): FloatArray {
         for (i in 0..2) {
@@ -203,5 +257,206 @@ object ARCalibrationManager {
             }
         }
         return out
+    }
+
+    // -------------------------------------------------------------------------
+    // Dynamic 3-target recommendation (ultra-bright objects only)
+    // -------------------------------------------------------------------------
+
+    private data class TargetCandidate(
+        val id: String,
+        val nameEn: String,
+        val nameFa: String,
+        val priority: Int
+    )
+
+    private val solarSystemCandidates = listOf(
+        TargetCandidate("moon", "Moon", "ماه", 1),
+        TargetCandidate("planet_venus", "Venus", "زهره (Venus)", 1),
+        TargetCandidate("planet_jupiter", "Jupiter", "مشتری (Jupiter)", 1),
+        TargetCandidate("planet_saturn", "Saturn", "زحل (Saturn)", 1),
+        TargetCandidate("planet_mars", "Mars", "مریخ (Mars)", 1)
+    )
+
+    private val navigationalStarCandidates = listOf(
+        TargetCandidate("star_cma_sirius", "Sirius (α CMa)", "شباهنگ (Sirius)", 2),
+        TargetCandidate("star_lyr_vega", "Vega (α Lyr)", "نسر واقع (Vega)", 2),
+        TargetCandidate("star_boo_arcturus", "Arcturus (α Boo)", "نگهبان شمال (Arcturus)", 2),
+        TargetCandidate("star_aur_capella", "Capella (α Aur)", "بزبان (Capella)", 2),
+        TargetCandidate("star_ori_rigel", "Rigel (β Ori)", "پای شکارچی (Rigel)", 2),
+        TargetCandidate("star_ori_betelgeuse", "Betelgeuse (α Ori)", "ابط‌الجوزا (Betelgeuse)", 2),
+        TargetCandidate("star_aql_altair", "Altair (α Aql)", "نسر طایر (Altair)", 2),
+        TargetCandidate("star_tau_aldebaran", "Aldebaran (α Tau)", "دبران (Aldebaran)", 2),
+        TargetCandidate("star_vir_spica", "Spica (α Vir)", "بی‌سلاح (Spica)", 2),
+        TargetCandidate("star_sco_antares", "Antares (α Sco)", "قلب‌العقرب (Antares)", 2)
+    )
+
+    /**
+     * Pure visibility filter + brightness ranking over pre-computed candidates.
+     * Keeps targets with altitude in [minAltitudeDeg, maxAltitudeDeg], sorts by
+     * (priority, magnitude ascending = brighter first), and returns at most [maxTargets].
+     */
+    fun filterAndRankTargets(
+        candidates: List<AlignmentTarget>,
+        minAltitudeDeg: Double = TARGET_MIN_ALTITUDE_DEG,
+        maxAltitudeDeg: Double = TARGET_MAX_ALTITUDE_DEG,
+        maxTargets: Int = MAX_ALIGNMENT_TARGETS
+    ): List<AlignmentTarget> {
+        return candidates
+            .filter { it.altitudeDeg >= minAltitudeDeg && it.altitudeDeg <= maxAltitudeDeg }
+            .sortedWith(compareBy<AlignmentTarget> { it.priority }.thenBy { it.magnitude })
+            .take(maxTargets)
+    }
+
+    /**
+     * Computes the recommended alignment targets for the given time/location using the
+     * existing (astropy-verified) astronomical engines. Positions are topocentric horizontal
+     * coordinates; no engine math is modified here.
+     */
+    fun computeAlignmentTargets(
+        jd: Double,
+        latitude: Double,
+        longitude: Double,
+        elevationM: Double = 0.0
+    ): List<AlignmentTarget> {
+        val lastDeg = TimeEngine.getLAST(jd, longitude)
+        val candidates = mutableListOf<AlignmentTarget>()
+
+        // Priority 1: Moon (prominent visual reference, mag ≈ −12)
+        try {
+            val mData = MoonEngine.calculateMoon(
+                jd = jd,
+                latitude = latitude,
+                longitude = longitude,
+                elevationM = elevationM
+            )
+            candidates.add(
+                AlignmentTarget(
+                    id = "moon",
+                    nameEn = "Moon",
+                    nameFa = "ماه",
+                    type = ObjectType.MOON,
+                    celestialObject = AstronomyCatalog.MOON,
+                    azimuthDeg = mData.azimuthDeg,
+                    altitudeDeg = mData.altitudeDeg,
+                    magnitude = -12.0,
+                    priority = 1
+                )
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Priority 1: bright planets (Venus, Jupiter, Saturn, Mars)
+        for (candidate in solarSystemCandidates) {
+            if (candidate.id == "moon") continue
+            try {
+                val pObj = AstronomyCatalog.getById(candidate.id, jd) ?: continue
+                val horiz = CoordinateEngine.equatorialToHorizontal(
+                    CoordinateEngine.Equatorial(pObj.raDeg, pObj.decDeg),
+                    lastDeg,
+                    latitude,
+                    elevationM
+                )
+                candidates.add(
+                    AlignmentTarget(
+                        id = candidate.id,
+                        nameEn = candidate.nameEn,
+                        nameFa = candidate.nameFa,
+                        type = ObjectType.PLANET,
+                        celestialObject = pObj,
+                        azimuthDeg = horiz.azimuthDeg,
+                        altitudeDeg = horiz.altitudeDeg,
+                        magnitude = pObj.magnitude,
+                        priority = candidate.priority
+                    )
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Priority 2: 1st-magnitude navigational stars
+        for (candidate in navigationalStarCandidates) {
+            try {
+                val sObj = AstronomyCatalog.getById(candidate.id, jd) ?: continue
+                val horiz = CoordinateEngine.equatorialToHorizontal(
+                    CoordinateEngine.Equatorial(sObj.raDeg, sObj.decDeg),
+                    lastDeg,
+                    latitude,
+                    elevationM
+                )
+                candidates.add(
+                    AlignmentTarget(
+                        id = candidate.id,
+                        nameEn = candidate.nameEn,
+                        nameFa = candidate.nameFa,
+                        type = ObjectType.STAR,
+                        celestialObject = sObj,
+                        azimuthDeg = horiz.azimuthDeg,
+                        altitudeDeg = horiz.altitudeDeg,
+                        magnitude = sObj.magnitude,
+                        priority = candidate.priority
+                    )
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        return filterAndRankTargets(candidates)
+    }
+
+    // -------------------------------------------------------------------------
+    // Directional guidance (pan/tilt arrows toward the selected target)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Computes guidance from the phone's current boresight (Az, Alt) toward the target's
+     * topocentric (Az, Alt).
+     *
+     * Arrow angle convention matches the Finder UI: 0 rad points UP on screen,
+     * +PI/2 points RIGHT. The horizontal delta is scaled by cos(targetAlt) to prevent
+     * high-altitude yaw distortion.
+     *
+     * @param arrowsCurrentlyVisible previous visibility state; provides hysteresis so arrows
+     *        appear above [GUIDANCE_SHOW_ABOVE_DEG] and disappear below
+     *        [GUIDANCE_HIDE_BELOW_DEG] without flickering at the boundary.
+     */
+    fun computeGuidance(
+        targetAzimuthDeg: Double,
+        targetAltitudeDeg: Double,
+        phoneAzimuthDeg: Double,
+        phoneAltitudeDeg: Double,
+        arrowsCurrentlyVisible: Boolean
+    ): AlignmentGuidance {
+        val dAz = normalizeAngle180(targetAzimuthDeg - phoneAzimuthDeg).toFloat()
+        val dAlt = (targetAltitudeDeg - phoneAltitudeDeg).toFloat()
+
+        // Spherical angular separation between boresight and target
+        val targetAzRad = Math.toRadians(targetAzimuthDeg)
+        val targetAltRad = Math.toRadians(targetAltitudeDeg)
+        val phoneAzRad = Math.toRadians(phoneAzimuthDeg)
+        val phoneAltRad = Math.toRadians(phoneAltitudeDeg)
+        val cosSep = sin(targetAltRad) * sin(phoneAltRad) +
+                cos(targetAltRad) * cos(phoneAltRad) * cos(targetAzRad - phoneAzRad)
+        val separation = Math.toDegrees(acos(cosSep.coerceIn(-1.0, 1.0))).toFloat()
+
+        val effDAz = (dAz * cos(targetAltRad)).toFloat()
+        val arrowAngleRad = atan2(effDAz, dAlt)
+
+        val visible = if (arrowsCurrentlyVisible) {
+            separation >= GUIDANCE_HIDE_BELOW_DEG
+        } else {
+            separation > GUIDANCE_SHOW_ABOVE_DEG
+        }
+
+        return AlignmentGuidance(
+            deltaAzimuthDeg = dAz,
+            deltaAltitudeDeg = dAlt,
+            separationDeg = separation,
+            arrowAngleRad = arrowAngleRad,
+            arrowsVisible = visible
+        )
     }
 }
