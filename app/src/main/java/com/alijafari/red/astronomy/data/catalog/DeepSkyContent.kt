@@ -9,7 +9,8 @@ internal data class BilingualFacts(
 
 internal object DeepSkyContent {
 
-    fun factsForCanonicalId(canonicalId: String): BilingualFacts? = factsByCanonicalId[canonicalId]
+    fun factsForCanonicalId(canonicalId: String): BilingualFacts? =
+        factsByCanonicalId[canonicalId] ?: DeepSkyGeneratedFacts.factsForCanonicalId(canonicalId)
 
     fun typeNameFa(type: EngineDeepSkyCatalog.ObjectType): String = when (type) {
         EngineDeepSkyCatalog.ObjectType.GALAXY -> "کهکشان"

@@ -10,6 +10,8 @@ import androidx.test.rule.GrantPermissionRule
 import com.alijafari.red.astronomy.astro_engine.CelestialSearchEngine
 import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.domain.ObjectType
+import com.alijafari.red.astronomy.ui.components.objectDetailFactsHeader
+import com.alijafari.red.astronomy.ui.components.objectDetailSectionPlan
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -98,6 +100,20 @@ class ARSkySmokeInstrumentedTest {
         assertFalse(fireworks.nameFa.contains("Fireworks"))
         assertEquals(3, fireworks.funFactsEn.size)
         assertEquals(3, fireworks.funFactsFa.size)
+
+        listOf("dso_m1", "dso_m51", "dso_c11").forEach { id ->
+            val target = CanonicalAstroCatalog.toCelestialObject(
+                CanonicalAstroCatalog.getCanonicalObject(id)!!
+            )
+            assertEquals("Previously uncovered target $id should now have five English facts", 5, target.funFactsEn.size)
+            assertEquals("Previously uncovered target $id should now have five Persian facts", 5, target.funFactsFa.size)
+            assertTrue(
+                "Detail-modal section plan should include a facts card for $id",
+                objectDetailSectionPlan(target.type, target.funFactsEn.size).contains("facts_card")
+            )
+            assertEquals("5 Verified Facts & Stories", objectDetailFactsHeader(target.funFactsEn.size, isFa = false))
+            assertEquals("۵ حقیقت شگفت‌انگیز و علمی", objectDetailFactsHeader(target.funFactsFa.size, isFa = true))
+        }
     }
 
     private fun waitForTag(tag: String, timeoutMillis: Long = 10_000L) {

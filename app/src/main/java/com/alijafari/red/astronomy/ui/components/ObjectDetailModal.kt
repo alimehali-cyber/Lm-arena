@@ -46,6 +46,26 @@ private fun isDetailDeepSky(type: ObjectType): Boolean {
             type == ObjectType.BLACK_HOLE
 }
 
+fun objectDetailSectionPlan(type: ObjectType, factCount: Int): List<String> = buildList {
+    add("header")
+    add("observability_score")
+    add("locate_in_ar")
+    add("derived_physical_properties")
+    if (isDetailDeepSky(type)) add("deep_sky_catalog_data")
+    add("precise_schedule")
+    if (factCount > 0) add("facts_card")
+    add("description")
+    add("coordinates")
+    add("observation_log")
+}
+
+fun objectDetailFactsHeader(count: Int, isFa: Boolean): String =
+    if (isFa) {
+        "${TimeEngine.formatPersianNumbers(count.toString())} حقیقت شگفت‌انگیز و علمی"
+    } else {
+        "$count Verified Facts & Stories"
+    }
+
 private fun formatAngularSizeArcmin(value: Double?, isFa: Boolean): String? {
     val arcmin = value?.takeIf { it.isFinite() && it > 0.0 } ?: return null
     val text = if (arcmin >= 60.0) {
@@ -254,7 +274,7 @@ fun ObjectDetailModal(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (isFa) obj.nameFa else obj.nameEn,
+                            text = if (isFa) celestialObj.nameFa else celestialObj.nameEn,
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -267,11 +287,11 @@ fun ObjectDetailModal(
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
-                        val constName = if (isFa) obj.constellationFa else obj.constellationEn
+                        val constName = if (isFa) celestialObj.constellationFa else celestialObj.constellationEn
                         val categoryText = if (isFa) {
-                            canonicalObj?.observationalInfo?.categoryFa?.takeIf { it.isNotBlank() } ?: obj.category
+                            canonicalObj?.observationalInfo?.categoryFa?.takeIf { it.isNotBlank() } ?: celestialObj.category
                         } else {
-                            canonicalObj?.observationalInfo?.categoryEn?.takeIf { it.isNotBlank() } ?: obj.category
+                            canonicalObj?.observationalInfo?.categoryEn?.takeIf { it.isNotBlank() } ?: celestialObj.category
                         }
                         Text(
                             text = "$constName • $categoryText",
@@ -354,7 +374,7 @@ fun ObjectDetailModal(
             item {
                 Button(
                     onClick = {
-                        viewModel.locateObjectInAR(obj)
+                        viewModel.locateObjectInAR(celestialObj)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -610,11 +630,7 @@ fun ObjectDetailModal(
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Text(
-                                    text = if (isFa) {
-                                        "${TimeEngine.formatPersianNumbers(coolFacts.size.toString())} حقیقت شگفت‌انگیز و علمی"
-                                    } else {
-                                        "${coolFacts.size} Verified Facts & Stories"
-                                    },
+                                    text = objectDetailFactsHeader(coolFacts.size, isFa),
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = AccentPrimary
@@ -653,7 +669,7 @@ fun ObjectDetailModal(
                         color = AccentPrimary
                     )
                     Text(
-                        text = if (isFa) obj.descriptionFa else obj.descriptionEn,
+                        text = if (isFa) celestialObj.descriptionFa else celestialObj.descriptionEn,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -696,15 +712,15 @@ fun ObjectDetailModal(
                             ) {
                                 Column {
                                     Text(text = "RA (بعد)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                    Text(text = CoordinateEngine.formatRA(obj.raDeg), style = MaterialTheme.typography.bodyMedium)
+                                    Text(text = CoordinateEngine.formatRA(celestialObj.raDeg), style = MaterialTheme.typography.bodyMedium)
                                 }
                                 Column {
                                     Text(text = "Dec (میل)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                    Text(text = CoordinateEngine.formatDec(obj.decDeg), style = MaterialTheme.typography.bodyMedium)
+                                    Text(text = CoordinateEngine.formatDec(celestialObj.decDeg), style = MaterialTheme.typography.bodyMedium)
                                 }
                                 Column {
                                     Text(text = "Magnitude (قدر)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                                    Text(text = String.format("%.1f", obj.magnitude), style = MaterialTheme.typography.bodyMedium)
+                                    Text(text = String.format("%.1f", celestialObj.magnitude), style = MaterialTheme.typography.bodyMedium)
                                 }
                             }
                         }
@@ -739,7 +755,7 @@ fun ObjectDetailModal(
         AlertDialog(
             onDismissRequest = { showNotificationSheet = false },
             title = {
-                Text(text = if (isFa) "🔔 تنظیم هشدار رصد ${obj.nameFa}" else "🔔 Set Observation Alert for ${obj.nameEn}")
+                Text(text = if (isFa) "🔔 تنظیم هشدار رصد ${celestialObj.nameFa}" else "🔔 Set Observation Alert for ${celestialObj.nameEn}")
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -755,7 +771,7 @@ fun ObjectDetailModal(
                             executeWithNotificationPermission {
                                 AstroNotificationManager.scheduleObjectNotification(
                                     context = context,
-                                    obj = obj,
+                                    obj = celestialObj,
                                     targetTimeMs = System.currentTimeMillis() + 3600000L,
                                     eventTypeFa = "اوج ارتفاع (ترانزیت)",
                                     timeStr = riseSetTransit.transitTimeStr,
@@ -793,7 +809,7 @@ fun ObjectDetailModal(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = if (isFa) "یادداشت رصد برای ${obj.nameFa}:" else "Notes for ${obj.nameEn}:",
+                        text = if (isFa) "یادداشت رصد برای ${celestialObj.nameFa}:" else "Notes for ${celestialObj.nameEn}:",
                         style = MaterialTheme.typography.bodyMedium
                     )
 
