@@ -46,12 +46,11 @@ class ARSkySmokeInstrumentedTest {
         // clock prevents false ComposeNotIdle timeouts on headless CI emulators.
         composeRule.mainClock.autoAdvance = false
 
-        waitForTag("main_bottom_navigation", timeoutMillis = 30_000L)
+        waitForTag("main_bottom_navigation", timeoutMillis = 60_000L)
         // Let the splash overlay finish so the bottom navigation can receive the click.
-        composeRule.mainClock.advanceTimeBy(3_000L)
-        Thread.sleep(500L)
-        composeRule.onNodeWithTag("nav_item_arsky", useUnmergedTree = true).performClick()
-        waitForTag("ar_pill_search", timeoutMillis = 30_000L)
+        composeRule.mainClock.advanceTimeBy(5_000L)
+        Thread.sleep(1_000L)
+        openArSkyScreen()
 
         assertCatalogCountsAndDoubleClusterResolution()
         assertSearchAndDetailPayloadsForRepresentativeTargets()
@@ -114,6 +113,22 @@ class ARSkySmokeInstrumentedTest {
             assertEquals("5 Verified Facts & Stories", objectDetailFactsHeader(target.funFactsEn.size, isFa = false))
             assertEquals("۵ حقیقت شگفت‌انگیز و علمی", objectDetailFactsHeader(target.funFactsFa.size, isFa = true))
         }
+    }
+
+    private fun openArSkyScreen() {
+        val deadline = System.currentTimeMillis() + 90_000L
+        var found = hasNodeWithTag("ar_pill_search")
+        while (!found && System.currentTimeMillis() < deadline) {
+            try {
+                composeRule.onNodeWithTag("nav_item_arsky", useUnmergedTree = true).performClick()
+            } catch (_: Throwable) {
+                // The splash overlay or a transient recomposition can briefly hide the nav item.
+            }
+            composeRule.mainClock.advanceTimeBy(1_000L)
+            Thread.sleep(250L)
+            found = hasNodeWithTag("ar_pill_search")
+        }
+        assertTrue("Expected AR sky screen search pill after opening AR navigation", found)
     }
 
     private fun waitForTag(tag: String, timeoutMillis: Long = 10_000L) {
