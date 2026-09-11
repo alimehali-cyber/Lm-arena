@@ -26,24 +26,19 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  // Permanent CI signing key (GitHub Repository Secrets -> env vars set by the Actions
+  // workflow). When KEYSTORE_FILE_PATH points at a valid keystore, both release AND
+  // debug APKs share the exact same signature, so debug installs never hit
+  // reinstall/signature conflicts across builds. Without the secrets, release falls
+  // back gracefully to the default debug key and debug keeps standard behavior.
   signingConfigs {
-    val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-    val keystoreFile = file(keystorePath)
-    if (keystoreFile.exists()) {
-      create("release") {
-        storeFile = keystoreFile
-        storePassword = System.getenv("STORE_PASSWORD")
-        keyAlias = "upload"
+    create("release") {
+      val keystorePath = System.getenv("KEYSTORE_FILE_PATH")
+      if (!keystorePath.isNullOrEmpty() && file(keystorePath).exists()) {
+        storeFile = file(keystorePath)
+        storePassword = System.getenv("KEYSTORE_PASSWORD")
+        keyAlias = System.getenv("KEY_ALIAS")
         keyPassword = System.getenv("KEY_PASSWORD")
-      }
-    }
-    val debugKeystoreFile = file("${rootDir}/debug.keystore")
-    if (debugKeystoreFile.exists()) {
-      create("debugConfig") {
-        storeFile = debugKeystoreFile
-        storePassword = "android"
-        keyAlias = "androiddebugkey"
-        keyPassword = "android"
       }
     }
   }
@@ -53,14 +48,17 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfigs.findByName("release")?.let {
-        signingConfig = it
+      val ciKeystorePath = System.getenv("KEYSTORE_FILE_PATH")
+      signingConfig = if (!ciKeystorePath.isNullOrEmpty() && file(ciKeystorePath).exists()) {
+        signingConfigs.getByName("release")
+      } else {
+        signingConfigs.getByName("debug")
       }
     }
     debug {
-      val customDebug = signingConfigs.findByName("debugConfig")
-      if (customDebug != null) {
-        signingConfig = customDebug
+      val ciKeystorePath = System.getenv("KEYSTORE_FILE_PATH")
+      if (!ciKeystorePath.isNullOrEmpty() && file(ciKeystorePath).exists()) {
+        signingConfig = signingConfigs.getByName("release")
       }
     }
   }
