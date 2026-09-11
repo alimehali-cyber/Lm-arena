@@ -211,15 +211,36 @@ jobs:
           "$ADB" logcat -c || true
 
           set +e
-          "$GRADLE_CMD" connectedDebugAndroidTest             -Pandroid.testInstrumentationRunnerArguments.class=com.alijafari.red.astronomy.ARSkySmokeInstrumentedTest             --no-daemon
-          connected_status=$?
+          "$GRADLE_CMD" connectedDebugAndroidTest             -Pandroid.testInstrumentationRunnerArguments.class=com.alijafari.red.astronomy.ARSkySmokeInstrumentedTest             --no-daemon 2>&1 | tee "$RUNNER_TEMP/ar-smoke-gradle.log"
+          connected_status=${PIPESTATUS[0]}
+          echo "::notice title=AR smoke Gradle status::connectedDebugAndroidTest status=${connected_status}"
           "$ADB" logcat -d -v time > "$RUNNER_TEMP/ar-smoke-logcat.txt" 2>/dev/null
+          python3 - "$RUNNER_TEMP/ar-smoke-gradle.log" <<'PY'
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          lines = path.read_text(errors="replace").splitlines() if path.exists() else []
+          interesting = [
+              line for line in lines
+              if any(token in line for token in (
+                  "FAILURE:", "Execution failed", "Exception", "error:", "No tests found",
+                  "connectedDebugAndroidTest", "BUILD FAILED", "BUILD SUCCESSFUL", "ARSkySmoke"
+              ))
+          ]
+          for line in interesting[-25:]:
+              escaped = line.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")[:900]
+              print(f"::notice title=AR smoke Gradle output::{escaped}")
+          PY
           python3 - <<'PY'
           import glob
           import sys
           import xml.etree.ElementTree as ET
 
           files = sorted(glob.glob("app/build/outputs/androidTest-results/connected/**/*.xml", recursive=True))
+          print(f"Connected AndroidTest XML files: {len(files)}")
+          for path in files[:20]:
+              print(f"::notice title=AR smoke XML::{path}")
           tests = failures = errors = skipped = 0
           for path in files:
               root = ET.parse(path).getroot()
@@ -259,6 +280,7 @@ jobs:
           path: |
             ${{ runner.temp }}/ar-emulator-setup.log
             ${{ runner.temp }}/ar-emulator-startup.log
+            ${{ runner.temp }}/ar-smoke-gradle.log
             ${{ runner.temp }}/ar-smoke-logcat.txt
             app/build/outputs/androidTest-results/connected/**/*.xml
             app/build/reports/androidTests/connected/**
