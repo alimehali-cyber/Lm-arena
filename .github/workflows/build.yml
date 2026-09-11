@@ -47,11 +47,22 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set -o pipefail
           if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug --no-daemon
+            ./gradlew assembleDebug --no-daemon 2>&1 | tee "$RUNNER_TEMP/gradle-build.log"
           else
-            gradle assembleDebug --no-daemon
+            gradle assembleDebug --no-daemon 2>&1 | tee "$RUNNER_TEMP/gradle-build.log"
           fi
+
+      # TEMPORARY diagnosis: CI raw logs are unreachable from the sandbox, so surface
+      # the Gradle failure excerpt as check annotations (readable via the API).
+      - name: Report build errors
+        if: failure()
+        run: |
+          grep -E "FAILED|Execution failed|error:|FAILURE:|Caused by|What went wrong|Expected|Unresolved reference" "$RUNNER_TEMP/gradle-build.log" | head -n 30 | sed 's/%/%25/g' > "$RUNNER_TEMP/build-errors.txt" || true
+          while IFS= read -r line; do
+            echo "::error title=Gradle build failure::$(echo "$line" | head -c 800)"
+          done < "$RUNNER_TEMP/build-errors.txt"
 
       - name: Diagnostic - List Generated APKs
         run: |
