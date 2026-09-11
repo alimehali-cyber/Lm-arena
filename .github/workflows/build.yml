@@ -145,7 +145,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back emulated
           script: |
-            set -uo pipefail
+            set -eu
             adb logcat -c || true
             if [ -f "./gradlew" ]; then
               GRADLE_CMD="./gradlew"
