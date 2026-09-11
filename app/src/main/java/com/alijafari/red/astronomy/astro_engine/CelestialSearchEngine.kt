@@ -157,7 +157,9 @@ object CelestialSearchEngine {
         val starRes = search("شباهنگ", lat, lon).firstOrNull()
         val constRes = search("جبار", lat, lon).firstOrNull()
         val galaxyRes = search("آندرومدا", lat, lon).firstOrNull()
-        val satRes = search("Hubble", lat, lon).firstOrNull()
+        val satRes = search("Hubble", lat, lon).firstOrNull {
+            it.celestialObject.id.startsWith("sat_")
+        }
 
         val sunOk = sunRes?.celestialObject?.id == "sun"
         val moonOk = moonRes?.celestialObject?.id == "moon"
