@@ -41,21 +41,25 @@ class ARCalibrationPromptTest {
     }
 
     @Test
-    fun testManualCalibrationMathPreserved() {
+    fun testYawOnlyAlignmentMathPreserved() {
         val offsets = ARCalibrationManager.getOffsets()
         assertNotNull(offsets)
 
-        // Verify rotation matrix generation remains completely functional
-        val matrix = ARCalibrationManager.createCalibrationRotationMatrix(10f, -5f, 2f)
+        // Verify yaw-only rotation matrix generation remains completely functional
+        val matrix = ARCalibrationManager.createYawOnlyRotationMatrix(10f)
         assertEquals(9, matrix.size)
 
         // Identity check
-        val identity = ARCalibrationManager.createCalibrationRotationMatrix(0f, 0f, 0f)
+        val identity = ARCalibrationManager.createYawOnlyRotationMatrix(0f)
         assertEquals(1f, identity[0], 1e-5f)
         assertEquals(1f, identity[4], 1e-5f)
         assertEquals(1f, identity[8], 1e-5f)
         assertEquals(0f, identity[1], 1e-5f)
         assertEquals(0f, identity[2], 1e-5f)
+        assertEquals(0f, identity[3], 1e-5f)
+        assertEquals(0f, identity[5], 1e-5f)
+        assertEquals(0f, identity[6], 1e-5f)
+        assertEquals(0f, identity[7], 1e-5f)
     }
 
     @Test

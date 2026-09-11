@@ -216,9 +216,18 @@ fun CompassARScreen(
     val calibrationState by orientationProvider.calibrationState.collectAsState()
     val arCalibrationOffsets by ARCalibrationManager.calibrationFlow.collectAsState()
     val autoPromptEnabled by ARCalibrationManager.autoPromptEnabledFlow.collectAsState()
-    var showCalibrationDialog by remember { mutableStateOf(false) }
+    var isAlignmentMode by remember { mutableStateOf(false) }
     var autoPromptDismissedThisSession by remember { mutableStateOf(false) }
     var showManualSensorPrompt by remember { mutableStateOf(false) }
+    var alignmentConfirmationDeg by remember { mutableStateOf<Float?>(null) }
+
+    // Auto-dismiss the "Aligned: offset applied" confirmation pill
+    LaunchedEffect(alignmentConfirmationDeg) {
+        if (alignmentConfirmationDeg != null) {
+            delay(2600L)
+            alignmentConfirmationDeg = null
+        }
+    }
 
     // Camera Intrinsics & Geometry Engine (Hardware calibration, sensor size, active array)
     val cameraIntrinsics = remember(context) { ARProjectionEngine.getCameraIntrinsics(context) }
@@ -491,6 +500,57 @@ fun CompassARScreen(
 
     val allCatalog = remember(jd) { AstronomyCatalog.getAllObjects(jd) }
 
+    // Guided 1-Point Reference Alignment: dynamic bright-target recommendation.
+    // Recomputed whenever time/location change; default selection = brightest target.
+    val alignmentTargets = remember(jd, uiState.userLocation) {
+        ARCalibrationManager.computeAlignmentTargets(
+            jd = jd,
+            latitude = uiState.userLocation.latitude,
+            longitude = uiState.userLocation.longitude,
+            elevationM = uiState.userLocation.elevationMeters
+        )
+    }
+    var selectedAlignmentTargetId by remember { mutableStateOf<String?>(null) }
+    val selectedAlignmentTarget = remember(alignmentTargets, selectedAlignmentTargetId) {
+        alignmentTargets.firstOrNull { it.id == selectedAlignmentTargetId }
+            ?: alignmentTargets.firstOrNull()
+    }
+    var alignmentArrowsVisible by remember { mutableStateOf(false) }
+    val alignmentGuidance = remember(selectedAlignmentTarget, currentAzimuth, currentAltitude, alignmentArrowsVisible) {
+        selectedAlignmentTarget?.let { target ->
+            ARCalibrationManager.computeGuidance(
+                targetAzimuthDeg = target.azimuthDeg,
+                targetAltitudeDeg = target.altitudeDeg,
+                phoneAzimuthDeg = currentAzimuth,
+                phoneAltitudeDeg = currentAltitude,
+                arrowsCurrentlyVisible = alignmentArrowsVisible
+            )
+        }
+    }
+    // Sync arrow-visibility hysteresis state (converges immediately, no loop)
+    LaunchedEffect(alignmentGuidance?.arrowsVisible) {
+        alignmentGuidance?.let { alignmentArrowsVisible = it.arrowsVisible }
+    }
+
+    // Short haptic tick for alignment confirmation
+    fun triggerAlignmentHaptic(milliseconds: Long = 120L) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                vibratorManager?.defaultVibrator?.vibrate(
+                    VibrationEffect.createOneShot(milliseconds, VibrationEffect.DEFAULT_AMPLITUDE)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(milliseconds)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     // Search and Finder State
     var searchQuery by remember { mutableStateOf("") }
     var isSearchFocused by remember { mutableStateOf(false) }
@@ -632,6 +692,7 @@ fun CompassARScreen(
     val userLatState by rememberUpdatedState(uiState.userLocation.latitude)
     val allCatalogState by rememberUpdatedState(allCatalog)
     val isSensorActiveState by rememberUpdatedState(isSensorActive)
+    val isAlignmentModeState by rememberUpdatedState(isAlignmentMode)
 
     // AR Info Card Object State & Auto-Dismiss Timer
     var longPressObject by remember { mutableStateOf<CelestialObject?>(null) }
@@ -774,8 +835,8 @@ fun CompassARScreen(
         }
     }
 
-    LaunchedEffect(lastInteractionTimeMs, activeExpandedPanel, searchQuery, selectedTarget, longPressObject) {
-        if (activeExpandedPanel != null || isSearchFocused || searchQuery.isNotEmpty() || longPressObject != null) {
+    LaunchedEffect(lastInteractionTimeMs, activeExpandedPanel, searchQuery, selectedTarget, longPressObject, isAlignmentMode) {
+        if (activeExpandedPanel != null || isSearchFocused || searchQuery.isNotEmpty() || longPressObject != null || isAlignmentMode) {
             isControlsVisible = true
             return@LaunchedEffect
         }
@@ -850,8 +911,10 @@ fun CompassARScreen(
                             resetControlsTimer()
                             tryAwaitRelease()
                         },
-                        onTap = { touchOffset ->
+                        onTap = alignmentTap@{ touchOffset ->
                             resetControlsTimer()
+                            // In AlignmentMode the sky is hidden: taps must not select objects
+                            if (isAlignmentModeState) return@alignmentTap
                             if (activeExpandedPanel != null) {
                                 activeExpandedPanel = null
                             }
@@ -949,6 +1012,11 @@ fun CompassARScreen(
                     )
                 }
             }
+
+            // Guided 1-Point Alignment: clear sightline — hide ALL projected sky
+            // graphics (horizon, orbits, grids, objects, labels, constellation lines)
+            // so the user sees only the raw camera feed + alignment reticle/HUD.
+            if (isAlignmentMode) return@Canvas
 
             // Draw Horizon Line
             val horizonPath = Path()
@@ -1606,7 +1674,7 @@ fun CompassARScreen(
 
         // Auto-Hide Restoration Pill
         AnimatedVisibility(
-            visible = !isControlsVisible,
+            visible = !isControlsVisible && !isAlignmentMode,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
@@ -1637,7 +1705,7 @@ fun CompassARScreen(
         }
 
         // Layer 3: Arrow-Guided Finder Overlay (When an object is selected, remains visible during auto-hide)
-        finderData?.let { finder ->
+        (if (isAlignmentMode) null else finderData)?.let { finder ->
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -1717,7 +1785,7 @@ fun CompassARScreen(
         }
 
         // Layer 3.5: Glass Floating Cancel Target Button (Visible whenever target is active at bottom-start, safely above bottom nav bar)
-        if (selectedTarget != null) {
+        if (selectedTarget != null && !isAlignmentMode) {
             LiquidGlassSurface(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -1756,6 +1824,8 @@ fun CompassARScreen(
         }
 
         // Layer 4: Floating Top Header Pill & Focus Mode Smart Pills
+        // Hidden during Guided 1-Point Alignment (clear sightline, no touch interception).
+        if (!isAlignmentMode) {
         Column(
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -1841,12 +1911,14 @@ fun CompassARScreen(
                         }
 
                         IconButton(
-                            onClick = { showCalibrationDialog = true },
-                            modifier = Modifier.size(32.dp)
+                            onClick = { isAlignmentMode = true },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .testTag("open_alignment_mode_btn")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Tune,
-                                contentDescription = "Calibrate",
+                                imageVector = Icons.Default.GpsFixed,
+                                contentDescription = "Align",
                                 tint = RedTheme.colors.textSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -2360,13 +2432,11 @@ fun CompassARScreen(
                                                 }
                                                 if (arCalibrationOffsets.isCalibrated) {
                                                     val yawFmt = String.format("%+.1f°", arCalibrationOffsets.yawOffsetDeg)
-                                                    val pitchFmt = String.format("%+.1f°", arCalibrationOffsets.pitchOffsetDeg)
-                                                    val rollFmt = String.format("%+.1f°", arCalibrationOffsets.rollOffsetDeg)
                                                     Text(
                                                         text = if (isFa)
-                                                            "• آفست‌های AR: سمت ${TimeEngine.formatPersianNumbers(yawFmt)} | ارتفاع ${TimeEngine.formatPersianNumbers(pitchFmt)} | رول ${TimeEngine.formatPersianNumbers(rollFmt)}"
+                                                            "• آفست تراز AR (سمت): ${TimeEngine.formatPersianNumbers(yawFmt)}"
                                                         else
-                                                            "• AR Offsets: Yaw $yawFmt | Pitch $pitchFmt | Roll $rollFmt",
+                                                            "• AR Alignment Offset (Yaw): $yawFmt",
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = RedTheme.colors.accentRed
                                                     )
@@ -2376,7 +2446,7 @@ fun CompassARScreen(
                                     }
                                 }
 
-                                // Manual AR Calibration Action Card
+                                // Guided 1-Point Alignment Action Card
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
                                     color = RedTheme.colors.surfaceElevated,
@@ -2397,14 +2467,14 @@ fun CompassARScreen(
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
                                                 Icon(
-                                                    imageVector = Icons.Default.Tune,
+                                                    imageVector = Icons.Default.GpsFixed,
                                                     contentDescription = null,
                                                     tint = RedTheme.colors.accentRed,
                                                     modifier = Modifier.size(20.dp)
                                                 )
                                                 Column {
                                                     Text(
-                                                        text = if (isFa) "کالیبراسیون دستی جهت‌گیری AR" else "AR Pointing Calibration",
+                                                        text = if (isFa) "هم‌ترازی تک‌نقطه‌ای AR" else "1-Point Reference Alignment",
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         fontWeight = FontWeight.Bold,
                                                         color = RedTheme.colors.textPrimary
@@ -2412,10 +2482,9 @@ fun CompassARScreen(
                                                     Text(
                                                         text = if (arCalibrationOffsets.isCalibrated) {
                                                             val yawFmt = String.format("%+.1f°", arCalibrationOffsets.yawOffsetDeg)
-                                                            val pitchFmt = String.format("%+.1f°", arCalibrationOffsets.pitchOffsetDeg)
-                                                            if (isFa) "آفست‌های فعال: سمت $yawFmt، ارتفاع $pitchFmt" else "Active offsets: Yaw $yawFmt, Pitch $pitchFmt"
+                                                            if (isFa) "آفست فعال سمت: $yawFmt" else "Active yaw offset: $yawFmt"
                                                         } else {
-                                                            if (isFa) "همترازی نشانگر با ستاره واقعی" else "Align pointer with bright star"
+                                                            if (isFa) "همترازی نشانگر با جرم درخشان واقعی" else "Align pointer with a bright reference object"
                                                         },
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = RedTheme.colors.textSecondary
@@ -2424,14 +2493,14 @@ fun CompassARScreen(
                                             }
 
                                             Button(
-                                                onClick = { showCalibrationDialog = true },
+                                                onClick = { isAlignmentMode = true },
                                                 colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed),
                                                 shape = RoundedCornerShape(10.dp),
                                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                                modifier = Modifier.testTag("open_ar_calibration_btn")
+                                                modifier = Modifier.testTag("open_alignment_btn")
                                             ) {
                                                 Text(
-                                                    text = if (isFa) "تنظیم" else "Calibrate",
+                                                    text = if (isFa) "تراز" else "Align",
                                                     style = MaterialTheme.typography.labelMedium,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color.White
@@ -2448,10 +2517,11 @@ fun CompassARScreen(
                 }
             }
         }
+        }
 
         // Zoom Indicator Floating Badge (Temporary while zooming)
         AnimatedVisibility(
-            visible = showZoomIndicator,
+            visible = showZoomIndicator && !isAlignmentMode,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier
@@ -2478,7 +2548,7 @@ fun CompassARScreen(
         // Long-Press Glass Information Card Overlay
         val activeLongPressObj = longPressObject
         AnimatedVisibility(
-            visible = activeLongPressObj != null,
+            visible = activeLongPressObj != null && !isAlignmentMode,
             enter = fadeIn(animationSpec = tween(250)) + scaleIn(animationSpec = tween(250), initialScale = 0.85f),
             exit = fadeOut(animationSpec = tween(200)) + scaleOut(animationSpec = tween(200), targetScale = 0.85f)
         ) {
@@ -2643,7 +2713,7 @@ fun CompassARScreen(
         }
 
         // Layer 7: Minimal "Object found" Confirmation Banner
-        if (finderData?.isArrived == true) {
+        if (finderData?.isArrived == true && !isAlignmentMode) {
             Surface(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -2674,41 +2744,78 @@ fun CompassARScreen(
             }
         }
 
-        // Layer 8: Manual AR Pointing Calibration Dialog
-        if (showCalibrationDialog) {
-            var isAdjustingSlider by remember { mutableStateOf(false) }
-            val scrimAlpha by animateFloatAsState(
-                targetValue = if (isAdjustingSlider) 0f else 0.55f,
-                animationSpec = tween(100),
-                label = "calibScrimAlpha"
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = scrimAlpha))
-                    .padding(horizontal = 12.dp, vertical = 24.dp),
-                contentAlignment = Alignment.Center
+        // Layer 7b: "Aligned: offset applied" confirmation pill (brief, after 1-point alignment)
+        AnimatedVisibility(
+            visible = alignmentConfirmationDeg != null && !isAlignmentMode,
+            enter = fadeIn(animationSpec = tween(200)) + scaleIn(animationSpec = tween(200), initialScale = 0.9f),
+            exit = fadeOut(animationSpec = tween(250)),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 120.dp)
+        ) {
+            val applied = alignmentConfirmationDeg ?: 0f
+            val offStr = String.format("%+.1f°", applied)
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xDD0D1B2A),
+                border = BorderStroke(1.dp, StatusGood),
+                shadowElevation = 12.dp,
+                modifier = Modifier.testTag("alignment_confirmation_pill")
             ) {
-                ARCalibrationDialog(
-                    isFa = isFa,
-                    userLocation = uiState.userLocation,
-                    currentJd = jd,
-                    currentAzimuth = currentAzimuth,
-                    currentAltitude = currentAltitude,
-                    onDismiss = { showCalibrationDialog = false },
-                    onSelectReferenceTarget = { target ->
-                        selectedTarget = target
-                        hasVibratedForArrival = false
-                    },
-                    onAdjustingStateChanged = { isAdjusting ->
-                        isAdjustingSlider = isAdjusting
-                    }
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = StatusGood,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = if (isFa) "تراز شد: آفست (${TimeEngine.formatPersianNumbers(offStr)}) اعمال شد"
+                        else "Aligned: offset applied ($offStr)",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
 
+        // Layer 8: Guided 1-Point Reference Alignment Mode
+        if (isAlignmentMode) {
+            AlignmentModeOverlay(
+                isFa = isFa,
+                targets = alignmentTargets,
+                selectedTarget = selectedAlignmentTarget,
+                onSelectTarget = { target -> selectedAlignmentTargetId = target.id },
+                guidance = alignmentGuidance,
+                hasActiveOffset = arCalibrationOffsets.isCalibrated,
+                activeOffsetDeg = arCalibrationOffsets.yawOffsetDeg,
+                onConfirm = {
+                    val target = selectedAlignmentTarget
+                    if (target != null) {
+                        triggerAlignmentHaptic()
+                        val applied = ARCalibrationManager.applyOnePointAlignment(
+                            targetAzimuthDeg = target.azimuthDeg,
+                            currentAzimuthDeg = currentAzimuth,
+                            referenceName = if (isFa) target.nameFa else target.nameEn,
+                            context = context
+                        )
+                        alignmentConfirmationDeg = applied
+                        isAlignmentMode = false
+                    }
+                },
+                onCancel = { isAlignmentMode = false },
+                onReset = { ARCalibrationManager.resetAlignment(context) }
+            )
+        }
+
         // Layer 9: Automatic / Manual Figure-8 Sensor Calibration Prompt
-        if (showManualSensorPrompt || (autoPromptEnabled && !autoPromptDismissedThisSession && !showCalibrationDialog && (calibrationState == CalibrationState.NEEDS_CALIBRATION || calibrationState == CalibrationState.POOR || calibrationState == CalibrationState.UNCALIBRATED))) {
+        if (showManualSensorPrompt || (autoPromptEnabled && !autoPromptDismissedThisSession && !isAlignmentMode && (calibrationState == CalibrationState.NEEDS_CALIBRATION || calibrationState == CalibrationState.POOR || calibrationState == CalibrationState.UNCALIBRATED))) {
             ARSensorCalibrationDialog(
                 calibrationState = calibrationState,
                 isFa = isFa,
@@ -2720,6 +2827,287 @@ fun CompassARScreen(
                     ARCalibrationManager.setAutoPromptEnabled(false, context)
                 }
             )
+        }
+    }
+}
+
+/**
+ * Guided 1-Point Reference Alignment overlay.
+ *
+ * Clear-sightline HUD shown over the raw camera feed while all projected sky graphics are
+ * hidden: a center crosshair reticle with a fine `+`, up to 3 recommended bright targets,
+ * auto-hiding directional guide arrows, and bottom controls kept above the navigation bar.
+ */
+@Composable
+private fun AlignmentModeOverlay(
+    isFa: Boolean,
+    targets: List<AlignmentTarget>,
+    selectedTarget: AlignmentTarget?,
+    onSelectTarget: (AlignmentTarget) -> Unit,
+    guidance: AlignmentGuidance?,
+    hasActiveOffset: Boolean,
+    activeOffsetDeg: Float,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+    onReset: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("alignment_mode_overlay")
+    ) {
+        // 1. Center crosshair reticle with a fine + at the exact center pixel
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("alignment_reticle")
+        ) {
+            val cx = size.width / 2f
+            val cy = size.height / 2f
+            drawCircle(
+                color = Color.White.copy(alpha = 0.35f),
+                radius = 110f,
+                center = Offset(cx, cy),
+                style = Stroke(width = 1.5f)
+            )
+            drawCircle(
+                color = AccentPrimary,
+                radius = 65f,
+                center = Offset(cx, cy),
+                style = Stroke(width = 2.5f)
+            )
+            // Tick marks
+            drawLine(Color.White, Offset(cx - 85f, cy), Offset(cx - 50f, cy), strokeWidth = 2f)
+            drawLine(Color.White, Offset(cx + 50f, cy), Offset(cx + 85f, cy), strokeWidth = 2f)
+            drawLine(Color.White, Offset(cx, cy - 85f), Offset(cx, cy - 50f), strokeWidth = 2f)
+            drawLine(Color.White, Offset(cx, cy + 50f), Offset(cx, cy + 85f), strokeWidth = 2f)
+            // Fine + pinned to the exact center pixel for accurate pinning
+            val arm = 16f
+            drawLine(Color.White, Offset(cx - arm, cy), Offset(cx + arm, cy), strokeWidth = 2f)
+            drawLine(Color.White, Offset(cx, cy - arm), Offset(cx, cy + arm), strokeWidth = 2f)
+            drawCircle(Color.White, radius = 2f, center = Offset(cx, cy))
+        }
+
+        // 2. Directional guide arrows (auto-hidden once the target nears the reticle)
+        if (guidance?.arrowsVisible == true && selectedTarget != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(280.dp)
+            ) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .rotate(guidance.arrowAngleRad * 180f / PI.toFloat())
+                        .testTag("alignment_guidance_arrow")
+                ) {
+                    val w = size.width
+                    val h = size.height
+                    val cX = w / 2f
+                    val cY = h / 2f
+                    drawCircle(
+                        color = AccentPrimary.copy(alpha = 0.25f),
+                        radius = 120f,
+                        center = Offset(cX, cY),
+                        style = Stroke(width = 6f)
+                    )
+                    val arrowPath = Path().apply {
+                        moveTo(cX, cY - 105f)
+                        lineTo(cX + 22f, cY - 72f)
+                        lineTo(cX + 9f, cY - 75f)
+                        lineTo(cX + 9f, cY - 50f)
+                        lineTo(cX - 9f, cY - 50f)
+                        lineTo(cX - 9f, cY - 75f)
+                        lineTo(cX - 22f, cY - 72f)
+                        close()
+                    }
+                    drawPath(path = arrowPath, color = AccentPrimary)
+                }
+                // Live separation readout below the arrow
+                val sepStr = String.format("%.1f°", guidance.separationDeg)
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.Black.copy(alpha = 0.75f),
+                    border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.6f)),
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                ) {
+                    Text(
+                        text = if (isFa) "فاصله: ${TimeEngine.formatPersianNumbers(sepStr)}"
+                        else "Distance: $sepStr",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+
+        // 3. Top: reference target selector (recommended bright targets)
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 12.dp, start = 16.dp, end = 16.dp)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            LiquidGlassSurface(
+                shape = RoundedCornerShape(20.dp),
+                style = LiquidGlassDefaults.Card,
+                fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.92f),
+                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
+                fallbackShadowElevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = if (isFa) "جرم شاخص را انتخاب کنید:" else "Select reference target:",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = RedTheme.colors.textPrimary
+                    )
+                    if (targets.isEmpty()) {
+                        Text(
+                            text = if (isFa) "در حال حاضر هیچ جرم درخشانی بالای افق نیست."
+                            else "No bright targets above the horizon right now.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = RedTheme.colors.textSecondary
+                        )
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(targets) { target ->
+                                val label = if (isFa) target.nameFa else target.nameEn
+                                val altStr = String.format("%+.0f°", target.altitudeDeg)
+                                FilterChip(
+                                    selected = target.id == selectedTarget?.id,
+                                    onClick = { onSelectTarget(target) },
+                                    label = {
+                                        Text(
+                                            text = "$label · " + (if (isFa) TimeEngine.formatPersianNumbers(altStr) else altStr),
+                                            style = MaterialTheme.typography.labelMedium
+                                        )
+                                    },
+                                    modifier = Modifier.testTag("alignment_target_chip_${target.id}")
+                                )
+                            }
+                        }
+                    }
+                    selectedTarget?.let { target ->
+                        val azStr = String.format("%.0f°", target.azimuthDeg)
+                        val altStr = String.format("%+.0f°", target.altitudeDeg)
+                        Text(
+                            text = if (isFa) "موقعیت واقعی: سمت ${TimeEngine.formatPersianNumbers(azStr)} | ارتفاع ${TimeEngine.formatPersianNumbers(altStr)}"
+                            else "True position: Az $azStr | Alt $altStr",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AccentPrimary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+
+        // 4. Bottom controls — kept above the bottom nav bar / system gesture bar
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, bottom = 88.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            val targetName = selectedTarget?.let { if (isFa) it.nameFa else it.nameEn } ?: ""
+            val arrowsOn = guidance?.arrowsVisible == true
+            LiquidGlassSurface(
+                shape = RoundedCornerShape(16.dp),
+                style = LiquidGlassDefaults.Pill,
+                fallbackColor = Color.Black.copy(alpha = 0.75f),
+                fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.5f))
+            ) {
+                Text(
+                    text = when {
+                        selectedTarget == null -> if (isFa) "جرم شاخصی در دسترس نیست" else "No reference target available"
+                        arrowsOn -> if (isFa) "پیکان را دنبال کنید تا $targetName را پیدا کنید"
+                        else "Follow the arrow to find $targetName"
+                        else -> if (isFa) "علامت + را دقیقاً روی $targetName بگذارید و «تراز» را بزنید"
+                        else "Center the + on $targetName, then tap Align"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = onCancel,
+                    modifier = Modifier.testTag("alignment_cancel_button")
+                ) {
+                    Text(
+                        text = if (isFa) "انصراف" else "Cancel",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Button(
+                    onClick = onConfirm,
+                    enabled = selectedTarget != null,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("alignment_confirm_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GpsFixed,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isFa) "تراز" else "Align",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                if (hasActiveOffset) {
+                    OutlinedButton(
+                        onClick = onReset,
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.7f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
+                        modifier = Modifier.testTag("alignment_reset_button")
+                    ) {
+                        Text(
+                            text = if (isFa) "بازنشانی" else "Reset",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            if (hasActiveOffset) {
+                val offStr = String.format("%+.1f°", activeOffsetDeg)
+                Text(
+                    text = if (isFa) "آفست فعال: ${TimeEngine.formatPersianNumbers(offStr)}" else "Active offset: $offStr",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary
+                )
+            }
         }
     }
 }

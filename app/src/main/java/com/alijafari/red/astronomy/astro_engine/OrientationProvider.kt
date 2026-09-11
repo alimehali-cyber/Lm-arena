@@ -332,18 +332,18 @@ class OrientationProvider(
         trueRotationMatrix[7] = r21
         trueRotationMatrix[8] = r22
 
-        // Apply AR Pointing Calibration Layer (Yaw, Pitch, Roll offsets)
-        // R_final = R_true * R_calib (isolated device orientation correction)
+        // Apply Guided 1-Point Reference Alignment (yaw-only heading correction).
+        // R_final = M(yawOffset) * R_true — a pure rotation about the Earth-fixed vertical
+        // (Zenith) axis, so azimuth shifts by exactly +yawOffset while pitch and roll
+        // (accelerometer-grade, <0.1°) remain completely invariant.
         val calibOffsets = ARCalibrationManager.getOffsets()
         val finalRotationMatrix: FloatArray
         if (calibOffsets.isCalibrated) {
-            ARCalibrationManager.createCalibrationRotationMatrix(
+            ARCalibrationManager.createYawOnlyRotationMatrix(
                 yawDeg = calibOffsets.yawOffsetDeg,
-                pitchDeg = calibOffsets.pitchOffsetDeg,
-                rollDeg = calibOffsets.rollOffsetDeg,
                 outMatrix = calibMatrixBuffer
             )
-            ARCalibrationManager.multiplyMatrix3x3(trueRotationMatrix, calibMatrixBuffer, calibratedRotationMatrix)
+            ARCalibrationManager.multiplyMatrix3x3(calibMatrixBuffer, trueRotationMatrix, calibratedRotationMatrix)
             finalRotationMatrix = calibratedRotationMatrix
         } else {
             finalRotationMatrix = trueRotationMatrix
