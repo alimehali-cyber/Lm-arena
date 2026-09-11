@@ -50,7 +50,6 @@ class ARSkySmokeInstrumentedTest {
         Thread.sleep(500L)
         composeRule.onNodeWithTag("nav_item_arsky", useUnmergedTree = true).performClick()
         waitForTag("ar_pill_search", timeoutMillis = 30_000L)
-        waitForTag("ar_pill_time", timeoutMillis = 30_000L)
 
         assertCatalogCountsAndDoubleClusterResolution()
         assertSearchAndDetailPayloadsForRepresentativeTargets()

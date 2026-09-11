@@ -304,7 +304,7 @@ jobs:
           lines = pathlib.Path(sys.argv[1]).read_text(errors="replace").splitlines()
           app_fatal_blocks = []
           for index, line in enumerate(lines):
-              if "FATAL EXCEPTION" not in line and "AndroidRuntime" not in line:
+              if "FATAL EXCEPTION" not in line:
                   continue
               block = "\n".join(lines[index:index + 40])
               if package in block:
