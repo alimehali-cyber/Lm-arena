@@ -58,8 +58,11 @@ jobs:
       # the Gradle failure excerpt as check annotations (readable via the API).
       - name: Report build errors
         if: failure()
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
-          grep -E "FAILED|Execution failed|error:|FAILURE:|Caused by|What went wrong|Expected|Unresolved reference" "$RUNNER_TEMP/gradle-build.log" | head -n 30 | sed 's/%/%25/g' > "$RUNNER_TEMP/build-errors.txt" || true
+          alias_esc=$(printf '%s' "$KEY_ALIAS" | sed -e 's/[]\/$*.^[]/\\&/g')
+          grep -E "^> |FAILED|Execution failed|Caused by|What went wrong" "$RUNNER_TEMP/gradle-build.log" | head -n 30 | sed -e "s/$alias_esc/<key-alias>/g" -e 's/%/%25/g' > "$RUNNER_TEMP/build-errors.txt" || true
           while IFS= read -r line; do
             echo "::error title=Gradle build failure::$(echo "$line" | head -c 800)"
           done < "$RUNNER_TEMP/build-errors.txt"
