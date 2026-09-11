@@ -2,7 +2,6 @@ package com.alijafari.red.astronomy
 
 import android.Manifest
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -110,7 +109,6 @@ class ARSkySmokeInstrumentedTest {
         waitForTag("ar_target_detail_button", timeoutMillis = 20_000L)
         composeRule.onNodeWithTag("ar_target_detail_button", useUnmergedTree = true).performClick()
         waitForTag("object_detail_modal", timeoutMillis = 20_000L)
-        composeRule.onNodeWithTag("object_detail_modal", useUnmergedTree = true).assertExists()
     }
 
     private fun dismissDetailModal() {
