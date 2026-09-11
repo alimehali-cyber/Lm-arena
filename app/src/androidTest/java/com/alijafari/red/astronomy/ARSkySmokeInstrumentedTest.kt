@@ -40,9 +40,14 @@ class ARSkySmokeInstrumentedTest {
 
     @Test
     fun arSkyCatalogDetailsAndTimeMachineSmoke() {
+        // The AR scene continuously changes with sensor/camera state; pausing the Compose test
+        // clock prevents false ComposeNotIdle timeouts on headless CI emulators.
+        composeRule.mainClock.autoAdvance = false
+
         waitForTag("main_bottom_navigation", timeoutMillis = 30_000L)
         // Let the splash overlay finish so the bottom navigation can receive the click.
-        Thread.sleep(3_000L)
+        composeRule.mainClock.advanceTimeBy(3_000L)
+        Thread.sleep(500L)
         composeRule.onNodeWithTag("nav_item_arsky", useUnmergedTree = true).performClick()
         waitForTag("ar_pill_search", timeoutMillis = 30_000L)
         waitForTag("ar_pill_time", timeoutMillis = 30_000L)
@@ -97,13 +102,23 @@ class ARSkySmokeInstrumentedTest {
     }
 
     private fun waitForTag(tag: String, timeoutMillis: Long = 10_000L) {
-        composeRule.waitUntil(timeoutMillis = timeoutMillis) { hasNodeWithTag(tag) }
-        assertTrue("Expected Compose node with tag '$tag'", hasNodeWithTag(tag))
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        var found = hasNodeWithTag(tag)
+        while (!found && System.currentTimeMillis() < deadline) {
+            composeRule.mainClock.advanceTimeBy(250L)
+            Thread.sleep(50L)
+            found = hasNodeWithTag(tag)
+        }
+        assertTrue("Expected Compose node with tag '$tag'", found)
     }
 
     private fun hasNodeWithTag(tag: String): Boolean {
-        return composeRule.onAllNodesWithTag(tag, useUnmergedTree = true)
-            .fetchSemanticsNodes(atLeastOneRootRequired = false)
-            .isNotEmpty()
+        return try {
+            composeRule.onAllNodesWithTag(tag, useUnmergedTree = true)
+                .fetchSemanticsNodes(atLeastOneRootRequired = false)
+                .isNotEmpty()
+        } catch (_: Throwable) {
+            false
+        }
     }
 }
