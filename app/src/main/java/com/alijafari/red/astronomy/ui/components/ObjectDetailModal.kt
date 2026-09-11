@@ -34,6 +34,47 @@ import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
 import com.alijafari.red.astronomy.ui.*
 import com.alijafari.red.astronomy.ui.theme.*
+import java.util.Locale
+import kotlin.math.tan
+
+private fun isDetailDeepSky(type: ObjectType): Boolean {
+    return type == ObjectType.DEEP_SKY ||
+            type == ObjectType.GALAXY ||
+            type == ObjectType.NEBULA ||
+            type == ObjectType.STAR_CLUSTER ||
+            type == ObjectType.GLOBULAR_CLUSTER ||
+            type == ObjectType.BLACK_HOLE
+}
+
+private fun formatAngularSizeArcmin(value: Double?, isFa: Boolean): String? {
+    val arcmin = value?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+    val text = if (arcmin >= 60.0) {
+        String.format(Locale.US, "%.2f° (%.0f arcmin)", arcmin / 60.0, arcmin)
+    } else {
+        String.format(Locale.US, "%.1f arcmin", arcmin)
+    }
+    return if (isFa) {
+        TimeEngine.formatPersianNumbers(text)
+            .replace("arcmin", "دقیقه قوسی")
+    } else {
+        text
+    }
+}
+
+private fun formatComputedLinearSize(distanceLy: Double, angularSizeArcmin: Double?, isFa: Boolean): String? {
+    val arcmin = angularSizeArcmin?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+    if (!distanceLy.isFinite() || distanceLy <= 0.0) return null
+    val radians = Math.toRadians(arcmin / 60.0)
+    val sizeLy = 2.0 * distanceLy * tan(radians / 2.0)
+    if (!sizeLy.isFinite() || sizeLy <= 0.0) return null
+    val sizePc = sizeLy / 3.26156
+    val text = when {
+        sizeLy >= 1000.0 -> String.format(Locale.US, "%,.0f ly (%,.0f pc)", sizeLy, sizePc)
+        sizeLy >= 10.0 -> String.format(Locale.US, "%.0f ly (%.0f pc)", sizeLy, sizePc)
+        else -> String.format(Locale.US, "%.1f ly (%.1f pc)", sizeLy, sizePc)
+    }
+    return if (isFa) TimeEngine.formatPersianNumbers(text).replace("ly", "سال نوری").replace("pc", "پارسک") else text
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,7 +135,8 @@ fun ObjectDetailModal(
             idOrAlias = canonicalObj?.canonicalId ?: obj.id,
             timestampMs = timestampMs,
             userLatDeg = uiState.userLocation.latitude,
-            userLonDeg = uiState.userLocation.longitude
+            userLonDeg = uiState.userLocation.longitude,
+            elevationM = uiState.userLocation.elevationMeters
         )
     }
 
@@ -117,13 +159,14 @@ fun ObjectDetailModal(
             uiState.userLocation.latitude
         )
     }
-    val celestialObj = remember(canonicalObj, obj, dynamicRa, dynamicDec, dynamicMag) {
+    val celestialObj = remember(canonicalObj, obj, dynamicRa, dynamicDec, dynamicMag, calculatedState) {
         if (canonicalObj != null) {
             CanonicalAstroCatalog.toCelestialObject(
                 canonicalObj = canonicalObj,
                 dynamicRa = dynamicRa,
                 dynamicDec = dynamicDec,
-                dynamicMag = dynamicMag
+                dynamicMag = dynamicMag,
+                dynamicDistanceLy = calculatedState?.distanceLightYears
             )
         } else {
             obj
@@ -150,7 +193,26 @@ fun ObjectDetailModal(
     }
 
     val coolFacts = remember(celestialObj, isFa) {
-        if (isFa) PhysicalData.getCoolFactsFa(celestialObj) else PhysicalData.getCoolFactsEn(celestialObj)
+        val catalogFacts = if (isFa) celestialObj.funFactsFa else celestialObj.funFactsEn
+        when {
+            catalogFacts.isNotEmpty() -> catalogFacts
+            isDetailDeepSky(celestialObj.type) -> emptyList()
+            isFa -> PhysicalData.getCoolFactsFa(celestialObj)
+            else -> PhysicalData.getCoolFactsEn(celestialObj)
+        }
+    }
+
+    val liveDistanceText = remember(celestialObj, calculatedState, isFa) {
+        ARDistanceFormatter.formatDistance(celestialObj, isFa, calculatedState)
+    }
+
+    val isDeepSkyDetail = isDetailDeepSky(celestialObj.type)
+    val catalogDesignationText = remember(celestialObj) {
+        celestialObj.catalogDesignations.filter { it.isNotBlank() }.distinct().joinToString(" / ")
+    }
+    val angularSizeText = remember(celestialObj, isFa) { formatAngularSizeArcmin(celestialObj.angularSizeArcmin, isFa) }
+    val linearSizeText = remember(celestialObj, isFa) {
+        formatComputedLinearSize(celestialObj.distanceLightYears, celestialObj.angularSizeArcmin, isFa)
     }
 
     val riseSetTransit = remember(dynamicRa, dynamicDec, uiState.userLocation, jd, isFa) {
@@ -197,6 +259,14 @@ fun ObjectDetailModal(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
+                        if (catalogDesignationText.isNotBlank()) {
+                            Text(
+                                text = catalogDesignationText,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = AccentPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                         val constName = if (isFa) obj.constellationFa else obj.constellationEn
                         Text(
                             text = "$constName • ${obj.category}",
@@ -355,8 +425,80 @@ fun ObjectDetailModal(
                             )
                             PropertyRow(
                                 label = if (isFa) "فاصله از زمین" else "Distance from Earth",
-                                value = if (isFa) physicalProps.distanceDisplayFa else physicalProps.distanceDisplayEn
+                                value = liveDistanceText
                             )
+                        }
+                    }
+                }
+            }
+
+            if (isDeepSkyDetail) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.24f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = AccentPrimary, modifier = Modifier.size(20.dp))
+                                Text(
+                                    text = if (isFa) "اطلاعات ژرف‌آسمان" else "Deep-Sky Catalog Data",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AccentPrimary
+                                )
+                            }
+                            if (catalogDesignationText.isNotBlank()) {
+                                PropertyRow(
+                                    label = if (isFa) "شناسه‌های کاتالوگ" else "Catalog designations",
+                                    value = catalogDesignationText
+                                )
+                            }
+                            PropertyRow(
+                                label = if (isFa) "نوع و صورت فلکی" else "Type + constellation",
+                                value = if (isFa) "${celestialObj.type.nameFa} • ${celestialObj.constellationFa.ifBlank { celestialObj.constellationCode }}"
+                                else "${celestialObj.type.nameEn} • ${celestialObj.constellationEn.ifBlank { celestialObj.constellationCode }}"
+                            )
+                            if (celestialObj.constellationCode.isNotBlank()) {
+                                PropertyRow(
+                                    label = if (isFa) "کد صورت فلکی" else "Constellation code",
+                                    value = celestialObj.constellationCode
+                                )
+                            }
+                            PropertyRow(
+                                label = if (isFa) "قدر ظاهری" else "Magnitude",
+                                value = if (isFa) TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.1f", celestialObj.magnitude)) else String.format(Locale.US, "%.1f", celestialObj.magnitude)
+                            )
+                            angularSizeText?.let { angular ->
+                                PropertyRow(
+                                    label = if (isFa) "اندازه زاویه‌ای" else "Angular size",
+                                    value = angular
+                                )
+                            }
+                            linearSizeText?.let { linear ->
+                                PropertyRow(
+                                    label = if (isFa) "اندازه واقعی تخمینی" else "Computed physical size",
+                                    value = linear
+                                )
+                            }
+                            PropertyRow(
+                                label = if (isFa) "فاصله زنده / کاتالوگی" else "Live/catalog distance",
+                                value = liveDistanceText
+                            )
+                            if (celestialObj.bestViewingMonthEn.isNotBlank() || celestialObj.bestViewingMonthFa.isNotBlank()) {
+                                PropertyRow(
+                                    label = if (isFa) "بهترین زمان مشاهده" else "Best viewing month",
+                                    value = if (isFa) celestialObj.bestViewingMonthFa.ifBlank { celestialObj.bestViewingMonthEn } else celestialObj.bestViewingMonthEn.ifBlank { celestialObj.bestViewingMonthFa }
+                                )
+                            }
                         }
                     }
                 }
@@ -439,51 +581,53 @@ fun ObjectDetailModal(
                 }
             }
 
-            // 5 VERIFIED COOL FACTS IN FARSI
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+            // Optional verified / authored facts. Omitted when no facts are available.
+            if (coolFacts.isNotEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = null,
-                                tint = AccentPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = if (isFa) "۵ حقیقت شگفت‌انگیز و علمی" else "5 Verified Facts & Stories",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = AccentPrimary
-                            )
-                        }
-
-                        coolFacts.forEachIndexed { index, fact ->
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.Top
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = AccentPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
                                 Text(
-                                    text = "${index + 1}.",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    text = if (isFa) "۵ حقیقت شگفت‌انگیز و علمی" else "5 Verified Facts & Stories",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
                                     color = AccentPrimary
                                 )
-                                Text(
-                                    text = fact,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                            }
+
+                            coolFacts.forEachIndexed { index, fact ->
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(
+                                        text = if (isFa) "${TimeEngine.formatPersianNumbers((index + 1).toString())}." else "${index + 1}.",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = AccentPrimary
+                                    )
+                                    Text(
+                                        text = fact,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
                     }

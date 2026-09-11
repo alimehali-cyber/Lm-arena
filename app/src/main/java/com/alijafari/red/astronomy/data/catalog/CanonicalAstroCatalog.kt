@@ -1,6 +1,9 @@
 package com.alijafari.red.astronomy.data.catalog
 
+import com.alijafari.red.astronomy.astro_engine.DeepSkyCatalog as EngineDeepSkyCatalog
+import com.alijafari.red.astronomy.astro_engine.DeepSkyEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
+import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.domain.CanonicalAstroObject
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.domain.ObservationalInfo
@@ -8,6 +11,7 @@ import com.alijafari.red.astronomy.domain.ObjectType
 import com.alijafari.red.astronomy.domain.PhysicalProperties
 import com.alijafari.red.astronomy.domain.ScientificIdentifiers
 import com.alijafari.red.astronomy.domain.StaticPosition
+import java.util.Locale
 
 /**
  * Authoritative Canonical Astronomy Catalog for RED Astronomy.
@@ -996,6 +1000,248 @@ object CanonicalAstroCatalog {
         IO, EUROPA, GANYMEDE, CALLISTO, ELARA, SAGITTARIUS_A_STAR, ISS
     )
 
+    private val deepSkyEngineForMetadata by lazy { DeepSkyEngine() }
+    private const val HAND_DOUBLE_CLUSTER_ID = "dso_double_cluster"
+    private val splitDoubleClusterEngineIds = setOf("ngc869", "ngc884")
+    private val skippedDoubleClusterAliasIds = setOf("c14")
+
+    data class DeepSkyMergeReport(
+        val engineCatalogCount: Int,
+        val insertedCount: Int,
+        val skippedCanonicalDuplicateCount: Int,
+        val skippedEngineDuplicateCount: Int,
+        val originalHandAuthoredDsoCount: Int,
+        val finalDeepSkyCount: Int,
+        val finalCatalogCount: Int,
+        val duplicateCanonicalIds: List<String>
+    )
+
+    private val monthNamesEn = listOf(
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    )
+    private val monthNamesFa = listOf(
+        "دی‌ماه", "بهمن‌ماه", "اسفندماه", "فروردین‌ماه", "اردیبهشت‌ماه", "خردادماه",
+        "تیرماه", "مردادماه", "شهریورماه", "مهرماه", "آبان‌ماه", "آذرماه"
+    )
+
+    private val constellationCodeOverrides = mapOf(
+        "andromeda" to "AND",
+        "dorado / mensa" to "DOR/MEN",
+        "tucana" to "TUC",
+        "triangulum" to "TRI",
+        "taurus" to "TAU",
+        "cancer" to "CNC",
+        "perseus" to "PER",
+        "coma berenices" to "COM",
+        "centaurus" to "CEN",
+        "hercules" to "HER",
+        "orion" to "ORI",
+        "sagittarius" to "SGR",
+        "carina" to "CAR"
+    )
+
+    private fun normalizedCatalogToken(value: String?): String? {
+        val clean = value
+            ?.trim()
+            ?.lowercase()
+            ?.replace(Regex("[^a-z0-9]+"), "")
+            ?: return null
+        return clean.takeIf { it.isNotBlank() }
+    }
+
+    private fun displayCatalogToken(token: String): String {
+        return when {
+            token.startsWith("ngc") -> "NGC ${token.drop(3)}"
+            token.startsWith("ic") -> "IC ${token.drop(2)}"
+            token.startsWith("melotte") -> "Melotte ${token.drop(7)}"
+            token.startsWith("mel") -> "Melotte ${token.drop(3)}"
+            token.startsWith("m") && token.drop(1).all(Char::isDigit) -> "M${token.drop(1)}"
+            else -> token.uppercase()
+        }
+    }
+
+    private fun catalogTokensFromText(value: String): Set<String> {
+        val tokens = mutableSetOf<String>()
+        val upper = value.uppercase()
+        Regex("\\bM\\s*\\d+[A-Z]?\\b").findAll(upper).forEach { match ->
+            normalizedCatalogToken(match.value)?.let(tokens::add)
+        }
+        Regex("\\bNGC\\s*\\d+[A-Z]?\\b").findAll(upper).forEach { match ->
+            normalizedCatalogToken(match.value)?.let(tokens::add)
+        }
+        Regex("\\bIC\\s*\\d+[A-Z]?\\b").findAll(upper).forEach { match ->
+            normalizedCatalogToken(match.value)?.let(tokens::add)
+        }
+        Regex("\\bMEL(?:OTTE)?\\s*\\d+[A-Z]?\\b").findAll(upper).forEach { match ->
+            normalizedCatalogToken(match.value)?.let(tokens::add)
+        }
+        return tokens
+    }
+
+    private fun handAuthoredDsoTokens(obj: CelestialObject): Set<String> {
+        val tokens = mutableSetOf<String>()
+        tokens += catalogTokensFromText(obj.id)
+        tokens += catalogTokensFromText(obj.nameEn)
+        tokens += catalogTokensFromText(obj.nameFa)
+        tokens += catalogTokensFromText(obj.category)
+        obj.nameEn.substringBefore("(").trim().lowercase().takeIf { it.length > 2 }?.let { head ->
+            tokens += head
+            normalizedCatalogToken(head)?.let(tokens::add)
+        }
+        obj.nameFa.substringBefore("(").trim().lowercase().takeIf { it.length > 2 }?.let { head ->
+            tokens += head
+            normalizedCatalogToken(head)?.let(tokens::add)
+        }
+        return tokens
+    }
+
+    private fun engineDsoTokens(obj: EngineDeepSkyCatalog.DeepSkyObject): Set<String> {
+        return listOfNotNull(
+            obj.catalogId,
+            obj.altCatalogId,
+            obj.commonName
+        ).mapNotNull { normalizedCatalogToken(it) ?: it.lowercase().takeIf { raw -> raw.length > 2 } }.toSet()
+    }
+
+    private fun isCanonicalDeepSkyType(type: ObjectType): Boolean {
+        return type == ObjectType.DEEP_SKY ||
+                type == ObjectType.GALAXY ||
+                type == ObjectType.NEBULA ||
+                type == ObjectType.STAR_CLUSTER ||
+                type == ObjectType.GLOBULAR_CLUSTER ||
+                type == ObjectType.BLACK_HOLE
+    }
+
+    private fun isSplitDoubleClusterComponent(obj: EngineDeepSkyCatalog.DeepSkyObject): Boolean {
+        return normalizedCatalogToken(obj.catalogId) in splitDoubleClusterEngineIds
+    }
+
+    private fun isSkippedDoubleClusterAlias(obj: EngineDeepSkyCatalog.DeepSkyObject): Boolean {
+        return normalizedCatalogToken(obj.catalogId) in skippedDoubleClusterAliasIds
+    }
+
+    private fun shouldSkipEngineDsoAsHandDuplicate(
+        obj: EngineDeepSkyCatalog.DeepSkyObject,
+        handTokens: Set<String>
+    ): Boolean {
+        if (isSplitDoubleClusterComponent(obj)) return false
+        if (isSkippedDoubleClusterAlias(obj)) return false
+        return engineDsoTokens(obj).any { it in handTokens }
+    }
+
+    private fun mapEngineDeepSkyType(type: EngineDeepSkyCatalog.ObjectType): ObjectType {
+        return when (type) {
+            EngineDeepSkyCatalog.ObjectType.GALAXY,
+            EngineDeepSkyCatalog.ObjectType.SPIRAL_GALAXY,
+            EngineDeepSkyCatalog.ObjectType.ELLIPTICAL_GALAXY,
+            EngineDeepSkyCatalog.ObjectType.IRREGULAR_GALAXY,
+            EngineDeepSkyCatalog.ObjectType.LENTICULAR_GALAXY -> ObjectType.GALAXY
+            EngineDeepSkyCatalog.ObjectType.DIFFUSE_NEBULA,
+            EngineDeepSkyCatalog.ObjectType.PLANETARY_NEBULA,
+            EngineDeepSkyCatalog.ObjectType.SUPERNOVA_REMNANT -> ObjectType.NEBULA
+            EngineDeepSkyCatalog.ObjectType.GLOBULAR_CLUSTER -> ObjectType.GLOBULAR_CLUSTER
+            EngineDeepSkyCatalog.ObjectType.OPEN_CLUSTER,
+            EngineDeepSkyCatalog.ObjectType.STAR_CLOUD,
+            EngineDeepSkyCatalog.ObjectType.DOUBLE_STAR,
+            EngineDeepSkyCatalog.ObjectType.STAR -> ObjectType.STAR_CLUSTER
+        }
+    }
+
+    private fun cleanEngineTypeName(type: EngineDeepSkyCatalog.ObjectType): String {
+        return type.name.lowercase().split("_").joinToString(" ") { part ->
+            part.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
+    }
+
+    private fun constellationEntryFor(value: String) = ConstellationCatalog.getConstellations().firstOrNull {
+        it.code.equals(value, ignoreCase = true) ||
+                it.nameEn.equals(value, ignoreCase = true) ||
+                it.nameFa.equals(value, ignoreCase = true)
+    }
+
+    private fun constellationNamesForCode(code: String): Pair<String, String> {
+        val c = constellationEntryFor(code)
+        return if (c != null) c.nameEn to c.nameFa else code to code
+    }
+
+    private fun constellationCodeForName(nameEn: String, nameFa: String = ""): String {
+        return constellationEntryFor(nameEn)?.code
+            ?: nameFa.takeIf { it.isNotBlank() }?.let { constellationEntryFor(it)?.code }
+            ?: constellationCodeOverrides[nameEn.trim().lowercase()]
+            ?: nameEn
+    }
+
+    private fun mapEngineDeepSkyObject(obj: EngineDeepSkyCatalog.DeepSkyObject): CanonicalAstroObject {
+        val normalizedCatalog = obj.catalogId.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')
+        val doubleClusterAliasDesignations = if (normalizedCatalogToken(obj.catalogId) == "ngc869") listOf("C14") else emptyList()
+        val designations = (listOfNotNull(obj.catalogId, obj.altCatalogId) + doubleClusterAliasDesignations).distinct()
+        val normalizedDesignations = designations.mapNotNull(::normalizedCatalogToken).distinct()
+        val designationText = designations.joinToString(" / ")
+        val commonOrCatalog = obj.commonName ?: designationText
+        val nameEn = if (obj.commonName != null) "$commonOrCatalog ($designationText)" else commonOrCatalog
+        val nameFa = nameEn // No curated Persian copy exists yet; the catalog designation is a safe non-blank fallback.
+        val (constEn, constFa) = constellationNamesForCode(obj.constellation)
+        val bestMonth = deepSkyEngineForMetadata.bestViewingMonth(obj).coerceIn(1, 12)
+        val type = mapEngineDeepSkyType(obj.type)
+        val category = cleanEngineTypeName(obj.type)
+        val distanceLy = obj.distanceLy ?: 0.0
+        val distanceKm = if (distanceLy > 0.0) distanceLy * 9.4607304725808e12 else null
+        val messier = obj.catalogId.takeIf { it.startsWith("M", ignoreCase = true) }
+        val ngc = listOf(obj.catalogId, obj.altCatalogId).firstOrNull { it?.startsWith("NGC", ignoreCase = true) == true }
+        val caldwell = obj.catalogId.takeIf { it.startsWith("C", ignoreCase = true) && it.drop(1).all(Char::isDigit) }
+        val aliasesEn = (designations + listOfNotNull(obj.commonName, obj.commonName?.substringBefore("("), constEn, category))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .flatMap { listOf(it, it.lowercase()) }
+            .distinct()
+
+        return CanonicalAstroObject(
+            canonicalId = "dso_$normalizedCatalog",
+            legacyIds = (designations + normalizedDesignations + listOf("deep_sky_$normalizedCatalog")).map { it.lowercase() }.distinct(),
+            type = type,
+            nameEn = nameEn,
+            nameFa = nameFa,
+            searchAliasesEn = (aliasesEn + normalizedDesignations).distinct(),
+            searchAliasesFa = (designations + normalizedDesignations + listOf(nameFa, constFa, category)).distinct(),
+            scientificIdentifiers = ScientificIdentifiers(
+                messierId = messier,
+                ngcId = ngc,
+                caldwellId = caldwell,
+                catalogDesignations = designations,
+                constellationCode = obj.constellation.uppercase(),
+                constellationNameEn = constEn,
+                constellationNameFa = constFa
+            ),
+            staticPosition = StaticPosition(
+                raDeg = obj.raHours * 15.0,
+                decDeg = obj.decDeg,
+                distanceLightYears = distanceLy,
+                epoch = "J2000"
+            ),
+            physicalProperties = PhysicalProperties(
+                magnitude = obj.magnitude,
+                distanceKm = distanceKm,
+                distanceLightYears = obj.distanceLy,
+                angularSizeArcmin = obj.sizeArcmin,
+                distanceDisplayEn = if (distanceLy > 0.0) String.format(Locale.US, "%,.0f light-years", distanceLy) else "Unknown distance",
+                distanceDisplayFa = if (distanceLy > 0.0) TimeEngine.formatPersianNumbers(String.format(Locale.US, "%,.0f سال نوری", distanceLy)) else "فاصله نامشخص"
+            ),
+            observationalInfo = ObservationalInfo(
+                categoryEn = category,
+                categoryFa = category,
+                descriptionEn = obj.description,
+                descriptionFa = obj.description,
+                observationTipEn = "Best observed from a dark-sky site with binoculars or a telescope when high above the horizon.",
+                observationTipFa = "برای رصد بهتر، این جرم را در آسمان تاریک و هنگام ارتفاع زیاد با دوربین دوچشمی یا تلسکوپ دنبال کنید.",
+                bestViewingMonthEn = monthNamesEn[bestMonth - 1],
+                bestViewingMonthFa = monthNamesFa[bestMonth - 1],
+                funFactsEn = emptyList(),
+                funFactsFa = emptyList()
+            )
+        )
+    }
+
     // Aggregates core canonical objects with mapped objects from stars, deep sky, satellites, constellations, meteor showers, and asterisms
     private val extendedCanonicalObjectsList: List<CanonicalAstroObject> by lazy {
         val list = mutableListOf<CanonicalAstroObject>()
@@ -1035,6 +1281,7 @@ object CanonicalAstroCatalog {
                 MeteorShowerCatalog.getMeteorShowers() + AsterismCatalog.getAsterisms()
 
         for (obj in extraObjects) {
+            if (obj.id == HAND_DOUBLE_CLUSTER_ID) continue // Split below into independent NGC 869 and NGC 884 objects.
             val canonId = obj.id
             if (!coreIds.contains(canonId) && !list.any { it.canonicalId == canonId }) {
                 val faWords = obj.nameFa.replace("(", " ").replace(")", " ").replace("/", " ").split(" ").map { it.trim() }.filter { it.length > 1 }
@@ -1042,6 +1289,21 @@ object CanonicalAstroCatalog {
                 val phys = PhysicalData.getPhysicalProperties(obj)
                 val factsFa = PhysicalData.getCoolFactsFa(obj)
                 val factsEn = PhysicalData.getCoolFactsEn(obj)
+                val baseCatalogTokens = catalogTokensFromText(obj.nameEn) + catalogTokensFromText(obj.id)
+                val handTokensForMatch = handAuthoredDsoTokens(obj)
+                val matchedEngineDso = if (isCanonicalDeepSkyType(obj.type) && obj.id != HAND_DOUBLE_CLUSTER_ID) {
+                    EngineDeepSkyCatalog.objects.firstOrNull { engineDsoTokens(it).any { token -> token in handTokensForMatch } }
+                } else {
+                    null
+                }
+                val engineCatalogTokens = matchedEngineDso?.let { catalogTokensFromText(it.catalogId) + (it.altCatalogId?.let(::catalogTokensFromText) ?: emptySet()) } ?: emptySet()
+                val catalogTokens = baseCatalogTokens + engineCatalogTokens
+                val displayDesignations = (catalogTokens.map { displayCatalogToken(it) } + listOfNotNull(matchedEngineDso?.catalogId, matchedEngineDso?.altCatalogId)).distinct()
+                val messier = catalogTokens.firstOrNull { it.startsWith("m") && it.drop(1).all(Char::isDigit) }?.let { displayCatalogToken(it) }
+                val ngc = catalogTokens.firstOrNull { it.startsWith("ngc") && it.drop(3).all(Char::isDigit) }?.let { displayCatalogToken(it) }
+                val caldwell = matchedEngineDso?.catalogId?.takeIf { it.startsWith("C", ignoreCase = true) && it.drop(1).all(Char::isDigit) }
+                val bestMonthFromEngine = matchedEngineDso?.let { deepSkyEngineForMetadata.bestViewingMonth(it).coerceIn(1, 12) }
+                val angularSizeArcmin = obj.angularSizeArcmin ?: matchedEngineDso?.sizeArcmin
 
                 list.add(
                     CanonicalAstroObject(
@@ -1050,10 +1312,16 @@ object CanonicalAstroCatalog {
                         type = obj.type,
                         nameEn = obj.nameEn,
                         nameFa = obj.nameFa,
-                        searchAliasesEn = (listOf(obj.nameEn.lowercase(), obj.constellationEn.lowercase(), obj.category.lowercase(), obj.bayerDesignation ?: "") + enWords).distinct(),
-                        searchAliasesFa = (listOf(obj.nameFa, obj.constellationFa, obj.category) + faWords).distinct(),
+                        searchAliasesEn = (listOf(obj.nameEn.lowercase(), obj.constellationEn.lowercase(), obj.category.lowercase(), obj.bayerDesignation ?: "") + enWords + catalogTokens + displayDesignations).distinct(),
+                        searchAliasesFa = (listOf(obj.nameFa, obj.constellationFa, obj.category) + faWords + catalogTokens + displayDesignations).distinct(),
                         scientificIdentifiers = ScientificIdentifiers(
-                            constellationCode = obj.constellationEn,
+                            messierId = messier,
+                            ngcId = ngc,
+                            caldwellId = caldwell,
+                            catalogDesignations = displayDesignations,
+                            constellationCode = matchedEngineDso?.constellation?.uppercase() ?: constellationCodeForName(obj.constellationEn, obj.constellationFa),
+                            constellationNameEn = obj.constellationEn,
+                            constellationNameFa = obj.constellationFa,
                             spectralType = obj.spectralType,
                             hipId = obj.hipId,
                             hdId = obj.hdId,
@@ -1070,6 +1338,7 @@ object CanonicalAstroCatalog {
                             surfaceGravityComparedToEarth = phys.gravityComparedToEarth,
                             distanceKm = phys.distanceKm,
                             distanceLightYears = phys.distanceLightYears,
+                            angularSizeArcmin = angularSizeArcmin,
                             diameterDisplayEn = phys.diameterDisplayEn,
                             diameterDisplayFa = phys.diameterDisplayFa,
                             massDisplayEn = phys.massKgDisplayEn,
@@ -1087,14 +1356,28 @@ object CanonicalAstroCatalog {
                             observationTipEn = obj.observationTipEn,
                             observationTipFa = obj.observationTipFa,
                             verifiedFactsEn = factsEn,
-                            verifiedFactsFa = factsFa
+                            verifiedFactsFa = factsFa,
+                            bestViewingMonthEn = obj.bestViewingMonthEn.ifBlank { bestMonthFromEngine?.let { monthNamesEn[it - 1] } ?: "" },
+                            bestViewingMonthFa = obj.bestViewingMonthFa.ifBlank { bestMonthFromEngine?.let { monthNamesFa[it - 1] } ?: "" }
                         )
                     )
                 )
             }
         }
 
-        // 3. Constellations
+        // 3. Expanded engine deep-sky catalog (Messier + NGC + Caldwell).
+        // Hand-authored DSOs above win on duplicates so tuned names/descriptions are preserved.
+        val handAuthoredDsoTokens = DeepSkyCatalog.getDeepSkyObjects().flatMap { handAuthoredDsoTokens(it) }.toSet()
+        for (engineObj in EngineDeepSkyCatalog.objects) {
+            if (isSkippedDoubleClusterAlias(engineObj)) continue
+            if (shouldSkipEngineDsoAsHandDuplicate(engineObj, handAuthoredDsoTokens)) continue
+            val mapped = mapEngineDeepSkyObject(engineObj)
+            if (!coreIds.contains(mapped.canonicalId) && !list.any { it.canonicalId == mapped.canonicalId }) {
+                list.add(mapped)
+            }
+        }
+
+        // 4. Constellations
         for (c in ConstellationCatalog.getConstellations()) {
             val constCanonId = "const_${c.code.lowercase()}"
             if (!coreIds.contains(constCanonId) && !list.any { it.canonicalId == constCanonId }) {
@@ -1132,7 +1415,11 @@ object CanonicalAstroCatalog {
                         searchAliasesFa = (listOf(c.nameFa, c.seasonFa, "صورت فلکی " + c.nameFa) +
                                 c.nameFa.replace("(", " ").replace(")", " ").split(" ").map { it.trim() }
                                     .filter { it.length > 1 && (c.code == "AND" && it == "آندرومدا").not() }).distinct(),
-                        scientificIdentifiers = ScientificIdentifiers(constellationCode = c.code),
+                        scientificIdentifiers = ScientificIdentifiers(
+                            constellationCode = c.code,
+                            constellationNameEn = c.nameEn,
+                            constellationNameFa = c.nameFa
+                        ),
                         staticPosition = StaticPosition(raDeg = avgRa, decDeg = avgDec),
                         physicalProperties = PhysicalProperties(
                             magnitude = 2.0,
@@ -1184,7 +1471,10 @@ object CanonicalAstroCatalog {
      */
     fun resolveCanonicalId(idOrLegacyId: String): String {
         val clean = idOrLegacyId.trim().lowercase()
-        return legacyToCanonicalMap[clean] ?: idOrLegacyId
+        val normalized = normalizedCatalogToken(idOrLegacyId)
+        return legacyToCanonicalMap[clean]
+            ?: normalized?.let { legacyToCanonicalMap[it] }
+            ?: idOrLegacyId
     }
 
     /**
@@ -1200,6 +1490,30 @@ object CanonicalAstroCatalog {
      */
     fun getAllCanonicalObjects(): List<CanonicalAstroObject> {
         return extendedCanonicalObjectsList
+    }
+
+    fun getDeepSkyMergeReport(): DeepSkyMergeReport {
+        val originalDsoCount = DeepSkyCatalog.getDeepSkyObjects().size
+        val handTokens = DeepSkyCatalog.getDeepSkyObjects().flatMap { handAuthoredDsoTokens(it) }.toSet()
+        val skippedCanonical = EngineDeepSkyCatalog.objects.count { shouldSkipEngineDsoAsHandDuplicate(it, handTokens) }
+        val skippedEngineDuplicate = EngineDeepSkyCatalog.objects.count { isSkippedDoubleClusterAlias(it) }
+        val finalDsoCount = extendedCanonicalObjectsList.count { isCanonicalDeepSkyType(it.type) }
+        val duplicateIds = extendedCanonicalObjectsList
+            .map { it.canonicalId }
+            .groupBy { it }
+            .filterValues { it.size > 1 }
+            .keys
+            .toList()
+        return DeepSkyMergeReport(
+            engineCatalogCount = EngineDeepSkyCatalog.objects.size,
+            insertedCount = EngineDeepSkyCatalog.objects.size - skippedCanonical - skippedEngineDuplicate,
+            skippedCanonicalDuplicateCount = skippedCanonical,
+            skippedEngineDuplicateCount = skippedEngineDuplicate,
+            originalHandAuthoredDsoCount = originalDsoCount,
+            finalDeepSkyCount = finalDsoCount,
+            finalCatalogCount = extendedCanonicalObjectsList.size,
+            duplicateCanonicalIds = duplicateIds
+        )
     }
 
     /**
@@ -1225,6 +1539,12 @@ object CanonicalAstroCatalog {
             ?: canonicalObj.physicalProperties.distanceLightYears
             ?: (canonicalObj.physicalProperties.distanceKm?.let { it / 9.4607304725808e12 })
             ?: 0.0
+        val fallbackConstellationNames = canonicalObj.scientificIdentifiers.constellationCode
+            .takeIf { it.isNotBlank() }
+            ?.let { constellationNamesForCode(it) }
+            ?: ("" to "")
+        val constellationEn = canonicalObj.scientificIdentifiers.constellationNameEn.ifBlank { fallbackConstellationNames.first }
+        val constellationFa = canonicalObj.scientificIdentifiers.constellationNameFa.ifBlank { fallbackConstellationNames.second }
 
         return CelestialObject(
             id = canonicalObj.canonicalId,
@@ -1234,8 +1554,8 @@ object CanonicalAstroCatalog {
             raDeg = dynamicRa,
             decDeg = dynamicDec,
             magnitude = dynamicMag,
-            constellationEn = canonicalObj.scientificIdentifiers.constellationCode,
-            constellationFa = canonicalObj.scientificIdentifiers.constellationCode,
+            constellationEn = constellationEn,
+            constellationFa = constellationFa,
             distanceLightYears = distanceLy,
             category = canonicalObj.observationalInfo.categoryEn,
             descriptionEn = canonicalObj.observationalInfo.descriptionEn,
@@ -1247,7 +1567,14 @@ object CanonicalAstroCatalog {
             hdId = canonicalObj.scientificIdentifiers.hdId,
             bayerDesignation = canonicalObj.scientificIdentifiers.bayerDesignation,
             flamsteedNumber = canonicalObj.scientificIdentifiers.flamsteedNumber,
-            temperatureK = canonicalObj.physicalProperties.temperatureK
+            temperatureK = canonicalObj.physicalProperties.temperatureK,
+            catalogDesignations = canonicalObj.scientificIdentifiers.catalogDesignations,
+            angularSizeArcmin = canonicalObj.physicalProperties.angularSizeArcmin,
+            constellationCode = canonicalObj.scientificIdentifiers.constellationCode,
+            bestViewingMonthEn = canonicalObj.observationalInfo.bestViewingMonthEn,
+            bestViewingMonthFa = canonicalObj.observationalInfo.bestViewingMonthFa,
+            funFactsEn = if (canonicalObj.observationalInfo.funFactsEn.isNotEmpty()) canonicalObj.observationalInfo.funFactsEn else canonicalObj.observationalInfo.verifiedFactsEn,
+            funFactsFa = if (canonicalObj.observationalInfo.funFactsFa.isNotEmpty()) canonicalObj.observationalInfo.funFactsFa else canonicalObj.observationalInfo.verifiedFactsFa
         )
     }
 

@@ -27,18 +27,23 @@ data class ScientificIdentifiers(
     val noradId: Int? = null,            // NORAD ID for artificial satellites (e.g. 25544 for ISS)
     val messierId: String? = null,        // Messier designation (e.g. "M31", "M42")
     val ngcId: String? = null,            // NGC catalog designation (e.g. "NGC 224")
+    val caldwellId: String? = null,       // Caldwell designation (e.g. "C14")
+    val catalogDesignations: List<String> = emptyList(),
     val hipId: Int? = null,               // Hipparcos catalog ID
     val hdId: Int? = null,                // Henry Draper catalog ID
     val bayerDesignation: String = "",    // Bayer designation (e.g. "Alpha Canis Majoris")
     val flamsteedNumber: String = "",     // Flamsteed designation
     val constellationCode: String = "",   // IAU 3-letter constellation code (e.g. "ORI", "UMA")
+    val constellationNameEn: String = "",  // Preserved/localized display constellation name when known
+    val constellationNameFa: String = "",  // Preserved/localized display constellation name when known
     val spectralType: String = ""         // Stellar spectral classification (e.g. "A1V", "M2Iab")
 )
 
 data class StaticPosition(
     val raDeg: Double = 0.0,
     val decDeg: Double = 0.0,
-    val distanceLightYears: Double = 0.0
+    val distanceLightYears: Double = 0.0,
+    val epoch: String = "J2000"
 )
 
 data class PhysicalProperties(
@@ -51,6 +56,7 @@ data class PhysicalProperties(
     val surfaceGravityComparedToEarth: Double? = null,
     val distanceKm: Double? = null,
     val distanceLightYears: Double? = null,
+    val angularSizeArcmin: Double? = null,
     val temperatureK: Int = 0,
     val rotationPeriodHours: Double? = null,
     val orbitalPeriodDays: Double? = null,
@@ -78,7 +84,11 @@ data class ObservationalInfo(
     val historicalInfoFa: String = "",
     val activePeakDateWindowEn: String = "",
     val activePeakDateWindowFa: String = "",
+    val bestViewingMonthEn: String = "",
+    val bestViewingMonthFa: String = "",
     val zhr: Int = 0,
     val verifiedFactsEn: List<String> = emptyList(),
-    val verifiedFactsFa: List<String> = emptyList()
+    val verifiedFactsFa: List<String> = emptyList(),
+    val funFactsEn: List<String> = emptyList(),
+    val funFactsFa: List<String> = emptyList()
 )
