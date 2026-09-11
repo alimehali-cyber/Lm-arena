@@ -62,7 +62,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           alias_esc=$(printf '%s' "$KEY_ALIAS" | sed -e 's/[]\/$*.^[]/\\&/g')
-          grep -E "^> |FAILED|Execution failed|Caused by|What went wrong" "$RUNNER_TEMP/gradle-build.log" | head -n 30 | sed -e "s/$alias_esc/<key-alias>/g" -e 's/%/%25/g' > "$RUNNER_TEMP/build-errors.txt" || true
+          { grep -A 14 "What went wrong" "$RUNNER_TEMP/gradle-build.log" | head -n 18; echo "---"; grep -i "caused by" "$RUNNER_TEMP/gradle-build.log" | head -n 8; } | sed -e "s/$alias_esc/<key-alias>/g" -e 's/%/%25/g' > "$RUNNER_TEMP/build-errors.txt" || true
           while IFS= read -r line; do
             echo "::error title=Gradle build failure::$(echo "$line" | head -c 800)"
           done < "$RUNNER_TEMP/build-errors.txt"
