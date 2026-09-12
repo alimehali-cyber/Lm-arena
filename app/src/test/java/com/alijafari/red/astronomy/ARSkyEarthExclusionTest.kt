@@ -62,14 +62,22 @@ class ARSkyEarthExclusionTest {
             "Earth leaked into the AR-facing object list",
             arSky.any { ARSkyCatalog.isExcludedFromArSky(it) }
         )
+        val earthEntry = rawCatalog.first { it.id == ARSkyCatalog.EARTH_CANONICAL_ID }
         assertFalse(
-            "No AR-facing object may be named Earth",
-            arSky.any { it.nameEn.contains("Earth", ignoreCase = true) }
+            "Earth's catalogue entry (\"${earthEntry.nameEn}\") must not appear in the AR sky",
+            arSky.any { it.nameEn == earthEntry.nameEn && it.type == earthEntry.type }
         )
         assertEquals(
             "Earth is the only object the AR scoping removes",
             rawCatalog.size - 1,
             arSky.size
+        )
+        // The rule is id-based: unrelated bodies that legitimately mention Earth in their name
+        // ("Envisat / Earth Observation Sat", near-Earth objects, ...) keep their place in the sky.
+        assertEquals(
+            "Objects that merely mention Earth in their name must not be filtered out",
+            rawCatalog.count { !ARSkyCatalog.isEarth(it.id) && it.nameEn.contains("Earth", ignoreCase = true) },
+            arSky.count { it.nameEn.contains("Earth", ignoreCase = true) }
         )
     }
 
