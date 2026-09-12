@@ -48,7 +48,7 @@ object SatelliteCatalog {
             id = "iss_zarya",
             noradId = 25544,
             nameEn = "ISS (International Space Station)",
-            nameFa = "ایستگاه فضایی بین‌المللی (ISS)",
+            nameFa = "ایستگاه فضایی بین‌المللی",
             category = SatelliteCategory.ISS,
             designation = "1998-067A",
             defaultTle = TLEData(
@@ -124,7 +124,7 @@ object SatelliteCatalog {
             id = "hubble",
             noradId = 20580,
             nameEn = "Hubble Space Telescope (HST)",
-            nameFa = "تلسکوپ فضایی هابل (HST)",
+            nameFa = "تلسکوپ فضایی هابل",
             category = SatelliteCategory.HUBBLE,
             designation = "1990-037B",
             defaultTle = TLEData(
@@ -162,7 +162,7 @@ object SatelliteCatalog {
             id = "envisat",
             noradId = 27386,
             nameEn = "Envisat / Earth Observation Sat",
-            nameFa = "ماهواره سنجش از دور انویسات (Envisat)",
+            nameFa = "ماهواره سنجش از دور انویسات",
             category = SatelliteCategory.VISIBLE,
             designation = "2002-009A",
             defaultTle = TLEData(
