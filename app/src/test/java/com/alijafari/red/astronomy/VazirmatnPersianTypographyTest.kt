@@ -1,15 +1,14 @@
 package com.alijafari.red.astronomy
 
 import androidx.compose.ui.text.font.FontFamily
+import com.alijafari.red.astronomy.ui.theme.EstedadFontFamily
 import com.alijafari.red.astronomy.ui.theme.IranSans
-import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.VazirmatnFontFamily
 import com.alijafari.red.astronomy.ui.theme.redFontFamily
 import com.alijafari.red.astronomy.ui.theme.redTypographyFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -75,35 +74,60 @@ class VazirmatnPersianTypographyTest {
     }
 
     /**
-     * The custom RED tokens leave `fontFamily` unset on purpose, so they inherit whatever the theme
-     * provides through LocalTextStyle. Pinning a family there would silently opt Persian text out of
-     * Vazirmatn at the 120+ call sites that use them.
+     * The token getters are `@Composable` (they follow the theme), so this checks the declarations
+     * instead of calling them: the shared bases carry no family at all, and every custom token and
+     * every `RedTypography` accessor re-puts the theme face on at read time. That is what makes
+     * Persian work at the ~120 call sites that hand a style straight to Material's `Text`, which
+     * does not merge a passed style onto the ambient one — and it must not disturb the metrics.
      */
     @Test
-    fun redDesignTokensLeaveTheFamilyUnsetSoTheyFollowTheLocale() {
-        val tokens = mapOf(
-            "heroDisplay" to RedTypographyTokens.heroDisplay,
-            "sectionHeading" to RedTypographyTokens.sectionHeading,
-            "bodyPrimary" to RedTypographyTokens.bodyPrimary,
-            "bodySecondary" to RedTypographyTokens.bodySecondary,
-            "numberLarge" to RedTypographyTokens.numberLarge,
-            "numberMedium" to RedTypographyTokens.numberMedium,
-            "numberSmall" to RedTypographyTokens.numberSmall,
-            "screenTitle" to RedTypographyTokens.screenTitle,
-            "sectionTitle" to RedTypographyTokens.sectionTitle,
-            "caption" to RedTypographyTokens.caption,
-            "badge" to RedTypographyTokens.badge
+    fun redDesignTokensAreFamilyFreeAndRebaseOnTheThemeFace() {
+        val type = readAppSource("ui/theme/Type.kt")
+        val bases = type.substring(
+            type.indexOf("internal object RedTypeBase {"),
+            type.indexOf("object RedTypographyTokens {")
         )
-        assertEquals("all token styles are covered", 11, tokens.size)
-        for ((name, style) in tokens) {
-            assertNull("$name must leave the font family unset so the theme's face wins", style.fontFamily)
-        }
+        val tokens = type.substring(
+            type.indexOf("object RedTypographyTokens {"),
+            type.indexOf("object RedTypography {")
+        )
+        val accessor = type.substring(type.indexOf("object RedTypography {"))
+
+        assertFalse("token bases must not pin a font family", bases.contains("fontFamily"))
+        assertEquals(
+            "all 11 custom styles are declared on the bases",
+            11,
+            Regex(
+                "val (heroDisplay|sectionHeading|bodyPrimary|bodySecondary|numberLarge|numberMedium" +
+                    "|numberSmall|screenTitle|sectionTitle|caption|badge) = TextStyle\\("
+            ).findAll(bases).count()
+        )
+        assertEquals(
+            "every custom token re-applies the theme face",
+            11,
+            Regex("redLocalized\\(RedTypeBase\\.\\w+\\)").findAll(tokens).count()
+        )
+        assertEquals(
+            "the RedTypography accessor forwards the face for all 15 Material styles",
+            15,
+            Regex("redLocalized\\(Typography\\.\\w+\\)").findAll(accessor).count()
+        )
+        assertTrue(
+            "metrics are untouched by the sweep",
+            bases.contains("fontSize = 26.sp") && bases.contains("lineHeight = 34.sp") &&
+                bases.contains("letterSpacing = (-0.4).sp") && bases.contains("fontSize = 12.sp")
+        )
     }
 
-    /** The still-unused aliases stay honest: platform face, never a broken bundle. */
+    /**
+     * `EstedadFontFamily` is the honest name for what the removed Efsan bundle always rendered as —
+     * the platform face — and the historical `IranSans` alias now points at the real Vazirmatn
+     * family, so no reference can silently land somewhere else.
+     */
     @Test
-    fun unusedFontAliasesStillResolveToThePlatformFace() {
-        assertSame(FontFamily.Default, IranSans)
+    fun legacyFontAliasesResolveToTheDeclaredFamilies() {
+        assertSame(FontFamily.Default, EstedadFontFamily)
+        assertSame(VazirmatnFontFamily, IranSans)
     }
 
     // -----------------------------------------------------------------------------------------
@@ -187,10 +211,33 @@ class VazirmatnPersianTypographyTest {
     @Test
     fun noUiStylePinsAFamilyThatWouldDefeatTheLocaleFace() {
         val pin = Regex("fontFamily\\s*=\\s*FontFamily\\.(SansSerif|Serif|Monospace|Cursive|Default)")
-        val offenders = appSources().filter { it.relativePath().startsWith("ui/theme/") || it.name == exemptBrandLockup }
-            .flatMap { f -> pin.findAll(f.readText()).map { m -> "${f.name}: ${m.value}" } }
+        val offenders = appSources()
+            .filter { it.relativePath().startsWith("ui/theme/") || it.name == exemptBrandLockup }
+            .flatMap { f ->
+                val text = f.readText()
+                pin.findAll(text)
+                    .filterNot { isBrandWordmark(text, it.range.first) }
+                    .map { m -> "${f.name}:${lineOf(text, m.range.first)} ${m.value}" }
+            }
             .toList()
         assertTrue("Styles must not pin a fixed family; use the theme face. Offenders: $offenders", offenders.isEmpty())
+    }
+
+    /**
+     * The `ZIG` wordmark is a brand lockup: it renders identically in both locales and can never carry
+     * Persian text, so a fixed family there is deliberate rather than a hole in the theme.
+     */
+    private fun isBrandWordmark(text: String, index: Int): Boolean {
+        var depth = 0
+        var i = index - 1
+        while (i >= 0) {
+            when (text[i]) {
+                ')' -> depth++
+                '(' -> if (depth == 0) return argumentsOf(text, i).contains("\"ZIG\"") else depth--
+            }
+            i--
+        }
+        return false
     }
 
     @Test
@@ -252,19 +299,6 @@ class VazirmatnPersianTypographyTest {
         assertTrue(
             "MainActivity must drive that decision from the app's own language state",
             readAppSource("MainActivity.kt").contains("isPersian = isFa")
-        )
-    }
-
-    @Test
-    fun theRedDesignTokensApplyTheFaceAtReadTime() {
-        val type = readAppSource("ui/theme/Type.kt")
-        val bases = type.substring(type.indexOf("internal object RedTypeBase {"), type.indexOf("object RedTypographyTokens {"))
-        assertFalse("token bases must stay family-free", bases.contains("fontFamily"))
-        val tokens = type.substring(type.indexOf("object RedTypographyTokens {"), type.indexOf("fun redLocalized"))
-        assertEquals(
-            "every token getter resolves the locale face",
-            11,
-            Regex("redLocalized\\(RedTypeBase\\.").findAll(tokens).count()
         )
     }
 
