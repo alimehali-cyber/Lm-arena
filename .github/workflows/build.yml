@@ -31,16 +31,27 @@ jobs:
       - name: Grant execute permission for gradlew (if present)
         run: chmod +x gradlew || true
 
-      - name: Decode Keystore
+      - name: Decode permanent signing keystore
         env:
           SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "$SIGNING_KEY_BASE64" ]; then
-            echo "$SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/keystore.jks"
-            echo "Permanent signing keystore decoded."
-          else
-            echo "No signing secret configured; Gradle will fall back to the debug key."
+          set -euo pipefail
+          missing=0
+          for secret_name in SIGNING_KEY_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!secret_name:-}" ]; then
+              echo "::error title=Missing signing secret::${secret_name} is required for installable update APKs."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
           fi
+          echo "$SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/keystore.jks"
+          test -s "$RUNNER_TEMP/keystore.jks"
+          echo "Permanent signing keystore decoded."
 
       - name: Run full unit test suite
         shell: bash
@@ -113,6 +124,7 @@ jobs:
               "com.alijafari.red.astronomy.SatelliteARConsistencyTest",
               "com.alijafari.red.astronomy.CatalogIntegrityTest",
               "com.alijafari.red.astronomy.DeepSkyFactCoverageTest",
+              "com.alijafari.red.astronomy.ObjectDetailModalConsistencyTest",
           ]
           stats = {name: {"tests": 0, "failures": 0, "errors": 0, "skipped": 0} for name in required}
           files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml"))
@@ -141,14 +153,6 @@ jobs:
           if failed:
               sys.exit("One or more required AR unit test classes were missing, skipped, or failed")
           PY
-
-      - name: Upload unit test reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: unit-test-results
-          path: app/build/test-results/testDebugUnitTest/*.xml
-          if-no-files-found: warn
 
       - name: Build APK with Gradle
         env:
@@ -326,26 +330,53 @@ jobs:
             exit 1
           fi
 
-      - name: Upload emulator smoke artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ar-emulator-smoke-results
-          path: |
-            ${{ runner.temp }}/ar-emulator-setup.log
-            ${{ runner.temp }}/ar-emulator-startup.log
-            ${{ runner.temp }}/ar-smoke-gradle.log
-            ${{ runner.temp }}/ar-smoke-logcat.txt
-            app/build/outputs/androidTest-results/connected/**/*.xml
-            app/build/reports/androidTests/connected/**
-          if-no-files-found: warn
+      - name: Prepare signed real app APK artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk_candidates=()
+          while IFS= read -r apk; do
+            apk_candidates+=("$apk")
+          done < <(find app/build/outputs/apk/debug -maxdepth 1 -type f -name "*-debug.apk" ! -name "*androidTest*" | sort)
 
-      - name: Upload APK Artifact
+          if [ "${#apk_candidates[@]}" -ne 1 ]; then
+            echo "::error title=APK artifact selection::Expected exactly one real debug app APK, found ${#apk_candidates[@]}: ${apk_candidates[*]:-none}"
+            find app/build/outputs/apk -type f -name "*.apk" -print || true
+            exit 1
+          fi
+
+          app_apk="${apk_candidates[0]}"
+          aapt="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          badging="$($aapt dump badging "$app_apk" | head -n 1)"
+          echo "$badging"
+          if [[ "$badging" != *"name='com.alijafari.red.astronomy'"* ]]; then
+            echo "::error title=APK package mismatch::Real app APK must use package com.alijafari.red.astronomy"
+            exit 1
+          fi
+          if [[ "$badging" != *"versionCode='3'"* ]]; then
+            echo "::error title=APK version mismatch::Expected versionCode 3 for update over the currently installed build."
+            exit 1
+          fi
+          "$apksigner" verify --print-certs "$app_apk" | tee "$RUNNER_TEMP/apksigner-certs.txt"
+          grep -E "Signer #1 certificate SHA-256 digest|Verified using" "$RUNNER_TEMP/apksigner-certs.txt" || true
+
+          rm -rf "$RUNNER_TEMP/real-app-apk"
+          mkdir -p "$RUNNER_TEMP/real-app-apk"
+          cp "$app_apk" "$RUNNER_TEMP/real-app-apk/ZIG-debug.apk"
+          file_count="$(find "$RUNNER_TEMP/real-app-apk" -type f | wc -l | tr -d ' ')"
+          if [ "$file_count" != "1" ]; then
+            echo "::error title=APK artifact selection::Only the real app APK may be uploaded."
+            exit 1
+          fi
+          echo "Prepared artifact with exactly one installable APK: ZIG-debug.apk"
+
+      - name: Upload real app APK only
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/**/*.apk
-          if-no-files-found: warn
+          name: ZIG-real-app-apk
+          path: ${{ runner.temp }}/real-app-apk/ZIG-debug.apk
+          if-no-files-found: error
 
       - name: Clean up keystore
         if: always()
