@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -191,6 +192,7 @@ fun LocationSelectorDialog(
 
                     // 1. MINIMAL SEARCH BAR (Sticky at Top)
                     OutlinedTextField(
+                        textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         modifier = Modifier
@@ -511,6 +513,7 @@ fun LocationSelectorDialog(
                                         Spacer(modifier = Modifier.height(10.dp))
 
                                         OutlinedTextField(
+                                            textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                                             value = manualLat,
                                             onValueChange = { manualLat = it; manualError = null },
                                             label = { Text(if (isFa) "عرض جغرافیایی (-۹۰ تا +۹۰)" else "Latitude (-90.0 to +90.0)") },
@@ -531,6 +534,7 @@ fun LocationSelectorDialog(
                                         Spacer(modifier = Modifier.height(8.dp))
 
                                         OutlinedTextField(
+                                            textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                                             value = manualLon,
                                             onValueChange = { manualLon = it; manualError = null },
                                             label = { Text(if (isFa) "طول جغرافیایی (-۱۸۰ تا +۱۸۰)" else "Longitude (-180.0 to +180.0)") },
@@ -555,6 +559,7 @@ fun LocationSelectorDialog(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             OutlinedTextField(
+                                                textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                                                 value = manualElev,
                                                 onValueChange = { manualElev = it },
                                                 label = { Text(if (isFa) "ارتفاع (متر)" else "Elevation (m)") },
@@ -572,6 +577,7 @@ fun LocationSelectorDialog(
                                                 )
                                             )
                                             OutlinedTextField(
+                                                textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                                                 value = manualName,
                                                 onValueChange = { manualName = it },
                                                 label = { Text(if (isFa) "نام مکان" else "Name") },

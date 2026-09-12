@@ -86,7 +86,6 @@ import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.ARSensorCalibrationDialog
 import com.alijafari.red.astronomy.ui.components.TimeMachineControlBar
 import com.alijafari.red.astronomy.ui.rendering.*
-import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -2613,6 +2612,7 @@ fun CompassARScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     TextField(
+                                        textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                                         value = searchQuery,
                                         onValueChange = { searchQuery = it },
                                         placeholder = {

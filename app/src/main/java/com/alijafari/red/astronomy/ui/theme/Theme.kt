@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy.ui.theme
 
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -313,7 +314,18 @@ fun REDTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = redTypographyFor(isPersian),
-            content = content
+            content = {
+                // Material 3's Text uses whatever `style` it is handed *as-is* — it does not merge the
+                // theme's ambient style into an explicitly passed one — so the typography swap above
+                // only reaches call sites that read MaterialTheme.typography. Re-providing the ambient
+                // style with the locale face is what covers every Text() that passes no style at all
+                // (placeholders, bare labels). .copy() only replaces the family, so sizes, weights and
+                // line heights inherited from the theme stay exactly as they were.
+                CompositionLocalProvider(
+                    LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = appFontFamily),
+                    content = content
+                )
+            }
         )
     }
 }

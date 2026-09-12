@@ -1,6 +1,8 @@
 package com.alijafari.red.astronomy.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -26,12 +28,15 @@ val VazirmatnFontFamily = FontFamily(
 )
 
 /**
- * Still aliased to the platform face: the `estedad_*` / `iran_sans_*` files in res/font are not
- * loadable fonts (their bytes are corrupted, see VazirmatnPersianTypographyTest), so pointing an
- * alias at them would render blank text at runtime. The aliases stay so that existing call sites
- * keep compiling if a valid bundle is ever dropped in.
+ * The app's long-standing name for "the Persian type face": call sites write
+ * `if (isFa) IranSans else null`, so it now resolves to the bundled Vazirmatn. The historical
+ * `iran_sans_*` files in res/font are unusable (corrupted bytes, see VazirmatnPersianTypographyTest)
+ * and Iran Sans is not freely licensed anyway, so nothing points at them; the alias survives so the
+ * existing convention keeps working and stays a single point of change.
  */
-val IranSans = FontFamily.Default
+val IranSans = VazirmatnFontFamily
+
+/** Likewise still platform default: the `estedad_*` files in res/font are corrupt and loadable by nothing. */
 val EstedadFontFamily = FontFamily.Default
 
 /**
@@ -185,15 +190,16 @@ fun redTypographyFor(isPersian: Boolean): Typography =
     if (isPersian) redTypography(VazirmatnFontFamily) else Typography
 
 /**
- * Specialized Typography tokens for astronomical / numerical / data display
+ * Specialized Typography tokens for astronomical / numerical / data display, and the RED
+ * design-token faces of the same scale.
+ *
+ * The bases in [RedTypeBase] never carry a `fontFamily`: the object's getters put the locale face
+ * on them at read time. That matters because Material 3's `Text` uses whatever `style` it is given
+ * as-is (it does not merge the passed style onto the theme's ambient style), so a token that
+ * hardcoded `FontFamily.Default` would silently opt every one of these ~120 call sites out of
+ * Vazirmatn in Persian. Sizes, weights, line heights and tracking are exactly what they were.
  */
-/**
- * RED design tokens. They deliberately leave `fontFamily` unset: a TextStyle keeps whatever the
- * surrounding `LocalTextStyle` provides for properties it does not set itself, so these styles
- * follow the locale face (Vazirmatn in Persian, platform default in English) without each call
- * site having to care. Sizes, weights, line heights and tracking are unchanged.
- */
-object RedTypographyTokens {
+internal object RedTypeBase {
     // Hero Display
     val heroDisplay = TextStyle(
         fontWeight = FontWeight.Bold,
@@ -277,23 +283,145 @@ object RedTypographyTokens {
     )
 }
 
+object RedTypographyTokens {
+    /** heroDisplay — rendered with the locale face (see [redLocalized]). */
+    val heroDisplay: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(RedTypeBase.heroDisplay)
+
+    /** sectionHeading — rendered with the locale face (see [redLocalized]). */
+    val sectionHeading: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(RedTypeBase.sectionHeading)
+
+    /** bodyPrimary — rendered with the locale face (see [redLocalized]). */
+    val bodyPrimary: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(RedTypeBase.bodyPrimary)
+
+    /** bodySecondary — rendered with the locale face (see [redLocalized]). */
+    val bodySecondary: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(RedTypeBase.bodySecondary)
+
+    /** numberLarge — rendered with the locale face (see [redLocalized]). */
+    val numberLarge: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(RedTypeBase.numberLarge)
+
+    /** numberMedium — rendered with the locale face (see [redLocalized]). */
+    val numberMedium: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(RedTypeBase.numberMedium)
+
+    /** numberSmall — rendered with the locale face (see [redLocalized]). */
+    val numberSmall: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(RedTypeBase.numberSmall)
+
+    /** screenTitle — rendered with the locale face (see [redLocalized]). */
+    val screenTitle: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(RedTypeBase.screenTitle)
+
+    /** sectionTitle — rendered with the locale face (see [redLocalized]). */
+    val sectionTitle: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(RedTypeBase.sectionTitle)
+
+    /** caption — rendered with the locale face (see [redLocalized]). */
+    val caption: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(RedTypeBase.caption)
+
+    /** badge — rendered with the locale face (see [redLocalized]). */
+    val badge: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(RedTypeBase.badge)
+}
+
 /**
- * Accessor for typography styles compatible with both Material 3 and custom RED styles
+ * Puts the face the theme resolved for the active locale onto a family-free style. Read-only:
+ * it never triggers a recomposition by itself, it just follows the ambient [LocalAppFontFamily].
+ */
+@Composable
+@ReadOnlyComposable
+fun redLocalized(style: TextStyle): TextStyle = style.copy(fontFamily = LocalAppFontFamily.current)
+
+/**
+ * Accessor for typography styles compatible with both Material 3 and custom RED styles. These
+ * forward the locale face too, so code reading RedTypography.bodyMedium matches MaterialTheme.
  */
 object RedTypography {
-    val displayLarge: TextStyle get() = Typography.displayLarge
-    val displayMedium: TextStyle get() = Typography.displayMedium
-    val displaySmall: TextStyle get() = Typography.displaySmall
-    val headlineLarge: TextStyle get() = Typography.headlineLarge
-    val headlineMedium: TextStyle get() = Typography.headlineMedium
-    val headlineSmall: TextStyle get() = Typography.headlineSmall
-    val titleLarge: TextStyle get() = Typography.titleLarge
-    val titleMedium: TextStyle get() = Typography.titleMedium
-    val titleSmall: TextStyle get() = Typography.titleSmall
-    val bodyLarge: TextStyle get() = Typography.bodyLarge
-    val bodyMedium: TextStyle get() = Typography.bodyMedium
-    val bodySmall: TextStyle get() = Typography.bodySmall
-    val labelLarge: TextStyle get() = Typography.labelLarge
-    val labelMedium: TextStyle get() = Typography.labelMedium
-    val labelSmall: TextStyle get() = Typography.labelSmall
+    val displayLarge: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.displayLarge)
+    val displayMedium: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.displayMedium)
+    val displaySmall: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.displaySmall)
+    val headlineLarge: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.headlineLarge)
+    val headlineMedium: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.headlineMedium)
+    val headlineSmall: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.headlineSmall)
+    val titleLarge: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.titleLarge)
+    val titleMedium: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.titleMedium)
+    val titleSmall: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.titleSmall)
+    val bodyLarge: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.bodyLarge)
+    val bodyMedium: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.bodyMedium)
+    val bodySmall: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.bodySmall)
+    val labelLarge: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.labelLarge)
+    val labelMedium: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.labelMedium)
+    val labelSmall: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = redLocalized(Typography.labelSmall)
 }

@@ -173,6 +173,168 @@ class VazirmatnPersianTypographyTest {
         }
     }
 
+
+    // -----------------------------------------------------------------------------------------
+    // Coverage sweep: no text in the app may escape the locale face
+    //
+    // The bug this guards against is structural, not visual: Material 3's Text uses the `style` it is
+    // handed as-is (it does not merge the theme's ambient style into an explicit one), so a call site
+    // that passes its own TextStyle without a family silently renders Persian in the system font. That
+    // is how the AR pills, the home screen and the Lab/Moon screens kept the old face after the theme
+    // swap. These assertions scan the sources so the same gap cannot come back unnoticed.
+    // -----------------------------------------------------------------------------------------
+
+    @Test
+    fun noUiStylePinsAFamilyThatWouldDefeatTheLocaleFace() {
+        val pin = Regex("fontFamily\\s*=\\s*FontFamily\\.(SansSerif|Serif|Monospace|Cursive|Default)")
+        val offenders = appSources().filter { it.relativePath().startsWith("ui/theme/") || it.name == exemptBrandLockup }
+            .flatMap { f -> pin.findAll(f.readText()).map { m -> "${f.name}: ${m.value}" } }
+            .toList()
+        assertTrue("Styles must not pin a fixed family; use the theme face. Offenders: $offenders", offenders.isEmpty())
+    }
+
+    @Test
+    fun everyIranSansUseIsGuardedByTheLocale() {
+        val offenders = mutableListOf<String>()
+        for (f in appSources()) {
+            f.readText().lineSequence().forEachIndexed { i, line ->
+                if (line.contains("= IranSans") && !line.contains("if (isFa)")) {
+                    offenders += "${f.name}:${i + 1} ${line.trim()}"
+                }
+            }
+        }
+        assertTrue(
+            "IranSans is the Persian face; using it unconditionally would restyle English text. " +
+                "Guard it with the locale or use the theme family. Offenders: $offenders",
+            offenders.isEmpty()
+        )
+    }
+
+    @Test
+    fun everyCanvasTextCarriesTheFontFamilyExplicitly() {
+        val offenders = appSources().flatMap { f ->
+            val text = f.readText()
+            occurrences(text, "textMeasurer.measure(").filterNot { "fontFamily" in argumentsOf(text, it) }
+                .map { "${f.name}:${lineOf(text, it)}" }
+        }.toList()
+        assertTrue(
+            "Text measured onto a Canvas never inherits the theme's ambient style, so each measure() " +
+                "must set fontFamily itself. Offenders: $offenders",
+            offenders.isEmpty()
+        )
+    }
+
+    @Test
+    fun everyTextFieldPassesTheLocaleTextStyle() {
+        val offenders = appSources().flatMap { f ->
+            val text = f.readText()
+            (occurrences(text, "OutlinedTextField(") + bareOccurrences(text, "TextField("))
+                .filterNot { "textStyle" in argumentsOf(text, it) }
+                .map { "${f.name}:${lineOf(text, it)}" }
+        }.toList()
+        assertTrue(
+            "Material text fields take their value style from `textStyle`, not from the ambient style, " +
+                "so typed Persian needs it explicitly. Offenders: $offenders",
+            offenders.isEmpty()
+        )
+    }
+
+    @Test
+    fun theThemeResolvesAndDistributesTheFaceInOnePlace() {
+        val theme = readAppSource("ui/theme/Theme.kt")
+        assertTrue(
+            "REDTheme must feed the locale face to Material typography, the ambient LocalTextStyle and " +
+                "LocalAppFontFamily",
+            theme.contains("redTypographyFor(isPersian)") &&
+                theme.contains("LocalAppFontFamily provides appFontFamily") &&
+                theme.contains("LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = appFontFamily)")
+        )
+        assertTrue(
+            "MainActivity must drive that decision from the app's own language state",
+            readAppSource("MainActivity.kt").contains("isPersian = isFa")
+        )
+    }
+
+    @Test
+    fun theRedDesignTokensApplyTheFaceAtReadTime() {
+        val type = readAppSource("ui/theme/Type.kt")
+        val bases = type.substring(type.indexOf("internal object RedTypeBase {"), type.indexOf("object RedTypographyTokens {"))
+        assertFalse("token bases must stay family-free", bases.contains("fontFamily"))
+        val tokens = type.substring(type.indexOf("object RedTypographyTokens {"), type.indexOf("fun redLocalized"))
+        assertEquals(
+            "every token getter resolves the locale face",
+            11,
+            Regex("redLocalized\\(RedTypeBase\\.").findAll(tokens).count()
+        )
+    }
+
+    // ---- sweep helpers ----
+
+    private val exemptBrandLockup get() = "PremiumSplashScreen.kt"
+
+    private fun appSources(): List<File> {
+        val dir = appSourceDir()
+        return dir.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+    }
+
+    private fun readAppSource(relative: String): String {
+        val f = File(appSourceDir(), relative)
+        assertTrue("missing source file $relative", f.isFile)
+        return f.readText()
+    }
+
+    private fun File.relativePath(): String = relativeTo(appSourceDir()).path.replace(File.separatorChar, '/')
+
+    private fun appSourceDir(): File {
+        // Gradle runs unit tests with the module directory as the working directory, but walk up so
+        // the sweep does not depend on that detail.
+        var dir: File? = File("").absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, "app/src/main/java/com/alijafari/red/astronomy")
+            if (candidate.isDirectory) return candidate
+            val direct = File(dir, "src/main/java/com/alijafari/red/astronomy")
+            if (direct.isDirectory) return direct
+            dir = dir.parentFile
+        }
+        throw AssertionError("could not locate the astronomy source directory")
+    }
+
+    private fun occurrences(text: String, needle: String): List<Int> {
+        val out = mutableListOf<Int>()
+        var i = text.indexOf(needle)
+        while (i >= 0) {
+            out += i
+            i = text.indexOf(needle, i + needle.length)
+        }
+        return out
+    }
+
+    private fun bareOccurrences(text: String, needle: String): List<Int> =
+        occurrences(text, needle).filterNot { pos ->
+            val before = text.getOrNull(pos - 1)
+            before != null && (before.isLetterOrDigit() || before == '_' || before == '.')
+        }
+
+    private fun argumentsOf(text: String, callStart: Int): String {
+        var depth = 0
+        var i = text.indexOf('(', callStart)
+        if (i < 0) return ""
+        val from = i + 1
+        while (i < text.length) {
+            when (text[i]) {
+                '(' -> depth++
+                ')' -> {
+                    depth--
+                    if (depth == 0) return text.substring(from, i)
+                }
+            }
+            i++
+        }
+        return text.substring(from)
+    }
+
+    private fun lineOf(text: String, index: Int): Int = text.take(index).count { it == '\n' } + 1
+
     // -----------------------------------------------------------------------------------------
     // helpers
     // -----------------------------------------------------------------------------------------
