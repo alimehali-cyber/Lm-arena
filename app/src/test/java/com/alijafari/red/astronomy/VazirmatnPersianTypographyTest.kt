@@ -9,6 +9,7 @@ import com.alijafari.red.astronomy.ui.theme.redTypographyFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -95,7 +96,7 @@ class VazirmatnPersianTypographyTest {
         )
         assertEquals("all token styles are covered", 11, tokens.size)
         for ((name, style) in tokens) {
-            assertSame("$name must not pin a font family", FontFamily.Default, style.fontFamily)
+            assertNull("$name must leave the font family unset so the theme's face wins", style.fontFamily)
         }
     }
 
