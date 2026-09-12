@@ -136,7 +136,8 @@ class MainActivity : ComponentActivity() {
                 sunAltitudeDeg = sunAltitudeDeg,
                 userLatitude = uiState.userLocation.latitude,
                 userLongitude = uiState.userLocation.longitude,
-                timestampMs = currentEffectiveTimeMs
+                timestampMs = currentEffectiveTimeMs,
+                isPersian = isFa
             ) {
                 CompositionLocalProvider(
                     LocalContext provides localizedContext,

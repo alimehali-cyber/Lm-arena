@@ -7,6 +7,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.LocalTextStyle
+import androidx.compose.ui.text.TextStyle
 import com.alijafari.red.astronomy.domain.ThemeMode
 
 // Material 3 Color Schemes
@@ -209,6 +211,7 @@ fun REDTheme(
     userLatitude: Double = 30.1141,
     userLongitude: Double = 51.5217,
     timestampMs: Long = System.currentTimeMillis(),
+    isPersian: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val celestialLighting = remember(timestampMs, userLatitude, userLongitude) {
@@ -290,17 +293,32 @@ fun REDTheme(
         }
     }
 
+    // The app's one and only type-face decision. Persian renders in Vazirmatn, English keeps the
+    // platform default face. Three channels, all fed from the same rule, so nothing has to be
+    // patched per call site:
+    //  * the Material 3 Typography object          -> every MaterialTheme.typography.* usage
+    //  * LocalTextStyle                            -> Text() calls, and the RED design tokens, which
+    //                                                 deliberately leave fontFamily unset (see Type.kt)
+    //  * LocalAppFontFamily                        -> text measured straight onto a Canvas
+    val appFontFamily = redFontFamily(isPersian)
+
     CompositionLocalProvider(
         LocalCelestialLighting provides celestialLighting,
         LocalRedColors provides redColorTokens,
         LocalRedSpacing provides RedSpacing,
         LocalRedRadius provides RedCornerRadius,
-        LocalRedElevation provides RedElevation
+        LocalRedElevation provides RedElevation,
+        LocalAppFontFamily provides appFontFamily
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = Typography,
-            content = content
+            typography = redTypographyFor(isPersian),
+            content = {
+                CompositionLocalProvider(
+                    LocalTextStyle provides TextStyle.Default.copy(fontFamily = appFontFamily),
+                    content = content
+                )
+            }
         )
     }
 }

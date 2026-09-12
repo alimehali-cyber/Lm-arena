@@ -100,6 +100,9 @@ fun ISSScreen(
     viewModel: MainViewModel
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
+    // Text measured straight onto a Canvas never merges the theme's LocalTextStyle, so the locale
+    // face is taken from the theme here and handed to each measure() call below.
+    val canvasFontFamily = LocalAppFontFamily.current
     val context = LocalContext.current
     val isOnline = remember(context) { isNetworkAvailable(context) }
     val density = LocalDensity.current
@@ -660,6 +663,7 @@ fun ISSScreen(
                         val textLayoutResult = textMeasurer.measure(
                             text = if (isFa) cityName.toPersianDigits() else cityName,
                             style = TextStyle(
+                                fontFamily = canvasFontFamily,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = mapPalette.userTextColor
