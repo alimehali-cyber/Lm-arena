@@ -44,18 +44,19 @@ fun redFontFamily(isPersian: Boolean): FontFamily =
 
 /**
  * The face [REDTheme] resolved for the current locale. Text drawn outside the Material text
- * pipeline (Canvas labels measured with a `TextMeasurer`) has no [androidx.compose.ui.text.style
- * LocalTextStyle] to inherit from, so those call sites read this instead.
+ * pipeline (Canvas labels measured with a `TextMeasurer`) has no ambient text style to inherit from,
+ * so those call sites read this instead.
  */
-val LocalAppFontFamily = staticCompositionLocalOf { FontFamily.Default }
+val LocalAppFontFamily = staticCompositionLocalOf<FontFamily> { FontFamily.Default }
 
 /**
  * RED Design System - Restrained Apple-Inspired Typography Hierarchy
  * Balanced for English LTR and Persian RTL scripts with appropriate line-heights and weights.
+ *
+ * The Material 3 constructor below is fully qualified on purpose: this file also declares a
+ * top-level `Typography` property, and an unqualified `Typography(...)` call in the same package
+ * would resolve to that property instead of the constructor.
  */
-// The constructor is fully qualified on purpose: this file also declares a top-level `Typography`
-// property, and an unqualified `Typography(...)` call in the same package would resolve to that
-// property instead of the Material 3 constructor.
 private fun redTypography(family: FontFamily): Typography = androidx.compose.material3.Typography(
     // Large Display (Hero astronomical stats or prominent headers)
     displayLarge = TextStyle(

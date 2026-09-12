@@ -7,8 +7,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.LocalTextStyle
-import androidx.compose.ui.text.TextStyle
 import com.alijafari.red.astronomy.domain.ThemeMode
 
 // Material 3 Color Schemes
@@ -293,13 +291,15 @@ fun REDTheme(
         }
     }
 
-    // The app's one and only type-face decision. Persian renders in Vazirmatn, English keeps the
-    // platform default face. Three channels, all fed from the same rule, so nothing has to be
-    // patched per call site:
-    //  * the Material 3 Typography object          -> every MaterialTheme.typography.* usage
-    //  * LocalTextStyle                            -> Text() calls, and the RED design tokens, which
-    //                                                 deliberately leave fontFamily unset (see Type.kt)
-    //  * LocalAppFontFamily                        -> text measured straight onto a Canvas
+    // The app's one and only type-face decision: Persian renders in Vazirmatn, English keeps the
+    // platform default face. Two channels, both fed from that single rule, so no call site anywhere
+    // has to care:
+    //  * the Material 3 Typography object -> every MaterialTheme.typography.* usage, and every plain
+    //    Text() / custom-token Text(style = ...) call, because MaterialTheme exposes typography's
+    //    bodyLarge as the ambient text style that those styles merge onto (a TextStyle only overrides
+    //    properties it sets itself, so the RED tokens in Type.kt deliberately leave fontFamily unset).
+    //  * LocalAppFontFamily -> text measured straight onto a Canvas, which never merges that ambient
+    //    style (CompassARScreen / ISSScreen labels).
     val appFontFamily = redFontFamily(isPersian)
 
     CompositionLocalProvider(
@@ -313,12 +313,7 @@ fun REDTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = redTypographyFor(isPersian),
-            content = {
-                CompositionLocalProvider(
-                    LocalTextStyle provides TextStyle.Default.copy(fontFamily = appFontFamily),
-                    content = content
-                )
-            }
+            content = content
         )
     }
 }
