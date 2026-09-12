@@ -86,6 +86,7 @@ import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.components.ARSensorCalibrationDialog
 import com.alijafari.red.astronomy.ui.components.TimeMachineControlBar
 import com.alijafari.red.astronomy.ui.rendering.*
+import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -340,6 +341,9 @@ fun CompassARScreen(
     viewModel: MainViewModel
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
+    // Text measured straight onto a Canvas never merges the theme's LocalTextStyle, so the locale
+    // face is taken from the theme here and handed to each measure() call below.
+    val canvasFontFamily = LocalAppFontFamily.current
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val textMeasurer = rememberTextMeasurer()
@@ -1503,7 +1507,7 @@ fun CompassARScreen(
                     val horizonLabel = if (isFa) "افق (0°)" else "Horizon (0°)"
                     val horizonTextLayout = textMeasurer.measure(
                         text = horizonLabel,
-                        style = TextStyle(color = AccentPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                        style = TextStyle(fontFamily = canvasFontFamily, color = AccentPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold),
                         maxLines = 1,
                         softWrap = false
                     )
@@ -2047,6 +2051,7 @@ fun CompassARScreen(
                     val textLayout = textMeasurer.measure(
                         text = labelText,
                         style = TextStyle(
+                            fontFamily = canvasFontFamily,
                             color = Color.White,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
@@ -2112,6 +2117,7 @@ fun CompassARScreen(
                 val textLayout = textMeasurer.measure(
                     text = labelText,
                     style = TextStyle(
+                        fontFamily = canvasFontFamily,
                         color = Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
@@ -2183,17 +2189,8 @@ fun CompassARScreen(
             )
         }
 
-        // Always-visible GPS accuracy/staleness chip promoted out of the telemetry accordion.
-        if (!isAlignmentMode) {
-            GpsStatusChip(
-                health = gpsHealth,
-                isFa = isFa,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(top = 96.dp, end = 16.dp)
-            )
-        }
+        // No GPS status is overlaid on the canvas any more: locator accuracy / staleness belongs to
+        // the Sensors & Telemetry page (the sensors pill), where the user can read it in context.
 
         if (isCameraPermanentlyDenied() && !userToggledCameraOff && !cameraBannerDismissed && !isAlignmentMode) {
             PermissionBlockedBanner(
@@ -3042,10 +3039,14 @@ fun CompassARScreen(
                                             }
                                         }
 
+                                        // Locator status is read here, not on the canvas. It stays outside the telemetry
+                                        // accordion because a missing live fix changes how the whole panel should be
+                                        // interpreted, and it is the one health item people actually act on.
+                                        TelemetryDetailRow(if (isFa) "موقعیت‌یاب" else "GPS", gpsHealth, isFa)
+
                                         if (showDetailsAccordion) {
                                             HorizontalDivider(color = overallColor.copy(alpha = 0.3f), thickness = 0.5.dp)
                                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                TelemetryDetailRow("GPS", gpsHealth, isFa)
                                                 TelemetryDetailRow(if (isFa) "حسگر" else "Sensors", sensorHealth, isFa)
                                                 TelemetryDetailRow(if (isFa) "دوربین" else "Camera", cameraHealth, isFa)
                                                 Text(
@@ -3555,34 +3556,6 @@ private fun EdgeIndicatorChip(
     }
 }
 
-@Composable
-private fun GpsStatusChip(
-    health: ArSubsystemHealth,
-    isFa: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val color = arHealthColor(health.level)
-    Surface(
-        modifier = modifier,
-        shape = CircleShape,
-        color = Color.Black.copy(alpha = 0.70f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.65f))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Surface(shape = CircleShape, color = color, modifier = Modifier.size(7.dp)) {}
-            Text(
-                text = if (isFa) health.detailFa else health.detailEn,
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-}
 
 @Composable
 private fun TelemetryDetailRow(label: String, health: ArSubsystemHealth, isFa: Boolean) {
