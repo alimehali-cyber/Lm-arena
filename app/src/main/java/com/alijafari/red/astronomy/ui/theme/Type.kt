@@ -53,7 +53,10 @@ val LocalAppFontFamily = staticCompositionLocalOf { FontFamily.Default }
  * RED Design System - Restrained Apple-Inspired Typography Hierarchy
  * Balanced for English LTR and Persian RTL scripts with appropriate line-heights and weights.
  */
-private fun redTypography(family: FontFamily): Typography = Typography(
+// The constructor is fully qualified on purpose: this file also declares a top-level `Typography`
+// property, and an unqualified `Typography(...)` call in the same package would resolve to that
+// property instead of the Material 3 constructor.
+private fun redTypography(family: FontFamily): Typography = androidx.compose.material3.Typography(
     // Large Display (Hero astronomical stats or prominent headers)
     displayLarge = TextStyle(
         fontFamily = family,
