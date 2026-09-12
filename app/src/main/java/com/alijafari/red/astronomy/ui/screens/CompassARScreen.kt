@@ -160,7 +160,8 @@ private data class ArVisibleRenderItem(
     val obj: CelestialObject,
     val horiz: CoordinateEngine.Horizontal,
     val px: Float,
-    val py: Float
+    val py: Float,
+    val plan: CelestialObjectSizes.ArRenderPlan
 )
 
 private data class ArEdgeIndicator(
@@ -222,6 +223,8 @@ private fun isVisibleByArFilter(
     filterDeepSky: Boolean,
     filterMeteorShowers: Boolean
 ): Boolean {
+    // Not a sky object at all, so not something the visibility filters can ever switch on.
+    if (ARSkyCatalog.isExcludedFromArSky(obj)) return false
     return when (obj.type) {
         ObjectType.STAR, ObjectType.ASTERISM -> filterStars
         ObjectType.SUN -> filterSun
@@ -246,12 +249,48 @@ private fun shouldShowArLabel(
     obj: CelestialObject,
     isSelected: Boolean,
     isAimed: Boolean,
-    filterObjectNames: Boolean
+    filterObjectNames: Boolean,
+    labelEligible: Boolean
 ): Boolean {
+    // Tap / centre-reticle targeting behaves exactly as before, at any tier.
+    if (isSelected || isAimed) return true
+    // A dot-tier object has not been resolved into its shape yet, so it is never labelled
+    // ambiently at any zoom level; ambient labels start when the object crosses into shape tier.
+    if (!labelEligible) return false
     return if (filterObjectNames) {
-        obj.magnitude <= CelestialObjectSizes.LABEL_SHOW_MAGNITUDE_THRESHOLD || isSelected || obj.type != ObjectType.STAR || isAimed
+        obj.magnitude <= CelestialObjectSizes.LABEL_SHOW_MAGNITUDE_THRESHOLD || obj.type != ObjectType.STAR
     } else {
-        isSelected || isAimed
+        false
+    }
+}
+
+/**
+ * Dot-tier tint: a neutral point of light, nudged toward the colour the object's full glyph will
+ * use once it resolves, so growth into the shape tier reads as the same object brightening rather
+ * than as a different marker appearing. Intensity itself is handled by the plan's dot alpha.
+ */
+private fun arDotColor(obj: CelestialObject): Color = when (obj.type) {
+    ObjectType.SUN -> Color(0xFFFFCC00)
+    ObjectType.MOON -> Color(0xFFF1FAEE)
+    ObjectType.PLANET, ObjectType.DWARF_PLANET -> when (obj.id) {
+        "planet_mars" -> Color(0xFFEF4444)
+        "planet_venus" -> Color(0xFFFEF08A)
+        "planet_uranus", "planet_neptune" -> Color(0xFF38BDF8)
+        else -> Color(0xFFFFD166)
+    }
+    ObjectType.SATELLITE -> Color(0xFF9BD5FE)
+    ObjectType.GALAXY, ObjectType.BLACK_HOLE -> Color(0xFFC084FC)
+    ObjectType.NEBULA -> Color(0xFFF472B6)
+    ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER -> Color(0xFFE0AAFF)
+    ObjectType.DEEP_SKY -> when {
+        obj.category.contains("Nebula", ignoreCase = true) -> Color(0xFFF472B6)
+        obj.category.contains("Galaxy", ignoreCase = true) -> Color(0xFFC084FC)
+        else -> Color(0xFFE0AAFF)
+    }
+    else -> when {
+        obj.magnitude <= 0.5 -> Color(0xFFA5F3FC)
+        obj.magnitude <= 2.5 -> Color(0xFFE2E8F0)
+        else -> Color(0xFFCBD5E1)
     }
 }
 
@@ -654,7 +693,10 @@ fun CompassARScreen(
         )
     }
 
-    val allCatalog = remember(jd) { AstronomyCatalog.getAllObjects(jd) }
+    // Single AR-facing view of the catalogue. Everything downstream of this val — the canvas render
+    // loop, the tap hit-test, the off-screen edge indicators and label clustering — reads the sky
+    // through it, so the AR-scoped exclusions (Earth) apply to all of them at once.
+    val allCatalog = remember(jd) { ARSkyCatalog.arSkyObjects(AstronomyCatalog.getAllObjects(jd)) }
 
     val gpsFixAgeMs = lastFixTimestampMs?.let { (System.currentTimeMillis() - it).coerceAtLeast(0L) }
     val gpsHealth = remember(isGpsActive, hasLocationPermission, gpsAccuracyMeters, gpsFixAgeMs) {
@@ -706,8 +748,8 @@ fun CompassARScreen(
 
     val cameraHealth = remember(hasCameraPermission, isCameraEnabled, cameraStreaming, cameraBindFailed, userToggledCameraOff) {
         when {
-            userToggledCameraOff && !isCameraEnabled -> ArSubsystemHealth(ArHealthLevel.GRAY, "Camera off", "دوربین خاموش", "Star field simulation", "شبیه‌سازی میدان ستاره‌ای")
-            !hasCameraPermission -> ArSubsystemHealth(ArHealthLevel.RED, "Camera permission denied", "مجوز دوربین رد شده", "Showing star field simulation", "نمایش شبیه‌سازی میدان ستاره‌ای")
+            userToggledCameraOff && !isCameraEnabled -> ArSubsystemHealth(ArHealthLevel.GRAY, "Camera off", "دوربین خاموش", "Catalogue sky on black", "آسمان دسته‌اجرام روی زمینه سیاه")
+            !hasCameraPermission -> ArSubsystemHealth(ArHealthLevel.RED, "Camera permission denied", "مجوز دوربین رد شده", "Showing catalogue sky on black", "نمایش آسمان دسته‌اجرام روی زمینه سیاه")
             cameraBindFailed -> ArSubsystemHealth(ArHealthLevel.RED, "Camera failed", "خطای دوربین", "CameraX binding failed", "اتصال CameraX ناموفق بود")
             cameraStreaming -> ArSubsystemHealth(ArHealthLevel.GREEN, "Camera streaming", "دوربین فعال", "Live preview active", "نمای زنده فعال است")
             else -> ArSubsystemHealth(ArHealthLevel.AMBER, "Camera starting", "دوربین در حال راه‌اندازی", "Waiting for preview stream", "در انتظار جریان تصویر")
@@ -790,8 +832,12 @@ fun CompassARScreen(
 
     LaunchedEffect(uiState.selectedTargetObject) {
         uiState.selectedTargetObject?.let { target ->
-            selectedTarget = target
-            hasVibratedForArrival = false
+            // A "locate in AR" hand-off from another screen must not reintroduce an object that the
+            // AR sky deliberately does not render (Earth is the observer, not a sky object).
+            if (!ARSkyCatalog.isExcludedFromArSky(target)) {
+                selectedTarget = target
+                hasVibratedForArrival = false
+            }
         }
     }
 
@@ -896,6 +942,13 @@ fun CompassARScreen(
     // AR Sky Zoom State
     var zoomFactor by remember { mutableFloatStateOf(1.0f) }
     var showZoomIndicator by remember { mutableStateOf(false) }
+
+    // Dot → shape tier memory, keyed by object id. The hysteresis band in
+    // CelestialObjectSizes.resolveArRenderPlan needs the previous tier to decide which side of the
+    // band a borderline object stays on. A plain map rather than snapshot state on purpose: it is
+    // written and consumed inside the draw pass, so it never schedules a recomposition by itself,
+    // while the zoom gesture that changed a tier already recomposes the canvas.
+    val arTierMemory = remember { mutableMapOf<String, Boolean>() }
 
     LaunchedEffect(zoomFactor) {
         if (zoomFactor != 1.0f) {
@@ -1177,7 +1230,9 @@ fun CompassARScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF060810))
+            // Solid black when the camera is not showing a live feed: no procedural/starfield
+            // fallback layer, the catalogued objects drawn on this Canvas are the whole sky.
+            .background(Color.Black)
             .onSizeChanged { arViewportSize = it }
             .pointerInput(Unit) {
                 detectTransformGestures { _, _, zoom, _ ->
@@ -1265,6 +1320,16 @@ fun CompassARScreen(
                             val canvasWidth = size.width.toFloat()
                             val canvasHeight = size.height.toFloat()
 
+                            val fovForTap = ARProjectionEngine.computeEffectiveFovXDeg(
+                                screenWidthPx = canvasWidth,
+                                screenHeightPx = canvasHeight,
+                                intrinsics = cameraIntrinsics,
+                                zoomFactor = activeZoom
+                            ).coerceAtLeast(1.0)
+                            val pixelsPerDegreeForTap = canvasWidth / fovForTap
+
+                            // Fixed tap radius, independent of how big the object is drawn: a
+                            // dot-tier object is exactly as tappable as a resolved one.
                             var bestMatch: CelestialObject? = null
                             var bestDistPx = 70.0f * activeDensity
                             val tapRenderItems = mutableListOf<ArVisibleRenderItem>()
@@ -1303,7 +1368,24 @@ fun CompassARScreen(
                                 ) ?: continue
 
                                 if (pt.x in -150f..(canvasWidth + 150f) && pt.y in -150f..(canvasHeight + 150f)) {
-                                    tapRenderItems.add(ArVisibleRenderItem(obj, horiz, pt.x, pt.y))
+                                    // Same shared tier rule as the draw pass (read-only here: the
+                                    // render pass owns the hysteresis memory).
+                                    val tapDeltaAz = normalizeDeltaDegrees(horiz.azimuthDeg - activeAzimuth)
+                                    val tapProximityScale = CelestialObjectSizes.calculateProximityScale(
+                                        deltaAzDeg = tapDeltaAz.toFloat(),
+                                        deltaAltDeg = (horiz.altitudeDeg - activeAltitude).toFloat()
+                                    )
+                                    val tapPlan = CelestialObjectSizes.resolveArRenderPlan(
+                                        obj = obj,
+                                        zoomFactor = activeZoom,
+                                        proximityScale = tapProximityScale,
+                                        density = activeDensity,
+                                        dpPerDegree = (pixelsPerDegreeForTap / activeDensity).toFloat(),
+                                        previouslyShapeTier = arTierMemory[obj.id] == true
+                                    )
+                                    tapRenderItems.add(
+                                        ArVisibleRenderItem(obj, horiz, pt.x, pt.y, tapPlan)
+                                    )
                                 }
 
                                 val dist = hypot(
@@ -1316,20 +1398,14 @@ fun CompassARScreen(
                                 }
                             }
 
-                            val fovForTap = ARProjectionEngine.computeEffectiveFovXDeg(
-                                screenWidthPx = canvasWidth,
-                                screenHeightPx = canvasHeight,
-                                intrinsics = cameraIntrinsics,
-                                zoomFactor = activeZoom
-                            ).coerceAtLeast(1.0)
-                            val pixelsPerDegreeForTap = canvasWidth / fovForTap
                             val tapClusters = buildLabelClusters(
                                 labelItems = tapRenderItems.filter { item ->
                                     shouldShowArLabel(
                                         obj = item.obj,
                                         isSelected = item.obj.id == selectedTarget?.id,
                                         isAimed = false,
-                                        filterObjectNames = activeFilterObjectNames
+                                        filterObjectNames = activeFilterObjectNames,
+                                        labelEligible = item.plan.labelEligible
                                     )
                                 },
                                 minDistancePx = max(24f * activeDensity, pixelsPerDegreeForTap.toFloat() * 0.35f),
@@ -1366,21 +1442,9 @@ fun CompassARScreen(
             ).coerceAtLeast(1.0)
             val pixelsPerDegree = canvasWidth / fovX
             // Used by label decluttering below to keep cluster thresholds tied to angular zoom.
-
-            // Starry night background if camera disabled
-            if (!hasCameraPermission || !isCameraEnabled) {
-                val rand = java.util.Random(1337)
-                for (i in 0..200) {
-                    val sx = rand.nextFloat() * canvasWidth
-                    val sy = rand.nextFloat() * canvasHeight
-                    val radius = rand.nextFloat() * 2.5f + 0.5f
-                    drawCircle(
-                        color = Color.White.copy(alpha = rand.nextFloat() * 0.7f + 0.2f),
-                        radius = radius,
-                        center = Offset(sx, sy)
-                    )
-                }
-            }
+            // No synthetic starfield here: with the camera off (toggled, permission denied, or bind
+            // failure on a device without a usable camera) the Box background behind this Canvas is
+            // solid black, and the real catalogued objects projected below are the entire sky.
 
             // Guided 1-Point Alignment: clear sightline — hide ALL projected sky
             // graphics (horizon, orbits, grids, objects, labels, constellation lines)
@@ -1637,14 +1701,37 @@ fun CompassARScreen(
                         minReticleDist = distToCenter
                         closestReticleObj = obj
                     }
-                    visibleRenderItems.add(ArVisibleRenderItem(obj, horiz, px, py))
+
+                    val deltaAzDeg = normalizeDeltaDegrees(horiz.azimuthDeg - currentAzimuth).toFloat()
+                    val deltaAltDeg = (horiz.altitudeDeg - currentAltitude).toFloat()
+                    // Centre-proximity magnification, shared by the tier decision and the glyph size.
+                    val proximityScale = CelestialObjectSizes.calculateProximityScale(
+                        deltaAzDeg = deltaAzDeg,
+                        deltaAltDeg = deltaAltDeg
+                    )
+                    val previousTierWasShape = arTierMemory[obj.id] == true
+                    val plan = CelestialObjectSizes.resolveArRenderPlan(
+                        obj = obj,
+                        zoomFactor = zoomFactor,
+                        proximityScale = proximityScale,
+                        density = density,
+                        dpPerDegree = (pixelsPerDegree / density).toFloat(),
+                        previouslyShapeTier = previousTierWasShape
+                    )
+                    // Memory for next frame's hysteresis band; never pops within one frame because
+                    // the plan above is drawn from immediately.
+                    if (previousTierWasShape != (plan.tier == CelestialObjectSizes.ArRenderTier.SHAPE)) {
+                        arTierMemory[obj.id] = plan.tier == CelestialObjectSizes.ArRenderTier.SHAPE
+                    }
+
+                    visibleRenderItems.add(ArVisibleRenderItem(obj, horiz, px, py, plan))
                 }
             }
 
             val labelClusterCandidates = visibleRenderItems.filter { item ->
                 val selected = item.obj.id == selectedTarget?.id || (selectedTarget != null && com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(item.obj.id) == com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(selectedTarget?.id ?: ""))
                 val aimed = closestReticleObj != null && item.obj.id == closestReticleObj.id
-                shouldShowArLabel(item.obj, selected, aimed, filterObjectNames) && !selected && !aimed
+                shouldShowArLabel(item.obj, selected, aimed, filterObjectNames, item.plan.labelEligible) && !selected && !aimed
             }
             val declutterDistancePx = max(24f * density, pixelsPerDegree.toFloat() * 0.35f)
             val labelClusters = buildLabelClusters(
@@ -1656,29 +1743,31 @@ fun CompassARScreen(
 
             for (item in visibleRenderItems) {
                 val obj = item.obj
-                val horiz = item.horiz
                 val px = item.px
                 val py = item.py
 
                 val isSelected = obj.id == selectedTarget?.id || (selectedTarget != null && com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(obj.id) == com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog.resolveCanonicalId(selectedTarget?.id ?: ""))
                 val isAimed = (closestReticleObj != null && obj.id == closestReticleObj.id)
 
-                var dAz = horiz.azimuthDeg - currentAzimuth
-                if (dAz > 180) dAz -= 360
-                if (dAz < -180) dAz += 360
-                val dAlt = horiz.altitudeDeg - currentAltitude
+                val plan = item.plan
 
-                // Calculate Center Proximity Scale (1.0x to 2.5x)
-                val proximityScale = CelestialObjectSizes.calculateProximityScale(
-                    deltaAzDeg = dAz.toFloat(),
-                    deltaAltDeg = dAlt.toFloat()
-                )
+                // Dot → shape: the object is drawn at the plan's interpolated radius — the dot size
+                // at the start of the transition, its full type-glyph size once resolved — while the
+                // point of light is cross-faded out underneath it. Both are driven by the same
+                // centre-proximity magnification the glyph always used, so they cannot disagree.
+                val radiusPx = plan.drawnRadiusPx
 
-                val baseSizeDp = CelestialObjectSizes.getBaseSizeDp(obj)
-                val baseRadiusPx = (baseSizeDp / 2f) * density
-                val radiusPx = baseRadiusPx * proximityScale
+                if (plan.dotAlpha > 0f) {
+                    drawCircle(
+                        color = arDotColor(obj),
+                        radius = plan.dotRadiusPx,
+                        center = Offset(px, py),
+                        alpha = plan.dotAlpha
+                    )
+                }
 
-                when (obj.type) {
+                // A pure dot (blend == 0) draws no glyph at all; "faint objects render as points".
+                if (plan.blend > 0f) when (obj.type) {
                     ObjectType.SUN -> {
                         // Solar Corona & Disk
                         drawCircle(
@@ -1904,17 +1993,18 @@ fun CompassARScreen(
                         }
                     }
                     else -> {
-                        // Star
-                        val starRadius = ((4.0 - obj.magnitude).coerceIn(1.2, 5.0) * density).toFloat() * proximityScale
+                        // Star (and every other point-like glyph). The radius comes from the shared
+                        // tier plan, which is the old (4 - magnitude) curve once the object is
+                        // resolved and the dot size while it is not.
                         val starColor = if (obj.magnitude <= 0.5) Color(0xFFA5F3FC) else if (obj.magnitude <= 2.5) Color(0xFFE2E8F0) else Color(0xFF94A3B8)
                         drawCircle(
                             color = starColor,
-                            radius = starRadius,
+                            radius = radiusPx,
                             center = Offset(px, py)
                         )
                         // Soft 4-point diffraction cross for brightest stars (mag <= 0.5)
                         if (obj.magnitude <= 0.5) {
-                            val spikeLen = starRadius * 2.5f
+                            val spikeLen = radiusPx * 2.5f
                             drawLine(
                                 color = Color.White.copy(alpha = 0.35f),
                                 start = Offset(px - spikeLen, py),
@@ -1948,8 +2038,9 @@ fun CompassARScreen(
                     )
                 }
 
-                // Label with dark backing pill
-                val shouldShowLabel = shouldShowArLabel(obj, isSelected, isAimed, filterObjectNames) && obj.id !in clusteredObjectIds
+                // Label with dark backing pill. Ambient labels require shape tier; a tapped or
+                // aimed-at object keeps its existing label/info-card behaviour at any tier.
+                val shouldShowLabel = shouldShowArLabel(obj, isSelected, isAimed, filterObjectNames, plan.labelEligible) && obj.id !in clusteredObjectIds
 
                 if (shouldShowLabel) {
                     val labelText = if (isFa) obj.nameFa else obj.nameEn

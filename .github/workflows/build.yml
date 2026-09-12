@@ -130,6 +130,8 @@ jobs:
               "com.alijafari.red.astronomy.CatalogIntegrityTest",
               "com.alijafari.red.astronomy.DeepSkyFactCoverageTest",
               "com.alijafari.red.astronomy.ObjectDetailModalConsistencyTest",
+              "com.alijafari.red.astronomy.ARSkyEarthExclusionTest",
+              "com.alijafari.red.astronomy.ARSkyPointToShapeRenderingTest",
           ]
           stats = {name: {"tests": 0, "failures": 0, "errors": 0, "skipped": 0} for name in required}
           files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml"))
