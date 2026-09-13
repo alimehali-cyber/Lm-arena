@@ -967,7 +967,7 @@ class GravityUpgradeTest {
         assertFalse("a selected but undragged body shows the ordinary prediction", vm.predictionIsGhost)
     }
 
-    // ================= §5 language ======================================================
+    // ================= §5/§7 language and table surface ==========================================
 
     @Test
     fun theSandboxHasNoLanguageOfItsOwn() {
@@ -982,9 +982,11 @@ class GravityUpgradeTest {
     }
 
     @Test
-    fun aRestoredSessionCannotResurrectAStaleSandboxLanguage() {
+    fun saveRestorePreservesSurfaceAndLanguage() {
         val saved = vmWith(Preset.SUN_EARTH)
         saved.applyHostLanguage(false)
+        // §7 — the table surface replaced the boolean theme; it is part of the saved session.
+        saved.setTableSurface("lavender")
         advance(saved, 5)
         val blob = saved.serialize()
 
@@ -993,6 +995,10 @@ class GravityUpgradeTest {
         fresh.onViewportSizePx(1080f, 2000f)
         fresh.applyHostLanguage(true)
         assertTrue(fresh.restore(blob))
+
+        // The surface travels with the session: a restored sandbox comes back on the same table.
+        assertEquals("lavender", fresh.tableSurface)
+
         // The restore must not have reached in and set the language back to the saved one.
         assertTrue("restore must leave the host locale alone", fresh.persian)
         fresh.applyHostLanguage(false)

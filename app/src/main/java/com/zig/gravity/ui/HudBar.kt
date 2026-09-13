@@ -12,8 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CenterFocusStrong
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -37,7 +36,10 @@ import com.zig.gravity.util.PersianDigits
 
 /**
  * §3.11 HUD — exactly the locked control set and nothing else persistent:
- * play/pause · 1/10x 1/4x 1x 4x 16x · reset · trails · teaching · theme · language · add.
+ * play/pause · the speed ladder · reset · trails · teaching · table colour · camera · add.
+ *
+ * The old dark/light theme toggle is gone: the two themes it switched between live on as the
+ * `charcoal` and `paper` table surfaces, and the palette button now opens the surface picker (§6).
  */
 @Composable
 fun HudBar(
@@ -45,14 +47,13 @@ fun HudBar(
     speedIndex: Int,
     trailsVisible: Boolean,
     teachingEnabled: Boolean,
-    darkTheme: Boolean,
     persian: Boolean,
     onTogglePlay: () -> Unit,
     onSpeed: (Int) -> Unit,
     onReset: () -> Unit,
     onToggleTrails: () -> Unit,
     onToggleTeaching: () -> Unit,
-    onToggleTheme: () -> Unit,
+    onOpenTableSurface: () -> Unit,
     cameraPanelOpen: Boolean = false,
     onToggleCameraPanel: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -108,11 +109,11 @@ fun HudBar(
         HudIcon(Icons.Filled.Timeline, trailsVisible, if (persian) "رد حرکت" else "Trails", "hud_trails", onToggleTrails)
         HudIcon(Icons.Filled.School, teachingEnabled, if (persian) "آموزش" else "Teaching", "hud_teaching", onToggleTeaching)
         HudIcon(
-            icon = if (darkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+            icon = Icons.Filled.Palette,
             active = false,
-            description = if (persian) "روشن یا تیره" else "Light or dark",
-            tag = "hud_theme",
-            onClick = onToggleTheme
+            description = if (persian) "رنگ میز" else "Table colour",
+            tag = "hud_btn_table",
+            onClick = onOpenTableSurface
         )
         HudIcon(
             icon = Icons.Filled.CenterFocusStrong,

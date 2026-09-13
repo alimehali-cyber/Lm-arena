@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -23,6 +24,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.zig.gravity.physics.BodyType
@@ -33,6 +35,9 @@ import com.zig.gravity.sim.EffectKind
 import com.zig.gravity.sim.SimulationViewModel
 import com.zig.gravity.ui.theme.GravityColors
 import com.zig.gravity.ui.theme.LocalGravityColors
+import com.zig.gravity.ui.theme.StarPattern
+import com.zig.gravity.ui.theme.TableSurfaces
+import com.zig.gravity.ui.theme.brushFor
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -48,13 +53,20 @@ import kotlin.math.sqrt
  *  - the draw lambda allocates nothing: every Brush, Path and TextLayoutResult is preallocated
  *    and rebuilt only when `vm.visualEpoch` changes;
  *  - static layers (tabletop gradient, vignette) live in `drawWithCache`;
- *  - bodies are marbles: contact shadow -> radial-gradient base -> rim -> restrained specular ->
- *    selection ring -> cached label. No rotation, atmospheres or terminators;
+ *  - bodies are marbles: two-layer cast shadow -> radial-gradient base -> rim -> restrained
+ *    specular -> selection ring -> cached label. No rotation, atmospheres or terminators;
+ *  - the table itself is a designed material finish (gradient, static printed pattern, vignette)
+ *    built once per size in `drawWithCache`;
  *  - Double -> Float conversion happens exactly once, at this boundary.
  */
 private class SceneCache(capacity: Int) {
     val base = arrayOfNulls<Brush>(capacity)
+
+    /** §3 — the umbra: the small, darker core of the cast shadow. */
     val shadow = arrayOfNulls<Brush>(capacity)
+
+    /** §3 — the penumbra: the wider, softer outer shadow, elongated along the light direction. */
+    val softShadow = arrayOfNulls<Brush>(capacity)
     val rim = Array(capacity) { Color.Transparent }
     val specular = Array(capacity) { Color.Transparent }
     val radiusPx = FloatArray(capacity)
@@ -88,6 +100,49 @@ private class SceneCache(capacity: Int) {
     var slingLength: Float = 0f
 }
 
+/**
+ * §5 — one surface's printed dot field, resolved to pixels for a single canvas size.
+ *
+ * Built inside `drawWithCache`, so it costs nothing per frame: the draw phase only walks
+ * preallocated float arrays and issues plain filled circles. No glow, no twinkle, no lines.
+ */
+internal class SurfacePrint(
+    val ink: Color,
+    val xPx: FloatArray,
+    val yPx: FloatArray,
+    val radii: FloatArray,
+    val alphas: FloatArray
+) {
+    fun draw(scope: DrawScope) {
+        with(scope) {
+            for (i in xPx.indices) {
+                drawCircle(ink.copy(alpha = alphas[i]), radii[i], Offset(xPx[i], yPx[i]))
+            }
+        }
+    }
+
+    companion object {
+        /** [limit] caps the dot count for miniature previews; a negative value prints them all. */
+        fun of(pattern: StarPattern, size: Size, density: Density, limit: Int = -1): SurfacePrint {
+            val all = TableSurfaces.starDots(pattern)
+            val dots = if (limit in 0 until all.size) all.subList(0, limit) else all
+            val xPx = FloatArray(dots.size)
+            val yPx = FloatArray(dots.size)
+            val radii = FloatArray(dots.size)
+            val alphas = FloatArray(dots.size)
+            with(density) {
+                for (i in dots.indices) {
+                    xPx[i] = dots[i].xFraction * size.width
+                    yPx[i] = dots[i].yFraction * size.height
+                    radii[i] = dots[i].radiusDp.dp.toPx().coerceAtLeast(0.4f)
+                    alphas[i] = dots[i].alpha
+                }
+            }
+            return SurfacePrint(Color(pattern.dotArgb), xPx, yPx, radii, alphas)
+        }
+    }
+}
+
 @Composable
 fun TabletopCanvas(
     vm: SimulationViewModel,
@@ -99,9 +154,9 @@ fun TabletopCanvas(
 
     val cache = remember { SceneCache(EngineConstants.MAX_BODIES) }
 
-    // Rebuilt only when the visual set, the theme or the density changes — never per frame.
+    // Rebuilt only when the visual set, the table surface or the density changes — never per frame.
     val epoch = vm.visualEpoch
-    remember(epoch, colors.isDark, density.density) {
+    remember(epoch, colors, density.density) {
         val snap = vm.snapshot
         cache.count = snap.n
         for (i in 0 until snap.n) {
@@ -110,16 +165,26 @@ fun TabletopCanvas(
             val r = with(density) { snap.radiusDp[i].toFloat().dp.toPx() }.coerceAtLeast(1f)
             cache.radiusPx[i] = r
             val light = colors.highlightOf(tone)
-            val dark = colors.shadeOf(tone)
+            // §2 — the authoritative deep stop when the palette has one; otherwise derived exactly
+            // as before. The marble structure (offset centre, three stops) is untouched.
+            val deepArgb = BodyCatalog.deepColorOf(snap.catalogKey[i], type)
+            val dark = if (deepArgb != 0L) colors.bodyTone(deepArgb) else colors.shadeOf(tone)
             cache.base[i] = Brush.radialGradient(
                 colorStops = arrayOf(0f to light, 0.45f to tone, 1f to dark),
                 center = Offset(-r * 0.30f, -r * 0.34f),
                 radius = r * 1.55f
             )
+            // §3 — light comes from the top-left, so both shadow layers fall to the bottom-right.
+            // Two soft radial gradients, no setShadowLayer and no blur modifier.
             cache.shadow[i] = Brush.radialGradient(
                 colorStops = arrayOf(0f to colors.shadow, 0.6f to colors.shadow.copy(alpha = colors.shadow.alpha * 0.45f), 1f to Color.Transparent),
                 center = Offset.Zero,
-                radius = r * 1.35f
+                radius = r * 0.40f
+            )
+            cache.softShadow[i] = Brush.radialGradient(
+                colorStops = arrayOf(0f to colors.shadowSoft, 0.6f to colors.shadowSoft.copy(alpha = colors.shadowSoft.alpha * 0.45f), 1f to Color.Transparent),
+                center = Offset.Zero,
+                radius = r * 0.725f
             )
             cache.rim[i] = lerp(tone, Color.White, if (colors.isDark) 0.22f else 0.10f).copy(alpha = 0.55f)
             cache.specular[i] = Color.White.copy(alpha = if (colors.isDark) 0.30f else 0.42f)
@@ -178,18 +243,19 @@ fun TabletopCanvas(
                 }
             }
             .drawWithCache {
-                val table = Brush.verticalGradient(
-                    colors = listOf(colors.tableTop, colors.tableBottom),
-                    startY = 0f,
-                    endY = size.height
-                )
+                val surface = colors.surface
+                val table = surface.gradient.brushFor(size)
                 val vignette = Brush.radialGradient(
                     colorStops = arrayOf(0.35f to Color.Transparent, 1f to colors.vignette),
                     center = Offset(size.width * 0.5f, size.height * 0.36f),
                     radius = size.maxDimension * 0.78f
                 )
+                // §5 — the printed pattern is generated here, once per size, from a fixed seed:
+                // identical static dots on every launch, no animation and no per-frame work.
+                val print = surface.pattern?.let { pattern -> SurfacePrint.of(pattern, size, this) }
                 onDrawBehind {
                     drawRect(table)
+                    print?.draw(this)
                     drawRect(vignette)
                     drawScene(vm, colors, cache, selectedLabel, dashEffect)
                 }
@@ -250,7 +316,8 @@ private fun DrawScope.drawScene(
                         if (p == split) recent.moveTo(px, py) else recent.lineTo(px, py)
                     }
                 }
-                drawPath(old, colors.trail.copy(alpha = colors.trail.alpha * 0.35f), style = cache.strokeTrailOld)
+                // §5 — the surface carries its own trail alpha pair (older / recent segment).
+                drawPath(old, colors.trailOld, style = cache.strokeTrailOld)
                 drawPath(recent, colors.trail, style = cache.strokeTrailNew)
             }
         }
@@ -339,9 +406,28 @@ private fun DrawScope.drawScene(
             else -> {
                 // The cached marble brushes were built for cache.radiusPx; scaling the canvas
                 // around the body reuses them at any zoom without rebuilding a single Brush.
-                translate(px, py + r * 0.42f) {
+                //
+                // §3 — a realistic cast shadow: the light is at the top-left (gradient centre
+                // -0.30r/-0.34r, specular -0.34r/-0.38r), so the shadow falls to the bottom-right.
+                // Penumbra first (1.45r x 1.15r at +0.38r/+0.34r), then the umbra (0.8r x 0.8r at
+                // +0.20r/+0.18r). Draw order is unchanged: the shadow sits under its own body.
+                translate(px, py) {
                     scale(bodyScale, bodyScale, Offset.Zero) {
-                        cache.shadow[i]?.let { drawCircle(it, cache.radiusPx[i] * 1.30f, Offset.Zero) }
+                        val rr = cache.radiusPx[i]
+                        cache.softShadow[i]?.let {
+                            drawOval(
+                                brush = it,
+                                topLeft = Offset(rr * 0.38f - rr * 0.725f, rr * 0.34f - rr * 0.575f),
+                                size = Size(rr * 1.45f, rr * 1.15f)
+                            )
+                        }
+                        cache.shadow[i]?.let {
+                            drawOval(
+                                brush = it,
+                                topLeft = Offset(rr * 0.20f - rr * 0.40f, rr * 0.18f - rr * 0.40f),
+                                size = Size(rr * 0.80f, rr * 0.80f)
+                            )
+                        }
                     }
                 }
                 translate(px, py) {
