@@ -8,7 +8,9 @@ import java.util.Locale
 /**
  * Shared distance-source selection and display formatter for AR cards/details.
  *
- * Solar-system bodies and artificial satellites use dynamic engine ranges when available.
+ * Solar-system bodies use dynamic engine ranges when available. Artificial satellites report the
+ * already-propagated Earth-surface-to-satellite altitude (`satAltKm`) rather than the observer's
+ * slant range, because AR cards/details label this row as "distance from Earth".
  * Stars and deep-sky objects keep their static catalog distances, which is the scientifically
  * correct behavior on human time scales.
  */
@@ -28,6 +30,16 @@ object ARDistanceFormatter {
     }
 
     fun selectDistanceKm(obj: CelestialObject, calculatedState: CalculatedAstroState?): Double? {
+        // Satellites: reuse the propagated Earth-surface altitude from the live satellite state
+        // instead of the topocentric slant range, which can exceed 8000 km when the satellite is
+        // far below the observer's horizon.
+        if (obj.type == ObjectType.SATELLITE) {
+            val satAltKm = (calculatedState?.specializedData as? SatelliteLiveState)
+                ?.topocentric?.satAltKm
+                ?.takeIf { it.isFinite() && it >= 0.0 }
+            if (satAltKm != null) return satAltKm
+        }
+
         val dynamicKm = calculatedState?.distanceKm?.takeIf { it.isFinite() && it >= 0.0 }
         if (usesDynamicRange(obj) && dynamicKm != null) return dynamicKm
 
