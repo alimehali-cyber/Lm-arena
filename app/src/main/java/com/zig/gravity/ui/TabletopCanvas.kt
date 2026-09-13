@@ -33,6 +33,7 @@ import com.zig.gravity.sim.BodyCatalog
 import com.zig.gravity.sim.CameraState
 import com.zig.gravity.sim.EffectKind
 import com.zig.gravity.sim.SimulationViewModel
+import com.zig.gravity.ui.theme.BodyIdentities
 import com.zig.gravity.ui.theme.GravityColors
 import com.zig.gravity.ui.theme.LocalGravityColors
 import com.zig.gravity.ui.theme.StarPattern
@@ -53,8 +54,9 @@ import kotlin.math.sqrt
  *  - the draw lambda allocates nothing: every Brush, Path and TextLayoutResult is preallocated
  *    and rebuilt only when `vm.visualEpoch` changes;
  *  - static layers (tabletop gradient, vignette) live in `drawWithCache`;
- *  - bodies are marbles: two-layer cast shadow -> radial-gradient base -> rim -> restrained
- *    specular -> selection ring -> cached label. No rotation, atmospheres or terminators;
+ *  - bodies are marbles: two-layer cast shadow -> radial-gradient base -> static identity marks ->
+ *    the same base gradient re-applied over them (the lighting coming back) -> rim -> restrained
+ *    specular -> selection ring -> cached label. No rotation, no animated texture, no terminator;
  *  - the table itself is a designed material finish (gradient, static printed pattern, vignette)
  *    built once per size in `drawWithCache`;
  *  - Double -> Float conversion happens exactly once, at this boundary.
@@ -69,6 +71,32 @@ private class SceneCache(capacity: Int) {
     val softShadow = arrayOfNulls<Brush>(capacity)
     val rim = Array(capacity) { Color.Transparent }
     val specular = Array(capacity) { Color.Transparent }
+
+    /**
+     * §1 planet identity — a static procedural surface layer per body, flattened into preallocated
+     * arrays so the draw phase only walks indices. Positions and half-extents are fractions of
+     * [radiusPx], so the marks ride the same `scale(bodyScale)` transform the marble brushes do and
+     * survive any zoom without a rebuild.
+     */
+    val markCount = IntArray(capacity)
+    val markCx = FloatArray(capacity * BodyIdentities.MAX_MARKS)
+    val markCy = FloatArray(capacity * BodyIdentities.MAX_MARKS)
+    val markRx = FloatArray(capacity * BodyIdentities.MAX_MARKS)
+    val markRy = FloatArray(capacity * BodyIdentities.MAX_MARKS)
+    val markColor = Array(capacity * BodyIdentities.MAX_MARKS) { Color.Transparent }
+
+    /**
+     * Ring systems (Saturn). Purely visual: these never touch mass, radius, collision or selection
+     * geometry — the simulation cannot see them. The far half of each band is drawn under the
+     * sphere and the near half over it, which is what makes the rings pass behind and in front
+     * without a single clip path.
+     */
+    val ringCount = IntArray(capacity)
+    val ringRadius = FloatArray(capacity * BodyIdentities.MAX_RINGS)
+    val ringSquash = FloatArray(capacity)
+    val ringColor = Array(capacity * BodyIdentities.MAX_RINGS) { Color.Transparent }
+    val ringStroke = arrayOfNulls<Stroke>(capacity * BodyIdentities.MAX_RINGS)
+
     val radiusPx = FloatArray(capacity)
     val trailOld = Array(capacity) { Path() }
     val trailNew = Array(capacity) { Path() }
@@ -188,6 +216,35 @@ fun TabletopCanvas(
             )
             cache.rim[i] = lerp(tone, Color.White, if (colors.isDark) 0.22f else 0.10f).copy(alpha = 0.55f)
             cache.specular[i] = Color.White.copy(alpha = if (colors.isDark) 0.30f else 0.42f)
+
+            // §1 — the planet identity layer, resolved here and never again until the visual set
+            // changes. Marks are body-local fractions of the radius; colours go through the same
+            // bodyTone() as the base, so the layer follows the table's chrome mode like everything
+            // else. The generator is seeded, so a body looks identical after every recreation.
+            val identity = BodyIdentities.of(snap.catalogKey[i], type)
+            val mc = minOf(identity.marks.size, BodyIdentities.MAX_MARKS)
+            cache.markCount[i] = mc
+            for (m in 0 until mc) {
+                val mark = identity.marks[m]
+                val slot = i * BodyIdentities.MAX_MARKS + m
+                cache.markCx[slot] = mark.cx
+                cache.markCy[slot] = mark.cy
+                cache.markRx[slot] = mark.rx
+                cache.markRy[slot] = mark.ry
+                cache.markColor[slot] = colors.bodyTone(mark.argb).copy(alpha = mark.alpha)
+            }
+            val rc = minOf(identity.rings.size, BodyIdentities.MAX_RINGS)
+            cache.ringCount[i] = rc
+            cache.ringSquash[i] = identity.ringSquash
+            for (q in 0 until rc) {
+                val band = identity.rings[q]
+                val slot = i * BodyIdentities.MAX_RINGS + q
+                cache.ringRadius[slot] = band.radiusFraction
+                cache.ringColor[slot] = colors.bodyTone(band.argb).copy(alpha = band.alpha)
+                // Stroke width scales with the body, and is floored so a distant Saturn still shows
+                // a hair of ring instead of vanishing into a sub-pixel dash.
+                cache.ringStroke[slot] = Stroke(width = (band.thicknessFraction * r).coerceAtLeast(0.6f))
+            }
         }
         with(density) {
             cache.strokeTrailOld = Stroke(width = 1.2.dp.toPx(), cap = StrokeCap.Round)
@@ -430,12 +487,31 @@ private fun DrawScope.drawScene(
                         }
                     }
                 }
+                // §5 — the marble, in order: base gradient -> identity marks -> the *same* base
+                // gradient re-applied at partial alpha (that is the lighting coming back over the
+                // marks; no new light and no new brush) -> rim -> specular. Saturn's far ring half
+                // goes under the sphere and its near half over the top, so the system passes behind
+                // and in front of the body while every ring pixel is still painted exactly once.
+                val textured = r >= BodyIdentities.MIN_RADIUS_PX
                 translate(px, py) {
                     scale(bodyScale, bodyScale, Offset.Zero) {
                         val rr = cache.radiusPx[i]
+                        if (textured) drawRingHalf(cache, i, rr, far = true)
                         cache.base[i]?.let { drawCircle(it, rr, Offset.Zero) }
+                        if (textured) {
+                            drawIdentityMarks(cache, i, rr)
+                            cache.base[i]?.let {
+                                drawCircle(
+                                    brush = it,
+                                    radius = rr,
+                                    center = Offset.Zero,
+                                    alpha = BodyIdentities.LIGHTING_OVERLAY_ALPHA
+                                )
+                            }
+                        }
                         drawCircle(cache.rim[i], rr, Offset.Zero, style = cache.strokeRim)
                         drawCircle(cache.specular[i], rr * 0.17f, Offset(-rr * 0.34f, -rr * 0.38f))
+                        if (textured) drawRingHalf(cache, i, rr, far = false)
                     }
                 }
             }
@@ -678,6 +754,60 @@ private fun DrawScope.drawScene(
         drawText(
             textLayoutResult = label,
             topLeft = Offset(px - label.size.width / 2f, py + r + cache.labelGap)
+        )
+    }
+}
+
+/**
+ * §1 — the planet identity layer: cached ellipses in body-local units, drawn between the base
+ * gradient and the lighting re-application.
+ *
+ * Allocation-free by construction: every position, extent and colour came out of [SceneCache], and
+ * `Offset`/`Size` are value types. Nothing here is random, animated or per-pixel, and because every
+ * mark is inscribed in the body disc there is no clip path and therefore no aliased limb.
+ */
+private fun DrawScope.drawIdentityMarks(cache: SceneCache, i: Int, rr: Float) {
+    val count = cache.markCount[i]
+    if (count == 0) return
+    val first = i * BodyIdentities.MAX_MARKS
+    for (m in 0 until count) {
+        val slot = first + m
+        val rx = cache.markRx[slot] * rr
+        val ry = cache.markRy[slot] * rr
+        drawOval(
+            color = cache.markColor[slot],
+            topLeft = Offset(cache.markCx[slot] * rr - rx, cache.markCy[slot] * rr - ry),
+            size = Size(rx * 2f, ry * 2f)
+        )
+    }
+}
+
+/**
+ * §1 — one half of a ring system, as a single stroked arc per band.
+ *
+ * Splitting at the horizontal axis is what sells the sphere: in Compose 0° is the 3 o'clock
+ * direction and angles grow clockwise, so 180°..360° is the top half — the *far* side of the rings,
+ * which belongs behind the body — and 0°..180° is the bottom half, the *near* side, which belongs in
+ * front of it. Each half is painted once, so overlapping alpha never doubles up, and no clipping is
+ * involved. Rings are visual only: mass, radius, collision and selection geometry never see them.
+ */
+private fun DrawScope.drawRingHalf(cache: SceneCache, i: Int, rr: Float, far: Boolean) {
+    val count = cache.ringCount[i]
+    if (count == 0) return
+    val squash = cache.ringSquash[i]
+    val first = i * BodyIdentities.MAX_RINGS
+    for (q in 0 until count) {
+        val slot = first + q
+        val stroke = cache.ringStroke[slot] ?: continue
+        val rad = cache.ringRadius[slot] * rr
+        drawArc(
+            color = cache.ringColor[slot],
+            startAngle = if (far) 180f else 0f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(-rad, -rad * squash),
+            size = Size(rad * 2f, rad * 2f * squash),
+            style = stroke
         )
     }
 }
