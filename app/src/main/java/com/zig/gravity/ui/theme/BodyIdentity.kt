@@ -2,6 +2,7 @@ package com.zig.gravity.ui.theme
 
 import com.zig.gravity.physics.BodyType
 import java.util.Random
+import kotlin.math.abs
 import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -241,6 +242,33 @@ object SphereProjection {
 
     /** How far inside the silhouette a belt's stroked ends must stay, in squared-radius units. */
     private const val LIMB_MARGIN = 0.004f
+
+    /**
+     * The belt stroke half-width (body-radius fractions) that still fits between the belt's apex
+     * and the limb, so the *complete* primitive — arc plus its stroke on both sides — is inside
+     * the visible circle before the draw phase ever sees it. Never exceeds the wanted tiled width.
+     */
+    fun bandHalfWidth(cy: Float, tilt: Float, sliceWidth: Float): Float {
+        val tau = asin(tilt.coerceIn(0.05f, 0.85f))
+        val lambda = tau - asin(cy.coerceIn(-0.999f, 0.999f))
+        val b = cos(lambda) * sin(tau)
+        val yc = -sin(lambda) * cos(tau)
+        val want = sliceWidth * 1.15f / 2f
+        return min(want, max(0f, 1f - LIMB_MARGIN - abs(yc + b)))
+    }
+
+    /**
+     * Pulls a projected cap radially inward until its *whole* ellipse — centre plus major
+     * semi-axis, at any rotation — sits inside the silhouette by [LIMB_MARGIN]. Checking only the
+     * centre is not containment; |centre| + major is the exact worst case over the outline.
+     */
+    fun containBlob(pr: ProjectedBlob): ProjectedBlob {
+        val d = sqrt(pr.cx * pr.cx + pr.cy * pr.cy)
+        val limit = 1f - LIMB_MARGIN - pr.major
+        if (d <= limit || d <= 0f) return pr
+        val f = max(0f, limit) / d
+        return pr.copy(cx = pr.cx * f, cy = pr.cy * f)
+    }
 
     /**
      * The visible arc of a latitude belt, solved so that the *stroke* never crosses the silhouette.

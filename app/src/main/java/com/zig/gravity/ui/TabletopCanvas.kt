@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -151,6 +152,14 @@ private class SceneCache(capacity: Int) {
      * survive any zoom without a rebuild; the rotation is the direction the cap's foreshortened
      * axis points, which is what makes a feature bend around the limb instead of lying flat.
      */
+    /**
+     * The identity layer's hard circular boundary, rewound to the body disc before every clipped
+     * draw. Blended primitives (Multiply/Screen) rasterise through offscreen layers whose device
+     * bounds are not trustworthy under a transform, so the layer is clipped to the sphere: no
+     * cap, belt, spot or fragment can ever paint outside its own body's circle.
+     */
+    val bodyClip = Path()
+
     val blobCount = IntArray(capacity)
     val blobCx = FloatArray(capacity * BodyIdentities.MAX_MARKS)
     val blobCy = FloatArray(capacity * BodyIdentities.MAX_MARKS)
@@ -341,7 +350,9 @@ fun TabletopCanvas(
                 if (bc + dc >= BodyIdentities.MAX_MARKS) break
                 if (mark.kind == MarkKind.BLOB) {
                     val slot = i * BodyIdentities.MAX_MARKS + bc
-                    val pr = SphereProjection.projectBlob(mark.cx, mark.cy, mark.rx, mark.ry)
+                    val pr = SphereProjection.containBlob(
+                        SphereProjection.projectBlob(mark.cx, mark.cy, mark.rx, mark.ry)
+                    )
                     cache.blobCx[slot] = pr.cx
                     cache.blobCy[slot] = pr.cy
                     cache.blobMajor[slot] = pr.major
@@ -365,12 +376,14 @@ fun TabletopCanvas(
                     // slices tile the belt's true thickness and never overrun it.
                     val chord = sqrt(max(0f, 1f - mark.cy * mark.cy))
                     val sliceWidth = (2f * mark.ry / BodyIdentities.BAND_SLICES) * chord
-                    val arc = SphereProjection.projectBand(
-                        mark.cy, identity.axisTilt, sliceWidth * 1.15f / 2f
-                    )
+                    // The stroke is exactly as wide as the room between the belt and the limb
+                    // allows — never wider — so the complete primitive, stroke included, is
+                    // inside the disc at every size, with no floor to overrun it.
+                    val hw = SphereProjection.bandHalfWidth(mark.cy, identity.axisTilt, sliceWidth)
+                    val arc = SphereProjection.projectBand(mark.cy, identity.axisTilt, hw)
                     cache.bandColor[slot] = colors.bodyTone(mark.argb)
                     cache.bandRole[slot] = mark.role.ordinal
-                    cache.bandStroke[slot] = Stroke(width = (sliceWidth * r * 1.15f).coerceAtLeast(0.5f))
+                    cache.bandStroke[slot] = Stroke(width = hw * 2f * r)
                     val firstSlice = slot * BodyIdentities.BAND_SLICES
                     for (k in 0 until BodyIdentities.BAND_SLICES) {
                         val s = firstSlice + k
@@ -729,19 +742,29 @@ private fun DrawScope.drawScene(
                             // §5 — the material, in order: belts under caps, then the marble's own
                             // lighting back over them, then the two curvature layers, then the
                             // emissive core of a star. Marks may never sit on top of the shading.
-                            drawBands(cache, i, rr)
-                            drawBlobs(cache, i, rr)
-                            cache.base[i]?.let {
-                                drawCircle(
-                                    brush = it,
-                                    radius = rr,
-                                    center = Offset.Zero,
-                                    alpha = BodyIdentities.LIGHTING_OVERLAY_ALPHA
-                                )
+                            // The entire stack runs inside a hard clip to the body circle: the
+                            // projected maths already keeps every primitive inside, and the clip
+                            // makes that a guarantee of the canvas, not of the maths — blended
+                            // layers, stroke floors and any future mark included. Rings stay
+                            // outside the clip on purpose; they are the one layer meant to pass
+                            // beyond the limb.
+                            cache.bodyClip.reset()
+                            cache.bodyClip.addOval(Rect(-rr, -rr, rr, rr))
+                            clipPath(cache.bodyClip) {
+                                drawBands(cache, i, rr)
+                                drawBlobs(cache, i, rr)
+                                cache.base[i]?.let {
+                                    drawCircle(
+                                        brush = it,
+                                        radius = rr,
+                                        center = Offset.Zero,
+                                        alpha = BodyIdentities.LIGHTING_OVERLAY_ALPHA
+                                    )
+                                }
+                                cache.termBrush[i]?.let { drawCircle(it, rr, Offset.Zero) }
+                                cache.limbBrush[i]?.let { drawCircle(it, rr, Offset.Zero) }
+                                cache.coreBrush[i]?.let { drawCircle(it, rr * 0.72f, Offset.Zero) }
                             }
-                            cache.termBrush[i]?.let { drawCircle(it, rr, Offset.Zero) }
-                            cache.limbBrush[i]?.let { drawCircle(it, rr, Offset.Zero) }
-                            cache.coreBrush[i]?.let { drawCircle(it, rr * 0.72f, Offset.Zero) }
                         }
                         drawRimArc(cache, i, rr)
                         drawAtmosphere(cache, i, rr)
@@ -998,9 +1021,11 @@ private fun DrawScope.drawScene(
  * mark, drawn inside a rotate+scale so the shared brush becomes exactly the projected ellipse.
  *
  * Allocation-free by construction: every position, extent, tint and blend mode came out of
- * [SceneCache], and `Offset`/`Size` are value types. Nothing here is random, animated or per-pixel,
- * and because every projected cap is inscribed in the body disc there is no clip path and
- * therefore no aliased limb. Multiply and Screen are what make a cap read as material: it darkens
+ * [SceneCache], and `Offset`/`Size` are value types. Nothing here is random, animated or per-pixel.
+ * Every projected cap is inscribed in the body disc by [SphereProjection.containBlob], and the
+ * caller additionally clips the whole identity stack to the body circle, so a fragment can never
+ * escape its body — the clip costs one rewound path and removes every aliased-limb question.
+ * Multiply and Screen are what make a cap read as material: it darkens
  * or brightens the light the marble already carries instead of covering it.
  */
 private fun DrawScope.drawBlobs(cache: SceneCache, i: Int, rr: Float) {

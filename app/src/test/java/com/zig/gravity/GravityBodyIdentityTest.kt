@@ -168,14 +168,17 @@ class GravityBodyIdentityTest {
             val identity = BodyIdentities.of(entry.key, entry.type)
             for (mark in identity.marks) {
                 if (mark.kind == MarkKind.BLOB) {
-                    val pr = SphereProjection.projectBlob(mark.cx, mark.cy, mark.rx, mark.ry)
+                    val pr = SphereProjection.containBlob(
+                        SphereProjection.projectBlob(mark.cx, mark.cy, mark.rx, mark.ry)
+                    )
                     // Wrapping is a contraction: projection can only squeeze, never stretch.
                     assertTrue(
                         "${entry.key}: projection squeezes",
                         pr.minor <= pr.major + 1e-6f
                     )
                     assertTrue("${entry.key}: foreshortening is real", pr.nz in 0f..1f)
-                    // The drawn ellipse, rotated and all, stays inside the disc — so no clip path.
+                    // The drawn ellipse, rotated and all, stays inside the disc; the canvas still
+                    // clips the whole identity stack to the body circle as a hard guarantee.
                     val phi = Math.toRadians(pr.degrees.toDouble())
                     for (s in 0 until 360) {
                         val t = 2.0 * Math.PI * s / 360
@@ -193,7 +196,7 @@ class GravityBodyIdentityTest {
                     // whole drawn outline, both sides of the centre line, over the whole arc.
                     val chord = sqrt(max(0f, 1f - mark.cy * mark.cy))
                     val sliceWidth = (2f * mark.ry / BodyIdentities.BAND_SLICES) * chord
-                    val hw = sliceWidth * 1.15f / 2f
+                    val hw = SphereProjection.bandHalfWidth(mark.cy, identity.axisTilt, sliceWidth)
                     val arc = SphereProjection.projectBand(mark.cy, identity.axisTilt, hw)
                     assertTrue("${entry.key}: a belt keeps a visible arc", arc.sweepDegrees > 30f)
                     val start = Math.toRadians(arc.startDegrees.toDouble())
@@ -245,6 +248,92 @@ class GravityBodyIdentityTest {
             SphereProjection.projectBand(0.2f, 0.3f, 0.02f),
             SphereProjection.projectBand(0.2f, 0.3f, 0.02f)
         )
+    }
+
+    @Test
+    fun noIdentityPrimitiveCanGenerateOutOfBoundsGeometry() {
+        // The analytic form of the containment contract: not sampled points but the worst case of
+        // each COMPLETE primitive — centre plus full extent, stroke included — for every mark of
+        // every body. This is the regression guard against escaping texture fragments.
+        for (entry in BodyCatalog.all) {
+            val identity = BodyIdentities.of(entry.key, entry.type)
+            for (mark in identity.marks) {
+                if (mark.kind == MarkKind.BLOB) {
+                    val pr = SphereProjection.containBlob(
+                        SphereProjection.projectBlob(mark.cx, mark.cy, mark.rx, mark.ry)
+                    )
+                    val worst = sqrt(pr.cx * pr.cx + pr.cy * pr.cy) + pr.major
+                    assertTrue(
+                        "${entry.key}: a cap's centre+major semi-axis leaves the disc ($worst)",
+                        worst <= 0.996f + 1e-6f
+                    )
+                } else {
+                    val chord = sqrt(max(0f, 1f - mark.cy * mark.cy))
+                    val sliceWidth = (2f * mark.ry / BodyIdentities.BAND_SLICES) * chord
+                    val hw = SphereProjection.bandHalfWidth(mark.cy, identity.axisTilt, sliceWidth)
+                    val arc = SphereProjection.projectBand(mark.cy, identity.axisTilt, hw)
+                    val apex = abs(arc.yc + arc.b) + hw
+                    assertTrue(
+                        "${entry.key}: a belt's visible apex+stroke leaves the disc ($apex)",
+                        apex <= 0.996f + 1e-6f
+                    )
+                    assertTrue(
+                        "${entry.key}: bandHalfWidth never widens the tiled stroke",
+                        hw <= sliceWidth * 1.15f / 2f + 1e-6f
+                    )
+                }
+            }
+        }
+        // containBlob only ever pulls inward, only when needed, and never reshapes the cap.
+        val wide = SphereProjection.projectBlob(0.86f, 0.5f, 0.3f, 0.3f)
+        val held = SphereProjection.containBlob(wide)
+        assertTrue(
+            "containBlob pulls an over-reaching cap inside the disc",
+            sqrt(held.cx * held.cx + held.cy * held.cy) + held.major <= 0.996f + 1e-6f
+        )
+        assertEquals("without touching its shape", wide.major, held.major, 0f)
+        val calm = SphereProjection.projectBlob(0.1f, 0.1f, 0.2f, 0.2f)
+        assertEquals("and leaves a contained cap exactly alone", calm, SphereProjection.containBlob(calm))
+    }
+
+    @Test
+    fun jupiterGreatRedSpotIsAnchoredToJupitersSurface() {
+        val spotArgb = 0xFFC25A3EL
+        val haloArgb = 0xFFEBCFA6L
+        val marks = BodyIdentities.JUPITER.marks
+        val spots = marks.filter { it.argb == spotArgb }
+        assertEquals("exactly one Great Red Spot", 1, spots.size)
+        val spot = spots[0]
+        assertEquals("the spot is a surface cap, not a scene object", MarkKind.BLOB, spot.kind)
+        assertEquals("authored in Jupiter-local normalized x", 0.30f, spot.cx, 1e-6f)
+        assertEquals("and Jupiter-local normalized y", 0.20f, spot.cy, 1e-6f)
+
+        // Local authoring IS the anchoring: the draw phase multiplies these coordinates by the
+        // body's own radius and draws them inside the body's own translate+scale+clip, so the
+        // spot moves and scales exactly with Jupiter and can never sit beside or below it.
+        val pr = SphereProjection.containBlob(
+            SphereProjection.projectBlob(spot.cx, spot.cy, spot.rx, spot.ry)
+        )
+        val worst = sqrt(pr.cx * pr.cx + pr.cy * pr.cy) + pr.major
+        assertTrue("the spot's whole ellipse sits on Jupiter's disc ($worst)", worst <= 0.996f + 1e-6f)
+        assertTrue("deep on the surface, not grazing the limb", worst <= 0.75f)
+        val halo = marks.filter { it.argb == haloArgb && it.kind == MarkKind.BLOB }
+        assertEquals("the spot's halo shares its anchor", 1, halo.size)
+        assertEquals(spot.cx, halo[0].cx, 1e-6f)
+        assertEquals(spot.cy, halo[0].cy, 1e-6f)
+
+        // One authoring site, one draw pass, and that pass runs inside the body clip.
+        val identitySource = uiSource("theme/BodyIdentity.kt")
+        assertEquals("the spot is authored exactly once", 2, identitySource.split("0xFFC25A3E").size)
+        val canvas = uiSource("TabletopCanvas.kt")
+        assertEquals("blobs are drawn by exactly one pass", 2, canvas.split("drawBlobs(cache").size)
+        val clip = canvas.indexOf("clipPath(cache.bodyClip)")
+        val bands = canvas.indexOf("drawBands(cache, i, rr)")
+        val blobs = canvas.indexOf("drawBlobs(cache, i, rr)")
+        val nearRing = canvas.indexOf("drawRingHalf(cache, i, rr, far = false)")
+        assertTrue("the identity stack opens inside a body clip", clip in 0 until bands)
+        assertTrue("belts then caps, both clipped", bands < blobs)
+        assertTrue("while the rings stay outside it", blobs < nearRing)
     }
 
     @Test
@@ -585,6 +674,9 @@ class GravityBodyIdentityTest {
         // The rim is a lit crescent, not a bright ring all the way round.
         assertTrue(canvas.contains("drawArc(\n        color = cache.rim[i]"))
         // Features composite as albedo: multiply and screen, never as opaque decals.
+        assertTrue(canvas.contains("cache.bodyClip.reset()"))
+        assertTrue(canvas.contains("cache.bodyClip.addOval(Rect(-rr, -rr, rr, rr))"))
+        assertTrue(canvas.contains("clipPath(cache.bodyClip)"))
         assertTrue(canvas.contains("BlendMode.Multiply"))
         assertTrue(canvas.contains("BlendMode.Screen"))
 
