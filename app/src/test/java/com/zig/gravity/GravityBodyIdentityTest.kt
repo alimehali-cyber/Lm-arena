@@ -10,6 +10,10 @@ import com.zig.gravity.sim.SimulationViewModel
 import com.zig.gravity.ui.theme.BodyIdentities
 import com.zig.gravity.ui.theme.BodyIdentity
 import com.zig.gravity.ui.theme.GravityChrome
+import com.zig.gravity.ui.theme.MarkEdge
+import com.zig.gravity.ui.theme.MarkKind
+import com.zig.gravity.ui.theme.MarkRole
+import com.zig.gravity.ui.theme.SphereProjection
 import com.zig.gravity.ui.theme.TableSurfaces
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -20,19 +24,28 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
- * The planet identity pass: a body must read as *that* body, and nothing else may move.
+ * The planet identity pass: a body must read as *that* body, its detail must be wrapped onto the
+ * sphere, and nothing else may move.
  *
- * Two halves, matching the two risks of a visual-only change. The first half is the identity itself
- * — pure data, so it can be proved on the plain JVM: every mark is inscribed in the body disc (which
- * is why the renderer needs no clip path and the limb stays antialiased), the marks are deterministic
- * across recreations, and each body's palette and marks carry the real object's visual signature.
+ * Three halves, matching the three risks of a visual-only change. The first is the identity itself
+ * — pure data, so it can be proved on the plain JVM: every projected feature, stroke width and all,
+ * stays inside the body disc (which is why the renderer needs no clip path and the limb stays
+ * antialiased); the marks are deterministic across recreations; and each body's palette and marks
+ * carry the real object's visual signature.
  *
- * The second half is the guardrail. A texture pass is exactly the kind of change that quietly drags a
+ * The second is the sphere: features are authored as surface positions and projected, so the test
+ * proves the projection really foreshortens (a cap near the limb comes back thinner than the same
+ * cap at the centre) and really stays inside.
+ *
+ * The third is the guardrail. A texture pass is exactly the kind of change that quietly drags a
  * radius, a mass or a lighting constant along with it, so the marble's lighting geometry, the cast
  * shadow, the chrome, the surface catalog, the engine constants and the save schema are all pinned
  * here — and Saturn's rings are proved to be strokes, not physics.
@@ -70,11 +83,6 @@ class GravityBodyIdentityTest {
             assertTrue("${entry.key}: ring budget", identity.rings.size <= BodyIdentities.MAX_RINGS)
 
             for (mark in identity.marks) {
-                assertTrue(
-                    "${entry.key}: a mark must be inscribed in the body disc, so the renderer never " +
-                        "needs an aliased clip path at the limb",
-                    mark.isInsideUnitDisc()
-                )
                 assertTrue("${entry.key}: mark alpha ${mark.alpha}", mark.alpha in 0.05f..1f)
                 assertTrue("${entry.key}: mark extent", mark.rx > 0f && mark.ry > 0f)
                 assertEquals(
@@ -82,6 +90,25 @@ class GravityBodyIdentityTest {
                         "disturb it",
                     0xFFL, (mark.argb ushr 24) and 0xFFL
                 )
+                if (mark.kind == MarkKind.BLOB) {
+                    assertTrue(
+                        "${entry.key}: a cap's surface position lies on the visible hemisphere",
+                        mark.isInsideUnitDisc()
+                    )
+                }
+                // The compositing strength can never reach a flat stamp: a multiplied feature keeps
+                // at least 18% of the light under it, a screened one adds at most 80% of white.
+                if (mark.role == MarkRole.DARKEN) {
+                    assertTrue(
+                        "${entry.key}: a multiplied feature still lets the shading through",
+                        effectiveDarken(mark.alpha, mark.argb) >= 0.18f
+                    )
+                } else if (mark.role == MarkRole.LIGHTEN) {
+                    assertTrue(
+                        "${entry.key}: a screened feature never blows out",
+                        min(1f, mark.alpha) * relativeLuminance(mark.argb) <= 0.80f
+                    )
+                }
             }
             for (ring in identity.rings) {
                 assertTrue("${entry.key}: a ring band lies outside the body", ring.radiusFraction > 1f)
@@ -94,6 +121,8 @@ class GravityBodyIdentityTest {
                     "${entry.key}: rings are a tilted ellipse, not a circle",
                     identity.ringSquash in 0.15f..0.5f
                 )
+                // Belts and rings lean by the same axis, so the whole table curves one way.
+                assertEquals(identity.ringSquash, identity.axisTilt, 1e-6f)
             }
         }
 
@@ -129,23 +158,119 @@ class GravityBodyIdentityTest {
             argb = 0xFF6E655A, minAlpha = 0.16f, maxAlpha = 0.26f, reach = 0.68f
         )
         assertNotEquals("a different seed must print different marks", a, c)
-        assertTrue("scattered marks stay inside the disc", a.all { it.isInsideUnitDisc() })
+        assertTrue("scattered marks stay on the visible hemisphere", a.all { it.isInsideUnitDisc() })
         assertEquals(6, a.size)
     }
 
     @Test
+    fun projectedFeaturesWrapTheSphereAndNeverCrossTheLimb() {
+        for (entry in BodyCatalog.all) {
+            val identity = BodyIdentities.of(entry.key, entry.type)
+            for (mark in identity.marks) {
+                if (mark.kind == MarkKind.BLOB) {
+                    val pr = SphereProjection.projectBlob(mark.cx, mark.cy, mark.rx, mark.ry)
+                    // Wrapping is a contraction: projection can only squeeze, never stretch.
+                    assertTrue(
+                        "${entry.key}: projection squeezes",
+                        pr.minor <= pr.major + 1e-6f
+                    )
+                    assertTrue("${entry.key}: foreshortening is real", pr.nz in 0f..1f)
+                    // The drawn ellipse, rotated and all, stays inside the disc — so no clip path.
+                    val phi = Math.toRadians(pr.degrees.toDouble())
+                    for (s in 0 until 360) {
+                        val t = 2.0 * Math.PI * s / 360
+                        val ux = pr.major * cos(t).toFloat()
+                        val uy = pr.minor * sin(t).toFloat()
+                        val x = pr.cx + ux * cos(phi).toFloat() - uy * sin(phi).toFloat()
+                        val y = pr.cy + ux * sin(phi).toFloat() + uy * cos(phi).toFloat()
+                        assertTrue(
+                            "${entry.key}: a projected cap crosses the limb at ($x, $y)",
+                            x * x + y * y <= 1.0001f
+                        )
+                    }
+                } else {
+                    // A belt is stroked, so the containment claim has to carry the stroke: sample the
+                    // whole drawn outline, both sides of the centre line, over the whole arc.
+                    val chord = sqrt(max(0f, 1f - mark.cy * mark.cy))
+                    val sliceWidth = (2f * mark.ry / BodyIdentities.BAND_SLICES) * chord
+                    val hw = sliceWidth * 1.15f / 2f
+                    val arc = SphereProjection.projectBand(mark.cy, identity.axisTilt, hw)
+                    assertTrue("${entry.key}: a belt keeps a visible arc", arc.sweepDegrees > 30f)
+                    val start = Math.toRadians(arc.startDegrees.toDouble())
+                    val sweep = Math.toRadians(arc.sweepDegrees.toDouble())
+                    for (s in 0 until 400) {
+                        val t = (start + sweep * s / 399).toFloat()
+                        val x = arc.a * cos(t)
+                        val y = arc.yc + arc.b * sin(t)
+                        val dx = -arc.a * sin(t)
+                        val dy = arc.b * cos(t)
+                        val nl = max(1e-6f, sqrt(dx * dx + dy * dy))
+                        for (sgn in floatArrayOf(1f, -1f)) {
+                            val px = x + sgn * (-dy / nl) * hw
+                            val py = y + sgn * (dx / nl) * hw
+                            assertTrue(
+                                "${entry.key}: a stroked belt crosses the limb at ($px, $py)",
+                                px * px + py * py <= 1.0001f
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // The projection really is a sphere: the same cap foreshortens harder the closer it sits to
+        // the limb, and is untouched at the centre.
+        val centre = SphereProjection.projectBlob(0f, 0f, 0.2f, 0.2f)
+        val mid = SphereProjection.projectBlob(0.5f, 0.5f, 0.2f, 0.2f)
+        val limb = SphereProjection.projectBlob(0.66f, 0.66f, 0.16f, 0.16f)
+        assertEquals("a cap at the sub-observer point is not foreshortened", 1f, centre.nz, 1e-6f)
+        assertEquals("nor rotated", 0f, centre.degrees, 1e-6f)
+        assertTrue("a cap mid-disc foreshortens", mid.nz < 1f)
+        assertTrue("and one near the limb foreshortens harder", limb.nz < mid.nz)
+        assertTrue(
+            "an isotropic cap keeps exactly its foreshortening as axis ratio",
+            abs(mid.minor / mid.major - mid.nz) < 1e-3f
+        )
+        assertTrue(
+            "and the ratio collapses toward the limb",
+            limb.minor / limb.major < mid.minor / mid.major
+        )
+
+        // Deterministic, like everything else in this layer.
+        assertEquals(
+            SphereProjection.projectBlob(0.3f, -0.4f, 0.2f, 0.1f),
+            SphereProjection.projectBlob(0.3f, -0.4f, 0.2f, 0.1f)
+        )
+        assertEquals(
+            SphereProjection.projectBand(0.2f, 0.3f, 0.02f),
+            SphereProjection.projectBand(0.2f, 0.3f, 0.02f)
+        )
+    }
+
+    @Test
     fun planetaryIdentitiesReadAsTheirRealBodies() {
-        // ---- Sun: still gold, with only the softest warm mottling --------------------------------
+        // ---- Sun: a light source — corona, granulation in two temperature families --------------
         val sun = hsv(BodyCatalog.SUN.colorArgb)
         assertTrue("the Sun stays gold, hue ${sun[0]}", sun[0] in 45f..60f)
         assertTrue("the Sun stays bright, val ${sun[2]}", sun[2] >= 0.95f)
         val sunMarks = BodyIdentities.SUN.marks
-        assertTrue("a few soft patches only, found ${sunMarks.size}", sunMarks.size in 3..9)
-        for (mark in sunMarks) {
+        assertTrue("granulation, found ${sunMarks.size}", sunMarks.size in 10..16)
+        val cool = sunMarks.filter { it.role == MarkRole.DARKEN }
+        val hot = sunMarks.filter { it.role == MarkRole.LIGHTEN }
+        assertTrue("cool granulation multiplies, found ${cool.size}", cool.size >= 6)
+        assertTrue("hot granulation screens, found ${hot.size}", hot.size >= 4)
+        for (mark in cool) {
             val h = hsv(mark.argb)
-            assertTrue("solar mottling is warm orange/red, hue ${h[0]}", h[0] in 10f..45f)
-            assertTrue("and extremely soft, alpha ${mark.alpha}", mark.alpha <= 0.20f)
+            assertTrue("cool granulation is warm orange/red, hue ${h[0]}", h[0] in 10f..45f)
+            assertTrue("and extremely soft, alpha ${mark.alpha}", mark.alpha <= 0.30f)
         }
+        for (mark in hot) {
+            val h = hsv(mark.argb)
+            assertTrue("hot granulation is pale gold, hue ${h[0]}", h[0] in 40f..62f)
+            assertTrue("and bright, val ${h[2]}", h[2] >= 0.90f)
+        }
+        assertTrue("the Sun emits and takes no specular", BodyIdentities.SUN.lighting.emissive == 1f)
+        assertEquals(0f, BodyIdentities.SUN.lighting.specularAlpha, 0f)
 
         // ---- Mercury: bright warm stone grey, low-contrast warm craters --------------------------
         val mercury = hsv(BodyCatalog.MERCURY.colorArgb)
@@ -154,12 +279,18 @@ class GravityBodyIdentityTest {
         assertTrue("Mercury is desaturated, sat ${mercury[1]}", mercury[1] <= 0.20f)
         val mercuryMarks = BodyIdentities.MERCURY.marks
         assertTrue("a cratered field, found ${mercuryMarks.size}", mercuryMarks.size >= 6)
-        for (mark in mercuryMarks) {
+        val mercuryDark = mercuryMarks.filter { it.role == MarkRole.DARKEN }
+        for (mark in mercuryDark) {
             val h = hsv(mark.argb)
-            assertTrue("Mercury's craters are warm, hue ${h[0]}", h[0] in 20f..50f)
-            assertTrue("and very low contrast", h[2] < mercury[2])
+            assertTrue("Mercury's craters are warm, hue ${h[0]}", h[0] in 20f..60f)
+            assertTrue("and they darken, luminance ${relativeLuminance(mark.argb)}",
+                relativeLuminance(mark.argb) < 0.75f)
             assertTrue("craters stay small", mark.rx <= 0.25f)
         }
+        assertTrue(
+            "a couple of lit crater walls, no more",
+            mercuryMarks.count { it.role == MarkRole.LIGHTEN } in 1..3
+        )
 
         // ---- Moon: neutral white, cool maria and lit crater floors -------------------------------
         val moon = hsv(BodyCatalog.MOON.colorArgb)
@@ -178,7 +309,7 @@ class GravityBodyIdentityTest {
 
         // Mercury and the Moon share a size class, so they must not share a look: warm and busy
         // against cool and calm.
-        val mercuryHue = mercuryMarks.map { hsv(it.argb)[0] }.average()
+        val mercuryHue = mercuryDark.map { hsv(it.argb)[0] }.average()
         val moonHue = moonMarks.filter { hsv(it.argb)[1] > 0.02f }.map { hsv(it.argb)[0] }.average()
         assertTrue("Mercury warm ($mercuryHue) against the Moon cool ($moonHue)", mercuryHue < 60.0)
         assertTrue("the Moon's marks are cool ($moonHue)", moonHue > 180.0)
@@ -194,7 +325,7 @@ class GravityBodyIdentityTest {
         assertTrue("no sharp surface detail: every mark is broad", venusMarks.all { it.ry >= 0.05f })
         assertTrue("and soft", venusMarks.all { it.alpha <= 0.40f })
 
-        // ---- Earth: vivid blue ocean, sparse green land, a few white clouds ----------------------
+        // ---- Earth: vivid blue ocean, sparse green land, ice caps, a few clouds ------------------
         val earth = hsv(BodyCatalog.EARTH.colorArgb)
         assertTrue("Earth is vivid blue, hue ${earth[0]}", earth[0] in 195f..225f)
         assertTrue("Earth is saturated, sat ${earth[1]}", earth[1] >= 0.60f)
@@ -202,11 +333,16 @@ class GravityBodyIdentityTest {
         val land = earthMarks.filter { hsv(it.argb)[0] in 90f..160f }
         assertTrue("sparse stylised land masses, found ${land.size}", land.size in 5..8)
         assertTrue("land must read clearly", land.all { it.alpha >= 0.75f })
-        val clouds = earthMarks.filter { hsv(it.argb)[1] <= 0.05f && hsv(it.argb)[2] >= 0.99f }
+        assertTrue("land is painted, not multiplied", land.all { it.role == MarkRole.TINT })
+        val clouds = earthMarks.filter {
+            hsv(it.argb)[1] <= 0.05f && hsv(it.argb)[2] >= 0.99f && it.ry <= 0.05f
+        }
         assertTrue("a few cloud streaks, found ${clouds.size}", clouds.size in 2..4)
-        assertTrue("clouds stay subtle", clouds.all { it.alpha <= 0.35f })
+        assertTrue("clouds stay subtle", clouds.all { it.alpha <= 0.45f })
+        val caps = earthMarks.filter { abs(it.cy) >= 0.7f && hsv(it.argb)[2] >= 0.95f }
+        assertEquals("both poles carry ice", 2, caps.size)
 
-        // ---- Mars: vivid red-orange, rust regions, a pale polar cap ------------------------------
+        // ---- Mars: vivid red-orange, rust regions, pale polar caps -------------------------------
         val mars = hsv(BodyCatalog.MARS.colorArgb)
         assertTrue("Mars is red-orange, hue ${mars[0]}", mars[0] in 8f..25f)
         assertTrue("Mars is vivid, not terracotta: sat ${mars[1]}", mars[1] >= 0.75f)
@@ -215,22 +351,28 @@ class GravityBodyIdentityTest {
         val marsMarks = BodyIdentities.MARS.marks
         assertTrue(
             "darker rust regions",
-            marsMarks.count { hsv(it.argb)[0] in 5f..30f && hsv(it.argb)[2] < mars[2] - 0.15f } >= 4
+            marsMarks.count {
+                hsv(it.argb)[0] in 5f..30f && relativeLuminance(it.argb) <= 0.30f
+            } >= 4
         )
         assertTrue(
-            "a pale polar cap",
-            marsMarks.count { hsv(it.argb)[2] >= 0.99f && hsv(it.argb)[1] <= 0.15f } >= 1
+            "pale polar caps",
+            marsMarks.count { hsv(it.argb)[2] >= 0.99f && hsv(it.argb)[1] <= 0.15f } >= 2
         )
 
-        // ---- Jupiter: cream base, several soft belts, exactly one red spot -----------------------
+        // ---- Jupiter: cream base, several curved belts, exactly one red spot --------------------
         val jupiter = hsv(BodyCatalog.JUPITER.colorArgb)
         assertTrue("Jupiter is cream/ivory, hue ${jupiter[0]}", jupiter[0] in 30f..55f)
         assertTrue("Jupiter is bright, val ${jupiter[2]}", jupiter[2] >= 0.85f)
         assertTrue("Jupiter is pale, sat ${jupiter[1]}", jupiter[1] <= 0.35f)
         val jupiterMarks = BodyIdentities.JUPITER.marks
-        val belts = jupiterMarks.filter { it.rx >= 0.5f }
-        assertTrue("several horizontal belts, found ${belts.size}", belts.size >= 5)
+        val belts = jupiterMarks.filter { it.kind == MarkKind.BAND && it.rx >= 0.5f }
+        assertTrue("several curved belts, found ${belts.size}", belts.size >= 5)
         assertTrue("the belts stay soft", belts.all { it.alpha <= 0.60f })
+        assertTrue(
+            "belts multiply or screen: they are shading, not paint",
+            belts.all { it.role != MarkRole.TINT }
+        )
         assertEquals(
             "exactly one Great Red Spot",
             1,
@@ -278,9 +420,18 @@ class GravityBodyIdentityTest {
         val asteroidMarks = BodyIdentities.ASTEROID.marks
         assertTrue(
             "irregular darker patches",
-            asteroidMarks.count { hsv(it.argb)[2] < asteroid[2] } >= 4
+            asteroidMarks.count { it.role == MarkRole.DARKEN } >= 4
         )
         assertTrue("no noisy detail: bounded count ${asteroidMarks.size}", asteroidMarks.size <= 6)
+
+        // ---- every body's detail is integrated into its material, not pasted on ------------------
+        for (key in BodyIdentities.all.keys) {
+            val identity = BodyIdentities.all.getValue(key)
+            assertTrue(
+                "$key: at least one feature must multiply the marble's light",
+                identity.marks.any { it.role == MarkRole.DARKEN }
+            )
+        }
 
         // ---- Black hole and wormhole keep their treatment exactly --------------------------------
         assertEquals(0xFF0A0A0CL, BodyCatalog.BLACK_HOLE.colorArgb)
@@ -290,7 +441,48 @@ class GravityBodyIdentityTest {
         assertTrue(BodyIdentities.of("marble", BodyType.TEST_MARBLE).isEmpty)
     }
 
-    // ================================ the guardrails =============================================
+    @Test
+    fun theLightIsPerBodyDirectionalAndNeverTheSameDotTwice() {
+        val keys = BodyIdentities.all.keys
+        val specs = keys.map { k ->
+            val l = BodyIdentities.all.getValue(k).lighting
+            l.specularRadius to l.specularAlpha
+        }
+        assertTrue(
+            "the highlight must differ across bodies, found ${specs.distinct().size} distinct of " +
+                "${keys.size}",
+            specs.distinct().size >= 6
+        )
+
+        for (key in keys) {
+            val identity = BodyIdentities.all.getValue(key)
+            val l = identity.lighting
+            assertTrue("$key: limb darkening is a physical u", l.limbDarkening in 0.30f..0.90f)
+            assertTrue("$key: every body owns its limb tone", identity.limbArgb != 0L)
+            if (l.specularAlpha > 0f) {
+                assertTrue("$key: a highlight has a size", l.specularRadius in 0.05f..0.60f)
+                assertTrue("$key: and sits on the lit side", l.specularCx < 0f && l.specularCy < 0f)
+            }
+        }
+
+        // Bare rock: a small tight mineral glint. Cloud worlds: a broad dim sheen. The Sun: none.
+        for (rock in listOf("mercury", "moon", "asteroid")) {
+            val l = BodyIdentities.all.getValue(rock).lighting
+            assertTrue("$rock: a rock's glint is small", l.specularRadius <= 0.13f)
+            assertTrue("$rock: and bright", l.specularAlpha >= 0.18f)
+            assertEquals("$rock: and has a defined edge", MarkEdge.FAIR, l.specularEdge)
+            assertEquals("$rock: airless bodies carry no scattering crescent", 0f, l.atmosphere, 0f)
+        }
+        for (cloud in listOf("venus", "jupiter", "saturn", "uranus", "neptune")) {
+            val l = BodyIdentities.all.getValue(cloud).lighting
+            assertTrue("$cloud: a cloud world's sheen is broad", l.specularRadius >= 0.36f)
+            assertTrue("$cloud: and dim", l.specularAlpha <= 0.12f)
+            assertTrue("$cloud: and it has an atmosphere", l.atmosphere >= 0.85f)
+        }
+        assertTrue("Earth's thin air shows a little", BodyIdentities.EARTH.lighting.atmosphere in 0.5f..0.8f)
+        assertTrue("Mars's thinner air shows less", BodyIdentities.MARS.lighting.atmosphere in 0.2f..0.4f)
+        assertTrue("the Sun darkens hardest at the limb", BodyIdentities.SUN.lighting.limbDarkening >= 0.80f)
+    }
 
     @Test
     fun saturnsRingsAreVisualOnlyAndNothingPhysicalMoved() {
@@ -359,33 +551,49 @@ class GravityBodyIdentityTest {
     fun theMarbleLightingShadowAndChromeStructureIsUntouched() {
         val canvas = uiSource("TabletopCanvas.kt")
 
-        // The marble's own lighting: same off-centre gradient centre, same radius, same three stops,
-        // same rim, same single specular dot in the same place at the same size.
+        // The marble's own lighting: same off-centre gradient centre, same radius, same three stops.
+        // The base is untouched; what changed around it is additive and per body.
         assertTrue("the base gradient is still lit from the top-left", canvas.contains("center = Offset(-r * 0.30f, -r * 0.34f)"))
         assertTrue("the base gradient still reaches 1.55r", canvas.contains("radius = r * 1.55f"))
         assertTrue("the base gradient still has three stops", canvas.contains("arrayOf(0f to light, 0.45f to tone, 1f to dark)"))
-        assertTrue("the rim is unchanged", canvas.contains("drawCircle(cache.rim[i], rr, Offset.Zero, style = cache.strokeRim)"))
-        assertTrue("the specular highlight is unchanged", canvas.contains("drawCircle(cache.specular[i], rr * 0.17f, Offset(-rr * 0.34f, -rr * 0.38f))"))
 
-        // §5 layering, proved from the order the calls appear in: base -> marks -> the lighting
-        // re-applied over them -> rim -> specular. The marks may never sit on top of the shading.
+        // §5 layering, proved from the order the calls appear in: base -> belts -> caps -> the
+        // lighting re-applied over them -> terminator -> limb -> rim -> highlight. Detail may never
+        // sit on top of the shading, and the shading may never sit on top of the rim.
         val base = canvas.indexOf("cache.base[i]?.let { drawCircle(it, rr, Offset.Zero) }")
-        val marks = canvas.indexOf("drawIdentityMarks(cache, i, rr)")
+        val bands = canvas.indexOf("drawBands(cache, i, rr)")
+        val caps = canvas.indexOf("drawBlobs(cache, i, rr)")
         val lighting = canvas.indexOf("alpha = BodyIdentities.LIGHTING_OVERLAY_ALPHA")
-        val rim = canvas.indexOf("drawCircle(cache.rim[i], rr, Offset.Zero, style = cache.strokeRim)")
-        val specular = canvas.indexOf("drawCircle(cache.specular[i], rr * 0.17f")
+        val term = canvas.indexOf("cache.termBrush[i]?.let { drawCircle(it, rr, Offset.Zero) }")
+        val limb = canvas.indexOf("cache.limbBrush[i]?.let { drawCircle(it, rr, Offset.Zero) }")
+        val rim = canvas.indexOf("drawRimArc(cache, i, rr)")
+        val spec = canvas.indexOf("drawSpecularGlint(cache, i, rr)")
         assertTrue("the base gradient is drawn", base > 0)
-        assertTrue("marks come after the base", marks > base)
-        assertTrue("the existing lighting is re-applied over the marks", lighting > marks)
-        assertTrue("the rim still follows the lighting", rim > lighting)
-        assertTrue("and the specular is still last on the body", specular > rim)
+        assertTrue("belts come after the base", bands > base)
+        assertTrue("caps come after the belts", caps > bands)
+        assertTrue("the existing lighting is re-applied over the detail", lighting > caps)
+        assertTrue("the terminator follows the lighting", term > lighting)
+        assertTrue("and the limb fall-off follows the terminator", limb > term)
+        assertTrue("the rim still follows the shading", rim > limb)
+        assertTrue("and the highlight is last on the body", spec > rim)
+
+        // The highlight is per body now — size, offset, strength and edge come from the identity,
+        // which is what ends the identical-white-dot reading. The old shared dot is gone for good.
+        assertTrue(canvas.contains("cache.specRadius[i] = lighting.specularRadius * r"))
+        assertTrue(canvas.contains("cache.specAlpha[i] = lighting.specularAlpha * if (colors.isDark) 1f else 1.4f"))
+        assertFalse("the flat shared specular dot is gone", canvas.contains("cache.specular["))
+        // The rim is a lit crescent, not a bright ring all the way round.
+        assertTrue(canvas.contains("drawArc(\n        color = cache.rim[i]"))
+        // Features composite as albedo: multiply and screen, never as opaque decals.
+        assertTrue(canvas.contains("BlendMode.Multiply"))
+        assertTrue(canvas.contains("BlendMode.Screen"))
 
         // Rings: the far half under the sphere, the near half over it. That split is what makes them
         // pass behind and in front, and it is the only place rings are drawn.
         val farRings = canvas.indexOf("drawRingHalf(cache, i, rr, far = true)")
         val nearRings = canvas.indexOf("drawRingHalf(cache, i, rr, far = false)")
         assertTrue("the far ring half is painted before the body", farRings in 0 until base)
-        assertTrue("the near ring half after the whole marble", nearRings > specular)
+        assertTrue("the near ring half after the whole marble", nearRings > spec)
 
         // The two-layer cast shadow, geometry and all, is exactly as the previous pass left it.
         assertTrue(canvas.contains("Offset(rr * 0.38f - rr * 0.725f, rr * 0.34f - rr * 0.575f)"))
@@ -393,8 +601,8 @@ class GravityBodyIdentityTest {
         assertTrue(canvas.contains("Offset(rr * 0.20f - rr * 0.40f, rr * 0.18f - rr * 0.40f)"))
         assertTrue(canvas.contains("Size(rr * 0.80f, rr * 0.80f)"))
 
-        // Primitives only: no bitmaps, no image assets, no shaders, no blur, no shadow layers. Any
-        // mention at all is only allowed inside a comment that says it is not used.
+        // Primitives only: no bitmaps, no image assets, no shader sources, no blur, no shadow layers.
+        // Any mention at all is only allowed inside a comment that says it is not used.
         for (banned in listOf("drawImage(", "ImageBitmap", "asImageBitmap", "Shader", "blur(", "setShadowLayer(")) {
             for (line in canvas.lines().filter { it.contains(banned) }) {
                 val trimmed = line.trim()
@@ -486,6 +694,11 @@ class GravityBodyIdentityTest {
         }
         return floatArrayOf(if (h < 0f) h + 360f else h, s, max)
     }
+
+    /** How much light a multiplied feature leaves: 1 - strength * (1 - luminance). */
+    private fun effectiveDarken(alpha: Float, argb: Long): Float =
+        1f - min(1f, alpha * BodyIdentities.DARKEN_STRENGTH) *
+            (1f - relativeLuminance(argb))
 
     /** WCAG relative luminance of a 0xAARRGGBB literal, in linear light. */
     private fun relativeLuminance(argb: Long): Float {
