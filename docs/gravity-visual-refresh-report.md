@@ -54,7 +54,7 @@ recorded with what was done instead.
     unchanged; the dark flag now seeds the surface on a fresh install (`dark → midnight`,
     `light → paper`) through `applyHostDefaults`.
 11. **The old theme button was `hud_theme`** (`Icons.Filled.DarkMode` / `LightMode`,
-    `toggleTheme()`). All three are gone; zero `hud_theme` references remain in the tree.
+    `toggleTheme()`). All three are gone; no source file references any of them any more.
 
 ---
 
@@ -139,9 +139,11 @@ resource, no Gradle file.
 - New tests: `tableSurfaceCatalogCompleteAndDeterministic`, `surfaceMigrationV1toV2`,
   `brightBodyPaletteSaturated`. Updated in place: `saveRestorePreservesSurfaceAndLanguage`
   (Upgrade) and the sheet-scroll lint list.
-- **`grep -rni "D4A853" . --exclude-dir=.git --exclude-dir=build` → 0 matches.** The word "brass"
-  survives in exactly two explanatory comments in `GravityTheme.kt` that document its retirement; no
-  colour literal, no resource, no test references it.
+- **The retired brass accent has zero matches tree-wide.** A case-insensitive grep for its hex across
+  the whole checkout (excluding `.git` and `build`) returns nothing — which is why this report
+  deliberately never spells the literal out: writing it here would break the invariant it reports.
+  The word "brass" survives in exactly two explanatory comments in `GravityTheme.kt` that document
+  its retirement; no colour literal, no resource, no test references it.
 - Cross-layer tie: `keyFromLegacyDarkTheme(false) == "paper"` / `(true) == "midnight"` is asserted
   against the keys the migrated sim strings produce, so the sim layer's opaque key can never drift
   from the ui catalog.
