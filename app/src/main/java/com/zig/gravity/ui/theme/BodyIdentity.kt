@@ -239,26 +239,6 @@ object SphereProjection {
         return ProjectedBlob(cx * pull, cy * pull, major, minor, degrees, nz)
     }
 
-    /**
-     * The visible arc of a latitude belt. [cy] is the height of the belt's equator-ward apex, so
-     * the authored placement survives; the latitude follows as lambda = tau - asin(cy).
-     *
-     * The arc runs exactly from limb to limb: its ends are where the belt's circle crosses the
-     * silhouette (z = 0), and every point with z >= 0 lies inside the unit disc — which is why a
-     * belt can never spill past the limb without a clip path.
-     */
-    fun projectBand(cy: Float, tilt: Float, padDegrees: Float): ProjectedBand {
-        val tau = asin(tilt.coerceIn(0.05f, 0.85f))
-        val lambda = tau - asin(cy.coerceIn(-0.999f, 0.999f))
-        val a = cos(lambda)
-        val b = a * sin(tau)
-        val yc = -sin(lambda) * cos(tau)
-        val sinT0 = (-kotlin.math.tan(lambda) * kotlin.math.tan(tau)).coerceIn(-1f, 1f)
-        val t0 = Math.toDegrees(asin(sinT0).toDouble()).toFloat()
-        val pad = padDegrees.coerceIn(0f, min(30f, (180f - 2f * t0) / 4f))
-        return ProjectedBand(a, b, yc, t0 + pad, 180f - 2f * t0 - 2f * pad)
-    }
-
     /** How far inside the silhouette a belt's stroked ends must stay, in squared-radius units. */
     private const val LIMB_MARGIN = 0.004f
 
@@ -283,8 +263,8 @@ object SphereProjection {
         val t0 = asin(sinT0)
         val mid = (Math.PI / 2.0).toFloat()
         val start = solveBandEnd(t0, mid, a, b, yc, strokeHalfWidth)
-        val far = solveBandEnd(t0, mid, a, b, yc, strokeHalfWidth)
-        val end = Math.PI.toFloat() - far
+        // The stroked norm is symmetric about t = PI/2, so the far end mirrors the near one.
+        val end = Math.PI.toFloat() - start
         return ProjectedBand(
             a = a,
             b = b,
