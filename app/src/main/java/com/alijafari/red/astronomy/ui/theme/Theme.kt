@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy.ui.theme
 
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -209,6 +210,7 @@ fun REDTheme(
     userLatitude: Double = 30.1141,
     userLongitude: Double = 51.5217,
     timestampMs: Long = System.currentTimeMillis(),
+    isPersian: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val celestialLighting = remember(timestampMs, userLatitude, userLongitude) {
@@ -290,17 +292,40 @@ fun REDTheme(
         }
     }
 
+    // The app's one and only type-face decision: Persian renders in Vazirmatn, English keeps the
+    // platform default face. Two channels, both fed from that single rule, so no call site anywhere
+    // has to care:
+    //  * the Material 3 Typography object -> every MaterialTheme.typography.* usage, and every plain
+    //    Text() / custom-token Text(style = ...) call, because MaterialTheme exposes typography's
+    //    bodyLarge as the ambient text style that those styles merge onto (a TextStyle only overrides
+    //    properties it sets itself, so the RED tokens in Type.kt deliberately leave fontFamily unset).
+    //  * LocalAppFontFamily -> text measured straight onto a Canvas, which never merges that ambient
+    //    style (CompassARScreen / ISSScreen labels).
+    val appFontFamily = redFontFamily(isPersian)
+
     CompositionLocalProvider(
         LocalCelestialLighting provides celestialLighting,
         LocalRedColors provides redColorTokens,
         LocalRedSpacing provides RedSpacing,
         LocalRedRadius provides RedCornerRadius,
-        LocalRedElevation provides RedElevation
+        LocalRedElevation provides RedElevation,
+        LocalAppFontFamily provides appFontFamily
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = Typography,
-            content = content
+            typography = redTypographyFor(isPersian),
+            content = {
+                // Material 3's Text uses whatever `style` it is handed *as-is* — it does not merge the
+                // theme's ambient style into an explicitly passed one — so the typography swap above
+                // only reaches call sites that read MaterialTheme.typography. Re-providing the ambient
+                // style with the locale face is what covers every Text() that passes no style at all
+                // (placeholders, bare labels). .copy() only replaces the family, so sizes, weights and
+                // line heights inherited from the theme stay exactly as they were.
+                CompositionLocalProvider(
+                    LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = appFontFamily),
+                    content = content
+                )
+            }
         )
     }
 }

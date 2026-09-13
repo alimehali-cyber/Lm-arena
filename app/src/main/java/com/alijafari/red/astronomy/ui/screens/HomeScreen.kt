@@ -174,7 +174,7 @@ fun HomeScreen(
                         Text(
                             text = if (isFa) "زیگ" else "ZIG",
                             style = TextStyle(
-                                fontFamily = IranSans,
+                                fontFamily = LocalAppFontFamily.current,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 17.sp,
                                 letterSpacing = if (isFa) 0.sp else 3.sp
@@ -395,6 +395,7 @@ fun HomeScreen(
                 )
 
                 OutlinedTextField(
+                    textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     modifier = Modifier

@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -484,6 +485,7 @@ fun TimeDilationCalculatorScreen(
 
                         // Custom Numeric Speed Input
                         OutlinedTextField(
+                            textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                             value = rawSpeedInput,
                             onValueChange = { rawSpeedInput = it },
                             modifier = Modifier
@@ -608,6 +610,7 @@ fun TimeDilationCalculatorScreen(
 
                         if (isAccelerationOn) {
                             OutlinedTextField(
+                                textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                                 value = accelerationValueInG,
                                 onValueChange = { accelerationValueInG = it },
                                 modifier = Modifier
@@ -1099,6 +1102,7 @@ private fun ObjectSearchModal(
             )
 
             OutlinedTextField(
+                textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier

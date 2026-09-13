@@ -145,14 +145,13 @@ dependencies {
 // ---------------------------------------------------------------------------------------------
 // CI unit-test gate for the Gravity Sandbox suite (com.zig.gravity.*).
 //
-// The build workflow only invokes `assembleDebug`, and editing `.github/workflows/**` requires a
-// permission the automation running this repository does not hold, so the gate lives here: on
-// GitHub Actions, assembling the debug APK first runs the sandbox unit tests, and a finalizer
-// echoes the JUnit XML results as workflow annotations (the raw job log is not always reachable).
+// The CI workflow invokes `assembleRelease` and runs the full `testDebugUnitTest` task itself,
+// so this gate lives here only as a safety net for the sandbox suite: on GitHub Actions, assembling
+// the debug APK first runs the sandbox unit tests, and a finalizer echoes the JUnit XML results as
+// workflow annotations (the raw job log is not always reachable).
 //
-// Scope is deliberately narrow: only `com.zig.gravity.*` gates the CI APK, so unrelated suites
-// keep their current behaviour. Disable with `-Pgravity.ci.tests=false`, and drop this block once
-// the workflow itself runs the full `testDebugUnitTest` task (see docs/CI_ENABLE_TESTS.md).
+// Scope is deliberately narrow: only `com.zig.gravity.*` gates the CI debug APK, so unrelated suites
+// keep their current behaviour. Disable with `-Pgravity.ci.tests=false`.
 // ---------------------------------------------------------------------------------------------
 val gravityCiTests =
   System.getenv("GITHUB_ACTIONS") == "true" &&

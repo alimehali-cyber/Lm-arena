@@ -19,6 +19,10 @@ object CelestialSearchEngine {
     /**
      * Searches all canonical celestial objects for a query matching Persian name, English name,
      * category, constellation, scientific identifiers, or search aliases.
+     *
+     * Scoped to the AR sky: Earth is excluded, since it is the observer's position and never
+     * rendered on the AR canvas. Other (non-AR) consumers that need the complete catalogue go
+     * through [CanonicalAstroCatalog] directly.
      */
     fun search(
         query: String,
@@ -35,6 +39,10 @@ object CelestialSearchEngine {
         val results = mutableListOf<SearchResult>()
 
         for (canonObj in canonicalObjects) {
+            // The AR sky is the only consumer of this search engine, and Earth is not an object in
+            // the sky, so it must not be findable there (see ARSkyCatalog for the scoping rules).
+            if (ARSkyCatalog.isEarth(canonObj.canonicalId)) continue
+
             val nameFa = canonObj.nameFa.lowercase()
             val nameEn = canonObj.nameEn.lowercase()
             val categoryEn = canonObj.observationalInfo.categoryEn.lowercase()
