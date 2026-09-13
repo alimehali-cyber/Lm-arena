@@ -1226,11 +1226,11 @@ object PhysicalData {
 
     fun getCoolFactsFa(obj: CelestialObject): List<String> {
         coolFactsMap[obj.id]?.let { return it }
-        return emptyList()
+        return ExtendedFactCatalog.factsFor(obj.id)?.fa ?: emptyList()
     }
 
     fun getCoolFactsEn(obj: CelestialObject): List<String> {
         coolFactsMapEn[obj.id]?.let { return it }
-        return emptyList()
+        return ExtendedFactCatalog.factsFor(obj.id)?.en ?: emptyList()
     }
 }

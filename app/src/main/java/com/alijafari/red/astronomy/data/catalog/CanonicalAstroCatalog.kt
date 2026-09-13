@@ -1378,7 +1378,9 @@ object CanonicalAstroCatalog {
                             categoryEn = sat.category.labelEn,
                             categoryFa = sat.category.labelFa,
                             descriptionEn = sat.descriptionEn,
-                            descriptionFa = sat.descriptionFa
+                            descriptionFa = sat.descriptionFa,
+                            verifiedFactsEn = sat.verifiedFactsEn,
+                            verifiedFactsFa = sat.verifiedFactsFa
                         )
                     )
                 )
