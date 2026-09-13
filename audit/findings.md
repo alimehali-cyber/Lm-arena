@@ -197,10 +197,23 @@ languages present, no generic/duplicated text.
 ## CI
 
 Local Gradle/unit-test execution is impossible in this sandbox (no JDK/Gradle toolchain,
-blocked network), so the corrected suite and signed release build are validated by the
+blocked network), so the corrected suite and signed release build were validated by the
 `Build Android APK` workflow (JDK 21, Gradle 9.3.1, `testDebugUnitTest`, 15 required test
-classes, signed release APK `ZIG`). CI status is reported at the commit that carries this
-report.
+classes, signed release APK `ZIG`).
+
+- Run: **`Build Android APK` #34737487246** on commit `1b685f1` → **success** in 9m19s.
+- Unit suite: **393 tests, 0 failures, 0 errors, 0 skipped** (`gradle_status=0`).
+- All 15 required classes **PASS**, including `ContentIntegrityAuditTest` (the full-union
+  audit), `CatalogIntegrityTest`, `DeepSkyFactCoverageTest`,
+  `ObjectDetailModalConsistencyTest`, and the AR/catalog test classes.
+- Signed release APK: `assembleRelease` succeeded and `ZIG-release.apk` was uploaded
+  (verified package `com.alijafari.red.astronomy`, versionCode 4, non-debug signing key).
+
+## BUILD STATUS
+
+**GREEN — zero C/D/E across the entire 336-object union** (A = 315, B = 21, C = 0, D = 0,
+E = 0), both languages, cross-object duplication 0, research log complete, corrected tests
+passing, and CI compile + tests + signed release APK all green.
 
 ## Artifacts
 
