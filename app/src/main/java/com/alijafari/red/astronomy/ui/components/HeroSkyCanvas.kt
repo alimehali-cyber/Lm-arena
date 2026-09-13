@@ -37,7 +37,7 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.rendering.*
-import com.alijafari.red.astronomy.ui.theme.IranSans
+import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.util.toPersianDigits
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -572,7 +572,7 @@ fun HeroSkyCanvas(
                     Text(
                         text = sel.name,
                         style = TextStyle(
-                            fontFamily = IranSans,
+                            fontFamily = LocalAppFontFamily.current,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = Color.White
@@ -582,7 +582,7 @@ fun HeroSkyCanvas(
                         Text(
                             text = "• ${sel.typeName}",
                             style = TextStyle(
-                                fontFamily = IranSans,
+                                fontFamily = LocalAppFontFamily.current,
                                 fontWeight = FontWeight.Normal,
                                 fontSize = 11.sp,
                                 color = Color(0xFF94A3B8)
@@ -622,7 +622,7 @@ fun HeroSkyCanvas(
                     Text(
                         text = if (isFa) "آسمان زنده" else "Live sky",
                         style = TextStyle(
-                            fontFamily = IranSans,
+                            fontFamily = LocalAppFontFamily.current,
                             fontWeight = FontWeight.Medium,
                             fontSize = 11.sp,
                             color = Color(0xFFF9FAFB)
@@ -644,7 +644,7 @@ fun HeroSkyCanvas(
                     text = formattedDate,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     style = TextStyle(
-                        fontFamily = IranSans,
+                        fontFamily = LocalAppFontFamily.current,
                         fontWeight = FontWeight.Medium,
                         fontSize = 11.sp,
                         color = Color(0xFFF9FAFB)
@@ -738,7 +738,7 @@ fun HeroSkyCanvas(
                     Text(
                         text = timeText,
                         style = TextStyle(
-                            fontFamily = IranSans,
+                            fontFamily = LocalAppFontFamily.current,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
                             color = primaryTextColor
@@ -748,7 +748,7 @@ fun HeroSkyCanvas(
                         Text(
                             text = "($offsetText)",
                             style = TextStyle(
-                                fontFamily = IranSans,
+                                fontFamily = LocalAppFontFamily.current,
                                 fontWeight = FontWeight.Normal,
                                 fontSize = 12.sp,
                                 color = secondaryTextColor

@@ -32,6 +32,26 @@
     <string name="ar_hint">Point phone at sky or drag screen to identify objects</string>
     <string name="azimuth_short">Az: %1$s</string>
     <string name="altitude_short">Alt: %1$s</string>
+    <string name="ar_quick_moon">Moon</string>
+    <string name="ar_quick_sun">Sun</string>
+    <string name="ar_quick_mars">Mars</string>
+    <string name="ar_quick_venus">Venus</string>
+    <string name="ar_quick_jupiter">Jupiter</string>
+    <string name="ar_quick_saturn">Saturn</string>
+    <string name="ar_quick_sirius">Sirius</string>
+    <string name="ar_quick_andromeda">Andromeda</string>
+    <string name="ar_quick_orion">Orion</string>
+    <string name="ar_quick_iss">ISS</string>
+    <string name="ar_camera_unavailable_banner">Camera unavailable — showing star field simulation. Enable in Settings.</string>
+    <string name="ar_open_settings">Open Settings</string>
+    <string name="ar_magnetic_interference">Magnetic interference detected — move away from metal objects</string>
+    <string name="ar_recalibration_title">AR calibration may be stale</string>
+    <string name="ar_recalibration_body">Recalibrate for this time and location.</string>
+    <string name="ar_recalibrate_action">Recalibrate</string>
+    <string name="ar_time_machine_label">TIME MACHINE</string>
+    <string name="ar_cluster_title">Select object</string>
+    <string name="ar_gps_stale">GPS stale</string>
+    <string name="ar_gps_live">GPS live</string>
 
     <!-- Sky Map Screen -->
     <string name="search_placeholder">Search stars, planets, constellations...</string>

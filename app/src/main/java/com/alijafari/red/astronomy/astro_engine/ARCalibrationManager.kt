@@ -12,6 +12,7 @@ import kotlin.math.acos
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * RED Guided 1-Point Reference Alignment Layer.
@@ -36,7 +37,9 @@ import kotlin.math.sin
 data class ARCalibrationOffsets(
     val yawOffsetDeg: Float = 0f,
     val lastCalibratedTimeMs: Long = 0L,
-    val referenceStarName: String = ""
+    val referenceStarName: String = "",
+    val lastLocationLat: Double? = null,
+    val lastLocationLon: Double? = null
 ) {
     val isCalibrated: Boolean
         get() = yawOffsetDeg != 0f
@@ -76,6 +79,14 @@ data class AlignmentGuidance(
     val arrowsVisible: Boolean
 )
 
+data class RecalibrationPromptDecision(
+    val shouldPrompt: Boolean,
+    val isTimeStale: Boolean,
+    val isLocationStale: Boolean,
+    val ageDays: Long,
+    val distanceKm: Double?
+)
+
 object ARCalibrationManager {
 
     private const val PREFS_NAME = "red_ar_calibration_prefs"
@@ -83,6 +94,8 @@ object ARCalibrationManager {
     private const val KEY_TIME = "calib_timestamp_ms"
     private const val KEY_STAR = "calib_reference_star"
     private const val KEY_AUTO_PROMPT = "calib_auto_prompt_enabled"
+    private const val KEY_LAST_LOCATION_LAT = "calib_last_location_lat"
+    private const val KEY_LAST_LOCATION_LON = "calib_last_location_lon"
 
     // Legacy 3-axis keys (pitch/roll) from the retired manual slider system.
     // No longer read; removed on init so no stale offsets can linger.
@@ -120,10 +133,14 @@ object ARCalibrationManager {
             val time = prefs.getLong(KEY_TIME, 0L)
             val star = prefs.getString(KEY_STAR, "") ?: ""
             val autoPrompt = prefs.getBoolean(KEY_AUTO_PROMPT, true)
+            val lat = if (prefs.contains(KEY_LAST_LOCATION_LAT)) prefs.getFloat(KEY_LAST_LOCATION_LAT, Float.NaN).toDouble() else null
+            val lon = if (prefs.contains(KEY_LAST_LOCATION_LON)) prefs.getFloat(KEY_LAST_LOCATION_LON, Float.NaN).toDouble() else null
             _calibrationFlow.value = ARCalibrationOffsets(
                 yawOffsetDeg = yaw,
                 lastCalibratedTimeMs = time,
-                referenceStarName = star
+                referenceStarName = star,
+                lastLocationLat = lat?.takeIf { it.isFinite() },
+                lastLocationLon = lon?.takeIf { it.isFinite() }
             )
             _autoPromptEnabledFlow.value = autoPrompt
             // One-way migration: drop retired pitch/roll keys if present.
@@ -142,6 +159,102 @@ object ARCalibrationManager {
     }
 
     fun getOffsets(): ARCalibrationOffsets = _calibrationFlow.value
+
+    fun noteCalibrationCompleted(
+        context: Context? = null,
+        latitude: Double? = null,
+        longitude: Double? = null,
+        referenceName: String = _calibrationFlow.value.referenceStarName
+    ) {
+        val current = _calibrationFlow.value
+        val updated = current.copy(
+            lastCalibratedTimeMs = System.currentTimeMillis(),
+            referenceStarName = referenceName,
+            lastLocationLat = latitude ?: current.lastLocationLat,
+            lastLocationLon = longitude ?: current.lastLocationLon
+        )
+        _calibrationFlow.value = updated
+        val prefs = sharedPreferences ?: context?.applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs?.edit()?.apply {
+            putLong(KEY_TIME, updated.lastCalibratedTimeMs)
+            putString(KEY_STAR, updated.referenceStarName)
+            updated.lastLocationLat?.let { putFloat(KEY_LAST_LOCATION_LAT, it.toFloat()) }
+            updated.lastLocationLon?.let { putFloat(KEY_LAST_LOCATION_LON, it.toFloat()) }
+            apply()
+        }
+    }
+
+    fun shouldSuggestRecalibration(
+        currentTimeMs: Long = System.currentTimeMillis(),
+        currentLatitude: Double? = null,
+        currentLongitude: Double? = null,
+        maxAgeDays: Long = 14L,
+        maxDistanceKm: Double = 50.0
+    ): RecalibrationPromptDecision {
+        return shouldSuggestRecalibration(
+            offsets = _calibrationFlow.value,
+            currentTimeMs = currentTimeMs,
+            currentLatitude = currentLatitude,
+            currentLongitude = currentLongitude,
+            maxAgeDays = maxAgeDays,
+            maxDistanceKm = maxDistanceKm
+        )
+    }
+
+    fun shouldSuggestRecalibration(
+        offsets: ARCalibrationOffsets,
+        currentTimeMs: Long = System.currentTimeMillis(),
+        currentLatitude: Double? = null,
+        currentLongitude: Double? = null,
+        maxAgeDays: Long = 14L,
+        maxDistanceKm: Double = 50.0
+    ): RecalibrationPromptDecision {
+        val hasCalibrationRecord = offsets.lastCalibratedTimeMs > 0L ||
+                offsets.yawOffsetDeg != 0f ||
+                offsets.lastLocationLat != null ||
+                offsets.lastLocationLon != null
+        if (!hasCalibrationRecord) {
+            return RecalibrationPromptDecision(
+                shouldPrompt = false,
+                isTimeStale = false,
+                isLocationStale = false,
+                ageDays = 0L,
+                distanceKm = null
+            )
+        }
+
+        val ageMs = if (offsets.lastCalibratedTimeMs > 0L) currentTimeMs - offsets.lastCalibratedTimeMs else Long.MAX_VALUE
+        val ageDays = if (ageMs == Long.MAX_VALUE) Long.MAX_VALUE else ageMs / 86_400_000L
+        val isTimeStale = offsets.lastCalibratedTimeMs == 0L || ageMs > maxAgeDays * 86_400_000L
+        val distanceKm = if (
+            currentLatitude != null && currentLongitude != null &&
+            offsets.lastLocationLat != null && offsets.lastLocationLon != null
+        ) {
+            haversineDistanceKm(offsets.lastLocationLat, offsets.lastLocationLon, currentLatitude, currentLongitude)
+        } else {
+            null
+        }
+        val isLocationStale = distanceKm != null && distanceKm > maxDistanceKm
+        return RecalibrationPromptDecision(
+            shouldPrompt = isTimeStale || isLocationStale,
+            isTimeStale = isTimeStale,
+            isLocationStale = isLocationStale,
+            ageDays = ageDays,
+            distanceKm = distanceKm
+        )
+    }
+
+    fun haversineDistanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val earthRadiusKm = 6371.0088
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val rLat1 = Math.toRadians(lat1)
+        val rLat2 = Math.toRadians(lat2)
+        val a = sin(dLat / 2.0) * sin(dLat / 2.0) +
+                cos(rLat1) * cos(rLat2) * sin(dLon / 2.0) * sin(dLon / 2.0)
+        val c = 2.0 * atan2(sqrt(a.coerceIn(0.0, 1.0)), sqrt((1.0 - a).coerceAtLeast(0.0)))
+        return earthRadiusKm * c
+    }
 
     // -------------------------------------------------------------------------
     // 1-Point Alignment math (heading-only / yaw correction)
@@ -174,13 +287,17 @@ object ARCalibrationManager {
         targetAzimuthDeg: Double,
         currentAzimuthDeg: Double,
         referenceName: String = "",
-        context: Context? = null
+        context: Context? = null,
+        latitude: Double? = null,
+        longitude: Double? = null
     ): Float {
         val yawOffset = computeYawOffset(targetAzimuthDeg, currentAzimuthDeg)
         val updated = ARCalibrationOffsets(
             yawOffsetDeg = yawOffset,
             lastCalibratedTimeMs = System.currentTimeMillis(),
-            referenceStarName = referenceName
+            referenceStarName = referenceName,
+            lastLocationLat = latitude,
+            lastLocationLon = longitude
         )
         _calibrationFlow.value = updated
 
@@ -189,6 +306,8 @@ object ARCalibrationManager {
             putFloat(KEY_YAW, updated.yawOffsetDeg)
             putLong(KEY_TIME, updated.lastCalibratedTimeMs)
             putString(KEY_STAR, updated.referenceStarName)
+            updated.lastLocationLat?.let { putFloat(KEY_LAST_LOCATION_LAT, it.toFloat()) }
+            updated.lastLocationLon?.let { putFloat(KEY_LAST_LOCATION_LON, it.toFloat()) }
             apply()
         }
         return yawOffset
@@ -198,13 +317,17 @@ object ARCalibrationManager {
         _calibrationFlow.value = ARCalibrationOffsets(
             yawOffsetDeg = 0f,
             lastCalibratedTimeMs = 0L,
-            referenceStarName = ""
+            referenceStarName = "",
+            lastLocationLat = null,
+            lastLocationLon = null
         )
         val prefs = sharedPreferences ?: context?.applicationContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs?.edit()?.apply {
             putFloat(KEY_YAW, 0f)
             putLong(KEY_TIME, 0L)
             putString(KEY_STAR, "")
+            remove(KEY_LAST_LOCATION_LAT)
+            remove(KEY_LAST_LOCATION_LON)
             apply()
         }
     }

@@ -43,7 +43,14 @@ data class CelestialObject(
     val temperatureK: Int = 0,
     val activePeakDateWindowEn: String = "",
     val activePeakDateWindowFa: String = "",
-    val zhr: Int = 0
+    val zhr: Int = 0,
+    val catalogDesignations: List<String> = emptyList(),
+    val angularSizeArcmin: Double? = null,
+    val constellationCode: String = "",
+    val bestViewingMonthEn: String = "",
+    val bestViewingMonthFa: String = "",
+    val funFactsEn: List<String> = emptyList(),
+    val funFactsFa: List<String> = emptyList()
 )
 
 data class ConstellationData(

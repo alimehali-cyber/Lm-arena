@@ -7,9 +7,16 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Single real-app build job: unit tests -> signed release APK -> artifact upload.
+#
+# The instrumented emulator smoke-test job (AVD boot + connectedDebugAndroidTest + logcat gate for
+# ARSkySmokeInstrumentedTest) has been removed from the pipeline. Nothing here depends on an
+# emulator, and there are no `needs:` gates. Local/JVM unit tests (testDebugUnitTest) are retained
+# and remain a hard gate before the APK is produced.
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # ubuntu-22.04 keeps the Android SDK image this project's AGP/Kotlin toolchain is built against.
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code
@@ -29,18 +36,133 @@ jobs:
       - name: Grant execute permission for gradlew (if present)
         run: chmod +x gradlew || true
 
-      - name: Decode Keystore
+      - name: Decode permanent signing keystore
         env:
           SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "$SIGNING_KEY_BASE64" ]; then
-            echo "$SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/keystore.jks"
-            echo "Permanent signing keystore decoded."
-          else
-            echo "No signing secret configured; Gradle will fall back to the debug key."
+          set -euo pipefail
+          missing=0
+          for secret_name in SIGNING_KEY_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!secret_name:-}" ]; then
+              echo "::error title=Missing signing secret::${secret_name} is required for installable update APKs."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
           fi
+          echo "$SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/keystore.jks"
+          test -s "$RUNNER_TEMP/keystore.jks"
+          echo "Permanent signing keystore decoded."
 
-      - name: Build APK with Gradle
+      - name: Run full unit test suite
+        shell: bash
+        run: |
+          set -o pipefail
+          if [ -f "./gradlew" ]; then
+            GRADLE_CMD="./gradlew"
+          else
+            GRADLE_CMD="gradle"
+          fi
+          set +e
+          "$GRADLE_CMD" testDebugUnitTest -Pgravity.ci.tests=false --no-daemon 2>&1 | tee "$RUNNER_TEMP/unit-test-gradle.log"
+          unit_status=${PIPESTATUS[0]}
+          set -e
+          python3 - "$unit_status" "$RUNNER_TEMP/unit-test-gradle.log" <<'PY'
+          import glob
+          import pathlib
+          import sys
+          import xml.etree.ElementTree as ET
+
+          unit_status = int(sys.argv[1])
+          log_path = pathlib.Path(sys.argv[2])
+          files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml"))
+          tests = failures = errors = skipped = 0
+          failed_cases = []
+          for path in files:
+              root = ET.parse(path).getroot()
+              for testcase in root.iter("testcase"):
+                  tests += 1
+                  failure = testcase.find("failure")
+                  error = testcase.find("error")
+                  skipped_node = testcase.find("skipped")
+                  if failure is not None:
+                      failures += 1
+                      failed_cases.append((testcase.attrib.get("classname", ""), testcase.attrib.get("name", ""), failure.attrib.get("message", "")))
+                  if error is not None:
+                      errors += 1
+                      failed_cases.append((testcase.attrib.get("classname", ""), testcase.attrib.get("name", ""), error.attrib.get("message", "")))
+                  if skipped_node is not None:
+                      skipped += 1
+          print(f"::notice title=Full unit test suite::tests={tests} failures={failures} errors={errors} skipped={skipped} files={len(files)} gradle_status={unit_status}")
+          for classname, name, message in failed_cases[:40]:
+              text = f"{classname}.{name}: {message}".replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")[:900]
+              print(f"::error title=Unit test failure::{text}")
+          if unit_status != 0 and not failed_cases:
+              lines = log_path.read_text(errors="replace").splitlines() if log_path.exists() else []
+              interesting = [line for line in lines if any(token in line for token in ("FAILURE:", "Execution failed", "FAILED", "Exception", "error:", "No tests found", "BUILD FAILED")) or line.startswith("e: ")]
+              for line in interesting[-40:]:
+                  text = line.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")[:900]
+                  print(f"::error title=Unit Gradle output::{text}")
+          PY
+          exit "$unit_status"
+
+      - name: Confirm AR/catalog unit test classes
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob
+          import sys
+          import xml.etree.ElementTree as ET
+
+          required = [
+              "com.alijafari.red.astronomy.ARDeepSkyMergeTest",
+              "com.alijafari.red.astronomy.ARDistanceFormatterTest",
+              "com.alijafari.red.astronomy.MagneticAnomalyDetectorTest",
+              "com.alijafari.red.astronomy.ARRecalibrationPromptTest",
+              "com.alijafari.red.astronomy.AROnePointAlignmentTest",
+              "com.alijafari.red.astronomy.ARCalibrationPromptTest",
+              "com.alijafari.red.astronomy.SkyOrientationProjectionTest",
+              "com.alijafari.red.astronomy.SatelliteARConsistencyTest",
+              "com.alijafari.red.astronomy.CatalogIntegrityTest",
+              "com.alijafari.red.astronomy.DeepSkyFactCoverageTest",
+              "com.alijafari.red.astronomy.ObjectDetailModalConsistencyTest",
+              "com.alijafari.red.astronomy.ARSkyEarthExclusionTest",
+              "com.alijafari.red.astronomy.ARSkyPointToShapeRenderingTest",
+              "com.alijafari.red.astronomy.VazirmatnPersianTypographyTest",
+          ]
+          stats = {name: {"tests": 0, "failures": 0, "errors": 0, "skipped": 0} for name in required}
+          files = sorted(glob.glob("app/build/test-results/testDebugUnitTest/*.xml"))
+          print(f"JUnit XML files: {len(files)}")
+          for path in files:
+              root = ET.parse(path).getroot()
+              for testcase in root.iter("testcase"):
+                  classname = testcase.attrib.get("classname", "")
+                  if classname in stats:
+                      stats[classname]["tests"] += 1
+                      if testcase.find("failure") is not None:
+                          stats[classname]["failures"] += 1
+                      if testcase.find("error") is not None:
+                          stats[classname]["errors"] += 1
+                      if testcase.find("skipped") is not None:
+                          stats[classname]["skipped"] += 1
+
+          failed = False
+          for name in required:
+              s = stats[name]
+              status = "PASS" if s["tests"] > 0 and s["failures"] == 0 and s["errors"] == 0 and s["skipped"] == 0 else "FAIL"
+              print(f"{name}: tests={s['tests']} failures={s['failures']} errors={s['errors']} skipped={s['skipped']} status={status}")
+              print(f"::notice title=AR unit test class::{name}: tests={s['tests']} failures={s['failures']} errors={s['errors']} skipped={s['skipped']} status={status}")
+              if status != "PASS":
+                  failed = True
+          if failed:
+              sys.exit("One or more required AR unit test classes were missing, skipped, or failed")
+          PY
+
+      - name: Build signed release APK with Gradle
         env:
           KEYSTORE_FILE_PATH: ${{ runner.temp }}/keystore.jks
           KEYSTORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
@@ -48,22 +170,67 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -f "./gradlew" ]; then
-            ./gradlew assembleDebug --no-daemon
+            ./gradlew assembleRelease --no-daemon
           else
-            gradle assembleDebug --no-daemon
+            gradle assembleRelease --no-daemon
           fi
+
+      - name: Prepare signed real app APK artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk_candidates=()
+          while IFS= read -r apk; do
+            apk_candidates+=("$apk")
+          done < <(find app/build/outputs/apk/release -maxdepth 1 -type f -name "*-release.apk" ! -name "*androidTest*" | sort)
+
+          if [ "${#apk_candidates[@]}" -ne 1 ]; then
+            echo "::error title=APK artifact selection::Expected exactly one real release app APK, found ${#apk_candidates[@]}: ${apk_candidates[*]:-none}"
+            find app/build/outputs/apk -type f -name "*.apk" -print || true
+            exit 1
+          fi
+
+          app_apk="${apk_candidates[0]}"
+          aapt="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          badging="$($aapt dump badging "$app_apk" | head -n 1)"
+          echo "$badging"
+          if [[ "$badging" != *"name='com.alijafari.red.astronomy'"* ]]; then
+            echo "::error title=APK package mismatch::Real app APK must use package com.alijafari.red.astronomy"
+            exit 1
+          fi
+          if [[ "$badging" != *"versionCode='4'"* ]]; then
+            echo "::error title=APK version mismatch::Expected versionCode 4 for update over earlier installed builds."
+            exit 1
+          fi
+          "$apksigner" verify --print-certs "$app_apk" | tee "$RUNNER_TEMP/apksigner-certs.txt"
+          if grep -q "CN=Android Debug" "$RUNNER_TEMP/apksigner-certs.txt"; then
+            echo "::error title=Wrong signing key::Real app APK was signed with the temporary Android debug key instead of the permanent repository signing key."
+            exit 1
+          fi
+          grep -E "Signer #1 certificate SHA-256 digest|Verified using" "$RUNNER_TEMP/apksigner-certs.txt" || true
+
+          rm -rf "$RUNNER_TEMP/real-app-apk"
+          mkdir -p "$RUNNER_TEMP/real-app-apk"
+          cp "$app_apk" "$RUNNER_TEMP/real-app-apk/ZIG-release.apk"
+          file_count="$(find "$RUNNER_TEMP/real-app-apk" -type f | wc -l | tr -d ' ')"
+          if [ "$file_count" != "1" ]; then
+            echo "::error title=APK artifact selection::Only the real app APK may be uploaded."
+            exit 1
+          fi
+          echo "Prepared artifact with exactly one installable, permanent-key-signed APK: ZIG-release.apk"
 
       - name: Diagnostic - List Generated APKs
         run: |
           echo "Generated APKs:"
           find app/build/outputs -type f
 
-      - name: Upload APK Artifact
+      - name: Upload real app APK only
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/**/*.apk
-          if-no-files-found: warn
+          name: ZIG-real-app-apk
+          path: ${{ runner.temp }}/real-app-apk/ZIG-release.apk
+          if-no-files-found: error
 
       - name: Clean up keystore
         if: always()

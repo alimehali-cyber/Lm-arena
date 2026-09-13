@@ -1226,113 +1226,11 @@ object PhysicalData {
 
     fun getCoolFactsFa(obj: CelestialObject): List<String> {
         coolFactsMap[obj.id]?.let { return it }
-
-        return when (obj.type) {
-            com.alijafari.red.astronomy.domain.ObjectType.STAR -> listOf(
-                "درخشش این ستاره با قدر ظاهری ${String.format("%.1f", obj.magnitude)} در صورت فلکی ${obj.constellationFa} قابل مشاهده است.",
-                "فاصله تخمینی آن از منظومه شمسی حدود ${String.format("%,.0f", obj.distanceLightYears)} سال نوری می‌باشد.",
-                "این ستاره دارای رده طیفی ${if (obj.spectralType.isNotEmpty()) obj.spectralType else "مشخص"} و دمای سطحی حدود ${if (obj.temperatureK > 0) obj.temperatureK else 6000} کلوین است.",
-                "بهترین زمان رصد آن هنگام رسیدن به بالاترین نقطه ارتفاعی از افق (ترانزیت) است.",
-                "استفاده از دوربین دوچشمی یا تلسکوپ رنگ و درخشش واقعی این ستاره را بهتر نمایان می‌کند."
-            )
-            com.alijafari.red.astronomy.domain.ObjectType.GALAXY -> listOf(
-                "این کهکشان شامل میلیاردها ستاره، منظومه‌های سیاره‌ای و ابرهای غول‌پیکر گاز و غبار است.",
-                "نور ساطع‌شده از این کهکشان پس از طی مسافت ${String.format("%,.0f", obj.distanceLightYears)} سال نوری به چشم رصدگر می‌رسد.",
-                "برای رصد جزئیات ساختار آن، استفاده از تلسکوپ آماتوری با دهانه ۸ اینچ یا بزرگتر در محیط کویری توصیه می‌شود.",
-                "در مرکز اکثر کهکشان‌ها یک سیاهچاله کلان‌جرم قرار دارد که حرکت ستارگان اطراف را هدایت می‌کند.",
-                "این جرم در کاتالوگ نجومی زیگ به عنوان یکی از اهداف برجسته فوتومتری مشخص شده است."
-            )
-            com.alijafari.red.astronomy.domain.ObjectType.NEBULA -> listOf(
-                "این سحابی زایشگاه یا بقایای تحول ستاره‌ای است که گاز هیدروژن در آن می‌درخشد.",
-                "استفاده از فیلترهای نوری مانند O-III یا UHC کنتراست رصدی سحابی را به طرز چشمگیری افزایش می‌دهد.",
-                "این جرم در فاصله ${String.format("%,.0f", obj.distanceLightYears)} سال نوری از کره زمین قرار دارد.",
-                "تابش‌های فرابنفش ستارگان مجاور باعث برانگیختگی اتم‌های گاز و ایجاد رنگ‌های خیره‌کننده در عکاسی نجومی می‌شود.",
-                "با چشم غیرمسلح یا دوربین دوچشمی، به صورت لکه‌ای مه‌آلود و لطیف دیده می‌شود."
-            )
-            com.alijafari.red.astronomy.domain.ObjectType.STAR_CLUSTER, com.alijafari.red.astronomy.domain.ObjectType.GLOBULAR_CLUSTER -> listOf(
-                "این خوشه ستاره‌ای شامل مجموعه‌ای متراکم از ستارگان است که با گرانش متقابل به هم پیوند خورده‌اند.",
-                "تمام ستارگان موجود در این خوشه تقریباً هم‌سن بوده و از یک ابر مولکولی واحد متولد شده‌اند.",
-                "با دوربین دوچشمی ۷x۵۰ یا ۱۰x۵۰، ستارگان اصلی خوشه به شکل جواهری درخشان قابل تفکیک هستند.",
-                "مطالعه این خوشه به اخترشناسان در درک تکامل ستاره‌ای و سن کهکشان کمک شایانی می‌کند.",
-                "موقعیت زاویه‌ای آن در صورت فلکی ${obj.constellationFa} نوید یک هدف رصدی عالی را می‌دهد."
-            )
-            com.alijafari.red.astronomy.domain.ObjectType.CONSTELLATION -> listOf(
-                "این صورت فلکی یکی از ۸۸ بخش رسمی کره آسمان است که توسط اتحادیه بین‌المللی اخترشناسی (IAU) تعریف شده است.",
-                "ستارگان تشکیل‌دهنده این نقش‌واره در فواصل متفاوتی از زمین قرار دارند و تنها به دلیل زاویه دید ما در یک گروه دیده می‌شوند.",
-                "در اساطیر و اخترشناسی باستان، الگوی ستارگان آن راهنمای جهت‌یابی دریانوردان و کشاورزان بوده است.",
-                "با شناسایی ستارگان اصلی این صورت فلکی، می‌توانید جرم‌های اعماق فضا و سیارات همجوار را به راحتی پیدا کنید.",
-                "بهترین زمان برای رصد کامل این صورت فلکی، شب‌های ماه روشن بدون حضور ماه کامل است."
-            )
-            com.alijafari.red.astronomy.domain.ObjectType.METEOR_SHOWER -> listOf(
-                "کانون این بارش شهابی در صورت فلکی ${obj.constellationFa} قرار دارد.",
-                "نرخ سمت‌الراسی بارش (ZHR) در زمان اوج به حدود ${obj.zhr} شهاب در ساعت می‌رسد.",
-                "شهاب‌ها ناشی از برخورد ذرات ذوب‌شونده دنباله‌دار یا سیارک مادر با جو بالای زمین هستند.",
-                "برای رصد بارش شهابی به هیچ تجهیزات نوری احتیاج ندارید؛ تنها به یک مکان تاریک و چشم غیرمسلح نیاز است.",
-                "بهترین زاویه دید، خیره شدن به شعاع ۳۰ درجه‌ای اطراف کانون بارش است."
-            )
-            else -> listOf(
-                "این جرم با قدر ظاهری ${String.format("%.1f", obj.magnitude)} یکی از نقاط رصدی جذاب در کاتالوگ زیگ است.",
-                "موقعیت لحظه‌ای آن در آسمان بر اساس محاسبات ریاضی دقیق موتور نجومی تعیین می‌شود.",
-                "رصد آن در شرایط بورتل ۱ تا ۴ بیشترین جزئیات را برای رصدگر نمایان می‌سازد.",
-                "عبور آن از نصف‌النهار محلی بهترین شفافیت جوی را برای ثبت عکس‌های نجومی ارائه می‌دهد.",
-                "اطلاعات مختصات (بعد و میل) آن در شناسنامه علمی به طور کامل درج شده است."
-            )
-        }
+        return emptyList()
     }
 
     fun getCoolFactsEn(obj: CelestialObject): List<String> {
         coolFactsMapEn[obj.id]?.let { return it }
-
-        return when (obj.type) {
-            com.alijafari.red.astronomy.domain.ObjectType.STAR -> listOf(
-                "Visible with an apparent magnitude of ${String.format("%.1f", obj.magnitude)} in constellation ${obj.constellationEn}.",
-                "Estimated distance from our Solar System is approximately ${String.format("%,.0f", obj.distanceLightYears)} light-years.",
-                "Spectral classification is ${if (obj.spectralType.isNotEmpty()) obj.spectralType else "Standard"} with effective surface temperature of ~${if (obj.temperatureK > 0) obj.temperatureK else 6000} K.",
-                "Best observation opportunity occurs around local meridian transit when the star achieves peak altitude.",
-                "Binoculars or small telescopes clearly reveal its genuine stellar hue and distinct spectral brightness."
-            )
-            com.alijafari.red.astronomy.domain.ObjectType.GALAXY -> listOf(
-                "This galaxy comprises hundreds of billions of stars, planetary systems, and massive interstellar clouds.",
-                "Photons observed tonight have traveled across deep space for ${String.format("%,.0f", obj.distanceLightYears)} light-years to reach Earth.",
-                "Visualizing core structure and spiral arms is best accomplished with an 8-inch aperture telescope under dark skies.",
-                "Like most massive galaxies, its dynamical core harbors a central supermassive black hole governing orbital mechanics.",
-                "Cataloged as a prominent deep-sky photometric target in the ZIG astronomical database."
-            )
-            com.alijafari.red.astronomy.domain.ObjectType.NEBULA -> listOf(
-                "This nebula represents an active stellar nursery or evolved supernova remnant glowing with ionized hydrogen gas.",
-                "Utilizing narrow-band O-III or UHC filters dramatically increases visual contrast by suppressing light pollution.",
-                "Situated at an astronomical distance of ${String.format("%,.0f", obj.distanceLightYears)} light-years from Earth.",
-                "Energetic ultraviolet radiation from nearby newborn stars excites ambient gas to create striking astrophotography colors.",
-                "Appears as an ethereal luminous cloud through binoculars and amateur telescopes under suburban or dark skies."
-            )
-            com.alijafari.red.astronomy.domain.ObjectType.STAR_CLUSTER, com.alijafari.red.astronomy.domain.ObjectType.GLOBULAR_CLUSTER -> listOf(
-                "This star cluster is a gravitationally bound ensemble of co-eval stars sharing a common molecular cloud origin.",
-                "Nearly all member stars in the cluster share identical ages and initial chemical compositions.",
-                "Easily resolved into sparkling stellar pinpoints with 7x50 or 10x50 field binoculars.",
-                "Studying its member stars provides astronomers crucial insights into stellar evolution and galactic dynamics.",
-                "Positioned prominently within the constellation of ${obj.constellationEn} for rewarding observational viewing."
-            )
-            com.alijafari.red.astronomy.domain.ObjectType.CONSTELLATION -> listOf(
-                "This constellation is one of 88 official celestial sectors recognized by the International Astronomical Union (IAU).",
-                "Its constituent stars reside at widely varying physical distances from Earth, appearing clustered solely by line of sight.",
-                "Historically served ancient mariners, astronomers, and agrarian societies as essential seasonal navigational markers.",
-                "Identifying this constellation's principal stars serves as a convenient stellar jumping-off point for locating deep-sky objects.",
-                "Optimal comprehensive viewing occurs during moonless nights when its full boundaries rise high in the night sky."
-            )
-            com.alijafari.red.astronomy.domain.ObjectType.METEOR_SHOWER -> listOf(
-                "The radiant of this annual meteor shower lies within the constellation of ${obj.constellationEn}.",
-                "Produces a Zenithal Hourly Rate (ZHR) of up to ${obj.zhr} meteors per hour during peak activity windows.",
-                "Meteors originate as millimeter-sized cometary or asteroidal debris vaporizing upon atmospheric entry.",
-                "No optical equipment is required; naked-eye dark-sky viewing yields the widest field of view for spotting meteors.",
-                "Best observed by looking toward a sky patch roughly 30 degrees away from the radiant point."
-            )
-            else -> listOf(
-                "Features an apparent magnitude of ${String.format("%.1f", obj.magnitude)} in the ZIG astronomical catalog.",
-                "Instantaneous celestial coordinates are continuously updated by the high-precision astronomical ephemeris engine.",
-                "Observing under Bortle Class 1-4 sky conditions delivers maximum visual clarity and fine detail.",
-                "Local meridian passage offers the highest elevation angle and cleanest atmospheric transparency.",
-                "Complete equatorial and scientific designations are detailed in the official astronomical catalog record."
-            )
-        }
+        return emptyList()
     }
 }

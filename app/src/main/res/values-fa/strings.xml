@@ -32,6 +32,26 @@
     <string name="ar_hint">دستگاه را به سوی آسمان بگیرید یا برای پیمایش صفحه را لمس کنید</string>
     <string name="azimuth_short">سمت: %1$s</string>
     <string name="altitude_short">ارتفاع: %1$s</string>
+    <string name="ar_quick_moon">ماه</string>
+    <string name="ar_quick_sun">خورشید</string>
+    <string name="ar_quick_mars">مریخ</string>
+    <string name="ar_quick_venus">زهره</string>
+    <string name="ar_quick_jupiter">مشتری</string>
+    <string name="ar_quick_saturn">زحل</string>
+    <string name="ar_quick_sirius">شباهنگ</string>
+    <string name="ar_quick_andromeda">آندرومدا</string>
+    <string name="ar_quick_orion">جبار</string>
+    <string name="ar_quick_iss">ISS</string>
+    <string name="ar_camera_unavailable_banner">دوربین در دسترس نیست — شبیه‌سازی میدان ستاره‌ای نمایش داده می‌شود. از تنظیمات فعال کنید.</string>
+    <string name="ar_open_settings">باز کردن تنظیمات</string>
+    <string name="ar_magnetic_interference">تداخل مغناطیسی شناسایی شد — از اجسام فلزی فاصله بگیرید</string>
+    <string name="ar_recalibration_title">کالیبراسیون AR ممکن است قدیمی باشد</string>
+    <string name="ar_recalibration_body">برای این زمان و مکان دوباره کالیبره کنید.</string>
+    <string name="ar_recalibrate_action">کالیبراسیون دوباره</string>
+    <string name="ar_time_machine_label">ماشین زمان</string>
+    <string name="ar_cluster_title">انتخاب جرم</string>
+    <string name="ar_gps_stale">GPS کهنه</string>
+    <string name="ar_gps_live">GPS زنده</string>
 
     <!-- Sky Map Screen -->
     <string name="search_placeholder">جستجوی ستاره، سیاره، جرم ژرف‌آسمان...</string>

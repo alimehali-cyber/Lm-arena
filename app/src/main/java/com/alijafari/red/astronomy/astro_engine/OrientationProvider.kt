@@ -73,6 +73,9 @@ class OrientationProvider(
 
     // Velocity-based adaptive alpha
     private var gyroSpeedDeg = 0f
+    private var gyroIntegratedHeadingDeg = 0.0
+    private var lastGyroTimestampNs: Long = 0L
+    private val magneticAnomalyDetector = MagneticAnomalyDetector()
     private val ALPHA_MIN = 0.045f // Ultra-stable when stationary, zero jitter
     private val ALPHA_MAX = 0.40f  // Fast response during panning
 
@@ -89,6 +92,9 @@ class OrientationProvider(
     private val _calibrationState = MutableStateFlow(CalibrationState.UNCALIBRATED)
     val calibrationState: StateFlow<CalibrationState> = _calibrationState.asStateFlow()
 
+    private val _magneticInterference = MutableStateFlow(false)
+    val magneticInterference: StateFlow<Boolean> = _magneticInterference.asStateFlow()
+
     private var isStarted = false
 
     fun start() {
@@ -100,8 +106,14 @@ class OrientationProvider(
         } else if (gameRotationSensor != null) {
             sensorManager.registerListener(this, gameRotationSensor, SensorManager.SENSOR_DELAY_GAME)
         } else {
+            // Fallback: accelerometer plus the single magnetometer registration below.
             accelSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
-            magnetometerSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+        }
+
+        // Keep accelerometer samples available even when a rotation-vector sensor drives
+        // orientation, so the magnetic anomaly detector can derive an independent compass heading.
+        if (rotationVectorSensor != null || gameRotationSensor != null) {
+            accelSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
         }
 
         magnetometerSensor?.let {
@@ -116,6 +128,9 @@ class OrientationProvider(
         if (!isStarted) return
         isStarted = false
         sensorManager?.unregisterListener(this)
+        magneticAnomalyDetector.reset()
+        _magneticInterference.value = false
+        lastGyroTimestampNs = 0L
     }
 
     /**
@@ -151,6 +166,7 @@ class OrientationProvider(
             Sensor.TYPE_MAGNETIC_FIELD -> {
                 System.arraycopy(event.values, 0, geomagneticValues, 0, 3)
                 hasGeomagnetic = true
+                updateMagneticInterference(event.timestamp)
                 if (rotationVectorSensor == null && gameRotationSensor == null) {
                     processAccelMag()
                 }
@@ -159,6 +175,13 @@ class OrientationProvider(
                 val gx = event.values[0]
                 val gy = event.values[1]
                 val gz = event.values[2]
+                if (lastGyroTimestampNs > 0L && event.timestamp > lastGyroTimestampNs) {
+                    val dtSec = (event.timestamp - lastGyroTimestampNs) / 1_000_000_000.0
+                    gyroIntegratedHeadingDeg = MagneticAnomalyDetector.normalize360(
+                        gyroIntegratedHeadingDeg + Math.toDegrees(gz.toDouble()) * dtSec
+                    )
+                }
+                lastGyroTimestampNs = event.timestamp
                 val speed = Math.toDegrees(sqrt((gx * gx + gy * gy + gz * gz).toDouble())).toFloat()
                 gyroSpeedDeg = gyroSpeedDeg * 0.7f + speed * 0.3f
             }
@@ -176,6 +199,25 @@ class OrientationProvider(
                 else -> CalibrationState.NEEDS_CALIBRATION
             }
         }
+    }
+
+    private fun updateMagneticInterference(timestampNs: Long) {
+        if (!hasGravity || !hasGeomagnetic || gyroSensor == null || lastGyroTimestampNs == 0L) return
+        val matrix = FloatArray(9)
+        val success = SensorManager.getRotationMatrix(matrix, null, gravityValues, geomagneticValues)
+        if (!success) return
+        val orientationValues = FloatArray(3)
+        SensorManager.getOrientation(matrix, orientationValues)
+        val magneticHeadingDeg = MagneticAnomalyDetector.normalize360(
+            Math.toDegrees(orientationValues[0].toDouble()) + magneticDeclination
+        )
+        val timestampMs = timestampNs / 1_000_000L
+        _magneticInterference.value = magneticAnomalyDetector.addHeadingSample(
+            timestampMs = timestampMs,
+            gyroHeadingDeg = gyroIntegratedHeadingDeg,
+            magneticHeadingDeg = magneticHeadingDeg,
+            gyroSpeedDegPerSec = gyroSpeedDeg.toDouble()
+        )
     }
 
     private fun processRotationVectorEvent(values: FloatArray) {

@@ -19,6 +19,10 @@ object CelestialSearchEngine {
     /**
      * Searches all canonical celestial objects for a query matching Persian name, English name,
      * category, constellation, scientific identifiers, or search aliases.
+     *
+     * Scoped to the AR sky: Earth is excluded, since it is the observer's position and never
+     * rendered on the AR canvas. Other (non-AR) consumers that need the complete catalogue go
+     * through [CanonicalAstroCatalog] directly.
      */
     fun search(
         query: String,
@@ -35,6 +39,10 @@ object CelestialSearchEngine {
         val results = mutableListOf<SearchResult>()
 
         for (canonObj in canonicalObjects) {
+            // The AR sky is the only consumer of this search engine, and Earth is not an object in
+            // the sky, so it must not be findable there (see ARSkyCatalog for the scoping rules).
+            if (ARSkyCatalog.isEarth(canonObj.canonicalId)) continue
+
             val nameFa = canonObj.nameFa.lowercase()
             val nameEn = canonObj.nameEn.lowercase()
             val categoryEn = canonObj.observationalInfo.categoryEn.lowercase()
@@ -44,8 +52,15 @@ object CelestialSearchEngine {
             val noradStr = canonObj.scientificIdentifiers.noradId?.toString() ?: ""
             val hipStr = canonObj.scientificIdentifiers.hipId?.toString() ?: ""
             val hdStr = canonObj.scientificIdentifiers.hdId?.toString() ?: ""
+            val catalogIds = listOfNotNull(
+                canonObj.scientificIdentifiers.messierId,
+                canonObj.scientificIdentifiers.ngcId,
+                canonObj.scientificIdentifiers.caldwellId
+            ) + canonObj.scientificIdentifiers.catalogDesignations
+            val normalizedCatalogIds = catalogIds.map { it.lowercase().replace(Regex("[^a-z0-9]+"), "") }
 
             val cleanNameEn = nameEn.replace("the ", "").trim()
+            val normalizedQuery = cleanQuery.replace(Regex("[^a-z0-9]+"), "")
 
             var score = 0
             when {
@@ -57,7 +72,8 @@ object CelestialSearchEngine {
                         canonObj.searchAliasesEn.any { it.lowercase() == cleanQuery } -> score = 98
                 canonObj.searchAliasesFa.any { it.lowercase().startsWith(cleanQuery) } ||
                         canonObj.searchAliasesEn.any { it.lowercase().startsWith(cleanQuery) } -> score = 95
-                noradStr == cleanQuery || hipStr == cleanQuery || hdStr == cleanQuery -> score = 90
+                noradStr == cleanQuery || hipStr == cleanQuery || hdStr == cleanQuery ||
+                        normalizedCatalogIds.any { it == normalizedQuery } -> score = 90
                 nameFa.contains(cleanQuery) || nameEn.contains(cleanQuery) ||
                         bayer.contains(cleanQuery) -> score = 80
                 canonObj.searchAliasesFa.any { it.lowercase().contains(cleanQuery) } ||
@@ -115,8 +131,12 @@ object CelestialSearchEngine {
     /**
      * Gets default suggestion chips for quick access when search bar is focused.
      */
-    fun getQuickSuggestions(): List<String> {
-        return listOf("ماه", "خورشید", "مریخ", "زهره", "مشتری", "زحل", "شباهنگ", "آندرومدا", "جبار", "ISS")
+    fun getQuickSuggestions(isFa: Boolean = true): List<String> {
+        return if (isFa) {
+            listOf("ماه", "خورشید", "مریخ", "زهره", "مشتری", "زحل", "شباهنگ", "آندرومدا", "جبار", "ISS")
+        } else {
+            listOf("Moon", "Sun", "Mars", "Venus", "Jupiter", "Saturn", "Sirius", "Andromeda", "Orion", "ISS")
+        }
     }
 
     data class Phase4VerificationReport(
@@ -145,7 +165,9 @@ object CelestialSearchEngine {
         val starRes = search("شباهنگ", lat, lon).firstOrNull()
         val constRes = search("جبار", lat, lon).firstOrNull()
         val galaxyRes = search("آندرومدا", lat, lon).firstOrNull()
-        val satRes = search("Hubble", lat, lon).firstOrNull()
+        val satRes = search("Hubble", lat, lon).firstOrNull {
+            it.celestialObject.id.startsWith("sat_")
+        }
 
         val sunOk = sunRes?.celestialObject?.id == "sun"
         val moonOk = moonRes?.celestialObject?.id == "moon"

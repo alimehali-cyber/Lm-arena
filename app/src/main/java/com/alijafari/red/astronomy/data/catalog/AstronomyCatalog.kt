@@ -158,7 +158,8 @@ object AstronomyCatalog {
                 it.type == ObjectType.GALAXY ||
                 it.type == ObjectType.NEBULA ||
                 it.type == ObjectType.STAR_CLUSTER ||
-                it.type == ObjectType.GLOBULAR_CLUSTER
+                it.type == ObjectType.GLOBULAR_CLUSTER ||
+                it.type == ObjectType.BLACK_HOLE
             }
             .map { CanonicalAstroCatalog.toCelestialObject(it) }
     }
