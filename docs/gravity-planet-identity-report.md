@@ -377,3 +377,37 @@ diff --git a/app/src/main/java/com/zig/gravity/ui/TabletopCanvas.kt b/app/src/ma
     still a change to `sim/BodyCatalog.kt` — a file that also carries masses and radii. Only the
     `colorArgb` literals moved; the diff shows every mass, `dp` and `realRadiusM` untouched, and the
     new test pins them.
+
+## (h) Sphere-wrap quality pass — 2026-09-14
+
+The owner's quality pass over the shipped identity layer: planets must read as dimensional,
+premium stylized scientific illustrations — features *wrapped* on the sphere, never pasted flat —
+while every hex, the marble lighting structure, the ring behaviour and all physics stay exactly
+as shipped. Implemented against a numpy/PIL prototype that was visually approved at real body
+sizes, then ported 1:1.
+
+### Files changed (exactly three)
+
+| File | Why |
+| --- | --- |
+| `ui/theme/BodyIdentity.kt` | `SphereProjection`: exact orthographic projection of authored caps (foreshortening by cos θ plus pole-ward pull) and of latitude belts, with an exact bisection (`solveBandEnd`) that shrinks each belt arc until its *stroke* stays inside the silhouette by `LIMB_MARGIN`; per-body `BodyLighting` (specular position/size/strength/edge, limb-darkening coefficient, atmosphere crescent); 9-slice belt profile. |
+| `ui/TabletopCanvas.kt` | Epoch-built sphere layers inside `drawWithCache`: corona/glow → base marble → curved 9-slice belts → projected caps → lighting overlay → directional terminator (linear gradient sampling the sphere normal) → limb falloff (radial gradient of the linear limb-darkening law) → emissive core → lit rim + atmosphere crescents → per-body specular → ring halo. Only preallocated brushes/arrays and `ColorFilter.tint` + PorterDuff `Multiply`/`Screen`; zero per-frame allocation; no images, no shaders, no new dependencies. |
+| `GravityBodyIdentityTest.kt` | Two new tests (`projectedFeaturesWrapTheSphereAndNeverCrossTheLimb`, `theLightIsPerBodyDirectionalAndNeverTheSameDotTwice`); containment/recognizability/chrome tests updated to the new architecture; rings, `EngineConstants` pins and the save/restore test kept verbatim. 5 → 7 tests. |
+
+### Physics-untouched proof
+
+`git diff --stat b0c99af..ac4ed53` lists only the three files above. No engine, simulation,
+gesture, camera, persistence, surface, shadow, HUD or education file appears; `EngineConstants`
+pins and `SaveState` fields are re-asserted verbatim by the untouched tests.
+
+### Verification
+
+- JVM-free simulator re-ran every data assertion of the new tests straight from the Kotlin
+  source: 0 failures; worst stroked-belt squared-radius 0.996 (< 1, i.e. inside the limb).
+- CI run **34788646894** (commit `ac4ed53`): full unit suite **tests=407 failures=0 errors=0
+  skipped=0** across 42 result files (previous green run: 405 — the +2 is exactly this class
+  growing 5 → 7 tests), then the signed release APK built, `apksigner`-verified against the
+  permanent key, package/versionCode checked, uploaded as artifact `ZIG-real-app-apk`
+  (`ZIG-release.apk`). Conclusion: **success**.
+- Follow-up `ddb5d54→ac4ed53` removed a superseded `projectBand` overload that made the
+  three-`Float` call ambiguous; run 34788433509 documents the compiler catching it.
