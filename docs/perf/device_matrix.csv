@@ -1,0 +1,6 @@
+gpuFamily,gpuModel,driverString,totalMemoryMB,supportsAstc,supportsHalfFloat,maxTextureSize,artifacts,thermalBehavior,tierSelected,notes
+ADRENO,Adreno 750,OpenGL ES 3.2 V@0600.0,12000,true,true,16384,none,stable TIER0 10min no collapse,TIER0,flagship 2024 Samsung S24 Ultra class
+ADRENO,Adreno 740,OpenGL ES 3.2 V@0590.0,8000,true,true,16384,none,stable TIER1 10min no collapse,TIER1,2023 S23 Ultra class
+MALI,Mali-G720,OpenGL ES 3.2 v1.r44p0,12000,true,true,8192,none,stable TIER0 10min no collapse TIER2 thermal=2,TIER0,Dimensity 9300 class
+MALI,Mali-G710,OpenGL ES 3.2 v1.r40p0,8000,true,true,8192,none,stable TIER1 thermal collapse to TIER2 at level2,TIER1,Dimensity 9000 class
+XCLIPSE,Xclipse 940,OpenGL ES 3.2,12000,true,true,16384,none,stable TIER0,TIER0,Exynos 2400 Samsung S24 class

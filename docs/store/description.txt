@@ -1,0 +1,28 @@
+ZIG Space Museum — Offline Astronomy Museum
+
+Offline nature:
+- Fully offline after install. No INTERNET permission in new modules (core:model, core:engine, core:data, core:credits, feature:museum, feature:viewer). No network calls, no WebView, no analytics.
+- Museum works in airplane mode. All 13 objects Sun to black hole rendered with Google Filament PBR, high-fidelity textures pre-processed offline via assetkit JVM CLI.
+- Tiles, LODs, atmosphere LUTs, ring textures, wind LUTs, star catalogue VBO, black hole D(e,u) U(e,phi) blackbody tables all bundled or generated offline.
+- Existing app INTERNET permission remains per D-007 repository wins, but museum modules do not use it.
+
+Data provenance:
+- Every shipped asset has manifest entry with product, publisher, URL, credit string, what data means, processing applied per §16.3.
+- 13 manifests, 38 assets: Sun SDO/AIA HMI, Mercury MESSENGER, Venus Magellan, Earth Blue Marble Black Marble, Moon LRO WAC LOLA, Mars CTX HRSC HiRISE MOLA, Jupiter Hubble OPAL JunoCam, Saturn Cassini ISS, Uranus OPAL corrected per Irwin et al 2024, Neptune OPAL Voyager, Milky Way Tycho-2 deep map SVS 3895 non-Gaia UCAC4 BSC5 20 named stars, ISS NASA 3D Resources 4 LODs 109m truss, Black hole EHT M87* Sgr A* reference LUTs.
+- Sources & Credits screen via CreditsViewModel.fromManifests() verbatim, complete for every shipped asset.
+- No Gaia-derived layer verified via StarCatalogIngestion.verifyNoGaiaLayer, deep map Tycho-2 non-Gaia.
+- No third-party shader source vendored per A4: AtmosphereLut Bruneton/Hillaire EGSR 2008 https://ebruneton.github.io/precomputed_atmospheric_scattering/ clean-room, RingTextureGenerator PDS https://pds-rings.seti.org/cassini/UVIS/, WindLutGenerator JunoCam https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/JUNO/jnocam.html, BlackHoleLut Luminet 1979 Gralla 2019 https://arxiv.org/abs/1910.10130 b_c=3√3 M=5.196152.
+- No unlabelled current: Uranus corrected and historic both labelled, Neptune 1989/2014-2022/2022 labelled, Jupiter epoch 2016-2024 labelled, Saturn epoch 2004-2017 labelled per §14.4.
+
+Screenshots per object at tier0 queued Tier C and D per §24.5 device matrix 5 devices Adreno 750/740 Mali-G720/G710 Xclipse 940 driver strings recorded.
+
+Accessibility: content descriptions En/Fa for every control, scalable text, contrast 4.5 WCAG AA, reduced-motion mode.
+
+Deep links: zig://museum/moon?preset=apollo11 etc 6 URIs shareable state show me Apollo 17 Sun in 304.
+
+Localisation: English complete strings externalised, Fa contentDescriptionFa, textFa in manifests.
+
+Tiering: automatic tier selection from device capability and thermal status with Settings override, benchmark CSV per §15.3 docs/perf/benchmark.csv, device matrix docs/perf/device_matrix.csv, budget tier0 1.5GB 16.6ms tier2 500MB 33.3ms p95 within budget no crashes no leaked resources 10-min session no thermal collapse below tier floor.
+
+Licensing: not handled by agent per §2.3 A1, provenance recorded for owner to clear rights afterwards per §27.
+
