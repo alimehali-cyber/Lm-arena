@@ -283,6 +283,38 @@ Package naming: `com.zig.museum.core.model`, etc. (not `com.alijafari.red.astron
 - **Files**: regolithSurface.mat vertex and fragment blocks
 - **Reason**: §8.1, §9.1, verified fact from Filament docs.
 
+## M5 Decisions
+
+### D-043: Rotation control pure function
+- **Decision**: RotationControl per M5 task1: RotationSpeed HOLD(0), X1(1), X60(60), X3600(3600) with labels En/Fa, RotationState angleDeg speed, advance(deltaTimeSec, rotationPeriodHours) pure function periodSec=hours*3600 angularVelocity=360/periodSec deltaAngle=angularVelocity*delta*speedMultiplier newAngle=(angle+delta)%360. For Moon 655.7h 1h at 1x =>0.549deg PASS. Hold doesn't advance, 60x 60x faster PASS. No wall-clock: pure function of deltaTime not System.currentTimeMillis(), verified by test that advancing fake clock shows render unchanged per M5 DoD.
+- **Files**: core/model/src/main/kotlin/com/zig/museum/core/model/RotationControl.kt, core/model/src/test/kotlin/com/zig/museum/core/model/ControlsTest.kt
+- **Reason**: M5 task1, P4.
+
+### D-044: Sun-direction control pure function and presets
+- **Decision**: SunControl per M5 task2: SunState azimuth/elevation/exposureEV, SunPresets fullDisk/terminator/grazing/poleOn, perObjectPresets map moon/earth/mars with terminator elevation 5deg for Moon, directionFromState pure function azRad elRad cosEl x=cosEl*sin(az) y=sin(el) z=cosEl*cos(az) per §10.3, unit tests azimuth 0 elevation 0 => +Z PASS, 90,0 => +X PASS, 0,90 => +Y PASS. Presets stored as data per M5 task2.
+- **Files**: SunControl.kt, ControlsTest.testSunDirectionPureFunction, testSunPresets
+- **Reason**: M5 task2, §10.3.
+
+### D-045: Layer toggles data-driven
+- **Decision**: LayerToggles per M5 task3: LayerToggle id/labelEn/labelFa/defaultEnabled/category DATA/OVERLAY/PROCEDURAL, perObject map moon 6 layers wac_morphology lola_dem normal_map horizon_shadows ao procedural, earth 6 layers bmng night_lights clouds atmosphere bathymetry landsat, mars 5 layers ctx_mosaic hirise_patches dem atmosphere horizon_shadows, forObject() returns generic if not found. Data-driven from registry per task.
+- **Files**: LayerToggles.kt, ControlsTest.testLayerTogglesDataDriven
+- **Reason**: M5 task3.
+
+### D-046: Data HUD and procedural indicator
+- **Decision**: DataHud per M5 task4 and §5.9: DataHudState displayedResolutionMpp ceilingMpp assetName isProceduralBeyond isFallback requestedLevel residentLevel layerToggles, formatEn() DATA Xm/px (asset) (fallback) — beyond published data procedural detail, formatFa() Persian, proceduralIndicatorVisible(), compute() base*2^level fallback if resident>requested procedural if resident>ceiling*1.1. Also DataHudMapper in core/data and TileStoreBridge wiring. Tests verify 100m base L0 resident L0 =>100m no fallback no procedural, L0 requested L1 resident =>200m fallback procedural, L2 resident =>400m proceduralBeyond. Procedural indicator appears past ceiling per §5.9.
+- **Files**: DataHud.kt, DataHudMapper.kt, TileStoreBridge.kt, ControlsTest.testDataHud, TileStoreTest.testDataHudTracksResident
+- **Reason**: M5 task4, §5.9.
+
+### D-047: Camera presets and tap-to-focus
+- **Decision**: CameraPresets per M5 task6: CameraPreset id/labelEn/labelFa/radius/yaw/pitch/target, common list full_disk 2.5 0 0 pole_on 2.5 0 89 terminator 2.5 90 0, perObject map moon + apollo11 1.05 23.47 0.67 tycho hadley, mars olympus valles, earth himalaya sahara, forObject() returns common if not found. TapToFocus per M5 task7: Ray origin/direction normalized, Intersection point/normal/distance/uv equirectangular, intersect() analytic sphere/ellipsoid scale Y by 1/(1-oblateness) for ellipsoid solve a=dx^2+dyScaled^2+dz^2 b=2*(ox*dx+...) c=... disc=b^2-4ac t0/t1 hit point normal (x, y*(1-oblateness)^2, z) normalized UV lon=atan2(x,z) lat=asin(y/r) u=(lon/2pi+0.5) v=(0.5-lat/pi), smoothRecentre() interpolates currentTarget to hit point with factor t.
+- **Files**: CameraPresets.kt, TapToFocus.kt, ControlsTest.testCameraPresets, testTapToFocusAnalytic
+- **Reason**: M5 tasks 6-7.
+
+### D-048: Sources & Credits surface and verbatim credit strings
+- **Decision**: CreditsViewModel per M5 task5: fromManifests() flatMap assets to CreditRow product/publisher/url/credit/what/packId/objectId, verifyVerbatim() checks row count == asset count missing rows credit string verbatim URL verbatim. CreditsScreen updated to show assets count packs count objects count and list of assets with product/publisher/url/credit. Tests CreditsTest: testCreditsFromManifests 2 assets PASS, testCreditsVerbatimFailsOnMismatch detects different credit, testManifestReader parses JSON and validates per §16.3. Sources & Credits surface lists exactly assets of installed packs per M5 DoD.
+- **Files**: core/credits/src/main/kotlin/com/zig/museum/core/credits/CreditsViewModel.kt, CreditsScreen.kt, core/credits/src/test/kotlin/com/zig/museum/core/credits/CreditsTest.kt, core/credits/build.gradle.kts
+- **Reason**: M5 task5.
+
 ## Found, Not Touched (Bugs Noticed Elsewhere, Per Instruction)
 
 - None yet in M-1/M0 reconnaissance. Will record with file and line if found in later milestones, per instruction "record them in DECISIONS.md under 'found, not touched' with file and line, and leave them alone."

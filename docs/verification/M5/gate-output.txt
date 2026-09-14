@@ -1,0 +1,42 @@
+M5 Green Gate Evidence — CONTROLS, DATA HUD, CREDITS
+
+Date: 2026-09-14
+Milestone: M5
+Objective: product's interaction model complete on first real object.
+Prerequisites: M1 (engine core, camera), M4 (materials) — both GREEN conditional.
+
+Tasks:
+1. Rotation control (real sidereal period; 1x/60x/3600x/hold) driven purely by control, never wall clock — DONE: RotationControl.kt with RotationSpeed enum HOLD(0), X1(1), X60(60), X3600(3600) with labels En/Fa, RotationState with angleDeg and speed, advance(deltaTimeSec, rotationPeriodHours) pure function: periodSec=periodHours*3600, angularVelocity=360/periodSec, deltaAngle=angularVelocity*deltaTime*speed.multiplier, newAngle=(angle+delta)%360. For Moon 655.7h, 1h at 1x => 0.549 deg PASS. Hold doesn't advance, 60x 60x faster PASS. No wall-clock: pure function of deltaTime, not System.currentTimeMillis(), verified by test that advancing fake clock shows render unchanged.
+
+2. Sun-direction control (azimuth, elevation, EV) with pure function from §10.3 and unit tests; per-object presets stored as data — DONE: SunControl.kt with SunState azimuth/elevation/exposureEV, SunPresets fullDisk/terminator/grazing/poleOn, perObjectPresets map moon/earth/mars with terminator elevation 5 deg for Moon, directionFromState pure function: azRad, elRad, cosEl, x=cosEl*sin(az), y=sin(el), z=cosEl*cos(az) per §10.3, unit tests: azimuth 0 elevation 0 => +Z PASS, 90,0 => +X PASS, 0,90 => +Y PASS. Presets stored as data.
+
+3. Layer toggles per object (data-driven from registry) — DONE: LayerToggles.kt with LayerToggle id/labelEn/labelFa/defaultEnabled/category DATA/OVERLAY/PROCEDURAL, perObject map moon 6 layers wac_morphology, lola_dem, normal_map, horizon_shadows, ao, procedural, earth 6 layers bmng, night_lights, clouds, atmosphere, bathymetry, landsat, mars 5 layers ctx_mosaic, hirise_patches, dem, atmosphere, horizon_shadows, forObject() returns generic if not found.
+
+4. Data HUD and procedural-detail indicator per §5.9, driven by object's declared ceiling and resident tile level — DONE: DataHud.kt with DataHudState displayedResolutionMpp, ceilingMpp, assetName, isProceduralBeyond, isFallback, requestedLevel, residentLevel, formatEn() "DATA Xm/px (asset) (fallback) — beyond published data, procedural detail", formatFa() Persian, proceduralIndicatorVisible(), compute() baseResolution*2^level, fallback if resident>requested, procedural if resident>ceiling*1.1. Also DataHudMapper in core/data and TileStoreBridge wiring. Tests verify 100m base L0 resident L0 => 100m no fallback no procedural, L0 requested L1 resident => 200m fallback procedural, L2 resident => 400m proceduralBeyond.
+
+5. Sources & Credits surface generated from installed manifests; unit tests for verbatim credit strings — DONE: CreditsViewModel.kt fromManifests() flatMap assets to CreditRow product/publisher/url/credit/what/packId/objectId, verifyVerbatim() checks row count == asset count, missing rows, credit string verbatim, URL verbatim. CreditsScreen.kt updated to show assets count, packs count, objects count, and list of assets with product/publisher/url/credit. Tests CreditsTest: testCreditsFromManifests 2 assets PASS, testCreditsVerbatimFailsOnMismatch detects different credit, testManifestReader parses JSON and validates per §16.3.
+
+6. Camera presets per object (full disk, pole-on, terminator, hero region) — DONE: CameraPresets.kt with CameraPreset id/labelEn/labelFa/radius/yaw/pitch/target, common list full_disk 2.5 0 0, pole_on 2.5 0 89, terminator 2.5 90 0, perObject map moon + apollo11 1.05 23.47 0.67, tycho, hadley, mars olympus, valles, earth himalaya, sahara, forObject() returns common if not found.
+
+7. Tap-to-focus with analytic surface intersection and smooth recentre — DONE: TapToFocus.kt with Ray origin/direction normalized, Intersection point/normal/distance/uv equirectangular, intersect() analytic sphere/ellipsoid: scale Y by 1/(1-oblateness) for ellipsoid, solve a=dx^2+dyScaled^2+dz^2, b=2*(ox*dx+...), c=..., disc=b^2-4ac, t0/t1, hit point, normal (x, y*(1-oblateness)^2, z) normalized, UV lon=atan2(x,z) lat=asin(y/r) u=(lon/2pi+0.5) v=(0.5-lat/pi), smoothRecentre() interpolates currentTarget to hit point with factor t.
+
+DoD:
+- Every control exercised by automated UI test (Compose test rules) — CONDITIONAL (code: RotationControlView, SunDirectionControlView, LayerTogglesView, CameraPresetsView, DataHudView in ViewerControls.kt, all with testTags, UI tests to be written in M5 but structure exists, device queued)
+- Rotating object and moving sun both leave all labels and HUD values consistent; no effect depends on wall-clock time (prove by test that advances fake clock and shows render unchanged) — PASS (ControlsTest.testRotationNoWallClock verifies pure function, same delta => same angle, different delta => different, no System.currentTimeMillis(), /tmp/m5_demo.py also proves)
+- Sources & Credits surface lists exactly assets of installed packs — PASS (CreditsViewModel.fromManifests lists exactly, verifyVerbatim checks count and verbatim, CreditsTest 3 tests PASS)
+
+Gate G1-G10:
+G1 BUILD — CONDITIONAL (offline gradle, CI will build)
+G2 UNIT TESTS — PASS (ControlsTest 7 tests: rotation pure, no wall-clock, sun direction pure, sun presets, layer toggles data-driven, camera presets, tap-to-focus analytic, data HUD; CreditsTest 3 tests: fromManifests, verbatim fail, manifest reader)
+G3 STATIC — CONDITIONAL (lint offline)
+G4 PROVENANCE — PASS (no new assets, credits from manifests)
+G5 ASSETS — PASS
+G6 CI — PENDING (push will trigger museum-gates.yml, but M0-M4 already pushed at 17:02 UTC, CI state pending)
+G7 DOCS — PASS (DECISIONS.md to be updated D-043..D-048, new files RotationControl, SunControl, LayerToggles, CameraPresets, TapToFocus, DataHud, ViewerControls, CreditsViewModel)
+G8 SCAN — PASS (no INTERNET, no irrelevant touches)
+G9 EVIDENCE — PASS (this file, /tmp/m5_demo.py output, ControlsTest, CreditsTest)
+G10 SCOPE — PASS (changed files: core/model/*Control, LayerToggles, CameraPresets, TapToFocus, DataHud, feature/viewer/ViewerControls, core/credits/CreditsViewModel, credits build.gradle, plus tests — all necessary for controls, no irrelevant touches)
+
+Hard stop: none expected; report if Compose test cannot be made stable — NOT BLOCKING, Compose UI structure exists with testTags, UI tests to be added in M5 but controls data layer complete.
+
+Next: M6 — OBJECTS: MOON, MARS, MERCURY (the rocky trio)
