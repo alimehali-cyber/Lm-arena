@@ -1,0 +1,57 @@
+{
+  "packId": "milkyway_base",
+  "version": "1-m9-stars",
+  "objectId": "milkyway",
+  "assets": [
+    {
+      "product": "UCAC4 catalogue 113M stars + Yale BSC5 9110 bright stars",
+      "publisher": "USNO / Yale / CDS Strasbourg",
+      "url": "https://cdsarc.cds.unistra.fr/viz-bin/cat/I/322A",
+      "credit": "USNO, Yale Bright Star Catalogue, CDS Strasbourg",
+      "what": "star catalogue position mag colour",
+      "processing": "read UCAC4 and Yale BSC5 into compact binary VBO format 32 bytes per star x,y,z r,g,b size mag, validate sample against published values 20 named stars position mag colour index per M9 task1, flux-preserving sizing constant total flux as screen size changes clamp min size with flux compensation never disappear sub-pixel, magnitude-limit slider, constellation figures boundaries and names, star picking stable hit test",
+      "sha256": "to-be-filled",
+      "format": "Binary VBO 32 bytes per star",
+      "resolution": "113M UCAC4 + 9110 BSC5",
+      "type": "star_catalogue"
+    },
+    {
+      "product": "Tycho-2 based deep map 4096x2048 (non-Gaia)",
+      "publisher": "NASA SVS / ESA",
+      "url": "https://svs.gsfc.nasa.gov/3895/",
+      "credit": "NASA/SVS, ESA, Tycho-2 catalogue",
+      "what": "deep map skybox",
+      "processing": "Tycho-2 based 4096x2048 equirectangular, encoded KTX2 ASTC 6x6 sRGB, verify no Gaia-derived layer used per M9 hard stop, record exact file SVS 3895 Tycho-2, deep map as skybox, zooming into cluster resolves stars deep map does not blur into visible texels screenshot evidence",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "4096x2048",
+      "type": "deep_map"
+    },
+    {
+      "product": "Constellation figures, boundaries and names",
+      "publisher": "IAU / CDS",
+      "url": "https://www.iau.org/public/themes/constellations/",
+      "credit": "IAU",
+      "what": "constellation lines and names",
+      "processing": "88 constellations, lines between stars, boundaries, names, encoded binary, picking stable hit test",
+      "sha256": "to-be-filled",
+      "format": "Binary",
+      "resolution": "88 constellations",
+      "type": "constellation"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "UCAC4 113M stars mag limit slider, Tycho-2 deep map 4096x2048 non-Gaia verified, no Gaia-derived layer, constellation figures 88 IAU, star picking stable hit test, flux-preserving sizing min-size clamp never disappear sub-pixel, 60-second rotation test no flicker flux check",
+    "textFa": "UCAC4 113M ستاره لغزنده حد قدر، نقشه عمیق Tycho-2 4096x2048 غیر گایا تأیید شده، بدون لایه مشتق از گایا، اشکال صورت فلکی 88 IAU، انتخاب ستاره تست برخورد پایدار، اندازه‌گذاری حفظ شار حداقل اندازه هرگز ناپدید نمی‌شود، تست چرخش 60 ثانیه بدون چشمک شار",
+    "resolutionM": 0
+  },
+  "geometry": {
+    "type": "skybox",
+    "oblateness": 0.0,
+    "radiusM": 1000000000000
+  },
+  "tiers": {
+    "tier0": "UCAC4 113M + BSC5 9110 + deep map 4096x2048 + constellations 50MB base, UCAC4 full 113M 200MB install-time",
+    "tier2": "BSC5 9110 + deep map 2048x1024 20MB base"
+  }
+}
