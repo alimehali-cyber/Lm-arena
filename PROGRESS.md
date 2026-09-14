@@ -15,7 +15,7 @@ Continuous gated execution M-1 to M12 per §23. One row per milestone.
 | M2 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS determinism/verify/provenance/scope) | d023397 | 2026-09-14 | docs/verification/M2/ | Pushed 17:02 UTC batched | 1 push batched |
 | M3 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS level-selection/stress/budget/seam/HUD/provenance/scope) | 1e7f7e9 | 2026-09-14 | docs/verification/M3/ | Pushed 17:02 UTC batched | 1 push batched |
 | M4 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS mat-sources/tier-variants/testbed/tolerance/provenance/scope) | 6603781 | 2026-09-14 | docs/verification/M4/ | Pushed 17:02 UTC batched | 1 push batched |
-| M5 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS rotation/sun/layers/hud/credits/presets/focus/provenance/scope) | 55c0d8c | 2026-09-14 | docs/verification/M5/ | Device UI tests, visual verification queued | Pending push |
+| M5 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS rotation/sun/layers/hud/credits/presets/focus/provenance/scope) | d5aebf8 | 2026-09-14 | docs/verification/M5/ | Device UI tests, visual verification queued | Pending push (fix coroutines dep) |
 | M4 | TODO | - | - | - | - | - | - |
 | M5 | TODO | - | - | - | - | - | - |
 | M6 | TODO | - | - | - | - | - | - |
