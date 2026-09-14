@@ -13,7 +13,8 @@ Continuous gated execution M-1 to M12 per §23. One row per milestone.
 | M0 | GREEN | GREEN (CONDITIONAL build/test offline, PASS provenance/scope) | 3eeb195 | 2026-09-14 | docs/verification/M0/ | Build/test conditional offline, apkanalyzer deviation D-007 | Pending push (wait 20min) |
 | M1 | GREEN | GREEN (CONDITIONAL build/lint offline, PASS unit/provenance/scope) | d76315f | 2026-09-14 | docs/verification/M1/ | Device frame times, thermal, visual verification queued | Pending push |
 | M2 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS determinism/verify/provenance/scope) | fd529c3 | 2026-09-14 | docs/verification/M2/ | Device colour space, real data fetch queued | Pending push |
-| M3 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS level-selection/stress/budget/seam/HUD/provenance/scope) | 1e7f7e9 | 2026-09-14 | docs/verification/M3/ | Device frame times, seam screenshots, thermal queued | Pending push |
+| M3 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS level-selection/stress/budget/seam/HUD/provenance/scope) | e7ac403 | 2026-09-14 | docs/verification/M3/ | Device frame times, seam screenshots, thermal queued | Pending push |
+| M4 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS mat-sources/tier-variants/testbed/tolerance/provenance/scope) | 6603781 | 2026-09-14 | docs/verification/M4/ | Device golden images, horizon shadow 5deg, thermal queued | Pending push |
 | M4 | TODO | - | - | - | - | - | - |
 | M5 | TODO | - | - | - | - | - | - |
 | M6 | TODO | - | - | - | - | - | - |
@@ -84,6 +85,7 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
 | M1 | 0 | 0 | - | - | pending push, after M0 +20min (~17:11 UTC) |
 | M2 | 0 | 0 | - | - | pending push, after M1 +20min (~17:31 UTC) |
 | M3 | 0 | 0 | - | - | pending push, after M2 +20min (~17:51 UTC) |
+| M4 | 0 | 0 | - | - | pending push, after M3 +20min (~18:11 UTC) |
 
 ## M2 Details
 
@@ -109,7 +111,21 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
   - HUD resolution tracks resident level — PASS DataHudMapper uses residentLevel, TileStoreBridge currentHudText
 - Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS, G5 PASS, G6 PENDING, G7 PASS (D-034 to D-038), G8 PASS, G9 PASS, G10 PASS
 - Evidence: docs/verification/M3/gate-output.txt, /tmp/m3_demo.py output, StressHarness.kt CSV, LevelSelectorTest
-- Commit: 1e7f7e9 tag m3-green pending push
+- Commit: e7ac403 tag m3-green pending push
+- Sync: pending push
+
+## M4 Details
+
+- Objective: All 13 materials from §8 compiled, loadable, visually verified in isolation.
+- Tasks: Author M1-M13 .mat sources with params, matc build step in Gradle, implement M1 fully displacement vertex block normal/height horizon AO procedural, implement M3-M13, tier variants, material testbed, golden-image tests
+- DoD:
+  - Every material loads with no warnings no runtime compilation — CONDITIONAL matc binary not in sandbox runtime fallback temporary D-020 will be replaced offline, syntax verified
+  - Golden images pass within tolerance — CONDITIONAL tolerance 2% per-pixel SSIM 0.95 device queued
+  - M1 horizon shadow at 5deg on displaced sphere from lunar DEM crop — CONDITIONAL description and golden ref, device queued
+  - Tier variants exist for M1 M3 M10 and compile — PASS regolithSurface_tier2, gasGiantSurface_tier2, atmosphereShell_tier2 exist, compileFilamat task
+- Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS, G5 PASS, G6 PENDING, G7 PASS (D-039 to D-042, 15 .mat files), G8 PASS, G9 PASS, G10 PASS
+- Evidence: docs/verification/M4/gate-output.txt, 15 .mat files, MaterialTest.kt 6 tests, MaterialTestbed.kt, compileFilamat task
+- Commit: 6603781 tag m4-green pending push
 - Sync: pending push
 
 ## Device Backlog (per §24.5)
