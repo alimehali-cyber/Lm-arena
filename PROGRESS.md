@@ -16,11 +16,8 @@ Continuous gated execution M-1 to M12 per §23. One row per milestone.
 | M3 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS level-selection/stress/budget/seam/HUD/provenance/scope) | 1e7f7e9 | 2026-09-14 | docs/verification/M3/ | Pushed 17:02 UTC batched | 1 push batched |
 | M4 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS mat-sources/tier-variants/testbed/tolerance/provenance/scope) | 6603781 | 2026-09-14 | docs/verification/M4/ | Pushed 17:02 UTC batched | 1 push batched |
 | M5 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS rotation/sun/layers/hud/credits/presets/focus/provenance/scope) | d7b2c46 | 2026-09-14 | docs/verification/M5/ | Pushed 17:02? Actually M5 fix pushed later, pending | 1 push batched? Pending |
-| M6 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/HUD/budgets/scope, CONDITIONAL acceptance) | b440f70 | 2026-09-14 | docs/verification/M6/ | Device acceptance screenshots, thermal queued | Pending push |
-| M4 | TODO | - | - | - | - | - | - |
-| M5 | TODO | - | - | - | - | - | - |
-| M6 | TODO | - | - | - | - | - | - |
-| M7 | TODO | - | - | - | - | - | - |
+| M6 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/HUD/budgets/scope, CONDITIONAL acceptance) | b440f70 | 2026-09-14 | docs/verification/M6/ | Device acceptance screenshots, thermal queued | Pending push ~17:42 UTC |
+| M7 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/assets/scope, CONDITIONAL acceptance Earth sunset/Sun granulation) | 0bc98c2 | 2026-09-14 | docs/verification/M7/ | Device sunset band, blue limb, glint, night-light, Sun granulation queued | Pending push ~18:02 UTC |
 | M8 | TODO | - | - | - | - | - | - |
 | M9 | TODO | - | - | - | - | - | - |
 | M10 | TODO | - | - | - | - | - | - |
@@ -90,6 +87,7 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
 | M4 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0, tags m0-green (already existed), m1-green, m2-green, m3-green, m4-green force-pushed |
 | M5 | 0 | 0 | - | - | pending push, after M4 +20min (~17:22 UTC earliest, but last push 17:02 so next ~17:22), includes fix d5aebf8 coroutines dep |
 | M6 | 0 | 0 | - | - | pending push, after M5 +20min (~17:42 UTC) |
+| M7 | 0 | 0 | - | - | pending push, after M6 +20min (~18:02 UTC) |
 
 ## M2 Details
 
@@ -158,6 +156,19 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
 - Evidence: docs/verification/M6/gate-output.txt, /tmp/m6_demo.py output, manifests/moon.json mars.json mercury.json, ObjectRegistry 13 entries
 - Commit: b440f70 tag m6-green pending push
 - Sync: pending push ~17:42 UTC
+
+## M7 Details
+
+- Objective: The atmosphere-heavy objects.
+- Tasks: Build offline atmosphere LUT generator and per-body parameter sets (Earth with ozone, Venus Mie-dominated, Mars dust, gas-giant methane), Earth BMNG months night lights cloud layer ocean roughness glint bathymetry Landsat hero tiles, Venus cloud deck default radar/topography/Fresnel/slope modes peel transition, Sun M6 and M7 materials AIA/HMI channels with labels magnetogram mode corona control granulation animation in shader's third dimension
+- DoD:
+  - Earth's sunset band blue limb glint night-light behaviour pass stated acceptance tests — CONDITIONAL code atmosphereShell.mat ozone absorption for sunset band nightLights.mat additive emissive dark side only dimmed under cloud ocean roughness glint via M1 ocean mask roughness 0.02-0.1 IOR 1.33 Fresnel sun glint per §14.4 blue limb via atmosphere shell month selector 12 BMNG months labelled not today day/night crossfade cloud opacity bathymetry overlay labelled modelled hero tiles 15-30m Landsat HUD correct device queued Tier C and D
+  - Venus hides its surface in cloud mode and is labelled in radar mode — PASS manifest cloud deck default labelled radar mode labelled atmosphere Mie-dominated hides surface per AtmosphereLut.venusParams and atmosphereShell.mat peel transition per §14.3
+  - Sun shows stable granulation correct limb darkening no flat yellow texture every EUV mode labelled false colour — CONDITIONAL solarSurface.mat 3-octave domain-warped noise granulation animated third dimension never scrolling UVs stable no boiling limb darkening published coefficients polynomial in mu emission well above mid grey for bloom no flat yellow sphere AIA 171/193/304 labelled false colour per manifest HMI magnetogram mode corona intensity emission scale device queued
+- Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS 10 new assets, G5 PASS, G6 PENDING, G7 PASS (D-053..D-056 atmosphere Earth Venus Sun), G8 PASS, G9 PASS, G10 PASS
+- Evidence: docs/verification/M7/gate-output.txt, tools/assetkit/AtmosphereLut.kt, manifests/earth.json venus.json sun.json, assetkit atmosphere verb
+- Commit: 0bc98c2 tag m7-green pending push
+- Sync: pending push ~18:02 UTC
 
 ## Device Backlog (per §24.5)
 
