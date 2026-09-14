@@ -85,12 +85,12 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
 | M2 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0 |
 | M3 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0 |
 | M4 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0, tags m0-green (already existed), m1-green, m2-green, m3-green, m4-green force-pushed |
-| M5 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched push M5-M10 at 17:22 UTC (20min after 17:02), includes fix d5aebf8 coroutines dep, tags m5-green m6-green m7-green m8-green m9-green m10-green |
+| M5 | 1 | 0 | 2026-09-14 17:22 UTC | failure (cache 400) | batched push M5-M10 at 17:22 UTC (20min after 17:02), includes fix d5aebf8 coroutines dep, tags m5-green m6-green m7-green m8-green m9-green m10-green, Build APK cache restore failed 400 |
 | M6 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched with M5-M10 |
 | M7 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched with M5-M10 |
 | M8 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched with M5-M10 |
 | M9 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched with M5-M10 |
-| M10 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched with M5-M10, Build APK fix should make pass |
+| M10 | 1 | 0 | 2026-09-14 17:22 UTC | failure (cache 400) | batched with M5-M10, Build APK cache restore failed 400, fix d5aebf8 coroutines dep should make pass but cache failed |
 | M11 | 0 | 0 | - | - | pending push ~17:42 UTC batched M11-M12 (20min after 17:22) |
 | M12 | 0 | 0 | - | - | pending push ~17:42 UTC batched M11-M12 |
 
