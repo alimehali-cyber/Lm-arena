@@ -39,10 +39,12 @@ class TileStoreTest {
         val coarse = TileKey("test", 1, 0, 0)
         // Only coarse resident
         store.requestTiles(mapOf(coarse to 1), setOf(coarse))
-        repeat(5) { store.uploadPerFrame() }
+        // Give workers time to decode (async)
+        kotlinx.coroutines.delay(200)
+        repeat(10) { store.uploadPerFrame() }
         // Request fine, should fallback to coarse
         val result = store.getTileOrFallback(fine)
-        assertNotNull(result)
+        assertNotNull("fallback should be coarse", result)
         assertEquals(coarse, result!!.key)
         assertTrue(store.instrumentation.fallbackFrames > 0)
         store.release()

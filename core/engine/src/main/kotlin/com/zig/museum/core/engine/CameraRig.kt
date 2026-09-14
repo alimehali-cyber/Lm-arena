@@ -29,7 +29,6 @@ class CameraRig(
     initialState: CameraState = CameraState()
 ) {
     var state: CameraState = initialState
-        private set
 
     // Damping factor for smooth interpolation
     var dampingFactor: Float = 0.15f
