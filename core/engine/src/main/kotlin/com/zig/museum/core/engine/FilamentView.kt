@@ -40,7 +40,8 @@ fun FilamentView(
             renderCallback = object : UiHelper.RendererCallback {
                 override fun onNativeWindowChanged(surface: Surface) {
                     engine.createSwapChain(surface)
-                    engine.setViewport(surface.hashCode(), surface.hashCode()) // will be updated onResized
+                    // Don't set viewport here with hashCode (was bug causing black screen)
+                    // Viewport will be set correctly in onResized
                     onSurfaceReady?.invoke()
                 }
 
@@ -49,7 +50,9 @@ fun FilamentView(
                 }
 
                 override fun onResized(width: Int, height: Int) {
-                    engine.setViewport(width, height)
+                    if (width > 0 && height > 0) {
+                        engine.setViewport(width, height)
+                    }
                 }
             }
         }
@@ -75,9 +78,11 @@ fun FilamentView(
         AndroidView(
             factory = { ctx ->
                 SurfaceView(ctx).apply {
-                    // Make SurfaceView transparent so fallback Canvas shows through if Filament fails
+                    // Transparent SurfaceView so Compose Canvas fallback shows when Filament has no object
+                    // setZOrderOnTop(false) keeps it behind Compose UI (Canvas on top)
                     holder.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
                     setZOrderOnTop(false)
+                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
                     // Attach UiHelper to this SurfaceView
                     uiHelper.attachTo(this)
                 }

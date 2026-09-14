@@ -12,11 +12,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
@@ -26,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.zig.museum.core.engine.CameraState
@@ -43,9 +43,6 @@ import com.zig.museum.core.engine.InspectorEngine
 import com.zig.museum.core.engine.SunState
 import com.zig.museum.core.model.ObjectRegistry
 
-/**
- * SpaceMuseumViewerScreen — with real Filament rendering and fallback, aware of bottom nav bar
- */
 @Composable
 fun SpaceMuseumViewerScreen(
     objectId: String,
@@ -54,7 +51,6 @@ fun SpaceMuseumViewerScreen(
     modifier: Modifier = Modifier,
     isFa: Boolean = false
 ) {
-    // Ensure immersive hides bottom nav bar for entire museum
     DisposableEffect(Unit) {
         try {
             val clazz = Class.forName("com.zig.gravity.ui.ImmersiveScreenState")
@@ -80,7 +76,6 @@ fun SpaceMuseumViewerScreen(
     var sunState by remember { mutableStateOf(SunState()) }
     var tier by remember { mutableStateOf(0) }
 
-    // Color for fallback rendering when Filament fails
     val fallbackColor = remember(objectId) {
         when (objectId) {
             "sun" -> Color(0xFFFFD54F)
@@ -102,6 +97,15 @@ fun SpaceMuseumViewerScreen(
 
     val engine = remember { InspectorEngine.getInstance() }
     var cameraState by remember { mutableStateOf(engine.cameraRig.state) }
+    var hasRenderable by remember { mutableStateOf(engine.hasActiveRenderable()) }
+    var hasMaterial by remember { mutableStateOf(engine.hasMaterial()) }
+    var lastError by remember { mutableStateOf(engine.getLastError()) }
+
+    LaunchedEffect(objectId) {
+        hasRenderable = engine.hasActiveRenderable()
+        hasMaterial = engine.hasMaterial()
+        lastError = engine.getLastError()
+    }
 
     Box(
         modifier = modifier
@@ -118,86 +122,107 @@ fun SpaceMuseumViewerScreen(
                     }
                     engine.updateCameraFromRig()
                     cameraState = engine.cameraRig.state
+                    hasRenderable = engine.hasActiveRenderable()
                 }
             }
     ) {
-        // Fallback rendering — colored sphere/ellipsoid via Canvas, visible even if Filament fails
-        // Uses cameraState for interactive orbit/zoom and spec.oblateness for accurate shape
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val center = Offset(
-                x = size.width / 2f + cameraState.yawDeg * 2f,
-                y = size.height / 2f + cameraState.pitchDeg * 2f
-            )
-            val baseRadius = minOf(size.width, size.height) * 0.35f
-            val radius = (baseRadius / cameraState.radius.coerceIn(1f, 3f)) * 1.5f
-            val oblateness = spec?.oblateness?.toFloat() ?: 0f
-            val radiusY = radius * (1f - oblateness)
-
-            // Draw glow
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(fallbackColor.copy(alpha = 0.8f), fallbackColor.copy(alpha = 0.1f), Color.Transparent),
-                    center = center,
-                    radius = radius * 1.5f
-                ),
-                radius = radius * 1.5f,
-                center = center
-            )
-            // Draw main sphere/ellipsoid with gradient for 3D effect
-            // For oblate objects like Jupiter/Saturn, use oval
-            if (oblateness > 0.01f) {
-                drawOval(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color.White.copy(alpha = 0.3f), fallbackColor, fallbackColor.copy(alpha = 0.6f)),
-                        center = Offset(center.x - radius * 0.3f, center.y - radiusY * 0.3f),
-                        radius = radius
-                    ),
-                    topLeft = Offset(center.x - radius, center.y - radiusY),
-                    size = androidx.compose.ui.geometry.Size(radius * 2f, radiusY * 2f)
-                )
-            } else {
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color.White.copy(alpha = 0.3f), fallbackColor, fallbackColor.copy(alpha = 0.6f)),
-                        center = Offset(center.x - radius * 0.3f, center.y - radius * 0.3f),
-                        radius = radius
-                    ),
-                    radius = radius,
-                    center = center
-                )
-            }
-            // Draw highlight
-            drawCircle(
-                color = Color.White.copy(alpha = 0.2f),
-                radius = radius * 0.2f,
-                center = Offset(center.x - radius * 0.3f, center.y - radiusY * 0.3f)
-            )
-            // Saturn rings indicator
-            if (objectId == "saturn") {
-                drawOval(
-                    color = Color.White.copy(alpha = 0.15f),
-                    topLeft = Offset(center.x - radius * 1.6f, center.y - radius * 0.15f),
-                    size = androidx.compose.ui.geometry.Size(radius * 3.2f, radius * 0.3f)
-                )
-            }
-        }
-
-        // Filament surface — real 3D rendering on top of fallback
+        // Filament first (background)
         FilamentView(
             objectId = objectId,
             modifier = Modifier.fillMaxSize(),
             tier = tier,
             sunState = sunState,
-            onCameraChange = { newState -> cameraState = newState }
+            onCameraChange = { newState ->
+                cameraState = newState
+                hasRenderable = engine.hasActiveRenderable()
+                hasMaterial = engine.hasMaterial()
+                lastError = engine.getLastError()
+            }
         )
 
-        // Overlay UI — aware of system bars and bottom nav
+        // Fallback Canvas on top — ensures never black screen
+        // Shows full sphere when no Filament renderable, subtle glow when has renderable
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val center = Offset(
+                x = size.width / 2f + cameraState.yawDeg * 2f,
+                y = size.height / 2f + cameraState.pitchDeg * 2f
+            )
+            val baseRadius = minOf(size.width, size.height) * 0.38f
+            val radius = (baseRadius / cameraState.radius.coerceIn(1f, 3f)) * 1.5f
+            val oblateness = spec?.oblateness?.toFloat() ?: 0f
+            val radiusY = radius * (1f - oblateness)
+
+            // Glow always
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        fallbackColor.copy(alpha = 0.9f),
+                        fallbackColor.copy(alpha = 0.3f),
+                        Color.Transparent
+                    ),
+                    center = center,
+                    radius = radius * 1.8f
+                ),
+                radius = radius * 1.8f,
+                center = center
+            )
+
+            if (!hasRenderable) {
+                // Full fallback when no Filament object
+                if (oblateness > 0.01f) {
+                    drawOval(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.4f),
+                                fallbackColor,
+                                fallbackColor.copy(alpha = 0.7f)
+                            ),
+                            center = Offset(center.x - radius * 0.3f, center.y - radiusY * 0.3f),
+                            radius = radius
+                        ),
+                        topLeft = Offset(center.x - radius, center.y - radiusY),
+                        size = androidx.compose.ui.geometry.Size(radius * 2f, radiusY * 2f)
+                    )
+                } else {
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.4f),
+                                fallbackColor,
+                                fallbackColor.copy(alpha = 0.7f)
+                            ),
+                            center = Offset(center.x - radius * 0.3f, center.y - radius * 0.3f),
+                            radius = radius
+                        ),
+                        radius = radius,
+                        center = center
+                    )
+                }
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.25f),
+                    radius = radius * 0.22f,
+                    center = Offset(center.x - radius * 0.3f, center.y - radiusY * 0.3f)
+                )
+                if (objectId == "saturn") {
+                    drawOval(
+                        color = Color.White.copy(alpha = 0.2f),
+                        topLeft = Offset(center.x - radius * 1.7f, center.y - radius * 0.18f),
+                        size = androidx.compose.ui.geometry.Size(radius * 3.4f, radius * 0.36f)
+                    )
+                    drawOval(
+                        color = Color(0xFF090A0F).copy(alpha = 0.5f),
+                        topLeft = Offset(center.x - radius * 0.9f, center.y - radius * 0.08f),
+                        size = androidx.compose.ui.geometry.Size(radius * 1.8f, radius * 0.16f)
+                    )
+                }
+            }
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(WindowInsets.statusBars.asPaddingValues())
         ) {
-            // Top bar with status bar padding
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -224,13 +249,12 @@ fun SpaceMuseumViewerScreen(
 
             Spacer(Modifier.weight(1f))
 
-            // Debug overlay
             val instrumentation = remember { InspectorEngine.getInstance().instrumentation }
             val debugData = instrumentation.toDebugOverlay()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.5f))
+                    .background(Color.Black.copy(alpha = 0.6f))
                     .padding(8.dp)
                     .testTag("debug_overlay")
             ) {
@@ -245,13 +269,24 @@ fun SpaceMuseumViewerScreen(
                     style = MaterialTheme.typography.labelSmall
                 )
                 Text(
-                    text = "leaked: ${InspectorEngine.getInstance().getLeakedResourceCount()} (must be 0 after 10 recreations) | ${spec?.displayNameEn ?: objectId}",
-                    color = if (InspectorEngine.getInstance().getLeakedResourceCount() == 0) Color.Green else Color.Red,
+                    text = "Filament: ${if (hasRenderable) "YES 3D" else "NO fallback Canvas"} material:${if (hasMaterial) "YES" else "NO"} | ${spec?.displayNameEn ?: objectId}",
+                    color = if (hasRenderable && hasMaterial) Color.Green else Color.Yellow,
+                    style = MaterialTheme.typography.labelSmall
+                )
+                if (lastError.isNotEmpty()) {
+                    Text(
+                        text = "err: $lastError",
+                        color = Color.Red,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+                Text(
+                    text = if (isFa) "بکشید برای چرخش، نیشگون برای زوم" else "Drag to orbit, pinch to zoom — ${if (hasRenderable) "Filament" else "Canvas"}",
+                    color = Color.White.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.labelSmall
                 )
             }
 
-            // Bottom controls — aware of navigation bar
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -269,11 +304,6 @@ fun SpaceMuseumViewerScreen(
                 Text(
                     text = if (isFa) "نور خورشید: آزیموت ${sunState.azimuthDeg} ارتفاع ${sunState.elevationDeg} EV ${sunState.exposureEV}" else "Sun: az ${sunState.azimuthDeg} el ${sunState.elevationDeg} EV ${sunState.exposureEV}",
                     color = Color.White.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.labelSmall
-                )
-                Text(
-                    text = if (isFa) "بکشید برای چرخش، نیشگون برای زوم" else "Drag to orbit, pinch to zoom",
-                    color = Color.White.copy(alpha = 0.5f),
                     style = MaterialTheme.typography.labelSmall
                 )
                 Text(
