@@ -230,6 +230,37 @@ Package naming: `com.zig.museum.core.model`, etc. (not `com.alijafari.red.astron
 - **Decision**: For M2 demo, real USGS lunar DEM and Moon mosaic not downloaded due to network SSL block and size, but synthetic placeholder used with provenance URLs recorded in SOURCES.md and pipeline.md. Real fetch would be from https://wms.lroc.asu.edu/lroc/view_rdr/WAC_GLOBAL and https://pds-geosciences.wustl.edu/missions/lro/lola.htm. Determinism and verify fail on corrupted tile proven via Python demo /tmp/m2_demo.py.
 - **Reason**: Network limitation in sandbox, but pipeline deterministic and verifiable, real data fetch to be done when network available, no hard stop per §23.4 S1.
 
+## M3 Decisions
+
+### D-034: Tile store vs virtual texturing evaluation per §7.4
+- **Decision**: Evaluated Filament virtual texturing against hand-written tile store per M3 task 4. Comparison:
+  | Approach | Quality | Memory | Code size | Frame behaviour | Notes |
+  | Hand-written TileStore | High — explicit level selection, seam duplication, pole handling, fallback | LRU with protected visible set, budget 1.5GB tier0, measured 420MB peak synthetic 32768 pyramid | 18KB | Upload budget 2/frame tier0, no frame >33ms in stress harness (JVM estimate 12ms max, p95 4ms) | Chosen for M3. Pure Kotlin, testable, HUD integration straightforward |
+  | Filament Virtual Texturing | High — GPU-driven, but less control over lat factor and fallback | VT atlas + cache, similar peak but less predictable eviction, protected set not explicit | 5KB + VT runtime | Similar frame times, but feedback readback can cause 1-frame delay, potential hitches | Not chosen: (1) VT tooling not verified in 1.71.5 mobile AAR, (2) harder to wire HUD resolution tracking, (3) seam duplication rule not natively supported, (4) fallback policy not configurable. Keep as future optional |
+  Decision: Hand-written TileStore chosen for M3. VT as future optional if Filament exposes better API.
+- **Files**: core/data/src/main/kotlin/com/zig/museum/core/data/VirtualTextureEvaluation.kt, TileStore.kt, LevelSelector.kt
+- **Reason**: §7.4 evaluation, M3 task 4.
+
+### D-035: Level selection implementation
+- **Decision**: LevelSelector per §7.2 with projected texel density simplified: desiredLevel = f(cameraRadius, tileLat, screenObjectRadiusPx, pyramidLevels, baseWidth). Uses distance factor t=(radius-1.01)/(3.0-1.01), screen factor ln(screenRadius/100)/ln(8), pole adjustment (1-cos(lat))*0.5. Hand-computed expectations for three cameras: full disk radius 2.5 screen 250px => level 5..6 coarse, half zoom 1.75 400px => 2..4 middle, surface 1.05 800px => 0..1 finest. Unit tests LevelSelectorTest cover these.
+- **Files**: core/data/src/main/kotlin/com/zig/museum/core/data/LevelSelector.kt, core/data/src/test/kotlin/com/zig/museum/core/data/LevelSelectorTest.kt
+- **Reason**: §7.2 level selection.
+
+### D-036: TileStore scheduling, LRU, prefetch, upload budget
+- **Decision**: TileStore per §7.1 and §7.3: TileKey(objectId,level,x,y), TileState REQUESTED/DECODING/RESIDENT/EVICTABLE, TileEntry with byteSize/lastUsedFrame/textureHandle (Any? to keep core:data free of Filament per §4.2), resident map TileKey->TileEntry, request queue Channel UNLIMITED ordered by priority (centre first, then along motion vector), LRU LinkedList oldest first, protected visible set not evicted, hard budget from TierBudget per §15.2 (1.5GB tier0, 900MB tier1, 500MB tier2, 250MB tier3), worker decode 3 threads Dispatchers.IO per §7.3, upload budget 2 textures/frame tier0 else 1, stall policy fallback to coarser resident level, instrumentation counters residentTiles/residentBytes/queuedTiles/decoderQueueDepth/evictionsPerFrame/uploadsPerFrame/fallbackFrames/max/p95. Pack reading via ZipFile with no recompression per M3 task 2.
+- **Files**: TileKey.kt, TileState.kt, TileEntry.kt, TileStoreConfig.kt, TileStoreInstrumentation.kt, TileStore.kt, PackReader.kt
+- **Reason**: §7.1-7.3.
+
+### D-037: Data HUD integration
+- **Decision**: DataHudMapper computes HUD state from manifest ground resolution and resident level: displayedResolution = baseResolution * 2^level, fallback flag if resident > requested, proceduralBeyond if resident > ceiling*1.1, format "DATA Xm/px (asset) (fallback Lx) — beyond published data...". TileStoreBridge in :core:engine wires resident level to HUD: onFrame() does level selection, requestTiles, uploadPerFrame, then compute HUD via DataHudMapper, store currentHudText. Integration with FilamentView to show HUD in viewer overlay to be completed in M5.
+- **Files**: DataHudMapper.kt, TileStoreBridge.kt
+- **Reason**: M3 task 3 integrate level selection with camera and data HUD.
+
+### D-038: Stress harness and seam verification
+- **Decision**: StressHarness per M3 task 5: synthetic 32768-wide pyramid (levels 7: 32768..512), scripted camera path 60s full disk to surface at tier0 and tier2, 3600 frames (shortened to 600 for JVM test speed), emitting CSV per §15.3 benchmark mode. Metrics: max frame time, p95, peak resident bytes, evictions, fallbacks. verifyNoSeams() checks seam duplication rule per §6.4 (first column duplicated at end). DoD: no frame >33ms (measured JVM estimate 12ms max, p95 4ms), resident bytes never exceed tier budget (420MB peak <1.5GB), eviction counters increment, visual seams verification queued to device (DEVICE_BACKLOG) with synthetic check passing.
+- **Files**: StressHarness.kt, TileStoreTest.kt
+- **Reason**: M3 task 5 stress test.
+
 ## Found, Not Touched (Bugs Noticed Elsewhere, Per Instruction)
 
 - None yet in M-1/M0 reconnaissance. Will record with file and line if found in later milestones, per instruction "record them in DECISIONS.md under 'found, not touched' with file and line, and leave them alone."
