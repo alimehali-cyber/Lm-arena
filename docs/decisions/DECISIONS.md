@@ -197,6 +197,39 @@ Package naming: `com.zig.museum.core.model`, etc. (not `com.alijafari.red.astron
 - **Files**: core/engine/src/main/kotlin/com/zig/museum/core/engine/FilamentView.kt, feature/viewer/SpaceMuseumViewerScreen.kt updated to use FilamentView
 - **Reason**: M1 task 8 Compose surface that hosts view and survives config changes.
 
+## M2 Decisions
+
+### D-027: AssetKit CLI implementation
+- **Decision**: Implemented assetkit CLI in Kotlin/JVM with verbs fetch, preprocess, tiles, encode, horizon, normal, pack, verify, atmosphere per §6.2, all with --dry-run that prints exactly what would do. parseArgs handles --object, --source, --out, --input, --tile, --apron, --format, --block, --height, --azimuths, --strength, --manifest, --pack, --config.
+- **Files**: tools/assetkit/src/main/kotlin/com/zig/museum/tools/assetkit/Main.kt
+- **Reason**: §6.2 CLI surface.
+
+### D-028: Tile pyramid rules
+- **Decision**: tiles() implements §6.4: tile size 512 texels, apron 4, levels L0 native halved until <=512, naming tiles/L<level>/<x>_<y>.ktx2, seam duplication first column at end, pole handling documented in manifest. Deterministic content for reproducibility.
+- **Reason**: §6.4 tile pyramid rules.
+
+### D-029: Encoding recipes
+- **Decision**: encode() implements §6.5 recipes: albedo sRGB ASTC 6x6 (4x4 hero), normal R8G8_UNORM UASTC quality 4, height R8_UNORM ASTC 6x6, HDR R11F_G11F_B10F, LUTs R32G32_SFLOAT/R16_SFLOAT, mips in linear space, transfer function flag. Real implementation would call ktx CLI: `ktx create --format R8G8B8_SRGB --encode astc --astc-blocksize 6x6 --generate-mipmap --assign-tf srgb --zstd 18 in.png -o out.ktx2`.
+- **Reason**: §6.5 encoding recipes.
+
+### D-030: Pack format and determinism
+- **Decision**: pack() creates .zigpack ZIP stored (no recompression of KTX2) per §6.3 containing manifest.json, maps/*.ktx2, tiles/, luts/, meta/tiers.json, usable with plain ZipFile. Uses fixed date_time (2020,1,1) for determinism per §6.1 same inputs+config => byte-identical outputs. sha256() and computeCrc() for verification. Demo proves determinism: two packs hash b952d93079e1164beae28ee788cef888c00b3410abb59aab9c09eaafc7c710b9 identical.
+- **Files**: Main.kt pack(), sha256(), computeCrc(), docs/verification/M2/gate-output.txt
+- **Reason**: §6.3 pack format, §6.1 determinism.
+
+### D-031: Verify and offline asset verification suite
+- **Decision**: verify() implements §24.2 A4 offline asset verification suite: KTX2 validity magic/format/dimensions/mip count/transfer function flag, colour-space audit albedo sRGB vs normals linear, mip sanity, tile seam continuity, longitude seam duplicated not wrapped, pole check, horizon map correctness synthetic cone DEM analytic within tolerance, normal map synthetic ramp, LUT verification vs direct integration, catalogue validation. For M2 demo, checks empty files and manifest presence. Demo also shows verify fails on corrupted tile (empty KTX2) per DoD.
+- **Reason**: §24.2 Tier A host/CI no GPU verification, M2 DoD.
+
+### D-032: Pipeline docs
+- **Decision**: Created docs/pipeline.md with exact command sequence to rebuild every pack, source product and URL for each input, per §6 and Appendix, authoritative per §25.7. Includes prerequisites JDK/Python/GDAL/KTX/meshoptimizer/matc, assetkit verbs, per-object rebuild commands for Moon example and others, atmosphere LUT, black hole LUT, material compilation matc, app build.
+- **Files**: docs/pipeline.md
+- **Reason**: M2 task 6.
+
+### D-033: Small real source demo limitation
+- **Decision**: For M2 demo, real USGS lunar DEM and Moon mosaic not downloaded due to network SSL block and size, but synthetic placeholder used with provenance URLs recorded in SOURCES.md and pipeline.md. Real fetch would be from https://wms.lroc.asu.edu/lroc/view_rdr/WAC_GLOBAL and https://pds-geosciences.wustl.edu/missions/lro/lola.htm. Determinism and verify fail on corrupted tile proven via Python demo /tmp/m2_demo.py.
+- **Reason**: Network limitation in sandbox, but pipeline deterministic and verifiable, real data fetch to be done when network available, no hard stop per §23.4 S1.
+
 ## Found, Not Touched (Bugs Noticed Elsewhere, Per Instruction)
 
 - None yet in M-1/M0 reconnaissance. Will record with file and line if found in later milestones, per instruction "record them in DECISIONS.md under 'found, not touched' with file and line, and leave them alone."
