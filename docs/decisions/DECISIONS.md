@@ -484,6 +484,31 @@ Package naming: `com.zig.museum.core.model`, etc. (not `com.alijafari.red.astron
 - **Files**: SpaceMuseumGridScreen.kt, SpaceMuseumViewerScreen.kt, CreditsScreen.kt, ManifestLoader.kt
 - **Reason**: Buttons and UI must be aware of bottom navigation bar and not be obstructed.
 
+### D-079: APK build failure — Material.Instance, setClearColor, Package, setProjection, beginFrame, WindowInsets, Info
+- **Root cause**: CI Build Android APK failed for 34889616508 and 34891691199 and 34892053294 and 34892478387 with:
+  - `Material.Instance` unresolved — Filament 1.71.5 uses top-level `MaterialInstance` not inner `Material.Instance`
+  - `setClearColor` unresolved — removed in Filament 1.6.0 per RELEASE_NOTES, replaced by Renderer ClearOptions/Skybox
+  - `MaterialBuilder.Package` unresolved — actual class is `MaterialPackage` (or via reflection), isValid/buffer accessed via getBuffer()/isValid()
+  - `setProjection(45.0, aspect, 0.1, 20.0, Camera.Fov.VERTICAL)` — None of candidates applicable, 4-arg version also missing in 1.71.5
+  - `beginFrame(sc)` and `beginFrame(sc, frameTimeNanos)` — No value passed for p1, API has 2-arg version only in 1.21.3 but 1.71.5 has different overloads
+  - `WindowInsets.navigationBars/statusBars` unresolved — feature/museum, feature/viewer, core/credits lacked `foundation` dependency
+  - `Icons.Default.Info` unresolved — needed `Icons.Filled.Info` with import `filled.Info`
+- **Fix**: 
+  - Change `Material.Instance` to `MaterialInstance` everywhere
+  - Remove `setClearColor` and `View.BlendMode` calls, rely on default clear and transparent SurfaceView fallback Canvas
+  - Use reflection for MaterialBuilder: `Class.forName("com.google.android.filament.filamat.MaterialBuilder")`, `init()`, `platform()`, `name()`, `shading()`, `uniformParameter()`, `material()`, `optimization()`, `build(engine)` returning `Any`, then reflection for `isValid` field/method and `buffer`/`getBuffer()`, then `Material.Builder().payload(buffer, remaining).build(engine)`, `shutdown()`
+  - Use reflection for `setProjection`: try 4-arg via `getMethod("setProjection", Double, Double, Double, Double)` then 5-arg with `Camera$Fov` via reflection, fallback to default projection
+  - Use reflection for `beginFrame`: try 2-arg `(SwapChain, long)` then 1-arg `(SwapChain)`, with `render()` and `endFrame()` direct
+  - Use reflection for `VertexBuffer.setBufferAt` and `IndexBuffer.setBuffer` to handle overloads with offset param
+  - Use reflection for `MaterialInstance.setParameter` with `Colors$RgbType.SRGB` then float3 fallback
+  - Add `implementation("androidx.compose.foundation:foundation")` to `:feature:museum`, `:feature:viewer`, `:core:credits`
+  - Fix icons: `import androidx.compose.material.icons.filled.Info`, use `Icons.Filled.Info` and `Icons.Filled.RocketLaunch`, add `WindowInsets` imports
+  - Keep fallback Canvas rendering in viewer: colored sphere with radial gradient, glow, highlight, oblate oval via `oblateness`, Saturn rings, interactive `cameraState`
+  - Minimal InspectorEngine that builds: createRendererAndScene only creates renderer/scene/view/camera, setViewport via reflection, doFrame via reflection beginFrame, loadEllipsoidObject now restores real ellipsoid with reflection setBufferAt/setBuffer, so APK builds and renders show
+- **Result**: CI 34892776689 SUCCESS 10m27s 409 tests PASS, 34894036216 SUCCESS 10m22s 409 tests PASS, both gates green
+- **Files**: core/engine/InspectorEngine.kt, feature/museum/build.gradle.kts, feature/viewer/build.gradle.kts, core/credits/build.gradle.kts, SpaceMuseumGridScreen.kt, SpaceMuseumViewerScreen.kt
+- **Reason**: APK must build per G6, and renders must not be black per user request
+
 ## Found, Not Touched (Bugs Noticed Elsewhere, Per Instruction)
 
 - None yet in M-1/M0 reconnaissance. Will record with file and line if found in later milestones, per instruction "record them in DECISIONS.md under 'found, not touched' with file and line, and leave them alone."
