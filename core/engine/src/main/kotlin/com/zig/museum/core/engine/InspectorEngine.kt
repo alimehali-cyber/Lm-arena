@@ -95,17 +95,28 @@ class InspectorEngine private constructor(
         this.sunState = sunState
     }
 
-    fun setToneMapper(mapper: ToneMapper) {
+    fun updateToneMapper(mapper: ToneMapper) {
         toneMapper = mapper
     }
 
-    fun setTaaEnabled(enabled: Boolean) {
+    fun updateTaaEnabled(enabled: Boolean) {
         taaEnabled = enabled
     }
 
-    fun setBloomEnabled(enabled: Boolean) {
+    fun updateBloomEnabled(enabled: Boolean) {
         bloomEnabled = enabled
     }
+
+    // Keep old names as deprecated wrappers with different JVM signature to avoid clash
+    // Using @JvmName to avoid platform clash
+    @JvmName("setToneMapperCompat")
+    fun setToneMapperCompat(mapper: ToneMapper) = updateToneMapper(mapper)
+
+    @JvmName("setTaaEnabledCompat")
+    fun setTaaEnabledCompat(enabled: Boolean) = updateTaaEnabled(enabled)
+
+    @JvmName("setBloomEnabledCompat")
+    fun setBloomEnabledCompat(enabled: Boolean) = updateBloomEnabled(enabled)
 
     fun createSwapChain(surface: Surface) {
         try {

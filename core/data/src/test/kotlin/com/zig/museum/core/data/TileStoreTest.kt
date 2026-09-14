@@ -37,8 +37,8 @@ class TileStoreTest {
         val store = TileStore("test", QualityTier.TIER_0)
         val fine = TileKey("test", 0, 0, 0)
         val coarse = TileKey("test", 1, 0, 0)
-        // Only coarse resident
-        store.requestTiles(mapOf(coarse to 1), setOf(coarse))
+        // Only coarse resident, no visible set to avoid prefetch adding fine
+        store.requestTiles(mapOf(coarse to 1), emptySet())
         // Give workers time to decode (async)
         kotlinx.coroutines.delay(200)
         repeat(10) { store.uploadPerFrame() }
