@@ -69,7 +69,7 @@ jobs:
             GRADLE_CMD="gradle"
           fi
           set +e
-          "$GRADLE_CMD" testDebugUnitTest -Pgravity.ci.tests=false --no-daemon 2>&1 | tee "$RUNNER_TEMP/unit-test-gradle.log"
+          "$GRADLE_CMD" testDebugUnitTest -Pgravity.ci.tests=false --no-daemon --stacktrace 2>&1 | tee "$RUNNER_TEMP/unit-test-gradle.log"
           unit_status=${PIPESTATUS[0]}
           set -e
           python3 - "$unit_status" "$RUNNER_TEMP/unit-test-gradle.log" <<'PY'
@@ -110,6 +110,14 @@ jobs:
                   print(f"::error title=Unit Gradle output::{text}")
           PY
           exit "$unit_status"
+
+      - name: Upload unit test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-log
+          path: ${{ runner.temp }}/unit-test-gradle.log
+          if-no-files-found: warn
 
       - name: Confirm AR/catalog unit test classes
         if: always()
