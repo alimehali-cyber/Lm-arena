@@ -1,6 +1,7 @@
 package com.zig.museum.core.data
 
 import java.io.File
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
 /**
@@ -82,7 +83,7 @@ class PackReader(
                 }
                 // Check method STORED = 0 per §6.3
                 entries.forEach { e ->
-                    if (!e.isDirectory && e.method != ZipFile.STORED && e.name.endsWith(".ktx2")) {
+                    if (!e.isDirectory && e.method != ZipEntry.STORED && e.name.endsWith(".ktx2")) {
                         // For KTX2, STORED is required for deterministic streaming
                         // But we allow DEFLATED with warning? Per spec must be STORED, so flag.
                         issues.add("entry ${e.name} not STORED method=${e.method}")
