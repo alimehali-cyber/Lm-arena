@@ -166,16 +166,28 @@ fun SpaceMuseumViewerScreen(
             val oblateness = spec?.oblateness?.toFloat() ?: 0f
             val radiusY = radius * (1f - oblateness)
 
-            // Always glow behind
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(fallbackColor.copy(alpha = if (hasRenderable) 0.15f else 0.9f), fallbackColor.copy(alpha = 0.05f), Color.Transparent),
-                    center = center,
-                    radius = radius * 2.2f
-                ),
-                radius = radius * 2.2f,
-                center = center
-            )
+            // Subtle glow behind - very subtle when hasRenderable true to avoid blue screen, strong when fallback
+            if (hasRenderable) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(fallbackColor.copy(alpha = 0.08f), Color.Transparent),
+                        center = center,
+                        radius = radius * 1.5f
+                    ),
+                    radius = radius * 1.5f,
+                    center = center
+                )
+            } else {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(fallbackColor.copy(alpha = 0.9f), fallbackColor.copy(alpha = 0.3f), Color.Transparent),
+                        center = center,
+                        radius = radius * 2.2f
+                    ),
+                    radius = radius * 2.2f,
+                    center = center
+                )
+            }
 
             if (!hasRenderable) {
                 // Improved 3D illusion fallback — not just simple circle
@@ -330,10 +342,10 @@ fun SpaceMuseumViewerScreen(
             Column(
                 modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(8.dp).testTag("debug_overlay")
             ) {
-                Text("fps: ${"%.1f".format(debugData.fps)} p50: ${"%.1f".format(debugData.p50Ms)}ms p95: ${"%.1f".format(debugData.p95Ms)}ms tier: ${debugData.tier}", color = Color.White, style = MaterialTheme.typography.labelSmall)
+                Text("fps: ${"%.1f".format(debugData.fps)} p50: ${"%.1f".format(debugData.p50Ms)}ms p95: ${"%.1f".format(debugData.p95Ms)}ms tier: ${debugData.tier} camR: ${"%.2f".format(cameraState.radius)}", color = Color.White, style = MaterialTheme.typography.labelSmall)
                 Text("tiles: ${debugData.residentTiles} bytes: ${debugData.residentBytes} uploads: ${debugData.uploadsPerFrame} evict: ${debugData.evictions}", color = Color.White, style = MaterialTheme.typography.labelSmall)
                 Text(
-                    "Filament: ${if (hasRenderable) "YES 3D" else "NO fallback"} material:${if (hasMaterial) "YES" else "NO"} | ${spec?.displayNameEn ?: objectId}",
+                    "Filament: ${if (hasRenderable) "YES 3D" else "NO fallback"} material:${if (hasMaterial) "YES" else "NO"} id:$objectId | ${spec?.displayNameEn ?: objectId}",
                     color = if (hasRenderable && hasMaterial) Color.Green else Color.Yellow,
                     style = MaterialTheme.typography.labelSmall
                 )
@@ -341,7 +353,7 @@ fun SpaceMuseumViewerScreen(
                     Text("err: $lastError", color = Color.Red, style = MaterialTheme.typography.labelSmall)
                 }
                 Text(
-                    if (isFa) "بکشید برای چرخش، نیشگون برای زوم" else "Drag to orbit, pinch to zoom — ${if (hasRenderable) "Filament 3D" else "Canvas fallback (Filament failed)"}",
+                    if (isFa) "بکشید برای چرخش، نیشگون برای زوم" else "Drag orbit, pinch zoom — ${if (hasRenderable) "Filament 3D lit sphere" else "Canvas fallback"} yaw:${"%.0f".format(cameraState.yawDeg)} pitch:${"%.0f".format(cameraState.pitchDeg)}",
                     color = Color.White.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.labelSmall
                 )

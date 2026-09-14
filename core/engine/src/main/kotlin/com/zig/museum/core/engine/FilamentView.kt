@@ -2,15 +2,11 @@ package com.zig.museum.core.engine
 
 import android.view.Surface
 import android.view.SurfaceView
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -30,7 +26,6 @@ fun FilamentView(
     onSurfaceReady: (() -> Unit)? = null,
     onCameraChange: ((CameraState) -> Unit)? = null
 ) {
-    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val engine = remember { InspectorEngine.getInstance() }
 
@@ -58,41 +53,20 @@ fun FilamentView(
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .pointerInput(objectId) {
-                detectTransformGestures { centroid, pan, zoom, rotation ->
-                    // Pan = orbit, zoom = radius, rotation = roll (ignore)
-                    val deltaYaw = pan.x * 0.5f
-                    val deltaPitch = -pan.y * 0.5f
-                    engine.cameraRig.orbit(deltaYaw, deltaPitch)
-                    if (zoom != 1f) {
-                        engine.cameraRig.zoom(1f / zoom)
-                    }
-                    engine.updateCameraFromRig()
-                    onCameraChange?.invoke(engine.cameraRig.state)
-                }
+    // No gesture handling here - handled by parent SpaceMuseumViewerScreen to avoid double orbit
+    // Opaque SurfaceView with black background so real 3D is visible, not blue screen
+    AndroidView(
+        factory = { ctx ->
+            SurfaceView(ctx).apply {
+                holder.setFormat(android.graphics.PixelFormat.OPAQUE)
+                setZOrderOnTop(false)
+                setBackgroundColor(android.graphics.Color.BLACK)
+                uiHelper.attachTo(this)
             }
-    ) {
-        AndroidView(
-            factory = { ctx ->
-                SurfaceView(ctx).apply {
-                    // Transparent SurfaceView so Compose Canvas fallback shows when Filament has no object
-                    // setZOrderOnTop(false) keeps it behind Compose UI (Canvas on top)
-                    holder.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
-                    setZOrderOnTop(false)
-                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                    // Attach UiHelper to this SurfaceView
-                    uiHelper.attachTo(this)
-                }
-            },
-            modifier = Modifier.fillMaxSize(),
-            update = { surfaceView ->
-                // Update handled by UiHelper callbacks
-            }
-        )
-    }
+        },
+        modifier = modifier.fillMaxSize(),
+        update = { _ -> }
+    )
 
     DisposableEffect(lifecycleOwner, objectId, tier) {
         val observer = LifecycleEventObserver { _, event ->

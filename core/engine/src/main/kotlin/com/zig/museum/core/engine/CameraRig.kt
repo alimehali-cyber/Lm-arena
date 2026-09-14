@@ -17,7 +17,7 @@ import kotlin.math.min
  * Zoom limits: min = 2 * data resolution in radii (so user can reach CEILING but not clip), max = 3.0 radii.
  */
 data class CameraState(
-    val radius: Float = 2.5f, // object radii, default framing full disk
+    val radius: Float = 3.5f, // increased from 2.5 to 3.5 to avoid filling screen with solid color (blue screen bug)
     val yawDeg: Float = 0f,
     val pitchDeg: Float = 0f,
     val targetX: Float = 0f,
@@ -33,9 +33,9 @@ class CameraRig(
     // Damping factor for smooth interpolation
     var dampingFactor: Float = 0.15f
 
-    // Zoom limits per §5.4
+    // Zoom limits per §5.4 - increased to 5.0 to see full object, default 3.5 to avoid filling screen
     var minRadius: Float = 1.01f // just outside surface (radius 1.0)
-    var maxRadius: Float = 3.0f
+    var maxRadius: Float = 5.0f
 
     // For tap-to-focus: recentre target to surface point while preserving orientation
     fun focusOn(x: Float, y: Float, z: Float) {
