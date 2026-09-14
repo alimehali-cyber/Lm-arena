@@ -165,15 +165,22 @@ class InspectorEngine private constructor(
         try {
             view?.setViewport(Viewport(0, 0, width, height))
             val aspect = width.toDouble() / height.toDouble()
-            // 4-arg setProjection exists in all Filament versions, 5-arg with Fov may not
+            // Use reflection for setProjection to handle API differences between Filament versions
+            // Try 4-arg first, then 5-arg with Fov
             try {
-                camera?.setProjection(45.0, aspect, 0.1, 20.0)
+                val method4 = camera?.javaClass?.getMethod(
+                    "setProjection",
+                    Double::class.javaPrimitiveType,
+                    Double::class.javaPrimitiveType,
+                    Double::class.javaPrimitiveType,
+                    Double::class.javaPrimitiveType
+                )
+                method4?.invoke(camera, 45.0, aspect, 0.1, 20.0)
             } catch (e: Exception) {
-                // Try via reflection for 5-arg version if 4-arg not available
                 try {
                     val fovClass = Class.forName("com.google.android.filament.Camera\$Fov")
                     val vertical = fovClass.getField("VERTICAL").get(null)
-                    val method = camera?.javaClass?.getMethod(
+                    val method5 = camera?.javaClass?.getMethod(
                         "setProjection",
                         Double::class.javaPrimitiveType,
                         Double::class.javaPrimitiveType,
@@ -181,8 +188,9 @@ class InspectorEngine private constructor(
                         Double::class.javaPrimitiveType,
                         fovClass
                     )
-                    method?.invoke(camera, 45.0, aspect, 0.1, 20.0, vertical)
+                    method5?.invoke(camera, 45.0, aspect, 0.1, 20.0, vertical)
                 } catch (e2: Exception) {
+                    // If both fail, rely on default projection
                 }
             }
             updateCameraFromRig()
@@ -230,24 +238,32 @@ class InspectorEngine private constructor(
     private fun doFrame(frameTimeNanos: Long) {
         val startNs = System.nanoTime()
         try {
-            // Attempt real Filament rendering if swapChain and view are ready
-            // This uses 2-arg beginFrame which is standard in 1.71.5
             swapChain?.let { sc ->
                 renderer?.let { r ->
                     view?.let { v ->
+                        var rendered = false
                         try {
-                            if (r.beginFrame(sc, frameTimeNanos)) {
+                            // Try 2-arg beginFrame via reflection (standard in 1.71.5)
+                            val method2 = r.javaClass.getMethod(
+                                "beginFrame",
+                                SwapChain::class.java,
+                                Long::class.javaPrimitiveType
+                            )
+                            val shouldRender = method2.invoke(r, sc, frameTimeNanos) as Boolean
+                            if (shouldRender) {
                                 r.render(v)
                                 r.endFrame()
+                                rendered = true
                             }
                         } catch (e: Exception) {
-                            // Fallback: try without frameTime if 2-arg not available (should not happen in 1.71.5)
                             try {
-                                val method = r.javaClass.getMethod("beginFrame", SwapChain::class.java)
-                                val shouldRender = method.invoke(r, sc) as Boolean
+                                // Fallback to 1-arg
+                                val method1 = r.javaClass.getMethod("beginFrame", SwapChain::class.java)
+                                val shouldRender = method1.invoke(r, sc) as Boolean
                                 if (shouldRender) {
                                     r.render(v)
                                     r.endFrame()
+                                    rendered = true
                                 }
                             } catch (e2: Exception) {
                             }
