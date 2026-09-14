@@ -11,13 +11,26 @@ import com.zig.gravity.physics.SimArrays
  * encoder persisted through the app's existing SharedPreferences rather than adding dependencies
  * that could not be verified here. The format is versioned so a later DataStore migration is
  * mechanical.
+ *
+ * Version 2 (§7) replaces the boolean dark/light theme flag with the table-surface key. Version 1
+ * files still load: their `darkTheme` flag migrates onto the two surfaces those themes became —
+ * light -> `paper`, dark or absent -> `midnight`, the new default.
  */
 object SaveState {
 
-    private const val VERSION = 1
+    private const val VERSION = 2
+    private const val VERSION_V1 = 1
     private const val BODY_SEP = ";"
     private const val FIELD_SEP = ","
     private const val HEADER_SEP = "|"
+
+    /**
+     * Surface keys are the persisted contract. The catalog itself lives in `ui.theme.TableSurfaces`;
+     * the sim layer deliberately only ever moves the opaque key string around, so it never depends
+     * on the ui layer. An unknown key is resolved to the default surface by the ui catalog.
+     */
+    private const val SURFACE_DEFAULT = "midnight"
+    private const val SURFACE_LEGACY_LIGHT = "paper"
 
     data class Session(
         val preset: Preset,
@@ -25,7 +38,7 @@ object SaveState {
         val paused: Boolean,
         val trailsVisible: Boolean,
         val teachingEnabled: Boolean,
-        val darkTheme: Boolean,
+        val tableSurface: String,
         val persian: Boolean,
         val marbleBounce: Boolean,
         val selectedId: Long
@@ -39,7 +52,7 @@ object SaveState {
             .append(if (session.paused) 1 else 0).append(HEADER_SEP)
             .append(if (session.trailsVisible) 1 else 0).append(HEADER_SEP)
             .append(if (session.teachingEnabled) 1 else 0).append(HEADER_SEP)
-            .append(if (session.darkTheme) 1 else 0).append(HEADER_SEP)
+            .append(session.tableSurface).append(HEADER_SEP)
             .append(if (session.persian) 1 else 0).append(HEADER_SEP)
             .append(if (session.marbleBounce) 1 else 0).append(HEADER_SEP)
             .append(session.selectedId).append(HEADER_SEP)
@@ -68,14 +81,21 @@ object SaveState {
         return try {
             val head = text.split(HEADER_SEP)
             if (head.size < 12) return null
-            if (head[0].toInt() != VERSION) return null
+            val version = head[0].toInt()
+            if (version != VERSION && version != VERSION_V1) return null
             val session = Session(
                 preset = runCatching { Preset.valueOf(head[1]) }.getOrDefault(Preset.DEFAULT),
                 speedIndex = head[2].toInt(),
                 paused = head[3] == "1",
                 trailsVisible = head[4] == "1",
                 teachingEnabled = head[5] == "1",
-                darkTheme = head[6] == "1",
+                tableSurface = if (version == VERSION) {
+                    head[6].ifBlank { SURFACE_DEFAULT }
+                } else {
+                    // v1 stored the boolean theme flag in this slot: 0 was light, 1 (or anything
+                    // unreadable) was dark, and dark now lands on the new default surface.
+                    if (head[6] == "0") SURFACE_LEGACY_LIGHT else SURFACE_DEFAULT
+                },
                 persian = head[7] == "1",
                 marbleBounce = head[8] == "1",
                 selectedId = head[9].toLong()

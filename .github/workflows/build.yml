@@ -130,6 +130,7 @@ jobs:
               "com.alijafari.red.astronomy.CatalogIntegrityTest",
               "com.alijafari.red.astronomy.DeepSkyFactCoverageTest",
               "com.alijafari.red.astronomy.ObjectDetailModalConsistencyTest",
+              "com.alijafari.red.astronomy.ContentIntegrityAuditTest",
               "com.alijafari.red.astronomy.ARSkyEarthExclusionTest",
               "com.alijafari.red.astronomy.ARSkyPointToShapeRenderingTest",
               "com.alijafari.red.astronomy.VazirmatnPersianTypographyTest",

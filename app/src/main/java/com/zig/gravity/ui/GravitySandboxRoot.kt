@@ -207,7 +207,7 @@ fun GravitySandboxRoot(
         if (showTutorial) dismissTutorial() else onBack()
     }
 
-    ZigGravityTheme(dark = vm.darkTheme) {
+    ZigGravityTheme(surfaceKey = vm.tableSurface) {
         val c = LocalGravityColors.current
         val fa = vm.persian
 
@@ -218,6 +218,7 @@ fun GravitySandboxRoot(
         var showChallenges by remember { mutableStateOf(false) }
         var showPresets by remember { mutableStateOf(false) }
         var showCameraPanel by remember { mutableStateOf(false) }
+        var showTableSurface by remember { mutableStateOf(false) }
         var addAtScene by remember { mutableStateOf<Offset?>(null) }
         var menuBodyId by remember { mutableStateOf(0L) }
         var menuPos by remember { mutableStateOf(Offset.Zero) }
@@ -733,14 +734,13 @@ fun GravitySandboxRoot(
                     speedIndex = vm.speedIndex,
                     trailsVisible = vm.trailsVisible,
                     teachingEnabled = vm.teachingEnabled,
-                    darkTheme = vm.darkTheme,
                     persian = vm.persian,
                     onTogglePlay = vm::togglePlay,
                     onSpeed = vm::setSpeedIndex,
                     onReset = vm::reset,
                     onToggleTrails = vm::toggleTrails,
                     onToggleTeaching = vm::toggleTeaching,
-                    onToggleTheme = vm::toggleTheme,
+                    onOpenTableSurface = { showTableSurface = true },
                     cameraPanelOpen = showCameraPanel,
                     onToggleCameraPanel = { showCameraPanel = !showCameraPanel }
                 )
@@ -757,7 +757,7 @@ fun GravitySandboxRoot(
             // sits on top of the very sheet it just opened is the classic version of this bug;
             // here the button simply is not there while a sheet owns the interaction.
             val anySheetOpen = showAdd || showInspector || showPresets ||
-                showChallenges || showTutorial || showCameraPanel
+                showChallenges || showTutorial || showCameraPanel || showTableSurface
             if (!anySheetOpen) {
                 Box(
                     modifier = Modifier
@@ -810,6 +810,9 @@ fun GravitySandboxRoot(
             }
             if (showPresets) {
                 PresetSheet(vm = vm, onDismiss = { showPresets = false })
+            }
+            if (showTableSurface) {
+                TableSurfaceSheet(vm = vm, onDismiss = { showTableSurface = false })
             }
             // Rendered last so it sits above every sheet, and given the app's locale rather than
             // any tutorial-local language state (§2/§23).

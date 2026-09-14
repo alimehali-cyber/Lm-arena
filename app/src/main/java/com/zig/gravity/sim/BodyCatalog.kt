@@ -20,11 +20,16 @@ data class CatalogEntry(
     val type: BodyType,
     val massKg: Double,
     val dp: Double,
-    /** Desaturated premium tone, 0xAARRGGBB (§3.9 palette). */
+    /** Bright, saturated base tone, 0xAARRGGBB (§2 palette). */
     val colorArgb: Long,
     /** Real physical radius in metres, shown as an info line in the inspector (§3.11). */
     val realRadiusM: Double,
-    val isPair: Boolean = false
+    val isPair: Boolean = false,
+    /**
+     * Authoritative deep tone for the marble's outer gradient stop, 0xAARRGGBB. 0 means "derive it
+     * from the base" — the marble shading itself is unchanged, only its two hex values are newer.
+     */
+    val deepArgb: Long = 0L
 )
 
 object BodyCatalog {
@@ -32,20 +37,20 @@ object BodyCatalog {
     private const val ME = EngineConstants.M_EARTH
     private const val MS = EngineConstants.M_SUN
 
-    val SUN = CatalogEntry("sun", "خورشید", "Sun", BodyType.SUN, MS, 26.0, 0xFFE8C87A, EngineConstants.R_SUN)
-    val MERCURY = CatalogEntry("mercury", "عطارد", "Mercury", BodyType.PLANET, 0.0553 * ME, 8.0, 0xFF9A928A, 2.4397e6)
-    val VENUS = CatalogEntry("venus", "زهره", "Venus", BodyType.PLANET, 0.815 * ME, 10.0, 0xFFD6BE92, 6.0518e6)
-    val EARTH = CatalogEntry("earth", "زمین", "Earth", BodyType.PLANET, ME, 10.0, 0xFF6E88A6, EngineConstants.R_EARTH)
-    val MOON = CatalogEntry("moon", "ماه", "Moon", BodyType.MOON, EngineConstants.M_MOON, 6.0, 0xFFCFC7B8, EngineConstants.R_MOON)
-    val MARS = CatalogEntry("mars", "مریخ", "Mars", BodyType.PLANET, 0.107 * ME, 9.0, 0xFFA6705C, 3.3895e6)
-    val JUPITER = CatalogEntry("jupiter", "مشتری", "Jupiter", BodyType.PLANET, 317.8 * ME, 16.0, 0xFFC2A57B, 6.9911e7)
-    val SATURN = CatalogEntry("saturn", "زحل", "Saturn", BodyType.PLANET, 95.16 * ME, 15.0, 0xFFD2C08F, 5.8232e7)
-    val URANUS = CatalogEntry("uranus", "اورانوس", "Uranus", BodyType.PLANET, 14.54 * ME, 12.0, 0xFF8FB3B0, 2.5362e7)
-    val NEPTUNE = CatalogEntry("neptune", "نپتون", "Neptune", BodyType.PLANET, 17.15 * ME, 12.0, 0xFF7183A6, 2.4622e7)
-    val ASTEROID = CatalogEntry("asteroid", "سیارک", "Asteroid", BodyType.ASTEROID, 1.0e18, 4.0, 0xFF8C8378, 5.0e5)
-    val MARBLE = CatalogEntry("marble", "جسم آزمایشی", "Test marble", BodyType.TEST_MARBLE, 0.0, 5.0, 0xFFE4E0D8, 0.0)
+    val SUN = CatalogEntry("sun", "خورشید", "Sun", BodyType.SUN, MS, 26.0, 0xFFFFDC4A, EngineConstants.R_SUN, deepArgb = 0xFFF5A623)
+    val MERCURY = CatalogEntry("mercury", "عطارد", "Mercury", BodyType.PLANET, 0.0553 * ME, 8.0, 0xFFBFB7AC, 2.4397e6)
+    val VENUS = CatalogEntry("venus", "زهره", "Venus", BodyType.PLANET, 0.815 * ME, 10.0, 0xFFEDD79A, 6.0518e6)
+    val EARTH = CatalogEntry("earth", "زمین", "Earth", BodyType.PLANET, ME, 10.0, 0xFF3FA1FF, EngineConstants.R_EARTH, deepArgb = 0xFF1E63D8)
+    val MOON = CatalogEntry("moon", "ماه", "Moon", BodyType.MOON, EngineConstants.M_MOON, 6.0, 0xFFFFFFFF, EngineConstants.R_MOON, deepArgb = 0xFFC7CCD8)
+    val MARS = CatalogEntry("mars", "مریخ", "Mars", BodyType.PLANET, 0.107 * ME, 9.0, 0xFFE4501F, 3.3895e6)
+    val JUPITER = CatalogEntry("jupiter", "مشتری", "Jupiter", BodyType.PLANET, 317.8 * ME, 16.0, 0xFFE8D3A8, 6.9911e7)
+    val SATURN = CatalogEntry("saturn", "زحل", "Saturn", BodyType.PLANET, 95.16 * ME, 15.0, 0xFFF0E2B6, 5.8232e7)
+    val URANUS = CatalogEntry("uranus", "اورانوس", "Uranus", BodyType.PLANET, 14.54 * ME, 12.0, 0xFFA9E4E0, 2.5362e7)
+    val NEPTUNE = CatalogEntry("neptune", "نپتون", "Neptune", BodyType.PLANET, 17.15 * ME, 12.0, 0xFF3E5BD0, 2.4622e7)
+    val ASTEROID = CatalogEntry("asteroid", "سیارک", "Asteroid", BodyType.ASTEROID, 1.0e18, 4.0, 0xFFD89B66, 5.0e5, deepArgb = 0xFF96603B)
+    val MARBLE = CatalogEntry("marble", "جسم آزمایشی", "Test marble", BodyType.TEST_MARBLE, 0.0, 5.0, 0xFFF4F6FB, 0.0, deepArgb = 0xFFBFC7DA)
     val BLACK_HOLE = CatalogEntry("black_hole", "سیاه‌چاله", "Black hole", BodyType.BLACK_HOLE, 5.0 * MS, 14.0, 0xFF0A0A0C, EngineConstants.schwarzschildRadius(5.0 * MS))
-    val WORMHOLE = CatalogEntry("wormhole", "کرم‌چاله (فرضی)", "Wormhole (hypothetical)", BodyType.WORMHOLE_MOUTH, 0.0, 12.0, 0xFFD4A853, 0.0, isPair = true)
+    val WORMHOLE = CatalogEntry("wormhole", "کرم‌چاله (فرضی)", "Wormhole (hypothetical)", BodyType.WORMHOLE_MOUTH, 0.0, 12.0, 0xFF2DD4BF, 0.0, isPair = true)
 
     /** Everything the Add sheet offers, in presentation order. */
     val all: List<CatalogEntry> = listOf(
@@ -66,6 +71,26 @@ object BodyCatalog {
         BodyType.TEST_MARBLE -> MARBLE.colorArgb
         BodyType.BLACK_HOLE -> BLACK_HOLE.colorArgb
         BodyType.WORMHOLE_MOUTH -> WORMHOLE.colorArgb
+    }
+
+    /**
+     * Authoritative deep tone for the marble's outer stop, or 0 when the entry has none and the
+     * renderer should derive the shade from the base exactly as it always did.
+     */
+    fun deepColorOf(key: String?, type: BodyType): Long {
+        // Mirrors colorOf exactly: a catalogued entry answers for itself (0 = "derive the shade"),
+        // and only bodies created without a key fall back to their type's tone.
+        val e = byKey(key)
+        if (e != null) return e.deepArgb
+        return when (type) {
+            BodyType.SUN -> SUN.deepArgb
+            BodyType.PLANET -> EARTH.deepArgb
+            BodyType.MOON -> MOON.deepArgb
+            BodyType.ASTEROID -> ASTEROID.deepArgb
+            BodyType.TEST_MARBLE -> MARBLE.deepArgb
+            BodyType.BLACK_HOLE -> 0L
+            BodyType.WORMHOLE_MOUTH -> 0L
+        }
     }
 
     fun nameOf(key: String?, type: BodyType, isFa: Boolean): String {

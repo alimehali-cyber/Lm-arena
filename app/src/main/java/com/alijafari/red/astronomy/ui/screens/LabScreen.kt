@@ -47,8 +47,11 @@ enum class LabFeatureType(
         isAvailable = true
     ),
     GRAVITY_SANDBOX(
-        titleEn = "Gravity Sandbox & N-Body Physics",
-        titleFa = "شبیه‌ساز گرانش و برهم‌کنش‌های N-جرم",
+        // The card's title is the feature's name and nothing else: no subtitle folded into it, no
+        // product prefix. The N-body framing already lives in subtitleEn/subtitleFa below, which is
+        // where a description belongs.
+        titleEn = "Gravity Sandbox",
+        titleFa = "میز گرانش",
         subtitleEn = "Newton-Kepler Orbital Simulator",
         subtitleFa = "آزمایشگاه مکانیک سماوی و مدارهای کپلری",
         descriptionEn = "Simulate multi-body gravitational interactions, planetary orbits, binary stars, Lagrange equilibrium points, and black hole slingshots.",
