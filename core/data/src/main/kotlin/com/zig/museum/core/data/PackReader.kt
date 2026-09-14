@@ -5,7 +5,7 @@ import java.util.zip.ZipFile
 
 /**
  * Reads pyramids from a pack via ZipFile with no per-file recompression per M3 task 2.
- * Pack format per §6.3: ZIP STORED (no recompression) containing manifest.json, maps/*.ktx2, tiles/..., luts/..., meta/
+ * Pack format per §6.3: ZIP STORED (no recompression) containing manifest.json, maps KTX2, tiles, luts, meta
  * Must be usable with ZipFile.
  */
 class PackReader(
