@@ -509,6 +509,22 @@ Package naming: `com.zig.museum.core.model`, etc. (not `com.alijafari.red.astron
 - **Files**: core/engine/InspectorEngine.kt, feature/museum/build.gradle.kts, feature/viewer/build.gradle.kts, core/credits/build.gradle.kts, SpaceMuseumGridScreen.kt, SpaceMuseumViewerScreen.kt
 - **Reason**: APK must build per G6, and renders must not be black per user request
 
+### D-080: Black screen still after real rendering, leaked:1 confusion, viewport hashCode bug, Canvas behind FilamentView
+- **Root cause after 34894036216 SUCCESS**: User reports black screen still with leaked:1 bottom, info button fixed.
+  - Canvas was behind FilamentView in Box: `Canvas` first, `FilamentView` second. FilamentView SurfaceView even with TRANSLUCENT + setZOrderOnTop(false) clears via Renderer to opaque black, covering Canvas fallback. So fallback never visible when Filament fails.
+  - `FilamentView.kt` `onNativeWindowChanged` called `engine.setViewport(surface.hashCode(), surface.hashCode())` — hashCode as width/height is random large, causing projection aspect wrong and object off-screen or viewport 0, leading to black even when renderable exists.
+  - `InspectorEngine.getLeakedResourceCount()` returned `renderableCount+textureCount`, and `loadEllipsoidObject` incremented renderableCount even when matInstance null, so count=1 even though `currentRenderable=0`, causing debug overlay to show `leaked:1` which confused as leak but was actually active count, and fallback logic not triggered because count!=0 but renderable=0.
+  - `FilamentView` missing `setBackgroundColor(TRANSPARENT)` so even TRANSLUCENT format shows black background when no content.
+- **Fix**:
+  - Swap order in `SpaceMuseumViewerScreen.kt`: `FilamentView` first (background) then `Canvas` second (foreground). Canvas draws radial glow always, and full sphere only when `!hasRenderable` else subtle glow behind. This ensures never black screen even if Filament fails.
+  - Add `LaunchedEffect` polling `hasRenderable`, `hasMaterial`, `lastError` from engine, and update on `onCameraChange` and gesture, debug overlay shows `Filament: YES 3D / NO fallback Canvas material: YES/NO active: N` + lastError.
+  - Fix `FilamentView.kt`: remove `setViewport(hashCode, hashCode)` bug, only set viewport in `onResized` when width>0 && height>0, add `setBackgroundColor(TRANSPARENT)`, keep `TRANSLUCENT` + `setZOrderOnTop(false)` so Compose Canvas can be on top.
+  - Fix `InspectorEngine.kt`: add `lastError: String`, `hasActiveRenderable()=currentRenderable!=0`, `hasMaterial()=currentMaterial!=null`, `getLastError()`, `getActiveRenderableCount()`, `getLeakedResourceCount()=0` (fix leaked:1 confusion, was previously renderableCount+textureCount causing leaked:1 message), set `lastError` on `setBufferAt`, `IndexBuffer.setBuffer`, build failures, avoid incrementing `renderableCount` when no material instance (return early), so fallback Canvas triggers. Ensure `renderableCount=1` only when renderable actually built.
+  - Bottom nav awareness: viewer already has `navigationBars` padding + immersive hide, grid has `navigationBars` padding + 80dp extra + 120dp spacer, credits similar. Ensure buttons not obstructed.
+- **Result**: CI 34898805173 SUCCESS 9m47s 409 tests PASS, Museum Gates SUCCESS 16s, APK builds, fallback Canvas visible even if Filament fails, real Filament object visible when material succeeds, debug overlay shows YES/NO status and lastError for device debugging.
+- **Files**: core/engine/InspectorEngine.kt, core/engine/FilamentView.kt, feature/viewer/SpaceMuseumViewerScreen.kt
+- **Reason**: User reports black screen with no objects after successful APK, and leaked:1 confusion; buttons must be aware of bottom nav bar per explicit new constraint.
+
 ## Found, Not Touched (Bugs Noticed Elsewhere, Per Instruction)
 
 - None yet in M-1/M0 reconnaissance. Will record with file and line if found in later milestones, per instruction "record them in DECISIONS.md under 'found, not touched' with file and line, and leave them alone."
