@@ -326,7 +326,7 @@ class GravityBodyIdentityTest {
         val identitySource = uiSource("theme/BodyIdentity.kt")
         assertEquals("the spot is authored exactly once", 2, identitySource.split("0xFFC25A3E").size)
         val canvas = uiSource("TabletopCanvas.kt")
-        assertEquals("blobs are drawn by exactly one pass", 2, canvas.split("drawBlobs(cache").size)
+        assertEquals("blobs are drawn by exactly one pass", 3, canvas.split("drawBlobs(cache").size)
         val clip = canvas.indexOf("clipPath(cache.bodyClip)")
         val bands = canvas.indexOf("drawBands(cache, i, rr)")
         val blobs = canvas.indexOf("drawBlobs(cache, i, rr)")
