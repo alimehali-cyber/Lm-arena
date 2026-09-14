@@ -1,0 +1,41 @@
+/**
+ * M7 coronaShell — optically thin emission with radial falloff
+ * Per §8.4
+ * - Corona: optically thin shell with analytic radial falloff plus structure driven by low-res synoptic magnetogram field; keep falloff exponent a parameter with default justified in comments
+ */
+
+material {
+    name : coronaShell,
+    shadingModel : unlit,
+    blending : additive,
+    parameters : [
+        { type : float, name : falloffExponent }, // default 2.5 justified: observed brightness ~ r^-2.5 in K-corona
+        { type : float, name : emissionScale },
+        { type : sampler2d, name : magnetogram }, // low-res synoptic magnetogram field
+        { type : float, name : structureStrength }
+    ],
+    requires : [ uv0 ],
+    culling : none,
+    doubleSided : true
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec2 uv = getUV0();
+        // Analytic radial falloff: brightness ~ (r0/r)^falloffExponent, r = distance from sun centre in object radii
+        // For corona shell geometry radius ~1.1 to 3.0, compute radial distance from UV? Simplified: use uv.y as radius proxy
+        float r = 1.1 + uv.y * 1.9; // 1.1..3.0
+        float falloff = pow(1.1 / r, materialParams.falloffExponent);
+
+        // Structure driven by low-res synoptic magnetogram field
+        float mag = texture(materialParams_magnetogram, uv).r;
+        float structure = 1.0 + mag * materialParams.structureStrength;
+
+        vec3 color = vec3(1.0, 0.95, 0.85) * falloff * structure * materialParams.emissionScale;
+
+        material.baseColor.rgb = vec3(0.0);
+        material.emissive.rgb = color;
+        material.emissive.a = 1.0;
+    }
+}

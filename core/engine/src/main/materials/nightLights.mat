@@ -1,0 +1,35 @@
+/**
+ * M8 nightLights — additive emissive layer (Earth)
+ */
+
+material {
+    name : nightLights,
+    shadingModel : unlit,
+    blending : additive,
+    parameters : [
+        { type : sampler2d, name : nightMap },
+        { type : sampler2d, name : cloudMap },
+        { type : float, name : intensity },
+        { type : float3, name : sunDirection }
+    ],
+    requires : [ uv0 ],
+    culling : back
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec2 uv = getUV0();
+        vec3 night = texture(materialParams_nightMap, uv).rgb;
+        float cloud = texture(materialParams_cloudMap, uv).r;
+        // Night lights appear only on dark side and dimmed under cloud per Earth acceptance
+        vec3 sunDir = normalize(materialParams.sunDirection);
+        vec3 normal = getWorldGeometricNormalVector();
+        float ndotl = dot(normal, sunDir);
+        float darkSide = 1.0 - smoothstep(-0.2, 0.2, ndotl); // 1 on night side
+        float cloudDim = 1.0 - cloud * 0.7;
+        vec3 emissive = night * materialParams.intensity * darkSide * cloudDim;
+        material.baseColor.rgb = vec3(0.0);
+        material.emissive.rgb = emissive;
+    }
+}

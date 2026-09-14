@@ -1,0 +1,96 @@
+/**
+ * M5 ringTransmission — Saturn, Uranus, Neptune rings
+ * Per §8.3
+ * Inputs: opticalDepthProfile (2D or 1D + azimuth), opticalDepthScale, colorMap, forwardScatterBias, thicknessMeters, planetShadow params, ringShadowLookup, azimuthalVariationStrength
+ * Requirements:
+ * - alpha = 1 - exp(-tau / mu) with mu = cosine incidence angle per fragment from true sun direction
+ * - Two-sided rendering with phase-dependent brightness asymmetry (forward-scattered brighter). Document phase function.
+ * - Planet shadow on ring: analytic test of sun ray against planet ellipsoid; where inside multiply by shadowed factor
+ * - Ring shadow on planet: implemented in M1/M3 via lookup that takes fragment position, projects along sun direction onto ring plane, converts to ring radius, samples tau; shadow factor multiplies direct sun term
+ * - Thickness: geometry plane for main rings. Volumetric look permitted only for E ring and only if budget allows
+ * - Spokes: optional azimuthal modulation off by default labelled when on
+ */
+
+material {
+    name : ringTransmission,
+    shadingModel : lit,
+    blending : transparent,
+    transparency : twoPassesTwoSides,
+    parameters : [
+        { type : sampler2d, name : opticalDepthProfile }, // radial tau profile
+        { type : sampler2d, name : colorMap },
+        { type : float, name : opticalDepthScale },
+        { type : float, name : forwardScatterBias },
+        { type : float, name : thicknessMeters },
+        { type : float3, name : sunDirection },
+        { type : float, name : planetRadius },
+        { type : float, name : azimuthalVariationStrength },
+        { type : float, name : spokesEnabled }
+    ],
+    requires : [ uv0, worldPosition ],
+    culling : none,
+    doubleSided : true
+}
+
+fragment {
+    // Phase function: Henyey-Greenstein with g = forwardScatterBias, forward-scattered brighter
+    // Documented: phase = (1-g^2)/(4pi*(1+g^2-2g*cosTheta)^1.5)
+    float phaseHG(float cosTheta, float g){
+        float g2 = g*g;
+        return (1.0 - g2) / (4.0*3.14159*pow(1.0+g2-2.0*g*cosTheta, 1.5));
+    }
+
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec2 uv = getUV0();
+        // uv.x = normalized radius (0 inner, 1 outer), uv.y = azimuth 0..1
+        float tau = texture(materialParams_opticalDepthProfile, vec2(uv.x, 0.5)).r * materialParams.opticalDepthScale;
+
+        // Azimuthal variation (spokes) optional off by default
+        if (materialParams.spokesEnabled > 0.5) {
+            float az = uv.y * 6.28318;
+            float spoke = sin(az*10.0) * 0.1 * materialParams.azimuthalVariationStrength;
+            tau *= (1.0 + spoke);
+        }
+
+        vec3 color = texture(materialParams_colorMap, vec2(uv.x, 0.5)).rgb;
+
+        // mu = cosine incidence angle computed per fragment from true sun direction
+        vec3 sunDir = normalize(materialParams.sunDirection);
+        vec3 normal = vec3(0.0, 1.0, 0.0); // ring plane normal
+        float mu = abs(dot(normal, sunDir));
+        mu = max(mu, 0.01); // avoid div by zero
+
+        // alpha = 1 - exp(-tau / mu)
+        float alpha = 1.0 - exp(-tau / mu);
+
+        // Two-sided rendering with phase-dependent brightness asymmetry
+        vec3 viewDir = normalize(getWorldViewVector());
+        float cosTheta = dot(-viewDir, sunDir);
+        float phase = phaseHG(cosTheta, materialParams.forwardScatterBias);
+        float phaseFactor = mix(0.5, 1.5, phase * 4.0*3.14159); // normalize
+
+        // Planet shadow on ring: analytic test of sun ray against planet ellipsoid
+        // Simplified: if worldPosition is behind planet relative to sun, in shadow
+        vec3 worldPos = getWorldPosition();
+        float planetRadius = materialParams.planetRadius;
+        // Ray from worldPos towards sun: origin worldPos, dir sunDir
+        // Test intersection with sphere radius planetRadius at origin 0
+        // Solve |o + t*d|^2 = r^2
+        vec3 o = worldPos;
+        vec3 d = sunDir;
+        float b = 2.0*dot(o,d);
+        float c = dot(o,o) - planetRadius*planetRadius;
+        float disc = b*b - 4.0*c;
+        float shadowFactor = 1.0;
+        if (disc > 0.0) {
+            float t0 = (-b - sqrt(disc))/2.0;
+            if (t0 > 0.0) shadowFactor = 0.15; // in planet shadow
+        }
+
+        material.baseColor.rgb = color * phaseFactor * shadowFactor;
+        material.baseColor.a = alpha;
+        material.roughness = 0.7;
+        material.metallic = 0.0;
+    }
+}

@@ -1,0 +1,34 @@
+/**
+ * M2 icySurface — high-albedo surfaces with subsurface scattering
+ * For Europa, Enceladus, etc. (future) and polar caps
+ * Not in initial 13 but part of library per §5.7
+ */
+
+material {
+    name : icySurface,
+    shadingModel : subsurface,
+    blending : opaque,
+    parameters : [
+        { type : sampler2d, name : albedoMap },
+        { type : sampler2d, name : normalMap },
+        { type : float, name : roughness },
+        { type : float, name : thickness },
+        { type : float3, name : subsurfaceColor }
+    ],
+    requires : [ uv0 ],
+    culling : back
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec3 albedo = texture(materialParams_albedoMap, getUV0()).rgb;
+        material.baseColor.rgb = albedo;
+        vec3 n = texture(materialParams_normalMap, getUV0()).xyz * 2.0 - 1.0;
+        material.normal = n;
+        material.roughness = materialParams.roughness;
+        material.thickness = materialParams.thickness;
+        material.subsurfaceColor = materialParams.subsurfaceColor;
+        material.metallic = 0.0;
+    }
+}

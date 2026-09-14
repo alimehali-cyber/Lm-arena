@@ -1,0 +1,50 @@
+/**
+ * M1 regolithSurface tier 2/3 variant — reduced quality
+ * - No horizon shadows, no procedural, normal derived from height, lower roughness quality
+ * Per M4 DoD tier variants exist for M1, M3, M10 and compile
+ */
+
+material {
+    name : regolithSurface_tier2,
+    shadingModel : lit,
+    blending : opaque,
+    parameters : [
+        { type : sampler2d, name : albedoMap },
+        { type : sampler2d, name : heightMap },
+        { type : float, name : roughness },
+        { type : float, name : albedoScale },
+        { type : float, name : displacementScale },
+        { type : float2, name : uvOffset },
+        { type : float2, name : uvScale }
+    ],
+    requires : [ uv0, position ],
+    culling : back
+}
+
+vertex {
+    void materialVertex(inout MaterialVertexInputs material) {
+        vec2 uv = getUV0() * materialParams.uvScale + materialParams.uvOffset;
+        float height = texture(materialParams_heightMap, uv).r;
+        float disp = (height - 0.5) * materialParams.displacementScale * 0.5; // reduced displacement
+        material.worldPosition.xyz += material.worldNormal * disp;
+    }
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec2 uv = getUV0() * materialParams.uvScale + materialParams.uvOffset;
+        vec3 albedo = texture(materialParams_albedoMap, uv).rgb * materialParams.albedoScale;
+        material.baseColor.rgb = albedo;
+        // Normal derived from height derivative (simplified)
+        float hL = texture(materialParams_heightMap, uv + vec2(-0.01,0.0)).r;
+        float hR = texture(materialParams_heightMap, uv + vec2(0.01,0.0)).r;
+        float hD = texture(materialParams_heightMap, uv + vec2(0.0,-0.01)).r;
+        float hU = texture(materialParams_heightMap, uv + vec2(0.0,0.01)).r;
+        vec3 normal = normalize(vec3(hL - hR, 2.0, hD - hU));
+        material.normal = normal;
+        material.roughness = materialParams.roughness;
+        material.metallic = 0.0;
+        material.ao = 1.0;
+    }
+}

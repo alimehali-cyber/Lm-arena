@@ -1,0 +1,34 @@
+/**
+ * M3 gasGiantSurface tier 2/3 variant — reduced quality
+ * - No curl-noise advection, no anisotropy, simpler limb
+ */
+
+material {
+    name : gasGiantSurface_tier2,
+    shadingModel : lit,
+    blending : opaque,
+    parameters : [
+        { type : sampler2d, name : albedoMap },
+        { type : sampler2d, name : windLut },
+        { type : float, name : shearAmount },
+        { type : float3, name : methaneTint }
+    ],
+    requires : [ uv0 ],
+    culling : back
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec2 uv = getUV0();
+        float latNorm = uv.y;
+        float angularVelocity = texture(materialParams_windLut, vec2(latNorm, 0.5)).r;
+        float lonOffset = angularVelocity * materialParams.shearAmount * 0.0; // no time in tier2
+        vec2 shearedUv = vec2(fract(uv.x + lonOffset), uv.y);
+        vec3 albedo = texture(materialParams_albedoMap, shearedUv).rgb;
+        albedo *= mix(materialParams.methaneTint, vec3(1.0), 0.7);
+        material.baseColor.rgb = albedo;
+        material.roughness = 0.6;
+        material.metallic = 0.0;
+    }
+}

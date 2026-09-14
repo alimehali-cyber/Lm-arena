@@ -1,0 +1,88 @@
+/**
+ * M3 gasGiantSurface — Jupiter, Saturn, Uranus, Neptune
+ * Per §8.2
+ * Inputs: albedo map, wind LUT (latitude -> angular velocity), flowScale, shearAmount, methaneTint, limbParams, oblateness is geometry not material
+ * Requirements:
+ * - Sample albedo with latitude-dependent longitude offset driven by wind LUT to produce real band shear; add curl-noise advection for sub-map detail below data ceiling only
+ * - Limb treatment: darken toward limb with methane-absorption term and bright haze band; use atmosphere material for outer glow
+ * - Anisotropy allowed for banded sheen
+ * - No displacement, no normal-map relief: cloud tops are flat relative to scale; state this in comments so nobody "improves" it later
+ */
+
+material {
+    name : gasGiantSurface,
+    shadingModel : lit,
+    blending : opaque,
+    parameters : [
+        { type : sampler2d, name : albedoMap },
+        { type : sampler2d, name : windLut }, // 1D latitude -> angular velocity
+        { type : float, name : flowScale },
+        { type : float, name : shearAmount },
+        { type : float3, name : methaneTint },
+        { type : float, name : limbDarken },
+        { type : float, name : hazeStrength },
+        { type : float, name : anisotropy },
+        { type : float, name : time } // for curl-noise advection, driven by rotation control, never wall clock per P4
+    ],
+    requires : [ uv0 ],
+    culling : back
+}
+
+fragment {
+    // No displacement, no normal-map relief: cloud tops are flat relative to their scale
+    // State this so nobody "improves" it later per §8.2
+
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+    float noise(vec2 p){
+        vec2 i=floor(p); vec2 f=fract(p); f=f*f*(3.0-2.0*f);
+        float a=hash(i); float b=hash(i+vec2(1.0,0.0)); float c=hash(i+vec2(0.0,1.0)); float d=hash(i+vec2(1.0,1.0));
+        return mix(mix(a,b,f.x), mix(c,d,f.x), f.y);
+    }
+    vec2 curlNoise(vec2 p){
+        float eps=0.01;
+        float n1=noise(vec2(p.x, p.y+eps)); float n2=noise(vec2(p.x, p.y-eps));
+        float n3=noise(vec2(p.x+eps, p.y)); float n4=noise(vec2(p.x-eps, p.y));
+        return vec2((n1-n2)/(2.0*eps), (n4-n3)/(2.0*eps));
+    }
+
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec2 uv = getUV0();
+        float lat = (uv.y - 0.5) * 3.14159; // -pi/2..pi/2
+        // Wind LUT: latitude -> angular velocity, sample with lat normalized 0..1
+        float latNorm = uv.y; // 0 south pole, 1 north
+        float angularVelocity = texture(materialParams_windLut, vec2(latNorm, 0.5)).r; // rad per unit time
+
+        // Latitude-dependent longitude offset driven by wind LUT to produce real band shear
+        float lonOffset = angularVelocity * materialParams.shearAmount * materialParams.time;
+        vec2 shearedUv = vec2(fract(uv.x + lonOffset), uv.y);
+
+        vec3 albedo = texture(materialParams_albedoMap, shearedUv).rgb;
+
+        // Curl-noise advection for sub-map detail below data ceiling only
+        vec2 curl = curlNoise(uv * materialParams.flowScale);
+        vec2 advectedUv = shearedUv + curl * 0.01;
+        vec3 detail = texture(materialParams_albedoMap, advectedUv).rgb * 0.1;
+        albedo += detail;
+
+        // Limb treatment: darken toward limb with methane-absorption term and bright haze band
+        // Compute NdotV for limb
+        vec3 viewDir = normalize(getWorldViewVector());
+        vec3 normal = getWorldGeometricNormalVector();
+        float ndotv = clamp(dot(normal, viewDir), 0.0, 1.0);
+        float mu = ndotv; // cosine
+        // Methane absorption: stronger at limb (mu small)
+        float methane = exp(-materialParams.limbDarken * (1.0 - mu));
+        albedo *= mix(materialParams.methaneTint, vec3(1.0), methane);
+
+        // Bright haze band
+        float haze = pow(1.0 - mu, 2.0) * materialParams.hazeStrength;
+        albedo += haze;
+
+        material.baseColor.rgb = albedo;
+        material.roughness = 0.6;
+        material.anisotropy = materialParams.anisotropy;
+        material.anisotropyDirection = vec3(1.0, 0.0, 0.0); // along bands
+        material.metallic = 0.0;
+    }
+}

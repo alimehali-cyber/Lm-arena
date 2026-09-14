@@ -1,0 +1,35 @@
+/**
+ * M10 atmosphereShell tier 2/3 variant — single scattering only, cheap analytic limb
+ * Per risk register fallback: single-scattering only plus cheap analytic limb; label tier
+ */
+
+material {
+    name : atmosphereShell_tier2,
+    shadingModel : unlit,
+    blending : transparent,
+    parameters : [
+        { type : float3, name : rayleighCoeff },
+        { type : float, name : planetRadius },
+        { type : float, name : atmosphereRadius },
+        { type : float3, name : sunDirection }
+    ],
+    requires : [ uv0, worldPosition ],
+    culling : none
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec3 worldPos = getWorldPosition();
+        vec3 sunDir = normalize(materialParams.sunDirection);
+        vec3 viewDir = normalize(getWorldViewVector());
+        float r = length(worldPos);
+        float mu = dot(worldPos, viewDir) / r;
+        // Cheap analytic limb: exp(-(r-planetRadius)/scale)
+        float height = (r - materialParams.planetRadius) / (materialParams.atmosphereRadius - materialParams.planetRadius);
+        float limb = exp(-height*2.0) * max(0.0, mu);
+        vec3 color = materialParams.rayleighCoeff * limb;
+        material.baseColor.rgb = color;
+        material.baseColor.a = 0.4;
+    }
+}

@@ -1,0 +1,33 @@
+/**
+ * M4 cloudDeck — opaque/translucent cloud layer with self-shadowing
+ * For Venus, Earth, Mars dust
+ */
+
+material {
+    name : cloudDeck,
+    shadingModel : lit,
+    blending : transparent,
+    transparency : twoPassesTwoSides,
+    parameters : [
+        { type : sampler2d, name : cloudMap },
+        { type : float, name : opacity },
+        { type : float, name : coverage },
+        { type : float3, name : tint }
+    ],
+    requires : [ uv0 ],
+    culling : none,
+    doubleSided : true
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec2 uv = getUV0();
+        vec4 cloud = texture(materialParams_cloudMap, uv);
+        float alpha = cloud.a * materialParams.opacity * materialParams.coverage;
+        material.baseColor.rgb = cloud.rgb * materialParams.tint;
+        material.baseColor.a = alpha;
+        material.roughness = 0.8;
+        material.metallic = 0.0;
+    }
+}

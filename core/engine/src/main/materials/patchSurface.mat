@@ -1,0 +1,46 @@
+/**
+ * M13 patchSurface — hero-region terrain patches with own VT slot
+ * Per §9.3
+ * - Share object's lighting and camera code
+ * - Carry own manifest entry with same provenance fields
+ * - Positioned by lat/lon converted through same code path as sphere UVs
+ */
+
+material {
+    name : patchSurface,
+    shadingModel : lit,
+    blending : opaque,
+    parameters : [
+        { type : sampler2d, name : albedoMap },
+        { type : sampler2d, name : normalMap },
+        { type : sampler2d, name : heightMap },
+        { type : float, name : displacementScale },
+        { type : float2, name : uvOffset },
+        { type : float2, name : uvScale },
+        { type : float3, name : sunDirection }
+    ],
+    requires : [ uv0, position, tangents ],
+    culling : back
+}
+
+vertex {
+    void materialVertex(inout MaterialVertexInputs material) {
+        vec2 uv = getUV0() * materialParams.uvScale + materialParams.uvOffset;
+        float height = texture(materialParams_heightMap, uv).r;
+        float disp = (height - 0.5) * materialParams.displacementScale;
+        material.worldPosition.xyz += material.worldNormal * disp;
+    }
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec2 uv = getUV0() * materialParams.uvScale + materialParams.uvOffset;
+        vec3 albedo = texture(materialParams_albedoMap, uv).rgb;
+        material.baseColor.rgb = albedo;
+        vec3 n = texture(materialParams_normalMap, uv).xyz * 2.0 - 1.0;
+        material.normal = n;
+        material.roughness = 0.9;
+        material.metallic = 0.0;
+    }
+}

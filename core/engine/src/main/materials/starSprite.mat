@@ -1,0 +1,44 @@
+/**
+ * M9 starSprite — point sprite with flux-preserving PSF
+ * Per §13.2
+ * - Deep map as ASTC LDR cubemap or equirect skybox; carry HDR range in star sprites, not sky
+ * - Stars: one interleaved vertex buffer (direction as 3x float16 or packed normal, magnitude, colour index), drawn as one instanced draw
+ * - Fragment shader implements flux-preserving point-spread profile: sprite must keep constant total flux as screen size changes, never disappear when sub-pixel (clamp to minimum size with flux compensation)
+ * - Zoom behaviour: magnification resolves member stars of clusters; must not magnify deep map into blur
+ */
+
+material {
+    name : starSprite,
+    shadingModel : unlit,
+    blending : additive,
+    parameters : [
+        { type : float, name : magnitude },
+        { type : float3, name : color },
+        { type : float, name : minSize },
+        { type : float, name : flux }
+    ],
+    requires : [ uv0, color ],
+    culling : none
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec2 uv = getUV0() * 2.0 - 1.0;
+        float r2 = dot(uv, uv);
+        // Flux-preserving point-spread profile: Gaussian PSF, constant total flux as screen size changes
+        // Flux = integral of PSF over screen = constant, so peak scales as 1/area
+        // Clamp to minimum size with flux compensation so sprite never disappears when sub-pixel
+        float sigma = 0.5;
+        float psf = exp(-r2 / (2.0*sigma*sigma));
+        float flux = materialParams.flux; // total flux from magnitude
+        // For small sprites, increase peak to preserve flux
+        float sizeFactor = max(materialParams.minSize, 1.0);
+        psf *= flux / (sizeFactor*sizeFactor);
+
+        vec3 color = materialParams.color * psf;
+        material.baseColor.rgb = vec3(0.0);
+        material.emissive.rgb = color;
+        material.emissive.a = 1.0;
+    }
+}

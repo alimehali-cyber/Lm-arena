@@ -1,0 +1,37 @@
+/**
+ * M12 modelSurface — glTF PBR for ISS, with clearcoat/foil variants
+ * Per §5.7 and M9 tasks
+ * - ISS: build 4 LODs offline, convert textures to KTX2, author M12 variants (clearcoat MLI, Kapton foil, white paint), metre scale bar, module labels, lighting presets
+ */
+
+material {
+    name : modelSurface,
+    shadingModel : lit,
+    blending : opaque,
+    parameters : [
+        { type : sampler2d, name : baseColorMap },
+        { type : sampler2d, name : normalMap },
+        { type : sampler2d, name : metallicRoughnessMap },
+        { type : float, name : clearcoat },
+        { type : float, name : clearcoatRoughness },
+        { type : float3, name : emissiveFactor }
+    ],
+    requires : [ uv0, tangents ],
+    culling : back
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec4 base = texture(materialParams_baseColorMap, getUV0());
+        material.baseColor = base;
+        vec3 n = texture(materialParams_normalMap, getUV0()).xyz * 2.0 - 1.0;
+        material.normal = n;
+        vec4 mr = texture(materialParams_metallicRoughnessMap, getUV0());
+        material.metallic = mr.b;
+        material.roughness = mr.g;
+        material.clearCoat = materialParams.clearcoat;
+        material.clearCoatRoughness = materialParams.clearcoatRoughness;
+        material.emissive.rgb = materialParams.emissiveFactor;
+    }
+}

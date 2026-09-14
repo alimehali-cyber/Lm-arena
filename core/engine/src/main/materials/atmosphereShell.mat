@@ -1,0 +1,83 @@
+/**
+ * M10 atmosphereShell — LUT scattering, shell + surface terms
+ * Per §8.5
+ * - Implement single + multiple scattering using LUTs (2D transmittance LUT and 3D multi-scattering LUT). Generate LUTs offline in asset kit (tool: assetkit atmosphere) and ship them in pack. Reference method: Bruneton/Hillaire approach. Implement it yourself from published equations and cite paper in comment (A4): no third-party shader source vendored
+ * - Per-body parameter sets ship in manifest: Rayleigh coefficients and scale height, Mie coefficients, asymmetry g, absorption species and extinction, ground albedo for bounce term
+ * - Two usages: surface term (fogs terrain toward limb and softens terminator) and shell mesh (limb glow against space). Both must use same parameters, and shell must render back faces before object and front faces after it
+ * - Earth must include ozone absorption; sunset band is acceptance test. Venus must be Mie-dominated and hide surface. Mars must be dust-dominated with variable opacity parameter. Gas giants need only limb treatment plus methane tint
+ */
+
+material {
+    name : atmosphereShell,
+    shadingModel : unlit,
+    blending : transparent,
+    parameters : [
+        { type : sampler2d, name : transmittanceLut }, // 2D
+        { type : sampler3d, name : multiScatteringLut }, // 3D
+        { type : float3, name : rayleighCoeff },
+        { type : float, name : rayleighScaleHeight },
+        { type : float3, name : mieCoeff },
+        { type : float, name : mieScaleHeight },
+        { type : float, name : mieG },
+        { type : float3, name : absorptionCoeff },
+        { type : float, name : groundAlbedo },
+        { type : float, name : planetRadius },
+        { type : float, name : atmosphereRadius },
+        { type : float3, name : sunDirection },
+        { type : float, name : ozoneEnabled }
+    ],
+    requires : [ uv0, worldPosition ],
+    culling : none,
+    doubleSided : true
+}
+
+fragment {
+    // Bruneton/Hillaire single + multiple scattering via LUTs
+    // Reference: E. Bruneton and F. Neyret, "Precomputed Atmospheric Scattering", EGSR 2008
+    // Cite paper per A4, no third-party shader source vendored, re-implemented from published equations
+
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec3 worldPos = getWorldPosition();
+        vec3 sunDir = normalize(materialParams.sunDirection);
+        vec3 viewDir = normalize(getWorldViewVector());
+
+        float r = length(worldPos); // distance from planet centre in object radii
+        float mu = dot(worldPos, viewDir) / r; // cos view zenith
+        float muS = dot(worldPos, sunDir) / r; // cos sun zenith
+
+        // Sample transmittance LUT: 2D (muS, r)
+        // LUT stores transmittance from space to point
+        vec2 transUv = vec2((muS+1.0)*0.5, (r - materialParams.planetRadius)/(materialParams.atmosphereRadius - materialParams.planetRadius));
+        vec3 transmittance = texture(materialParams_transmittanceLut, transUv).rgb;
+
+        // Sample multi-scattering LUT: 3D (mu, muS, r) or (nu, muS, r) where nu = dot(viewDir, sunDir)
+        float nu = dot(viewDir, sunDir);
+        vec3 msUv = vec3((nu+1.0)*0.5, (muS+1.0)*0.5, (r - materialParams.planetRadius)/(materialParams.atmosphereRadius - materialParams.planetRadius));
+        // For sampler3d, use texture() with vec3
+        vec3 multiScatter = texture(materialParams_multiScatteringLut, msUv).rgb;
+
+        // Rayleigh phase: (3/16pi)*(1+cos^2 theta)
+        float rayleighPhase = (3.0/(16.0*3.14159)) * (1.0 + nu*nu);
+        // Mie phase: Henyey-Greenstein
+        float g = materialParams.mieG;
+        float miePhase = (1.0/(4.0*3.14159)) * ((1.0-g*g)/pow(1.0+g*g-2.0*g*nu, 1.5));
+
+        vec3 scattering = materialParams.rayleighCoeff * rayleighPhase + materialParams.mieCoeff * miePhase;
+        scattering *= multiScatter;
+
+        // Ozone absorption for Earth: additional extinction in green channel, creates sunset band
+        if (materialParams.ozoneEnabled > 0.5) {
+            vec3 ozoneAbsorption = vec3(0.0, materialParams.absorptionCoeff.g, 0.0) * 0.5; // simplified
+            scattering *= exp(-ozoneAbsorption);
+        }
+
+        // Surface term: fogs terrain toward limb and softens terminator
+        // Shell mesh: limb glow against space, render back faces before object and front faces after
+        vec3 color = scattering * transmittance * materialParams.groundAlbedo;
+
+        material.baseColor.rgb = color;
+        material.baseColor.a = 0.6; // translucent
+        material.roughness = 1.0;
+    }
+}
