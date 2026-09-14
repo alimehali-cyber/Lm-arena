@@ -107,6 +107,6 @@
     <string name="close">بستن</string>
 
     <!-- Gravity Sandbox -->
-    <string name="gravity_sandbox_title">شبیه‌ساز گرانش</string>
+    <string name="gravity_sandbox_title">میز گرانش</string>
     <string name="gravity_sandbox_subtitle">شبیه‌سازی برهم‌کنش‌های N-جرم گرانشی</string>
 </resources>

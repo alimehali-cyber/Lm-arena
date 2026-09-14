@@ -26,7 +26,8 @@ class GravitySheetScrollTest {
         "PresetSheet.kt",
         "AddBodySheet.kt",
         "InspectorSheet.kt",
-        "TeachingCard.kt"
+        "TeachingCard.kt",
+        "TableSurfaceSheet.kt"
     )
 
     private fun uiDir(): File {

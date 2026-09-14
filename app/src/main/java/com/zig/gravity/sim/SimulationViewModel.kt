@@ -120,8 +120,21 @@ class SimulationViewModel : ViewModel() {
         private set
     var teachingEnabled by mutableStateOf(true)
         private set
-    var darkTheme by mutableStateOf(true)
-        private set
+    private var _tableSurface by mutableStateOf(SURFACE_DEFAULT)
+
+    /**
+     * §7 — the table surface key (`"midnight"`, `"charcoal"`, ...). The chrome palette, the accent,
+     * the background and the trail alphas all follow it.
+     *
+     * Observable read; mutate through [setTableSurface] — the same backing-property shape
+     * [speedIndex] and [marbleBounce] already use, because a `var` with a private setter would
+     * clash with that function's JVM signature.
+     *
+     * The catalog lives in `ui.theme.TableSurfaces`; this layer stores the opaque key only, so the
+     * simulation never depends on the ui layer. The literal default is pinned by
+     * `GravityVisualRefreshTest`, which also asserts it equals `TableSurfaces.DEFAULT_KEY`.
+     */
+    val tableSurface: String get() = _tableSurface
     var persian by mutableStateOf(true)
         private set
     private var _marbleBounce by mutableStateOf(false)
@@ -236,7 +249,7 @@ class SimulationViewModel : ViewModel() {
         restoreAttempted = true
     }
 
-    /** Seeds language/theme from the host app the first time the sandbox opens. */
+    /** Seeds language/surface from the host app the first time the sandbox opens. */
     /**
      * Pushes the host application's language into the sandbox. Called on every entry, before and
      * after any restore, so the sandbox can never disagree with the rest of ZIG.
@@ -254,7 +267,9 @@ class SimulationViewModel : ViewModel() {
 
     fun applyHostDefaults(persian: Boolean, dark: Boolean) {
         this.persian = persian
-        this.darkTheme = dark
+        // §7 — the host's dark/light preference seeds the surface on a fresh install. The two
+        // pre-refresh themes live on as surfaces: dark chrome -> midnight, light chrome -> paper.
+        _tableSurface = if (dark) SURFACE_DEFAULT else SURFACE_LEGACY_LIGHT
     }
 
     /**
@@ -535,8 +550,12 @@ class SimulationViewModel : ViewModel() {
         markDirty()
     }
 
-    fun toggleTheme() {
-        darkTheme = !darkTheme
+    /**
+     * §6/§7 — applies a table surface. There is no dark/light toggle any more: the surface *is* the
+     * theme, and the chrome mode travels with it.
+     */
+    fun setTableSurface(key: String) {
+        if (_tableSurface != key) _tableSurface = key
     }
 
     fun setMarbleBounce(enabled: Boolean) {
@@ -1346,7 +1365,7 @@ class SimulationViewModel : ViewModel() {
             paused = paused,
             trailsVisible = trailsVisible,
             teachingEnabled = teachingEnabled,
-            darkTheme = darkTheme,
+            tableSurface = tableSurface,
             persian = persian,
             marbleBounce = marbleBounce,
             selectedId = selectedId
@@ -1360,7 +1379,7 @@ class SimulationViewModel : ViewModel() {
         paused = session.paused
         trailsVisible = session.trailsVisible
         teachingEnabled = session.teachingEnabled
-        darkTheme = session.darkTheme
+        _tableSurface = session.tableSurface
         // §5 — deliberately NOT restoring session.persian. The sandbox has no language of its own;
         // the host app's locale is pushed in by applyHostLanguage on every entry, so a session
         // saved months ago in the other language can never override the app the user is holding.
@@ -1384,6 +1403,10 @@ class SimulationViewModel : ViewModel() {
     }
 
     private companion object {
+        /** §7 — persisted surface keys; see `ui.theme.TableSurfaces` for the catalog itself. */
+        const val SURFACE_DEFAULT = "midnight"
+        const val SURFACE_LEGACY_LIGHT = "paper"
+
         /** Wall-clock seconds to close ~63% of the gap while acquiring a new follow target. */
         const val FOLLOW_ACQUIRE_TAU = 0.28
 
