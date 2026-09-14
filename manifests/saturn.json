@@ -1,0 +1,65 @@
+{
+  "packId": "saturn_base",
+  "version": "1-m8-giants-rings",
+  "objectId": "saturn",
+  "assets": [
+    {
+      "product": "Cassini ISS 2004-2017 global map",
+      "publisher": "NASA/JPL/Space Science Institute",
+      "url": "https://pds-imaging.jpl.nasa.gov/volumes/cassini.html",
+      "credit": "NASA/JPL/SSI",
+      "what": "albedo banded",
+      "processing": "reprojected equirectangular, wind LUT, methane limb, oblateness 0.09796, encoded KTX2 ASTC 6x6 sRGB, labelled epoch 2004-2017",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "4K per 10 deg lat",
+      "type": "albedo"
+    },
+    {
+      "product": "Cassini UVIS/RSS occultation tau profiles",
+      "publisher": "NASA/JPL / PDS Ring-Moon Systems Node",
+      "url": "https://pds-rings.seti.org/cassini/UVIS/",
+      "credit": "NASA/JPL/PDS Ring-Moon Systems Node",
+      "what": "ring optical depth tau(r) 1-10 km resolution",
+      "processing": "parsed PDS TABLE, built radial texture 8192x1 R16_SFLOAT tau 0..5, azimuthal 8192x128 optional spokes off by default, sharp as 1-10 km PDS profiles allow, UI states asymmetry, verification sharpness maxError <0.01, M5 material optical depth alpha=1-exp(-tau/mu) phase asymmetry Henyey-Greenstein forward-scattered brighter g 0.3 planet shadow analytic ring shadow on planet via lookup thickness plane 10m both shadow directions",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16_SFLOAT 8192x1 + 8192x128",
+      "resolution": "1-10 km radial",
+      "type": "ring_tau"
+    },
+    {
+      "product": "Atmosphere LUTs Saturn",
+      "publisher": "ZIG Museum (generated offline)",
+      "url": "https://ebruneton.github.io/precomputed_atmospheric_scattering/",
+      "credit": "Bruneton and Neyret EGSR 2008 clean-room per A4",
+      "what": "transmittance + multi-scattering limb hazy",
+      "processing": "generated offline via assetkit atmosphere --object saturn, Rayleigh 1e-6 scale 20000 Mie 5e-6 scale 20000 g 0.76 methane tint, verification maxError <0.01",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16_SFLOAT",
+      "resolution": "LUT",
+      "type": "lut_atmosphere"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "Cassini ISS 4K per 10 deg lat, rings tau 1-10 km PDS, transmission and both shadows pass at three sun geometries, visibly oblate 0.09796 limb hazy, UI states asymmetry",
+    "textFa": "کاسینی 4K هر 10 درجه، حلقه‌ها تاو 1-10 کیلومتر، انتقال و هر دو سایه در سه هندسه خورشید، پخی 0.09796 لبه مه‌آلود، رابط عدم تقارن را بیان می‌کند",
+    "resolutionM": 10000
+  },
+  "geometry": {
+    "type": "ellipsoid",
+    "oblateness": 0.09796,
+    "radiusM": 58232000
+  },
+  "rings": {
+    "innerKm": 70000,
+    "outerKm": 140000,
+    "tauProfile": "PDS Ring-Moon Systems Node Cassini UVIS/RSS occultation 1-10 km",
+    "texture": "8192x1 R16_SFLOAT radial + 8192x128 azimuthal optional",
+    "material": "M5 ringTransmission alpha=1-exp(-tau/mu) phase HG g 0.3 forward-scattered brighter planet shadow analytic ring shadow on planet via lookup thickness 10m both shadow directions spokes optional off",
+    "verification": "sharpness maxError <0.01, transmission and both shadows pass at three sun geometries"
+  },
+  "tiers": {
+    "tier0": "4K albedo + 8192 ring tau + atmosphere LUTs 60MB base, 8K albedo + 16384 ring tau 250MB install-time",
+    "tier2": "2K albedo + 4096 ring tau"
+  }
+}

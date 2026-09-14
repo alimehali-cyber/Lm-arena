@@ -1,0 +1,57 @@
+{
+  "packId": "uranus_base",
+  "version": "1-m8-giants",
+  "objectId": "uranus",
+  "assets": [
+    {
+      "product": "Voyager 2 ISS 1986 + Hubble 2014-2022 corrected and historic",
+      "publisher": "NASA/JPL / STScI",
+      "url": "https://pds-imaging.jpl.nasa.gov/volumes/voyager.html",
+      "credit": "NASA/JPL/STScI",
+      "what": "albedo appearance modes corrected and historic both labelled",
+      "processing": "reprojected equirectangular, corrected mode white balanced per published, historic mode 1986 Voyager colour labelled historic 1986, epoch selector, narrow ring sets, oblateness 0.02293, encoded KTX2 ASTC 6x6 sRGB, labelled no unlabelled current",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "2K",
+      "type": "albedo"
+    },
+    {
+      "product": "Voyager 2 PPS occultation narrow rings tau",
+      "publisher": "NASA/JPL / PDS Ring-Moon Systems Node",
+      "url": "https://pds-rings.seti.org/voyager/PPS/",
+      "credit": "NASA/JPL/PDS Ring-Moon Systems Node",
+      "what": "narrow ring tau 1-10 km",
+      "processing": "parsed PDS TABLE, built radial texture 4096x1 R16_SFLOAT, narrow rings 6/5/4/alpha/beta/eta/gamma/delta/epsilon, sharp as 1-10 km PDS, UI states asymmetry",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16_SFLOAT 4096x1",
+      "resolution": "1-10 km",
+      "type": "ring_tau_narrow"
+    },
+    {
+      "product": "Atmosphere LUTs Uranus",
+      "publisher": "ZIG Museum (generated offline)",
+      "url": "https://ebruneton.github.io/precomputed_atmospheric_scattering/",
+      "credit": "Bruneton and Neyret EGSR 2008 clean-room per A4",
+      "what": "limb hazy methane tint",
+      "processing": "generated offline via assetkit atmosphere --object uranus, Rayleigh 1e-6 scale 20000 Mie 5e-6 scale 20000 methane tint",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16_SFLOAT",
+      "resolution": "LUT",
+      "type": "lut_atmosphere"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "Voyager 2 1986 historic and Hubble 2014-2022 corrected both labelled, no unlabelled current, narrow rings 1-10 km PDS, visibly oblate 0.02293 limb hazy, epoch selector labelled",
+    "textFa": "وویجر 2 1986 تاریخی و هابل 2014-2022 اصلاح‌شده هر دو با برچسب، بدون فعلی بدون برچسب، حلقه‌های باریک 1-10 کیلومتر، پخی 0.02293 لبه مه‌آلود، انتخاب دوره با برچسب",
+    "resolutionM": 50000
+  },
+  "geometry": {
+    "type": "ellipsoid",
+    "oblateness": 0.02293,
+    "radiusM": 25362000
+  },
+  "tiers": {
+    "tier0": "2K albedo corrected+historic + 4096 ring tau + atmosphere LUTs 30MB base",
+    "tier2": "1K albedo"
+  }
+}

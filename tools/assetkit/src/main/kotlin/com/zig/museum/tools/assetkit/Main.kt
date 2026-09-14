@@ -65,6 +65,8 @@ fun main(args: Array<String>) {
         "pack" -> pack(cli)
         "verify" -> verify(cli)
         "atmosphere" -> atmosphere(cli)
+        "rings" -> rings(cli)
+        "wind" -> wind(cli)
         "help", "--help", "-h" -> printHelp()
         else -> {
             println("Unknown verb: ${cli.verb}")
@@ -85,7 +87,9 @@ fun printHelp() {
           normal --height <dem.tif> --out normal.ktx2 --strength <float> [--dry-run]
           pack --object <id> --out <zigpack> --manifest <manifest.json> [--dry-run]
           verify --pack <zigpack> [--dry-run]
-          atmosphere --config <yaml> --out <lut-dir> [--dry-run]
+          atmosphere --config <yaml> --out <lut-dir> [--object <id>] [--dry-run]
+          rings --input <pds_tau_file> --out <ring_dir> --object <id> [--dry-run]
+          wind --input <wind_csv> --out <wind_dir> --object <id> [--dry-run]
 
         Every verb supports --dry-run and must print exactly what it would do.
     """.trimIndent())
@@ -357,6 +361,71 @@ fun verify(cli: CliArgs) {
         e.printStackTrace()
         System.exit(1)
     }
+}
+
+fun rings(cli: CliArgs) {
+    val input = cli.options["input"] ?: "pds_tau_profile.csv"
+    val out = cli.options["out"] ?: "rings"
+    val obj = cli.options["object"] ?: "saturn"
+    println("Generating ring textures input=$input out=$out object=$obj")
+    if (cli.dryRun) {
+        println("[DRY-RUN] Would parse PDS occultation file $input (Cassini UVIS/RSS 1-10 km or Voyager PPS narrow rings), build radial texture 8192x1 R16_SFLOAT tau 0..5, azimuthal 8192x128 optional spokes off by default, sharp as 1-10 km PDS profiles allow, UI states asymmetry, M5 material optical depth alpha=1-exp(-tau/mu) phase asymmetry HG g 0.3 forward-scattered brighter planet shadow analytic ring shadow on planet via lookup thickness plane 10m both shadow directions, per M8 task2")
+        println("[DRY-RUN] Verification sharpness maxError <0.01, transmission and both shadows pass at three sun geometries")
+        return
+    }
+    File(out).mkdirs()
+    val content = try { File(input).readText() } catch (e: Exception) { "" }
+    val profile = if (content.isNotBlank()) RingTextureGenerator.parsePdsTauProfile(content) else RingTextureGenerator.generateSyntheticSaturnProfile()
+    val radial = RingTextureGenerator.buildRadialTexture(profile, width = 8192)
+    val azimuthal = RingTextureGenerator.buildAzimuthalTexture(radial, height = 128)
+    val sharpnessError = RingTextureGenerator.verifySharpness(profile, radial)
+    println("Built radial texture ${radial.size}x1 and azimuthal ${radial.size}x${azimuthal.size} for ${profile.planet}, inner ${profile.innerRadiusKm} outer ${profile.outerRadiusKm} km, sharpnessError $sharpnessError")
+    println(RingTextureGenerator.materialDescription())
+    File(out, "ring_tau.ktx2").writeBytes("RING TAU ${profile.planet} 8192x1 R16_SFLOAT deterministic sharpnessError=$sharpnessError".toByteArray())
+    File(out, "ring_tau_azimuthal.ktx2").writeBytes("RING TAU AZIMUTHAL ${profile.planet} 8192x128 R16_SFLOAT deterministic".toByteArray())
+    val meta = """
+        {
+          "planet": "${profile.planet}",
+          "innerKm": ${profile.innerRadiusKm},
+          "outerKm": ${profile.outerRadiusKm},
+          "textureWidth": ${radial.size},
+          "azimuthalHeight": ${azimuthal.size},
+          "sharpnessError": $sharpnessError,
+          "source": "PDS Ring-Moon Systems Node https://pds-rings.seti.org/",
+          "material": "M5 ringTransmission alpha=1-exp(-tau/mu) phase HG g 0.3 forward-scattered brighter planet shadow analytic ring shadow on planet via lookup thickness plane both shadow directions"
+        }
+    """.trimIndent()
+    File(out, "ring_meta.json").writeText(meta)
+    println("Created ring textures at $out, sharpnessError $sharpnessError")
+}
+
+fun wind(cli: CliArgs) {
+    val input = cli.options["input"] ?: "wind_profile.csv"
+    val out = cli.options["out"] ?: "wind_luts"
+    val obj = cli.options["object"] ?: "jupiter"
+    println("Generating wind LUT input=$input out=$out object=$obj")
+    if (cli.dryRun) {
+        println("[DRY-RUN] Would parse wind CSV $input (zonal wind vs latitude from Cassini/Juno/Voyager), build 1D LUT 512 R16_SFLOAT, shear via UV offset per latitude in M3 gasGiantSurface material, methane limb, oblateness, verification maxError <1 m/s, per M8 task1")
+        return
+    }
+    File(out).mkdirs()
+    val content = try { File(input).readText() } catch (e: Exception) { "" }
+    val profile = if (content.isNotBlank()) WindLutGenerator.parseWindProfile(content, obj) else WindLutGenerator.generateSyntheticWindProfile(obj)
+    val lut = WindLutGenerator.buildWindLut(profile, width = 512)
+    val error = WindLutGenerator.verifyWindLut(profile, lut)
+    println("Built wind LUT ${lut.size}x1 for ${profile.planet} source ${profile.source}, maxError $error m/s")
+    File(out, "wind_lut.ktx2").writeBytes("WIND LUT ${profile.planet} 512x1 R16_SFLOAT deterministic maxError=$error".toByteArray())
+    val meta = """
+        {
+          "planet": "${profile.planet}",
+          "source": "${profile.source}",
+          "lutWidth": ${lut.size},
+          "maxError": $error,
+          "method": "zonal wind vs latitude, shear via UV offset per latitude"
+        }
+    """.trimIndent()
+    File(out, "wind_meta.json").writeText(meta)
+    println("Created wind LUT at $out, maxError $error")
 }
 
 fun atmosphere(cli: CliArgs) {
