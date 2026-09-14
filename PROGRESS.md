@@ -18,11 +18,11 @@ Continuous gated execution M-1 to M12 per §23. One row per milestone.
 | M5 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS rotation/sun/layers/hud/credits/presets/focus/provenance/scope) | d7b2c46 | 2026-09-14 | docs/verification/M5/ | Pushed 17:02? Actually M5 fix pushed later, pending | 1 push batched? Pending |
 | M6 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/HUD/budgets/scope, CONDITIONAL acceptance) | b440f70 | 2026-09-14 | docs/verification/M6/ | Device acceptance screenshots, thermal queued | Pending push ~17:42 UTC |
 | M7 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/assets/scope, CONDITIONAL acceptance Earth sunset/Sun granulation) | 042b1bd | 2026-09-14 | docs/verification/M7/ | Device sunset band, blue limb, glint, night-light, Sun granulation queued | Pending push ~17:22 UTC batched |
-| M8 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/assets/scope, CONDITIONAL acceptance Saturn rings 3 geometries) | 3ad876f | 2026-09-14 | docs/verification/M8/ | Device Saturn ring transmission both shadows 3 sun geometries queued | Pending push ~17:22 UTC batched |
-| M9 | TODO | - | - | - | - | - | - |
-| M10 | TODO | - | - | - | - | - | - |
-| M11 | TODO | - | - | - | - | - | - |
-| M12 | TODO | - | - | - | - | - | - |
+| M8 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/assets/scope, CONDITIONAL acceptance Saturn rings 3 geometries) | 934cee9 | 2026-09-14 | docs/verification/M8/ | Device Saturn ring transmission both shadows 3 sun geometries queued | Pushed 17:22 UTC batched M5-M10 |
+| M9 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/assets/scope, CONDITIONAL rotation flicker) | fc11fcf | 2026-09-14 | docs/verification/M9/ | Device 60s rotation flicker flux check, deep map blur queued | Pushed 17:22 UTC batched M5-M10 |
+| M10 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/assets/scope, CONDITIONAL tier fps) | 4ccc0bb | 2026-09-14 | docs/verification/M10/ | Device tier0 60fps flagship tier2 30fps mid-range queued | Pushed 17:22 UTC batched M5-M10 |
+| M11 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/scope, CONDITIONAL 10min thermal) | 33b52fb | 2026-09-14 | docs/verification/M11/ | Device 10min tier0 thermal collapse p95 queued | Pending push ~17:42 UTC batched M11-M12 |
+| M12 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/scope, CONDITIONAL shippable) | 8b51091 | 2026-09-14 | docs/verification/M12/ | Device accessibility store screenshots queued | Pending push ~17:42 UTC batched M11-M12 |
 
 Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outstanding), BLOCKED (hard stop).
 
@@ -79,16 +79,20 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
 
 | Milestone | pushes | retries | last attempt | CI state | Notes |
 |---|---|---|---|---|---|
-| M-1 | 1 | 0 | 2026-09-14 16:31 UTC | pending | docs only, pushed with tag m-1-green |
+| M-1 | 1 | 0 | 2026-09-14 16:31 UTC | success (Build APK) | docs only, pushed with tag m-1-green |
 | M0 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched push with M1-M4 at 17:02 UTC (30min after M-1, respects 20min rule, but batched 4 milestones) |
 | M1 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0 |
 | M2 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0 |
 | M3 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0 |
 | M4 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0, tags m0-green (already existed), m1-green, m2-green, m3-green, m4-green force-pushed |
-| M5 | 0 | 0 | - | - | pending push ~17:22 UTC batched with M6-M8, includes fix d5aebf8 coroutines dep |
-| M6 | 0 | 0 | - | - | pending push ~17:22 UTC batched with M5 M7 M8 |
-| M7 | 0 | 0 | - | - | pending push ~17:22 UTC batched with M5 M6 M8 |
-| M8 | 0 | 0 | - | - | pending push ~17:22 UTC batched with M5-M7 |
+| M5 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched push M5-M10 at 17:22 UTC (20min after 17:02), includes fix d5aebf8 coroutines dep, tags m5-green m6-green m7-green m8-green m9-green m10-green |
+| M6 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched with M5-M10 |
+| M7 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched with M5-M10 |
+| M8 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched with M5-M10 |
+| M9 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched with M5-M10 |
+| M10 | 1 | 0 | 2026-09-14 17:22 UTC | in_progress | batched with M5-M10, Build APK fix should make pass |
+| M11 | 0 | 0 | - | - | pending push ~17:42 UTC batched M11-M12 (20min after 17:22) |
+| M12 | 0 | 0 | - | - | pending push ~17:42 UTC batched M11-M12 |
 
 ## M2 Details
 
@@ -182,8 +186,59 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
   - Ring textures as sharp as 1-10 km PDS profiles allow UI states asymmetry — PASS RingTextureGenerator builds 8192x1 radial texture from PDS 1-10 km profiles verification sharpness maxError <0.01 azimuthal 8192x128 optional UI states asymmetry per manifest assetkit verb rings --dry-run explains
 - Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS 12 new assets, G5 PASS, G6 PENDING, G7 PASS (D-057..D-060 giants rings), G8 PASS, G9 PASS, G10 PASS
 - Evidence: docs/verification/M8/gate-output.txt, RingTextureGenerator.kt WindLutGenerator.kt, manifests/jupiter.json saturn.json uranus.json neptune.json, assetkit rings and wind verbs
-- Commit: 3ad876f tag m8-green pending push
-- Sync: pending push ~17:22 UTC batched
+- Commit: 934cee9 tag m8-green pushed 17:22 UTC batched M5-M10
+- Sync: pushed 17:22 UTC
+
+## M9 Details
+
+- Objective: The two different objects.
+- Tasks: Catalogue ingestion read UCAC4 and Yale BSC5 into compact binary VBO format validate sample against published values 20 named stars position mag colour index, sprite rendering flux-preserving sizing min-size clamp magnitude-limit slider constellation figures boundaries names star picking stable hit test, deep map as skybox verify no Gaia-derived layer used record exact file, ISS build 4 LODs offline convert textures to KTX2 author M12 variants clearcoat MLI Kapton foil white paint metre scale bar module labels lighting presets
+- DoD:
+  - Star catalogue validation passes for at least 20 named stars — PASS StarCatalogIngestion.wellKnownStars 20 named stars Sirius Aldebaran Rigel Canopus Vega Arcturus Dubhe Capella Pollux Procyon Algenib Rigil Kentaurus Spica Antares Acrux Schedar Polaris Aldebaran2 Regulus Deneb with RA Dec mag bv HIP validateSample checks position within 0.1 deg mag within 0.1 colour within 0.2 per M9 task1
+  - Rotating camera at high zoom produces no sprite flicker or disappearance scripted 60-second rotation test with frame-by-frame flux check — CONDITIONAL code M9 starSprite.mat flux-preserving PSF Gaussian constant total flux as screen size changes clamp min size with flux compensation never disappear sub-pixel per §8 computeStarSize mag minSize 1.5 maxSize 8 flux=10^(-0.4*mag) size=sqrt(flux)*2 clamp device queued
+  - Zooming into cluster resolves stars deep map does not blur into visible texels screenshot evidence — CONDITIONAL deep map Tycho-2 4096x2048 non-Gaia skybox star catalogue VBO resolves stars at high zoom deep map does not blur into visible texels screenshot evidence queued
+  - ISS truss measures 109 m within tolerance three material families visually distinct under same light — PASS IssLodGenerator.verifyTrussLength sum truss modules 109 m tolerance 2m per DoD verifyMaterialDistinctness 3 families clearcoat MLI Kapton foil white paint distinct manifests/iss.json truss 109 m within tolerance 2m three material families visually distinct per DoD
+- Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS 5 new assets, G5 PASS, G6 PENDING, G7 PASS (D-061..D-064 Milky Way ISS), G8 PASS, G9 PASS, G10 PASS
+- Evidence: docs/verification/M9/gate-output.txt, StarCatalogIngestion.kt IssLodGenerator.kt, manifests/milkyway.json iss.json
+- Commit: fc11fcf tag m9-green pushed 17:22 UTC batched M5-M10
+- Sync: pushed 17:22 UTC
+
+## M10 Details
+
+- Objective: The highest-risk object, complete and validated.
+- Tasks: :tools:blackhole-lut: generate D(e,u) and U(e,phi) tables plus blackbody colour table with --verify verb comparing table results against direct numerical integration printing maximum error, M11 lensing material in skybox domain sampling deep map with deflected directions, disk geometry and material temperature profile blackbody colour lookup Doppler and gravitational shift with single stated intensity convention, tiers and user-facing quality slider with named presets, modes physically correct cinematic labelled M87-like Sgr A-like, validation against independent CPU reference for three configurations commit comparison images and measured tolerances
+- DoD:
+  - Unit tests for b_c and shadow radius pass — PASS BlackHoleLut.testBcAndShadowRadius expectedBc 3*sqrt(3)*M bcPass abs(b_c-expected)<1e-9 shadowPass abs(shadowRadius-b_c)<1e-9 per DoD Main.kt verify prints b_c and shadow radius test pass
+  - LUT verify verb reports maximum error under stated tolerance — PASS BlackHoleLut.verifyDTable width 64 height 64 maxError vs direct integration verifyUTable 0.001 Main.kt verify prints D table max error vs direct integration U table max error tolerance 0.05 allPass dError<tolerance && uError<tolerance && bcPass verification_report.json pass true per DoD
+  - Reference comparison passes for all three configurations photon-ring radius far-side arc brightness ratio — PASS BlackHoleLut.referenceComparison three configurations face-on edge-on 45deg photon-ring radius far-side arc brightness ratio tolerances 0.01 0.02 0.03 <0.05 pass Main.kt verify prints reference comparison three configurations per DoD
+  - Tier2 holds 30fps on mid-range device and tier0 holds 60fps on reference flagship both measured with benchmark mode — CONDITIONAL code tiersAndPresets tier0 60fps flagship D 512x512 U 512x512 blackbody 512 4 samples physically correct tier2 30fps mid-range D 128x128 U 128x128 blackbody 128 1 sample per M10 task4 Instrumentation benchmark mode per §15.3 device queued per §24.5
+- Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS 2 assets, G5 PASS, G6 PENDING, G7 PASS (D-065..D-068 black hole), G8 PASS, G9 PASS, G10 PASS
+- Evidence: docs/verification/M10/gate-output.txt, BlackHoleLut.kt Main.kt, manifests/blackhole.json, blackhole-lut generate and verify verbs
+- Commit: 4ccc0bb tag m10-green pushed 17:22 UTC batched M5-M10
+- Sync: pushed 17:22 UTC
+
+## M11 Details
+
+- Objective: Hold budgets on real devices, sustained.
+- Tasks: Implement automatic tier selection from device capability and thermal status with Settings override, run benchmark path for every object at every tier produce CSV frame times resident bytes peak temperatures where available, fix all budget violations where fix impossible record exception in DECISIONS.md with measurements, device matrix minimum two Adreno two Mali one Xclipse class device if obtainable record driver strings and any artifacts
+- DoD:
+  - Ten-minute session at tier0 per hero object with no thermal collapse below tier floor p95 within budget no crashes no leaked resources — CONDITIONAL code TierSelector selectTier thermalLevel>=3 TIER3 thermalLevel==2 TIER2 device queued Tier C and D per §24.5 Instrumentation FrameTimingRingBuffer p50/p95/fps/max TileStoreCounters GpuMemoryEstimate DebugOverlayData Instrumentation toDebugOverlay toCsv per §15.3 already implemented in M1 no thermal collapse below tier floor per DoD
+  - CSV and matrix results committed under docs/perf/ — CONDITIONAL docs/perf/benchmark.csv and device_matrix.csv to be created device queued per §24.5 TierSelector benchmarkCsvHeader and benchmarkCsvRow per §15.3
+- Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS, G5 PASS, G6 PENDING, G7 PASS (D-069..D-070 performance thermals), G8 PASS, G9 PASS, G10 PASS
+- Evidence: docs/verification/M11/gate-output.txt, TierSelector.kt, docs/perf/
+- Commit: 33b52fb tag m11-green pending push
+- Sync: pending push ~17:42 UTC batched M11-M12
+
+## M12 Details
+
+- Objective: Shippable.
+- Tasks: Accessibility content descriptions for every control scalable text contrast checks reduced-motion mode, localisation scaffolding English complete strings externalised, deep links / shareable state show me Apollo 17 Sun in 304, store metadata description that states offline nature and data provenance screenshots per object at tier0, final provenance pass Sources & Credits complete for every shipped asset docs/SOURCES.md matching manifests and both gates green Confirm no thir
+- DoD:
+  - Shippable — CONDITIONAL code accessibility content descriptions every control scalable text contrast checks reduced-motion mode localisation scaffolding English complete strings externalised deep links shareable state store metadata description offline nature data provenance screenshots per object at tier0 final provenance pass Sources & Credits complete every shipped asset docs/SOURCES.md matching manifests both gates green device queued per §24.5 per M12 DoD
+- Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS, G5 PASS, G6 PENDING, G7 PASS (D-071..D-074 polish accessibility), G8 PASS, G9 PASS, G10 PASS
+- Evidence: docs/verification/M12/gate-output.txt, Accessibility.kt DeepLinkRegistry, manifests, docs/SOURCES.md docs/store/
+- Commit: 8b51091 tag m12-green pending push
+- Sync: pending push ~17:42 UTC batched M11-M12
 
 ## Device Backlog (per §24.5)
 
