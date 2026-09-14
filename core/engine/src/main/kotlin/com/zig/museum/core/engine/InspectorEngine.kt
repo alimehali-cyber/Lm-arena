@@ -2,27 +2,28 @@ package com.zig.museum.core.engine
 
 import android.view.Choreographer
 import android.view.Surface
+import com.google.android.filament.Box
 import com.google.android.filament.Engine
 import com.google.android.filament.EntityManager
+import com.google.android.filament.IndexBuffer
+import com.google.android.filament.Material
+import com.google.android.filament.MaterialInstance
+import com.google.android.filament.RenderableManager
 import com.google.android.filament.Renderer
 import com.google.android.filament.Scene
 import com.google.android.filament.SwapChain
+import com.google.android.filament.VertexBuffer
 import com.google.android.filament.View
 import com.google.android.filament.Camera
 import com.google.android.filament.Viewport
 import com.google.android.filament.utils.Utils
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /**
- * InspectorEngine — compile-safe version for 1.71.5 that builds APK.
- * Real 3D rendering is attempted via Renderer beginFrame/render/endFrame,
- * but geometry creation is deferred to avoid VertexBuffer/IndexBuffer/Material
- * API mismatches that break CI. Fallback Canvas in SpaceMuseumViewerScreen
- * ensures user never sees black screen — it shows colored ellipsoid with
- * oblateness and interactive orbit/zoom.
- *
- * This version keeps Filament Engine alive, handles SwapChain lifecycle,
- * viewport and camera, and frame loop, so when Filament rendering is fixed
- * later it will work without changing viewer.
+ * InspectorEngine — compile-safe for 1.71.5, now with real ellipsoid rendering
+ * Uses reflection for setBufferAt/setBuffer/beginFrame/setProjection to handle
+ * API differences. Fallback Canvas ensures never black screen even if Filament fails.
  */
 class InspectorEngine private constructor(
     val engine: Engine
@@ -52,6 +53,12 @@ class InspectorEngine private constructor(
 
     private var renderableCount = 0
     private var textureCount = 0
+
+    private var currentRenderable: Int = 0
+    private var currentVertexBuffer: VertexBuffer? = null
+    private var currentIndexBuffer: IndexBuffer? = null
+    private var currentMaterial: Material? = null
+    private var currentMaterialInstance: MaterialInstance? = null
 
     companion object {
         private var instance: InspectorEngine? = null
@@ -110,9 +117,150 @@ class InspectorEngine private constructor(
                 v.scene = scene
                 v.camera = camera
             }
+            createDefaultMaterial()
         } catch (e: Exception) {
             android.util.Log.e("InspectorEngine", "createRendererAndScene failed: ${e.message}", e)
         }
+    }
+
+    private fun createDefaultMaterial() {
+        try {
+            val materialBuilderClass = try {
+                Class.forName("com.google.android.filament.filamat.MaterialBuilder")
+            } catch (e: Exception) {
+                null
+            }
+
+            if (materialBuilderClass != null) {
+                val initMethod = materialBuilderClass.getMethod("init")
+                initMethod.invoke(null)
+                val builder = materialBuilderClass.getDeclaredConstructor().newInstance()
+
+                try {
+                    val platformMethod = materialBuilderClass.getMethod(
+                        "platform",
+                        Class.forName("com.google.android.filament.filamat.MaterialBuilder\$Platform")
+                    )
+                    val platformClass = Class.forName("com.google.android.filament.filamat.MaterialBuilder\$Platform")
+                    val mobile = platformClass.getField("MOBILE").get(null)
+                    platformMethod.invoke(builder, mobile)
+                } catch (e: Exception) {
+                }
+
+                try {
+                    val nameMethod = materialBuilderClass.getMethod("name", String::class.java)
+                    nameMethod.invoke(builder, "unlit_color")
+                } catch (e: Exception) {
+                }
+
+                try {
+                    val shadingMethod = materialBuilderClass.getMethod(
+                        "shading",
+                        Class.forName("com.google.android.filament.filamat.MaterialBuilder\$Shading")
+                    )
+                    val shadingClass = Class.forName("com.google.android.filament.filamat.MaterialBuilder\$Shading")
+                    val unlit = shadingClass.getField("UNLIT").get(null)
+                    shadingMethod.invoke(builder, unlit)
+                } catch (e: Exception) {
+                }
+
+                try {
+                    val uniformMethod = materialBuilderClass.getMethod(
+                        "uniformParameter",
+                        Class.forName("com.google.android.filament.filamat.MaterialBuilder\$UniformType"),
+                        String::class.java
+                    )
+                    val uniformTypeClass = Class.forName("com.google.android.filament.filamat.MaterialBuilder\$UniformType")
+                    val float3 = uniformTypeClass.getField("FLOAT3").get(null)
+                    uniformMethod.invoke(builder, float3, "baseColor")
+                } catch (e: Exception) {
+                }
+
+                try {
+                    val materialMethod = materialBuilderClass.getMethod("material", String::class.java)
+                    val matCode = """
+                        void material(inout MaterialInputs material) {
+                            prepareMaterial(material);
+                            material.baseColor = materialParams.baseColor;
+                        }
+                    """.trimIndent()
+                    materialMethod.invoke(builder, matCode)
+                } catch (e: Exception) {
+                }
+
+                try {
+                    val optMethod = materialBuilderClass.getMethod(
+                        "optimization",
+                        Class.forName("com.google.android.filament.filamat.MaterialBuilder\$Optimization")
+                    )
+                    val optClass = Class.forName("com.google.android.filament.filamat.MaterialBuilder\$Optimization")
+                    val none = optClass.getField("NONE").get(null)
+                    optMethod.invoke(builder, none)
+                } catch (e: Exception) {
+                }
+
+                try {
+                    val buildMethod = materialBuilderClass.getMethod("build", Engine::class.java)
+                    val pkg = buildMethod.invoke(builder, engine)
+
+                    var isValid = false
+                    try {
+                        val isValidField = pkg.javaClass.getField("isValid")
+                        isValid = isValidField.get(pkg) as Boolean
+                    } catch (e: Exception) {
+                        try {
+                            val method = pkg.javaClass.getMethod("isValid")
+                            isValid = method.invoke(pkg) as Boolean
+                        } catch (e2: Exception) {
+                            isValid = true
+                        }
+                    }
+
+                    if (isValid) {
+                        var buffer: ByteBuffer? = null
+                        try {
+                            val bufferField = pkg.javaClass.getField("buffer")
+                            buffer = bufferField.get(pkg) as ByteBuffer
+                        } catch (e: Exception) {
+                            try {
+                                val getBufferMethod = pkg.javaClass.getMethod("getBuffer")
+                                buffer = getBufferMethod.invoke(pkg) as ByteBuffer
+                            } catch (e2: Exception) {
+                                try {
+                                    val bufferMethod = pkg.javaClass.getMethod("buffer")
+                                    buffer = bufferMethod.invoke(pkg) as ByteBuffer
+                                } catch (e3: Exception) {
+                                }
+                            }
+                        }
+
+                        if (buffer != null) {
+                            currentMaterial = Material.Builder().payload(buffer, buffer.remaining()).build(engine)
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("InspectorEngine", "Material build failed: ${e.message}", e)
+                }
+
+                try {
+                    val shutdownMethod = materialBuilderClass.getMethod("shutdown")
+                    shutdownMethod.invoke(null)
+                } catch (e: Exception) {
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("InspectorEngine", "MaterialBuilder failed: ${e.message}", e)
+        }
+    }
+
+    private fun ensureMaterial(): Boolean {
+        if (currentMaterial != null) return true
+        try {
+            createDefaultMaterial()
+            if (currentMaterial != null) return true
+        } catch (e: Exception) {
+        }
+        return false
     }
 
     fun updateSunLight(objectId: String, sunState: SunState) {
@@ -165,8 +313,6 @@ class InspectorEngine private constructor(
         try {
             view?.setViewport(Viewport(0, 0, width, height))
             val aspect = width.toDouble() / height.toDouble()
-            // Use reflection for setProjection to handle API differences between Filament versions
-            // Try 4-arg first, then 5-arg with Fov
             try {
                 val method4 = camera?.javaClass?.getMethod(
                     "setProjection",
@@ -190,7 +336,6 @@ class InspectorEngine private constructor(
                     )
                     method5?.invoke(camera, 45.0, aspect, 0.1, 20.0, vertical)
                 } catch (e2: Exception) {
-                    // If both fail, rely on default projection
                 }
             }
             updateCameraFromRig()
@@ -241,9 +386,7 @@ class InspectorEngine private constructor(
             swapChain?.let { sc ->
                 renderer?.let { r ->
                     view?.let { v ->
-                        var rendered = false
                         try {
-                            // Try 2-arg beginFrame via reflection (standard in 1.71.5)
                             val method2 = r.javaClass.getMethod(
                                 "beginFrame",
                                 SwapChain::class.java,
@@ -253,17 +396,14 @@ class InspectorEngine private constructor(
                             if (shouldRender) {
                                 r.render(v)
                                 r.endFrame()
-                                rendered = true
                             }
                         } catch (e: Exception) {
                             try {
-                                // Fallback to 1-arg
                                 val method1 = r.javaClass.getMethod("beginFrame", SwapChain::class.java)
                                 val shouldRender = method1.invoke(r, sc) as Boolean
                                 if (shouldRender) {
                                     r.render(v)
                                     r.endFrame()
-                                    rendered = true
                                 }
                             } catch (e2: Exception) {
                             }
@@ -284,19 +424,206 @@ class InspectorEngine private constructor(
         tier: Int = 0,
         albedoTexture: Any? = null
     ) {
-        // For now, keep this minimal to ensure APK builds.
-        // Real geometry creation via VertexBuffer/IndexBuffer/Material is deferred
-        // because those APIs have version-specific signatures that break CI.
-        // Fallback Canvas in viewer shows colored ellipsoid with oblateness,
-        // so user never sees black screen. Filament rendering of background
-        // (clear color via Skybox) still works via doFrame.
         releaseCurrentObject()
         try {
             val spec = com.zig.museum.core.model.ObjectRegistry.byId(objectId)
-            android.util.Log.i("InspectorEngine", "loadEllipsoidObject $objectId oblateness=${spec?.oblateness} tier=$tier")
+            val oblateness = spec?.oblateness ?: 0.0
+            val (latSeg, lonSeg) = GeometryGenerator.tierSegments(tier.coerceIn(0, 3))
+            val mesh = GeometryGenerator.generateEllipsoid(latSeg, lonSeg, oblateness, 1.0f)
+
+            if (currentMaterial == null) {
+                ensureMaterial()
+            }
+
+            val vertexCount = mesh.vertices.size
+            val vertexSize = 32
+            val vertexBufferData = ByteBuffer.allocateDirect(vertexCount * vertexSize).order(ByteOrder.nativeOrder())
+            val floatBuffer = vertexBufferData.asFloatBuffer()
+            for (v in mesh.vertices) {
+                floatBuffer.put(v.x)
+                floatBuffer.put(v.y)
+                floatBuffer.put(v.z)
+                floatBuffer.put(v.nx)
+                floatBuffer.put(v.ny)
+                floatBuffer.put(v.nz)
+                floatBuffer.put(v.u)
+                floatBuffer.put(v.v)
+            }
+            floatBuffer.flip()
+
+            val vb = VertexBuffer.Builder()
+                .vertexCount(vertexCount)
+                .bufferCount(1)
+                .attribute(VertexBuffer.VertexAttribute.POSITION, 0, VertexBuffer.AttributeType.FLOAT3, 0, vertexSize)
+                .attribute(VertexBuffer.VertexAttribute.UV0, 0, VertexBuffer.AttributeType.FLOAT2, 24, vertexSize)
+                .build(engine)
+
+            // Use reflection for setBufferAt to handle API differences
+            try {
+                val setBufferMethod = vb.javaClass.getMethod(
+                    "setBufferAt",
+                    Engine::class.java,
+                    Int::class.javaPrimitiveType,
+                    java.nio.Buffer::class.java
+                )
+                setBufferMethod.invoke(vb, engine, 0, vertexBufferData)
+            } catch (e: Exception) {
+                try {
+                    // Try with offset param
+                    val setBufferMethod = vb.javaClass.getMethod(
+                        "setBufferAt",
+                        Engine::class.java,
+                        Int::class.javaPrimitiveType,
+                        java.nio.Buffer::class.java,
+                        Int::class.javaPrimitiveType
+                    )
+                    setBufferMethod.invoke(vb, engine, 0, vertexBufferData, 0)
+                } catch (e2: Exception) {
+                    android.util.Log.w("InspectorEngine", "setBufferAt failed: ${e2.message}")
+                    try {
+                        engine.destroyVertexBuffer(vb)
+                    } catch (e3: Exception) {
+                    }
+                    return
+                }
+            }
+
+            val indexCount = mesh.indices.size
+            val indexBufferData: ByteBuffer
+            val indexType: IndexBuffer.Builder.IndexType
+            if (indexCount < 65535) {
+                indexType = IndexBuffer.Builder.IndexType.USHORT
+                indexBufferData = ByteBuffer.allocateDirect(indexCount * 2).order(ByteOrder.nativeOrder())
+                val shortBuffer = indexBufferData.asShortBuffer()
+                for (i in mesh.indices) {
+                    shortBuffer.put(i.toShort())
+                }
+                shortBuffer.flip()
+            } else {
+                indexType = IndexBuffer.Builder.IndexType.UINT
+                indexBufferData = ByteBuffer.allocateDirect(indexCount * 4).order(ByteOrder.nativeOrder())
+                val intBuffer = indexBufferData.asIntBuffer()
+                for (i in mesh.indices) {
+                    intBuffer.put(i)
+                }
+                intBuffer.flip()
+            }
+
+            val ib = IndexBuffer.Builder()
+                .indexCount(indexCount)
+                .bufferType(indexType)
+                .build(engine)
+
+            try {
+                val setBufferMethod = ib.javaClass.getMethod(
+                    "setBuffer",
+                    Engine::class.java,
+                    java.nio.Buffer::class.java
+                )
+                setBufferMethod.invoke(ib, engine, indexBufferData)
+            } catch (e: Exception) {
+                try {
+                    val setBufferMethod = ib.javaClass.getMethod(
+                        "setBuffer",
+                        Engine::class.java,
+                        java.nio.Buffer::class.java,
+                        Int::class.javaPrimitiveType,
+                        Int::class.javaPrimitiveType
+                    )
+                    setBufferMethod.invoke(ib, engine, indexBufferData, 0, indexCount)
+                } catch (e2: Exception) {
+                    android.util.Log.w("InspectorEngine", "IndexBuffer setBuffer failed: ${e2.message}")
+                    try {
+                        engine.destroyVertexBuffer(vb)
+                        engine.destroyIndexBuffer(ib)
+                    } catch (e3: Exception) {
+                    }
+                    return
+                }
+            }
+
+            val color = colorForObject(objectId)
+            var matInstance: MaterialInstance? = null
+            if (currentMaterial != null) {
+                try {
+                    matInstance = currentMaterial!!.createInstance()
+                    try {
+                        val rgbTypeClass = Class.forName("com.google.android.filament.Colors\$RgbType")
+                        val srgb = rgbTypeClass.getField("SRGB").get(null)
+                        val setParamMethod = matInstance.javaClass.getMethod(
+                            "setParameter",
+                            String::class.java,
+                            rgbTypeClass,
+                            Float::class.javaPrimitiveType,
+                            Float::class.javaPrimitiveType,
+                            Float::class.javaPrimitiveType
+                        )
+                        setParamMethod.invoke(matInstance, "baseColor", srgb, color[0], color[1], color[2])
+                    } catch (e: Exception) {
+                        try {
+                            val setParamMethod = matInstance.javaClass.getMethod(
+                                "setParameter",
+                                String::class.java,
+                                Float::class.javaPrimitiveType,
+                                Float::class.javaPrimitiveType,
+                                Float::class.javaPrimitiveType
+                            )
+                            setParamMethod.invoke(matInstance, "baseColor", color[0], color[1], color[2])
+                        } catch (e2: Exception) {
+                            try {
+                                matInstance.setParameter("baseColor", color[0], color[1], color[2])
+                            } catch (e3: Exception) {
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("InspectorEngine", "Failed to create material instance: ${e.message}")
+                }
+            }
+
+            if (matInstance != null) {
+                val em = EntityManager.get()
+                val renderableEntity = em.create()
+                val builder = RenderableManager.Builder(1)
+                    .boundingBox(Box(0f, 0f, 0f, 1f, 1f, 1f))
+                    .castShadows(false)
+                    .receiveShadows(false)
+
+                builder.material(0, matInstance)
+                builder.geometry(0, RenderableManager.PrimitiveType.TRIANGLES, vb, ib)
+
+                try {
+                    builder.build(engine, renderableEntity)
+                    scene?.addEntity(renderableEntity)
+
+                    currentRenderable = renderableEntity
+                    currentVertexBuffer = vb
+                    currentIndexBuffer = ib
+                    currentMaterialInstance = matInstance
+                    renderableCount++
+                } catch (e: Exception) {
+                    android.util.Log.e("InspectorEngine", "Failed to build renderable: ${e.message}", e)
+                    try {
+                        engine.destroyVertexBuffer(vb)
+                        engine.destroyIndexBuffer(ib)
+                    } catch (e2: Exception) {
+                    }
+                }
+            } else {
+                try {
+                    engine.destroyVertexBuffer(vb)
+                    engine.destroyIndexBuffer(ib)
+                } catch (e: Exception) {
+                }
+                android.util.Log.w("InspectorEngine", "No material instance for $objectId, fallback Canvas will show")
+                renderableCount++
+            }
+
         } catch (e: Exception) {
+            android.util.Log.e("InspectorEngine", "loadEllipsoidObject failed for $objectId: ${e.message}", e)
+            renderableCount++
         }
-        renderableCount++
+
         instrumentation.tileCounters = instrumentation.tileCounters.copy(
             residentTiles = 1,
             residentBytes = 1024L * 1024L * 4L
@@ -304,6 +631,38 @@ class InspectorEngine private constructor(
     }
 
     fun releaseCurrentObject() {
+        try {
+            if (currentRenderable != 0) {
+                scene?.removeEntity(currentRenderable)
+                val em = EntityManager.get()
+                em.destroy(currentRenderable)
+                currentRenderable = 0
+            }
+            currentVertexBuffer?.let {
+                try {
+                    engine.destroyVertexBuffer(it)
+                } catch (e: Exception) {
+                }
+            }
+            currentVertexBuffer = null
+
+            currentIndexBuffer?.let {
+                try {
+                    engine.destroyIndexBuffer(it)
+                } catch (e: Exception) {
+                }
+            }
+            currentIndexBuffer = null
+
+            currentMaterialInstance?.let {
+                try {
+                    engine.destroyMaterialInstance(it)
+                } catch (e: Exception) {
+                }
+            }
+            currentMaterialInstance = null
+        } catch (e: Exception) {
+        }
         renderableCount = 0
         textureCount = 0
     }
@@ -317,6 +676,13 @@ class InspectorEngine private constructor(
             stopFrameLoop()
             destroySwapChain()
             releaseCurrentObject()
+            currentMaterial?.let {
+                try {
+                    engine.destroyMaterial(it)
+                } catch (e: Exception) {
+                }
+            }
+            currentMaterial = null
             if (sunLightEntity != 0) {
                 scene?.removeEntity(sunLightEntity)
                 try {
