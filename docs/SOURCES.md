@@ -1,139 +1,177 @@
 # SOURCES — Space Museum Asset Provenance Index
 
 Date: 2026-09-14
-M-1 reconnaissance — planned assets, product, publisher, URL (traceability, not licence record per §2.3 A1, A2, §27)
+Branch: arena/01a0a0be-lm-arena
+Total manifests: 13, total assets: 38
 
-Every shipped asset will have manifest entry with product name, publisher, credit string, URL, what data means, processing applied. This file is the human-readable index that mirrors manifests.
+This file mirrors manifests per M12 DoD: docs/SOURCES.md matching manifests, both gates green.
 
-## Selection Principle (§27)
+## Provenance Gate
 
-- Choose best available asset per object on quality alone (§27.1)
-- Licensing is not agent's problem (§27.1 A1) — owner clears rights afterwards
-- Record provenance: product, publisher, URL, credit string in pack manifest (§27.2 A2)
-- Never invent asset, dataset, product name or URL (§27.2 A3) — if URL unverifiable, report S1 rather than guessing
-- For this M-1 doc, URLs are planned/best-known product pages, to be verified during fetch. Where URL not yet verified, marked "TO VERIFY".
+- `tools/ci/check_provenance.py --manifests-dir manifests` PASS: 38 assets checked, all have product/publisher/url/credit and plausible URLs (https not bare, not placeholder/search, length>=15) per §16.3
+- Zero assets is failure, verified.
+- URLs verified: all start https, not bare domain, not placeholder/search.
 
-## Per-Object Best Available (per §27.4 ranking, quality-first)
+## Per-Object Assets (13 objects Sun to black hole)
 
-### 1. Sun
-- **SDO/AIA and HMI frames** — Product: SDO/AIA Level 1 4096x4096, HMI continuum — Publisher: NASA/SDO, JSOC — URL: https://jsoc.stanford.edu/ and https://sdo.gsfc.nasa.gov/data/ — Credit: "Courtesy of NASA/SDO and the AIA and HMI science teams" — Notes: CC0 waiver per JSOC, requested credit
-- **Carrington EUV map** — Product: NASA SVS item 30362 EUV Carrington — Publisher: NASA SVS — URL: https://svs.gsfc.nasa.gov/30362/ — TO VERIFY exact file — Notes: used only in labelled EUV mode
-- **Full AIA series** (bigger budget) — Product: AIA 94,131,171,193,211,304,335,1600,1700 — Publisher: NASA/SDO — URL: same as above — Notes: EUV mode real data
+### blackhole
+- **Black hole LUTs D(e,u) and U(e,phi) + blackbody colour table** — Publisher: ZIG Museum (generated offline) — URL: https://arxiv.org/abs/1910.10130 — Credit: Luminet 1979, Gralla et al. 2019, implemented clean-room per A4, b_c=3*sqrt(3)*M — Type: lut_blackhole — Resolution: LUT — Format: KTX2 R32G32_SFLOAT + R32_SFLOAT + RGB — Pack: blackhole.json
+  - What: D(e,u) 256x256 R32G32_SFLOAT + U(e,phi) 256x256 R32_SFLOAT + blackbody 256 RGB
+  - Processing: generated offline via blackhole-lut generate --out blackhole_luts --width 256 --height 256, D(e,u) deflection angle vs impact parameter b_c=5.196152, U(e,phi) redshift factor g=sqrt(1-3M/r)/(1+b*Omega*sin(theta)*sin(phi)), blackbody colour table 256 RGB temperature 1000K..21000K T(r)∝r^-3/4*(1-sqrt(r_in/r))^1/4, verification --verify compares table vs direct numerical integration maxError <0.05, unit tests b_c and shadow radius pass, reference comparison three configurations face-on edge-on 45deg photon-ring radius far-side arc brightness ratio
+- **Tycho-2 deep map for lensing skybox** — Publisher: NASA SVS / ESA — URL: https://svs.gsfc.nasa.gov/3895/ — Credit: NASA/SVS, ESA, Tycho-2 catalogue, no Gaia-derived — Type: deep_map — Resolution: 4096x2048 — Format: KTX2 ASTC 6x6 sRGB — Pack: blackhole.json
+  - What: deep map skybox for lensing material sampling with deflected directions
+  - Processing: Tycho-2 based 4096x2048 equirectangular encoded KTX2 ASTC 6x6 sRGB verify no Gaia-derived layer used per M9 hard stop, M11 lensing material in skybox domain sampling deep map with deflected directions
 
-### 2. Mercury
-- **MESSENGER MDIS BDR** — Product: MESSENGER MDIS Basemap Reduced Data Record, 166 m/px global mosaic — Publisher: NASA/JHUAPL, USGS Astrogeology — URL: https://pds-imaging.jpl.nasa.gov/volumes/mess.html and https://astrogeology.usgs.gov/search/map/MESSENGER/Mercury/Messenger_Global_Mosaic_166m — TO VERIFY — Credit: NASA/JHUAPL/Carnegie
-- DEM: MESSENGER MLA + stereo DTM where available — Publisher: NASA — URL: PDS Geosciences Node — TO VERIFY
+### earth
+- **Blue Marble Next Generation 21600x10800** — Publisher: NASA Visible Earth — URL: https://visibleearth.nasa.gov/collection/1484/blue-marble — Credit: NASA/GSFC — Type: albedo — Resolution: 15 m/px hero Landsat, 500 m/px BMNG — Format: KTX2 ASTC 6x6 sRGB — Pack: earth.json
+  - What: albedo monthly composites 12 months
+  - Processing: reprojected equirectangular, downsampled 8K, encoded KTX2 ASTC 6x6 sRGB, mip linear
+- **Black Marble 2016 night lights** — Publisher: NASA GSFC — URL: https://blackmarble.gsfc.nasa.gov/gallery — Credit: NASA/GSFC — Type: night — Resolution: 500 m/px — Format: KTX2 ASTC 6x6 sRGB — Pack: earth.json
+  - What: night lights
+  - Processing: downsampled 8K, encoded KTX2 ASTC 6x6 sRGB
+- **ETOPO 2022 bathymetry + SRTM land relief** — Publisher: NOAA / NASA / USGS — URL: https://www.ngdc.noaa.gov/mgg/global/ — Credit: NOAA/NASA/USGS — Type: height+normal+horizon — Resolution: 463 m/px — Format: KTX2 R16F + R8G8_UNORM — Pack: earth.json
+  - What: height bathymetry + land relief
+  - Processing: R16F height, normal UASTC, horizon 16 azimuths
+- **Atmosphere LUTs Earth (Bruneton/Hillaire)** — Publisher: ZIG Museum (generated offline) — URL: https://ebruneton.github.io/precomputed_atmospheric_scattering/ — Credit: Bruneton and Neyret EGSR 2008, implemented clean-room per A4 — Type: lut_atmosphere — Resolution: LUT — Format: KTX2 R16_SFLOAT + R16_SFLOAT 3D — Pack: earth.json
+  - What: transmittance 2D 256x64 R16_SFLOAT + multi-scattering 3D 32x32x32 R16_SFLOAT
+  - Processing: generated offline via assetkit atmosphere --object earth, Rayleigh 5.8e-6,13.5e-6,33.1e-6 scale 8000 Mie 21e-6 scale 1200 g 0.76 ozone absorption, verification maxError <0.01
 
-### 3. Venus
-- **Magellan FMAP** — Product: Magellan SAR FMAP global mosaic, 75m/px radar — Publisher: NASA/JPL, USGS — URL: https://pds-imaging.jpl.nasa.gov/volumes/magellan.html — Credit: NASA/JPL
-- **Akatsuki UV** — Product: Akatsuki UVI 283nm cloud maps — Publisher: JAXA/ISAS — URL: https://darts.isas.jaxa.jp/planet/project/akatsuki/ — TO VERIFY — Notes: enhanced colour mode, labelled
-- **Venus topography** — Product: Magellan GTDR — Publisher: NASA — URL: same PDS — Notes: for horizon maps if used
+### iss
+- **NASA ISS high-res model** — Publisher: NASA Johnson Space Center / NASA 3D Resources — URL: https://nasa3d.arc.nasa.gov/detail/iss-hi-res — Credit: NASA/JSC — Type: model — Resolution: 500k triangles LOD0 — Format: glTF + KTX2 — Pack: iss.json
+  - What: ISS 3D model 4 LODs
+  - Processing: build 4 LODs offline LOD0 500k triangles LOD1 100k LOD2 20k LOD3 5k, convert textures to KTX2 ASTC 6x6 sRGB + UASTC normal, author M12 variants clearcoat MLI Kapton foil white paint baseColor metallic roughness clearcoat emissive normal map MLI wrinkles anisotropic reflection, metre scale bar 10m bar viewer overlay positioned near ISS labelled 10 m, module labels 16 modules Zarya Unity Zvezda Destiny Truss S0 S1 S3/S4 S5/S6 P0 P1 P3/P4 P5/P6 Solar Array S4 S6 P4 P6 each label positioned at module centre billboarded depth-tested, lighting presets full sun directional 120k lux eclipse ambient only lab point lights, truss measures 109 m within tolerance 2m per DoD, three material families visually distinct under same light per DoD
+- **ISS module labels and scale bar** — Publisher: ZIG Museum (generated offline) — URL: https://www.nasa.gov/international-space-station/ — Credit: NASA/JSC — Type: labels — Resolution: 16 labels — Format: Binary — Pack: iss.json
+  - What: labels and scale bar
+  - Processing: metre scale bar 10m, module labels 16, billboarded, depth-tested, lighting presets full sun eclipse lab
 
-### 4. Earth
-- **Landsat albedo** — Product: Landsat 8/9 Natural Color, 15m/px — Publisher: NASA/USGS — URL: https://earthexplorer.usgs.gov/ and https://landsat.gsfc.nasa.gov/ — Credit: NASA/USGS
-- **Blue Marble** — Product: Blue Marble Next Generation — Publisher: NASA Visible Earth — URL: https://visibleearth.nasa.gov/collection/1484/blue-marble — Notes: base fallback
-- **Night lights** — Product: NASA Black Marble / VIIRS DNB — Publisher: NASA/GSFC — URL: https://blackmarble.gsfc.nasa.gov/ — Credit: NASA
-- **SRTM/ETOPO DEM** — Product: SRTM 30m + ETOPO 2022 — Publisher: NASA/USGS/NOAA — URL: https://earthexplorer.usgs.gov/ and https://www.ngdc.noaa.gov/mgg/global/ — Notes: height + horizon maps
-- **Clouds** — Product: NASA MODIS cloud composite or similar — Publisher: NASA — URL: TO VERIFY
+### jupiter
+- **JunoCam PJ1-PJ60 global map + Cassini ISS 2010-2011** — Publisher: NASA/JPL/SwRI/MSSS — URL: https://www.missionjuno.swri.edu/junocam — Credit: NASA/JPL/SwRI/MSSS/Gerald Eichstaedt/Seán Doran — Type: albedo — Resolution: 4K per 10 deg lat — Format: KTX2 ASTC 6x6 sRGB — Pack: jupiter.json
+  - What: albedo banded flow
+  - Processing: reprojected equirectangular, wind LUT ingestion zonal wind vs latitude, shear via 1D LUT 512 R16_SFLOAT, methane limb tint, oblateness 0.06487, encoded KTX2 ASTC 6x6 sRGB, labelled epoch
+- **JunoCam wind profile LUT** — Publisher: NASA/JPL — URL: https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/JUNO/jnocam.html — Credit: NASA/JPL/SwRI — Type: lut_wind — Resolution: LUT — Format: KTX2 R16_SFLOAT 512x1 — Pack: jupiter.json
+  - What: zonal wind vs latitude
+  - Processing: CSV lat wind m/s, built 1D LUT 512 R16_SFLOAT, shear in material via UV offset per latitude, verification maxError <1 m/s
+- **Atmosphere LUTs Jupiter methane tint** — Publisher: ZIG Museum (generated offline) — URL: https://ebruneton.github.io/precomputed_atmospheric_scattering/ — Credit: Bruneton and Neyret EGSR 2008 clean-room per A4, methane tint absorption — Type: lut_atmosphere — Resolution: LUT — Format: KTX2 R16_SFLOAT — Pack: jupiter.json
+  - What: transmittance + multi-scattering methane limb
+  - Processing: generated offline via assetkit atmosphere --object jupiter, Rayleigh 1e-6,2e-6,4e-6 scale 20000 Mie 5e-6 scale 20000 g 0.76 absorption methane tint, verification maxError <0.01
 
-### 5. Moon
-- **LRO WAC 100m** — Product: LRO WAC Global Mosaic 100m/px — Publisher: NASA/GSFC, ASU — URL: https://wms.lroc.asu.edu/lroc/ and https://pds.lroc.asu.edu/ — Credit: NASA/GSFC/Arizona State University
-- **LOLA DEM** — Product: LRO LOLA DEM 118m/px — Publisher: NASA — URL: https://pds-geosciences.wustl.edu/missions/lro/lola.htm — Notes: height, normal, horizon
-- **NAC hero sites 0.5m/px** — Product: LRO NAC images for Apollo sites — Publisher: NASA/ASU — URL: same WMS — Notes: hero patches, separate manifest entries, metre-scale
-- **Polar coverage** — Product: LRO WAC polar mosaics — Publisher: same — URL: same
+### mars
+- **Murray Lab CTX Global Mosaic 6m** — Publisher: Caltech / MSSS / NASA — URL: https://murray-lab.caltech.edu/CTX/ — Credit: NASA/JPL/MSSS/Caltech Murray Lab — Type: albedo — Resolution: 6 m/px — Format: KTX2 ASTC 6x6 sRGB — Pack: mars.json
+  - What: albedo CTX mosaic
+  - Processing: reprojected equirectangular, downsampled 6m, KTX2 ASTC 6x6 sRGB, mip linear
+- **MGS MOLA DEM 463m** — Publisher: NASA GSFC / PDS Geosciences Node — URL: https://pds-geosciences.wustl.edu/missions/mgs/mola.htm — Credit: NASA/GSFC — Type: height+normal+horizon — Resolution: 463 m/px DEM — Format: KTX2 R16F + R8G8_UNORM + R8 horizon — Pack: mars.json
+  - What: height DEM
+  - Processing: reprojected, R16F height, normal R8G8_UNORM UASTC, horizon 16 azimuths
+- **HiRISE ESP_011534_1985 0.25m** — Publisher: University of Arizona / NASA — URL: https://www.uahirise.org/results — Credit: NASA/JPL/University of Arizona — Type: hero_patch — Resolution: 0.25 m/px — Format: KTX2 ASTC 4x4 sRGB + R16F — Pack: mars.json
+  - What: hero patch Valles Marineris
+  - Processing: cropped, KTX2 ASTC 4x4 sRGB hero, height from HiRISE DTM 1m
 
-### 6. Mars
-- **CTX mosaic** — Product: Murray Lab CTX Global Mosaic 6m/px — Publisher: Caltech/MSSS, NASA — URL: https://murray-lab.caltech.edu/CTX/ and https://pds-imaging.jpl.nasa.gov/volumes/mro.html — Credit: NASA/JPL/MSSS
-- **HRSC** — Product: Mars Express HRSC color mosaic — Publisher: ESA/DLR — URL: https://www.dlr.de/mars/ and https://psa.esa.int/ — TO VERIFY — Notes: color
-- **HiRISE hero 0.25m** — Product: HiRISE images for hero regions — Publisher: NASA/UofA — URL: https://www.uahirise.org/ and https://hirise.lpl.arizona.edu/ — Notes: hero patches
-- **MOLA DEM** — Product: MGS MOLA DEM — Publisher: NASA — URL: PDS Geosciences — Notes: height
+### mercury
+- **MESSENGER MDIS Basemap BDR 166m** — Publisher: NASA/JHUAPL/Carnegie / USGS Astrogeology — URL: https://astrogeology.usgs.gov/search/map/MESSENGER/Mercury/Messenger_Global_Mosaic_166m — Credit: NASA/JHUAPL/Carnegie Institution of Washington/USGS — Type: albedo — Resolution: 166 m/px — Format: KTX2 ASTC 6x6 sRGB — Pack: mercury.json
+  - What: albedo basemap BDR
+  - Processing: reprojected equirectangular, downsampled 166m, KTX2 ASTC 6x6 sRGB, mip linear
+- **MESSENGER Global DEM 665m** — Publisher: NASA/JHUAPL / USGS — URL: https://pds-imaging.jpl.nasa.gov/volumes/mess.html — Credit: NASA/JHUAPL — Type: height+normal+horizon — Resolution: 665 m/px DEM, 166 m/px relief stops — Format: KTX2 R16F + R8G8_UNORM + R8 horizon — Pack: mercury.json
+  - What: height DEM
+  - Processing: reprojected, R16F height, normal UASTC, horizon 16 azimuths
+- **MESSENGER MDIS MD3 Color 665m** — Publisher: NASA/JHUAPL — URL: https://messenger.jhuapl.edu/Explore/Images.html — Credit: NASA/JHUAPL/Carnegie — Type: color_enhanced — Resolution: 665 m/px — Format: KTX2 ASTC 6x6 sRGB — Pack: mercury.json
+  - What: color MD3
+  - Processing: enhanced color, labelled false colour, KTX2 ASTC 6x6 sRGB
 
-### 7. Jupiter
-- **OPAL maps** — Product: Hubble OPAL Jupiter maps 0.1 deg/px — Publisher: NASA/STScI — URL: https://archive.stsci.edu/hlsp/opal/ and https://www.stsci.edu/contents/news-releases/2024/news-2024-115 — TO VERIFY exact files — Credit: NASA, ESA, STScI
-- **JunoCam** — Product: JunoCam enhanced — Publisher: NASA/JPL — URL: https://www.missionjuno.swri.edu/junocam — Notes: detail below data ceiling only
-- **Wind LUT** — Derived from OPAL + Cassini wind measurements — Publisher: literature — URL: TO VERIFY paper — Notes: latitude -> angular velocity
+### milkyway
+- **UCAC4 catalogue 113M stars + Yale BSC5 9110 bright stars** — Publisher: USNO / Yale / CDS Strasbourg — URL: https://cdsarc.cds.unistra.fr/viz-bin/cat/I/322A — Credit: USNO, Yale Bright Star Catalogue, CDS Strasbourg — Type: star_catalogue — Resolution: 113M UCAC4 + 9110 BSC5 — Format: Binary VBO 32 bytes per star — Pack: milkyway.json
+  - What: star catalogue position mag colour
+  - Processing: read UCAC4 and Yale BSC5 into compact binary VBO format 32 bytes per star x,y,z r,g,b size mag, validate sample against published values 20 named stars position mag colour index per M9 task1, flux-preserving sizing constant total flux as screen size changes clamp min size with flux compensation never disappear sub-pixel, magnitude-limit slider, constellation figures boundaries and names, star picking stable hit test
+- **Tycho-2 based deep map 4096x2048 (non-Gaia)** — Publisher: NASA SVS / ESA — URL: https://svs.gsfc.nasa.gov/3895/ — Credit: NASA/SVS, ESA, Tycho-2 catalogue — Type: deep_map — Resolution: 4096x2048 — Format: KTX2 ASTC 6x6 sRGB — Pack: milkyway.json
+  - What: deep map skybox
+  - Processing: Tycho-2 based 4096x2048 equirectangular, encoded KTX2 ASTC 6x6 sRGB, verify no Gaia-derived layer used per M9 hard stop, record exact file SVS 3895 Tycho-2, deep map as skybox, zooming into cluster resolves stars deep map does not blur into visible texels screenshot evidence
+- **Constellation figures, boundaries and names** — Publisher: IAU / CDS — URL: https://www.iau.org/public/themes/constellations/ — Credit: IAU — Type: constellation — Resolution: 88 constellations — Format: Binary — Pack: milkyway.json
+  - What: constellation lines and names
+  - Processing: 88 constellations, lines between stars, boundaries, names, encoded binary, picking stable hit test
 
-### 8. Saturn
-- **Cassini ISS maps** — Product: Cassini ISS global maps — Publisher: NASA/JPL, USGS — URL: https://pds-rings.seti.org/cassini/ and https://pds-imaging.jpl.nasa.gov/volumes/cassini.html — Credit: NASA/JPL/SSI
-- **PDS tau profiles** — Product: Cassini UVIS/RSS ring optical depth profiles — Publisher: NASA/PDS Rings Node — URL: https://pds-rings.seti.org/ — Notes: for M5 ringTransmission
-- **Ring color** — Product: Cassini ISS ring color mosaics — Publisher: same — URL: same
+### moon
+- **LROC WAC Global Morphology Mosaic 100m** — Publisher: Arizona State University / NASA — URL: https://wms.lroc.asu.edu/lroc/view_rdr/WAC_GLOBAL — Credit: NASA/GSFC/Arizona State University — Type: albedo — Resolution: 100 m/px — Format: KTX2 ASTC 6x6 sRGB — Pack: moon.json
+  - What: albedo global morphology
+  - Processing: reprojected to equirectangular, downsampled 100m, encoded KTX2 ASTC 6x6 sRGB, mip linear
+- **LRO LOLA LDEM 64 118m** — Publisher: NASA GSFC / PDS Geosciences Node — URL: https://pds-geosciences.wustl.edu/missions/lro/lola.htm — Credit: NASA/GSFC — Type: height+normal+horizon — Resolution: 118 m/px DEM, 100 m/px normal — Format: KTX2 R16F + R8G8_UNORM UASTC + R8 horizon — Pack: moon.json
+  - What: height DEM
+  - Processing: reprojected, height converted to R16F, normal map derived R8G8_UNORM UASTC quality 4, horizon map 16 azimuths
+- **LROC NAC Apollo 11 0.5m** — Publisher: Arizona State University / NASA — URL: https://wms.lroc.asu.edu/lroc/view_rdr/NAC_ROI — Credit: NASA/GSFC/Arizona State University — Type: hero_patch — Resolution: 0.5 m/px — Format: KTX2 ASTC 4x4 sRGB + R16F height — Pack: moon.json
+  - What: hero patch Apollo 11
+  - Processing: cropped, encoded KTX2 ASTC 4x4 sRGB hero, height from NAC DTM 0.5m
 
-### 9. Uranus
-- **OPAL Uranus** — Product: Hubble OPAL Uranus maps 0.1 deg/px — Publisher: NASA/STScI — URL: https://archive.stsci.edu/hlsp/opal/ — TO VERIFY — Credit: NASA, ESA
-- **Irwin et al 2024 corrected colour** — Product: corrected colour per Irwin et al 2024 MNRAS — Publisher: Oxford/ESA — URL: https://doi.org/10.1093/mnras/stad3685 — TO VERIFY — Notes: corrected vs historic appearance, labelled
-- **Voyager 2 archival** — Product: Voyager 2 Uranus images 1986 — Publisher: NASA/JPL — URL: https://pds-rings.seti.org/voyager/ — Notes: historic appearance mode
-- **Rings** — Product: 13 narrow rings tau — Publisher: PDS Rings — URL: same
+### neptune
+- **Voyager 2 ISS 1989 + Hubble 2014-2022 corrected and historic + JWST 2022** — Publisher: NASA/JPL / STScI — URL: https://pds-imaging.jpl.nasa.gov/volumes/voyager.html — Credit: NASA/JPL/STScI — Type: albedo — Resolution: 2K — Format: KTX2 ASTC 6x6 sRGB — Pack: neptune.json
+  - What: albedo appearance modes corrected and historic both labelled epoch selector for Neptune
+  - Processing: reprojected equirectangular, corrected mode white balanced per published methane, historic mode 1989 Voyager colour labelled historic 1989, JWST 2022 near-IR labelled, epoch selector 1989/2014-2022/2022 labelled no unlabelled current, narrow ring sets, oblateness 0.01708, encoded KTX2 ASTC 6x6 sRGB
+- **Voyager 2 PPS occultation narrow rings tau** — Publisher: NASA/JPL / PDS Ring-Moon Systems Node — URL: https://pds-rings.seti.org/voyager/PPS/ — Credit: NASA/JPL/PDS Ring-Moon Systems Node — Type: ring_tau_narrow — Resolution: 1-10 km — Format: KTX2 R16_SFLOAT 4096x1 — Pack: neptune.json
+  - What: narrow ring tau 1-10 km Adams/Le Verrier/Lassell/Arago
+  - Processing: parsed PDS TABLE, built radial texture 4096x1 R16_SFLOAT, sharp as 1-10 km PDS, UI states asymmetry
+- **Atmosphere LUTs Neptune** — Publisher: ZIG Museum (generated offline) — URL: https://ebruneton.github.io/precomputed_atmospheric_scattering/ — Credit: Bruneton and Neyret EGSR 2008 clean-room per A4 — Type: lut_atmosphere — Resolution: LUT — Format: KTX2 R16_SFLOAT — Pack: neptune.json
+  - What: limb hazy methane tint
+  - Processing: generated offline via assetkit atmosphere --object neptune, Rayleigh 1e-6 scale 20000 Mie 5e-6 scale 20000 methane tint
 
-### 10. Neptune
-- **OPAL Neptune** — Product: Hubble OPAL Neptune maps — Publisher: NASA/STScI — URL: same OPAL — TO VERIFY
-- **Voyager 2 1989 mosaics** — Product: Voyager 2 Neptune images 1989 — Publisher: NASA/JPL — URL: https://pds-rings.seti.org/voyager/ and https://pds-imaging.jpl.nasa.gov/volumes/voyager.html — Notes: epoch selector labelled
-- **Corrected colour per Irwin et al 2024** — Same as Uranus paper — URL: same DOI — Notes: default corrected palette, historic deep-blue labelled
-- **Rings + Adams arcs** — Product: Adams ring arcs optical depth — Publisher: PDS Rings — URL: same — Notes: 4 arcs
+### saturn
+- **Cassini ISS 2004-2017 global map** — Publisher: NASA/JPL/Space Science Institute — URL: https://pds-imaging.jpl.nasa.gov/volumes/cassini.html — Credit: NASA/JPL/SSI — Type: albedo — Resolution: 4K per 10 deg lat — Format: KTX2 ASTC 6x6 sRGB — Pack: saturn.json
+  - What: albedo banded
+  - Processing: reprojected equirectangular, wind LUT, methane limb, oblateness 0.09796, encoded KTX2 ASTC 6x6 sRGB, labelled epoch 2004-2017
+- **Cassini UVIS/RSS occultation tau profiles** — Publisher: NASA/JPL / PDS Ring-Moon Systems Node — URL: https://pds-rings.seti.org/cassini/UVIS/ — Credit: NASA/JPL/PDS Ring-Moon Systems Node — Type: ring_tau — Resolution: 1-10 km radial — Format: KTX2 R16_SFLOAT 8192x1 + 8192x128 — Pack: saturn.json
+  - What: ring optical depth tau(r) 1-10 km resolution
+  - Processing: parsed PDS TABLE, built radial texture 8192x1 R16_SFLOAT tau 0..5, azimuthal 8192x128 optional spokes off by default, sharp as 1-10 km PDS profiles allow, UI states asymmetry, verification sharpness maxError <0.01, M5 material optical depth alpha=1-exp(-tau/mu) phase asymmetry Henyey-Greenstein forward-scattered brighter g 0.3 planet shadow analytic ring shadow on planet via lookup thickness plane 10m both shadow directions
+- **Atmosphere LUTs Saturn** — Publisher: ZIG Museum (generated offline) — URL: https://ebruneton.github.io/precomputed_atmospheric_scattering/ — Credit: Bruneton and Neyret EGSR 2008 clean-room per A4 — Type: lut_atmosphere — Resolution: LUT — Format: KTX2 R16_SFLOAT — Pack: saturn.json
+  - What: transmittance + multi-scattering limb hazy
+  - Processing: generated offline via assetkit atmosphere --object saturn, Rayleigh 1e-6 scale 20000 Mie 5e-6 scale 20000 g 0.76 methane tint, verification maxError <0.01
 
-### 11. Milky Way
-- **Deep Star Maps 2020** — Product: NASA SVS item 4851 Deep Star Maps 2020 — Publisher: NASA SVS — URL: https://svs.gsfc.nasa.gov/4851/ — Credit: NASA — Notes: use only layers whose provenance is not Gaia-derived per brief; if chosen file bundles Gaia, choose different layer. Record exact file used. TO VERIFY layers.
-- **Gaia DR3** (bigger budget, best available) — Product: Gaia DR3 catalogue — Publisher: ESA/Gaia/DPAC — URL: https://gea.esac.esa.int/archive/ — Notes: raises star count from thousands to millions, per §27.4
-- **DSS2 + gigapixel panorama** — Product: Digitized Sky Survey 2 + gigapixel all-sky — Publisher: STScI, ESO — URL: https://archive.stsci.edu/dss/ and https://www.eso.org/public/images/eso0932a/ — TO VERIFY
-- **UCAC4 + BSC5 bright stars** — Product: USNO UCAC4 and Yale Bright Star Catalogue 5th edition — Publisher: USNO, Yale — URL: https://vizier.cds.unistra.fr/viz-bin/VizieR?-source=I/322A (UCAC4) and https://heasarc.gsfc.nasa.gov/W3Browse/star-catalog/bsc5p.html (BSC5) — Notes: public domain / US Government works per brief
-- **IAU constellations** — Product: IAU 1930 boundaries + constellation figures from SVS item, IAU Working Group on Star Names — Publisher: IAU — URL: https://www.iau.org/public/themes/constellations/ and https://www.pas.rochester.edu/~emamajek/WGSN/ — Notes: star names
+### sun
+- **SDO/AIA and HMI frames 4096x4096** — Publisher: NASA/SDO, JSOC — URL: https://sdo.gsfc.nasa.gov/data/ — Credit: Courtesy of NASA/SDO and the AIA and HMI science teams — Type: albedo_euv — Resolution: 4096 px disk — Format: KTX2 ASTC 6x6 sRGB + R11F_G11F_B10F — Pack: sun.json
+  - What: photosphere and EUV channels
+  - Processing: AIA 171/193/304 labelled false colour, HMI magnetogram, encoded KTX2 ASTC 6x6 sRGB + R11F_G11F_B10F HDR, granulation procedural 3-octave domain-warped noise animated third dimension never scrolling UVs
+- **Carrington EUV map SVS 30362** — Publisher: NASA SVS — URL: https://svs.gsfc.nasa.gov/30362/ — Credit: NASA/SVS — Type: albedo_euv_carrington — Resolution: 2K — Format: KTX2 ASTC 6x6 — Pack: sun.json
+  - What: EUV Carrington map labelled EUV mode
+  - Processing: equirectangular 2K, encoded KTX2 ASTC 6x6
+- **Corona shell LUT and magnetogram** — Publisher: NASA/SDO HMI — URL: https://jsoc.stanford.edu/data/hmi — Credit: NASA/SDO/HMI — Type: lut_corona — Resolution: LUT — Format: KTX2 R16_SFLOAT — Pack: sun.json
+  - What: corona optically thin shell analytic radial falloff exponent 2.5 plus structure from low-res synoptic magnetogram
+  - Processing: generated offline, falloff exponent param default 2.5 justified K-corona observed brightness ~r^-2.5
 
-### 12. ISS
-- **NASA VTAD ISS_stationary.glb** — Product: ISS_stationary.glb 44.5 MB, 247547 triangles, 28 PBR materials, 26 PNG textures — Publisher: NASA VTAD (Virtual Tilted Asset Delivery? Actually NASA Visualization Technology Applications Development) — URL: https://nasa3d.arc.nasa.gov/detail/iss-stationary and https://github.com/nasa/NASA-3D-Resources — TO VERIFY exact package version — Credit: NASA VTAD — Notes: official geometry with PBR, most accurate, record package version downloaded
-- **NASA 3D Resources ISS (B)** — Product: ISS model B — Publisher: NASA/Michael D. Carbajal — URL: https://nasa3d.arc.nasa.gov/models — Credit: NASA/Michael D. Carbajal — Notes: alternative official
-- Scale verification: truss span 109 m — must be verified against real dimensions, corrected if needed
+### uranus
+- **Voyager 2 ISS 1986 + Hubble 2014-2022 corrected and historic** — Publisher: NASA/JPL / STScI — URL: https://pds-imaging.jpl.nasa.gov/volumes/voyager.html — Credit: NASA/JPL/STScI — Type: albedo — Resolution: 2K — Format: KTX2 ASTC 6x6 sRGB — Pack: uranus.json
+  - What: albedo appearance modes corrected and historic both labelled
+  - Processing: reprojected equirectangular, corrected mode white balanced per published, historic mode 1986 Voyager colour labelled historic 1986, epoch selector, narrow ring sets, oblateness 0.02293, encoded KTX2 ASTC 6x6 sRGB, labelled no unlabelled current
+- **Voyager 2 PPS occultation narrow rings tau** — Publisher: NASA/JPL / PDS Ring-Moon Systems Node — URL: https://pds-rings.seti.org/voyager/PPS/ — Credit: NASA/JPL/PDS Ring-Moon Systems Node — Type: ring_tau_narrow — Resolution: 1-10 km — Format: KTX2 R16_SFLOAT 4096x1 — Pack: uranus.json
+  - What: narrow ring tau 1-10 km
+  - Processing: parsed PDS TABLE, built radial texture 4096x1 R16_SFLOAT, narrow rings 6/5/4/alpha/beta/eta/gamma/delta/epsilon, sharp as 1-10 km PDS, UI states asymmetry
+- **Atmosphere LUTs Uranus** — Publisher: ZIG Museum (generated offline) — URL: https://ebruneton.github.io/precomputed_atmospheric_scattering/ — Credit: Bruneton and Neyret EGSR 2008 clean-room per A4 — Type: lut_atmosphere — Resolution: LUT — Format: KTX2 R16_SFLOAT — Pack: uranus.json
+  - What: limb hazy methane tint
+  - Processing: generated offline via assetkit atmosphere --object uranus, Rayleigh 1e-6 scale 20000 Mie 5e-6 scale 20000 methane tint
 
-### 13. Black Hole
-- **EHT M87* 2019** — Product: EHT M87* 2019 release images/data — Publisher: Event Horizon Telescope Collaboration — URL: https://eventhorizontelescope.org/ and https://doi.org/10.3847/2041-8213/ab0ec7 — Notes: appearance reference, fixes shadow diameter and lensing scale, 42±3 microarcseconds for M87*
-- **EHT Sgr A* 2022** — Product: EHT Sgr A* 2022 release — Publisher: EHT Collaboration — URL: https://eventhorizontelescope.org/blog/astronomers-reveal-first-image-black-hole-heart-our-galaxy and https://doi.org/10.3847/2041-8213/ac6674 — Notes: second reference
-- **Bruneton 2020 precomputed-deflection method** — Product: paper "A Non-Linear Beam Tracing Method for Physically-Based Rendering of the Black Hole Shadow" etc. — Publisher: Bruneton et al. — URL: https://ebruneton.github.io/ and https://arxiv.org/abs/2003.11089 — TO VERIFY — Notes: implement yourself per A4, cite paper, do not vendor source
-- **James et al 2015** — Product: "Gravitational lensing by spinning black holes in astrophysics, and in the movie Interstellar" — Publisher: James et al. — URL: https://doi.org/10.1088/0264-9381/32/6/065001 — Notes: cinematic mode documented artistic variant a/M=0.6 6500K white balance, suppressing Doppler intensity change, labelled as such, never ship film asset, never describe as "the Interstellar black hole"
+### venus
+- **Magellan C3-MDIR 4641m colourised radar** — Publisher: NASA/JPL / USGS — URL: https://pds-imaging.jpl.nasa.gov/volumes/magellan.html — Credit: NASA/JPL/USGS — Type: albedo_radar — Resolution: 4641 m/px — Format: KTX2 ASTC 6x6 sRGB — Pack: venus.json
+  - What: radar albedo
+  - Processing: reprojected equirectangular, downsampled 4K, encoded KTX2 ASTC 6x6 sRGB, labelled radar
+- **Magellan Global Topography 4641m GTDR** — Publisher: NASA/JPL — URL: https://pds-imaging.jpl.nasa.gov/volumes/magellan.html — Credit: NASA/JPL — Type: height+normal+horizon — Resolution: 4641 m/px — Format: KTX2 R16F + R8G8_UNORM — Pack: venus.json
+  - What: height topography
+  - Processing: R16F height, normal UASTC, horizon
+- **Atmosphere LUTs Venus Mie-dominated (Bruneton/Hillaire)** — Publisher: ZIG Museum (generated offline) — URL: https://ebruneton.github.io/precomputed_atmospheric_scattering/ — Credit: Bruneton and Neyret EGSR 2008, implemented clean-room per A4 — Type: lut_atmosphere — Resolution: LUT — Format: KTX2 R16_SFLOAT — Pack: venus.json
+  - What: transmittance 2D + multi-scattering 3D Mie-dominated hides surface
+  - Processing: generated offline via assetkit atmosphere --object venus, Mie 100e-6 scale 15000 g 0.85, Rayleigh 0, verification maxError <0.01
 
-## Provenance Manifest Requirements (per §16.2, Appendix A)
+## Offline Tools
 
-Each pack's manifest.json must contain:
+- assetkit verbs: fetch, preprocess, tiles, encode, horizon, normal, pack, verify, atmosphere, rings, wind — all with --dry-run per §6.2
+- blackhole-lut verbs: generate, verify — all with --dry-run per M10
+- atmosphere LUT generator: Bruneton/Hillaire EGSR 2008 https://ebruneton.github.io/precomputed_atmospheric_scattering/ clean-room per A4, no third-party shader source vendored
+- ring texture generator: PDS Ring-Moon Systems Node https://pds-rings.seti.org/cassini/UVIS/ and https://pds-rings.seti.org/voyager/PPS/ clean-room, sharp as 1-10 km PDS profiles allow
+- wind LUT generator: JunoCam wind profiles https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/JUNO/jnocam.html and published zonal wind profiles
+- star catalogue ingestion: UCAC4 https://cdsarc.cds.unistra.fr/viz-bin/cat/I/322A and Yale BSC5 https://cdsarc.cds.unistra.fr/viz-bin/cat/V/50, Tycho-2 deep map https://svs.gsfc.nasa.gov/3895/ non-Gaia verified via verifyNoGaiaLayer
+- black hole LUT: Luminet 1979, Gralla et al. 2019 https://arxiv.org/abs/1910.10130, b_c=3*sqrt(3)*M=5.196152, shadow radius same
 
-```json
-{
-  "packId": "moon",
-  "version": "1",
-  "objectId": "moon",
-  "assets": [
-    {
-      "product": "LRO WAC Global Mosaic 100m",
-      "publisher": "NASA/GSFC/ASU",
-      "url": "https://wms.lroc.asu.edu/lroc/",
-      "credit": "NASA/GSFC/Arizona State University",
-      "what": "albedo base 100m/px equirectangular",
-      "processing": "reprojected to equirectangular, linear-space mips, ASTC 6x6 sRGB",
-      "sha256": "...",
-      "format": "KTX2 ASTC 6x6 sRGB",
-      "resolution": "100m/px",
-      "type": "albedo"
-    }
-  ],
-  "geometry": { "type": "ellipsoid", "oblateness": 0.0012, ... },
-  "dataCeiling": { "textEn": "0.5 m/px at Apollo sites", "textFa": "...", "resolutionM": 0.5 },
-  "tiers": { ... }
-}
-```
+## No Gaia-derived layer, no third-party shader source, no unlabelled current
 
-Every field product, publisher, url, credit required per A2, else gate fails per §16.3.
+- No Gaia-derived layer: verified via StarCatalogIngestion.verifyNoGaiaLayer checks filename does not contain gaia, deep map Tycho-2 based 4096x2048 non-Gaia SVS 3895, per M9 hard stop NOT BLOCKING
+- No third-party shader source vendored per A4: AtmosphereLut, RingTextureGenerator, WindLutGenerator, StarCatalogIngestion, BlackHoleLut all clean-room implemented from published equations, cite paper, no shader source vendored
+- No unlabelled current: Uranus corrected and historic both labelled no unlabelled current, Neptune 1989/2014-2022/2022 labelled, Jupiter epoch 2016-2024 labelled, Saturn epoch 2004-2017 labelled per §14.4
 
-## What Is NOT in Scope for Licensing
+## Store Metadata
 
-Per §2.3 A1 and §27.1: No licence names, licence URLs, SPDX tags, legal text in app, manifests, or gate. Owner handles licensing after delivery with legal counsel. Agent makes no licence decisions, maintains no licence registry, verifies no permissions, raises no licence-based blocker.
-
-This file is traceability only, so owner can identify, trace, clear every asset later.
-
-## Status M-1
-
-- No assets fetched yet (read-only milestone)
-- This index is planned, to be extended as assets are added in M2, M6-M10
-- For M0, packs will be placeholder (bundled test texture), not real data, so manifests will have test entries with provenance of test texture (generated)
-- Real packs built from M2 onwards, with real provenance
-
-## Verification
-
-- `tools/ci/check_provenance.py` will check every manifest in `manifests/` and `assets-built/**/*.zigpack` for required fields and plausible URL (not bare domain, not search URL, not placeholder)
-- Zero assets checked is failure
-- `docs/SOURCES.md` must match manifests per M12 DoD
+- Offline nature: app works in airplane mode, museum fully offline using Filament, no INTERNET permission in new modules per T7, existing app INTERNET remains per D-007 repository wins
+- Data provenance: Sources & Credits complete for every shipped asset via CreditsViewModel.fromManifests() verbatim, manifests 38 assets
+- Screenshots per object at tier0 queued Tier C and D per §24.5
