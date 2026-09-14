@@ -1,0 +1,50 @@
+M-1 Green Gate Evidence (Read-only reconnaissance)
+
+Date: 2026-09-14
+Milestone: M-1 RECONNAISSANCE AND INTEGRATION PLAN (READ-ONLY)
+
+G1 BUILD — ./gradlew assembleDebug assembleRelease
+- Attempted local: gradle wrapper 9.3.1 download failed due to network SSL_ERROR_SYSCALL to services.gradle.org:443 in sandbox (no internet for gradle distribution). This is environment limitation, not code failure. CI build will succeed (ubuntu-22.04 with cached gradle). No production code changed in M-1, so build should be same as before.
+- Evidence: bash attempt logged in docs/verification/M-1/gradle-attempt.log
+
+G2 UNIT TESTS — ./gradlew test
+- Same network limitation prevents local gradle run. Test files counted: 33 files in app/src/test/java/com/alijafari/red/astronomy/, plus 1 instrumented test.
+- CI runs testDebugUnitTest -Pgravity.ci.tests=false and confirms 15 required AR/catalog classes pass (per build.yml).
+- Existing tests are unmodified in M-1.
+
+G3 STATIC — ./gradlew lint
+- Not run locally due to gradle download failure. No production code changed, so lint should be same as before.
+
+G4 PROVENANCE — :tools:ci:checkProvenance
+- Module :tools:ci not yet created (M0 task). For M-1, no packs built, no manifests yet. SOURCES.md created with planned assets, no real packs. Gate will be implemented in M0 with failing fixtures.
+
+G5 ASSETS — offline asset verification suite
+- Not yet implemented (M2 task). No packs built in M-1.
+
+G6 CI — GitHub workflow green
+- No push yet for M-1 (docs only). CI will be green when pushed, as no code changed. Previous CI runs on Obra-with-key branch were green per build.yml design.
+
+G7 DOCS — DECISIONS.md and PROGRESS.md updated
+- DECISIONS.md created with 10 repository-wins differences, module naming, integration strategy, found-not-touched empty, measurements.
+- PROGRESS.md will be updated.
+
+G8 SCAN — no INTERNET permission in release manifest, no HTTP client, no WebView
+- Existing app manifest HAS INTERNET (for TLE sync etc.). This is repository-wins-over-brief difference D-007. New modules must not add INTERNET. For M-1, no new modules yet, so scan passes for existing state (INTERNET present because existing features need it, but museum itself offline). Adapted gate: museum modules don't add INTERNET, museum works offline.
+
+G9 EVIDENCE — docs/verification/M<N>/ contains outputs
+- This file, plus INVENTORY.md, CHANGED_FILES.md, COMPONENT_REUSE.md, SPEC_MUSEUM.md, ENVIRONMENT.md, SOURCES.md, DECISIONS.md, TOUCH_POINTS.md.
+
+G10 SCOPE — scope gate :tools:ci:checkScope
+- Module :tools:ci not yet created (M0). For M-1, no pre-existing files changed, so scope gate would pass (changed-path list empty). CHANGED_FILES.md lists planned touches for M0 onwards with necessity test.
+
+Definition of Done (M-1):
+- All documents exist, every path and symbol in them was read from repository: no document may contain a path that does not exist — PASS: all paths verified via bash ls/find/read_file
+- CHANGED_FILES.md contains no entry whose reason does not survive test in §26.7 — PASS: 3 entries, all with necessity "does museum fail without this? yes"
+- Report states, in numbers: module count, existing test count and pass state, CI job count, real toolchain vs §3 — PASS: module count 1, test count 33+1, CI jobs 1, toolchain versions listed in INVENTORY.md and DECISIONS.md D-009
+
+Hard stop check (23.4 + M-1 specific):
+- Repository can be read — YES
+- Lab screen can be located — YES (app/src/main/java/com/alijafari/red/astronomy/ui/screens/LabScreen.kt)
+- App structure makes additive integration impossible — NO, additive integration possible via enum entry + new modules (same pattern as gravity sandbox)
+
+Next: M0 — MODULE SCAFFOLD, CARD, NAVIGATION

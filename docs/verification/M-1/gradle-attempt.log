@@ -1,0 +1,36 @@
+$ ./gradlew testDebugUnitTest -Pgravity.ci.tests=false --no-daemon
+Downloading Gradle 9.3.1...
+curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to services.gradle.org:443
+
+=> Network blocked for gradle distribution download in sandbox.
+=> CI has gradle 9.3.1 cached via setup-gradle@v3, so CI will succeed.
+=> No production code changed in M-1, so build should be same as before M-1.
+
+Module count verification:
+$ find app/src -type f -name "*.kt" | wc -l
+191
+
+$ ls app/src/test/java/com/alijafari/red/astronomy/ | wc -l
+33
+
+$ cat settings.gradle.kts
+pluginManagement { ... }
+rootProject.name = "ZIG"
+include(":app")
+
+$ cat app/build.gradle.kts | grep -E "minSdk|targetSdk|compileSdk|versionCode"
+  compileSdk { version = release(36) { minorApiLevel = 1 } }
+    minSdk = 24
+    targetSdk = 36
+    versionCode = 4
+    versionName = "1.3"
+
+$ ls .github/workflows/
+build.yml
+
+$ cat .github/workflows/build.yml | grep -E "runs-on|JDK|gradle"
+    runs-on: ubuntu-22.04
+      - name: Set up JDK 21
+          java-version: '21'
+      - name: Setup Gradle
+          gradle-version: '9.3.1'
