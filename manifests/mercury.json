@@ -1,0 +1,57 @@
+{
+  "packId": "mercury_base",
+  "version": "1-m6-rocky-trio",
+  "objectId": "mercury",
+  "assets": [
+    {
+      "product": "MESSENGER MDIS Basemap BDR 166m",
+      "publisher": "NASA/JHUAPL/Carnegie / USGS Astrogeology",
+      "url": "https://astrogeology.usgs.gov/search/map/MESSENGER/Mercury/Messenger_Global_Mosaic_166m",
+      "credit": "NASA/JHUAPL/Carnegie Institution of Washington/USGS",
+      "what": "albedo basemap BDR",
+      "processing": "reprojected equirectangular, downsampled 166m, KTX2 ASTC 6x6 sRGB, mip linear",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "166 m/px",
+      "type": "albedo"
+    },
+    {
+      "product": "MESSENGER Global DEM 665m",
+      "publisher": "NASA/JHUAPL / USGS",
+      "url": "https://pds-imaging.jpl.nasa.gov/volumes/mess.html",
+      "credit": "NASA/JHUAPL",
+      "what": "height DEM",
+      "processing": "reprojected, R16F height, normal UASTC, horizon 16 azimuths",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16F + R8G8_UNORM + R8 horizon",
+      "resolution": "665 m/px DEM, 166 m/px relief stops",
+      "type": "height+normal+horizon"
+    },
+    {
+      "product": "MESSENGER MDIS MD3 Color 665m",
+      "publisher": "NASA/JHUAPL",
+      "url": "https://messenger.jhuapl.edu/Explore/Images.html",
+      "credit": "NASA/JHUAPL/Carnegie",
+      "what": "color MD3",
+      "processing": "enhanced color, labelled false colour, KTX2 ASTC 6x6 sRGB",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "665 m/px",
+      "type": "color_enhanced"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "166 m/px BDR (MESSENGER MDIS), 665 m/px DEM, enhanced colour labelled false colour",
+    "textFa": "166 متر/پیکسل BDR، 665 متر/پیکسل DEM، رنگ تقویت شده با برچسب رنگ کاذب",
+    "resolutionM": 166
+  },
+  "geometry": {
+    "type": "ellipsoid",
+    "oblateness": 0.0000,
+    "radiusM": 2439400
+  },
+  "tiers": {
+    "tier0": "16K BDR + 8K DEM + 8K normal 260MB",
+    "tier2": "4K BDR"
+  }
+}

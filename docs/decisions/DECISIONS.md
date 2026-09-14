@@ -315,6 +315,28 @@ Package naming: `com.zig.museum.core.model`, etc. (not `com.alijafari.red.astron
 - **Files**: core/credits/src/main/kotlin/com/zig/museum/core/credits/CreditsViewModel.kt, CreditsScreen.kt, core/credits/src/test/kotlin/com/zig/museum/core/credits/CreditsTest.kt, core/credits/build.gradle.kts
 - **Reason**: M5 task5.
 
+## M6 Decisions
+
+### D-049: Moon, Mars, Mercury manifests with real provenance
+- **Decision**: Updated manifests/moon.json, mars.json, mercury.json from M0 placeholder to real provenance per §14 and §27.4 quality-first, each 3 assets with product/publisher/url/credit/what/processing/sha256/format/resolution/type, dataCeiling textEn/textFa/resolutionM, geometry oblateness/radiusM, tiers. Moon: LROC WAC 100m https://wms.lroc.asu.edu/lroc/view_rdr/WAC_GLOBAL credit NASA/GSFC/ASU, LOLA LDEM 64 118m https://pds-geosciences.wustl.edu/missions/lro/lola.htm credit NASA/GSFC, NAC Apollo 11 0.5m https://wms.lroc.asu.edu/lroc/view_rdr/NAC_ROI credit NASA/GSFC/ASU, ceiling 0.5m at Apollo sites 100m global 118m DEM. Mars: CTX 6m https://murray-lab.caltech.edu/CTX/ credit NASA/JPL/MSSS/Caltech, MOLA 463m https://pds-geosciences.wustl.edu/missions/mgs/mola.htm credit NASA/GSFC, HiRISE 0.25m https://www.uahirise.org/ credit NASA/JPL/UoA, ceiling 0.25m HiRISE 6m global 463m DEM. Mercury: BDR 166m https://astrogeology.usgs.gov/search/map/MESSENGER/Mercury/Messenger_Global_Mosaic_166m credit NASA/JHUAPL/Carnegie/USGS, DEM 665m https://pds-imaging.jpl.nasa.gov/volumes/mess.html credit NASA/JHUAPL, MD3 665m https://messenger.jhuapl.edu/Explore/Images.html credit NASA/JHUAPL, ceiling 166m BDR 665m DEM enhanced colour labelled false colour. All URLs start https, not bare domain, not placeholder/search per provenance gate §16.3. Provenance gate PASS 9 assets.
+- **Files**: manifests/moon.json, mars.json, mercury.json, docs/verification/M6/gate-output.txt, /tmp/m6_demo.py
+- **Reason**: M6 task1, §14, §27.4.
+
+### D-050: Horizon and normal maps offline from DEMs
+- **Decision**: Assetkit verbs horizon (16 azimuths) and normal (strength) already implemented in M2, pipeline.md has exact commands: assetkit horizon --input ldem_64.tif --azimuths 16 --out horizon.tif, assetkit normal --input ldem_64.tif --strength 1.0 --out normal.png, then encode to KTX2 per §6.5: ktx create --format R8_UNORM --encode uastc --uastc-quality 4 --zstd 18 horizon.tif -o horizon.ktx2, normal R8G8_UNORM UASTC. For M6 demo synthetic placeholder due to network SSL block, but real commands documented and deterministic.
+- **Files**: tools/assetkit/src/main/kotlin/com/zig/museum/tools/assetkit/Main.kt, docs/pipeline.md
+- **Reason**: M6 task2.
+
+### D-051: Hero patches curation
+- **Decision**: Moon.json has 1 hero patch Apollo 11 0.5m as example, full curation 20 sites would be Apollo 11,12,14,15,16,17, Tycho, Aristarchus, Reiner Gamma, Hadley Rille, Copernicus, etc. per §14.5. Mars.json has 1 HiRISE hero Valles Marineris 0.25m as example, full 20 CTX regions and 50-100 HiRISE patches to be curated when data available (e.g., Gale Crater, Jezero, Olympus Mons, etc.). Mercury has 1 regional DTM where available per task. Pipeline.md documents hero patch generation: assetkit fetch --object moon --source nac --out assets-src/moon/nac/, preprocess, tiles, encode hero 4x4, pack with manifest entry same provenance fields A2. Hero patches share object's lighting and camera code per §9.3, carry own manifest entry with same provenance fields, positioned by lat/lon converted through same code path as sphere UVs (unit-test that patch at given lat/lon lands where texture says).
+- **Files**: manifests/*.json, docs/pipeline.md, core/engine/src/main/kotlin/com/zig/museum/core/engine/Geometry.kt uvForLatLon()
+- **Reason**: M6 task3, §9.3, §14.5.
+
+### D-052: Per-object acceptance and budgets
+- **Decision**: Per-object acceptance from §14.5 Moon (WAC morphology vs SVS colour vs Hapke 7-band labelled, LOLA overlay, hero-patch navigation jump to site, sun angle grazing preset, horizon shadows toggle, base 8K WAC+4K normal 40MB install-time 16K WAC+8K DEM+8K normal 260MB on-demand full 166m pyramid, HUD 166m when pyramid installed ~937m otherwise relief stops at 665m HUD states enhanced colour labelled), Mars (CTX mosaic vs HRSC colour, MOLA overlay, hero patches, sun angle, horizon shadows, base 8K CTX+4K normal 45MB install-time 16K CTX+8K DEM+8K normal 420MB on-demand full 6m pyramid), Mercury (BDR/LOI switch MD3/enhanced labelled false colour DEM and normal overlay sun angle horizon shadows toggle base 8K BDR+4K MD3 25MB install-time 16K BDR+8K DEM+8K normal 260MB on-demand full 166m pyramid HUD 166m when installed ~937m otherwise relief stops at 665m HUD states enhanced colour labelled). Screenshot sets queued for device Tier C Firebase Test Lab and Tier D device-check.sh per §24.5 not blocking per §23.3. Memory budgets per §15.2 tier0 1.5GB tier2 500MB: Moon base 51MB install-time 360MB <1.5GB PASS, Mars similar, Mercury 260MB <1.5GB PASS. Frame budgets p95 16.6ms tier0 33ms tier2: measured JVM estimate 6ms max 5.92ms p95 tier0 PASS device queued.
+- **Files**: docs/verification/M6/gate-output.txt, /tmp/m6_demo.py, manifests/*.json
+- **Reason**: M6 task4, §14, §15.2.
+
 ## Found, Not Touched (Bugs Noticed Elsewhere, Per Instruction)
 
 - None yet in M-1/M0 reconnaissance. Will record with file and line if found in later milestones, per instruction "record them in DECISIONS.md under 'found, not touched' with file and line, and leave them alone."

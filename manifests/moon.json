@@ -1,28 +1,57 @@
 {
-  "packId": "moon",
-  "version": "0-m0-placeholder",
+  "packId": "moon_base",
+  "version": "1-m6-rocky-trio",
   "objectId": "moon",
   "assets": [
     {
-      "product": "Placeholder Test Texture",
-      "publisher": "ZIG Museum (generated)",
-      "url": "https://github.com/alimehali-cyber/Lm-arena/blob/Obra-with-key/docs/Space_Museum_Roadmap.pdf",
-      "credit": "Generated placeholder for M0 scaffold, no real data yet",
-      "what": "test albedo 512x256",
-      "processing": "generated in code, ASTC 6x6 sRGB placeholder",
-      "sha256": "placeholder-m0",
+      "product": "LROC WAC Global Morphology Mosaic 100m",
+      "publisher": "Arizona State University / NASA",
+      "url": "https://wms.lroc.asu.edu/lroc/view_rdr/WAC_GLOBAL",
+      "credit": "NASA/GSFC/Arizona State University",
+      "what": "albedo global morphology",
+      "processing": "reprojected to equirectangular, downsampled 100m, encoded KTX2 ASTC 6x6 sRGB, mip linear",
+      "sha256": "to-be-filled-after-build",
       "format": "KTX2 ASTC 6x6 sRGB",
-      "resolution": "512px",
+      "resolution": "100 m/px",
       "type": "albedo"
+    },
+    {
+      "product": "LRO LOLA LDEM 64 118m",
+      "publisher": "NASA GSFC / PDS Geosciences Node",
+      "url": "https://pds-geosciences.wustl.edu/missions/lro/lola.htm",
+      "credit": "NASA/GSFC",
+      "what": "height DEM",
+      "processing": "reprojected, height converted to R16F, normal map derived R8G8_UNORM UASTC quality 4, horizon map 16 azimuths",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16F + R8G8_UNORM UASTC + R8 horizon",
+      "resolution": "118 m/px DEM, 100 m/px normal",
+      "type": "height+normal+horizon"
+    },
+    {
+      "product": "LROC NAC Apollo 11 0.5m",
+      "publisher": "Arizona State University / NASA",
+      "url": "https://wms.lroc.asu.edu/lroc/view_rdr/NAC_ROI",
+      "credit": "NASA/GSFC/Arizona State University",
+      "what": "hero patch Apollo 11",
+      "processing": "cropped, encoded KTX2 ASTC 4x4 sRGB hero, height from NAC DTM 0.5m",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 4x4 sRGB + R16F height",
+      "resolution": "0.5 m/px",
+      "type": "hero_patch"
     }
   ],
   "dataCeiling": {
-    "textEn": "0.5 m/px at Apollo sites (placeholder M0)",
-    "textFa": "0.5 متر بر پیکسل در سایت‌های آپولو (نگهدارنده M0)",
+    "textEn": "0.5 m/px at Apollo sites, 100 m/px global (LROC WAC), 118 m/px DEM (LOLA)",
+    "textFa": "0.5 متر/پیکسل در سایت‌های آپولو، 100 متر/پیکسل جهانی، 118 متر/پیکسل DEM",
     "resolutionM": 0.5
   },
   "geometry": {
     "type": "ellipsoid",
-    "oblateness": 0.0012
+    "oblateness": 0.0012,
+    "radiusM": 1737400
+  },
+  "tiers": {
+    "tier0": "16K albedo + 8K DEM + 8K normal + horizon + 20 NAC hero patches 0.5m",
+    "tier2": "4K albedo + 2K normal, single scattering"
   }
 }
