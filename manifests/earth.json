@@ -18,7 +18,7 @@
     {
       "product": "Black Marble 2016 night lights",
       "publisher": "NASA GSFC",
-      "url": "https://blackmarble.gsfc.nasa.gov/",
+      "url": "https://blackmarble.gsfc.nasa.gov/gallery",
       "credit": "NASA/GSFC",
       "what": "night lights",
       "processing": "downsampled 8K, encoded KTX2 ASTC 6x6 sRGB",

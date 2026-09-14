@@ -30,7 +30,7 @@
     {
       "product": "HiRISE ESP_011534_1985 0.25m",
       "publisher": "University of Arizona / NASA",
-      "url": "https://www.uahirise.org/",
+      "url": "https://www.uahirise.org/results",
       "credit": "NASA/JPL/University of Arizona",
       "what": "hero patch Valles Marineris",
       "processing": "cropped, KTX2 ASTC 4x4 sRGB hero, height from HiRISE DTM 1m",

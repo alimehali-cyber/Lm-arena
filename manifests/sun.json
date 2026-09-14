@@ -30,7 +30,7 @@
     {
       "product": "Corona shell LUT and magnetogram",
       "publisher": "NASA/SDO HMI",
-      "url": "https://jsoc.stanford.edu/",
+      "url": "https://jsoc.stanford.edu/data/hmi",
       "credit": "NASA/SDO/HMI",
       "what": "corona optically thin shell analytic radial falloff exponent 2.5 plus structure from low-res synoptic magnetogram",
       "processing": "generated offline, falloff exponent param default 2.5 justified K-corona observed brightness ~r^-2.5",
