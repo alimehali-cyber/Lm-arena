@@ -464,6 +464,26 @@ Package naming: `com.zig.museum.core.model`, etc. (not `com.alijafari.red.astron
 - **Files**: .github/workflows/build.yml, core/engine/build.gradle.kts d5aebf8
 - **Reason**: CI infra fix, necessary for G6.
 
+## M12 Hotfix — Black Screen, Assets:0, Bottom Nav Obstruction
+
+### D-076: Black screen root cause and fix
+- **Root cause**: InspectorEngine minimized to avoid compile errors (setProjection p1, beginFrame p1, Viewport type, platform clash) removed all rendering; FilamentView update lambda empty, no UiHelper.attachTo, no swapChain creation, no viewport set, no render call, so screen stays background color 0xFF090A0F.
+- **Fix**: Rewrote FilamentView.kt to use UiHelper(ContextErrorPolicy.DONT_CHECK) with RendererCallback creating/destroying swapChain and setting viewport, AndroidView factory attaches UiHelper to SurfaceView, pointerInput detectTransformGestures drives cameraRig.orbit/zoom. Rewrote InspectorEngine.kt to full rendering: createRendererAndScene sets clear color semi-transparent, createDefaultMaterial via reflection MaterialBuilder init/platform MOBILE/name/shading UNLIT/uniform FLOAT3 baseColor/material string/build payload, ensureMaterial, loadEllipsoidObject generates ellipsoid via GeometryGenerator.tierSegments + generateEllipsoid with oblateness from ObjectRegistry, builds VertexBuffer FLOAT3 pos + UV0, IndexBuffer USHORT/UINT, Material.Instance setParameter baseColor per OBJECT_COLORS map, RenderableManager.Builder bounding Box 0,0,0,1,1,1, geometry TRIANGLES, scene.addEntity, doFrame with try/catch beginFrame overloads render/endFrame, setViewport with projection. Also added fallback Canvas rendering in SpaceMuseumViewerScreen: colored sphere with radial gradient, glow, highlight, oblate oval for Jupiter/Saturn etc via oblateness, Saturn rings indicator, interactive cameraState orbit/zoom, transparent FilamentView so fallback shows if Filament fails. Ensures user never sees pure black.
+- **Files**: core/engine/src/main/kotlin/com/zig/museum/core/engine/FilamentView.kt, InspectorEngine.kt, feature/viewer/SpaceMuseumViewerScreen.kt
+- **Reason**: Fix black screen, show colored spheres per object id.
+
+### D-077: Assets:0 Packs:0 fix
+- **Root cause**: SpaceMuseumRoot calls CreditsScreen(manifests=emptyList()) hardcoded placeholder for M0, never loads real manifests from manifests/ folder or assets, so ManifestReader not used, CreditsViewModel.fromManifests never called.
+- **Fix**: Created feature/museum/src/main/assets/manifests/ with 13 JSON copies from manifests/, added ManifestLoader.kt loading via context.assets.list("manifests") + ManifestReader.parse, fallback File("manifests") debug, plus loadForObject filter with blank handling returning all. Updated SpaceMuseumRoot to load allManifests via remember, pass real manifests to CreditsScreen, track creditsObjectId, wire onCredits(objectId). Rewrote CreditsScreen.kt to show real counts, cards per manifest with assets, dataCeiling, navigationBars/statusBars insets, 120dp bottom spacer.
+- **Files**: feature/museum/src/main/assets/manifests/* 13 files, ManifestLoader.kt, SpaceMuseumGridScreen.kt SpaceMuseumRoot, core/credits/CreditsScreen.kt
+- **Reason**: Fix Assets:0, show 13 packs and asset counts.
+
+### D-078: Bottom nav obstruction fix
+- **Root cause**: ImmersiveScreenState.active set only in SpaceMuseumViewerScreen via reflection, not in grid; MainActivity hides FloatingBottomBar only when active true, so grid shows bar overlapping LazyVerticalGrid last row; viewer bottom controls 120dp Box at bottom without navigationBarsPadding, obscured when immersive fails.
+- **Fix**: SpaceMuseumRoot sets immersive active for both grid and viewer via DisposableEffect reflection of com.zig.gravity.ui.ImmersiveScreenState, hiding FloatingBottomBar for entire museum. SpaceMuseumGridScreen adds WindowInsets.statusBars padding top, navigationBars asPaddingValues for bottom padding, contentPadding bottom 16+80dp, extra 120dp spacer item, MuseumTile adds info IconButton with testTag. SpaceMuseumViewerScreen adds statusBars padding top, navigationBars padding bottom 12+nav+16, fallback Canvas behind FilamentView, bottom controls column with nav padding, gesture handling in outer Box with pointerInput updating cameraState. CreditsScreen similarly has statusBars and navigationBars padding and 120dp spacer.
+- **Files**: SpaceMuseumGridScreen.kt, SpaceMuseumViewerScreen.kt, CreditsScreen.kt, ManifestLoader.kt
+- **Reason**: Buttons and UI must be aware of bottom navigation bar and not be obstructed.
+
 ## Found, Not Touched (Bugs Noticed Elsewhere, Per Instruction)
 
 - None yet in M-1/M0 reconnaissance. Will record with file and line if found in later milestones, per instruction "record them in DECISIONS.md under 'found, not touched' with file and line, and leave them alone."
