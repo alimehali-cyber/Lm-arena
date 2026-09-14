@@ -218,7 +218,7 @@ fun SpaceMuseumViewerScreen(
                     onClick = { onCredits?.invoke(objectId) },
                     modifier = Modifier.testTag("viewer_credits_button")
                 ) {
-                    Icon(Icons.Default.Info, contentDescription = "Credits", tint = Color.White)
+                    Icon(Icons.Filled.Info, contentDescription = "Credits", tint = Color.White)
                 }
             }
 

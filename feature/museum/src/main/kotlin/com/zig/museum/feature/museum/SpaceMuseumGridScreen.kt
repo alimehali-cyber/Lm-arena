@@ -16,8 +16,13 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -139,7 +144,7 @@ fun SpaceMuseumGridScreen(
             .fillMaxSize()
             .testTag("space_museum_grid_screen")
             .padding(
-                top = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             )
     ) {
         // Top bar — aware of status bar
@@ -160,7 +165,7 @@ fun SpaceMuseumGridScreen(
             // Info for all packs
             if (onCredits != null) {
                 IconButton(onClick = { onCredits("") }, modifier = Modifier.testTag("museum_all_credits_button")) {
-                    Icon(Icons.Default.RocketLaunch, contentDescription = "All Credits")
+                    Icon(Icons.Filled.RocketLaunch, contentDescription = "All Credits")
                 }
             } else {
                 Spacer(Modifier.size(48.dp))
@@ -189,7 +194,7 @@ fun SpaceMuseumGridScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.RocketLaunch,
+                        imageVector = Icons.Filled.RocketLaunch,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp)
@@ -222,7 +227,7 @@ fun SpaceMuseumGridScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
+                .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
         ) {
             items(ObjectRegistry.all) { spec ->
                 MuseumTile(
@@ -286,7 +291,7 @@ private fun MuseumTile(
                         modifier = Modifier.size(28.dp).testTag("museum_tile_info_${spec.id}")
                     ) {
                         Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Default.Info,
+                            imageVector = Icons.Filled.Info,
                             contentDescription = "Info",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
