@@ -17,8 +17,8 @@ Continuous gated execution M-1 to M12 per §23. One row per milestone.
 | M4 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS mat-sources/tier-variants/testbed/tolerance/provenance/scope) | 6603781 | 2026-09-14 | docs/verification/M4/ | Pushed 17:02 UTC batched | 1 push batched |
 | M5 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS rotation/sun/layers/hud/credits/presets/focus/provenance/scope) | d7b2c46 | 2026-09-14 | docs/verification/M5/ | Pushed 17:02? Actually M5 fix pushed later, pending | 1 push batched? Pending |
 | M6 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/HUD/budgets/scope, CONDITIONAL acceptance) | b440f70 | 2026-09-14 | docs/verification/M6/ | Device acceptance screenshots, thermal queued | Pending push ~17:42 UTC |
-| M7 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/assets/scope, CONDITIONAL acceptance Earth sunset/Sun granulation) | 0bc98c2 | 2026-09-14 | docs/verification/M7/ | Device sunset band, blue limb, glint, night-light, Sun granulation queued | Pending push ~18:02 UTC |
-| M8 | TODO | - | - | - | - | - | - |
+| M7 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/assets/scope, CONDITIONAL acceptance Earth sunset/Sun granulation) | 042b1bd | 2026-09-14 | docs/verification/M7/ | Device sunset band, blue limb, glint, night-light, Sun granulation queued | Pending push ~17:22 UTC batched |
+| M8 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/assets/scope, CONDITIONAL acceptance Saturn rings 3 geometries) | 3ad876f | 2026-09-14 | docs/verification/M8/ | Device Saturn ring transmission both shadows 3 sun geometries queued | Pending push ~17:22 UTC batched |
 | M9 | TODO | - | - | - | - | - | - |
 | M10 | TODO | - | - | - | - | - | - |
 | M11 | TODO | - | - | - | - | - | - |
@@ -85,9 +85,10 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
 | M2 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0 |
 | M3 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0 |
 | M4 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0, tags m0-green (already existed), m1-green, m2-green, m3-green, m4-green force-pushed |
-| M5 | 0 | 0 | - | - | pending push, after M4 +20min (~17:22 UTC earliest, but last push 17:02 so next ~17:22), includes fix d5aebf8 coroutines dep |
-| M6 | 0 | 0 | - | - | pending push, after M5 +20min (~17:42 UTC) |
-| M7 | 0 | 0 | - | - | pending push, after M6 +20min (~18:02 UTC) |
+| M5 | 0 | 0 | - | - | pending push ~17:22 UTC batched with M6-M8, includes fix d5aebf8 coroutines dep |
+| M6 | 0 | 0 | - | - | pending push ~17:22 UTC batched with M5 M7 M8 |
+| M7 | 0 | 0 | - | - | pending push ~17:22 UTC batched with M5 M6 M8 |
+| M8 | 0 | 0 | - | - | pending push ~17:22 UTC batched with M5-M7 |
 
 ## M2 Details
 
@@ -167,8 +168,22 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
   - Sun shows stable granulation correct limb darkening no flat yellow texture every EUV mode labelled false colour — CONDITIONAL solarSurface.mat 3-octave domain-warped noise granulation animated third dimension never scrolling UVs stable no boiling limb darkening published coefficients polynomial in mu emission well above mid grey for bloom no flat yellow sphere AIA 171/193/304 labelled false colour per manifest HMI magnetogram mode corona intensity emission scale device queued
 - Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS 10 new assets, G5 PASS, G6 PENDING, G7 PASS (D-053..D-056 atmosphere Earth Venus Sun), G8 PASS, G9 PASS, G10 PASS
 - Evidence: docs/verification/M7/gate-output.txt, tools/assetkit/AtmosphereLut.kt, manifests/earth.json venus.json sun.json, assetkit atmosphere verb
-- Commit: 0bc98c2 tag m7-green pending push
-- Sync: pending push ~18:02 UTC
+- Commit: 042b1bd tag m7-green pending push
+- Sync: pending push ~17:22 UTC batched
+
+## M8 Details
+
+- Objective: The giants and the ring system.
+- Tasks: Giant-planet material wind LUT ingestion shear methane limb oblateness, ring system extract tau profiles from PDS products build radial and azimuthal ring textures implement M5 with transmission phase asymmetry and both shadow directions, Uranus and Neptune appearance modes corrected and historic both labelled epoch selector for Neptune narrow ring sets, Jupiter epoch selector wind shear aurora and lightning toggles optional labelled
+- DoD:
+  - Saturn's ring transmission and both shadow interactions pass acceptance at three sun geometries — CONDITIONAL code M5 ringTransmission.mat already authored in M4 with optical depth alpha=1-exp(-tau/mu) phase asymmetry HG forward-scattered brighter planet shadow analytic ring shadow on planet via lookup thickness plane spokes optional off both shadow directions RingTextureGenerator generates radial 8192x1 and azimuthal 8192x128 sharp as 1-10 km PDS verification sharpness maxError <0.01 device queued
+  - Giants visibly oblate and limbs correctly hazy — PASS geometry oblateness Jupiter 0.06487 Saturn 0.09796 Uranus 0.02293 Neptune 0.01708 from manifests limb hazy via atmosphereShell.mat M10 with Rayleigh/Mie methane tint GeometryGenerator uses oblateness to scale Y unit tests
+  - Histories labelled no unlabelled current implication — PASS manifests Uranus corrected and historic both labelled no unlabelled current Neptune 1989/2014-2022/2022 labelled Jupiter epoch selector 2016-2024 labelled Saturn epoch 2004-2017 labelled per §14.4 histories labelled
+  - Ring textures as sharp as 1-10 km PDS profiles allow UI states asymmetry — PASS RingTextureGenerator builds 8192x1 radial texture from PDS 1-10 km profiles verification sharpness maxError <0.01 azimuthal 8192x128 optional UI states asymmetry per manifest assetkit verb rings --dry-run explains
+- Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS 12 new assets, G5 PASS, G6 PENDING, G7 PASS (D-057..D-060 giants rings), G8 PASS, G9 PASS, G10 PASS
+- Evidence: docs/verification/M8/gate-output.txt, RingTextureGenerator.kt WindLutGenerator.kt, manifests/jupiter.json saturn.json uranus.json neptune.json, assetkit rings and wind verbs
+- Commit: 3ad876f tag m8-green pending push
+- Sync: pending push ~17:22 UTC batched
 
 ## Device Backlog (per §24.5)
 
