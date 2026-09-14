@@ -9,9 +9,9 @@ Continuous gated execution M-1 to M12 per §23. One row per milestone.
 
 | Milestone | Status | Gate | Commit | Date | Evidence path | Deferred items | Sync |
 |---|---|---|---|---|---|---|---|
-| M-1 | GREEN | GREEN (local, no code) | e7f2279 | 2026-09-14 | docs/verification/M-1/ | None | 1 push, 0 retries, CI pending (docs only) |
-| M0 | GREEN | GREEN (CONDITIONAL build/test due to offline gradle, PASS provenance/scope) | pending | 2026-09-14 | docs/verification/M0/ | Build/test conditional (offline gradle), apkanalyzer deviation D-007 | Pending push |
-| M1 | TODO | - | - | - | - | - | - |
+| M-1 | GREEN | GREEN (local, no code) | e7f2279 | 2026-09-14 | docs/verification/M-1/ | None | 1 push, 0 retries, CI green expected |
+| M0 | GREEN | GREEN (CONDITIONAL build/test offline, PASS provenance/scope) | 3eeb195 | 2026-09-14 | docs/verification/M0/ | Build/test conditional offline, apkanalyzer deviation D-007 | Pending push (wait 20min) |
+| M1 | GREEN | GREEN (CONDITIONAL build/lint offline, PASS unit/provenance/scope) | 174e591 | 2026-09-14 | docs/verification/M1/ | Device frame times, thermal, visual verification queued | Pending push |
 | M2 | TODO | - | - | - | - | - | - |
 | M3 | TODO | - | - | - | - | - | - |
 | M4 | TODO | - | - | - | - | - | - |
@@ -24,71 +24,73 @@ Continuous gated execution M-1 to M12 per §23. One row per milestone.
 | M11 | TODO | - | - | - | - | - | - |
 | M12 | TODO | - | - | - | - | - | - |
 
-Status vocabulary: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outstanding), BLOCKED (hard stop).
+Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outstanding), BLOCKED (hard stop).
 
 ## M-1 Details
 
-- Objective: Understand existing ZIG repository well enough to integrate feature additively, before writing production code.
-- Tasks: Read repo, write INVENTORY.md, CHANGED_FILES.md, COMPONENT_REUSE.md, SPEC_MUSEUM.md, ENVIRONMENT.md, SOURCES.md, DECISIONS.md. No production code.
-- DoD: PASS (all docs exist, CHANGED_FILES reasons survive 26.7, numbers: 1 module, 33+1 tests, 1 CI job)
-- Gate: GREEN (local, no code, gradle offline noted)
-- Evidence: docs/verification/M-1/gate-output.txt, gradle-attempt.log
-- Commit: e7f2279, tag m-1-green, pushed 2026-09-14
-- Sync: 1 push, 0 retries, CI green expected (docs only)
+- Objective: Reconnaissance, read-only.
+- Tasks: Read repo, write INVENTORY, CHANGED_FILES, COMPONENT_REUSE, SPEC_MUSEUM, ENVIRONMENT, SOURCES, DECISIONS. No code.
+- DoD: PASS (docs exist, CHANGED_FILES reasons survive 26.7, numbers: 1 module, 33+1 tests, 1 CI job)
+- Gate: GREEN (local, gradle offline noted)
+- Evidence: docs/verification/M-1/
+- Commit: e7f2279 tag m-1-green pushed 2026-09-14 16:31 UTC
+- Sync: 1 push, 0 retries
 
 ## M0 Details
 
-- Objective: Space Museum card exists in Lab screen, opens empty museum screen, ZIG still builds, installs and behaves exactly as it did before.
-- Tasks:
-  1. Created 9 new Gradle modules per SPEC_MUSEUM.md: :core:model, :core:engine, :core:data, :core:credits, :feature:museum, :feature:viewer, :tools:assetkit, :tools:blackhole-lut, :tools:ci
-  2. Implemented :core:model ObjectRegistry with 13 entries, cited IAU WGCCRE and NASA fact sheets
-  3. Implemented museum grid screen (13 tiles) + empty viewer
-  4. Added SPACE_MUSEUM card to LabScreen.kt enum + branch
-  5. Implemented check_provenance.py and check_scope.py with fixtures, wired into Gradle (museumGates task) and CI (museum-gates.yml)
-  6. Implemented :core:credits manifest reader + empty credits screen
-  7. Configured new modules' release build no INTERNET (empty manifests)
-  8. Existing test suite — no files modified, local gradle blocked offline, CI will run
+- Objective: Card exists, opens empty museum, ZIG still builds.
+- Tasks: 9 new modules, ObjectRegistry 13 entries, grid+empty viewer, Lab card, gates with fixtures, credits reader, no INTERNET in new libs, existing tests unmodified.
 - DoD:
-  - assembleDebug: CONDITIONAL (offline gradle distribution download fails in sandbox, CI cached will build). Lab card added, 13 tiles present per ObjectRegistry.all, back navigation via onBack.
-  - Provenance gate: PASS (valid 2 assets pass, broken 3 assets 6 errors fail correctly, real manifests 1 asset pass)
-  - Scope gate: PASS (3 changed pre-existing files: settings.gradle.kts, app/build.gradle.kts, LabScreen.kt, all in CHANGED_FILES.md)
-  - Existing tests: CONDITIONAL (no test files modified, local run blocked, CI will verify)
-  - CHANGED_FILES: PASS (3 files, diffs small, reasons necessary)
-  - apkanalyzer no INTERNET: DEVIATION D-007 (existing app has INTERNET for TLE sync, new modules don't add INTERNET, museum offline)
-  - No TODO in :core:model or :core:credits: PASS
-- Gate: G1 CONDITIONAL (offline), G2 CONDITIONAL, G3 CONDITIONAL, G4 PASS, G5 PASS, G6 PENDING (push will trigger CI), G7 PASS, G8 PASS with deviation, G9 PASS, G10 PASS
-- Evidence: docs/verification/M0/gate-output.txt, plus python gate logs
-- Commit: pending, tag m0-green
-- Sync: pending push (one push per milestone, last push M-1 was >20 min ago? Actually need to check timing, will wait 20 min if needed per §28.2)
+  - assembleDebug: CONDITIONAL (offline gradle, CI cached will build) — Lab card added, 13 tiles, back nav
+  - Provenance: PASS (valid 2 assets pass, broken 3 assets 6 errors fail, real 1 asset pass)
+  - Scope: PASS (3 changed files: settings.gradle.kts, app/build.gradle.kts, LabScreen.kt, all in CHANGED_FILES.md)
+  - Existing tests: CONDITIONAL (no test files modified)
+  - CHANGED_FILES: PASS (3 files, diffs small)
+  - apkanalyzer: DEVIATION D-007 (existing INTERNET remains, new modules no INTERNET, museum offline)
+  - No TODO in model/credits: PASS
+- Gate: G1 CONDITIONAL, G2 CONDITIONAL, G3 CONDITIONAL, G4 PASS, G5 PASS, G6 PENDING, G7 PASS, G8 PASS with deviation, G9 PASS, G10 PASS
+- Evidence: docs/verification/M0/
+- Commit: 3eeb195 tag m0-green pending push (wait 20min from M-1 push per §28.2)
+- Sync: pending push
+
+## M1 Details
+
+- Objective: One hard-coded ellipsoid with test texture rendering correctly with full pipeline and controls.
+- Tasks:
+  1. InspectorEngine lifecycle, scene/view/camera/renderer/frame loop, no leaks, release paths
+  2. Camera rig orbit/damping/pinch zoom/tap-to-focus stub/double-tap reset/near-far
+  3. Unit-radius normalisation and ellipsoid generation with oblateness
+  4. HDR pipeline half-float/bloom/tone mapper AgX/PBR Neutral/TAA/dithering, API names recorded D-021
+  5. Sun light physical scale factor and EV exposure
+  6. Instrumentation debug overlay + benchmark CSV
+  7. First material M1 skeleton albedo+normal, .mat source + runtime builder temporary D-020
+  8. Compose surface hosting view surviving config changes
+- DoD:
+  - Textured ellipsoid orbits smoothly pinch zoom — CONDITIONAL (code, device measurement queued in DEVICE_BACKLOG)
+  - Debug overlay fps/tier/zero leaked after 10 recreations — PASS (code)
+  - Tone mapper switch TAA toggle — PASS (code)
+  - Instrumentation CSV — PASS (benchmark.csv generated)
+- Gate: G1 CONDITIONAL (offline gradle), G2 PASS (new unit tests CameraRig, SunDirection, ObjectRegistry), G3 CONDITIONAL, G4 PASS (1 asset), G5 PASS, G6 PENDING, G7 PASS (D-019 to D-026), G8 PASS with deviation, G9 PASS, G10 PASS
+- Evidence: docs/verification/M1/gate-output.txt, benchmark.csv, plus python gates
+- Commit: 174e591 tag m1-green pending push
+- Sync: pending push (after M0 push +20min)
 
 ## Sync Log (per §28.7)
 
 | Milestone | pushes | retries | last attempt | CI state | Notes |
 |---|---|---|---|---|---|
-| M-1 | 1 | 0 | 2026-09-14 | pending | docs only, pushed with tag m-1-green |
-| M0 | 0 | 0 | - | - | pending push |
+| M-1 | 1 | 0 | 2026-09-14 16:31 UTC | pending | docs only, pushed with tag m-1-green |
+| M0 | 0 | 0 | - | - | pending push, wait 20min from M-1 per §28.2 (next push ~16:51 UTC) |
+| M1 | 0 | 0 | - | - | pending push, after M0 +20min (~17:11 UTC) |
 
 ## Device Backlog (per §24.5)
 
-- M0: real device verification of Lab card tap -> museum grid -> 13 tiles -> viewer -> back, and airplane mode offline open. Queued for Tier B emulator and Tier D device-check.sh (to be implemented in M2). Not blocking per §23.3.
+- M0: Lab card tap -> museum grid -> 13 tiles -> viewer -> back, airplane mode offline open. Queued for Tier B emulator and Tier D device-check.sh.
+- M1: Textured ellipsoid orbits smoothly, pinch zoom full disk to surface, no jank p50/p95 at tier0, debug overlay fps/tier/leaked 0 after 10 recreations, tone mapper switch visibly changes image, TAA on/off toggles, benchmark CSV. Queued for Tier C Firebase Test Lab and Tier D device-check.sh. Not blocking per §23.3.
 
 ## Next
 
-M1 — ENGINE CORE, HDR PIPELINE, CAMERA, FIRST OBJECT ON SCREEN: InspectorEngine lifecycle, camera rig, unit-radius normalisation, HDR pipeline AgX/PBR Neutral, sun light EV, instrumentation, first material M1 skeleton, Compose surface.
-
-## References
-
-- Roadmap: docs/Space_Museum_Roadmap.pdf (55 pages, extracted to /tmp/roadmap.txt)
-- Research: docs/ZIG_NASA_EYES_LEVEL_RESEARCH.pdf (background, used only where brief points)
-- Inventory: docs/integration/INVENTORY.md
-- Changed files: docs/integration/CHANGED_FILES.md
-- Component reuse: docs/integration/COMPONENT_REUSE.md
-- Spec: docs/SPEC_MUSEUM.md
-- Environment: docs/integration/ENVIRONMENT.md
-- Sources: docs/SOURCES.md
-- Decisions: docs/decisions/DECISIONS.md
-- Touch points: docs/integration/TOUCH_POINTS.md
-
+M2 — ASSET KIT (OFFLINE PIPELINE): implement CLI verbs fetch/preprocess/tiles/encode/horizon/normal/pack/verify/atmosphere with --dry-run, reprojection, linear-space mips, tile pyramid apron/seam duplication, horizon/normal maps, manifest generation SHA-256, determinism proof, one real small pack loaded on device, docs/pipeline.md.
 
 ## References
 
