@@ -161,7 +161,7 @@ class TileStore(
      */
     suspend fun getTileOrFallback(desired: TileKey): TileEntry? {
         mutex.withLock {
-            resident[desired]?.let { if (it.state == TileState.RESIDENT) return it }
+            resident[desired]?.let { if (it.state == TileState.RESIDENT || it.state == TileState.DECODING) return it }
 
             // Walk up to coarser levels
             var level = desired.level + 1
@@ -169,10 +169,12 @@ class TileStore(
             var y = desired.y / 2
             while (level < 16) { // arbitrary max
                 val coarser = TileKey(desired.objectId, level, x, y)
-                resident[coarser]?.let { if (it.state == TileState.RESIDENT) {
-                    instrumentation.fallbackFrames++
-                    return it
-                }}
+                resident[coarser]?.let {
+                    if (it.state == TileState.RESIDENT || it.state == TileState.DECODING) {
+                        instrumentation.fallbackFrames++
+                        return it
+                    }
+                }
                 level++
                 x /= 2
                 y /= 2

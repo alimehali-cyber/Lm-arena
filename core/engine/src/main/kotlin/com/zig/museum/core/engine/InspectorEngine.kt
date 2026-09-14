@@ -11,11 +11,11 @@ import com.google.android.filament.SwapChain
 import com.google.android.filament.Skybox
 import com.google.android.filament.IndirectLight
 import com.google.android.filament.Viewport
+import com.google.android.filament.EntityManager
 import com.google.android.filament.utils.Utils
-import java.util.concurrent.Executors
 
 /**
- * InspectorEngine — minimal compiling version for CI, Filament Engine lifecycle.
+ * InspectorEngine — minimal compiling version for CI
  */
 class InspectorEngine private constructor(
     val engine: Engine
@@ -80,13 +80,14 @@ class InspectorEngine private constructor(
             renderer = engine.createRenderer()
             scene = engine.createScene()
             view = engine.createView()
-            camera = engine.createCamera(engine.entityManager.create())
+            val em = EntityManager.get()
+            val entity = em.create()
+            camera = engine.createCamera(entity)
             view?.let { v ->
                 v.scene = scene
                 v.camera = camera
             }
         } catch (e: Exception) {
-            // Ignore for CI
         }
     }
 
@@ -129,19 +130,7 @@ class InspectorEngine private constructor(
     fun setViewport(width: Int, height: Int) {
         try {
             view?.setViewport(Viewport(0, 0, width, height))
-            camera?.let { cam ->
-                val aspect = width.toDouble() / height.toDouble()
-                val (near, far) = cameraRig.computeNearFar()
-                try {
-                    cam.setProjection(45.0, aspect, near.toDouble(), far.toDouble(), Camera.Fov.VERTICAL)
-                } catch (e: Exception) {
-                    try {
-                        cam.setProjection(45.0, aspect, near.toDouble(), far.toDouble())
-                    } catch (e2: Exception) {
-                    }
-                }
-                updateCameraFromRig()
-            }
+            updateCameraFromRig()
         } catch (e: Exception) {
         }
     }
@@ -196,6 +185,7 @@ class InspectorEngine private constructor(
                             }
                         } catch (e: Exception) {
                             try {
+                                @Suppress("DEPRECATION")
                                 if (r.beginFrame(sc)) {
                                     r.render(v)
                                     r.endFrame()
@@ -254,7 +244,6 @@ class InspectorEngine private constructor(
                 try {
                     engine.destroyCameraComponent(it.entity)
                 } catch (e: Exception) {
-                    // Fallback
                 }
             }
             renderer?.let { engine.destroyRenderer(it) }
