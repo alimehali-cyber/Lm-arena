@@ -1,0 +1,57 @@
+{
+  "packId": "mars_base",
+  "version": "1-m6-rocky-trio",
+  "objectId": "mars",
+  "assets": [
+    {
+      "product": "Murray Lab CTX Global Mosaic 6m",
+      "publisher": "Caltech / MSSS / NASA",
+      "url": "https://murray-lab.caltech.edu/CTX/",
+      "credit": "NASA/JPL/MSSS/Caltech Murray Lab",
+      "what": "albedo CTX mosaic",
+      "processing": "reprojected equirectangular, downsampled 6m, KTX2 ASTC 6x6 sRGB, mip linear",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "6 m/px",
+      "type": "albedo"
+    },
+    {
+      "product": "MGS MOLA DEM 463m",
+      "publisher": "NASA GSFC / PDS Geosciences Node",
+      "url": "https://pds-geosciences.wustl.edu/missions/mgs/mola.htm",
+      "credit": "NASA/GSFC",
+      "what": "height DEM",
+      "processing": "reprojected, R16F height, normal R8G8_UNORM UASTC, horizon 16 azimuths",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16F + R8G8_UNORM + R8 horizon",
+      "resolution": "463 m/px DEM",
+      "type": "height+normal+horizon"
+    },
+    {
+      "product": "HiRISE ESP_011534_1985 0.25m",
+      "publisher": "University of Arizona / NASA",
+      "url": "https://www.uahirise.org/results",
+      "credit": "NASA/JPL/University of Arizona",
+      "what": "hero patch Valles Marineris",
+      "processing": "cropped, KTX2 ASTC 4x4 sRGB hero, height from HiRISE DTM 1m",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 4x4 sRGB + R16F",
+      "resolution": "0.25 m/px",
+      "type": "hero_patch"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "0.25 m/px at HiRISE sites, 6 m/px global (CTX), 463 m/px DEM (MOLA)",
+    "textFa": "0.25 متر/پیکسل در سایت‌های HiRISE، 6 متر/پیکسل جهانی، 463 متر/پیکسل DEM",
+    "resolutionM": 0.25
+  },
+  "geometry": {
+    "type": "ellipsoid",
+    "oblateness": 0.00589,
+    "radiusM": 3389500
+  },
+  "tiers": {
+    "tier0": "12K CTX + 8K MOLA DEM + 8K normal + horizon + 50 HiRISE patches",
+    "tier2": "4K CTX + 2K normal"
+  }
+}

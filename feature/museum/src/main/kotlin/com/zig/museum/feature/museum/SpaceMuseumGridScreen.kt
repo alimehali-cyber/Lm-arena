@@ -56,12 +56,48 @@ fun SpaceMuseumRoot(
 ) {
     var selectedObjectId by remember { mutableStateOf<String?>(null) }
     var showCredits by remember { mutableStateOf(false) }
+    var creditsObjectId by remember { mutableStateOf<String?>(null) }
+
+    // Load all manifests from assets for credits
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val allManifests = remember {
+        ManifestLoader.loadFromAssets(context)
+    }
+
+    // Set immersive for entire museum to hide bottom nav bar
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        try {
+            val clazz = Class.forName("com.zig.gravity.ui.ImmersiveScreenState")
+            val instance = clazz.getField("INSTANCE").get(null)
+            val activeField = instance.javaClass.getDeclaredField("active")
+            activeField.isAccessible = true
+            activeField.set(instance, true)
+        } catch (e: Exception) {
+        }
+        onDispose {
+            try {
+                val clazz = Class.forName("com.zig.gravity.ui.ImmersiveScreenState")
+                val instance = clazz.getField("INSTANCE").get(null)
+                val activeField = instance.javaClass.getDeclaredField("active")
+                activeField.isAccessible = true
+                activeField.set(instance, false)
+            } catch (e: Exception) {
+            }
+        }
+    }
 
     if (showCredits) {
-        // Credits placeholder — will be real in M5
+        val manifestsForCredits = if (creditsObjectId != null) {
+            ManifestLoader.loadForObject(context, creditsObjectId!!).ifEmpty { allManifests.filter { it.objectId == creditsObjectId } }
+        } else {
+            allManifests
+        }
         com.zig.museum.core.credits.CreditsScreen(
-            manifests = emptyList(),
-            onBack = { showCredits = false },
+            manifests = manifestsForCredits.ifEmpty { allManifests },
+            onBack = {
+                showCredits = false
+                creditsObjectId = null
+            },
             isFa = isFa,
             modifier = modifier
         )
@@ -69,7 +105,10 @@ fun SpaceMuseumRoot(
         SpaceMuseumViewerScreen(
             objectId = selectedObjectId!!,
             onBack = { selectedObjectId = null },
-            onCredits = { showCredits = true },
+            onCredits = { objectId ->
+                creditsObjectId = objectId
+                showCredits = true
+            },
             modifier = modifier,
             isFa = isFa
         )
@@ -77,6 +116,10 @@ fun SpaceMuseumRoot(
         SpaceMuseumGridScreen(
             onObjectClick = { id -> selectedObjectId = id },
             onBack = onBack,
+            onCredits = { objectId ->
+                creditsObjectId = objectId
+                showCredits = true
+            },
             modifier = modifier,
             isFa = isFa
         )
@@ -87,11 +130,19 @@ fun SpaceMuseumRoot(
 fun SpaceMuseumGridScreen(
     onObjectClick: (String) -> Unit,
     onBack: () -> Unit,
+    onCredits: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
     isFa: Boolean = false
 ) {
-    Column(modifier = modifier.fillMaxSize().testTag("space_museum_grid_screen")) {
-        // Top bar — similar to MainActivity top bar pattern
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("space_museum_grid_screen")
+            .padding(
+                top = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+            )
+    ) {
+        // Top bar — aware of status bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -106,7 +157,14 @@ fun SpaceMuseumGridScreen(
                 text = if (isFa) "موزه فضا" else "Space Museum",
                 style = MaterialTheme.typography.titleLarge
             )
-            Spacer(Modifier.size(48.dp))
+            // Info for all packs
+            if (onCredits != null) {
+                IconButton(onClick = { onCredits("") }, modifier = Modifier.testTag("museum_all_credits_button")) {
+                    Icon(Icons.Default.RocketLaunch, contentDescription = "All Credits")
+                }
+            } else {
+                Spacer(Modifier.size(48.dp))
+            }
         }
 
         // Header card — reuse RedElevatedCard pattern if available, else simple Surface
@@ -151,23 +209,32 @@ fun SpaceMuseumGridScreen(
             }
         }
 
-        // Grid of 13 tiles
+        // Grid of 13 tiles — aware of bottom nav bar and system insets
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 148.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 8.dp,
+                bottom = 16.dp + 80.dp // extra for bottom nav + system nav
+            ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = androidx.compose.foundation.layout.WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
         ) {
             items(ObjectRegistry.all) { spec ->
                 MuseumTile(
                     spec = spec,
                     isFa = isFa,
-                    onClick = { onObjectClick(spec.id) }
+                    onClick = { onObjectClick(spec.id) },
+                    onCreditsClick = { onCredits?.invoke(spec.id) }
                 )
             }
+            // Extra bottom spacing so last row not obstructed by bottom nav bar
             item {
-                Spacer(modifier = Modifier.height(112.dp))
+                Spacer(modifier = Modifier.height(120.dp))
             }
         }
     }
@@ -177,7 +244,8 @@ fun SpaceMuseumGridScreen(
 private fun MuseumTile(
     spec: ObjectSpec,
     isFa: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onCreditsClick: (() -> Unit)? = null
 ) {
     Surface(
         modifier = Modifier
@@ -194,19 +262,37 @@ private fun MuseumTile(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Icon placeholder — in real app, small local icon or static thumbnail per object
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Text(
-                    text = spec.displayNameEn.take(1),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = spec.displayNameEn.take(1),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                if (onCreditsClick != null) {
+                    androidx.compose.material3.IconButton(
+                        onClick = onCreditsClick,
+                        modifier = Modifier.size(28.dp).testTag("museum_tile_info_${spec.id}")
+                    ) {
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.Info,
+                            contentDescription = "Info",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
             Text(
                 text = if (isFa) spec.displayNameFa else spec.displayNameEn,

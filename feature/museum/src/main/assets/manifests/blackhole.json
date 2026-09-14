@@ -1,0 +1,68 @@
+{
+  "packId": "blackhole_base",
+  "version": "1-m10-blackhole",
+  "objectId": "blackhole",
+  "assets": [
+    {
+      "product": "Black hole LUTs D(e,u) and U(e,phi) + blackbody colour table",
+      "publisher": "ZIG Museum (generated offline)",
+      "url": "https://arxiv.org/abs/1910.10130",
+      "credit": "Luminet 1979, Gralla et al. 2019, implemented clean-room per A4, b_c=3*sqrt(3)*M",
+      "what": "D(e,u) 256x256 R32G32_SFLOAT + U(e,phi) 256x256 R32_SFLOAT + blackbody 256 RGB",
+      "processing": "generated offline via blackhole-lut generate --out blackhole_luts --width 256 --height 256, D(e,u) deflection angle vs impact parameter b_c=5.196152, U(e,phi) redshift factor g=sqrt(1-3M/r)/(1+b*Omega*sin(theta)*sin(phi)), blackbody colour table 256 RGB temperature 1000K..21000K T(r)∝r^-3/4*(1-sqrt(r_in/r))^1/4, verification --verify compares table vs direct numerical integration maxError <0.05, unit tests b_c and shadow radius pass, reference comparison three configurations face-on edge-on 45deg photon-ring radius far-side arc brightness ratio",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R32G32_SFLOAT + R32_SFLOAT + RGB",
+      "resolution": "LUT",
+      "type": "lut_blackhole"
+    },
+    {
+      "product": "Tycho-2 deep map for lensing skybox",
+      "publisher": "NASA SVS / ESA",
+      "url": "https://svs.gsfc.nasa.gov/3895/",
+      "credit": "NASA/SVS, ESA, Tycho-2 catalogue, no Gaia-derived",
+      "what": "deep map skybox for lensing material sampling with deflected directions",
+      "processing": "Tycho-2 based 4096x2048 equirectangular encoded KTX2 ASTC 6x6 sRGB verify no Gaia-derived layer used per M9 hard stop, M11 lensing material in skybox domain sampling deep map with deflected directions",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "4096x2048",
+      "type": "deep_map"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "Black hole LUTs D(e,u) 256x256 U(e,phi) 256x256 blackbody 256 RGB b_c=5.196152 shadow radius 5.196152, lensing material skybox domain sampling deep map with deflected directions, disk geometry temperature profile T(r)∝r^-3/4*(1-sqrt(r_in/r))^1/4 blackbody lookup Doppler and gravitational shift intensity convention g^3, tiers and quality slider named presets tier0 60fps flagship D 512x512 U 512x512 blackbody 512 4 samples physically correct tier2 30fps mid-range D 128x128 U 128x128 blackbody 128 1 sample tier3 low-end cinematic labelled, modes physically correct cinematic labelled M87-like Sgr A-like, validation against independent CPU reference three configurations photon-ring radius far-side arc brightness ratio tolerances <0.05",
+    "textFa": "LUTهای سیاه‌چاله D(e,u) 256x256 U(e,phi) 256x256 جسم سیاه 256 RGB b_c=5.196152 شعاع سایه 5.196152، مواد لنزینگ دامنه اسکای‌باکس نمونه‌برداری نقشه عمیق با جهت‌های منحرف، هندسه دیسک پروفایل دما T(r)∝r^-3/4*(1-sqrt(r_in/r))^1/4 جستجوی جسم سیاه جابجایی دوپلر و گرانشی قرارداد شدت g^3، سطوح و لغزنده کیفیت پیش‌تنظیم‌های نام‌دار tier0 60fps پرچمدار D 512x512 U 512x512 جسم سیاه 512 4 نمونه صحیح فیزیکی tier2 30fps میان‌رده D 128x128 U 128x128 جسم سیاه 128 1 نمونه tier3 پایین‌رده سینمایی با برچسب، حالت‌ها صحیح فیزیکی سینمایی با برچسب شبیه M87 شبیه Sgr A، اعتبارسنجی در برابر مرجع CPU مستقل سه پیکربندی شعاع حلقه فوتون کمان سمت دور نسبت روشنایی تلرانس <0.05",
+    "resolutionM": 0
+  },
+  "geometry": {
+    "type": "blackhole",
+    "oblateness": 0.0,
+    "radiusM": 0
+  },
+  "blackhole": {
+    "b_c": 5.196152422706632,
+    "shadowRadius": 5.196152422706632,
+    "M": 1.0,
+    "method": "Luminet 1979, Gralla et al. 2019, Schwarzschild",
+    "tiers": {
+      "tier0": "60 fps flagship, D 512x512, U 512x512, blackbody 512, 4 samples per pixel, physically correct",
+      "tier1": "60 fps high-end, D 256x256, U 256x256, blackbody 256, 2 samples",
+      "tier2": "30 fps mid-range, D 128x128, U 128x128, blackbody 128, 1 sample",
+      "tier3": "30 fps low-end, D 64x64, U 64x64, blackbody 64, 1 sample, cinematic labelled"
+    },
+    "modes": {
+      "physically correct": "Schwarzschild, thin disk, temperature profile T(r)∝r^-3/4*(1-sqrt(r_in/r))^1/4, blackbody lookup, Doppler and gravitational shift intensity convention g^3, no artistic",
+      "cinematic (labelled)": "Enhanced brightness, thicker disk, artistic colours, labelled cinematic",
+      "M87-like": "Mass 6.5e9 solar, distance 55M ly, jet, EHT-like, labelled M87-like",
+      "Sgr A-like": "Mass 4e6 solar, distance 26k ly, flares, labelled Sgr A-like"
+    },
+    "verification": {
+      "maxError": 0.05,
+      "unitTests": "b_c and shadow radius pass",
+      "referenceComparison": "three configurations face-on edge-on 45deg photon-ring radius far-side arc brightness ratio tolerances <0.05"
+    }
+  },
+  "tiers": {
+    "tier0": "D 512x512 + U 512x512 + blackbody 512 + deep map 4096x2048 100MB base",
+    "tier2": "D 128x128 + U 128x128 + blackbody 128 + deep map 2048x1024 30MB base"
+  }
+}

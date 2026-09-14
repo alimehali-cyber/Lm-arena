@@ -1,52 +1,95 @@
 package com.zig.museum.core.engine
 
+import android.view.Surface
 import android.view.SurfaceView
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.google.android.filament.android.UiHelper
 
 /**
- * FilamentView — Compose surface that hosts Filament view and survives configuration changes per M1 task 8
- * Uses AndroidView with SurfaceView, UiHelper, and InspectorEngine frame loop
+ * FilamentView — Compose surface that hosts Filament view and survives configuration changes
+ * Properly uses UiHelper to manage SurfaceView lifecycle and swap chain
  */
-
 @Composable
 fun FilamentView(
     objectId: String,
     modifier: Modifier = Modifier,
     tier: Int = 0,
     sunState: SunState = SunState(),
-    onSurfaceReady: (() -> Unit)? = null
+    onSurfaceReady: (() -> Unit)? = null,
+    onCameraChange: ((CameraState) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val engine = remember { InspectorEngine.getInstance() }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // UiHelper for managing SurfaceView
+    val uiHelper = remember {
+        UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK).apply {
+            renderCallback = object : UiHelper.RendererCallback {
+                override fun onNativeWindowChanged(surface: Surface) {
+                    engine.createSwapChain(surface)
+                    engine.setViewport(surface.hashCode(), surface.hashCode()) // will be updated onResized
+                    onSurfaceReady?.invoke()
+                }
+
+                override fun onDetachedFromSurface() {
+                    engine.destroySwapChain()
+                }
+
+                override fun onResized(width: Int, height: Int) {
+                    engine.setViewport(width, height)
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(objectId) {
+                detectTransformGestures { centroid, pan, zoom, rotation ->
+                    // Pan = orbit, zoom = radius, rotation = roll (ignore)
+                    val deltaYaw = pan.x * 0.5f
+                    val deltaPitch = -pan.y * 0.5f
+                    engine.cameraRig.orbit(deltaYaw, deltaPitch)
+                    if (zoom != 1f) {
+                        engine.cameraRig.zoom(1f / zoom)
+                    }
+                    engine.updateCameraFromRig()
+                    onCameraChange?.invoke(engine.cameraRig.state)
+                }
+            }
+    ) {
         AndroidView(
             factory = { ctx ->
                 SurfaceView(ctx).apply {
-                    // UiHelper setup per Filament Android integration
-                    // For M1, we use InspectorEngine's UiHelper if needed, or direct
+                    // Make SurfaceView transparent so fallback Canvas shows through if Filament fails
+                    holder.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
+                    setZOrderOnTop(false)
+                    // Attach UiHelper to this SurfaceView
+                    uiHelper.attachTo(this)
                 }
             },
             modifier = Modifier.fillMaxSize(),
             update = { surfaceView ->
-                // When surfaceView is available, create swap chain and start frame loop
-                // This is called on recomposition
+                // Update handled by UiHelper callbacks
             }
         )
     }
 
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, objectId, tier) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> {
@@ -56,8 +99,6 @@ fun FilamentView(
                     engine.stopFrameLoop()
                 }
                 Lifecycle.Event.ON_DESTROY -> {
-                    // Don't destroy engine here — keep Engine for process per §5.1
-                    // Only release View-side resources
                     engine.destroySwapChain()
                 }
                 else -> {}
@@ -65,13 +106,18 @@ fun FilamentView(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
 
-        // Initial load of object
+        // Load object when id or tier changes
         engine.loadEllipsoidObject(objectId, tier)
+        engine.startFrameLoop()
 
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             engine.stopFrameLoop()
-            engine.releaseCurrentObject()
+            // Don't release object here, keep for quick switch, release on destroy
+            try {
+                uiHelper.detach()
+            } catch (e: Exception) {
+            }
         }
     }
 }

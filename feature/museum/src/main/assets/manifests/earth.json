@@ -1,0 +1,80 @@
+{
+  "packId": "earth_base",
+  "version": "1-m7-atmosphere",
+  "objectId": "earth",
+  "assets": [
+    {
+      "product": "Blue Marble Next Generation 21600x10800",
+      "publisher": "NASA Visible Earth",
+      "url": "https://visibleearth.nasa.gov/collection/1484/blue-marble",
+      "credit": "NASA/GSFC",
+      "what": "albedo monthly composites 12 months",
+      "processing": "reprojected equirectangular, downsampled 8K, encoded KTX2 ASTC 6x6 sRGB, mip linear",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "15 m/px hero Landsat, 500 m/px BMNG",
+      "type": "albedo"
+    },
+    {
+      "product": "Black Marble 2016 night lights",
+      "publisher": "NASA GSFC",
+      "url": "https://blackmarble.gsfc.nasa.gov/gallery",
+      "credit": "NASA/GSFC",
+      "what": "night lights",
+      "processing": "downsampled 8K, encoded KTX2 ASTC 6x6 sRGB",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "500 m/px",
+      "type": "night"
+    },
+    {
+      "product": "ETOPO 2022 bathymetry + SRTM land relief",
+      "publisher": "NOAA / NASA / USGS",
+      "url": "https://www.ngdc.noaa.gov/mgg/global/",
+      "credit": "NOAA/NASA/USGS",
+      "what": "height bathymetry + land relief",
+      "processing": "R16F height, normal UASTC, horizon 16 azimuths",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16F + R8G8_UNORM",
+      "resolution": "463 m/px",
+      "type": "height+normal+horizon"
+    },
+    {
+      "product": "Atmosphere LUTs Earth (Bruneton/Hillaire)",
+      "publisher": "ZIG Museum (generated offline)",
+      "url": "https://ebruneton.github.io/precomputed_atmospheric_scattering/",
+      "credit": "Bruneton and Neyret EGSR 2008, implemented clean-room per A4",
+      "what": "transmittance 2D 256x64 R16_SFLOAT + multi-scattering 3D 32x32x32 R16_SFLOAT",
+      "processing": "generated offline via assetkit atmosphere --object earth, Rayleigh 5.8e-6,13.5e-6,33.1e-6 scale 8000 Mie 21e-6 scale 1200 g 0.76 ozone absorption, verification maxError <0.01",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16_SFLOAT + R16_SFLOAT 3D",
+      "resolution": "LUT",
+      "type": "lut_atmosphere"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "15 m/px Landsat hero tiles over land, 500 m/px BMNG global, 463 m/px DEM",
+    "textFa": "15 متر/پیکسل لندست قهرمان، 500 متر/پیکسل جهانی، 463 متر/پیکسل DEM",
+    "resolutionM": 15
+  },
+  "geometry": {
+    "type": "ellipsoid",
+    "oblateness": 0.0033528,
+    "radiusM": 6371000
+  },
+  "atmosphere": {
+    "rayleighCoeff": [5.8e-6, 13.5e-6, 33.1e-6],
+    "rayleighScaleHeight": 8000,
+    "mieCoeff": [21e-6, 21e-6, 21e-6],
+    "mieScaleHeight": 1200,
+    "mieG": 0.76,
+    "absorptionCoeff": [0.0, 0.002, 0.0005],
+    "groundAlbedo": 0.3,
+    "ozoneEnabled": true,
+    "method": "Bruneton/Hillaire EGSR 2008"
+  },
+  "tiers": {
+    "tier0": "8K BMNG 12 months + 8K night + 8K normal + clouds + atmosphere LUTs 420MB",
+    "tier2": "4K BMNG + 2K normal, single scattering"
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "packId": "venus_base",
+  "version": "1-m7-atmosphere",
+  "objectId": "venus",
+  "assets": [
+    {
+      "product": "Magellan C3-MDIR 4641m colourised radar",
+      "publisher": "NASA/JPL / USGS",
+      "url": "https://pds-imaging.jpl.nasa.gov/volumes/magellan.html",
+      "credit": "NASA/JPL/USGS",
+      "what": "radar albedo",
+      "processing": "reprojected equirectangular, downsampled 4K, encoded KTX2 ASTC 6x6 sRGB, labelled radar",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "4641 m/px",
+      "type": "albedo_radar"
+    },
+    {
+      "product": "Magellan Global Topography 4641m GTDR",
+      "publisher": "NASA/JPL",
+      "url": "https://pds-imaging.jpl.nasa.gov/volumes/magellan.html",
+      "credit": "NASA/JPL",
+      "what": "height topography",
+      "processing": "R16F height, normal UASTC, horizon",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16F + R8G8_UNORM",
+      "resolution": "4641 m/px",
+      "type": "height+normal+horizon"
+    },
+    {
+      "product": "Atmosphere LUTs Venus Mie-dominated (Bruneton/Hillaire)",
+      "publisher": "ZIG Museum (generated offline)",
+      "url": "https://ebruneton.github.io/precomputed_atmospheric_scattering/",
+      "credit": "Bruneton and Neyret EGSR 2008, implemented clean-room per A4",
+      "what": "transmittance 2D + multi-scattering 3D Mie-dominated hides surface",
+      "processing": "generated offline via assetkit atmosphere --object venus, Mie 100e-6 scale 15000 g 0.85, Rayleigh 0, verification maxError <0.01",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16_SFLOAT",
+      "resolution": "LUT",
+      "type": "lut_atmosphere"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "4641 m/px radar (Magellan C3-MDIR), cloud deck default labelled, radar mode labelled",
+    "textFa": "4641 متر/پیکسل رادار، ابر پیش‌فرض با برچسب، حالت رادار با برچسب",
+    "resolutionM": 4641
+  },
+  "geometry": {
+    "type": "sphere",
+    "oblateness": 0.0,
+    "radiusM": 6051800
+  },
+  "atmosphere": {
+    "rayleighCoeff": [0.0, 0.0, 0.0],
+    "rayleighScaleHeight": 8000,
+    "mieCoeff": [100e-6, 100e-6, 100e-6],
+    "mieScaleHeight": 15000,
+    "mieG": 0.85,
+    "absorptionCoeff": [0.0, 0.0, 0.0],
+    "groundAlbedo": 0.7,
+    "ozoneEnabled": false,
+    "method": "Bruneton/Hillaire EGSR 2008 Mie-dominated hides surface"
+  },
+  "tiers": {
+    "tier0": "4K radar + cloud shader 10MB base, 8K radar+8K topography+180MB install-time",
+    "tier2": "2K radar"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "packId": "iss_base",
+  "version": "1-m9-iss",
+  "objectId": "iss",
+  "assets": [
+    {
+      "product": "NASA ISS high-res model",
+      "publisher": "NASA Johnson Space Center / NASA 3D Resources",
+      "url": "https://nasa3d.arc.nasa.gov/detail/iss-hi-res",
+      "credit": "NASA/JSC",
+      "what": "ISS 3D model 4 LODs",
+      "processing": "build 4 LODs offline LOD0 500k triangles LOD1 100k LOD2 20k LOD3 5k, convert textures to KTX2 ASTC 6x6 sRGB + UASTC normal, author M12 variants clearcoat MLI Kapton foil white paint baseColor metallic roughness clearcoat emissive normal map MLI wrinkles anisotropic reflection, metre scale bar 10m bar viewer overlay positioned near ISS labelled 10 m, module labels 16 modules Zarya Unity Zvezda Destiny Truss S0 S1 S3/S4 S5/S6 P0 P1 P3/P4 P5/P6 Solar Array S4 S6 P4 P6 each label positioned at module centre billboarded depth-tested, lighting presets full sun directional 120k lux eclipse ambient only lab point lights, truss measures 109 m within tolerance 2m per DoD, three material families visually distinct under same light per DoD",
+      "sha256": "to-be-filled",
+      "format": "glTF + KTX2",
+      "resolution": "500k triangles LOD0",
+      "type": "model"
+    },
+    {
+      "product": "ISS module labels and scale bar",
+      "publisher": "ZIG Museum (generated offline)",
+      "url": "https://www.nasa.gov/international-space-station/",
+      "credit": "NASA/JSC",
+      "what": "labels and scale bar",
+      "processing": "metre scale bar 10m, module labels 16, billboarded, depth-tested, lighting presets full sun eclipse lab",
+      "sha256": "to-be-filled",
+      "format": "Binary",
+      "resolution": "16 labels",
+      "type": "labels"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "ISS high-res model 500k triangles LOD0, truss 109 m within tolerance 2m, three material families clearcoat MLI Kapton foil white paint visually distinct under same light, metre scale bar 10m, 16 module labels, lighting presets full sun eclipse lab",
+    "textFa": "مدل ISS با وضوح بالا 500K مثلث LOD0، خرپا 109 متر در تلرانس 2 متر، سه خانواده مواد MLI شفاف فویل کاپتون رنگ سفید از نظر بصری متمایز تحت نور یکسان، نوار مقیاس متر 10 متر، 16 برچسب ماژول، پیش‌تنظیم‌های نورپردازی خورشید کامل خسوف آزمایشگاه",
+    "resolutionM": 0.1
+  },
+  "geometry": {
+    "type": "model",
+    "oblateness": 0.0,
+    "radiusM": 109
+  },
+  "tiers": {
+    "tier0": "500k triangles LOD0 + 100k LOD1 + 20k LOD2 + 5k LOD3 + KTX2 textures 80MB base",
+    "tier2": "20k LOD2 + 5k LOD3 20MB base"
+  }
+}

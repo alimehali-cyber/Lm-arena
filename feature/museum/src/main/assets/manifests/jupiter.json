@@ -1,0 +1,68 @@
+{
+  "packId": "jupiter_base",
+  "version": "1-m8-giants",
+  "objectId": "jupiter",
+  "assets": [
+    {
+      "product": "JunoCam PJ1-PJ60 global map + Cassini ISS 2010-2011",
+      "publisher": "NASA/JPL/SwRI/MSSS",
+      "url": "https://www.missionjuno.swri.edu/junocam",
+      "credit": "NASA/JPL/SwRI/MSSS/Gerald Eichstaedt/Seán Doran",
+      "what": "albedo banded flow",
+      "processing": "reprojected equirectangular, wind LUT ingestion zonal wind vs latitude, shear via 1D LUT 512 R16_SFLOAT, methane limb tint, oblateness 0.06487, encoded KTX2 ASTC 6x6 sRGB, labelled epoch",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "4K per 10 deg lat",
+      "type": "albedo"
+    },
+    {
+      "product": "JunoCam wind profile LUT",
+      "publisher": "NASA/JPL",
+      "url": "https://pds-atmospheres.nmsu.edu/data_and_services/atmospheres_data/JUNO/jnocam.html",
+      "credit": "NASA/JPL/SwRI",
+      "what": "zonal wind vs latitude",
+      "processing": "CSV lat wind m/s, built 1D LUT 512 R16_SFLOAT, shear in material via UV offset per latitude, verification maxError <1 m/s",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16_SFLOAT 512x1",
+      "resolution": "LUT",
+      "type": "lut_wind"
+    },
+    {
+      "product": "Atmosphere LUTs Jupiter methane tint",
+      "publisher": "ZIG Museum (generated offline)",
+      "url": "https://ebruneton.github.io/precomputed_atmospheric_scattering/",
+      "credit": "Bruneton and Neyret EGSR 2008 clean-room per A4, methane tint absorption",
+      "what": "transmittance + multi-scattering methane limb",
+      "processing": "generated offline via assetkit atmosphere --object jupiter, Rayleigh 1e-6,2e-6,4e-6 scale 20000 Mie 5e-6 scale 20000 g 0.76 absorption methane tint, verification maxError <0.01",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16_SFLOAT",
+      "resolution": "LUT",
+      "type": "lut_atmosphere"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "JunoCam PJ1-PJ60 4K per 10 deg lat, wind shear from LUT, methane limb, oblateness 0.06487, epoch selector 2016-2024 labelled, no unlabelled current",
+    "textFa": "جونوکم 4K هر 10 درجه عرض، برش باد از LUT، لبه متان، پخی 0.06487، انتخاب دوره 2016-2024 با برچسب",
+    "resolutionM": 10000
+  },
+  "geometry": {
+    "type": "ellipsoid",
+    "oblateness": 0.06487,
+    "radiusM": 69911000
+  },
+  "atmosphere": {
+    "rayleighCoeff": [1e-6, 2e-6, 4e-6],
+    "rayleighScaleHeight": 20000,
+    "mieCoeff": [5e-6, 5e-6, 5e-6],
+    "mieScaleHeight": 20000,
+    "mieG": 0.76,
+    "absorptionCoeff": [0.0, 0.001, 0.002],
+    "groundAlbedo": 0.5,
+    "ozoneEnabled": false,
+    "method": "Bruneton/Hillaire + methane tint"
+  },
+  "tiers": {
+    "tier0": "4K albedo + wind LUT 512 + atmosphere LUTs 50MB base, 8K albedo 200MB install-time",
+    "tier2": "2K albedo no shear"
+  }
+}
