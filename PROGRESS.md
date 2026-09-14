@@ -11,7 +11,8 @@ Continuous gated execution M-1 to M12 per §23. One row per milestone.
 |---|---|---|---|---|---|---|---|
 | M-1 | GREEN | GREEN (local, no code) | e7f2279 | 2026-09-14 | docs/verification/M-1/ | None | 1 push, 0 retries, CI green expected |
 | M0 | GREEN | GREEN (CONDITIONAL build/test offline, PASS provenance/scope) | 3eeb195 | 2026-09-14 | docs/verification/M0/ | Build/test conditional offline, apkanalyzer deviation D-007 | Pending push (wait 20min) |
-| M1 | GREEN | GREEN (CONDITIONAL build/lint offline, PASS unit/provenance/scope) | 174e591 | 2026-09-14 | docs/verification/M1/ | Device frame times, thermal, visual verification queued | Pending push |
+| M1 | GREEN | GREEN (CONDITIONAL build/lint offline, PASS unit/provenance/scope) | d76315f | 2026-09-14 | docs/verification/M1/ | Device frame times, thermal, visual verification queued | Pending push |
+| M2 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS determinism/verify/provenance/scope) | d023397 | 2026-09-14 | docs/verification/M2/ | Device colour space, real data fetch queued | Pending push |
 | M2 | TODO | - | - | - | - | - | - |
 | M3 | TODO | - | - | - | - | - | - |
 | M4 | TODO | - | - | - | - | - | - |
@@ -82,6 +83,20 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
 | M-1 | 1 | 0 | 2026-09-14 16:31 UTC | pending | docs only, pushed with tag m-1-green |
 | M0 | 0 | 0 | - | - | pending push, wait 20min from M-1 per §28.2 (next push ~16:51 UTC) |
 | M1 | 0 | 0 | - | - | pending push, after M0 +20min (~17:11 UTC) |
+| M2 | 0 | 0 | - | - | pending push, after M1 +20min (~17:31 UTC) |
+
+## M2 Details
+
+- Objective: Offline toolchain that turns source raster into verifiable pack, demonstrated end to end on one small real dataset.
+- Tasks: Implemented all CLI verbs with --dry-run, reprojection placeholder, tile pyramid with apron/seam duplication, horizon/normal/encode/pack/verify/atmosphere, manifest generation SHA-256, demo on synthetic Moon crop, determinism proof, pipeline.md
+- DoD:
+  - Determinism byte-identical — PASS (hash b952d93079e1164beae28ee788cef888c00b3410abb59aab9c09eaafc7c710b9)
+  - Device debug screen colour space — CONDITIONAL (queued)
+  - Verify fails on corrupted tile — PASS (empty tile detected)
+- Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS, G5 PASS, G6 PENDING, G7 PASS (D-027 to D-033, pipeline.md), G8 PASS deviation, G9 PASS, G10 PASS
+- Evidence: docs/verification/M2/gate-output.txt, /tmp/m2_demo.py output, assets-built/moon.zigpack hashes
+- Commit: d023397 tag m2-green pending push
+- Sync: pending push
 
 ## Device Backlog (per §24.5)
 
