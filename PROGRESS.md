@@ -12,9 +12,8 @@ Continuous gated execution M-1 to M12 per §23. One row per milestone.
 | M-1 | GREEN | GREEN (local, no code) | e7f2279 | 2026-09-14 | docs/verification/M-1/ | None | 1 push, 0 retries, CI green expected |
 | M0 | GREEN | GREEN (CONDITIONAL build/test offline, PASS provenance/scope) | 3eeb195 | 2026-09-14 | docs/verification/M0/ | Build/test conditional offline, apkanalyzer deviation D-007 | Pending push (wait 20min) |
 | M1 | GREEN | GREEN (CONDITIONAL build/lint offline, PASS unit/provenance/scope) | d76315f | 2026-09-14 | docs/verification/M1/ | Device frame times, thermal, visual verification queued | Pending push |
-| M2 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS determinism/verify/provenance/scope) | d023397 | 2026-09-14 | docs/verification/M2/ | Device colour space, real data fetch queued | Pending push |
-| M2 | TODO | - | - | - | - | - | - |
-| M3 | TODO | - | - | - | - | - | - |
+| M2 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS determinism/verify/provenance/scope) | fd529c3 | 2026-09-14 | docs/verification/M2/ | Device colour space, real data fetch queued | Pending push |
+| M3 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS level-selection/stress/budget/seam/HUD/provenance/scope) | 1e7f7e9 | 2026-09-14 | docs/verification/M3/ | Device frame times, seam screenshots, thermal queued | Pending push |
 | M4 | TODO | - | - | - | - | - | - |
 | M5 | TODO | - | - | - | - | - | - |
 | M6 | TODO | - | - | - | - | - | - |
@@ -84,6 +83,7 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
 | M0 | 0 | 0 | - | - | pending push, wait 20min from M-1 per §28.2 (next push ~16:51 UTC) |
 | M1 | 0 | 0 | - | - | pending push, after M0 +20min (~17:11 UTC) |
 | M2 | 0 | 0 | - | - | pending push, after M1 +20min (~17:31 UTC) |
+| M3 | 0 | 0 | - | - | pending push, after M2 +20min (~17:51 UTC) |
 
 ## M2 Details
 
@@ -95,7 +95,21 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
   - Verify fails on corrupted tile — PASS (empty tile detected)
 - Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS, G5 PASS, G6 PENDING, G7 PASS (D-027 to D-033, pipeline.md), G8 PASS deviation, G9 PASS, G10 PASS
 - Evidence: docs/verification/M2/gate-output.txt, /tmp/m2_demo.py output, assets-built/moon.zigpack hashes
-- Commit: d023397 tag m2-green pending push
+- Commit: fd529c3 tag m2-green pending push
+- Sync: pending push
+
+## M3 Details
+
+- Objective: Inspect >8192 axis-width pyramid smoothly, no frame stalls.
+- Tasks: TileKey/Entry/Store state machine, level selection with 3 cameras hand-computed, worker decode 3 threads IO, upload budget 2 tier0 else 1, LRU eviction protected visible set, prefetch along motion, fallback coarser, PackReader ZipFile STORED, DataHudMapper resident level tracking, TileStoreBridge wiring camera+HUD, VirtualTextureEvaluation hand-written vs VT, stress harness synthetic 32768-wide 60s path tier0/tier2 CSV
+- DoD:
+  - No frame >33ms — PASS max 6.00ms p95 5.92ms tier0, 4.50ms p95 4.44ms tier2 JVM estimate, device queued
+  - Resident bytes never exceed tier budget; eviction counters — PASS peak 52.8MB/1536MB tier0, 29.4MB/500MB tier2, LRU exercised
+  - No seams at 1x/2x/4x/8x panning across boundary — PASS synthetic verifyNoSeams, seam duplication in assetkit, screenshots queued
+  - HUD resolution tracks resident level — PASS DataHudMapper uses residentLevel, TileStoreBridge currentHudText
+- Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS, G5 PASS, G6 PENDING, G7 PASS (D-034 to D-038), G8 PASS, G9 PASS, G10 PASS
+- Evidence: docs/verification/M3/gate-output.txt, /tmp/m3_demo.py output, StressHarness.kt CSV, LevelSelectorTest
+- Commit: 1e7f7e9 tag m3-green pending push
 - Sync: pending push
 
 ## Device Backlog (per §24.5)
