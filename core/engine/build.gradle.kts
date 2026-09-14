@@ -64,14 +64,20 @@ tasks.register("compileFilamat") {
         materialsDir.listFiles { f -> f.extension == "mat" }?.forEach { matFile ->
             val outFile = File(filamatOutputDir, matFile.nameWithoutExtension + ".filamat")
             println("Compiling ${matFile.name} -> ${outFile.name} via $actualMatc")
-            val result = project.exec {
-                commandLine(actualMatc, "-p", "mobile", "-a", "opengl", "-o", outFile.absolutePath, matFile.absolutePath)
-                isIgnoreExitValue = true
-            }
-            if (result.exitValue != 0) {
-                println("matc failed for ${matFile.name} with exit ${result.exitValue}, keeping runtime fallback")
-            } else {
-                println("Compiled ${outFile.name} ${outFile.length()} bytes")
+            try {
+                val proc = ProcessBuilder(actualMatc, "-p", "mobile", "-a", "opengl", "-o", outFile.absolutePath, matFile.absolutePath)
+                    .redirectErrorStream(true)
+                    .start()
+                val output = proc.inputStream.bufferedReader().readText()
+                val exit = proc.waitFor()
+                println(output)
+                if (exit != 0) {
+                    println("matc failed for ${matFile.name} with exit $exit, keeping runtime fallback")
+                } else {
+                    println("Compiled ${outFile.name} ${outFile.length()} bytes")
+                }
+            } catch (e: Exception) {
+                println("matc exception for ${matFile.name}: ${e.message}, keeping runtime fallback")
             }
         }
     }
