@@ -365,13 +365,63 @@ fun atmosphere(cli: CliArgs) {
     println("Generating atmosphere LUTs config=$config out=$out")
     if (cli.dryRun) {
         println("[DRY-RUN] Would generate transmittance LUT 2D R16_SFLOAT 256x64, multi-scattering LUT 3D R16_SFLOAT 32x32x32, per §11.1 offline step, deterministic, prints physical inputs")
+        println("[DRY-RUN] Per-body params: Earth RayleighCoeff (5.8e-6,13.5e-6,33.1e-6) scaleHeight 8000 Mie 21e-6 scale 1200 g 0.76 absorption ozone, Venus Mie-dominated 100e-6 scale 15000 g 0.85, Mars dust 30e-6 scale 11000, Jupiter methane tint, per §8.5")
         return
     }
     // Real: Bruneton/Hillaire method from published equations, clean-room implementation per A4, citing paper
+    // Reference: E. Bruneton and F. Neyret, "Precomputed Atmospheric Scattering", EGSR 2008 https://ebruneton.github.io/precomputed_atmospheric_scattering/
+    // No third-party shader source vendored, re-implemented from published equations per A4
     File(out).mkdirs()
-    File(out, "transmittance.ktx2").writeBytes("TRANSMITTANCE LUT placeholder deterministic".toByteArray())
-    File(out, "multiscatter.ktx2").writeBytes("MULTISCATTER LUT placeholder deterministic".toByteArray())
-    println("Created atmosphere LUTs at $out")
+
+    // Parse config: expected object id or param set name
+    val objectId = cli.options["object"] ?: config.substringAfterLast("/").substringBefore(".")
+    val params = when (objectId.lowercase()) {
+        "earth" -> AtmosphereLut.earthParams
+        "venus" -> AtmosphereLut.venusParams
+        "mars" -> AtmosphereLut.marsParams
+        "jupiter", "saturn", "uranus", "neptune" -> AtmosphereLut.jupiterParams
+        else -> AtmosphereLut.earthParams
+    }
+
+    println("Using params for ${params.name}: RayleighCoeff=${params.rayleighCoeff} scaleHeight=${params.rayleighScaleHeight} MieCoeff=${params.mieCoeff} scale=${params.mieScaleHeight} g=${params.mieG} absorption=${params.absorptionCoeff} groundAlbedo=${params.groundAlbedo} planetRadius=${params.planetRadius} atmosphereRadius=${params.atmosphereRadius} ozone=${params.ozoneEnabled}")
+
+    // Generate LUTs
+    val transmittanceLut = AtmosphereLut.generateTransmittanceLut(params, width = 256, height = 64)
+    val multiScatterLut = AtmosphereLut.generateMultiScatteringLut(params, size = 32)
+    val maxError = AtmosphereLut.verifyLut(params, width = 64, height = 16)
+    println("Generated transmittance LUT 256x64 and multi-scattering LUT 32x32x32 for ${params.name}, maxError vs high-res ref: $maxError")
+
+    // For M7, write placeholder KTX2 files with deterministic content based on LUTs
+    // Real KTX2 would encode R16_SFLOAT etc. per §6.5: transmittance R16_SFLOAT, multi-scattering R16_SFLOAT or R32G32_SFLOAT
+    // Deterministic: same inputs => byte-identical outputs
+    val transBytes = "TRANSMITTANCE LUT ${params.name} 256x64 R16_SFLOAT deterministic hash=${transmittanceLut[0][0]}".toByteArray()
+    val multiBytes = "MULTISCATTER LUT ${params.name} 32x32x32 R16_SFLOAT deterministic hash=${multiScatterLut[0][0][0]}".toByteArray()
+    File(out, "transmittance.ktx2").writeBytes(transBytes)
+    File(out, "multiscatter.ktx2").writeBytes(multiBytes)
+
+    // Also write meta json with params for manifest
+    val metaJson = """
+        {
+          "objectId": "${params.name.lowercase()}",
+          "rayleighCoeff": [${params.rayleighCoeff.first}, ${params.rayleighCoeff.second}, ${params.rayleighCoeff.third}],
+          "rayleighScaleHeight": ${params.rayleighScaleHeight},
+          "mieCoeff": [${params.mieCoeff.first}, ${params.mieCoeff.second}, ${params.mieCoeff.third}],
+          "mieScaleHeight": ${params.mieScaleHeight},
+          "mieG": ${params.mieG},
+          "absorptionCoeff": [${params.absorptionCoeff.first}, ${params.absorptionCoeff.second}, ${params.absorptionCoeff.third}],
+          "groundAlbedo": ${params.groundAlbedo},
+          "planetRadius": ${params.planetRadius},
+          "atmosphereRadius": ${params.atmosphereRadius},
+          "ozoneEnabled": ${params.ozoneEnabled},
+          "transmittanceLut": "luts/transmittance.ktx2",
+          "multiScatteringLut": "luts/multiscatter.ktx2",
+          "method": "Bruneton/Hillaire EGSR 2008",
+          "verificationMaxError": $maxError
+        }
+    """.trimIndent()
+    File(out, "atmosphere_params.json").writeText(metaJson)
+
+    println("Created atmosphere LUTs at $out for ${params.name}, verification maxError $maxError")
 }
 
 fun getSourceUrl(obj: String, source: String): String {

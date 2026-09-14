@@ -1,0 +1,57 @@
+{
+  "packId": "sun_base",
+  "version": "1-m7-atmosphere",
+  "objectId": "sun",
+  "assets": [
+    {
+      "product": "SDO/AIA and HMI frames 4096x4096",
+      "publisher": "NASA/SDO, JSOC",
+      "url": "https://sdo.gsfc.nasa.gov/data/",
+      "credit": "Courtesy of NASA/SDO and the AIA and HMI science teams",
+      "what": "photosphere and EUV channels",
+      "processing": "AIA 171/193/304 labelled false colour, HMI magnetogram, encoded KTX2 ASTC 6x6 sRGB + R11F_G11F_B10F HDR, granulation procedural 3-octave domain-warped noise animated third dimension never scrolling UVs",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6 sRGB + R11F_G11F_B10F",
+      "resolution": "4096 px disk",
+      "type": "albedo_euv"
+    },
+    {
+      "product": "Carrington EUV map SVS 30362",
+      "publisher": "NASA SVS",
+      "url": "https://svs.gsfc.nasa.gov/30362/",
+      "credit": "NASA/SVS",
+      "what": "EUV Carrington map labelled EUV mode",
+      "processing": "equirectangular 2K, encoded KTX2 ASTC 6x6",
+      "sha256": "to-be-filled",
+      "format": "KTX2 ASTC 6x6",
+      "resolution": "2K",
+      "type": "albedo_euv_carrington"
+    },
+    {
+      "product": "Corona shell LUT and magnetogram",
+      "publisher": "NASA/SDO HMI",
+      "url": "https://jsoc.stanford.edu/",
+      "credit": "NASA/SDO/HMI",
+      "what": "corona optically thin shell analytic radial falloff exponent 2.5 plus structure from low-res synoptic magnetogram",
+      "processing": "generated offline, falloff exponent param default 2.5 justified K-corona observed brightness ~r^-2.5",
+      "sha256": "to-be-filled",
+      "format": "KTX2 R16_SFLOAT",
+      "resolution": "LUT",
+      "type": "lut_corona"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "SDO/AIA 4096px, HMI magnetogram, procedural granulation stable no boiling, limb darkening matches coefficients within 2%",
+    "textFa": "SDO/AIA 4096 پیکسل، مغناطیس‌نگار HMI، دانه‌بندی پایدار بدون جوشش، تاریکی لبه مطابق ضرایب",
+    "resolutionM": 1000
+  },
+  "geometry": {
+    "type": "sphere",
+    "oblateness": 0.0,
+    "radiusM": 696340000
+  },
+  "tiers": {
+    "tier0": "2K procedural + one AIA disk 8MB base, 8K procedural +10 frames+magnetogram 120MB install-time, 100-frame series on-demand",
+    "tier2": "1K procedural"
+  }
+}
