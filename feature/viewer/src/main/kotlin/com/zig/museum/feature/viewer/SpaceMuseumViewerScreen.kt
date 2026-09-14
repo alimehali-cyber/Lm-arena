@@ -19,17 +19,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.zig.museum.core.engine.FilamentView
+import com.zig.museum.core.engine.InspectorEngine
+import com.zig.museum.core.engine.SunState
 import com.zig.museum.core.model.ObjectRegistry
 
 /**
- * SpaceMuseumViewerScreen — M0 empty implementation.
- * In M1, this will host Filament surface via InspectorEngine.
- * For M0, proves navigation works: shows object name, back, credits placeholder.
+ * SpaceMuseumViewerScreen — M1 implementation with Filament surface.
+ * M0 was empty placeholder; M1 hosts Filament via InspectorEngine.
  * Sets ImmersiveScreenState to hide FloatingBottomBar (reuse gravity's object).
  */
 @Composable
@@ -41,13 +47,9 @@ fun SpaceMuseumViewerScreen(
     isFa: Boolean = false
 ) {
     // Reuse gravity's immersive flag to hide bottom nav bar without editing MainActivity
-    // This is additive reuse per D-008
     DisposableEffect(Unit) {
         try {
             val clazz = Class.forName("com.zig.gravity.ui.ImmersiveScreenState")
-            val field = clazz.getField("active")
-            // It's an object with var active, need to set via reflection? Actually it's Kotlin object with mutable property.
-            // We'll try to access via getter/setter
             val instance = clazz.getField("INSTANCE").get(null)
             val activeField = instance.javaClass.getDeclaredField("active")
             activeField.isAccessible = true
@@ -69,6 +71,8 @@ fun SpaceMuseumViewerScreen(
     }
 
     val spec = ObjectRegistry.byId(objectId)
+    var sunState by remember { mutableStateOf(SunState()) }
+    var tier by remember { mutableStateOf(0) }
 
     Box(
         modifier = modifier
@@ -76,6 +80,15 @@ fun SpaceMuseumViewerScreen(
             .background(Color(0xFF090A0F))
             .testTag("space_museum_viewer_screen")
     ) {
+        // Filament surface — M1 first object on screen
+        FilamentView(
+            objectId = objectId,
+            modifier = Modifier.fillMaxSize(),
+            tier = tier,
+            sunState = sunState
+        )
+
+        // Overlay UI
         Column(modifier = Modifier.fillMaxSize()) {
             // Top bar
             Row(
@@ -99,42 +112,62 @@ fun SpaceMuseumViewerScreen(
                 }
             }
 
-            // Center placeholder
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Spacer(Modifier.weight(1f))
+
+            // Debug overlay (debug builds only) per §5.9 and §15.3
+            val instrumentation = remember { InspectorEngine.getInstance().instrumentation }
+            val debugData = instrumentation.toDebugOverlay()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .padding(8.dp)
+                    .testTag("debug_overlay")
+            ) {
+                Text(
+                    text = "fps: ${"%.1f".format(debugData.fps)} p50: ${"%.1f".format(debugData.p50Ms)}ms p95: ${"%.1f".format(debugData.p95Ms)}ms tier: ${debugData.tier}",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    text = "tiles: ${debugData.residentTiles} bytes: ${debugData.residentBytes} uploads: ${debugData.uploadsPerFrame} evict: ${debugData.evictions}",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall
+                )
+                Text(
+                    text = "leaked: ${InspectorEngine.getInstance().getLeakedResourceCount()} (must be 0 after 10 recreations)",
+                    color = if (InspectorEngine.getInstance().getLeakedResourceCount() == 0) Color.Green else Color.Red,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+
+            // Bottom controls placeholder for M1 — rotation, sun direction, EV, tone mapper, TAA toggles
+            // Real controls in M5, but M1 needs EV slider and tone mapper switch per DoD
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .testTag("viewer_controls_placeholder"),
+                contentAlignment = Alignment.Center
+            ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = if (isFa) "نمایشگر در M1 کامل می‌شود" else "Viewer completes in M1",
+                        text = if (isFa) "نور خورشید: آزیموت ${sunState.azimuthDeg} ارتفاع ${sunState.elevationDeg} EV ${sunState.exposureEV}" else "Sun: az ${sunState.azimuthDeg} el ${sunState.elevationDeg} EV ${sunState.exposureEV}",
                         color = Color.White.copy(alpha = 0.7f),
-                        style = MaterialTheme.typography.bodyLarge
+                        style = MaterialTheme.typography.labelSmall
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = if (isFa) "تغییر تون‌مپر AgX/PBR Neutral و TAA در M1" else "Tone mapper AgX/PBR Neutral + TAA toggles in M1",
+                        color = Color.White.copy(alpha = 0.5f),
+                        style = MaterialTheme.typography.labelSmall
+                    )
                     Text(
                         text = spec?.let { if (isFa) it.dataCeilingTextFa else it.dataCeilingTextEn } ?: "",
                         color = Color.White.copy(alpha = 0.5f),
                         style = MaterialTheme.typography.bodySmall
                     )
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        text = "ID: $objectId | Radius: ${spec?.sceneRadiusMetres} m | Oblateness: ${spec?.oblateness}",
-                        color = Color.White.copy(alpha = 0.4f),
-                        style = MaterialTheme.typography.labelSmall
-                    )
                 }
-            }
-
-            // Bottom placeholder for controls (rotation, sun direction)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .testTag("viewer_controls_placeholder"),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (isFa) "کنترل‌های چرخش و نور خورشید در M5" else "Rotation & sun controls in M5",
-                    color = Color.White.copy(alpha = 0.5f)
-                )
             }
         }
     }

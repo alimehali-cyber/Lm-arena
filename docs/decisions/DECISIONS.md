@@ -142,6 +142,61 @@ Package naming: `com.zig.museum.core.model`, etc. (not `com.alijafari.red.astron
 - **Decision**: Created `assets-src/.gitignore` and `assets-built/.gitignore` with `*` and `!.gitignore` to ignore downloaded/built data, without touching root `.gitignore` (which would be pre-existing file edit). This satisfies roadmap §4.1 that assets-src and assets-built are git-ignored.
 - **Reason**: Additive, no pre-existing file edit.
 
+## M1 Decisions
+
+### D-019: Filament dependency version
+- **Decision**: Added Filament 1.71.5 dependencies to :core:engine per §3 pinned: filament-android, gltfio-android, filament-utils-android, filamat-android, all 1.71.5. These are from Maven Central, available in CI. If CI build fails due to incompatibility with AGP 9.1.1 / compileSdk 36, fallback to nearest compatible (e.g., 1.68.0) and record build error evidence.
+- **Files**: core/engine/build.gradle.kts
+- **Reason**: T1: Kotlin + Compose + Filament, no other engine.
+
+### D-020: Runtime material builder temporary for M1
+- **Decision**: For M1, first material M1 skeleton (albedo+normal) is authored as .mat source in core/engine/src/main/materials/regolithSurface.mat per §5.7 and §8.1. Offline compilation via matc to .filamat is required per T2, but matc binary not available in sandbox due to network SSL block to GitHub releases (curl and gh download fail with SSL_ERROR_SYSCALL/EOF). As temporary for M1 to get first object on screen, use filamat-android runtime MaterialBuilder (MaterialBuilder.platform(MOBILE), name, shading LIT, uniformParameter SAMPLER_2D, material string, optimization NONE, build(engine)). This violates T2 (no runtime compilation) but is explicitly temporary, to be replaced by offline .filamat in M4. Recorded here.
+- **Files**: core/engine/src/main/kotlin/com/zig/museum/core/engine/MaterialManager.kt, core/engine/src/main/materials/regolithSurface.mat
+- **Reason**: Unblock M1 first object on screen without matc; will be fixed in M4 with proper offline compilation.
+
+### D-021: Filament API names used (to verify against 1.71.5 javadoc per §5.5)
+- **Decision**: InspectorEngine uses following API names (need verification against pinned 1.71.5 javadoc/KTX):
+  - Engine.create(), Engine.destroy(), Engine.createRenderer(), createScene(), createView(), createCamera(), createSwapChain(Surface), destroyRenderer(), destroyScene(), destroyView(), destroyCameraComponent(), destroySwapChain(), destroyEntity()
+  - Renderer.beginFrame(SwapChain), render(View), endFrame(), clearOptions
+  - View.scene, camera, viewport, blendMode, renderQuality, antiAliasing, dithering, colorGrading/toneMapping
+  - Scene.setSkybox(), addEntity(), removeEntity()
+  - Camera.setProjection(fov, aspect, near, far, Fov.VERTICAL), lookAt(eye, center, up), setExposure()
+  - UiHelper, UiHelper.attachTo(SurfaceView), detach()
+  - EntityManager.get(), create()
+  - LightManager.Builder(Type.DIRECTIONAL), color(), intensity(), direction(), castShadows(), build()
+  - TransformManager, etc.
+  - ModelViewer (filament-utils-android) for simplified rendering if needed
+  - MaterialBuilder (filamat-android) for temporary runtime material
+  - Choreographer.getInstance(), postFrameCallback(), removeFrameCallback()
+  - Utils.init()
+- If any API not exposed in 1.71.5, implement equivalent as post-process material and document.
+- **Reason**: §5.5 requires recording exact API names used in DECISIONS.md.
+
+### D-022: Camera rig implementation
+- **Decision**: CameraRig per §5.4 with state radius/yaw/pitch/target, dampingFactor 0.15, minRadius 1.01, maxRadius 3.0, orbit() clamps pitch -89..89, zoom() logarithmic factor, computePosition() spherical to cartesian, computeNearFar() interpolates near 0.0005..0.05 based on radius, far 8.0. Presets full_disk, pole_on, terminator as data per §5.4. Unit tests for orbit, zoom limits, near/far.
+- **Files**: core/engine/src/main/kotlin/com/zig/museum/core/engine/CameraRig.kt
+- **Reason**: §5.4 camera rig.
+
+### D-023: Sun direction pure function
+- **Decision**: sunDirection(azimuthDeg, elevationDeg): Vec3 per §10.3 pure function, with unit tests covering cardinal directions (0°=>+Z, 90°=>+X, 180°=>-Z, 270°=>-X) and poles (elevation 90°=>+Y). Normalization ensured. Irradiance factors per §5.6 for each object, Lux conversion base 120k Earth.
+- **Files**: core/engine/src/main/kotlin/com/zig/museum/core/engine/SunLight.kt
+- **Reason**: §10.3 physics, §5.6 lighting model.
+
+### D-024: Geometry generation
+- **Decision**: GeometryGenerator.generateEllipsoid() per §9.2 with lat/lon segments per tier (256x128 tier0 etc.), oblateness applied to Y axis before displacement, polarScale = 1-flattening, normal recomputed for ellipsoid, equirectangular UVs u=lon/lonSegments, v=lat/latSegments per §6.4 seam handling, uvForLatLon() for hero patches, tierSegments() mapping. Unit test UV of known lat/lon to be added in M2.
+- **Files**: core/engine/src/main/kotlin/com/zig/museum/core/engine/Geometry.kt
+- **Reason**: §9.2 mesh generation rules, §5.3 unit-radius normalisation.
+
+### D-025: Instrumentation
+- **Decision**: FrameTimingRingBuffer capacity 300, p50/p95/fps/max calculations, TileStoreCounters, GpuMemoryEstimate, DebugOverlayData, Instrumentation with toDebugOverlay() and toCsv() per §15.3. Debug overlay shows fps, tier, resident tiles/bytes, uploads, evictions, fallback, leaked resources. Benchmark mode runBenchmark() scripted camera path from full disk to surface, CSV output per §15.3.
+- **Files**: core/engine/src/main/kotlin/com/zig/museum/core/engine/Instrumentation.kt
+- **Reason**: §15.3 instrumentation, M1 DoD requires debug overlay and benchmark CSV.
+
+### D-026: FilamentView Compose wrapper
+- **Decision**: FilamentView composable per M1 task 8: AndroidView with SurfaceView, lifecycle observer for ON_RESUME/ON_PAUSE/ON_DESTROY, InspectorEngine frame loop start/stop, loadEllipsoidObject on dispose handling. Survives configuration changes via remember Engine instance (singleton per §5.1 one Engine for process). Placeholder until real SwapChain handling.
+- **Files**: core/engine/src/main/kotlin/com/zig/museum/core/engine/FilamentView.kt, feature/viewer/SpaceMuseumViewerScreen.kt updated to use FilamentView
+- **Reason**: M1 task 8 Compose surface that hosts view and survives config changes.
+
 ## Found, Not Touched (Bugs Noticed Elsewhere, Per Instruction)
 
 - None yet in M-1/M0 reconnaissance. Will record with file and line if found in later milestones, per instruction "record them in DECISIONS.md under 'found, not touched' with file and line, and leave them alone."
