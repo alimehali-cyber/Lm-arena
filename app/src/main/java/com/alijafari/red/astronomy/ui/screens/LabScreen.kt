@@ -59,6 +59,16 @@ enum class LabFeatureType(
         icon = Icons.Default.Public,
         isAvailable = true
     ),
+    SPACE_MUSEUM(
+        titleEn = "Space Museum",
+        titleFa = "موزه فضا",
+        subtitleEn = "Thirteen Worlds, One at a Time",
+        subtitleFa = "سیزده جهان، یک به یک",
+        descriptionEn = "Inspect high-fidelity, offline 3D models from the Sun to a black hole.",
+        descriptionFa = "مدل‌های سه‌بعدی آفلاین و دقیق از خورشید تا سیاه‌چاله را کاوش کنید.",
+        icon = Icons.Default.RocketLaunch,
+        isAvailable = true
+    ),
     ORBITAL_RESONANCE(
         titleEn = "Orbital Resonance & Keplerian Elements",
         titleFa = "رزونانس مداری و عناصر کپلری",
@@ -102,6 +112,13 @@ fun LabScreen(
             modifier = modifier,
             startInPersian = isFa,
             startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
+        )
+    } else if (selectedFeature == LabFeatureType.SPACE_MUSEUM) {
+        com.zig.museum.feature.museum.SpaceMuseumRoot(
+            onBack = { selectedFeature = null },
+            modifier = modifier,
+            isFa = isFa,
+            isDark = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
         )
     } else {
         LazyColumn(

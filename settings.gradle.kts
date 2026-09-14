@@ -25,3 +25,12 @@ dependencyResolutionManagement {
 rootProject.name = "ZIG"
 
 include(":app")
+include(":core:model")
+include(":core:engine")
+include(":core:data")
+include(":core:credits")
+include(":feature:museum")
+include(":feature:viewer")
+include(":tools:assetkit")
+include(":tools:blackhole-lut")
+include(":tools:ci")

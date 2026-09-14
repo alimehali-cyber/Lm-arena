@@ -108,9 +108,43 @@ Package naming: `com.zig.museum.core.model`, etc. (not `com.alijafari.red.astron
 - GDAL — optional, for reprojection; if not available, assetkit can fallback to pure Java/Kotlin reprojection with lower quality, documented.
 - Python 3.11+ — optional helpers.
 
+## M0 Decisions
+
+### D-011: Module build files using id() not alias()
+- **Decision**: New modules' build.gradle.kts use `id("com.android.library") version "9.1.1"` and `id("org.jetbrains.kotlin.jvm") version "2.2.10"` directly, not alias from version catalog, to avoid touching `gradle/libs.versions.toml` (which would be irrelevant touch per §26.2). This is minimal and necessary: new modules need plugins, but catalog edit is not necessary if id() with version works.
+- **Reason**: Minimum diff, avoid editing version catalog unless proven necessary.
+
+### D-012: Provenance gate implementation
+- **Decision**: Implemented `tools/ci/check_provenance.py` per §16.3: checks product/publisher/url/credit presence, plausible URL (not bare domain, not search, not placeholder), prints asset count, zero assets is failure. Fixtures: valid (2 assets) passes, broken (3 assets missing fields + bare domains) fails with 6 errors. Real manifests dir `manifests/` has 1 placeholder asset for M0.
+- **Reason**: Gate must fail on broken fixture and pass on valid per M0 DoD.
+
+### D-013: Scope gate implementation
+- **Decision**: Implemented `tools/ci/check_scope.py` per §16.4: gets changed files vs base ref (origin/Obra-with-key), parses CHANGED_FILES.md for allowed pre-existing paths, flags any pre-existing file modified without entry, checks forbidden patterns (existing tests, strings, assets, build config), checks module dependency rules (museum modules may depend on museum modules, but non-app non-museum modules must not depend on museum; museum modules must not import existing feature packages). Prints changed-path list on every run. For M0, 3 changed files: settings.gradle.kts, app/build.gradle.kts, LabScreen.kt — all allowed.
+- **Reason**: Scope gate must report changed-path list and enforce minimum diff.
+
+### D-014: AndroidManifest.xml for new library modules
+- **Decision**: New Android library modules have minimal AndroidManifest.xml with only `<manifest>` root, no permissions, no components. This ensures they don't introduce INTERNET permission or manifest attributes into merged manifest per M0 DoD.
+- **Reason**: T7 and M0 DoD: no new INTERNET permission, component or attribute.
+
+### D-015: LabScreen icon choice
+- **Decision**: SPACE_MUSEUM icon = `Icons.Default.RocketLaunch` (material-icons-extended). If not available in core set, fallback to `Icons.Default.Public` variant or `Icons.Default.Explore`. RocketLaunch is distinct from Gravity Sandbox's Public icon, and matches space theme. Verified that app/build.gradle.kts includes material-icons-extended, so RocketLaunch should be available. If compile fails, will fallback to Explore and record.
+- **Reason**: Distinct icon per component reuse, same icon set as existing.
+
+### D-016: Museum grid implementation reuse
+- **Decision**: Museum grid uses `LazyVerticalGrid(GridCells.Adaptive(148.dp))` per Appendix I.4, but styling uses MaterialTheme (since RED tokens are in :app, not yet accessible from new modules without dependency). For M0, use MaterialTheme to keep modules independent; in M1+ will add dependency on :app's theme or duplicate RED tokens in new modules? Actually :feature:museum depends on :core:credits and :core:model only, not on :app. To reuse RED design system, we need to either depend on :app (which would violate P7) or duplicate needed tokens in new modules. For M0, use MaterialTheme as placeholder, and note that final polish in M12 will align with RED design system via shared designsystem module or by copying tokens. For now, grid is functional with 13 tiles.
+- **Reason**: P7 says no museum module depends on existing feature module, and RED design system is inside :app. To reuse it without dependency, we need to extract designsystem to separate module later or copy tokens. M0 uses MaterialTheme as minimal viable.
+
+### D-017: Immersive handling reuse
+- **Decision**: Viewer sets `com.zig.gravity.ui.ImmersiveScreenState.active` via reflection to hide FloatingBottomBar, without editing MainActivity. This reuses existing mechanism per D-008. If reflection fails (class not found), nav bar stays visible in M0, acceptable.
+- **Reason**: Minimum diff, avoid editing MainActivity for M0.
+
+### D-018: Assets-src/assets-built gitignore
+- **Decision**: Created `assets-src/.gitignore` and `assets-built/.gitignore` with `*` and `!.gitignore` to ignore downloaded/built data, without touching root `.gitignore` (which would be pre-existing file edit). This satisfies roadmap §4.1 that assets-src and assets-built are git-ignored.
+- **Reason**: Additive, no pre-existing file edit.
+
 ## Found, Not Touched (Bugs Noticed Elsewhere, Per Instruction)
 
-- None yet in M-1 reconnaissance. Will record with file and line if found in later milestones, per instruction "record them in DECISIONS.md under 'found, not touched' with file and line, and leave them alone."
+- None yet in M-1/M0 reconnaissance. Will record with file and line if found in later milestones, per instruction "record them in DECISIONS.md under 'found, not touched' with file and line, and leave them alone."
 
 Example format:
 ```

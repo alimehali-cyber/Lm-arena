@@ -1,0 +1,28 @@
+{
+  "packId": "moon",
+  "version": "1",
+  "objectId": "moon",
+  "assets": [
+    {
+      "product": "",
+      "publisher": "NASA/GSFC/ASU",
+      "url": "https://example.com",
+      "credit": "NASA",
+      "what": "albedo",
+      "processing": "none"
+    },
+    {
+      "product": "LRO WAC",
+      "publisher": "",
+      "url": "https://nasa.gov",
+      "credit": "",
+      "what": "albedo"
+    },
+    {
+      "product": "Test",
+      "publisher": "Test",
+      "url": "https://google.com/search?q=moon",
+      "credit": "Test"
+    }
+  ]
+}

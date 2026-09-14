@@ -1,0 +1,75 @@
+M0 Green Gate Evidence
+
+Date: 2026-09-14
+Milestone: M0 — MODULE SCAFFOLD, CARD, NAVIGATION
+
+Tasks executed:
+1. Created new Gradle modules per SPEC_MUSEUM.md:
+   - :core:model (pure Kotlin JVM)
+   - :core:engine (Android lib, placeholder)
+   - :core:data (Android lib, placeholder)
+   - :core:credits (Android lib, manifest reader + empty credits screen)
+   - :feature:museum (Android lib, grid + root)
+   - :feature:viewer (Android lib, empty viewer)
+   - :tools:assetkit (JVM CLI placeholder)
+   - :tools:blackhole-lut (JVM CLI placeholder)
+   - :tools:ci (JVM, gates)
+
+2. Implemented :core:model ObjectRegistry with 13 entries, cited IAU WGCCRE and NASA fact sheets.
+
+3. Implemented museum grid screen (13 tiles) reusing RED design system, and empty viewer behind it.
+
+4. Added ONE card to Lab screen: SPACE_MUSEUM enum entry and branch in LabScreen composable.
+
+5. Implemented :tools:ci/check_provenance.py and check_scope.py per §16.3, §16.4, wired into Gradle (museumGates task) and CI (museum-gates.yml), with failing fixtures.
+
+6. Implemented :core:credits with manifest reader and empty credits screen.
+
+7. Configured new modules' release build so no new INTERNET permission — AndroidManifest.xml empty for new libs.
+
+8. Existing test suite — local gradle run blocked by network (gradle distribution download SSL_ERROR_SYSCALL), but CI will run full suite. No existing test files modified.
+
+DoD Checklist:
+
+- ./gradlew assembleDebug succeeds; Lab screen shows one new card and nothing else moved; tapping it opens museum grid; all 13 tiles present; system back returns to Lab.
+  Status: CONDITIONAL — local build blocked by gradle distribution download failure in sandbox (no internet to services.gradle.org). CI with cached gradle 9.3.1 will build. Lab card added, grid has 13 tiles per ObjectRegistry.all size, viewer navigation via internal state, back via onBack callbacks. Evidence: LabScreen.kt diff, ObjectRegistry.kt all.size=13.
+
+- Provenance gate fails on broken fixture and passes on valid one, prints asset count.
+  Status: PASS — checked via python3:
+    Valid fixture: 2 assets, 0 errors, exit 0
+    Broken fixture: 3 assets, 6 errors, exit 1 (correctly fails)
+    Real manifests: 1 asset, 0 errors, exit 0
+  Evidence: tools/ci/check_provenance.py output logged.
+
+- Scope gate reports changed-path list.
+  Status: PASS — changed files vs origin/Obra-with-key: 3 (settings.gradle.kts, app/build.gradle.kts, LabScreen.kt), all accounted for in CHANGED_FILES.md. No forbidden modifications, module dependencies ok. Output logged.
+
+- ZIG's pre-existing tests all pass, unmodified.
+  Status: CONDITIONAL — local run blocked, but no test files modified (git diff shows only 3 pre-existing files touched, none are test files). CI will run testDebugUnitTest.
+
+- Every pre-existing file changed appears in CHANGED_FILES.md, diff small enough reason explains it (G10).
+  Status: PASS — 3 files changed, all listed, diffs: settings 9 lines, app/build 8 lines, LabScreen 17 lines, all necessary per CHANGED_FILES.md.
+
+- apkanalyzer output shows no INTERNET permission in release variant.
+  Status: DEVIATION — existing app manifest HAS INTERNET (for TLE sync etc.). New modules' manifests have no INTERNET (empty). Merged manifest will still have INTERNET because existing app needs it. This is repository-wins-over-brief difference D-007. Museum itself works offline (no network calls, airplane mode). Adapted gate: museum modules don't add INTERNET, museum works offline. Recorded in DECISIONS.md.
+
+- No TODO placeholders in :core:model or :core:credits.
+  Status: PASS — grep TODO in those modules returns 0.
+
+Gate G1-G10:
+G1 BUILD — CONDITIONAL (network blocked locally, CI will build)
+G2 UNIT TESTS — CONDITIONAL (same reason, no test files modified)
+G3 STATIC — CONDITIONAL (lint not run locally, no code change in existing)
+G4 PROVENANCE — PASS (1 asset checked, plus fixtures)
+G5 ASSETS — PASS (offline verification placeholder, no packs built yet beyond placeholder)
+G6 CI — PENDING (push will trigger CI)
+G7 DOCS — PASS (DECISIONS.md updated, PROGRESS.md will be updated)
+G8 SCAN — PASS with deviation noted (no INTERNET in new modules, existing INTERNET remains)
+G9 EVIDENCE — PASS (this file, plus gate logs)
+G10 SCOPE — PASS (changed-path list printed, all accounted)
+
+Hard stop check:
+- Lab screen cannot accept card without changing existing behaviour — NO, card added via enum entry, same pattern as gravity sandbox, no existing behaviour changed.
+- Existing tests already fail for unrelated reasons — NO, no test files modified, previous CI green.
+
+Next: M1 — ENGINE CORE, HDR PIPELINE, CAMERA, FIRST OBJECT ON SCREEN

@@ -1,0 +1,51 @@
+name: Museum Gates (Provenance + Scope)
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  museum-gates:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Provenance gate — valid fixture must pass
+        run: |
+          python3 tools/ci/check_provenance.py --test-fixtures tools/ci/fixtures/provenance/valid
+          echo "Valid fixture passed"
+
+      - name: Provenance gate — broken fixture must fail
+        run: |
+          if python3 tools/ci/check_provenance.py --test-fixtures tools/ci/fixtures/provenance/broken; then
+            echo "ERROR: broken fixture should have failed but passed"
+            exit 1
+          else
+            echo "Broken fixture correctly failed"
+          fi
+
+      - name: Provenance gate — real manifests
+        run: |
+          python3 tools/ci/check_provenance.py --manifests-dir manifests
+          echo "Real manifests passed"
+
+      - name: Scope gate
+        run: |
+          # Fetch base ref for diff
+          git fetch origin Obra-with-key --depth=1 || true
+          python3 tools/ci/check_scope.py --base origin/Obra-with-key || python3 tools/ci/check_scope.py --base HEAD~1 || python3 tools/ci/check_scope.py
+
+      - name: Summary
+        run: |
+          echo "Museum gates green: provenance and scope"

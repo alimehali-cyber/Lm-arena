@@ -1,0 +1,28 @@
+{
+  "packId": "moon",
+  "version": "0-m0-placeholder",
+  "objectId": "moon",
+  "assets": [
+    {
+      "product": "Placeholder Test Texture",
+      "publisher": "ZIG Museum (generated)",
+      "url": "https://github.com/alimehali-cyber/Lm-arena/blob/Obra-with-key/docs/Space_Museum_Roadmap.pdf",
+      "credit": "Generated placeholder for M0 scaffold, no real data yet",
+      "what": "test albedo 512x256",
+      "processing": "generated in code, ASTC 6x6 sRGB placeholder",
+      "sha256": "placeholder-m0",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "512px",
+      "type": "albedo"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "0.5 m/px at Apollo sites (placeholder M0)",
+    "textFa": "0.5 متر بر پیکسل در سایت‌های آپولو (نگهدارنده M0)",
+    "resolutionM": 0.5
+  },
+  "geometry": {
+    "type": "ellipsoid",
+    "oblateness": 0.0012
+  }
+}

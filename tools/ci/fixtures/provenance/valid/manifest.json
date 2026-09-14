@@ -1,0 +1,40 @@
+{
+  "packId": "moon",
+  "version": "1",
+  "objectId": "moon",
+  "assets": [
+    {
+      "product": "LRO WAC Global Mosaic 100m",
+      "publisher": "NASA/GSFC/ASU",
+      "url": "https://wms.lroc.asu.edu/lroc/view_rdr/WAC_GLOBAL",
+      "credit": "NASA/GSFC/Arizona State University",
+      "what": "albedo base 100m/px equirectangular",
+      "processing": "reprojected to equirectangular, linear-space mips, ASTC 6x6 sRGB",
+      "sha256": "abc123",
+      "format": "KTX2 ASTC 6x6 sRGB",
+      "resolution": "100m/px",
+      "type": "albedo"
+    },
+    {
+      "product": "LRO LOLA DEM 118m",
+      "publisher": "NASA/GSFC",
+      "url": "https://pds-geosciences.wustl.edu/missions/lro/lola.htm",
+      "credit": "NASA/GSFC",
+      "what": "DEM 118m/px",
+      "processing": "height to normal + horizon",
+      "sha256": "def456",
+      "format": "KTX2 R8_UNORM",
+      "resolution": "118m/px",
+      "type": "height"
+    }
+  ],
+  "dataCeiling": {
+    "textEn": "0.5 m/px at Apollo sites",
+    "textFa": "0.5 متر بر پیکسل در سایت‌های آپولو",
+    "resolutionM": 0.5
+  },
+  "geometry": {
+    "type": "ellipsoid",
+    "oblateness": 0.0012
+  }
+}
