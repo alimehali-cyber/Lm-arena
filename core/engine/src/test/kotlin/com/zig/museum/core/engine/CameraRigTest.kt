@@ -8,7 +8,7 @@ class CameraRigTest {
     @Test
     fun testDefaultState() {
         val rig = CameraRig()
-        assertEquals(2.5f, rig.state.radius)
+        assertEquals(3.5f, rig.state.radius)
         assertEquals(0f, rig.state.yawDeg)
         assertEquals(0f, rig.state.pitchDeg)
     }
@@ -45,7 +45,7 @@ class CameraRigTest {
         rig.orbit(45f, 30f)
         rig.zoom(0.5f)
         rig.reset()
-        assertEquals(2.5f, rig.state.radius)
+        assertEquals(3.5f, rig.state.radius)
         assertEquals(0f, rig.state.yawDeg)
     }
 }
