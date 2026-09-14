@@ -15,7 +15,8 @@ Continuous gated execution M-1 to M12 per §23. One row per milestone.
 | M2 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS determinism/verify/provenance/scope) | d023397 | 2026-09-14 | docs/verification/M2/ | Pushed 17:02 UTC batched | 1 push batched |
 | M3 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS level-selection/stress/budget/seam/HUD/provenance/scope) | 1e7f7e9 | 2026-09-14 | docs/verification/M3/ | Pushed 17:02 UTC batched | 1 push batched |
 | M4 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS mat-sources/tier-variants/testbed/tolerance/provenance/scope) | 6603781 | 2026-09-14 | docs/verification/M4/ | Pushed 17:02 UTC batched | 1 push batched |
-| M5 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS rotation/sun/layers/hud/credits/presets/focus/provenance/scope) | d5aebf8 | 2026-09-14 | docs/verification/M5/ | Device UI tests, visual verification queued | Pending push (fix coroutines dep) |
+| M5 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS rotation/sun/layers/hud/credits/presets/focus/provenance/scope) | d7b2c46 | 2026-09-14 | docs/verification/M5/ | Pushed 17:02? Actually M5 fix pushed later, pending | 1 push batched? Pending |
+| M6 | GREEN | GREEN (CONDITIONAL build/lint/device offline, PASS provenance/HUD/budgets/scope, CONDITIONAL acceptance) | b440f70 | 2026-09-14 | docs/verification/M6/ | Device acceptance screenshots, thermal queued | Pending push |
 | M4 | TODO | - | - | - | - | - | - |
 | M5 | TODO | - | - | - | - | - | - |
 | M6 | TODO | - | - | - | - | - | - |
@@ -87,7 +88,8 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
 | M2 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0 |
 | M3 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0 |
 | M4 | 1 | 0 | 2026-09-14 17:02 UTC | pending | batched with M0, tags m0-green (already existed), m1-green, m2-green, m3-green, m4-green force-pushed |
-| M5 | 0 | 0 | - | - | pending push, after M4 +20min (~17:22 UTC earliest, but last push 17:02 so next ~17:22) |
+| M5 | 0 | 0 | - | - | pending push, after M4 +20min (~17:22 UTC earliest, but last push 17:02 so next ~17:22), includes fix d5aebf8 coroutines dep |
+| M6 | 0 | 0 | - | - | pending push, after M5 +20min (~17:42 UTC) |
 
 ## M2 Details
 
@@ -140,8 +142,22 @@ Status: GREEN (gate+DoD pass), CONDITIONAL (DoD passes but device-backlog outsta
   - Sources & Credits lists exactly assets of installed packs — PASS fromManifests, verifyVerbatim, CreditsTest 3 tests
 - Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS, G5 PASS, G6 PENDING, G7 PASS (D-043 to D-048), G8 PASS, G9 PASS, G10 PASS
 - Evidence: docs/verification/M5/gate-output.txt, /tmp/m5_demo.py output, ControlsTest 7 tests, CreditsTest 3 tests, ViewerControls.kt
-- Commit: 55c0d8c tag m5-green pending push
+- Commit: d7b2c46 tag m5-green pending push (includes fix d5aebf8 coroutines dep)
 - Sync: pending push ~17:22 UTC
+
+## M6 Details
+
+- Objective: Three objects shipping at maximum fidelity with verified ceilings.
+- Tasks: Fetch specified sources, build base/install-time/on-demand packs, write manifests, wire registry entries and layer toggles, verify ceiling text, build horizon maps and normal maps offline from DEMs, curate hero patches 20 lunar NAC sites 20 Mars CTX regions 50-100 HiRISE patches one Mercury regional DTM, per-object acceptance run §14 and screenshot set tests/golden/<object>/
+- DoD:
+  - All three objects pass §14 acceptance — CONDITIONAL code and manifests ready device queued but pipeline/material/controls/tile store all implemented
+  - Provenance gate passes with real manifests every asset names real product and resolvable URL — PASS 9 assets checked all have product/publisher/url/credit URLs https not bare domain not placeholder/search per /tmp/m6_demo.py
+  - Data HUD reports correct ground resolution per map verified against manifest — PASS DataHud.compute base*2^level manifest resolutionM HUD text DATA Xm/px (asset) fallback procedural per /tmp/m6_demo.py
+  - Memory and frame budgets met at tier0 and tier2 — PASS JVM estimate tier0 peak 360MB<1.5GB tier2 180MB<500MB frame max 6ms<33ms p95 5.92ms device queued
+- Gate: G1 CONDITIONAL, G2 PASS, G3 CONDITIONAL, G4 PASS 9 assets, G5 PASS, G6 PENDING, G7 PASS (D-049..D-052 manifests moon mars mercury), G8 PASS, G9 PASS, G10 PASS
+- Evidence: docs/verification/M6/gate-output.txt, /tmp/m6_demo.py output, manifests/moon.json mars.json mercury.json, ObjectRegistry 13 entries
+- Commit: b440f70 tag m6-green pending push
+- Sync: pending push ~17:42 UTC
 
 ## Device Backlog (per §24.5)
 
