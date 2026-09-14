@@ -6,7 +6,7 @@ import org.json.JSONObject
 /**
  * ManifestReader — reads manifest.json files from assets or packs.
  * For M0, simple JSON parsing without external serialization lib (to keep pure Kotlin + org.json which is on Android).
- * In real app, will read from manifests/ directory and from assets-built/*.zigpack (ZIP).
+ * In real app, will read from manifests/ directory and from assets-built zigpack files (ZIP).
  * For M0, just parses JSON string and validates required fields per §16.3.
  */
 object ManifestReader {
