@@ -72,9 +72,7 @@ jobs:
           disable-animations: true
           script: |
             adb logcat -c || true
-            ./gradlew :app:connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=com.alijafari.red.astronomy.SpaceMuseumRenderingInstrumentedTest \
-              --no-daemon
+            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.alijafari.red.astronomy.SpaceMuseumRenderingInstrumentedTest --no-daemon
             adb logcat -d -v time > "$RUNNER_TEMP/space-museum-logcat.txt" 2>/dev/null || true
             mkdir -p "$RUNNER_TEMP/space-museum-screenshots"
             adb pull /sdcard/Android/data/com.alijafari.red.astronomy/files/space_museum_screenshots "$RUNNER_TEMP/space-museum-screenshots" || true
