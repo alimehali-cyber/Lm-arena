@@ -66,11 +66,25 @@ jobs:
           fi
           chmod +x "$MATC_BIN"
           echo "Found matc at $MATC_BIN"
-          "$MATC_BIN" --help >/tmp/matc-help.log 2>&1 || {
-            echo "::error title=matc invocation failed::matc was found at $MATC_BIN but '--help' failed. Contents of failure log:"
+          ldd "$MATC_BIN" > /tmp/matc-ldd.log 2>&1 || true
+          echo "---- ldd output ----"
+          cat /tmp/matc-ldd.log
+          echo "---------------------"
+          MATC_HELP_EXIT=0
+          "$MATC_BIN" --help >/tmp/matc-help.log 2>&1 || MATC_HELP_EXIT=$?
+          if [ "$MATC_HELP_EXIT" -ne 0 ]; then
+            HELP_ENCODED="$(sed 's/%/%25/g; s/\r/%0D/g' /tmp/matc-help.log | sed ':a;N;$!ba;s/\n/%0A/g')"
+            LDD_ENCODED="$(sed 's/%/%25/g; s/\r/%0D/g' /tmp/matc-ldd.log | sed ':a;N;$!ba;s/\n/%0A/g')"
+            echo "::error title=matc invocation failed::matc found at ${MATC_BIN}. --help exit=${MATC_HELP_EXIT}. help_log=${HELP_ENCODED} ldd_log=${LDD_ENCODED}"
+            echo "==== FULL matc --help failure log (raw) ===="
             cat /tmp/matc-help.log
+            echo "==== FULL ldd output (raw) ===="
+            cat /tmp/matc-ldd.log
+            echo "==== uname / os-release ===="
+            uname -a
+            cat /etc/os-release || true
             exit 1
-          }
+          fi
           echo "matc --help succeeded, binary is genuinely runnable on this runner."
           echo "FILAMENT_MATC=$MATC_BIN" >> "$GITHUB_ENV"
 
