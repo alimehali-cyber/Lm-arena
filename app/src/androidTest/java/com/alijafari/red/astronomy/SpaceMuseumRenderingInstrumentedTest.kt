@@ -20,6 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.io.FileOutputStream
+import java.security.MessageDigest
 
 /**
  * Fix Prompt v2, verification item 3: instrumented rendering test for the Space Museum
@@ -87,7 +88,19 @@ class SpaceMuseumRenderingInstrumentedTest {
             val sampledColors: List<Int>,
             val minLum: Double,
             val maxLum: Double,
-            val luminanceRange: Double
+            val luminanceRange: Double,
+            // Foundational Rebuild Phase 0.2 diagnostic (added after CI run 34970053606/
+            // check-run 104383850708 reproduced the earth==mars fingerprint failure again with
+            // matc-less instrumented.yml): a SHA-256 of the full captured bitmap's raw pixel
+            // bytes, plus the render-loop counters (doFrame/beginFrame/render/endFrame call
+            // counts) and viewport size at capture time. If two objects' fullBitmapSha256 values
+            // are also identical, that proves the SAME screenshot bytes were captured twice
+            // (stale/stuck screen) rather than two real, coincidentally-similar renders -- this
+            // is strictly stronger evidence than the pre-existing 12x12 sampled-grid comparison
+            // alone, which cannot rule out "different image, same derived luminance stats by
+            // coincidence" (astronomically unlikely, but not proven impossible, without this).
+            val fullBitmapSha256: String,
+            val renderLoopSummaryAtCapture: String
         )
 
         val recordedFingerprints = mutableListOf<RenderFingerprint>()
@@ -330,6 +343,25 @@ class SpaceMuseumRenderingInstrumentedTest {
         )
         val bmp = bitmap!!
 
+        // Foundational Rebuild Phase 0.2 diagnostic: full-bitmap content hash and the render-loop
+        // counters' summary(), captured right here (same moment as the screenshot) -- see
+        // RenderFingerprint.fullBitmapSha256/renderLoopSummaryAtCapture doc comment above for why.
+        val fullBitmapSha256 = run {
+            val pixels = IntArray(bmp.width * bmp.height)
+            bmp.getPixels(pixels, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+            val bytes = ByteArray(pixels.size * 4)
+            for (i in pixels.indices) {
+                val p = pixels[i]
+                bytes[i * 4] = (p shr 24).toByte()
+                bytes[i * 4 + 1] = (p shr 16).toByte()
+                bytes[i * 4 + 2] = (p shr 8).toByte()
+                bytes[i * 4 + 3] = p.toByte()
+            }
+            MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        }
+        val renderLoopSummaryAtCapture = engine.instrumentation.renderLoop.summary()
+        Log.i(logTag, "[$screenshotName] fullBitmapSha256=$fullBitmapSha256 renderLoop=$renderLoopSummaryAtCapture")
+
         // Priority 0 fix, re-check at the actual capture moment (not just at screen-entry,
         // above): confirm the debug overlay still identifies THIS objectId right before/around
         // the screenshot that the pixel assertions below will judge. If the app navigated away,
@@ -452,7 +484,9 @@ class SpaceMuseumRenderingInstrumentedTest {
             sampledColors = sampledColors.toList(),
             minLum = minLum,
             maxLum = maxLum,
-            luminanceRange = luminanceRange
+            luminanceRange = luminanceRange,
+            fullBitmapSha256 = fullBitmapSha256,
+            renderLoopSummaryAtCapture = renderLoopSummaryAtCapture
         )
         val priorFingerprints = recordedFingerprints.toList()
         recordedFingerprints.add(fingerprint)
@@ -463,18 +497,32 @@ class SpaceMuseumRenderingInstrumentedTest {
             val identicalLumStats = prior.minLum == fingerprint.minLum &&
                 prior.maxLum == fingerprint.maxLum &&
                 prior.luminanceRange == fingerprint.luminanceRange
+            // Foundational Rebuild Phase 0.2 diagnostic: this is the conclusive check --
+            // identical full-bitmap SHA-256 proves the exact same screenshot bytes were captured
+            // for both objects (stale/stuck screen, not two real renders). If the hashes DIFFER
+            // while the 12x12 sampled-grid stats above are identical, that instead means two
+            // genuinely different images coincidentally produced the same derived luminance
+            // statistics from the (small, 12x12) sample grid -- a real but different bug in the
+            // test's own fingerprinting approach, not a rendering bug.
+            val identicalFullBitmap = prior.fullBitmapSha256 == fingerprint.fullBitmapSha256
             assertFalse(
                 "Priority 0 regression check FAILED: object='${fingerprint.objectId}' produced a " +
                     "render fingerprint IDENTICAL to previously-tested object='${prior.objectId}' " +
                     "(same 12x12 sampled color grid, and/or same minLum/maxLum/luminanceRange: " +
-                    "prior=[minLum=${prior.minLum}, maxLum=${prior.maxLum}, range=${prior.luminanceRange}], " +
+                    "prior=[minLum=${prior.minLum}, maxLum=${prior.maxLum}, range=${prior.luminanceRange}, " +
+                    "fullBitmapSha256=${prior.fullBitmapSha256}, renderLoopAtCapture=${prior.renderLoopSummaryAtCapture}], " +
                     "current=[minLum=${fingerprint.minLum}, maxLum=${fingerprint.maxLum}, " +
-                    "range=${fingerprint.luminanceRange}]). Two different celestial objects " +
-                    "producing byte-identical pixel statistics is exactly the signature of both " +
-                    "screenshots capturing the SAME non-viewer content (e.g. a stuck system " +
-                    "dialog, splash frame, or stale composition) rather than two distinct " +
-                    "rendered objects -- this is the exact way the pixel-uniformity/gradient " +
-                    "checks above were silently defeated in CI run 34945704891.",
+                    "range=${fingerprint.luminanceRange}, fullBitmapSha256=${fingerprint.fullBitmapSha256}, " +
+                    "renderLoopAtCapture=${fingerprint.renderLoopSummaryAtCapture}]. " +
+                    "identicalFullBitmap=$identicalFullBitmap (true means proven same screenshot bytes " +
+                    "twice -- stuck/stale screen, not a rendering bug per se; false means two DIFFERENT " +
+                    "images produced identical derived luminance stats, which is a distinct bug in this " +
+                    "test's 12x12-grid fingerprinting approach, not necessarily in the renderer). Two " +
+                    "different celestial objects producing byte-identical pixel statistics is exactly " +
+                    "the signature of both screenshots capturing the SAME non-viewer content (e.g. a " +
+                    "stuck system dialog, splash frame, or stale composition) rather than two distinct " +
+                    "rendered objects -- this is the exact way the pixel-uniformity/gradient checks " +
+                    "above were silently defeated in CI run 34945704891.",
                 identicalPixels || identicalLumStats
             )
         }

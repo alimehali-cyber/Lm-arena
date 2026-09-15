@@ -56,6 +56,50 @@ jobs:
       - name: Grant execute permission for gradlew (if present)
         run: chmod +x gradlew || true
 
+      # Foundational Rebuild Phase 0.3/1.1: this job builds and runs the real debug app +
+      # instrumented test APKs (connectedDebugAndroidTest below), which per
+      # core/engine/build.gradle.kts's compileFilamat task depend on mergeDebugAssets, which in
+      # turn depends on compileFilamat. Without FILAMENT_MATC set here (mirroring build.yml's
+      # "Install matc" step), compileFilamat silently no-ops (FILAMENT_MATC unset means
+      # matcRequired=false) and core/engine/src/main/assets/filamat/m1SurfaceLit.filamat is never
+      # produced -- confirmed by a real CI run (commit 8dc7b49, check-run 104383850708) whose
+      # InspectorEngine logcat showed "Phase 1 material load failed: FileNotFoundException:
+      # filamat/m1SurfaceLit.filamat" for BOTH earth and mars, meaning neither object ever
+      # exercised the real Phase 1.1 material path in this job and both silently fell back to the
+      # shared runtime ensureMaterial() material instead. Installing matc here (same approach as
+      # build.yml) ensures this job's APK actually contains the real offline-compiled material,
+      # which the Phase 1.4 golden-image test needs to be a meaningful check at all.
+      - name: Install matc (Filament 1.71.5 material compiler)
+        run: |
+          set -euo pipefail
+          FILAMENT_VERSION="1.71.5"
+          DEST="$RUNNER_TEMP/filament-matc"
+          mkdir -p "$DEST"
+          curl -fL --retry 3 -o "$DEST/filament-linux.tgz" \
+            "https://github.com/google/filament/releases/download/v${FILAMENT_VERSION}/filament-v${FILAMENT_VERSION}-linux.tgz"
+          tar -xzf "$DEST/filament-linux.tgz" -C "$DEST"
+          MATC_BIN="$(find "$DEST" -type f -name matc -perm -u+x | head -n1)"
+          if [ -z "$MATC_BIN" ]; then
+            MATC_BIN="$(find "$DEST" -type f -name matc | head -n1)"
+          fi
+          if [ -z "$MATC_BIN" ]; then
+            echo "::error title=matc install failed::Could not locate a matc binary inside filament-v${FILAMENT_VERSION}-linux.tgz after extraction."
+            find "$DEST" -maxdepth 4 -type d
+            exit 1
+          fi
+          chmod +x "$MATC_BIN"
+          echo "Found matc at $MATC_BIN"
+          MATC_HELP_EXIT=0
+          "$MATC_BIN" --help >/tmp/matc-help.log 2>&1 || MATC_HELP_EXIT=$?
+          if [ "$MATC_HELP_EXIT" -ne 0 ]; then
+            HELP_ENCODED="$(sed 's/%/%25/g; s/\r/%0D/g' /tmp/matc-help.log | sed ':a;N;$!ba;s/\n/%0A/g')"
+            echo "::error title=matc invocation failed::matc found at ${MATC_BIN}. --help exit=${MATC_HELP_EXIT}. help_log=${HELP_ENCODED}"
+            cat /tmp/matc-help.log
+            exit 1
+          fi
+          echo "matc --help succeeded, binary is genuinely runnable on this runner (ubuntu-latest)."
+          echo "FILAMENT_MATC=$MATC_BIN" >> "$GITHUB_ENV"
+
       # api-level 34 / x86_64 / pixel_6 / emulator-options, verbatim from Appendix H.2. minSdk=24,
       # targetSdk=36 (app/build.gradle.kts) both bracket API 34 comfortably.
       - name: Instrumented tests on emulator
@@ -203,8 +247,17 @@ jobs:
                   failed = True
               elif seen[key][0] != "PASS":
                   status, message = seen[key]
-                  text = f"{key}: {status} {message}".replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")[:900]
-                  print(f"::error title=Instrumented test failed::{text}")
+                  text = f"{key}: {status} {message}".replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  # Foundational Rebuild Phase 0.2: this message now carries fullBitmapSha256 and
+                  # renderLoopAtCapture diagnostic fields (see
+                  # SpaceMuseumRenderingInstrumentedTest.kt's RenderFingerprint) that are long
+                  # enough to get silently cut off by a single 900-char truncation -- chunk
+                  # instead of truncating so the conclusive identicalFullBitmap=true/false
+                  # evidence at the end of the message is never lost.
+                  for i in range(0, len(text), 3000):
+                      chunk = text[i:i + 3000]
+                      suffix = "" if i + 3000 >= len(text) else " [continues]"
+                      print(f"::error title=Instrumented test failed::{chunk}{suffix}")
                   failed = True
               else:
                   print(f"::notice title=Instrumented test passed (Tier B smoke evidence only)::{key}")
