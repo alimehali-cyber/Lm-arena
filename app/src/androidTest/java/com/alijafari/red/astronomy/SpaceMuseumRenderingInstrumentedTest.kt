@@ -443,9 +443,38 @@ class SpaceMuseumRenderingInstrumentedTest {
             fullBitmapSha256 = candidateHash
             break
         }
-        assertTrue(
-            "framebufferCapture (Filament Renderer.readPixels()) returned null/failed for " +
-                "object=$objectId after $screenshotAttempts attempts (lastError=${engine.getLastError()})",
+        // Foundational Rebuild Phase 0.2: this is fix attempt #4 for the Earth/Mars
+        // frozen-capture bug (Filament Renderer.readPixels(), see framebufferCapture()'s doc
+        // comment above), and it has now ALSO failed with real CI evidence, in two revisions:
+        //   - CI run 34986864397 (commit ad676ec): readPixels() accepted the call with no
+        //     exception, but its async callback never fired within the 10s timeout, for every
+        //     retry, for both earth and mars.
+        //   - CI run 34992161460 (commit 421059a, after adding the missing
+        //     engine.flushAndWait() call that sceneview/sceneview's own reference
+        //     implementation uses): flushAndWait() completed, but the callback STILL never
+        //     fired, identically, for both objects.
+        // This is a materially different failure mode than the prior 3 window-capture-API
+        // attempts (which returned present-but-stale/frozen bytes) -- readPixels() returns
+        // NOTHING at all, ever, in this CI emulator. Per the owner's explicit instruction after
+        // repeated real-CI-verified failures on this exact bug ("stop here, write it up as a
+        // known CI-emulator limitation... mark the golden-image DoD as 'cannot verify in
+        // CI-emulator, needs real device'"), this is now treated as an honest, reported,
+        // non-silent SKIP -- not a PASS, not a hard FAIL of the whole suite -- pending real
+        // Android device (Tier C) access to determine whether this is a SwiftShader/emulator
+        // GPU-readback limitation specific to this headless -gpu swiftshader_indirect profile,
+        // or a real app-level bug that would also reproduce on a real device. See
+        // docs/audit/PHASE_0_1_REPORT.md for the full writeup of this open item.
+        org.junit.Assume.assumeTrue(
+            "CANNOT VERIFY on this CI emulator (headless -gpu swiftshader_indirect, per " +
+                ".github/workflows/instrumented.yml): framebufferCapture (Filament " +
+                "Renderer.readPixels()) returned null/failed for object=$objectId after " +
+                "$screenshotAttempts attempts (lastError=${engine.getLastError()}). This is fix " +
+                "attempt #4 on a bug with 5 real-CI-verified failures total (3 OS-level " +
+                "screenshot API attempts, then 2 revisions of readPixels() including adding the " +
+                "documented-but-missing engine.flushAndWait() call) -- see " +
+                "docs/audit/PHASE_0_1_REPORT.md for full evidence. Marked SKIPPED (not PASSED, " +
+                "not silently ignored) pending real Android device access to determine if this " +
+                "is a SwiftShader-specific GPU-readback limitation.",
             bitmap != null
         )
         val bmp = bitmap!!
