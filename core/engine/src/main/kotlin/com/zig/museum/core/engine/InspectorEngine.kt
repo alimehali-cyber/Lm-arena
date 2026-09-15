@@ -594,13 +594,21 @@ class InspectorEngine private constructor(
                                 Runnable {
                                     buffer.rewind()
                                     req.resultBuffer = buffer
-                                    req.latch.countDown()
+                                    req.resultLatch.countDown()
                                 }
                             )
                         )
+                        // readPixels() accepted the request without throwing -- the command is
+                        // now enqueued on Filament's backend command queue. Signal the caller
+                        // (captureFramebufferPixels(), on its own thread) that it's safe to call
+                        // engine.flushAndWait() now. Must NOT call flushAndWait() here on the
+                        // main/Choreographer thread -- see captureFramebufferPixels()'s doc
+                        // comment for why that would deadlock.
+                        req.issuedLatch.countDown()
                     } catch (e: Exception) {
                         req.error = "readPixels failed: ${e.message}"
-                        req.latch.countDown()
+                        req.issuedLatch.countDown()
+                        req.resultLatch.countDown()
                     }
                 }
                 try {
@@ -628,7 +636,8 @@ class InspectorEngine private constructor(
      * supported usage, not a one-off guess).
      */
     private class PendingCapture(val width: Int, val height: Int) {
-        val latch = CountDownLatch(1)
+        val issuedLatch = CountDownLatch(1)
+        val resultLatch = CountDownLatch(1)
         @Volatile var resultBuffer: ByteBuffer? = null
         @Volatile var error: String? = null
     }
@@ -643,16 +652,52 @@ class InspectorEngine private constructor(
      * the request could not be serviced (e.g. no swapChain/renderer/view, or beginFrame() kept
      * returning false, within the timeout).
      *
+     * Foundational Rebuild Phase 0.2, fix #4 REVISION: fix attempt #4's first push
+     * (commit ad676ec) issued readPixels() correctly (after render(), before endFrame(), on the
+     * main/Choreographer thread) but the async callback never fired within the 10s timeout on
+     * EITHER object in real CI (run 34986864397: "captureFramebufferPixels timed out after
+     * 10000ms" x8 retries x2 objects, with NO exception logged from the readPixels() call itself
+     * -- i.e. it was accepted, not rejected). Root cause, found by reading
+     * sceneview/sceneview's RenderTestHarness.capturePixels() line-by-line again: Filament's
+     * async readPixels callback is delivered by the *backend* (GL/Vulkan/Metal) command-queue
+     * thread, which is only guaranteed to make forward progress on commands already submitted to
+     * it when something actively kicks it -- Engine.flushAndWait() (or a real windowing system's
+     * normal swap-buffer/vsync cadence, which this headless/swiftshader_indirect CI emulator may
+     * not reliably provide the same way a real device's window compositor does). sceneview's own
+     * code comment states this explicitly: "flushAndWait() OUTSIDE the main-thread block ... so
+     * the backend thread can actually process the frame and fire our callback." Our first attempt
+     * never called flushAndWait() anywhere. Fixed here: after doFrame() issues the readPixels
+     * call (signaled via req.issuedLatch), this method calls engine.flushAndWait() from ITS OWN
+     * (non-main) thread -- never from inside doFrame()/the Choreographer callback, which would
+     * block the main thread and could itself prevent the callback from ever being delivered.
+     *
      * Must be called from a background/instrumentation thread, NOT the main/Choreographer thread
-     * that runs doFrame() (calling from main would deadlock waiting on its own callback).
+     * that runs doFrame() (calling from main would deadlock waiting on its own callback, and would
+     * also deadlock the flushAndWait() call below).
      */
     fun captureFramebufferPixels(width: Int, height: Int, timeoutMs: Long = 10_000): ByteBuffer? {
         val req = PendingCapture(width, height)
         pendingCaptureRequest = req
-        val completed = req.latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+        val issued = req.issuedLatch.await(timeoutMs, TimeUnit.MILLISECONDS)
+        if (!issued) {
+            pendingCaptureRequest = null
+            lastError = "captureFramebufferPixels timed out after ${timeoutMs}ms waiting for " +
+                "doFrame() to issue readPixels() (beginFrame() may not be returning true)"
+            return null
+        }
+        if (req.error != null) {
+            lastError = req.error!!
+            return null
+        }
+        // Kick the backend (GL/Vulkan/Metal) command-queue thread so it actually executes the
+        // already-submitted readPixels command and fires its callback -- see this method's doc
+        // comment above for why this was the missing step in fix attempt #4's first push.
+        engine.flushAndWait()
+        val completed = req.resultLatch.await(timeoutMs, TimeUnit.MILLISECONDS)
         if (!completed) {
             pendingCaptureRequest = null
-            lastError = "captureFramebufferPixels timed out after ${timeoutMs}ms"
+            lastError = "captureFramebufferPixels timed out after ${timeoutMs}ms waiting for " +
+                "readPixels() callback after flushAndWait() returned"
             return null
         }
         if (req.error != null) {
@@ -661,6 +706,7 @@ class InspectorEngine private constructor(
         }
         return req.resultBuffer
     }
+
 
     private var phase1Material: Material? = null
     private var phase1AlbedoTexture: com.google.android.filament.Texture? = null
