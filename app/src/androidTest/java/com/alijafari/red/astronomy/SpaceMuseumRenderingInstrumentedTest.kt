@@ -12,6 +12,7 @@ import androidx.compose.ui.test.printToString
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.zig.museum.core.engine.InspectorEngine
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Rule
@@ -48,9 +49,49 @@ import java.io.FileOutputStream
  * Run for two independent objects as required: Earth (id "earth") and Mars (id "mars") — both
  * solid rocky/oceanic bodies rendered via the shared loadEllipsoidObject() path, both good
  * candidates for the winding/backface-culling and NORMAL/TANGENTS regressions this pass fixes.
+ *
+ * PRIORITY 0 FIX (post-mortem on CI run 34945704891): the assertions in step 4 above passed for
+ * BOTH earth and mars while their captured screenshots were byte-identical in every measured
+ * statistic (distinctColors, onObjectSamples, minLum, maxLum, luminanceRange) — i.e. this test
+ * gave a false "PASS" while actually scoring the same non-viewer content twice (most likely a
+ * stuck system dialog/splash surface, since the same CI run also logged an unrelated JobScheduler
+ * ANR). Pixel-uniformity/gradient checks alone can rule out "blank screen" but cannot detect
+ * "wrong screen, but not blank". Two checks were added to close this gap:
+ *  6. A positive identity check against the live Compose semantics tree (the "debug_overlay"
+ *     testTag's text, which SpaceMuseumViewerScreen renders as
+ *     "Filament: ... id:$objectId | ...") confirming the screen actually on top is this
+ *     object's viewer — checked once at screen-entry and again right before/around the
+ *     screenshot capture.
+ *  7. A cross-object fingerprint comparison: each object's sampled-color grid and luminance
+ *     stats are recorded, and if a later object in the same test run produces an IDENTICAL
+ *     fingerprint to an earlier, different object, the test fails outright. This is the direct
+ *     regression test for the exact CI failure mode discovered above.
  */
 @RunWith(AndroidJUnit4::class)
 class SpaceMuseumRenderingInstrumentedTest {
+
+    /**
+     * Priority 0 fix (post-mortem on CI run 34945704891): the original version of this test
+     * passed for BOTH earth and mars while their captured screenshots had byte-identical
+     * distinctColors/onObjectSamples/minLum/maxLum/luminanceRange — i.e. it was scoring the
+     * exact same non-viewer content (almost certainly a stuck system dialog/splash frame, since
+     * the CI run also showed an unrelated JobScheduler ANR around the same time) as two separate
+     * "passing" renders of two different planets. Pixel-uniformity/gradient checks alone cannot
+     * detect "wrong screen, but not blank" — only a cross-run fingerprint comparison can. This
+     * companion object persists across the two @Test methods within the same instrumentation
+     * process/run and is used to assert the two objects' render fingerprints actually differ.
+     */
+    private companion object {
+        data class RenderFingerprint(
+            val objectId: String,
+            val sampledColors: List<Int>,
+            val minLum: Double,
+            val maxLum: Double,
+            val luminanceRange: Double
+        )
+
+        val recordedFingerprints = mutableListOf<RenderFingerprint>()
+    }
 
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
@@ -105,6 +146,30 @@ class SpaceMuseumRenderingInstrumentedTest {
         composeRule.onNodeWithTag(tileTag).performClick()
 
         waitUntilOrDumpTree("space_museum_viewer_screen")
+
+        // --- Priority 0 fix: confirm the viewer screen actually visible RIGHT NOW is showing
+        // THIS objectId, via the debug overlay text ("Filament: ... id:$objectId | ...") that
+        // SpaceMuseumViewerScreen renders from the live objectId parameter (see
+        // SpaceMuseumViewerScreen.kt debug_overlay Text composables). This is the fix for the
+        // exact CI failure mode observed in run 34945704891: both earth and mars produced
+        // byte-identical pixel-statistics fingerprints, meaning the screenshot assertions below
+        // were almost certainly scoring a stuck/foreground system surface (e.g. an ANR dialog)
+        // rather than the actual per-object viewer. A pixel-uniformity/gradient check cannot
+        // detect "wrong screen, but not blank" -- only a positive identity check against the
+        // live Compose semantics tree can. If this fails, the bug is that the viewer screen
+        // itself never became visible/current for this objectId (navigation/composition issue,
+        // or a foreground system window such as an ANR dialog stealing the screen) -- entirely
+        // separate from, and upstream of, the Filament rendering assertions further down.
+        waitUntilOrDumpTree("debug_overlay")
+        val overlayTreeAtEntry = composeRule.onRoot().printToString()
+        assertTrue(
+            "Priority 0 check FAILED for object=$objectId: the debug overlay is present in the " +
+                "semantics tree, but does not contain 'id:$objectId'. This means the screen " +
+                "currently on top is NOT this object's viewer (e.g. still showing another " +
+                "object, a stale composition, or the viewer never received this objectId). " +
+                "Semantics tree:\n$overlayTreeAtEntry",
+            overlayTreeAtEntry.contains("id:$objectId")
+        )
 
         // --- Wait for a REAL rendered-frame signal: N frames actually rendered through
         // InspectorEngine's Choreographer-driven frame loop, not a fixed sleep. ---
@@ -164,6 +229,24 @@ class SpaceMuseumRenderingInstrumentedTest {
             bitmap != null
         )
         val bmp = bitmap!!
+
+        // Priority 0 fix, re-check at the actual capture moment (not just at screen-entry,
+        // above): confirm the debug overlay still identifies THIS objectId right before/around
+        // the screenshot that the pixel assertions below will judge. If the app navigated away,
+        // or a system window (e.g. an ANR dialog) took over the foreground in between, this
+        // catches it even if it slipped past the entry check.
+        val overlayTreeAtCapture = try {
+            composeRule.onRoot().printToString()
+        } catch (t: Throwable) {
+            "<failed to capture semantics tree at capture time: ${t.message}>"
+        }
+        assertTrue(
+            "Priority 0 check FAILED for object=$objectId at screenshot-capture time: the debug " +
+                "overlay text no longer contains 'id:$objectId' right before/around the pixel " +
+                "screenshot. The screen being pixel-sampled below is not confirmed to be this " +
+                "object's viewer. Semantics tree at capture time:\n$overlayTreeAtCapture",
+            overlayTreeAtCapture.contains("id:$objectId")
+        )
 
         // Save PNG to device storage so the CI workflow can `adb pull` it for the upload-artifact
         // step (human-reviewable evidence in addition to the automated assertions below).
@@ -251,6 +334,46 @@ class SpaceMuseumRenderingInstrumentedTest {
                 "onObjectSamples=${onObjectLuminances.size} minLum=$minLum maxLum=$maxLum " +
                 "range=$luminanceRange savedTo=${outFile.absolutePath}"
         )
+
+        // --- Priority 0 fix: record this object's render fingerprint (sampled colors +
+        // luminance stats) and, once a second object has run in this process, assert the two
+        // fingerprints are NOT identical. This is the direct regression test for the exact CI
+        // failure discovered in run 34945704891: earth and mars produced byte-identical
+        // distinctColors/onObjectSamples/minLum/maxLum/luminanceRange values, which is only
+        // possible if both screenshots captured the same underlying (non-viewer) content. Two
+        // genuinely different rendered planets, sampled over the same 12x12 grid, are extremely
+        // unlikely to produce exactly equal luminance statistics by chance.
+        val fingerprint = RenderFingerprint(
+            objectId = objectId,
+            sampledColors = sampledColors.toList(),
+            minLum = minLum,
+            maxLum = maxLum,
+            luminanceRange = luminanceRange
+        )
+        val priorFingerprints = recordedFingerprints.toList()
+        recordedFingerprints.add(fingerprint)
+
+        for (prior in priorFingerprints) {
+            if (prior.objectId == fingerprint.objectId) continue
+            val identicalPixels = prior.sampledColors == fingerprint.sampledColors
+            val identicalLumStats = prior.minLum == fingerprint.minLum &&
+                prior.maxLum == fingerprint.maxLum &&
+                prior.luminanceRange == fingerprint.luminanceRange
+            assertFalse(
+                "Priority 0 regression check FAILED: object='${fingerprint.objectId}' produced a " +
+                    "render fingerprint IDENTICAL to previously-tested object='${prior.objectId}' " +
+                    "(same 12x12 sampled color grid, and/or same minLum/maxLum/luminanceRange: " +
+                    "prior=[minLum=${prior.minLum}, maxLum=${prior.maxLum}, range=${prior.luminanceRange}], " +
+                    "current=[minLum=${fingerprint.minLum}, maxLum=${fingerprint.maxLum}, " +
+                    "range=${fingerprint.luminanceRange}]). Two different celestial objects " +
+                    "producing byte-identical pixel statistics is exactly the signature of both " +
+                    "screenshots capturing the SAME non-viewer content (e.g. a stuck system " +
+                    "dialog, splash frame, or stale composition) rather than two distinct " +
+                    "rendered objects -- this is the exact way the pixel-uniformity/gradient " +
+                    "checks above were silently defeated in CI run 34945704891.",
+                identicalPixels || identicalLumStats
+            )
+        }
     }
 }
 
