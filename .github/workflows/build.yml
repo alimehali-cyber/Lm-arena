@@ -169,6 +169,31 @@ jobs:
               print(f"::error title=Unit test failure::{text}")
           if unit_status != 0 and not failed_cases:
               lines = log_path.read_text(errors="replace").splitlines() if log_path.exists() else []
+
+              def emit(title, text_lines):
+                  text = "\n".join(text_lines)
+                  text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  # GitHub annotation messages are truncated well beyond typical Gradle output;
+                  # chunk defensively at 3000 chars so nothing silently gets cut without a marker.
+                  for i in range(0, len(text), 3000):
+                      chunk = text[i:i + 3000]
+                      suffix = "" if i + 3000 >= len(text) else " [continues]"
+                      print(f"::error title={title}::{chunk}{suffix}")
+
+              # Foundational Rebuild Phase 0.3: the previous version of this diagnostic only
+              # grepped individual lines matching a token list and truncated each to 900 chars --
+              # this hid the actual "* What went wrong:" / GradleException message body (e.g. from
+              # core/engine/build.gradle.kts's compileFilamat task, or matc's own stdout/stderr
+              # printed via println(output) before it) whenever the message spanned multiple lines
+              # or exceeded 900 chars. Now: locate the "* What went wrong:" block (Gradle's own
+              # standard failure-summary marker) and emit it in full via emit() above, in addition
+              # to the previous single-line token scan for anything before that marker.
+              wwiw_idx = next((i for i, l in enumerate(lines) if l.strip() == "* What went wrong:"), None)
+              if wwiw_idx is not None:
+                  block = lines[wwiw_idx:wwiw_idx + 80]
+                  # Stop at the next '* Try:' / '* Exception is:' / BUILD FAILED section boundary if present sooner.
+                  end = next((j for j, l in enumerate(block) if j > 0 and l.strip().startswith("* ") and l.strip() != "* What went wrong:"), len(block))
+                  emit("Gradle failure: What went wrong", block[:end])
               interesting = [line for line in lines if any(token in line for token in ("FAILURE:", "Execution failed", "FAILED", "Exception", "error:", "No tests found", "BUILD FAILED")) or line.startswith("e: ")]
               for line in interesting[-40:]:
                   text = line.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")[:900]
