@@ -2,6 +2,9 @@ package com.alijafari.red.astronomy
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.os.Handler
+import android.os.HandlerThread
+import android.view.PixelCopy
 import android.util.Log
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -341,13 +344,30 @@ class SpaceMuseumRenderingInstrumentedTest {
         )
 
         // --- Capture the actual rendered device pixels (real SurfaceView compositor output) ---
-        // UiAutomation.takeScreenshot() can transiently return null right after its accessibility
-        // connection is established (observed on the first test method of a run: earth failed
-        // with a null screenshot while mars, running second in the same process/connection,
-        // succeeded immediately after). This is a documented, known transient condition of the
-        // underlying accessibility service connection, not a rendering problem, so retry a few
-        // times with a short backoff before failing -- the retry itself does not change what is
-        // being asserted on (still the real device-composited pixels from the same API).
+        // Foundational Rebuild Phase 0.2, SECOND real fix (the first -- retrying
+        // uiAutomation.takeScreenshot() on hash collision, see git history for this file -- was
+        // tried and PROVEN INSUFFICIENT: CI run 34975416974 showed identicalFullBitmap=true again
+        // for mars vs earth even with that retry loop in place, meaning
+        // UiAutomation.takeScreenshot() was not returning transiently-stale-then-fresh content on
+        // this runner, it was returning the SAME bytes on every one of the retried attempts. Per
+        // Android's own SurfaceView documentation (developer.android.com/reference/android/view/
+        // SurfaceView), a SurfaceView's content is composited by SurfaceFlinger as a separate
+        // layer "punched through" the window/View hierarchy -- UiAutomation.takeScreenshot() is
+        // fundamentally a *window/display* screenshot API, and there are long-documented cases
+        // (particularly headless/software-rendered configurations, exactly this job's
+        // `-no-window -gpu swiftshader_indirect`) where it can fail to composite that punched-
+        // through SurfaceView layer at all and effectively return only the surrounding
+        // decor/Compose content frozen at an earlier moment -- which would explain byte-identical
+        // captures despite the object underneath genuinely changing. The Android-documented,
+        // deterministic way to read a live SurfaceView/Window's actual composited pixels is
+        // PixelCopy.request(Window, Bitmap, OnPixelCopyFinishedListener, Handler) -- the
+        // Window-source overload requires API 26 (this project's minSdk is 24, but the emulator
+        // used by instrumented.yml is pinned to api-level 34, so this is always available in
+        // CI; see pixelCopyCapture()'s own SDK_INT guard below for the defensive fallback if
+        // this test is ever run on an older device) -- which reads directly from the window's
+        // buffer rather than going through a separate accessibility-service screenshot path.
+        // Switched to that here instead of retrying the same UiAutomation call a ninth time and
+        // hoping.
         val instrumentation = InstrumentationRegistry.getInstrumentation()
 
         fun sha256Of(bitmap: Bitmap): String {
@@ -364,26 +384,61 @@ class SpaceMuseumRenderingInstrumentedTest {
             return MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         }
 
+        fun pixelCopyCapture(): Bitmap? {
+            // PixelCopy.request(Window, Bitmap, OnPixelCopyFinishedListener, Handler) requires
+            // API 26 (this module's minSdk is 24, per app/build.gradle.kts, but the emulator this
+            // test always runs on per .github/workflows/instrumented.yml is pinned to api-level
+            // 34 -- see that file's `api-level: 34` -- so this branch is always taken in CI).
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) {
+                Log.w(logTag, "PixelCopy.request(Window, ...) requires API 26+, running on " +
+                    "API ${android.os.Build.VERSION.SDK_INT}; cannot capture for object=$objectId.")
+                return null
+            }
+            val activity = composeRule.activity
+            val window = activity.window
+            val decorView = window.decorView
+            val w = decorView.width
+            val h = decorView.height
+            if (w <= 0 || h <= 0) return null
+            val dest = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val handlerThread = HandlerThread("SpaceMuseumTestPixelCopy").apply { start() }
+            try {
+                val latch = java.util.concurrent.CountDownLatch(1)
+                var resultCode = -1
+                PixelCopy.request(
+                    window,
+                    dest,
+                    { copyResult ->
+                        resultCode = copyResult
+                        latch.countDown()
+                    },
+                    Handler(handlerThread.looper)
+                )
+                val completed = latch.await(5, java.util.concurrent.TimeUnit.SECONDS)
+                if (!completed || resultCode != PixelCopy.SUCCESS) {
+                    Log.w(logTag, "PixelCopy.request failed for object=$objectId: completed=$completed resultCode=$resultCode")
+                    return null
+                }
+                return dest
+            } finally {
+                handlerThread.quitSafely()
+            }
+        }
+
         var bitmap: Bitmap? = null
         var fullBitmapSha256 = ""
         var screenshotAttempts = 0
-        // Foundational Rebuild Phase 0.2 fix: beyond the pre-existing null-screenshot retry
-        // (transient accessibility-connection condition, see comment above), also retry if the
-        // captured screenshot's hash exactly matches a DIFFERENT, already-recorded object's
-        // fullBitmapSha256 -- this is the real, root-caused fix for CI run 34973763477's
-        // identicalFullBitmap=true failure: UiAutomation.takeScreenshot() can return a still-valid
-        // (non-null) but STALE compositor buffer immediately after navigation, even once
-        // InspectorEngine has genuinely presented new frames for the new object (per the
-        // presentedFramesSinceLoad wait above) -- the two are different layers (UiAutomation
-        // screenshots the window manager's last composited buffer; InspectorEngine's counters
-        // only prove Filament itself rendered). Retrying the actual capture until it demonstrably
-        // differs from a known-different object's hash directly fixes what the render-loop wait
-        // alone could not guarantee.
+        // Retry loop, now on top of the PixelCopy capture: still guards against (a) a transient
+        // PixelCopy failure (documented as possible while a window is mid-layout/mid-transition)
+        // and (b) as a belt-and-braces check, a captured frame that is byte-identical to a
+        // DIFFERENT, already-recorded object's fullBitmapSha256, which would indicate PixelCopy
+        // itself returned stale content (not expected per its documented semantics, but checked
+        // directly here rather than assumed).
         while (screenshotAttempts < 8) {
             screenshotAttempts++
-            val candidate = instrumentation.uiAutomation.takeScreenshot()
+            val candidate = pixelCopyCapture()
             if (candidate == null) {
-                Log.w(logTag, "uiAutomation.takeScreenshot() returned null for object=$objectId " +
+                Log.w(logTag, "PixelCopy capture returned null/failed for object=$objectId " +
                     "(attempt $screenshotAttempts/8); retrying after a short delay.")
                 Thread.sleep(500)
                 continue
@@ -393,12 +448,11 @@ class SpaceMuseumRenderingInstrumentedTest {
                 it.objectId != objectId && it.fullBitmapSha256 == candidateHash
             }
             if (staleMatch != null) {
-                Log.w(logTag, "uiAutomation.takeScreenshot() for object=$objectId returned a " +
-                    "screenshot byte-identical to previously-recorded object='${staleMatch.objectId}' " +
-                    "(sha256=$candidateHash) on attempt $screenshotAttempts/8 -- this is the stale-" +
-                    "compositor-buffer condition root-caused from CI run 34973763477; retrying " +
-                    "after a short delay rather than accepting a screenshot already proven to be " +
-                    "the wrong object's content.")
+                Log.w(logTag, "PixelCopy capture for object=$objectId returned a screenshot " +
+                    "byte-identical to previously-recorded object='${staleMatch.objectId}' " +
+                    "(sha256=$candidateHash) on attempt $screenshotAttempts/8; retrying after a " +
+                    "short delay rather than accepting a screenshot already proven to be the " +
+                    "wrong object's content.")
                 bitmap = candidate
                 fullBitmapSha256 = candidateHash
                 Thread.sleep(500)
@@ -409,13 +463,13 @@ class SpaceMuseumRenderingInstrumentedTest {
             break
         }
         assertTrue(
-            "uiAutomation.takeScreenshot() returned null for object=$objectId after $screenshotAttempts attempts",
+            "PixelCopy capture returned null/failed for object=$objectId after $screenshotAttempts attempts",
             bitmap != null
         )
         val bmp = bitmap!!
         val renderLoopSummaryAtCapture = engine.instrumentation.renderLoop.summary()
         Log.i(logTag, "[$screenshotName] fullBitmapSha256=$fullBitmapSha256 renderLoop=$renderLoopSummaryAtCapture " +
-            "screenshotAttempts=$screenshotAttempts")
+            "screenshotAttempts=$screenshotAttempts (capture method: PixelCopy on activity.window)")
 
         // Priority 0 fix, re-check at the actual capture moment (not just at screen-entry,
         // above): confirm the debug overlay still identifies THIS objectId right before/around
