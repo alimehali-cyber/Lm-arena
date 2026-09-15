@@ -1,23 +1,30 @@
-/**
- * Foundational Rebuild Phase 1.1 — m1SurfaceLit
- *
- * The one real, offline-compiled material for Phase 1 ("one object, done honestly"). Albedo +
- * normal only, per the Phase 1 scope note ("albedo + normal sufficient for this phase; placeholder
- * texture fine, runtime GLSL string is not"). This is deliberately much simpler than
- * regolithSurface.mat/patchSurface.mat (no height displacement, no horizon shadowing, no
- * procedural micro-detail) -- those remain authored-but-unverified Phase 2+ scope per
- * docs/audit/MILESTONE_AUDIT.md M1/M4, and are explicitly out of scope for this pass.
- *
- * Inputs:
- * - albedoMap: sRGB base color texture (placeholder solid-color PNG is acceptable for this phase)
- * - normalMap: tangent-space OpenGL (+Y up) normal texture, packed [0,1] -> unpacked *2-1 here
- * - tintColor: linear RGB multiplier, used so the same material can still be tinted per-object
- *   (this replaces the InspectorEngine runtime-GLSL default materials for the one Phase 1 object;
- *   it does NOT replace them engine-wide -- that is Phase 2+ scope)
- *
- * Compiled to .filamat by matc via core/engine/build.gradle.kts's compileFilamat task. See
- * .github/workflows/build.yml's "Install matc" step for how FILAMENT_MATC is provided in CI.
- */
+// Foundational Rebuild Phase 1.1 — m1SurfaceLit
+//
+// The one real, offline-compiled material for Phase 1 ("one object, done honestly"). Albedo +
+// normal only, per the Phase 1 scope note ("albedo + normal sufficient for this phase; placeholder
+// texture fine, runtime GLSL string is not"). This is deliberately much simpler than
+// regolithSurface.mat/patchSurface.mat (no height displacement, no horizon shadowing, no
+// procedural micro-detail) -- those remain authored-but-unverified Phase 2+ scope per
+// docs/audit/MILESTONE_AUDIT.md M1/M4, and are explicitly out of scope for this pass.
+//
+// Inputs:
+// - albedoMap: sRGB base color texture (placeholder solid-color PNG is acceptable for this phase)
+// - normalMap: tangent-space OpenGL (+Y up) normal texture, packed [0,1] -> unpacked *2-1 here
+// - tintColor: linear RGB multiplier, used so the same material can still be tinted per-object
+//   (this replaces the InspectorEngine runtime-GLSL default materials for the one Phase 1 object;
+//   it does NOT replace them engine-wide -- that is Phase 2+ scope)
+//
+// Compiled to .filamat by matc via core/engine/build.gradle.kts's compileFilamat task. See
+// .github/workflows/build.yml's "Install matc" step for how FILAMENT_MATC is provided in CI.
+//
+// NOTE (Foundational Rebuild Phase 0.3 fix): this file previously opened with a /** ... */
+// block comment before the `material { }` block. Per Filament's own material-authoring docs
+// ("matc does not accept /* */ [in the material block]; the material block offers only //"),
+// matc's parser for the material block only supports // line comments, not C-style block
+// comments -- a real CI run (commit 67dbffc, check-run 104376507881) confirmed this rejects the
+// file with "Unexpected character at line:1 position:0" for every .mat file in this repo that
+// opens with /** (this file included). Converted to // line comments to fix real matc
+// compilation, not to work around it.
 
 material {
     name : m1SurfaceLit,
