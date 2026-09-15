@@ -15,8 +15,22 @@ on:
 # and remain a hard gate before the APK is produced.
 jobs:
   build:
-    # ubuntu-22.04 keeps the Android SDK image this project's AGP/Kotlin toolchain is built against.
-    runs-on: ubuntu-22.04
+    # Foundational Rebuild Phase 0.3: bumped from ubuntu-22.04 to ubuntu-24.04.
+    #
+    # Root cause of the "Install matc" step failing here (confirmed via a diagnostic CI run,
+    # commit a748edf, check-run 104372100009's "matc invocation failed" annotation): the
+    # pinned Filament 1.71.5 linux matc binary requires GLIBC_2.38
+    # ("/lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.38' not found"), but ubuntu-22.04
+    # only ships glibc 2.35. This is an environment mismatch, not a bad download URL or bad
+    # extraction path -- matc itself was found and located correctly.
+    #
+    # ubuntu-24.04's glibc is 2.39 (>= 2.38, satisfies matc), and its preinstalled Android SDK
+    # image includes build-tools 36.0.0/36.1.0 and platform android-36.1, which matches this
+    # project's compileSdk 36.1 (app/build.gradle.kts) -- so this is a real fix, not a runtime
+    # MaterialBuilder/GLSL-string workaround for matc, and does not require any other toolchain
+    # change (AGP/Kotlin/Gradle/JDK all remain the same real repo versions per
+    # docs/decisions/DECISIONS.md).
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout code
