@@ -194,6 +194,19 @@ jobs:
                   # Stop at the next '* Try:' / '* Exception is:' / BUILD FAILED section boundary if present sooner.
                   end = next((j for j, l in enumerate(block) if j > 0 and l.strip().startswith("* ") and l.strip() != "* What went wrong:"), len(block))
                   emit("Gradle failure: What went wrong", block[:end])
+
+              # Foundational Rebuild Phase 0.3: core/engine/build.gradle.kts's compileFilamat task
+              # prints matc's own raw stdout/stderr via println(output) between its "Compiling
+              # X.mat -> X.filamat via ..." and "matc failed for X.mat with exit N" lines -- this
+              # is the actual matc compiler error (e.g. a shader validation error with line
+              # numbers) and is not caught by either the token scan above or the "What went wrong"
+              # block (which only contains compileFilamat's own summary GradleException message,
+              # not matc's underlying compiler output). Surface it explicitly.
+              compiling_idx = next((i for i, l in enumerate(lines) if l.strip().startswith("Compiling ") and " via " in l), None)
+              if compiling_idx is not None:
+                  matc_block = lines[compiling_idx:compiling_idx + 120]
+                  end = next((j for j, l in enumerate(matc_block) if j > 0 and (l.strip().startswith("> Task") or l.strip().startswith("* What went wrong"))), len(matc_block))
+                  emit("matc compiler output for m1SurfaceLit.mat", matc_block[:end])
               interesting = [line for line in lines if any(token in line for token in ("FAILURE:", "Execution failed", "FAILED", "Exception", "error:", "No tests found", "BUILD FAILED")) or line.startswith("e: ")]
               for line in interesting[-40:]:
                   text = line.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")[:900]
