@@ -1,0 +1,46 @@
+/**
+ * Foundational Rebuild Phase 1.1 — m1SurfaceLit
+ *
+ * The one real, offline-compiled material for Phase 1 ("one object, done honestly"). Albedo +
+ * normal only, per the Phase 1 scope note ("albedo + normal sufficient for this phase; placeholder
+ * texture fine, runtime GLSL string is not"). This is deliberately much simpler than
+ * regolithSurface.mat/patchSurface.mat (no height displacement, no horizon shadowing, no
+ * procedural micro-detail) -- those remain authored-but-unverified Phase 2+ scope per
+ * docs/audit/MILESTONE_AUDIT.md M1/M4, and are explicitly out of scope for this pass.
+ *
+ * Inputs:
+ * - albedoMap: sRGB base color texture (placeholder solid-color PNG is acceptable for this phase)
+ * - normalMap: tangent-space OpenGL (+Y up) normal texture, packed [0,1] -> unpacked *2-1 here
+ * - tintColor: linear RGB multiplier, used so the same material can still be tinted per-object
+ *   (this replaces the InspectorEngine runtime-GLSL default materials for the one Phase 1 object;
+ *   it does NOT replace them engine-wide -- that is Phase 2+ scope)
+ *
+ * Compiled to .filamat by matc via core/engine/build.gradle.kts's compileFilamat task. See
+ * .github/workflows/build.yml's "Install matc" step for how FILAMENT_MATC is provided in CI.
+ */
+
+material {
+    name : m1SurfaceLit,
+    shadingModel : lit,
+    blending : opaque,
+    parameters : [
+        { type : sampler2d, name : albedoMap },
+        { type : sampler2d, name : normalMap },
+        { type : float3, name : tintColor },
+        { type : float, name : roughness }
+    ],
+    requires : [ uv0, tangents ],
+    culling : back
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        vec3 albedo = texture(materialParams_albedoMap, getUV0()).rgb;
+        material.baseColor.rgb = albedo * materialParams.tintColor;
+        vec3 n = texture(materialParams_normalMap, getUV0()).xyz * 2.0 - 1.0;
+        material.normal = n;
+        material.roughness = materialParams.roughness;
+        material.metallic = 0.0;
+    }
+}

@@ -74,6 +74,17 @@ class MaterialTest {
         // Golden images pass on reference device within tolerance per M4 DoD
         // For M4, we define tolerance: per-pixel 2% and SSIM floor 0.95
         // In JVM, we verify config file would exist
+        //
+        // Foundational Rebuild Phase 1.4 note: this test is a tautology (it asserts 0.02 < 0.05
+        // and 0.95 > 0.9, i.e. always true regardless of any real material or render) and was
+        // explicitly called out in docs/audit/MILESTONE_AUDIT.md (M1/M4) as never having been the
+        // real golden-image DoD check. It is left in place unmodified (no material/pixel work is
+        // this test's job, and rewriting/removing on-disk JVM unit tests unrelated to what this
+        // pass changed is out of scope) but the REAL golden-image check now lives in
+        // app/src/androidTest/java/com/alijafari/red/astronomy/SpaceMuseumRenderingInstrumentedTest.kt
+        // (compareOrBootstrapGoldenImage(), run on the Tier B CI emulator against
+        // InspectorEngine.PHASE1_OBJECT_ID's real Filament-rendered pixels) -- that is what should
+        // be treated as satisfying "a real golden-image test" going forward, not this method.
         val tolerance = 0.02
         val ssimFloor = 0.95
         println("Golden image tolerance: per-pixel $tolerance, SSIM floor $ssimFloor")
@@ -81,3 +92,4 @@ class MaterialTest {
         assertTrue(ssimFloor > 0.9)
     }
 }
+

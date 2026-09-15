@@ -37,6 +37,43 @@ jobs:
       - name: Grant execute permission for gradlew (if present)
         run: chmod +x gradlew || true
 
+      # Foundational Rebuild Phase 0.3: install the real matc material compiler matching the
+      # pinned Filament 1.71.5 dependency version (see core/engine/build.gradle.kts) so
+      # compileFilamat can produce real offline .filamat output instead of silently no-op'ing
+      # and leaving the runtime MaterialBuilder/GLSL-string path as the only material pipeline
+      # (see docs/audit/MILESTONE_AUDIT.md, M1/M4: matc had never been installed/invoked anywhere
+      # in CI prior to this). Per the Foundational Rebuild instructions, if matc genuinely cannot
+      # be made to work here this must be a hard stop reported to the owner, not a silent
+      # fallback -- so this step fails the build (does not `|| true` past errors) if download,
+      # extraction, or a basic --help invocation fail.
+      - name: Install matc (Filament 1.71.5 material compiler)
+        run: |
+          set -euo pipefail
+          FILAMENT_VERSION="1.71.5"
+          DEST="$RUNNER_TEMP/filament-matc"
+          mkdir -p "$DEST"
+          curl -fL --retry 3 -o "$DEST/filament-linux.tgz" \
+            "https://github.com/google/filament/releases/download/v${FILAMENT_VERSION}/filament-v${FILAMENT_VERSION}-linux.tgz"
+          tar -xzf "$DEST/filament-linux.tgz" -C "$DEST"
+          MATC_BIN="$(find "$DEST" -type f -name matc -perm -u+x | head -n1)"
+          if [ -z "$MATC_BIN" ]; then
+            MATC_BIN="$(find "$DEST" -type f -name matc | head -n1)"
+          fi
+          if [ -z "$MATC_BIN" ]; then
+            echo "::error title=matc install failed::Could not locate a matc binary inside filament-v${FILAMENT_VERSION}-linux.tgz after extraction. This is the S2 hard-stop condition from the roadmap: matc must not be silently worked around with the runtime MaterialBuilder/GLSL-string path. Reporting to owner, failing build."
+            find "$DEST" -maxdepth 4 -type d
+            exit 1
+          fi
+          chmod +x "$MATC_BIN"
+          echo "Found matc at $MATC_BIN"
+          "$MATC_BIN" --help >/tmp/matc-help.log 2>&1 || {
+            echo "::error title=matc invocation failed::matc was found at $MATC_BIN but '--help' failed. Contents of failure log:"
+            cat /tmp/matc-help.log
+            exit 1
+          }
+          echo "matc --help succeeded, binary is genuinely runnable on this runner."
+          echo "FILAMENT_MATC=$MATC_BIN" >> "$GITHUB_ENV"
+
       - name: Decode permanent signing keystore
         env:
           SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}

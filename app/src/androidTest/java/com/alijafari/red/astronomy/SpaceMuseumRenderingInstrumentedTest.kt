@@ -96,6 +96,106 @@ class SpaceMuseumRenderingInstrumentedTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
 
+    /**
+     * Foundational Rebuild Phase 1.4: real golden-image comparison for the Phase 1 object
+     * (InspectorEngine.PHASE1_OBJECT_ID == "earth"), replacing the roadmap's still-unimplemented
+     * "real DoD requirement" and MaterialTest.kt's tautological `0.02 < 0.05` self-comparison
+     * (see docs/audit/MILESTONE_AUDIT.md, M1/M4).
+     *
+     * Honesty note (this pass cannot be run on a real device/emulator from this development
+     * environment -- no Android SDK/emulator available in this sandbox, confirmed in the Phase
+     * 0+1 report): there is no pre-existing, verified-real Filament screenshot available to check
+     * in as app/src/androidTest/assets/golden/earth_golden.png before this test has ever actually
+     * executed successfully in CI. Rather than fabricate a placeholder PNG and call it a "golden
+     * image" (which would be exactly the kind of unverified claim this whole rebuild exists to
+     * eliminate), this test runs in one of two honest modes:
+     *  - BOOTSTRAP mode (golden file absent): captures the current render, writes it to device
+     *    storage as the candidate golden image, logs and asserts only the cheap sanity checks
+     *    already proven above (non-uniform, directional-gradient, identity, cross-object
+     *    fingerprint) -- it does NOT silently pass a pixel-diff check that never ran. The CI
+     *    artifact (space-museum-screenshots) from a run where this test is judged trustworthy by
+     *    a human is meant to be reviewed and then copied into
+     *    app/src/androidTest/assets/golden/earth_golden.png as a follow-up commit, at which point
+     *    this test switches to COMPARE mode automatically.
+     *  - COMPARE mode (golden file present): performs an actual per-pixel comparison (mean
+     *    absolute difference across RGB channels, downsampled to a fixed grid so minor
+     *    device/driver anti-aliasing differences don't cause spurious failures) against the
+     *    checked-in reference and fails if the difference exceeds a documented tolerance.
+     */
+    private fun compareOrBootstrapGoldenImage(objectId: String, bitmap: Bitmap) {
+        if (objectId != com.zig.museum.core.engine.InspectorEngine.PHASE1_OBJECT_ID) return
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val goldenAssetName = "golden/${objectId}_golden.png"
+        val golden: Bitmap? = try {
+            instrumentation.context.assets.open(goldenAssetName).use { android.graphics.BitmapFactory.decodeStream(it) }
+        } catch (e: java.io.FileNotFoundException) {
+            null
+        }
+
+        if (golden == null) {
+            val bootstrapDir = File(instrumentation.targetContext.getExternalFilesDir(null), "space_museum_screenshots")
+            bootstrapDir.mkdirs()
+            val bootstrapFile = File(bootstrapDir, "${objectId}_golden_candidate.png")
+            FileOutputStream(bootstrapFile).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out) }
+            Log.w(
+                logTag,
+                "GOLDEN-IMAGE BOOTSTRAP MODE for object=$objectId: no checked-in reference found at " +
+                    "app/src/androidTest/assets/$goldenAssetName, so no pixel-diff comparison ran for " +
+                    "this object this run (only the non-uniform/gradient/identity/fingerprint checks " +
+                    "above ran). Candidate golden image written to ${bootstrapFile.absolutePath} -- " +
+                    "pull this CI artifact, have a human confirm it looks correct, and check it in at " +
+                    "app/src/androidTest/assets/$goldenAssetName to enable real pixel-diff comparison " +
+                    "on future runs. This is intentionally NOT a silent pass of a check that never ran."
+            )
+            return
+        }
+
+        // Downsample both images to a fixed small grid before comparing so minor device/driver
+        // anti-aliasing/rounding differences between runs on the same content don't cause
+        // spurious failures -- this test is judging "is this recognizably the same render", not
+        // demanding bit-for-bit identical GPU output.
+        val gridW = 32
+        val gridH = 32
+        fun sampleGrid(bmp: Bitmap): IntArray {
+            val out = IntArray(gridW * gridH)
+            for (gy in 0 until gridH) {
+                for (gx in 0 until gridW) {
+                    val x = (gx * (bmp.width - 1) / (gridW - 1)).coerceIn(0, bmp.width - 1)
+                    val y = (gy * (bmp.height - 1) / (gridH - 1)).coerceIn(0, bmp.height - 1)
+                    out[gy * gridW + gx] = bmp.getPixel(x, y)
+                }
+            }
+            return out
+        }
+
+        val candidateGrid = sampleGrid(bitmap)
+        val goldenGrid = sampleGrid(golden)
+        var totalAbsDiff = 0L
+        for (i in candidateGrid.indices) {
+            val c = candidateGrid[i]
+            val g = goldenGrid[i]
+            totalAbsDiff += Math.abs(Color.red(c) - Color.red(g)) +
+                Math.abs(Color.green(c) - Color.green(g)) +
+                Math.abs(Color.blue(c) - Color.blue(g))
+        }
+        val meanAbsDiff = totalAbsDiff.toDouble() / (candidateGrid.size * 3)
+        // Tolerance: 0-255 scale per channel. 24.0 (~9.4%) allows for legitimate render
+        // differences (camera float jitter, driver AA, JPEG/PNG re-encode rounding in the golden
+        // asset itself) while still catching "wrong material/color/lighting" regressions, which
+        // this project's own history shows produce far larger differences (e.g. the Earth/Mars
+        // byte-identical-fingerprint bug this pass fixes, or a solid-color fallback replacing a
+        // gradient-shaded sphere).
+        val tolerance = 24.0
+        Log.i(logTag, "GOLDEN-IMAGE COMPARE for object=$objectId: meanAbsDiff=$meanAbsDiff (tolerance=$tolerance) against $goldenAssetName")
+        assertTrue(
+            "Golden-image regression check FAILED for object=$objectId: mean absolute per-channel " +
+                "pixel difference against the checked-in reference ($goldenAssetName) was $meanAbsDiff, " +
+                "exceeding tolerance $tolerance. The rendered image no longer matches the last " +
+                "human-reviewed reference closely enough.",
+            meanAbsDiff <= tolerance
+        )
+    }
+
     @Test
     fun earthRendersNonUniformFrameWithDirectionalShading() {
         renderObjectAndAssert(objectId = "earth", tileTag = "space_museum_tile_earth", screenshotName = "earth_render")
@@ -254,6 +354,10 @@ class SpaceMuseumRenderingInstrumentedTest {
         outDir.mkdirs()
         val outFile = File(outDir, "$screenshotName.png")
         FileOutputStream(outFile).use { out -> bmp.compress(Bitmap.CompressFormat.PNG, 100, out) }
+
+        // --- Foundational Rebuild Phase 1.4: real golden-image comparison (or honest bootstrap)
+        // for the Phase 1 object -- see compareOrBootstrapGoldenImage()'s doc comment above. ---
+        compareOrBootstrapGoldenImage(objectId, bmp)
 
         // --- Assertion (a): sample a pixel grid over the rendered object area and assert NOT
         // all sampled pixels are the same color. Rules out a uniform-clear-color blue/black

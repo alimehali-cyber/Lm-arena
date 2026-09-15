@@ -343,7 +343,32 @@ fun SpaceMuseumViewerScreen(
                 modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(8.dp).testTag("debug_overlay")
             ) {
                 Text("fps: ${"%.1f".format(debugData.fps)} p50: ${"%.1f".format(debugData.p50Ms)}ms p95: ${"%.1f".format(debugData.p95Ms)}ms tier: ${debugData.tier} camR: ${"%.2f".format(cameraState.radius)}", color = Color.White, style = MaterialTheme.typography.labelSmall)
-                Text("tiles: ${debugData.residentTiles} bytes: ${debugData.residentBytes} uploads: ${debugData.uploadsPerFrame} evict: ${debugData.evictions}", color = Color.White, style = MaterialTheme.typography.labelSmall)
+                // Foundational Rebuild Phase 0.1: this used to unconditionally print a hardcoded
+                // "tiles: 1 bytes: 4194304 uploads: 0 evict: 0" literal regardless of whether any
+                // tile/asset system was involved (see docs/audit/MILESTONE_AUDIT.md, M3, and
+                // InspectorEngine.loadEllipsoidObject()'s removed hardcoded-counter line). No tile
+                // store is wired into the render path yet, so this must say so honestly instead of
+                // showing a plausible-looking but fake number.
+                Text(
+                    if (debugData.tileStoreActive) "tiles: ${debugData.residentTiles} bytes: ${debugData.residentBytes} uploads: ${debugData.uploadsPerFrame} evict: ${debugData.evictions}"
+                    else "tile store: not active",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall
+                )
+                // Foundational Rebuild Phase 0.1: real render-loop honesty counters, replacing the
+                // previous fps-only signal that could not distinguish "beginFrame() succeeded and a
+                // real frame was presented" from "beginFrame() returned false / threw, nothing was
+                // drawn, and doFrame() just returned quickly" -- see
+                // docs/audit/MILESTONE_AUDIT.md M11 for the 899-1156fps evidence this conflation
+                // produced. rl.summary() reports doFrame()/beginFrame()/render()/endFrame() call
+                // counts with their real true/false/threw breakdown, plus the SurfaceView's actual
+                // measured viewport size at last setViewport() call.
+                Text(
+                    "render loop: ${debugData.renderLoop.summary()}",
+                    color = if (debugData.renderLoop.hasPresentedAtLeastOneFrame()) Color.White else Color.Red,
+                    style = MaterialTheme.typography.labelSmall
+                )
+
                 Text(
                     "Filament: ${if (hasRenderable) "YES 3D" else "NO fallback"} material:${if (hasMaterial) "YES" else "NO"} id:$objectId | ${spec?.displayNameEn ?: objectId}",
                     color = if (hasRenderable && hasMaterial) Color.Green else Color.Yellow,

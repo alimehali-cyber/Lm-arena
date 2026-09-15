@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -27,6 +28,7 @@ fun FilamentView(
     onCameraChange: ((CameraState) -> Unit)? = null
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
+    val context = LocalContext.current.applicationContext
     val engine = remember { InspectorEngine.getInstance() }
 
     // UiHelper for managing SurfaceView
@@ -85,8 +87,11 @@ fun FilamentView(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
 
-        // Load object when id or tier changes
-        engine.loadEllipsoidObject(objectId, tier)
+        // Load object when id or tier changes. Foundational Rebuild Phase 1.1: pass the real
+        // Android Context through so loadEllipsoidObject() can load the one offline-compiled
+        // m1SurfaceLit.filamat + its placeholder albedo/normal assets for the Phase 1 object
+        // (earth) -- see InspectorEngine.loadEllipsoidObject()'s Phase 1 material branch.
+        engine.loadEllipsoidObject(objectId, tier, context = context)
         engine.startFrameLoop()
 
         onDispose {
