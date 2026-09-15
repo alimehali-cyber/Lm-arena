@@ -142,7 +142,8 @@ object GeometryGenerator {
     /**
      * Packs a per-vertex surface normal into the quaternion form Filament's
      * `VertexAttribute.TANGENTS` expects (see `filament::math::mat3f::packTangentFrame` /
-     * `geometry::SurfaceOrientation`, and `core/engine/src/main/materials/*.mat`, which already
+     * `geometry::SurfaceOrientation`, and the `.mat` files under
+     * `core/engine/src/main/materials`, which already
      * declare `requires: [uv0, position, tangents]`). Filament has no plain FLOAT3 "NORMAL"
      * vertex attribute for the standard shading path — surface orientation is always supplied as
      * a normalized tangent-bitangent-normal (TBN) frame packed into a single SNORM16 quaternion.
