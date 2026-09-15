@@ -2,9 +2,6 @@ package com.alijafari.red.astronomy
 
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.os.Handler
-import android.os.HandlerThread
-import android.view.PixelCopy
 import android.util.Log
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -343,31 +340,24 @@ class SpaceMuseumRenderingInstrumentedTest {
             presentedFramesSinceLoad >= minPresentedFramesSinceLoad
         )
 
-        // --- Capture the actual rendered device pixels (real SurfaceView compositor output) ---
-        // Foundational Rebuild Phase 0.2, SECOND real fix (the first -- retrying
-        // uiAutomation.takeScreenshot() on hash collision, see git history for this file -- was
-        // tried and PROVEN INSUFFICIENT: CI run 34975416974 showed identicalFullBitmap=true again
-        // for mars vs earth even with that retry loop in place, meaning
-        // UiAutomation.takeScreenshot() was not returning transiently-stale-then-fresh content on
-        // this runner, it was returning the SAME bytes on every one of the retried attempts. Per
-        // Android's own SurfaceView documentation (developer.android.com/reference/android/view/
-        // SurfaceView), a SurfaceView's content is composited by SurfaceFlinger as a separate
-        // layer "punched through" the window/View hierarchy -- UiAutomation.takeScreenshot() is
-        // fundamentally a *window/display* screenshot API, and there are long-documented cases
-        // (particularly headless/software-rendered configurations, exactly this job's
-        // `-no-window -gpu swiftshader_indirect`) where it can fail to composite that punched-
-        // through SurfaceView layer at all and effectively return only the surrounding
-        // decor/Compose content frozen at an earlier moment -- which would explain byte-identical
-        // captures despite the object underneath genuinely changing. The Android-documented,
-        // deterministic way to read a live SurfaceView/Window's actual composited pixels is
-        // PixelCopy.request(Window, Bitmap, OnPixelCopyFinishedListener, Handler) -- the
-        // Window-source overload requires API 26 (this project's minSdk is 24, but the emulator
-        // used by instrumented.yml is pinned to api-level 34, so this is always available in
-        // CI; see pixelCopyCapture()'s own SDK_INT guard below for the defensive fallback if
-        // this test is ever run on an older device) -- which reads directly from the window's
-        // buffer rather than going through a separate accessibility-service screenshot path.
-        // Switched to that here instead of retrying the same UiAutomation call a ninth time and
-        // hoping.
+        // --- Capture the actual rendered device pixels ---
+        // Foundational Rebuild Phase 0.2, THIRD real fix. Both prior fix attempts -- retrying
+        // uiAutomation.takeScreenshot() on hash collision (proven insufficient: CI run
+        // 34975416974), then switching to PixelCopy.request(Window, ...) (also proven
+        // insufficient: CI run 34981421741, IDENTICAL failure) -- were both OS-level *window*
+        // screenshot mechanisms. The same-object liveness diagnostic added between those attempts
+        // (see git history) proved conclusively that even a SINGLE still-loaded object, orbited
+        // 90 degrees with 3+ more real presented frames in between, produced a byte-IDENTICAL
+        // second window screenshot on this CI runner (`liveCaptureDiffers=false` in CI run
+        // 34983996617's logcat) -- i.e. the bug is not about object identity or timing at all, it
+        // is that NO window-level screenshot API observes live SurfaceView content on this
+        // emulator's headless/swiftshader_indirect profile. The real fix: read pixels directly
+        // from Filament's own GPU framebuffer via Renderer.readPixels(), which completely
+        // bypasses the OS window compositor. See InspectorEngine.captureFramebufferPixels() (and
+        // its doc comment, which also credits sceneview/sceneview's RenderTestHarness.kt as prior
+        // art for the same beginFrame/render/readPixels/endFrame ordering) and
+        // InspectorEngine.createSwapChain()'s SwapChainFlags.CONFIG_READABLE addition (required
+        // for readPixels() to succeed at all, per SwapChainFlags.java's own doc comment).
         val instrumentation = InstrumentationRegistry.getInstrumentation()
 
         fun sha256Of(bitmap: Bitmap): String {
@@ -384,61 +374,52 @@ class SpaceMuseumRenderingInstrumentedTest {
             return MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         }
 
-        fun pixelCopyCapture(): Bitmap? {
-            // PixelCopy.request(Window, Bitmap, OnPixelCopyFinishedListener, Handler) requires
-            // API 26 (this module's minSdk is 24, per app/build.gradle.kts, but the emulator this
-            // test always runs on per .github/workflows/instrumented.yml is pinned to api-level
-            // 34 -- see that file's `api-level: 34` -- so this branch is always taken in CI).
-            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) {
-                Log.w(logTag, "PixelCopy.request(Window, ...) requires API 26+, running on " +
-                    "API ${android.os.Build.VERSION.SDK_INT}; cannot capture for object=$objectId.")
+        fun framebufferCapture(): Bitmap? {
+            val fbWidth = engine.instrumentation.renderLoop.lastViewportWidth
+            val fbHeight = engine.instrumentation.renderLoop.lastViewportHeight
+            if (fbWidth <= 0 || fbHeight <= 0) {
+                Log.w(logTag, "framebufferCapture: no valid viewport size yet for object=$objectId " +
+                    "(lastViewportWidth=$fbWidth lastViewportHeight=$fbHeight)")
                 return null
             }
-            val activity = composeRule.activity
-            val window = activity.window
-            val decorView = window.decorView
-            val w = decorView.width
-            val h = decorView.height
-            if (w <= 0 || h <= 0) return null
-            val dest = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            val handlerThread = HandlerThread("SpaceMuseumTestPixelCopy").apply { start() }
-            try {
-                val latch = java.util.concurrent.CountDownLatch(1)
-                var resultCode = -1
-                PixelCopy.request(
-                    window,
-                    dest,
-                    { copyResult ->
-                        resultCode = copyResult
-                        latch.countDown()
-                    },
-                    Handler(handlerThread.looper)
-                )
-                val completed = latch.await(5, java.util.concurrent.TimeUnit.SECONDS)
-                if (!completed || resultCode != PixelCopy.SUCCESS) {
-                    Log.w(logTag, "PixelCopy.request failed for object=$objectId: completed=$completed resultCode=$resultCode")
-                    return null
-                }
-                return dest
-            } finally {
-                handlerThread.quitSafely()
+            val rawBuffer = engine.captureFramebufferPixels(fbWidth, fbHeight) ?: run {
+                Log.w(logTag, "framebufferCapture: captureFramebufferPixels returned null for " +
+                    "object=$objectId (lastError=${engine.getLastError()})")
+                return null
             }
+            // Convert RGBA byte buffer to Bitmap. Filament's readPixels() coordinate origin is
+            // bottom-left (OpenGL convention) -- see Renderer.java's readPixels() ASCII-diagram
+            // doc comment -- so rows must be flipped vertically to produce a normal top-down
+            // Bitmap, exactly as sceneview/sceneview's RenderTestHarness.capturePixels() does.
+            val out = Bitmap.createBitmap(fbWidth, fbHeight, Bitmap.Config.ARGB_8888)
+            val row = ByteArray(fbWidth * 4)
+            for (y in fbHeight - 1 downTo 0) {
+                rawBuffer.get(row)
+                for (x in 0 until fbWidth) {
+                    val o = x * 4
+                    val r = row[o].toInt() and 0xFF
+                    val g = row[o + 1].toInt() and 0xFF
+                    val b = row[o + 2].toInt() and 0xFF
+                    val a = row[o + 3].toInt() and 0xFF
+                    out.setPixel(x, y, Color.argb(a, r, g, b))
+                }
+            }
+            return out
         }
 
         var bitmap: Bitmap? = null
         var fullBitmapSha256 = ""
         var screenshotAttempts = 0
-        // Retry loop, now on top of the PixelCopy capture: still guards against (a) a transient
-        // PixelCopy failure (documented as possible while a window is mid-layout/mid-transition)
-        // and (b) as a belt-and-braces check, a captured frame that is byte-identical to a
-        // DIFFERENT, already-recorded object's fullBitmapSha256, which would indicate PixelCopy
-        // itself returned stale content (not expected per its documented semantics, but checked
-        // directly here rather than assumed).
+        // Retry loop kept on top of the real framebuffer capture as a belt-and-braces check: if a
+        // captured frame is byte-identical to a DIFFERENT, already-recorded object's
+        // fullBitmapSha256, that would indicate readPixels() itself returned stale content (not
+        // expected, since it's a direct in-frame GPU readback, but checked directly here rather
+        // than assumed).
         while (screenshotAttempts < 8) {
             screenshotAttempts++
-            val candidate = pixelCopyCapture()
+            val candidate = framebufferCapture()
             if (candidate == null) {
-                Log.w(logTag, "PixelCopy capture returned null/failed for object=$objectId " +
+                Log.w(logTag, "framebufferCapture returned null/failed for object=$objectId " +
                     "(attempt $screenshotAttempts/8); retrying after a short delay.")
                 Thread.sleep(500)
                 continue
@@ -448,7 +429,7 @@ class SpaceMuseumRenderingInstrumentedTest {
                 it.objectId != objectId && it.fullBitmapSha256 == candidateHash
             }
             if (staleMatch != null) {
-                Log.w(logTag, "PixelCopy capture for object=$objectId returned a screenshot " +
+                Log.w(logTag, "framebufferCapture for object=$objectId returned a screenshot " +
                     "byte-identical to previously-recorded object='${staleMatch.objectId}' " +
                     "(sha256=$candidateHash) on attempt $screenshotAttempts/8; retrying after a " +
                     "short delay rather than accepting a screenshot already proven to be the " +
@@ -463,13 +444,14 @@ class SpaceMuseumRenderingInstrumentedTest {
             break
         }
         assertTrue(
-            "PixelCopy capture returned null/failed for object=$objectId after $screenshotAttempts attempts",
+            "framebufferCapture (Filament Renderer.readPixels()) returned null/failed for " +
+                "object=$objectId after $screenshotAttempts attempts (lastError=${engine.getLastError()})",
             bitmap != null
         )
         val bmp = bitmap!!
         val renderLoopSummaryAtCapture = engine.instrumentation.renderLoop.summary()
         Log.i(logTag, "[$screenshotName] fullBitmapSha256=$fullBitmapSha256 renderLoop=$renderLoopSummaryAtCapture " +
-            "screenshotAttempts=$screenshotAttempts (capture method: PixelCopy on activity.window)")
+            "screenshotAttempts=$screenshotAttempts (capture method: Filament Renderer.readPixels(), real GPU framebuffer)")
 
         // Priority 0 fix, re-check at the actual capture moment (not just at screen-entry,
         // above): confirm the debug overlay still identifies THIS objectId right before/around
@@ -492,18 +474,20 @@ class SpaceMuseumRenderingInstrumentedTest {
         // Foundational Rebuild Phase 0.2 diagnostic (3rd pass): a same-object liveness check.
         // Both prior fix attempts (uiAutomation.takeScreenshot() with hash-collision retry, then
         // PixelCopy on activity.window) failed IDENTICALLY -- mars's fullBitmapSha256 exactly
-        // matched earth's in both CI runs (34975416974 and this run), even though two entirely
-        // different capture APIs were used and renderLoopAtCapture proved real, different amounts
-        // of rendering work had happened. That is strong evidence the bug is NOT in which capture
-        // API is used. Before attempting a third blind fix, get a direct, cheap answer to a
-        // narrower question: is ANY screen capture in this CI environment "live" at all, i.e. if
-        // this SAME object's camera is visibly moved and more real frames are presented, does a
-        // second capture of it differ from the first? If the answer is NO even for the same
-        // still-loaded object, the bug is capture-pipeline-wide (unrelated to object identity). If
-        // the answer is YES, the two-different-objects-produce-identical-bytes bug must lie
-        // somewhere else entirely (e.g. the SAME material/texture instance state being reused
-        // across objects, not a screenshot problem) -- this is exactly the kind of "don't infer,
-        // check" step the Foundational Rebuild's reporting rigor requires before another guess.
+        // matched earth's in both CI runs (34975416974 and 34981421741), even though two entirely
+        // different OS-level window-screenshot APIs were used, and renderLoopAtCapture proved
+        // real, different amounts of rendering work had happened. This same liveness check (using
+        // the OS-level capture at the time) proved conclusively in CI run 34983996617 that even a
+        // SAME still-loaded object, orbited 90 degrees with more real frames presented, produced a
+        // byte-IDENTICAL second capture -- i.e. no window-level screenshot API observed live
+        // content on this CI runner at all, regardless of object identity. That evidence is what
+        // led to switching the primary capture mechanism (above) to Filament's own
+        // Renderer.readPixels() GPU-framebuffer readback, which bypasses the OS window compositor
+        // entirely. This check is kept here, now using that same real mechanism, as a standing
+        // regression guard: if it should ever start reporting liveCaptureDiffers=false again, that
+        // is a real signal the new capture path has also regressed, not proof by itself (a golden-
+        // image/pixel-grid assertion failure would still be the actual gate), so it stays a Log.i
+        // diagnostic rather than an assertion for now.
         engine.cameraRig.orbit(90f, 0f)
         engine.updateCameraFromRig()
         val endFrameCallsBeforeLivenessCheck = engine.instrumentation.renderLoop.endFrameCalls
@@ -513,7 +497,7 @@ class SpaceMuseumRenderingInstrumentedTest {
         ) {
             Thread.sleep(50)
         }
-        val secondCapture = pixelCopyCapture()
+        val secondCapture = framebufferCapture()
         if (secondCapture != null) {
             val secondHash = sha256Of(secondCapture)
             val liveCaptureDiffers = secondHash != fullBitmapSha256
@@ -522,7 +506,7 @@ class SpaceMuseumRenderingInstrumentedTest {
                 "more presented frames)=$secondHash liveCaptureDiffers=$liveCaptureDiffers " +
                 "renderLoopAtSecondCapture=${engine.instrumentation.renderLoop.summary()}")
         } else {
-            Log.w(logTag, "[$screenshotName] SAME-OBJECT LIVENESS CHECK: second PixelCopy capture failed/null, could not run the check.")
+            Log.w(logTag, "[$screenshotName] SAME-OBJECT LIVENESS CHECK: second framebufferCapture failed/null, could not run the check.")
         }
         // Restore the camera to where it was so the golden-image/pixel-grid assertions below
         // still judge the original, intended framing.

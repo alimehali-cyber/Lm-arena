@@ -13,6 +13,7 @@ import com.google.android.filament.RenderableManager
 import com.google.android.filament.Renderer
 import com.google.android.filament.Scene
 import com.google.android.filament.SwapChain
+import com.google.android.filament.Texture
 import com.google.android.filament.VertexBuffer
 import com.google.android.filament.View
 import com.google.android.filament.Camera
@@ -20,6 +21,8 @@ import com.google.android.filament.Viewport
 import com.google.android.filament.utils.Utils
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class InspectorEngine private constructor(
     val engine: Engine
@@ -440,7 +443,28 @@ class InspectorEngine private constructor(
     fun createSwapChain(surface: Surface) {
         try {
             if (swapChain != null) engine.destroySwapChain(swapChain!!)
-            swapChain = engine.createSwapChain(surface)
+            // Foundational Rebuild Phase 0.2: CONFIG_READABLE is required for
+            // Renderer.readPixels() to succeed on this SwapChain (see
+            // com.google.android.filament.SwapChainFlags's own doc comment: "This flag
+            // indicates that the SwapChain may be used as a source surface for reading back
+            // render results" -- confirmed against SwapChainFlags.java at tag v1.71.5). Without
+            // it, readPixels() can silently fail on some backends. This is needed for
+            // captureFramebufferPixels() below, which is the real fix for the Earth/Mars
+            // identical-screenshot bug: two independent OS-level window-screenshot capture paths
+            // (UiAutomation.takeScreenshot() and PixelCopy on the activity Window) were both
+            // proven, with real CI evidence, to return frozen/non-live content on this emulator
+            // profile (headless -no-window -gpu swiftshader_indirect) -- even a same-object,
+            // camera-orbited, more-frames-presented re-capture came back byte-identical (see CI
+            // run 34983996617's "SAME-OBJECT LIVENESS CHECK: ... liveCaptureDiffers=false" log
+            // line). Reading directly from Filament's own GPU framebuffer via readPixels(),
+            // inside the render loop, bypasses the OS window compositor entirely and is
+            // documented by Filament itself as "intended for debugging and testing" (see
+            // Renderer.java's readPixels() doc comment at the same tag).
+            swapChain = engine.createSwapChain(
+                surface,
+                com.google.android.filament.SwapChainFlags.CONFIG_DEFAULT or
+                    com.google.android.filament.SwapChainFlags.CONFIG_READABLE
+            )
         } catch (e: Exception) {
             lastError = "createSwapChain failed: ${e.message}"
         }
@@ -540,6 +564,45 @@ class InspectorEngine private constructor(
                     rl = rl.copy(renderThrew = rl.renderThrew + 1)
                     lastError = "render threw: ${e.message}"
                 }
+                // Foundational Rebuild Phase 0.2: service a pending real-framebuffer capture
+                // request here -- readPixels() MUST be called after render() and before
+                // endFrame() (see Renderer.java's readPixels() doc comment at tag v1.71.5: "must
+                // be called within a frame, meaning after beginFrame and before endFrame...
+                // Typically, readPixels will be called after render"). This is the mechanism
+                // behind captureFramebufferPixels() below, which reads real GPU pixel data
+                // directly from Filament's own framebuffer, bypassing the OS window compositor
+                // entirely -- the root fix for the Earth/Mars identical-screenshot bug, where two
+                // separate OS-level window-screenshot APIs (UiAutomation.takeScreenshot(), then
+                // PixelCopy on the activity Window) were both proven with real CI evidence to
+                // return frozen content on this emulator's headless/swiftshader profile (see
+                // SpaceMuseumRenderingInstrumentedTest's "SAME-OBJECT LIVENESS CHECK" diagnostic,
+                // CI run 34983996617).
+                val req = pendingCaptureRequest
+                if (req != null) {
+                    pendingCaptureRequest = null
+                    try {
+                        val buffer = ByteBuffer.allocateDirect(req.width * req.height * 4)
+                            .order(ByteOrder.nativeOrder())
+                        r.readPixels(
+                            0, 0, req.width, req.height,
+                            Texture.PixelBufferDescriptor(
+                                buffer,
+                                Texture.Format.RGBA,
+                                Texture.Type.UBYTE,
+                                1, 0, 0, 0,
+                                null,
+                                Runnable {
+                                    buffer.rewind()
+                                    req.resultBuffer = buffer
+                                    req.latch.countDown()
+                                }
+                            )
+                        )
+                    } catch (e: Exception) {
+                        req.error = "readPixels failed: ${e.message}"
+                        req.latch.countDown()
+                    }
+                }
                 try {
                     r.endFrame()
                     rl = rl.copy(endFrameCalls = rl.endFrameCalls + 1)
@@ -553,6 +616,50 @@ class InspectorEngine private constructor(
         instrumentation.renderLoop = rl
         val endNs = System.nanoTime()
         instrumentation.frameTimings.add(FrameTiming((endNs - startNs) / 1_000_000f, frameTimeNanos))
+    }
+
+    /**
+     * Foundational Rebuild Phase 0.2: real GPU-framebuffer capture, servicing the request from
+     * inside the next successful (beginFrame()==true) doFrame() tick via Renderer.readPixels()
+     * (see doFrame()'s doc comment above for why this is the fix, and
+     * https://github.com/sceneview/sceneview's RenderTestHarness.capturePixels() for the same
+     * beginFrame/render/readPixels/endFrame-ordering pattern used by another real, independent
+     * Filament-based project's own instrumented tests -- confirming this is Filament's documented,
+     * supported usage, not a one-off guess).
+     */
+    private class PendingCapture(val width: Int, val height: Int) {
+        val latch = CountDownLatch(1)
+        @Volatile var resultBuffer: ByteBuffer? = null
+        @Volatile var error: String? = null
+    }
+
+    @Volatile private var pendingCaptureRequest: PendingCapture? = null
+
+    /**
+     * Requests a real GPU-framebuffer readback of the next successfully-rendered frame and
+     * blocks (with a timeout) until it's serviced by doFrame() on the Choreographer/main thread.
+     * Returns a raw RGBA byte buffer (bottom-up per Filament's coordinate convention -- see
+     * Renderer.readPixels()'s own ASCII diagram doc comment) of size width*height*4, or null if
+     * the request could not be serviced (e.g. no swapChain/renderer/view, or beginFrame() kept
+     * returning false, within the timeout).
+     *
+     * Must be called from a background/instrumentation thread, NOT the main/Choreographer thread
+     * that runs doFrame() (calling from main would deadlock waiting on its own callback).
+     */
+    fun captureFramebufferPixels(width: Int, height: Int, timeoutMs: Long = 10_000): ByteBuffer? {
+        val req = PendingCapture(width, height)
+        pendingCaptureRequest = req
+        val completed = req.latch.await(timeoutMs, TimeUnit.MILLISECONDS)
+        if (!completed) {
+            pendingCaptureRequest = null
+            lastError = "captureFramebufferPixels timed out after ${timeoutMs}ms"
+            return null
+        }
+        if (req.error != null) {
+            lastError = req.error!!
+            return null
+        }
+        return req.resultBuffer
     }
 
     private var phase1Material: Material? = null
