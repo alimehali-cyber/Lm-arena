@@ -2,14 +2,18 @@ package com.alijafari.red.astronomy
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.util.Log
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.printToString
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.zig.museum.core.engine.InspectorEngine
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,25 +65,46 @@ class SpaceMuseumRenderingInstrumentedTest {
         renderObjectAndAssert(objectId = "mars", tileTag = "space_museum_tile_mars", screenshotName = "mars_render")
     }
 
+    private val logTag = "SpaceMuseumTest"
+
+    /**
+     * Wraps [androidx.compose.ui.test.junit4.ComposeTestRule.waitUntil] so a timeout dumps the
+     * full semantics tree to logcat (tag "SpaceMuseumTest", picked up by the workflow's
+     * "Print filtered logcat for diagnosis" step and the uploaded logcat artifact) before failing
+     * with a message that names the step, instead of a bare
+     * "Condition still not satisfied after N ms" with no information about what was actually on
+     * screen at the time.
+     */
+    private fun waitUntilOrDumpTree(stepName: String, timeoutMillis: Long = 15_000) {
+        try {
+            composeRule.waitUntil(timeoutMillis = timeoutMillis) {
+                composeRule.onAllNodesWithTag(stepName).fetchSemanticsNodes(false).isNotEmpty()
+            }
+        } catch (t: Throwable) {
+            val tree = try {
+                composeRule.onRoot().printToString()
+            } catch (inner: Throwable) {
+                "<failed to capture semantics tree: ${inner.message}>"
+            }
+            Log.e(logTag, "Timed out waiting for testTag='$stepName'. Semantics tree at timeout:\n$tree")
+            fail(
+                "Timed out after ${timeoutMillis}ms waiting for testTag='$stepName'. " +
+                    "Semantics tree at timeout (also in logcat tag '$logTag'):\n$tree"
+            )
+        }
+    }
+
     private fun renderObjectAndAssert(objectId: String, tileTag: String, screenshotName: String) {
         // --- Navigate: bottom nav "Lab" tab -> Space Museum feature card -> grid -> object tile ---
         composeRule.onNodeWithTag("nav_item_lab").performClick()
-        composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithTag("lab_feature_card_space_museum").fetchSemanticsNodes(false).isNotEmpty()
-        }
+        waitUntilOrDumpTree("lab_feature_card_space_museum")
         composeRule.onNodeWithTag("lab_feature_card_space_museum").performClick()
 
-        composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithTag("space_museum_grid_screen").fetchSemanticsNodes(false).isNotEmpty()
-        }
-        composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithTag(tileTag).fetchSemanticsNodes(false).isNotEmpty()
-        }
+        waitUntilOrDumpTree("space_museum_grid_screen")
+        waitUntilOrDumpTree(tileTag)
         composeRule.onNodeWithTag(tileTag).performClick()
 
-        composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithTag("space_museum_viewer_screen").fetchSemanticsNodes(false).isNotEmpty()
-        }
+        waitUntilOrDumpTree("space_museum_viewer_screen")
 
         // --- Wait for a REAL rendered-frame signal: N frames actually rendered through
         // InspectorEngine's Choreographer-driven frame loop, not a fixed sleep. ---

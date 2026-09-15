@@ -144,13 +144,32 @@ implemented — that would require the M1 material family this pass does not tou
 
 ## 3. Verification — CI-based
 
-### 3.1 New GitHub Actions workflow
+### 3.1 GitHub Actions workflow — corrected to match the roadmap's Appendix H.2 spec
 
-`.github/workflows/space-museum-render.yml` (new file, does not touch `build.yml` or
-`museum-gates.yml`). Runs on `ubuntu-22.04` via `reactivecircus/android-emulator-runner@v2`,
-API 30 / `google_apis` / `x86_64` / `pixel_2`, with
-`-no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none`
-(software rendering, headless). Runs
+**Correction applied this pass:** the user re-read `docs/Space_Museum_Roadmap.pdf` in full and
+pointed out Appendix H.2 ("WORKFLOW 2 — TIER B (CI emulator with KVM; correctness and interaction
+only)") specifies the exact file path `.github/workflows/instrumented.yml` and a specific job
+shape (runner, KVM step, `api-level: 34`, `arch: x86_64`, `profile: pixel_6`,
+`emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none`,
+`disable-animations: true`). The workflow originally written for this pass,
+`.github/workflows/space-museum-render.yml`, improvised different flags (`ubuntu-22.04`,
+`api-level: 30`, `google_apis`, `pixel_2`, an added `-no-snapshot` flag) instead of using the
+spec's own values. Checked first whether `.github/workflows/instrumented.yml` already existed
+(per the correction's instruction to extend it rather than create a parallel workflow if so) —
+it did not; only `build.yml` and `museum-gates.yml` existed before this pass. So the file was
+renamed to `.github/workflows/instrumented.yml` (`git mv`, preserving history) and rewritten to
+match Appendix H.2's job structure and flags verbatim, keeping only the parts Appendix H.2 itself
+leaves to the implementer (which test class to run, JUnit-result gating on the two required Space
+Museum tests, and uploading the actual screenshot PNGs from this repo's real screenshot path
+instead of the appendix's illustrative generic `**/screenshots/**` pattern). JDK is kept at
+Temurin 21 rather than Appendix H's illustrative "17", matching this repository's
+already-verified-in-CI Gradle/AGP toolchain (`build.yml` uses the same JDK 21 + Gradle 9.3.1
+pairing) — an explicit toolchain adaptation, not a deviation from the emulator/profile spec.
+
+Current state: `.github/workflows/instrumented.yml`. Runs on `ubuntu-latest` via
+`reactivecircus/android-emulator-runner@v2`, `api-level: 34` / `x86_64` / `pixel_6`, with
+`-no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none`
+(software rendering, headless, matching Appendix H.2 exactly). Runs
 `:app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.alijafari.red.astronomy.SpaceMuseumRenderingInstrumentedTest`,
 parses the JUnit XML to hard-gate on both required test methods passing, `adb pull`s the
 screenshot PNGs from the app's external-files directory, and uploads both the JUnit
@@ -161,12 +180,29 @@ XML/logcat and the screenshot PNGs as separate `actions/upload-artifact` artifac
 (`ARSkySmokeInstrumentedTest`) existed in `build.yml` and was removed in commit `d4c5936`
 ("CI: single real-app job building the permanent-key signed release APK"). Reading that commit's
 message: the removal reason was **explicitly a deliberate pipeline-simplification / "stop
-shipping a debug APK" decision**, not a report of flakiness, timeouts, or failures. The exact same
-AVD/emulator configuration that job used (ubuntu-22.04, KVM enablement, `swiftshader_indirect`,
-`-no-window -no-snapshot -no-boot-anim`) is therefore reused verbatim in the new workflow, on the
-grounds that it was previously proven to work in this exact repository.
+shipping a debug APK" decision**, not a report of flakiness, timeouts, or failures. That job used
+`ubuntu-22.04`; this pass now follows Appendix H.2's own `ubuntu-latest` + `api-level: 34` +
+`pixel_6` spec instead, since the roadmap's explicit written instruction takes precedence over an
+unrelated prior job's incidental configuration choices.
 
-### 3.2 Instrumented test code (pasted verbatim)
+### 3.2 Labelling per roadmap §24.7 (Prohibited Claims)
+
+Per the roadmap's Tier definitions (§24.3) and Prohibited Claims list (§24.7): this workflow runs
+on a software-rendered (`swiftshader_indirect`) CI emulator, which is Tier B — "a correctness
+environment, not a performance environment, and its pixels do not match a real GPU." Tier B is
+documented as valid for "screenshot capture of every object as smoke evidence" but explicitly
+**not** for "pixel-exact golden certification" or "final visual judgement against the product
+standard" (§24.3, §24.6). Accordingly, a passing run of this workflow is reported below as:
+
+> **Tier B smoke evidence: the object renders with non-uniform, light-responsive pixels; full
+> visual certification is pending Tier C/D per the roadmap.**
+
+This is stated in place of any "golden images pass", "visual quality confirmed", "verified
+rendering", or similar phrasing, which §24.7 reserves for evidence gathered on Tier C (Firebase
+Test Lab real devices) or Tier D (the human's own device) — neither of which was used or is
+authorized in this pass.
+
+### 3.3 Instrumented test code (pasted verbatim)
 
 File: `app/src/androidTest/java/com/alijafari/red/astronomy/SpaceMuseumRenderingInstrumentedTest.kt`
 
@@ -321,31 +357,13 @@ class SpaceMuseumRenderingInstrumentedTest {
 }
 ```
 
-### 3.3 CI run status
+### 3.4 CI run status
 
-**This report is being delivered from a sandboxed development environment with no local Android
-SDK/emulator and no outbound network access to Maven/AOSP binary hosts (`raw.githubusercontent`,
-`objects.githubusercontent.com`, and Java/Adoptium download endpoints all fail the TLS handshake;
-only `github.com`/`api.github.com` metadata and `gh`/`git` over HTTPS are reachable).** This means:
-
-- The workflow and test above have **not yet been run in a real GitHub Actions job as part of
-  this reply** — that requires pushing to the branch and waiting for the Actions run, which
-  should be the very next step after this patch lands (`git push origin
-  arena/01a0a369-lm-arena`, then `gh run watch` / `gh run view` for the run link and its actual
-  pass/fail output).
-- Per the explicit prohibition in the task ("if the CI emulator approach is infeasible... report
-  that reason precisely... never quietly fall back to an unverifiable prose claim"), this report
-  does **not** claim the test passed. The winding-order fix and tangent-quaternion round-trip were
-  independently verified numerically (Python re-implementations matching Filament's own published
-  source/formulas, shown above and in Key Results), which gives strong confidence the fix is
-  correct, but that is evidence *for the fix*, not a substitute for the actual CI run this task
-  requires as its "done" bar.
-- **Next action required to close this out properly:** push this branch, retrieve the real
-  `gh run view <run-id>` link and `gh run download` the two artifacts
-  (`space-museum-instrumented-test-results`, `space-museum-screenshots`), and paste the actual
-  JUnit XML pass/fail output and a link to both artifacts in a follow-up. I have not done this
-  push in this turn because turning this in in-progress would misrepresent the state — flagging
-  it explicitly here instead, per instruction 6.
+See the chat reply for the specific run link(s), actual JUnit output, and artifact links once the
+`instrumented` workflow (Appendix H.2-aligned, §3.1 above) has a real completed run on this
+branch — this section intentionally does not restate a point-in-time run ID/status here to avoid
+this document going stale as further commits land; the chat reply is the authoritative,
+up-to-date source for the actual pass/fail evidence per instruction 6.
 
 ## 4. Camera-radius verdict
 
