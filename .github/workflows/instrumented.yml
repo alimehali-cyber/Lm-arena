@@ -174,7 +174,7 @@ jobs:
           interesting = [l.rstrip("\n") for l in lines if re.search(
               r"InspectorEngine|Renderable SUCCESS|Phase 1 m1SurfaceLit|lastError|beginFrame|"
               r"createSwapChain|LIT MaterialBuilder|UNLIT MaterialBuilder|Simple MaterialBuilder|"
-              r"createDefaultMaterial", l)]
+              r"createDefaultMaterial|LIVENESS CHECK|SpaceMuseumTest", l)]
 
           def emit(title, text_lines):
               text = "\n".join(text_lines)

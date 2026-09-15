@@ -489,6 +489,46 @@ class SpaceMuseumRenderingInstrumentedTest {
             overlayTreeAtCapture.contains("id:$objectId")
         )
 
+        // Foundational Rebuild Phase 0.2 diagnostic (3rd pass): a same-object liveness check.
+        // Both prior fix attempts (uiAutomation.takeScreenshot() with hash-collision retry, then
+        // PixelCopy on activity.window) failed IDENTICALLY -- mars's fullBitmapSha256 exactly
+        // matched earth's in both CI runs (34975416974 and this run), even though two entirely
+        // different capture APIs were used and renderLoopAtCapture proved real, different amounts
+        // of rendering work had happened. That is strong evidence the bug is NOT in which capture
+        // API is used. Before attempting a third blind fix, get a direct, cheap answer to a
+        // narrower question: is ANY screen capture in this CI environment "live" at all, i.e. if
+        // this SAME object's camera is visibly moved and more real frames are presented, does a
+        // second capture of it differ from the first? If the answer is NO even for the same
+        // still-loaded object, the bug is capture-pipeline-wide (unrelated to object identity). If
+        // the answer is YES, the two-different-objects-produce-identical-bytes bug must lie
+        // somewhere else entirely (e.g. the SAME material/texture instance state being reused
+        // across objects, not a screenshot problem) -- this is exactly the kind of "don't infer,
+        // check" step the Foundational Rebuild's reporting rigor requires before another guess.
+        engine.cameraRig.orbit(90f, 0f)
+        engine.updateCameraFromRig()
+        val endFrameCallsBeforeLivenessCheck = engine.instrumentation.renderLoop.endFrameCalls
+        val livenessDeadlineMs = System.currentTimeMillis() + 10_000
+        while (engine.instrumentation.renderLoop.endFrameCalls - endFrameCallsBeforeLivenessCheck < minPresentedFramesSinceLoad &&
+            System.currentTimeMillis() < livenessDeadlineMs
+        ) {
+            Thread.sleep(50)
+        }
+        val secondCapture = pixelCopyCapture()
+        if (secondCapture != null) {
+            val secondHash = sha256Of(secondCapture)
+            val liveCaptureDiffers = secondHash != fullBitmapSha256
+            Log.i(logTag, "[$screenshotName] SAME-OBJECT LIVENESS CHECK: firstHash=$fullBitmapSha256 " +
+                "secondHash(after 90deg orbit + ${engine.instrumentation.renderLoop.endFrameCalls - endFrameCallsBeforeLivenessCheck} " +
+                "more presented frames)=$secondHash liveCaptureDiffers=$liveCaptureDiffers " +
+                "renderLoopAtSecondCapture=${engine.instrumentation.renderLoop.summary()}")
+        } else {
+            Log.w(logTag, "[$screenshotName] SAME-OBJECT LIVENESS CHECK: second PixelCopy capture failed/null, could not run the check.")
+        }
+        // Restore the camera to where it was so the golden-image/pixel-grid assertions below
+        // still judge the original, intended framing.
+        engine.cameraRig.orbit(-90f, 0f)
+        engine.updateCameraFromRig()
+
         // Save PNG to device storage so the CI workflow can `adb pull` it for the upload-artifact
         // step (human-reviewable evidence in addition to the automated assertions below).
         val outDir = File(instrumentation.targetContext.getExternalFilesDir(null), "space_museum_screenshots")
