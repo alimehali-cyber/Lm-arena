@@ -102,8 +102,53 @@ jobs:
       - name: Print filtered logcat for diagnosis
         if: always()
         run: |
-          echo "--- SpaceMuseumTest / AndroidRuntime / Compose / FATAL lines from device logcat ---"
-          grep -E "SpaceMuseumTest|AndroidRuntime|FATAL EXCEPTION|ActivityManager|Compose|zig\.museum|alijafari" "$RUNNER_TEMP/space-museum-logcat.txt" | tail -n 400 || true
+          echo "--- SpaceMuseumTest / AndroidRuntime / Compose / FATAL / InspectorEngine lines from device logcat ---"
+          grep -E "SpaceMuseumTest|AndroidRuntime|FATAL EXCEPTION|ActivityManager|Compose|zig\.museum|alijafari|InspectorEngine" "$RUNNER_TEMP/space-museum-logcat.txt" | tail -n 400 || true
+
+          # Foundational Rebuild Phase 0.2 diagnostic: the fingerprint-identity failure between
+          # earth and mars (see SpaceMuseumRenderingInstrumentedTest's cross-object fingerprint
+          # check) needs InspectorEngine's own real logcat lines (lastError, "Renderable SUCCESS
+          # for <objectId>", "Phase 1 m1SurfaceLit material + textures loaded from assets", etc.)
+          # to diagnose without a real device -- this sandbox cannot run an emulator directly, so
+          # emitting these into a ::error::/::notice:: annotation (reachable via
+          # `gh api .../check-runs/{id}/annotations`, unlike the raw job log which is blocked by
+          # an unreachable Azure blob host from this sandbox's network) is the only way to see
+          # this evidence.
+          echo "--- Emitting InspectorEngine lines as GitHub annotations for gh api visibility ---"
+          python3 - "$RUNNER_TEMP/space-museum-logcat.txt" <<'PY'
+          import re
+          import sys
+
+          path = sys.argv[1]
+          try:
+              with open(path, errors="replace") as f:
+                  lines = f.readlines()
+          except FileNotFoundError:
+              print(f"::warning title=logcat missing::{path} not found")
+              sys.exit(0)
+
+          interesting = [l.rstrip("\n") for l in lines if re.search(
+              r"InspectorEngine|Renderable SUCCESS|Phase 1 m1SurfaceLit|lastError|beginFrame|"
+              r"createSwapChain|LIT MaterialBuilder|UNLIT MaterialBuilder|Simple MaterialBuilder|"
+              r"createDefaultMaterial", l)]
+
+          def emit(title, text_lines):
+              text = "\n".join(text_lines)
+              text = text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              for i in range(0, max(len(text), 1), 3000):
+                  chunk = text[i:i + 3000]
+                  suffix = "" if i + 3000 >= len(text) else " [continues]"
+                  print(f"::notice title={title}::{chunk}{suffix}")
+
+          if interesting:
+              # Chunk into groups of ~15 lines per annotation to stay well under any single
+              # annotation's own size limits while keeping call count reasonable.
+              group_size = 15
+              for i in range(0, len(interesting), group_size):
+                  emit(f"InspectorEngine logcat {i // group_size + 1}", interesting[i:i + group_size])
+          else:
+              print("::warning title=InspectorEngine logcat::No InspectorEngine-related lines found in logcat at all.")
+          PY
 
       # Appendix H.2 notes: "swiftshader_indirect means software rendering. Never quote timings
       # from this job." Nothing in this job or the test it runs measures frame rate/thermals; the
