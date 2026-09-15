@@ -1,0 +1,154 @@
+name: Space Museum Rendering (Instrumented)
+
+on:
+  push:
+    branches: [ "**" ]
+    tags: [ "**" ]
+  pull_request:
+  workflow_dispatch:
+
+# Fix Prompt v2, verification requirement: a real Android-emulator, software-rendered instrumented
+# test that renders the Space Museum Filament viewer and asserts programmatically on the captured
+# pixels (non-uniform color grid + one-sided-lighting luminance gradient), for two independent
+# objects (Earth, Mars). This is a separate workflow from build.yml on purpose:
+#   - build.yml's existing single-job pipeline (JVM unit tests -> signed release APK -> upload)
+#     is left completely untouched, per the explicit "don't expand scope" instruction for this
+#     pass.
+#   - A prior instrumented emulator smoke-test job for ARSkySmokeInstrumentedTest existed in
+#     build.yml and was intentionally removed in commit d4c5936 ("CI: single real-app job
+#     building the permanent-key signed release APK") purely to "simplify the build pipeline to
+#     one job and stop shipping a debug APK" — there is no history of that emulator job being
+#     flaky or broken, so the same proven AVD/emulator flag configuration is reused here
+#     (ubuntu-22.04 runner, KVM enablement, swiftshader_indirect software rendering, no-window,
+#     no-snapshot, no-boot-anim), just in its own workflow file instead of re-inserting it into
+#     build.yml.
+jobs:
+  instrumented-render-test:
+    # ubuntu-22.04 is pinned because reactivecircus/android-emulator-runner and the AVD/KVM setup
+    # this project previously used have known creation issues on ubuntu-latest/24.04 (see the
+    # comment history in build.yml before the emulator job was removed).
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '9.3.1'
+          cache-disabled: true
+
+      - name: Grant execute permission for gradlew (if present)
+        run: chmod +x gradlew || true
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # minSdk=24 / targetSdk=36 (see app/build.gradle.kts). API 30 is used for the emulator image
+      # because it is a well-supported x86_64 google_apis image on GitHub-hosted runners that sits
+      # comfortably inside [minSdk, targetSdk] and is known-good for reactivecircus/android-
+      # emulator-runner with software (swiftshader) rendering.
+      - name: Run Space Museum instrumented rendering test on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          force-avd-creation: false
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+            -camera-back none
+          disable-animations: true
+          script: |
+            adb logcat -c || true
+            ./gradlew :app:connectedDebugAndroidTest \
+              -Pandroid.testInstrumentationRunnerArguments.class=com.alijafari.red.astronomy.SpaceMuseumRenderingInstrumentedTest \
+              --no-daemon
+            adb logcat -d -v time > "$RUNNER_TEMP/space-museum-logcat.txt" 2>/dev/null || true
+            mkdir -p "$RUNNER_TEMP/space-museum-screenshots"
+            adb pull /sdcard/Android/data/com.alijafari.red.astronomy/files/space_museum_screenshots "$RUNNER_TEMP/space-museum-screenshots" || true
+
+      - name: Report instrumented test results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob
+          import sys
+          import xml.etree.ElementTree as ET
+
+          required = [
+              "com.alijafari.red.astronomy.SpaceMuseumRenderingInstrumentedTest#earthRendersNonUniformFrameWithDirectionalShading",
+              "com.alijafari.red.astronomy.SpaceMuseumRenderingInstrumentedTest#marsRendersNonUniformFrameWithDirectionalShading",
+          ]
+          files = sorted(glob.glob("app/build/outputs/androidTest-results/connected/**/*.xml", recursive=True))
+          print(f"Connected AndroidTest XML files: {len(files)}")
+          seen = {}
+          for path in files:
+              root = ET.parse(path).getroot()
+              for testcase in root.iter("testcase"):
+                  classname = testcase.attrib.get("classname", "")
+                  name = testcase.attrib.get("name", "")
+                  key = f"{classname}#{name}"
+                  failure = testcase.find("failure")
+                  error = testcase.find("error")
+                  skipped = testcase.find("skipped")
+                  status = "PASS"
+                  message = ""
+                  if failure is not None:
+                      status = "FAIL"
+                      message = failure.attrib.get("message", "") or (failure.text or "")
+                  elif error is not None:
+                      status = "ERROR"
+                      message = error.attrib.get("message", "") or (error.text or "")
+                  elif skipped is not None:
+                      status = "SKIPPED"
+                  seen[key] = (status, message)
+                  print(f"{key}: {status}")
+                  if message:
+                      print(f"  {message[:2000]}")
+
+          failed = False
+          for key in required:
+              if key not in seen:
+                  print(f"::error title=Missing instrumented test::{key} did not run or was not reported")
+                  failed = True
+              elif seen[key][0] != "PASS":
+                  status, message = seen[key]
+                  text = f"{key}: {status} {message}".replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")[:900]
+                  print(f"::error title=Instrumented test failed::{text}")
+                  failed = True
+              else:
+                  print(f"::notice title=Instrumented test passed::{key}")
+          if failed:
+              sys.exit("One or more required Space Museum instrumented rendering tests were missing or failed")
+          PY
+
+      - name: Upload instrumented test results (JUnit XML + logcat)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: space-museum-instrumented-test-results
+          path: |
+            app/build/outputs/androidTest-results/connected/**/*.xml
+            app/build/reports/androidTests/connected/**
+            ${{ runner.temp }}/space-museum-logcat.txt
+          if-no-files-found: warn
+
+      - name: Upload rendered screenshot PNGs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: space-museum-screenshots
+          path: ${{ runner.temp }}/space-museum-screenshots/**
+          if-no-files-found: warn

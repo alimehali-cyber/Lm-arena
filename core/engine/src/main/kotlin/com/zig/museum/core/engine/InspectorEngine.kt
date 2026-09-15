@@ -473,9 +473,28 @@ class InspectorEngine private constructor(
             }
             floatBuffer.flip()
 
-            val vb = VertexBuffer.Builder().vertexCount(vertexCount).bufferCount(1)
+            // Fix Prompt v2, authorized change 2 of 2: bind the per-vertex surface orientation so
+            // LIT shading has real normal input. Filament has no plain FLOAT3 "NORMAL" vertex
+            // attribute for the standard shading path — normal (+ tangent) are packed together
+            // into VertexAttribute.TANGENTS as a normalized SHORT4 quaternion, exactly as
+            // core/engine/src/main/materials/*.mat already declare (`requires: [uv0, position,
+            // tangents]`) and as filament::math::mat3f::packTangentFrame produces natively.
+            // buildTangentFrameQuaternion() below reimplements that packing in Kotlin from the
+            // normal already written into the interleaved buffer (bytes 12-23) plus a tangent
+            // reconstructed from the equirectangular UV parameterization.
+            val tangentBufferData = ByteBuffer.allocateDirect(vertexCount * 8).order(ByteOrder.nativeOrder())
+            val tangentShortBuffer = tangentBufferData.asShortBuffer()
+            for (v in mesh.vertices) {
+                val q = GeometryGenerator.buildTangentFrameQuaternion(v.nx, v.ny, v.nz)
+                tangentShortBuffer.put(q[0]); tangentShortBuffer.put(q[1]); tangentShortBuffer.put(q[2]); tangentShortBuffer.put(q[3])
+            }
+            tangentShortBuffer.flip()
+
+            val vb = VertexBuffer.Builder().vertexCount(vertexCount).bufferCount(2)
                 .attribute(VertexBuffer.VertexAttribute.POSITION, 0, VertexBuffer.AttributeType.FLOAT3, 0, vertexSize)
                 .attribute(VertexBuffer.VertexAttribute.UV0, 0, VertexBuffer.AttributeType.FLOAT2, 24, vertexSize)
+                .attribute(VertexBuffer.VertexAttribute.TANGENTS, 1, VertexBuffer.AttributeType.SHORT4, 0, 8)
+                .normalized(VertexBuffer.VertexAttribute.TANGENTS)
                 .build(engine)
 
             try {
@@ -485,6 +504,18 @@ class InspectorEngine private constructor(
                     vb.javaClass.getMethod("setBufferAt", Engine::class.java, Int::class.javaPrimitiveType, java.nio.Buffer::class.java, Int::class.javaPrimitiveType).invoke(vb, engine, 0, vertexBufferData, 0)
                 } catch (e2: Exception) {
                     lastError = "setBufferAt failed: ${e2.message}"
+                    try { engine.destroyVertexBuffer(vb) } catch (e3: Exception) {}
+                    return
+                }
+            }
+
+            try {
+                vb.javaClass.getMethod("setBufferAt", Engine::class.java, Int::class.javaPrimitiveType, java.nio.Buffer::class.java).invoke(vb, engine, 1, tangentBufferData)
+            } catch (e: Exception) {
+                try {
+                    vb.javaClass.getMethod("setBufferAt", Engine::class.java, Int::class.javaPrimitiveType, java.nio.Buffer::class.java, Int::class.javaPrimitiveType).invoke(vb, engine, 1, tangentBufferData, 0)
+                } catch (e2: Exception) {
+                    lastError = "setBufferAt (tangents) failed: ${e2.message}"
                     try { engine.destroyVertexBuffer(vb) } catch (e3: Exception) {}
                     return
                 }
