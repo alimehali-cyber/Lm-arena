@@ -72,7 +72,20 @@ jobs:
             ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.alijafari.red.astronomy.SpaceMuseumRenderingInstrumentedTest --no-daemon || GRADLE_EXIT=$?
             adb logcat -d -v time > "$RUNNER_TEMP/space-museum-logcat.txt" 2>/dev/null || true
             mkdir -p "$RUNNER_TEMP/space-museum-screenshots"
-            adb pull /sdcard/Android/data/com.alijafari.red.astronomy/files/space_museum_screenshots "$RUNNER_TEMP/space-museum-screenshots" || true
+            # Plain `adb pull` on /sdcard/Android/data/<pkg>/... commonly fails ("No such file or
+            # directory") for the unprivileged `shell` user on scoped-storage emulator images even
+            # though the app-private directory is real, because `shell` cannot traverse into
+            # another app's external-files directory without root. The debug build under test is
+            # debuggable, so use `run-as` (the standard non-root way to reach an app's private
+            # storage) to tar the directory out instead, with a plain `adb pull` fallback in case
+            # a future image behaves differently.
+            adb shell "run-as com.alijafari.red.astronomy sh -c 'cd /storage/emulated/0/Android/data/com.alijafari.red.astronomy/files 2>/dev/null && tar -cf /data/local/tmp/space_museum_screenshots.tar space_museum_screenshots 2>/dev/null'" || true
+            adb pull /data/local/tmp/space_museum_screenshots.tar "$RUNNER_TEMP/space_museum_screenshots.tar" 2>/dev/null || true
+            if [ -f "$RUNNER_TEMP/space_museum_screenshots.tar" ]; then tar -xf "$RUNNER_TEMP/space_museum_screenshots.tar" -C "$RUNNER_TEMP/space-museum-screenshots" --strip-components=1 || true; fi
+            adb pull /sdcard/Android/data/com.alijafari.red.astronomy/files/space_museum_screenshots "$RUNNER_TEMP/space-museum-screenshots" 2>/dev/null || true
+            echo "--- Screenshot pull diagnostics ---"
+            adb shell "run-as com.alijafari.red.astronomy ls -la files/space_museum_screenshots" 2>&1 || true
+            ls -la "$RUNNER_TEMP/space-museum-screenshots" || true
             exit $GRADLE_EXIT
 
       # Print the relevant logcat lines directly into the job log (not just the uploaded
