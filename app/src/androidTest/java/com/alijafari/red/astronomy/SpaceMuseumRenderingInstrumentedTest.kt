@@ -140,9 +140,29 @@ class SpaceMuseumRenderingInstrumentedTest {
         }
 
         // --- Capture the actual rendered device pixels (real SurfaceView compositor output) ---
+        // UiAutomation.takeScreenshot() can transiently return null right after its accessibility
+        // connection is established (observed on the first test method of a run: earth failed
+        // with a null screenshot while mars, running second in the same process/connection,
+        // succeeded immediately after). This is a documented, known transient condition of the
+        // underlying accessibility service connection, not a rendering problem, so retry a few
+        // times with a short backoff before failing -- the retry itself does not change what is
+        // being asserted on (still the real device-composited pixels from the same API).
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val bitmap: Bitmap? = instrumentation.uiAutomation.takeScreenshot()
-        assertTrue("uiAutomation.takeScreenshot() returned null for object=$objectId", bitmap != null)
+        var bitmap: Bitmap? = null
+        var screenshotAttempts = 0
+        while (bitmap == null && screenshotAttempts < 5) {
+            screenshotAttempts++
+            bitmap = instrumentation.uiAutomation.takeScreenshot()
+            if (bitmap == null) {
+                Log.w(logTag, "uiAutomation.takeScreenshot() returned null for object=$objectId " +
+                    "(attempt $screenshotAttempts/5); retrying after a short delay.")
+                Thread.sleep(500)
+            }
+        }
+        assertTrue(
+            "uiAutomation.takeScreenshot() returned null for object=$objectId after $screenshotAttempts attempts",
+            bitmap != null
+        )
         val bmp = bitmap!!
 
         // Save PNG to device storage so the CI workflow can `adb pull` it for the upload-artifact
