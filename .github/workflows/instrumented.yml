@@ -69,7 +69,15 @@ jobs:
           script: |
             adb logcat -c || true
             GRADLE_EXIT=0
-            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.alijafari.red.astronomy.SpaceMuseumRenderingInstrumentedTest --no-daemon || GRADLE_EXIT=$?
+            # -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true: AGP's
+            # connectedAndroidTest task uninstalls both the app-under-test and test APKs as its
+            # own last step (default since AGP 8.1, see
+            # https://issuetracker.google.com/issues/295039976). Without this flag, by the time
+            # this script reaches the `adb shell run-as` calls below the package is already gone,
+            # so run-as fails with "unknown package: com.alijafari.red.astronomy" even though the
+            # test itself passed and wrote the screenshots before uninstall. This is a Gradle
+            # invocation flag only -- no gradle.properties, build.gradle.kts, or app code change.
+            ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.alijafari.red.astronomy.SpaceMuseumRenderingInstrumentedTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon || GRADLE_EXIT=$?
             adb logcat -d -v time > "$RUNNER_TEMP/space-museum-logcat.txt" 2>/dev/null || true
             mkdir -p "$RUNNER_TEMP/space-museum-screenshots"
             # Plain `adb pull` on /sdcard/Android/data/<pkg>/... commonly fails ("No such file or
