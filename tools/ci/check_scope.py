@@ -59,17 +59,35 @@ def run_cmd(cmd):
     return result.stdout.strip(), result.stderr.strip(), result.returncode
 
 def get_changed_files(base_ref):
-    # Get list of changed files vs base
-    cmd = f"git diff --name-only {base_ref}...HEAD"
+    # Get list of changed files vs base, tagged with their git status (A/M/D/R...)
+    # so callers can tell a brand-new file (which cannot possibly be a "pre-existing
+    # file modified without justification") apart from an actual modification to a
+    # file that existed before this branch. Using --name-only alone (the previous
+    # implementation) could not make this distinction and incorrectly flagged every
+    # newly-added file under a pre-existing directory (e.g. a new workflow file
+    # under .github/workflows/, or a new test class under app/src/androidTest/) as
+    # a forbidden modification, even though nothing pre-existing was touched.
+    cmd = f"git diff --name-status {base_ref}...HEAD"
     out, err, code = run_cmd(cmd)
     if code != 0:
         # Fallback to diff vs HEAD~1 or just staged
-        cmd2 = "git diff --name-only HEAD"
+        cmd2 = "git diff --name-status HEAD"
         out, err, code = run_cmd(cmd2)
         if not out:
-            out, _, _ = run_cmd("git diff --cached --name-only")
-    files = [f.strip() for f in out.splitlines() if f.strip()]
-    return files
+            out, _, _ = run_cmd("git diff --cached --name-status")
+    files = []
+    statuses = {}
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        status, path = parts[0], parts[-1]
+        files.append(path)
+        statuses[path] = status[0]  # first char: A, M, D, R, C...
+    return files, statuses
 
 def parse_changed_files_md(path: Path):
     """Parse CHANGED_FILES.md for entries like '- `path` | reason' or similar"""
@@ -137,10 +155,10 @@ def main():
     parser.add_argument("--changed-files", default="docs/integration/CHANGED_FILES.md", help="Path to CHANGED_FILES.md")
     args = parser.parse_args()
 
-    changed_files = get_changed_files(args.base)
+    changed_files, statuses = get_changed_files(args.base)
     print(f"Changed files vs {args.base} (or HEAD): {len(changed_files)}")
     for f in sorted(changed_files):
-        print(f"  {f}")
+        print(f"  {statuses.get(f, '?')}  {f}")
 
     # Parse CHANGED_FILES.md
     changed_md_path = Path(args.changed_files)
@@ -152,7 +170,17 @@ def main():
     errors = []
 
     # Check each changed file that is pre-existing (not docs/, not new modules, not verification)
+    # A file with git status "A" (added) is by definition brand new — it cannot be a
+    # "pre-existing file modified" or an "existing test file modified", no matter what
+    # path pattern it happens to match (e.g. a new workflow file under the pre-existing
+    # .github/workflows/ directory, or a new test class under the pre-existing
+    # app/src/androidTest/ directory). Only statuses other than "A" (M = modified,
+    # D = deleted, R = renamed, etc.) represent a change to something that already
+    # existed, so only those are subject to the CHANGED_FILES.md / forbidden-pattern
+    # checks below.
     for cf in changed_files:
+        if statuses.get(cf) == "A":
+            continue
         # Skip docs/, core/, feature/, tools/, manifests/, assets-*, PROGRESS.md, etc. — these are new files for museum
         if cf.startswith("docs/") or cf.startswith("core/") or cf.startswith("feature/") or cf.startswith("tools/") or cf.startswith("manifests/") or cf.startswith("assets-") or cf.startswith("PROGRESS.md"):
             continue
@@ -176,6 +204,8 @@ def main():
 
     # Check forbidden patterns — existing tests, strings, assets, build config modified at all
     for cf in changed_files:
+        if statuses.get(cf) == "A":
+            continue
         for pattern in FORBIDDEN_PATTERNS:
             if re.match(pattern, cf):
                 # If it's app/build.gradle.kts, it's allowed only for adding project deps, but we still require CHANGED_FILES entry
