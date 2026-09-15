@@ -136,6 +136,72 @@ data class DebugOverlayData(
     val fallbackFrames: Int
 )
 
+/**
+ * "Render succeeds, screen stays black" investigation (post Phase 0+1): real-device telemetry
+ * proved doFrame/beginFrame/render/endFrame all complete with zero exceptions (820/820), so the
+ * bug is downstream of a successful render() call. These four data classes hold ONLY values read
+ * back from Filament's own getters (LightManager.getIntensity/getColor/getDirection,
+ * Camera.getPosition/getNear/getCullingFar/getFieldOfViewInDegrees, the actual generated mesh's
+ * vertex positions, and android.view.Surface.isValid()/identityHashCode) -- never literals typed
+ * here, so the debug overlay and logcat report what the engine actually did, not what the code
+ * intended to do. Per owner's ordered investigation: (1) light, (3) camera/transform, (4)
+ * swapchain/surface identity. (Step 2 -- the forced-unlit/no-cull diagnostic build -- is
+ * InspectorEngine.diagnosticForceUnlitBrightNoCull, a runtime toggle, not a data class.)
+ */
+data class LightDiagnostics(
+    val intensity: Float = 0f,
+    val colorR: Float = 0f,
+    val colorG: Float = 0f,
+    val colorB: Float = 0f,
+    val dirX: Float = 0f,
+    val dirY: Float = 0f,
+    val dirZ: Float = 0f,
+    val valid: Boolean = false
+) {
+    fun summary(): String =
+        if (!valid) "light: NOT YET READ BACK"
+        else "light: intensity=${"%.1f".format(intensity)} color=(${"%.2f".format(colorR)},${"%.2f".format(colorG)},${"%.2f".format(colorB)}) dir=(${"%.2f".format(dirX)},${"%.2f".format(dirY)},${"%.2f".format(dirZ)})"
+}
+
+data class CameraDiagnostics(
+    val posX: Float = 0f,
+    val posY: Float = 0f,
+    val posZ: Float = 0f,
+    val targetX: Float = 0f,
+    val targetY: Float = 0f,
+    val targetZ: Float = 0f,
+    val near: Float = 0f,
+    val far: Float = 0f,
+    val fovDeg: Double = 0.0,
+    val valid: Boolean = false
+) {
+    fun summary(): String =
+        if (!valid) "camera: NOT YET READ BACK"
+        else "camera: pos=(${"%.2f".format(posX)},${"%.2f".format(posY)},${"%.2f".format(posZ)}) target=(${"%.2f".format(targetX)},${"%.2f".format(targetY)},${"%.2f".format(targetZ)}) near=${"%.4f".format(near)} far=${"%.2f".format(far)} fov=${"%.1f".format(fovDeg)}deg"
+}
+
+data class ObjectBoundsDiagnostics(
+    val objectId: String = "",
+    val boundingRadius: Float = 0f,
+    val vertexCount: Int = 0,
+    val valid: Boolean = false
+) {
+    fun summary(): String =
+        if (!valid) "object: NOT YET LOADED"
+        else "object: id=$objectId boundingRadius=${"%.4f".format(boundingRadius)} vertices=$vertexCount"
+}
+
+data class SurfaceDiagnostics(
+    val swapChainSurfaceHash: Int = 0,
+    val swapChainSurfaceValid: Boolean = false,
+    val surfaceViewInstanceHash: Int = 0,
+    val androidViewFactoryInvocations: Int = 0
+) {
+    fun summary(): String =
+        "surface: swapChainSurfaceHash=$swapChainSurfaceHash swapChainSurfaceValid=$swapChainSurfaceValid " +
+            "surfaceViewInstanceHash=$surfaceViewInstanceHash androidViewFactoryCalls=$androidViewFactoryInvocations"
+}
+
 class Instrumentation {
     val frameTimings = FrameTimingRingBuffer(300)
     var tileCounters = TileStoreCounters()
@@ -157,6 +223,16 @@ class Instrumentation {
      * tile counters.
      */
     var tileStoreActive: Boolean = false
+
+    /**
+     * "Render succeeds, screen stays black" investigation: real values read back from Filament's
+     * own getters after each relevant call (see InspectorEngine.updateSunLight/
+     * updateCameraFromRig/loadEllipsoidObject/createSwapChain), never hand-typed literals.
+     */
+    var lightDiagnostics = LightDiagnostics()
+    var cameraDiagnostics = CameraDiagnostics()
+    var objectBoundsDiagnostics = ObjectBoundsDiagnostics()
+    var surfaceDiagnostics = SurfaceDiagnostics()
 
     fun toDebugOverlay(): DebugOverlayData {
         return DebugOverlayData(

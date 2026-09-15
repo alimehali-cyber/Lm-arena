@@ -59,10 +59,28 @@ fun FilamentView(
     // Opaque SurfaceView with black background so real 3D is visible, not blue screen
     AndroidView(
         factory = { ctx ->
+            // "Render succeeds, screen stays black" investigation, step 4: record every time
+            // Compose actually invokes this factory lambda (a fresh SurfaceView is only created on
+            // the FIRST composition of a given AndroidView call site; recomposition normally
+            // reuses the existing instance via `update` -- but if some caller unexpectedly forces
+            // Compose to treat this as a brand-new call site (e.g. changing a `key`), a second
+            // SurfaceView with a DIFFERENT identity hash would be created here, and its Surface
+            // would be the one the user actually sees, while engine.createSwapChain() may still be
+            // bound to the FIRST SurfaceView's now-detached Surface. This counter and the resulting
+            // SurfaceView's identity hash are surfaced in instrumentation.surfaceDiagnostics so
+            // that can be directly confirmed or ruled out instead of assumed.
+            val sd = engine.instrumentation.surfaceDiagnostics
+            engine.instrumentation.surfaceDiagnostics = sd.copy(
+                androidViewFactoryInvocations = sd.androidViewFactoryInvocations + 1
+            )
             SurfaceView(ctx).apply {
                 holder.setFormat(android.graphics.PixelFormat.OPAQUE)
                 setZOrderOnTop(false)
                 setBackgroundColor(android.graphics.Color.BLACK)
+                val sdAfter = engine.instrumentation.surfaceDiagnostics
+                engine.instrumentation.surfaceDiagnostics = sdAfter.copy(
+                    surfaceViewInstanceHash = System.identityHashCode(this)
+                )
                 uiHelper.attachTo(this)
             }
         },

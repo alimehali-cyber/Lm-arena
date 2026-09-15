@@ -2,6 +2,7 @@ package com.zig.museum.feature.viewer
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.zig.museum.core.engine.FilamentView
@@ -96,6 +98,7 @@ fun SpaceMuseumViewerScreen(
     }
 
     val engine = remember { InspectorEngine.getInstance() }
+    val diagnosticToggleContext = LocalContext.current.applicationContext
     var cameraState by remember { mutableStateOf(engine.cameraRig.state) }
     var hasRenderable by remember { mutableStateOf(engine.hasActiveRenderable()) }
     var hasMaterial by remember { mutableStateOf(engine.hasMaterial()) }
@@ -367,6 +370,26 @@ fun SpaceMuseumViewerScreen(
                     "render loop: ${debugData.renderLoop.summary()}",
                     color = if (debugData.renderLoop.hasPresentedAtLeastOneFrame()) Color.White else Color.Red,
                     style = MaterialTheme.typography.labelSmall
+                )
+
+                // "Render succeeds, screen stays black" investigation: real values read back from
+                // Filament's own getters (see InspectorEngine.updateSunLight/updateCameraFromRig/
+                // loadEllipsoidObject/createSwapChain doc comments for exactly where each of these
+                // is populated) -- not hand-typed placeholders. Each line says "NOT YET
+                // READ BACK"/"NOT YET LOADED" honestly until the corresponding real call has run,
+                // per this session's standing "never fabricate overlay numbers" rule.
+                Text(instrumentation.lightDiagnostics.summary(), color = Color.Cyan, style = MaterialTheme.typography.labelSmall)
+                Text(instrumentation.cameraDiagnostics.summary(), color = Color.Cyan, style = MaterialTheme.typography.labelSmall)
+                Text(instrumentation.objectBoundsDiagnostics.summary(), color = Color.Cyan, style = MaterialTheme.typography.labelSmall)
+                Text(instrumentation.surfaceDiagnostics.summary(), color = Color.Cyan, style = MaterialTheme.typography.labelSmall)
+                Text(
+                    "diagnosticForceUnlitBrightNoCull: ${engine.diagnosticForceUnlitBrightNoCull} (tap to toggle)",
+                    color = if (engine.diagnosticForceUnlitBrightNoCull) Color.Magenta else Color.White.copy(alpha = 0.6f),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.testTag("diagnostic_unlit_toggle").clickable {
+                        engine.diagnosticForceUnlitBrightNoCull = !engine.diagnosticForceUnlitBrightNoCull
+                        engine.loadEllipsoidObject(objectId, tier, context = diagnosticToggleContext)
+                    }
                 )
 
                 Text(

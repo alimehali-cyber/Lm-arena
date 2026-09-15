@@ -50,6 +50,26 @@ class InspectorEngine private constructor(
     var bloomEnabled: Boolean = true
     var ditheringEnabled: Boolean = true
 
+    /**
+     * "Render succeeds, screen stays black" investigation, step 2 (owner-ordered diagnostic,
+     * real device only -- CI's swiftshader/headless emulator profile was already ruled unreliable
+     * for this class of question per the Phase 0+1 report). When true, loadEllipsoidObject()
+     * builds a completely different, minimal UNLIT material with a hardcoded bright solid color
+     * (magenta) and explicit CullingMode.NONE on the MaterialInstance, bypassing
+     * m1SurfaceLit.filamat/albedo/normal textures/lighting entirely. This isolates the "is
+     * anything at all reaching the screen for this geometry/camera/swapchain" question from every
+     * lighting- and normal/tangent-input-dependent code path at once:
+     *   - If a magenta shape appears: lighting/normal-tangent-input is implicated (rules IN the
+     *     matc pipeline's normal/tangent supply and the light-intensity/exposure mismatch leads
+     *     recorded in this investigation's notes) -- geometry/camera/swapchain are NOT the bug.
+     *   - If the screen is still black: geometry/camera/swapchain identity is implicated instead
+     *     (rules OUT lighting/material entirely) -- pursue steps 3-4's diagnostics next.
+     * Must NOT be left permanently true; it exists to be flipped on for exactly one owner-run
+     * real-device build, observed, and flipped back off. Toggle from a debug entry point wired by
+     * the app, not by editing behavior elsewhere -- see MainActivity for how this is exposed.
+     */
+    var diagnosticForceUnlitBrightNoCull: Boolean = false
+
     private var renderableCount = 0
     private var textureCount = 0
 
@@ -356,6 +376,27 @@ class InspectorEngine private constructor(
             val relative = SunIrradiance.forObjectId(objectId)
             val lux = SunIrradiance.toLux(relative, sunState.exposureEV)
             lm.setIntensity(instance, lux)
+
+            // "Render succeeds, screen stays black" investigation, step 1: read the light's
+            // ACTUAL runtime state straight back out of LightManager (getIntensity/getColor/
+            // getDirection are plain public getters, not the values we just told it to set --
+            // if Filament clamped/rejected anything, this will show the real post-set state).
+            val colorOut = FloatArray(3)
+            val dirOut = FloatArray(3)
+            lm.getColor(instance, colorOut)
+            lm.getDirection(instance, dirOut)
+            val actualIntensity = lm.getIntensity(instance)
+            instrumentation.lightDiagnostics = LightDiagnostics(
+                intensity = actualIntensity,
+                colorR = colorOut[0], colorG = colorOut[1], colorB = colorOut[2],
+                dirX = dirOut[0], dirY = dirOut[1], dirZ = dirOut[2],
+                valid = true
+            )
+            android.util.Log.i(
+                "InspectorEngine",
+                "LIGHT DIAGNOSTIC (real readback, not requested value): ${instrumentation.lightDiagnostics.summary()} " +
+                    "requestedLux=$lux relative=$relative objectId=$objectId"
+            )
         } catch (e: Exception) {
             lastError = "updateSunLight failed: ${e.message}"
             android.util.Log.w("InspectorEngine", lastError, e)
@@ -465,10 +506,37 @@ class InspectorEngine private constructor(
                 com.google.android.filament.SwapChainFlags.CONFIG_DEFAULT or
                     com.google.android.filament.SwapChainFlags.CONFIG_READABLE
             )
+
+            // "Render succeeds, screen stays black" investigation, step 4: record the REAL
+            // android.view.Surface identity/validity this SwapChain was created from --
+            // System.identityHashCode() (not Surface.hashCode(), which android.view.Surface does
+            // not override -- confirmed it falls through to Object.hashCode(), i.e. they are the
+            // same reference-identity value, but identityHashCode is used explicitly here so this
+            // is correct even if that ever changes) and Surface.isValid(), a plain public Android
+            // API. Compared frame-over-frame in doFrame() against the surface the SurfaceView
+            // (that the user actually sees) currently holds, this proves or disproves the specific
+            // failure mode named in the owner's directive: a Compose recomposition creating a new
+            // AndroidView/SurfaceView whose new Surface never gets a matching createSwapChain()
+            // call, leaving Filament rendering into a stale, detached Surface while the visible
+            // SurfaceView shows nothing.
+            lastSwapChainSurface = surface
+            instrumentation.surfaceDiagnostics = instrumentation.surfaceDiagnostics.copy(
+                swapChainSurfaceHash = System.identityHashCode(surface),
+                swapChainSurfaceValid = surface.isValid
+            )
+            android.util.Log.i(
+                "InspectorEngine",
+                "SWAPCHAIN SURFACE DIAGNOSTIC (real identity/validity at creation): " +
+                    "hash=${System.identityHashCode(surface)} isValid=${surface.isValid}"
+            )
         } catch (e: Exception) {
             lastError = "createSwapChain failed: ${e.message}"
         }
     }
+
+    /** The exact Surface instance createSwapChain() was last called with -- see doFrame()'s
+     * per-frame revalidation of surfaceDiagnostics.swapChainSurfaceValid below. */
+    private var lastSwapChainSurface: Surface? = null
 
     fun destroySwapChain() {
         try { swapChain?.let { engine.destroySwapChain(it); swapChain = null } } catch (e: Exception) {}
@@ -494,6 +562,30 @@ class InspectorEngine private constructor(
         val (tx, ty, tz) = Triple(cameraRig.state.targetX, cameraRig.state.targetY, cameraRig.state.targetZ)
         try {
             camera?.lookAt(x.toDouble(), y.toDouble(), z.toDouble(), tx.toDouble(), ty.toDouble(), tz.toDouble(), 0.0, 1.0, 0.0)
+
+            // "Render succeeds, screen stays black" investigation, step 3: read the camera's
+            // ACTUAL post-lookAt() state back from Filament (Camera.getPosition/getNear/
+            // getCullingFar/getFieldOfViewInDegrees are plain public getters) rather than trust
+            // the (x,y,z)/near/far values we just computed and passed in -- this catches the case
+            // where lookAt()/setProjection() silently no-ops or Filament degenerate-cases the
+            // camera (e.g. camera position == target, near >= far).
+            val c = camera
+            if (c != null) {
+                val posOut = FloatArray(3)
+                c.getPosition(posOut)
+                instrumentation.cameraDiagnostics = CameraDiagnostics(
+                    posX = posOut[0], posY = posOut[1], posZ = posOut[2],
+                    targetX = tx, targetY = ty, targetZ = tz,
+                    near = c.near, far = c.cullingFar,
+                    fovDeg = c.getFieldOfViewInDegrees(Camera.Fov.VERTICAL),
+                    valid = true
+                )
+                android.util.Log.i(
+                    "InspectorEngine",
+                    "CAMERA DIAGNOSTIC (real readback): ${instrumentation.cameraDiagnostics.summary()} " +
+                        "requestedPos=($x,$y,$z) cameraRigRadius=${cameraRig.state.radius}"
+                )
+            }
         } catch (e: Exception) {
             lastError = "lookAt failed: ${e.message}"
         }
@@ -537,6 +629,19 @@ class InspectorEngine private constructor(
         val sc = swapChain
         val r = renderer
         val v = view
+
+        // "Render succeeds, screen stays black" investigation, step 4: re-check the ACTUAL
+        // isValid() state of the exact Surface this SwapChain was created from, every frame --
+        // not just once at creation time. If a Compose recomposition destroys/replaces the
+        // AndroidView's SurfaceView without Filament ever getting a matching onNativeWindowChanged
+        // -> createSwapChain() call for the new one, this is the value that will flip to false
+        // (or reference a Surface no longer backing anything the user sees) while doFrame() keeps
+        // reporting successful render()/endFrame() calls against the old, orphaned Surface.
+        lastSwapChainSurface?.let { s ->
+            instrumentation.surfaceDiagnostics = instrumentation.surfaceDiagnostics.copy(
+                swapChainSurfaceValid = s.isValid
+            )
+        }
 
         if (sc == null) {
             rl = rl.copy(swapChainNullCount = rl.swapChainNullCount + 1)
@@ -712,6 +817,53 @@ class InspectorEngine private constructor(
     private var phase1AlbedoTexture: com.google.android.filament.Texture? = null
     private var phase1NormalTexture: com.google.android.filament.Texture? = null
 
+    private var diagnosticMaterial: Material? = null
+
+    /**
+     * "Render succeeds, screen stays black" investigation, step 2: a deliberately minimal,
+     * completely independent UNLIT material -- built at runtime via MaterialBuilder exactly like
+     * createDefaultMaterialUnlit() (plain public API, no reflection), with a hardcoded bright
+     * magenta baseColor and no parameters at all -- so its correctness cannot depend on
+     * m1SurfaceLit.filamat, the albedo/normal placeholder PNGs, the tangent-quaternion packing in
+     * buildTangentFrameQuaternion(), or any LightManager state. Used only when
+     * diagnosticForceUnlitBrightNoCull is true.
+     */
+    private fun ensureDiagnosticMaterial(): Material? {
+        if (diagnosticMaterial != null) return diagnosticMaterial
+        try {
+            com.google.android.filament.filamat.MaterialBuilder.init()
+            val builder = com.google.android.filament.filamat.MaterialBuilder()
+                .platform(com.google.android.filament.filamat.MaterialBuilder.Platform.MOBILE)
+                .name("diagnostic_unlit_magenta")
+                .shading(com.google.android.filament.filamat.MaterialBuilder.Shading.UNLIT)
+                .culling(com.google.android.filament.filamat.MaterialBuilder.CullingMode.NONE)
+                .material(
+                    """
+                    void material(inout MaterialInputs material) {
+                        prepareMaterial(material);
+                        material.baseColor = float4(1.0, 0.0, 1.0, 1.0);
+                    }
+                    """.trimIndent()
+                )
+                .optimization(com.google.android.filament.filamat.MaterialBuilder.Optimization.NONE)
+            val pkg = builder.build(engine)
+            val buffer = pkg.buffer
+            if (pkg.isValid && buffer.remaining() > 0) {
+                diagnosticMaterial = Material.Builder().payload(buffer, buffer.remaining()).build(engine)
+                android.util.Log.i("InspectorEngine", "DIAGNOSTIC unlit/magenta/no-cull material built SUCCESS")
+            } else {
+                lastError = "Diagnostic material invalid: valid=${pkg.isValid} buffer=${buffer.remaining()}"
+                android.util.Log.w("InspectorEngine", lastError)
+            }
+            com.google.android.filament.filamat.MaterialBuilder.shutdown()
+        } catch (e: Exception) {
+            lastError = "Diagnostic material failed: ${e.javaClass.simpleName}: ${e.message}"
+            android.util.Log.w("InspectorEngine", lastError, e)
+            try { com.google.android.filament.filamat.MaterialBuilder.shutdown() } catch (e2: Exception) {}
+        }
+        return diagnosticMaterial
+    }
+
     /**
      * Foundational Rebuild Phase 1.1: the one real offline-compiled material for this phase.
      * Loads core/engine/src/main/assets/filamat/m1SurfaceLit.filamat (produced by matc via the
@@ -872,7 +1024,21 @@ class InspectorEngine private constructor(
             val color = colorForObject(objectId)
             var matInstance: MaterialInstance? = null
             try {
-                if (usingPhase1Material) {
+                if (diagnosticForceUnlitBrightNoCull) {
+                    // "Render succeeds, screen stays black" investigation, step 2: bypass
+                    // m1SurfaceLit/lighting/albedo/normal entirely -- see
+                    // ensureDiagnosticMaterial()'s doc comment for what this isolates.
+                    val diagMat = ensureDiagnosticMaterial()
+                    if (diagMat != null) {
+                        matInstance = diagMat.createInstance()
+                        matInstance.setCullingMode(com.google.android.filament.Material.CullingMode.NONE)
+                        android.util.Log.i(
+                            "InspectorEngine",
+                            "DIAGNOSTIC MODE ACTIVE: rendering $objectId with unlit magenta, culling=NONE " +
+                                "(diagnosticForceUnlitBrightNoCull=true) -- lighting/normal-tangent/albedo are NOT in this path"
+                        )
+                    }
+                } else if (usingPhase1Material) {
                     // Foundational Rebuild Phase 1.1: real offline-compiled material path.
                     // m1SurfaceLit.mat declares albedoMap/normalMap sampler2d parameters plus a
                     // tintColor float3 and roughness float (see
@@ -933,6 +1099,34 @@ class InspectorEngine private constructor(
                     renderableCount = 1
                     lastError = ""
                     android.util.Log.i("InspectorEngine", "Renderable SUCCESS for $objectId vertices=$vertexCount indices=$indexCount")
+
+                    // "Render succeeds, screen stays black" investigation, step 3: read the
+                    // renderable's ACTUAL world-space AABB back from RenderableManager
+                    // (getAxisAlignedBoundingBox() reflects the .boundingBox(Box(0,0,0,1,1,1))
+                    // we set above only if Filament accepted it as-is -- this confirms the real
+                    // object extent the camera/culling code will actually see, instead of trusting
+                    // the literal we passed to the builder).
+                    try {
+                        val rm = engine.renderableManager
+                        val rInstance = rm.getInstance(renderableEntity)
+                        if (rInstance != 0) {
+                            val aabb = rm.getAxisAlignedBoundingBox(rInstance, null)
+                            val he = aabb.halfExtent
+                            val boundingRadius = kotlin.math.sqrt(he[0] * he[0] + he[1] * he[1] + he[2] * he[2])
+                            instrumentation.objectBoundsDiagnostics = ObjectBoundsDiagnostics(
+                                objectId = objectId,
+                                boundingRadius = boundingRadius,
+                                vertexCount = vertexCount,
+                                valid = true
+                            )
+                            android.util.Log.i(
+                                "InspectorEngine",
+                                "OBJECT BOUNDS DIAGNOSTIC (real readback): ${instrumentation.objectBoundsDiagnostics.summary()}"
+                            )
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("InspectorEngine", "bounds readback failed: ${e.message}", e)
+                    }
                     // Foundational Rebuild Phase 1.2: re-apply sunState with this object's real
                     // irradiance factor (SunIrradiance.forObjectId) now that the actual loaded
                     // object is known, instead of leaving whatever placeholder objectId was used
