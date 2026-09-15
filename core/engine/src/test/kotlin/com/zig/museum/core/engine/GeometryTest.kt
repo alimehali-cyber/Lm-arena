@@ -165,12 +165,23 @@ class GeometryTest {
         return floatArrayOf(unpack(q[0]), unpack(q[1]), unpack(q[2]), unpack(q[3]))
     }
 
-    /** From-scratch transcription of Filament's GLSL toTangentFrame() normal-extraction formula. */
+    /**
+     * From-scratch transcription of Filament's real GLSL `toTangentFrame(q, out n)` from
+     * shaders/src/common_math.glsl:
+     *   n = vec3(0,0,1) + vec3(2,-2,-2) * q.x * q.zwx + vec3(2,2,-2) * q.y * q.wzy;
+     * Expanding the swizzles (q.zwx = (z,w,x), q.wzy = (w,z,y)) gives:
+     *   n.x = 2*(x*z + y*w)
+     *   n.y = 2*(y*z - x*w)
+     *   n.z = 1 - 2*x*x - 2*y*y
+     * (An earlier version of this test had the sign on the y*w term in n.x flipped, which is
+     * why this helper — not the production buildTangentFrameQuaternion() — was the actual bug
+     * behind the initial test failure; verified against Filament's real source before fixing.)
+     */
     private fun toTangentFrameNormal(q: FloatArray): FloatArray {
         val x = q[0]; val y = q[1]; val z = q[2]; val w = q[3]
-        val nx = 0f + (2f * x * z) + (-2f * y * w)
-        val ny = 0f + (-2f * x * w) + (2f * y * z)
-        val nz = 1f + (-2f * x * x) + (-2f * y * y)
+        val nx = 2f * (x * z + y * w)
+        val ny = 2f * (y * z - x * w)
+        val nz = 1f - (2f * x * x) - (2f * y * y)
         return floatArrayOf(nx, ny, nz)
     }
 }
