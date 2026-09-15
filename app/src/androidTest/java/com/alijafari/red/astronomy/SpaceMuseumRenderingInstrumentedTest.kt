@@ -307,15 +307,38 @@ class SpaceMuseumRenderingInstrumentedTest {
             engine.hasActiveRenderable()
         )
 
-        // One extra settle wait tied to a further frame-count delta (still not an arbitrary
-        // sleep-and-hope: it is bounded by, and gated on, real doFrame() ticks).
-        val settleTarget = framesSeen + 10
-        val settleDeadlineMs = System.currentTimeMillis() + 5_000
-        while (engine.instrumentation.frameTimings.getAll().size < settleTarget &&
-            System.currentTimeMillis() < settleDeadlineMs
+        // Foundational Rebuild Phase 0.2 fix (root-caused via the fullBitmapSha256/
+        // renderLoopSummaryAtCapture diagnostic added earlier this pass -- see CI run
+        // 34973763477, check-run 104396199805, which proved identicalFullBitmap=true for
+        // earth/mars with the OLD settle logic below): frameTimings.getAll().size counts every
+        // Choreographer.doFrame() tick, INCLUDING ones where beginFrame() returned false and
+        // nothing was actually drawn/presented (see InspectorEngine.doFrame() and
+        // RenderLoopCounters.beginFrameFalse) -- the real CI evidence showed beginFrame()
+        // returning true only 2 times out of 212 attempts for earth's capture moment. Waiting on
+        // doFrame-tick count alone (the old "settleTarget" below) can therefore be satisfied
+        // entirely by failed-beginFrame ticks, with zero guarantee that a NEW frame was actually
+        // presented since this object's renderable was loaded. Fix: wait for real
+        // endFrameCalls (Renderer.endFrame() actually completing -- the only honest "a frame was
+        // presented" signal per RenderLoopCounters.hasPresentedAtLeastOneFrame()'s own doc
+        // comment) to advance by a real amount since THIS object's load, not just any doFrame tick.
+        val endFrameCallsAtObjectLoad = engine.instrumentation.renderLoop.endFrameCalls
+        val minPresentedFramesSinceLoad = 3L
+        val presentedFrameDeadlineMs = System.currentTimeMillis() + 10_000
+        while (engine.instrumentation.renderLoop.endFrameCalls - endFrameCallsAtObjectLoad < minPresentedFramesSinceLoad &&
+            System.currentTimeMillis() < presentedFrameDeadlineMs
         ) {
             Thread.sleep(50)
         }
+        val presentedFramesSinceLoad = engine.instrumentation.renderLoop.endFrameCalls - endFrameCallsAtObjectLoad
+        assertTrue(
+            "Expected at least $minPresentedFramesSinceLoad REAL presented frames (Renderer." +
+                "endFrame() actually completing, not just doFrame() ticks where beginFrame() " +
+                "returned false) since object=$objectId's renderable was loaded, but only saw " +
+                "$presentedFramesSinceLoad (renderLoop=${engine.instrumentation.renderLoop.summary()}). " +
+                "This is the exact gap that let a stale/stuck screenshot slip through the old " +
+                "doFrame-tick-count-only wait in CI run 34973763477 (identicalFullBitmap=true).",
+            presentedFramesSinceLoad >= minPresentedFramesSinceLoad
+        )
 
         // --- Capture the actual rendered device pixels (real SurfaceView compositor output) ---
         // UiAutomation.takeScreenshot() can transiently return null right after its accessibility
@@ -326,29 +349,10 @@ class SpaceMuseumRenderingInstrumentedTest {
         // times with a short backoff before failing -- the retry itself does not change what is
         // being asserted on (still the real device-composited pixels from the same API).
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        var bitmap: Bitmap? = null
-        var screenshotAttempts = 0
-        while (bitmap == null && screenshotAttempts < 5) {
-            screenshotAttempts++
-            bitmap = instrumentation.uiAutomation.takeScreenshot()
-            if (bitmap == null) {
-                Log.w(logTag, "uiAutomation.takeScreenshot() returned null for object=$objectId " +
-                    "(attempt $screenshotAttempts/5); retrying after a short delay.")
-                Thread.sleep(500)
-            }
-        }
-        assertTrue(
-            "uiAutomation.takeScreenshot() returned null for object=$objectId after $screenshotAttempts attempts",
-            bitmap != null
-        )
-        val bmp = bitmap!!
 
-        // Foundational Rebuild Phase 0.2 diagnostic: full-bitmap content hash and the render-loop
-        // counters' summary(), captured right here (same moment as the screenshot) -- see
-        // RenderFingerprint.fullBitmapSha256/renderLoopSummaryAtCapture doc comment above for why.
-        val fullBitmapSha256 = run {
-            val pixels = IntArray(bmp.width * bmp.height)
-            bmp.getPixels(pixels, 0, bmp.width, 0, 0, bmp.width, bmp.height)
+        fun sha256Of(bitmap: Bitmap): String {
+            val pixels = IntArray(bitmap.width * bitmap.height)
+            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
             val bytes = ByteArray(pixels.size * 4)
             for (i in pixels.indices) {
                 val p = pixels[i]
@@ -357,10 +361,61 @@ class SpaceMuseumRenderingInstrumentedTest {
                 bytes[i * 4 + 2] = (p shr 8).toByte()
                 bytes[i * 4 + 3] = p.toByte()
             }
-            MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            return MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         }
+
+        var bitmap: Bitmap? = null
+        var fullBitmapSha256 = ""
+        var screenshotAttempts = 0
+        // Foundational Rebuild Phase 0.2 fix: beyond the pre-existing null-screenshot retry
+        // (transient accessibility-connection condition, see comment above), also retry if the
+        // captured screenshot's hash exactly matches a DIFFERENT, already-recorded object's
+        // fullBitmapSha256 -- this is the real, root-caused fix for CI run 34973763477's
+        // identicalFullBitmap=true failure: UiAutomation.takeScreenshot() can return a still-valid
+        // (non-null) but STALE compositor buffer immediately after navigation, even once
+        // InspectorEngine has genuinely presented new frames for the new object (per the
+        // presentedFramesSinceLoad wait above) -- the two are different layers (UiAutomation
+        // screenshots the window manager's last composited buffer; InspectorEngine's counters
+        // only prove Filament itself rendered). Retrying the actual capture until it demonstrably
+        // differs from a known-different object's hash directly fixes what the render-loop wait
+        // alone could not guarantee.
+        while (screenshotAttempts < 8) {
+            screenshotAttempts++
+            val candidate = instrumentation.uiAutomation.takeScreenshot()
+            if (candidate == null) {
+                Log.w(logTag, "uiAutomation.takeScreenshot() returned null for object=$objectId " +
+                    "(attempt $screenshotAttempts/8); retrying after a short delay.")
+                Thread.sleep(500)
+                continue
+            }
+            val candidateHash = sha256Of(candidate)
+            val staleMatch = recordedFingerprints.firstOrNull {
+                it.objectId != objectId && it.fullBitmapSha256 == candidateHash
+            }
+            if (staleMatch != null) {
+                Log.w(logTag, "uiAutomation.takeScreenshot() for object=$objectId returned a " +
+                    "screenshot byte-identical to previously-recorded object='${staleMatch.objectId}' " +
+                    "(sha256=$candidateHash) on attempt $screenshotAttempts/8 -- this is the stale-" +
+                    "compositor-buffer condition root-caused from CI run 34973763477; retrying " +
+                    "after a short delay rather than accepting a screenshot already proven to be " +
+                    "the wrong object's content.")
+                bitmap = candidate
+                fullBitmapSha256 = candidateHash
+                Thread.sleep(500)
+                continue
+            }
+            bitmap = candidate
+            fullBitmapSha256 = candidateHash
+            break
+        }
+        assertTrue(
+            "uiAutomation.takeScreenshot() returned null for object=$objectId after $screenshotAttempts attempts",
+            bitmap != null
+        )
+        val bmp = bitmap!!
         val renderLoopSummaryAtCapture = engine.instrumentation.renderLoop.summary()
-        Log.i(logTag, "[$screenshotName] fullBitmapSha256=$fullBitmapSha256 renderLoop=$renderLoopSummaryAtCapture")
+        Log.i(logTag, "[$screenshotName] fullBitmapSha256=$fullBitmapSha256 renderLoop=$renderLoopSummaryAtCapture " +
+            "screenshotAttempts=$screenshotAttempts")
 
         // Priority 0 fix, re-check at the actual capture moment (not just at screen-entry,
         // above): confirm the debug overlay still identifies THIS objectId right before/around
