@@ -24,6 +24,12 @@ class GargantuaRenderStateTest {
         assertEquals(0, state.viewportWidth)
         assertEquals(0, state.viewportHeight)
         assertEquals(0.5f, state.renderScale, 0.001f)
+        assertEquals(24.0f, state.camDist, 0.001f)
+        assertEquals(82.0f, state.camInclinationDeg, 0.001f)
+        assertEquals(0.0f, state.camAzimuthDeg, 0.001f)
+        assertEquals(1.25f, state.exposure, 0.001f)
+        assertTrue(state.enableBloom)
+        assertEquals(0.20f, state.bloomIntensity, 0.001f)
         assertFalse(state.isPaused)
         assertTrue(state.isDarkTheme)
         assertFalse(state.isPersian)
@@ -102,7 +108,12 @@ class GargantuaRenderStateTest {
                 glRenderer = "Adreno 740",
                 isInitialized = true,
                 renderScale = 0.5f,
-                renderResolution = "540x1200"
+                renderResolution = "540x1200",
+                isHdrActive = true,
+                exposure = 1.25f,
+                camDist = 24.0f,
+                camInclinationDeg = 82.0f,
+                camAzimuthDeg = 0.0f
             )
         )
 
@@ -112,6 +123,9 @@ class GargantuaRenderStateTest {
         assertEquals("OpenGL ES 3.2", updated.glesVersion)
         assertEquals(0.5f, updated.renderScale, 0.001f)
         assertEquals("540x1200", updated.renderResolution)
+        assertTrue(updated.isHdrActive)
+        assertEquals(1.25f, updated.exposure, 0.001f)
+        assertEquals(24.0f, updated.camDist, 0.001f)
         assertTrue(updated.isInitialized)
     }
 }

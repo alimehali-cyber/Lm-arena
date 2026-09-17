@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
@@ -275,7 +276,7 @@ private fun GargantuaRendererScreen(
                 .testTag("gargantua_gl_surface")
         )
 
-        // Top Chrome: Back button, title, and telemetry chip
+        // Top Chrome: Back button, title, reset button, and telemetry chip
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -314,33 +315,57 @@ private fun GargantuaRendererScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (isFa) "دیسک برافزایشی نسبیتی (M5)" else "Relativistic Accretion Disk (M5)",
+                        text = if (isFa) "دوربین نسبیتی و رندر سینمایی (M6)" else "Relativistic Camera & Cinematic HDR (M6)",
                         color = Color(0xFF88A0C0),
                         fontSize = 11.sp
                     )
                 }
             }
 
-            // GPU telemetry badge
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0x99181B26))
-                    .border(1.dp, Color(0x33446688), RoundedCornerShape(16.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                    .testTag("gargantua_fps_badge")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val fpsText = if (telemetry.fps > 0f) {
-                    String.format(Locale.US, "%.0f FPS", telemetry.fps)
-                } else {
-                    "-- FPS"
+                // Reset Camera Action Button
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x99181B26))
+                        .border(1.dp, Color(0x338899AA), CircleShape)
+                        .clickable { surfaceViewRef?.resetCamera() }
+                        .testTag("gargantua_reset_camera_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = if (isFa) "بازنشانی زاویه دید دوربین" else "Reset Observer Camera",
+                        tint = Color(0xFF90CAF9),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
-                Text(
-                    text = fpsText,
-                    color = Color(0xFF64B5F6),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+
+                // GPU telemetry badge
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0x99181B26))
+                        .border(1.dp, Color(0x33446688), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .testTag("gargantua_fps_badge")
+                ) {
+                    val fpsText = if (telemetry.fps > 0f) {
+                        String.format(Locale.US, "%.0f FPS", telemetry.fps)
+                    } else {
+                        "-- FPS"
+                    }
+                    Text(
+                        text = fpsText,
+                        color = Color(0xFF64B5F6),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
 
@@ -396,10 +421,24 @@ private fun GargantuaRendererScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+                    // HDR state chip
+                    Text(
+                        text = if (telemetry.isHdrActive) "HDR" else "LDR",
+                        color = if (telemetry.isHdrActive) Color(0xFF81C784) else Color(0xFFFFB74D),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    // Observer distance
+                    Text(
+                        text = String.format(Locale.US, "d=%.0fM", telemetry.camDist),
+                        color = Color(0xFFCE93D8),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                     if (telemetry.renderResolution.isNotEmpty()) {
                         Text(
                             text = String.format(Locale.US, "%s@%.1fx", telemetry.renderResolution, telemetry.renderScale),
-                            color = Color(0xFF81C784),
+                            color = Color(0xFF80CBC4),
                             fontSize = 11.sp
                         )
                     }

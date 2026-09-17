@@ -15,17 +15,21 @@ data class GargantuaRenderState(
     val isPersian: Boolean = false,
     val mass: Float = 1.0f,
     val spin: Float = 0.8f,
-    val camDist: Float = 25.0f,
-    val camInclinationDeg: Float = 85.0f,
+    val camDist: Float = 24.0f,
+    val camInclinationDeg: Float = 82.0f,
     val camAzimuthDeg: Float = 0.0f,
     val maxSteps: Int = 150,
     val useGeodesicShader: Boolean = true,
     val enableDisk: Boolean = true,
-    val diskOuterRadius: Float = 22.0f
+    val diskOuterRadius: Float = 22.0f,
+    val exposure: Float = 1.25f,
+    val enableBloom: Boolean = true,
+    val bloomIntensity: Float = 0.20f,
+    val bloomThreshold: Float = 1.0f
 )
 
 /**
- * Real-time performance telemetry emitted by the GL render thread to the UI thread.
+ * Real-time performance and presentation telemetry emitted by the GL render thread to the UI thread.
  */
 data class GargantuaTelemetry(
     val fps: Float = 0f,
@@ -39,7 +43,12 @@ data class GargantuaTelemetry(
     val isDiskActive: Boolean = true,
     val iscoRadius: Float = 2.91f,
     val renderScale: Float = 0.5f,
-    val renderResolution: String = ""
+    val renderResolution: String = "",
+    val isHdrActive: Boolean = false,
+    val exposure: Float = 1.25f,
+    val camDist: Float = 24.0f,
+    val camInclinationDeg: Float = 82.0f,
+    val camAzimuthDeg: Float = 0.0f
 )
 
 /**

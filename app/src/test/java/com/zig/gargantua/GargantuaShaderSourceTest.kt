@@ -17,6 +17,23 @@ class GargantuaShaderSourceTest {
     fun canonicalShaderAssetPathsAreConfigured() {
         assertEquals("shaders/gargantua_test.vert", ShaderSource.VERTEX_SHADER_ASSET_PATH)
         assertEquals("shaders/gargantua_test.frag", ShaderSource.FRAGMENT_SHADER_ASSET_PATH)
+        assertEquals("shaders/gargantua_geodesic.frag", ShaderSource.GEODESIC_FRAGMENT_SHADER_ASSET_PATH)
+        assertEquals("shaders/gargantua_blit.frag", ShaderSource.BLIT_FRAGMENT_SHADER_ASSET_PATH)
+        assertEquals("shaders/gargantua_brightpass.frag", ShaderSource.BRIGHTPASS_FRAGMENT_SHADER_ASSET_PATH)
+        assertEquals("shaders/gargantua_blur.frag", ShaderSource.BLUR_FRAGMENT_SHADER_ASSET_PATH)
+        assertEquals("shaders/gargantua_composite.frag", ShaderSource.COMPOSITE_FRAGMENT_SHADER_ASSET_PATH)
+    }
+
+    @Test
+    fun canonicalM6ShadersExistAndDeclareGles3() {
+        val brightPass = findAssetFile(ShaderSource.BRIGHTPASS_FRAGMENT_SHADER_ASSET_PATH).readText()
+        val blur = findAssetFile(ShaderSource.BLUR_FRAGMENT_SHADER_ASSET_PATH).readText()
+        val composite = findAssetFile(ShaderSource.COMPOSITE_FRAGMENT_SHADER_ASSET_PATH).readText()
+
+        assertTrue(brightPass.contains("#version 300 es"))
+        assertTrue(blur.contains("#version 300 es"))
+        assertTrue(composite.contains("#version 300 es"))
+        assertTrue(composite.contains("aces_filmic"))
     }
 
     @Test

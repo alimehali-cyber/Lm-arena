@@ -362,10 +362,10 @@ void main() {
                     float tEmit = pow(max(0.0, F), 0.25);
                     float tObs = gShift * tEmit;
 
-                    // Radiance with relativistic beaming g^4
+                    // Radiance with relativistic beaming g^4 (genuine unclipped HDR)
                     float g2 = gShift * gShift;
                     float g4 = g2 * g2;
-                    float radiance = clamp(g4 * F * 60.0, 0.0, 2.5);
+                    float radiance = max(0.0, g4 * F * 60.0);
 
                     // Thermal blackbody spectral color approximation
                     float tNorm = clamp(tObs * 4.0, 0.0, 2.5);
@@ -375,7 +375,7 @@ void main() {
                         clamp(tNorm * tNorm * tNorm * 0.35, 0.0, 1.2)
                     );
 
-                    diskColor = clamp(radiance * thermalRamp, 0.0, 1.0);
+                    diskColor = radiance * thermalRamp;
                     hitDisk = true;
                     break;
                 }
@@ -384,11 +384,11 @@ void main() {
     }
 
     if (hitDisk) {
-        // Relativistic equatorial accretion disk
+        // Relativistic equatorial accretion disk (unbounded HDR radiance)
         fragColor = vec4(diskColor, 1.0);
     } else if (isCaptured) {
-        // True black hole shadow
-        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        // True black hole shadow (strictly 0.0 radiance, alpha 0.0 for shadow protection)
+        fragColor = vec4(0.0, 0.0, 0.0, 0.0);
     } else {
         // Gravitationally lensed procedural celestial background
         vec3 color = sample_procedural_sky(finalDir);

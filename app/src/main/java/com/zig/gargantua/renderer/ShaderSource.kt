@@ -14,6 +14,9 @@ object ShaderSource {
     const val FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_test.frag"
     const val GEODESIC_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_geodesic.frag"
     const val BLIT_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_blit.frag"
+    const val BRIGHTPASS_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_brightpass.frag"
+    const val BLUR_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_blur.frag"
+    const val COMPOSITE_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_composite.frag"
 
     fun loadVertexShader(context: Context): String {
         return readAsset(context, VERTEX_SHADER_ASSET_PATH)
@@ -29,6 +32,18 @@ object ShaderSource {
 
     fun loadBlitFragmentShader(context: Context): String {
         return readAsset(context, BLIT_FRAGMENT_SHADER_ASSET_PATH)
+    }
+
+    fun loadBrightPassFragmentShader(context: Context): String {
+        return readAsset(context, BRIGHTPASS_FRAGMENT_SHADER_ASSET_PATH)
+    }
+
+    fun loadBlurFragmentShader(context: Context): String {
+        return readAsset(context, BLUR_FRAGMENT_SHADER_ASSET_PATH)
+    }
+
+    fun loadCompositeFragmentShader(context: Context): String {
+        return readAsset(context, COMPOSITE_FRAGMENT_SHADER_ASSET_PATH)
     }
 
     private fun readAsset(context: Context, path: String): String {
