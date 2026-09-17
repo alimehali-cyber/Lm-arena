@@ -28,6 +28,13 @@ class ShaderProgram private constructor(val programId: Int) {
         }
     }
 
+    fun setUniform1i(name: String, value: Int) {
+        val loc = getUniformLocation(name)
+        if (loc >= 0) {
+            GLES30.glUniform1i(loc, value)
+        }
+    }
+
     fun setUniform2f(name: String, x: Float, y: Float) {
         val loc = getUniformLocation(name)
         if (loc >= 0) {
