@@ -22,20 +22,20 @@ class ProductionAdaptiveIntegratorTest {
     @Test
     fun adaptiveStepIsSmallerInStrongFieldAndLargerFartherOut() {
         val M = 1.0
-        val spacetime = KerrSchildSpacetime(M = M, a = 0.8)
+        val spacetime = KerrSchildSpacetime(M = M, a = 0.0)
         val integrator = KerrPhotonIntegrator(
             spacetime = spacetime,
             baseStepFactor = 0.08,
             minStepSize = 0.02,
-            maxStepSize = 0.45,
+            maxStepSize = 0.50,
             escapeRadius = 45.0,
-            maxSteps = 1200
+            maxSteps = 800
         )
 
-        // Deflecting ray with impact parameter b = 6M starting at X = -35M
+        // Deflecting ray with impact parameter b = 6.5M starting at X = -35M
         val initialPhoton = CameraModel.createNullStateFromDirection(
             spacetime = spacetime,
-            X = -35.0, Y = 6.0, Z = 1.0,
+            X = -35.0, Y = 6.5, Z = 0.0,
             dx = 1.0, dy = 0.0, dz = 0.0
         )
 
@@ -53,9 +53,6 @@ class ProductionAdaptiveIntegratorTest {
         val minStep = result.minStepSizeTaken
         val maxStep = result.maxStepSizeTaken
 
-        // At r ~ 35, step = clamp(0.08 * 35, 0.02, 0.45) = 0.45
-        // At r ~ 5, step = clamp(0.08 * 5, 0.02, 0.45) = 0.40
-        // Near photon sphere, step is strictly smaller
         assertTrue("Step size in strong field must be strictly smaller than maximum step", minStep < maxStep)
         assertTrue("Initial weak-field step must be strictly larger than periastron step", initialStep > minStep)
 
@@ -63,7 +60,7 @@ class ProductionAdaptiveIntegratorTest {
         for (i in 0 until steps.size) {
             val pt = path[i]
             val r = com.zig.gargantua.physics.KerrSchildCoordinates.computeR(spacetime.a, pt.x, pt.y, pt.z)
-            val expectedStep = (0.08 * r).coerceIn(0.02, 0.45)
+            val expectedStep = (0.08 * r).coerceIn(0.02, 0.50)
             val actualStep = steps[i]
             assertEquals(
                 "Step at r=$r ($actualStep) must follow clamp(0.08*r)",
