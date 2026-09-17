@@ -176,8 +176,7 @@ class M6FinalPresentationTest {
     // 6. g and g^4 are applied exactly once
     @Test
     fun frequencyShiftGAndG4AppliedExactlyOnce() {
-        val shaderFile = File("app/src/main/assets/shaders/gargantua_geodesic.frag")
-        val content = shaderFile.readText()
+        val content = readShader("gargantua_geodesic.frag")
 
         // Verify g4 definition
         assertTrue("g2 must be defined as gShift * gShift", content.contains("float g2 = gShift * gShift;"))
