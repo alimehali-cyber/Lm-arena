@@ -35,7 +35,10 @@ class KerrPhotonIntegrator(
         val stepsTaken: Int,
         val minRadiusReached: Double,
         val maxHamiltonianResidual: Double,
-        val path: List<PhotonState4D>? = null
+        val path: List<PhotonState4D>? = null,
+        val minStepSizeTaken: Double = 0.0,
+        val maxStepSizeTaken: Double = 0.0,
+        val stepSizes: List<Double>? = null
     ) {
         val isCaptured: Boolean get() = terminationReason == TerminationReason.CAPTURED
         val isEscaped: Boolean get() = terminationReason == TerminationReason.ESCAPED
@@ -163,6 +166,9 @@ class KerrPhotonIntegrator(
         var currentT = initialState.t
 
         val pathList = if (recordPath) mutableListOf(initialState) else null
+        val stepSizesList = if (recordPath) mutableListOf<Double>() else null
+        var minStepTaken = Double.MAX_VALUE
+        var maxStepTaken = 0.0
 
         var previousR = initialR
         var movingOutward = false
@@ -199,7 +205,10 @@ class KerrPhotonIntegrator(
                     stepsTaken = step,
                     minRadiusReached = minR,
                     maxHamiltonianResidual = maxHResidual,
-                    path = pathList
+                    path = pathList,
+                    minStepSizeTaken = if (minStepTaken == Double.MAX_VALUE) 0.0 else minStepTaken,
+                    maxStepSizeTaken = maxStepTaken,
+                    stepSizes = stepSizesList
                 )
             }
 
@@ -211,7 +220,10 @@ class KerrPhotonIntegrator(
                     stepsTaken = step,
                     minRadiusReached = minR,
                     maxHamiltonianResidual = maxHResidual,
-                    path = pathList
+                    path = pathList,
+                    minStepSizeTaken = if (minStepTaken == Double.MAX_VALUE) 0.0 else minStepTaken,
+                    maxStepSizeTaken = maxStepTaken,
+                    stepSizes = stepSizesList
                 )
             }
 
@@ -223,12 +235,19 @@ class KerrPhotonIntegrator(
                     stepsTaken = step,
                     minRadiusReached = minR,
                     maxHamiltonianResidual = maxHResidual,
-                    path = pathList
+                    path = pathList,
+                    minStepSizeTaken = if (minStepTaken == Double.MAX_VALUE) 0.0 else minStepTaken,
+                    maxStepSizeTaken = maxStepTaken,
+                    stepSizes = stepSizesList
                 )
             }
 
             // Advance step
             val dlambda = fixedStepSize ?: computeAdaptiveStep(r)
+            if (dlambda < minStepTaken) minStepTaken = dlambda
+            if (dlambda > maxStepTaken) maxStepTaken = dlambda
+            stepSizesList?.add(dlambda)
+
             val nextState = rk4Step(state, dlambda)
 
             // Approximate dT
@@ -269,7 +288,10 @@ class KerrPhotonIntegrator(
             stepsTaken = maxSteps,
             minRadiusReached = minR,
             maxHamiltonianResidual = maxHResidual,
-            path = pathList
+            path = pathList,
+            minStepSizeTaken = if (minStepTaken == Double.MAX_VALUE) 0.0 else minStepTaken,
+            maxStepSizeTaken = maxStepTaken,
+            stepSizes = stepSizesList
         )
     }
 }

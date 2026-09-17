@@ -123,8 +123,13 @@ data class CameraModel(
                 vLower[mu] = sum
             }
 
-            // Normalize so that p_0 = -1.0 (conserved energy E = 1)
+            // Normalize all 4 covariant momentum components by the identical physical scale factor
+            // s = 1 / (-vLower[0]), ensuring:
+            // 1. p_0 = vLower[0] * s = -1.0 (stationarity conserved energy E = 1)
+            // 2. Hamiltonian H = 1/2 g^μν p_μ p_ν = s² * (1/2 g_μν v^μ v^ν) ≡ 0 (exact null preservation)
+            // 3. dx^i/dλ = g^{iν} p_ν = s * v^i = s * d^i (exact spatial direction preservation)
             val scale = -vLower[0]
+            val pt = vLower[0] / scale // Exactly -1.0
             val px = vLower[1] / scale
             val py = vLower[2] / scale
             val pz = vLower[3] / scale
@@ -134,7 +139,7 @@ data class CameraModel(
                 x = X,
                 y = Y,
                 z = Z,
-                p_t = -1.0,
+                p_t = pt,
                 p_x = px,
                 p_y = py,
                 p_z = pz,
