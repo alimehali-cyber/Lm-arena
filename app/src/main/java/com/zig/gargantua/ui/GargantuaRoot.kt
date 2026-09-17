@@ -369,85 +369,102 @@ private fun GargantuaRendererScreen(
             }
         }
 
-        // Bottom Telemetry / Health Indicator Pill
-        Column(
+        // Bottom-corner compact information HUD card
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.BottomStart)
                 .navigationBarsPadding()
-                .padding(bottom = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(start = 16.dp, bottom = 16.dp, end = 16.dp)
+                .testTag("gargantua_status_card")
         ) {
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xB3121520))
-                    .border(1.dp, Color(0x33446688), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .testTag("gargantua_status_pill")
+                    .widthIn(max = 240.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xD9121520))
+                    .border(1.dp, Color(0x33446688), RoundedCornerShape(14.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(if (telemetry.isInitialized) Color(0xFF4CAF50) else Color(0xFFFF9800))
-                    )
-                    Text(
-                        text = if (isFa)
-                            "ردیابی ژئودزیک فوتون در فضازمان کر فعال است"
-                        else
-                            "Kerr Photon Geodesic Tracing Active",
-                        color = Color(0xFFD0D8E8),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    if (telemetry.isGeodesicActive) {
+                    // Row 1: Status indicator, Title, and HDR Badge
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(if (telemetry.isInitialized) Color(0xFF4CAF50) else Color(0xFFFF9800))
+                        )
+                        Text(
+                            text = if (isFa) "فضازمان کر (نسبیتی)" else "Kerr GR (M6)",
+                            color = Color(0xFFD0D8E8),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (telemetry.isHdrActive) Color(0x3381C784) else Color(0x33FFB74D))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = if (telemetry.isHdrActive) "HDR" else "LDR",
+                                color = if (telemetry.isHdrActive) Color(0xFF81C784) else Color(0xFFFFB74D),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Row 2: Physical & Camera parameters
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Text(
                             text = String.format(Locale.US, "a*=%.2f", telemetry.spin),
                             color = Color(0xFF64B5F6),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
                         )
-                    }
-                    if (telemetry.isDiskActive) {
                         Text(
                             text = String.format(Locale.US, "ISCO=%.2fM", telemetry.iscoRadius),
                             color = Color(0xFFFFB74D),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = String.format(Locale.US, "d=%.0fM", telemetry.camDist),
+                            color = Color(0xFFCE93D8),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
-                    // HDR state chip
-                    Text(
-                        text = if (telemetry.isHdrActive) "HDR" else "LDR",
-                        color = if (telemetry.isHdrActive) Color(0xFF81C784) else Color(0xFFFFB74D),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    // Observer distance
-                    Text(
-                        text = String.format(Locale.US, "d=%.0fM", telemetry.camDist),
-                        color = Color(0xFFCE93D8),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    if (telemetry.renderResolution.isNotEmpty()) {
-                        Text(
-                            text = String.format(Locale.US, "%s@%.1fx", telemetry.renderResolution, telemetry.renderScale),
-                            color = Color(0xFF80CBC4),
-                            fontSize = 11.sp
-                        )
-                    }
-                    if (telemetry.frameTimeMs > 0f) {
-                        Text(
-                            text = String.format(Locale.US, "(%.1f ms)", telemetry.frameTimeMs),
-                            color = Color(0xFF88A0C0),
-                            fontSize = 11.sp
-                        )
+
+                    // Row 3: Internal resolution, scale factor, and frame time
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (telemetry.renderResolution.isNotEmpty()) {
+                            Text(
+                                text = String.format(Locale.US, "%s@%.1fx", telemetry.renderResolution, telemetry.renderScale),
+                                color = Color(0xFF80CBC4),
+                                fontSize = 10.sp
+                            )
+                        }
+                        if (telemetry.frameTimeMs > 0f) {
+                            Text(
+                                text = String.format(Locale.US, "• %.1f ms", telemetry.frameTimeMs),
+                                color = Color(0xFF88A0C0),
+                                fontSize = 10.sp
+                            )
+                        }
                     }
                 }
             }
@@ -456,14 +473,15 @@ private fun GargantuaRendererScreen(
             if (telemetry.errorMessage != null) {
                 Box(
                     modifier = Modifier
+                        .padding(top = 4.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xCCB71C1C))
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = telemetry.errorMessage ?: "",
                         color = Color.White,
-                        fontSize = 11.sp
+                        fontSize = 10.sp
                     )
                 }
             }

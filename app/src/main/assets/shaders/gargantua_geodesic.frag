@@ -364,10 +364,23 @@ void main() {
                     float tEmit = pow(max(0.0, F), 0.25);
                     float tObs = gShift * tEmit;
 
-                    // Radiance with relativistic beaming g^4 (genuine unclipped HDR)
+                    // Relativistic frequency shift beaming g^4
                     float g2 = gShift * gShift;
                     float g4 = g2 * g2;
-                    float radiance = max(0.0, g4 * F * 120.0);
+
+                    // Principled dimensionless reference normalization:
+                    // Peak emissivity of Novikov-Thorne profile analytically occurs at r_peak = (49/36) * r_in:
+                    float rPeak = 1.361111 * u_DiskInnerRadius;
+                    float fPeak = u_Mass / (7.0 * rPeak * rPeak * rPeak);
+                    float fNorm = (fPeak > 1.0e-7) ? clamp(F / fPeak, 0.0, 1.0) : 0.0;
+
+                    // Physical beamed intensity: I_phys = g^4 * fNorm
+                    float iPhys = g4 * fNorm;
+
+                    // Dimensionless dynamic-range calibration for optical display:
+                    // Bridges optical Rayleigh-Jeans regime (B_nu ~ T ~ F^0.25) and bolometric transfer,
+                    // expanding visual visibility of the redshifted receding flank without blowing out approaching hotspot.
+                    float radiance = 0.60 * pow(max(0.0, iPhys), 0.60);
 
                     // Thermal blackbody spectral color approximation
                     float tNorm = clamp(tObs * 4.0, 0.0, 2.5);
@@ -392,12 +405,11 @@ void main() {
         // True black hole shadow (strictly 0.0 radiance, alpha 0.0 for shadow protection)
         fragColor = vec4(0.0, 0.0, 0.0, 0.0);
     } else if (rayState == 2) {
-        // Physically escaped ray: deep cosmic void with faint lensed stars
-        vec3 color = sample_procedural_sky(finalDir);
-        fragColor = vec4(color, 1.0);
+        // Physically escaped ray: clean, deep black background for M6 (no procedural stars)
+        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
     } else {
         // UNRESOLVED: budget exhausted without proving capture, escape, or disk intersection.
-        // Strictly avoid false star field or navy background. Alpha 0.5 marks unresolved in telemetry.
+        // Strictly pure black visually, alpha 0.5 distinguishes unresolved in telemetry.
         fragColor = vec4(0.0, 0.0, 0.0, 0.5);
     }
 }
