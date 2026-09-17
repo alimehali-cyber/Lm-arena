@@ -25,18 +25,13 @@ class SchwarzschildShadowTest {
         dirX: Double,
         dirY: Double,
         dirZ: Double
-    ): KerrPhotonIntegrator.RayResult {
+    ): KerrPhotonIntegrator.RayTraceResult {
         val initialPhoton = CameraModel.createNullStateFromDirection(
             spacetime = spacetime,
             X = startX, Y = startY, Z = startZ,
             dx = dirX, dy = dirY, dz = dirZ
         )
-        return integrator.integrate(
-            initialPhoton = initialPhoton,
-            maxSteps = 600,
-            initialStep = 0.1,
-            escapeRadius = 60.0
-        )
+        return integrator.traceRay(initialState = initialPhoton)
     }
 
     @Test
