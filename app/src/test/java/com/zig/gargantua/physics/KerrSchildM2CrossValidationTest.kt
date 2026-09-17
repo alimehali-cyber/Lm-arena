@@ -27,7 +27,7 @@ class KerrSchildM2CrossValidationTest {
             val m3 = KerrSchildSpacetime(M = M, a = 0.0)
 
             // 1. Horizon radius r_+ must match M2 exactly (r_+ = 2M)
-            assertEquals("Schwarzschild horizon r_+ must match M2", m2.rPlus(), m3.rPlus, 1e-15)
+            assertEquals("Schwarzschild horizon r_+ must match M2", m2.rPlus, m3.rPlus, 1e-15)
             assertEquals("Schwarzschild horizon must equal 2M", 2.0 * M, m3.rPlus, 1e-15)
 
             // 2. Metric symmetry and lack of spin-dependent frame-dragging asymmetry
@@ -64,8 +64,8 @@ class KerrSchildM2CrossValidationTest {
             val m2 = M2KerrSpacetime(M, a)
             val m3 = KerrSchildSpacetime(M, a)
 
-            assertEquals("rPlus must match M2 reference for M=$M, a=$a", m2.rPlus(), m3.rPlus, 1e-15)
-            assertEquals("rMinus must match M2 reference for M=$M, a=$a", m2.rMinus(), m3.rMinus, 1e-15)
+            assertEquals("rPlus must match M2 reference for M=$M, a=$a", m2.rPlus, m3.rPlus, 1e-15)
+            assertEquals("rMinus must match M2 reference for M=$M, a=$a", m2.rMinus, m3.rMinus, 1e-15)
         }
     }
 
@@ -200,11 +200,10 @@ class KerrSchildM2CrossValidationTest {
 
         for (r in listOf(3.0, 6.0, 15.0)) {
             for (th in listOf(0.4, 0.8, 1.57)) {
-                // M2 Boyer-Lindquist g_tφ
-                val blMetricPro = m2Pro.metric(r, th)
-                val blMetricRetro = m2Retro.metric(r, th)
-                val m2GtPhiPro = blMetricPro.g_tph
-                val m2GtPhiRetro = blMetricRetro.g_tph
+                // M2 Boyer-Lindquist g_tφ = -2 M a r sin²θ / Σ
+                val sinT = sin(th)
+                val m2GtPhiPro = -2.0 * m2Pro.M * m2Pro.a * r * sinT * sinT / m2Pro.sigma(r, th)
+                val m2GtPhiRetro = -2.0 * m2Retro.M * m2Retro.a * r * sinT * sinT / m2Retro.sigma(r, th)
 
                 // M3 Kerr-Schild g_TΦ = -Y g_TX + X g_TY
                 val posPro = KerrSchildCoordinates.fromBoyerLindquist(aMag, r, th, phiKS = 0.0)
