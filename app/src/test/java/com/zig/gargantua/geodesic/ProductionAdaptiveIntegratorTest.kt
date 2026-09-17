@@ -29,7 +29,7 @@ class ProductionAdaptiveIntegratorTest {
             minStepSize = 0.02,
             maxStepSize = 0.45,
             escapeRadius = 45.0,
-            maxSteps = 600
+            maxSteps = 1200
         )
 
         // Deflecting ray with impact parameter b = 6M starting at X = -35M

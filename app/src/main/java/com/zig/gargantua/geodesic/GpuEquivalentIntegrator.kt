@@ -110,40 +110,40 @@ object GpuEquivalentIntegrator {
         val r4 = r2 * r2
         val a2 = a * a
         val z2 = Z * Z
-        val denom = r4 + a2 * z2
-        val denom2 = denom * denom
-        val H = if (denom > 1e-12f) (M * r3) / denom else 0.0f
+        val denomSigma = r4 + a2 * z2
+        val denomSigma2 = denomSigma * denomSigma
+        val H = if (denomSigma > 1e-12f) (M * r3) / denomSigma else 0.0f
 
-        val denomR = 2.0f * r4 + a2 * (r2 - z2 + X * X + Y * Y)
-        val dr_dX = if (denomR > 1e-12f) (r * (r2 + a2) * X) / denomR else 0.0f
-        val dr_dY = if (denomR > 1e-12f) (r * (r2 + a2) * Y) / denomR else 0.0f
-        val dr_dZ = if (denomR > 1e-12f && r > 1e-12f) ((r2 + a2) * (r2 * Z)) / (r * denomR) else 0.0f
+        val dr_dX = if (denomSigma > 1e-12f) (r3 * X) / denomSigma else 0.0f
+        val dr_dY = if (denomSigma > 1e-12f) (r3 * Y) / denomSigma else 0.0f
+        val dr_dZ = if (denomSigma > 1e-12f) (Z * r * (r2 + a2)) / denomSigma else 0.0f
 
-        val dH_dr = if (denom2 > 1e-12f) M * (3.0f * r2 * denom - r3 * (4.0f * r3)) / denom2 else 0.0f
-        val dH_dZ_expl = if (denom2 > 1e-12f) -2.0f * M * a2 * r3 * Z / denom2 else 0.0f
+        val dH_dr = if (denomSigma2 > 1e-12f) M * r2 * (3.0f * a2 * z2 - r4) / denomSigma2 else 0.0f
+        val dH_dZ_expl = if (denomSigma2 > 1e-12f) -2.0f * M * a2 * r3 * Z / denomSigma2 else 0.0f
 
         val dH_dX = dH_dr * dr_dX
         val dH_dY = dH_dr * dr_dY
         val dH_dZ = dH_dr * dr_dZ + dH_dZ_expl
 
-        val denomXY = r2 + a2
-        val denomXY2 = denomXY * denomXY
+        val denomV = r2 + a2
+        val denomV2 = denomV * denomV
 
-        val lx = if (denomXY > 1e-12f) (r * X + a * Y) / denomXY else 0.0f
-        val ly = if (denomXY > 1e-12f) (r * Y - a * X) / denomXY else 0.0f
+        val lx = if (denomV > 1e-12f) (r * X + a * Y) / denomV else 0.0f
+        val ly = if (denomV > 1e-12f) (r * Y - a * X) / denomV else 0.0f
         val lz = if (r > 1e-12f) Z / r else 0.0f
         val l = floatArrayOf(-1.0f, lx, ly, lz)
 
         fun diff_l(dr_di: Float, isX: Boolean, isY: Boolean, isZ: Boolean): FloatArray {
-            val dnumX_di = (if (isX) 1.0f else 0.0f) * r + X * dr_di + (if (isY) a else 0.0f)
-            val dlx_di = (dnumX_di * denomXY - (r * X + a * Y) * (2.0f * r * dr_di)) / denomXY2
+            val dv = 2.0f * r * dr_di
+            val duX = dr_di * X + (if (isX) r else 0.0f) + (if (isY) a else 0.0f)
+            val dlx = (duX * denomV - (r * X + a * Y) * dv) / denomV2
 
-            val dnumY_di = (if (isY) 1.0f else 0.0f) * r + Y * dr_di - (if (isX) a else 0.0f)
-            val dly_di = (dnumY_di * denomXY - (r * Y - a * X) * (2.0f * r * dr_di)) / denomXY2
+            val duY = dr_di * Y + (if (isY) r else 0.0f) - (if (isX) a else 0.0f)
+            val dly = (duY * denomV - (r * Y - a * X) * dv) / denomV2
 
-            val dlz_di = if (r > 1e-12f) ((if (isZ) 1.0f else 0.0f) * r - Z * dr_di) / r2 else 0.0f
+            val dlz = if (r > 1e-12f) ((if (isZ) 1.0f else 0.0f) * r - Z * dr_di) / r2 else 0.0f
 
-            return floatArrayOf(0.0f, dlx_di, dly_di, dlz_di)
+            return floatArrayOf(0.0f, dlx, dly, dlz)
         }
 
         val dl_dX = diff_l(dr_dX, isX = true, isY = false, isZ = false)
