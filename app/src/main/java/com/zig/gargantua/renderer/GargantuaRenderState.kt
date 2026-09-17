@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicReference
 data class GargantuaRenderState(
     val viewportWidth: Int = 0,
     val viewportHeight: Int = 0,
+    val renderScale: Float = 0.5f, // Scaled rendering factor in (0.25..1.0), 1.0 = native full resolution ceiling
     val isPaused: Boolean = false,
     val isDarkTheme: Boolean = true,
     val isPersian: Boolean = false,
@@ -36,7 +37,9 @@ data class GargantuaTelemetry(
     val spin: Float = 0.8f,
     val isGeodesicActive: Boolean = true,
     val isDiskActive: Boolean = true,
-    val iscoRadius: Float = 2.91f
+    val iscoRadius: Float = 2.91f,
+    val renderScale: Float = 0.5f,
+    val renderResolution: String = ""
 )
 
 /**

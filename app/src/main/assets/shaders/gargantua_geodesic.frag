@@ -5,7 +5,7 @@ in vec2 v_TexCoord;
 out vec4 fragColor;
 
 // Uniforms
-uniform vec2 u_Resolution;   // Screen resolution (width, height)
+uniform vec2 u_Resolution;   // Screen or scaled FBO resolution (width, height)
 uniform float u_Time;        // Elapsed time (seconds)
 uniform float u_Mass;        // Black hole mass M (geometrized, G=c=1)
 uniform float u_Spin;        // Kerr spin parameter a (|a| <= M)
@@ -32,14 +32,7 @@ float compute_r_KS(float a, float X, float Y, float Z) {
     }
     float S = R2 - a2;
     float D = S * S + 4.0 * a2 * z2;
-    float sqrtD = sqrt(max(0.0, D));
-    float u;
-    if (S >= 0.0) {
-        u = 0.5 * (S + sqrtD);
-    } else {
-        float denom = sqrtD - S;
-        u = (denom > 0.0) ? (2.0 * a2 * z2) / denom : 0.0;
-    }
+    float u = 0.5 * (S + sqrt(max(0.0, D)));
     return sqrt(max(0.0, u));
 }
 
@@ -94,14 +87,16 @@ mat4 compute_g_lower(float M, float a, float X, float Y, float Z, float r) {
     return g;
 }
 
-// Computes exact analytical spatial gradients of g^μν
-// Returns d_dX, d_dY, d_dZ
-void compute_spatial_derivatives(
-    float M, float a, float X, float Y, float Z, float r,
-    out mat4 dg_dX, out mat4 dg_dY, out mat4 dg_dZ
+// Evaluates the 6D phase space RHS
+// Uses factored exact analytical Kerr-Schild derivatives to eliminate matrix assembly and register spilling
+void evaluate_rhs(
+    float M, float a,
+    vec3 pos, vec3 p_spatial,
+    out vec3 dPos, out vec3 dP
 ) {
+    float r = compute_r_KS(a, pos.x, pos.y, pos.z);
     float a2 = a * a;
-    float z2 = Z * Z;
+    float z2 = pos.z * pos.z;
     float r2 = r * r;
     float r3 = r2 * r;
     float r4 = r2 * r2;
@@ -109,90 +104,63 @@ void compute_spatial_derivatives(
     if (denom_sigma < 1.0e-20) denom_sigma = 1.0e-20;
 
     // 1. Exact radial derivatives ∂_i r
-    float dr_dX = (r3 * X) / denom_sigma;
-    float dr_dY = (r3 * Y) / denom_sigma;
-    float dr_dZ = (Z * r * (r2 + a2)) / denom_sigma;
+    float dr_dX = (r3 * pos.x) / denom_sigma;
+    float dr_dY = (r3 * pos.y) / denom_sigma;
+    float dr_dZ = (pos.z * r * (r2 + a2)) / denom_sigma;
 
-    // 2. Exact scalar H derivatives ∂_i H
+    // 2. Exact scalar H and radial derivative
     float H = (M * r3) / denom_sigma;
     float denom_sigma2 = denom_sigma * denom_sigma;
     float dH_dr = M * r2 * (3.0 * a2 * z2 - r4) / denom_sigma2;
 
     float dH_dX = dH_dr * dr_dX;
     float dH_dY = dH_dr * dr_dY;
-    float dH_dZ = dH_dr * dr_dZ - (2.0 * M * a2 * r3 * Z) / denom_sigma2;
+    float dH_dZ = dH_dr * dr_dZ - (2.0 * M * a2 * r3 * pos.z) / denom_sigma2;
 
-    // 3. Exact null vector derivatives ∂_i l^μ
+    // 3. Exact null vector l^μ = (-1, lx, ly, lz)
     float denom_v = r2 + a2;
     float denom_v2 = denom_v * denom_v;
-    float lx = (r * X + a * Y) / denom_v;
-    float ly = (r * Y - a * X) / denom_v;
-    float lz = (r > 1.0e-7) ? Z / r : 0.0;
-    vec4 l = vec4(-1.0, lx, ly, lz);
+    float lx = (denom_v > 1.0e-12) ? (r * pos.x + a * pos.y) / denom_v : 0.0;
+    float ly = (denom_v > 1.0e-12) ? (r * pos.y - a * pos.x) / denom_v : 0.0;
+    float lz = (r > 1.0e-7) ? pos.z / r : 0.0;
+    vec3 l_spatial = vec3(lx, ly, lz);
 
-    // Differentiation of l^μ
+    // Contraction Lp = l^μ p_μ with l^0 = -1, p_0 = -1 (so l^0 * p_0 = 1.0)
+    float Lp = 1.0 + dot(l_spatial, p_spatial);
+    float twoH = 2.0 * H;
+
+    // 4. dx^i / dλ = g^{iν} p_ν = p_i - 2.0 * H * Lp * l^i
+    dPos = p_spatial - (twoH * Lp) * l_spatial;
+
+    // 5. dp_i / dλ = -0.5 (∂_i g^αβ) p_α p_β = Lp * [ (∂_i H) Lp + 2 H (∂_i l^μ p_μ) ]
+    // Spatial differentiation of l^μ
     float dv_X = 2.0 * r * dr_dX;
-    float duX_X = dr_dX * X + r;
-    float dlX_X = (duX_X * denom_v - (r * X + a * Y) * dv_X) / denom_v2;
-    float duY_X = dr_dX * Y - a;
-    float dlY_X = (duY_X * denom_v - (r * Y - a * X) * dv_X) / denom_v2;
-    float dlZ_X = (r > 1.0e-7) ? (-Z * dr_dX) / r2 : 0.0;
-    vec4 dl_dX = vec4(0.0, dlX_X, dlY_X, dlZ_X);
+    float duX_X = dr_dX * pos.x + r;
+    float dlX_X = (duX_X * denom_v - (r * pos.x + a * pos.y) * dv_X) / denom_v2;
+    float duY_X = dr_dX * pos.y - a;
+    float dlY_X = (duY_X * denom_v - (r * pos.y - a * pos.x) * dv_X) / denom_v2;
+    float dlZ_X = (r > 1.0e-7) ? (-pos.z * dr_dX) / r2 : 0.0;
+    float dl_p_X = dlX_X * p_spatial.x + dlY_X * p_spatial.y + dlZ_X * p_spatial.z;
 
     float dv_Y = 2.0 * r * dr_dY;
-    float duX_Y = dr_dY * X + a;
-    float dlX_Y = (duX_Y * denom_v - (r * X + a * Y) * dv_Y) / denom_v2;
-    float duY_Y = dr_dY * Y + r;
-    float dlY_Y = (duY_Y * denom_v - (r * Y - a * X) * dv_Y) / denom_v2;
-    float dlZ_Y = (r > 1.0e-7) ? (-Z * dr_dY) / r2 : 0.0;
-    vec4 dl_dY = vec4(0.0, dlX_Y, dlY_Y, dlZ_Y);
+    float duX_Y = dr_dY * pos.x + a;
+    float dlX_Y = (duX_Y * denom_v - (r * pos.x + a * pos.y) * dv_Y) / denom_v2;
+    float duY_Y = dr_dY * pos.y + r;
+    float dlY_Y = (duY_Y * denom_v - (r * pos.y - a * pos.x) * dv_Y) / denom_v2;
+    float dlZ_Y = (r > 1.0e-7) ? (-pos.z * dr_dY) / r2 : 0.0;
+    float dl_p_Y = dlX_Y * p_spatial.x + dlY_Y * p_spatial.y + dlZ_Y * p_spatial.z;
 
     float dv_Z = 2.0 * r * dr_dZ;
-    float duX_Z = (dr_dZ * X);
-    float dlX_Z = (duX_Z * denom_v - (r * X + a * Y) * dv_Z) / denom_v2;
-    float duY_Z = (dr_dZ * Y);
-    float dlY_Z = (duY_Z * denom_v - (r * Y - a * X) * dv_Z) / denom_v2;
-    float dlZ_Z = (r > 1.0e-7) ? (r - Z * dr_dZ) / r2 : 0.0;
-    vec4 dl_dZ = vec4(0.0, dlX_Z, dlY_Z, dlZ_Z);
+    float duX_Z = (dr_dZ * pos.x);
+    float dlX_Z = (duX_Z * denom_v - (r * pos.x + a * pos.y) * dv_Z) / denom_v2;
+    float duY_Z = (dr_dZ * pos.y);
+    float dlY_Z = (duY_Z * denom_v - (r * pos.y - a * pos.x) * dv_Z) / denom_v2;
+    float dlZ_Z = (r > 1.0e-7) ? (r - pos.z * dr_dZ) / r2 : 0.0;
+    float dl_p_Z = dlX_Z * p_spatial.x + dlY_Z * p_spatial.y + dlZ_Z * p_spatial.z;
 
-    // 4. Assemble ∂_i g^μν = -2 (∂_i H) l^μ l^ν - 2 H (∂_i l^μ) l^ν - 2 H l^μ (∂_i l^ν)
-    #define ASSEMBLE_DG(dg, dH_di, dl_di) \
-        for (int mu = 0; mu < 4; mu++) { \
-            for (int nu = 0; nu < 4; nu++) { \
-                dg[mu][nu] = -2.0 * dH_di * l[mu] * l[nu] - 2.0 * H * (dl_di[mu] * l[nu] + l[mu] * dl_di[nu]); \
-            } \
-        }
-
-    ASSEMBLE_DG(dg_dX, dH_dX, dl_dX)
-    ASSEMBLE_DG(dg_dY, dH_dY, dl_dY)
-    ASSEMBLE_DG(dg_dZ, dH_dZ, dl_dZ)
-}
-
-// Evaluates the 6D phase space RHS
-void evaluate_rhs(
-    float M, float a,
-    vec3 pos, vec3 p_spatial,
-    out vec3 dPos, out vec3 dP
-) {
-    float r = compute_r_KS(a, pos.x, pos.y, pos.z);
-    mat4 gInv = compute_g_inv(M, a, pos.x, pos.y, pos.z, r);
-
-    mat4 dg_dX, dg_dY, dg_dZ;
-    compute_spatial_derivatives(M, a, pos.x, pos.y, pos.z, r, dg_dX, dg_dY, dg_dZ);
-
-    vec4 p = vec4(-1.0, p_spatial.x, p_spatial.y, p_spatial.z);
-
-    // dx^i / dλ = g^{iν} p_ν
-    // Matrix columns are indexed as gInv[col][row], so gInv[nu][i]
-    dPos.x = gInv[0][1] * p.x + gInv[1][1] * p.y + gInv[2][1] * p.z + gInv[3][1] * p.w;
-    dPos.y = gInv[0][2] * p.x + gInv[1][2] * p.y + gInv[2][2] * p.z + gInv[3][2] * p.w;
-    dPos.z = gInv[0][3] * p.x + gInv[1][3] * p.y + gInv[2][3] * p.z + gInv[3][3] * p.w;
-
-    // dp_i / dλ = -1/2 (∂_i g^αβ) p_α p_β
-    #define CONTRA_DP(dg) (-0.5 * dot(p, dg * p))
-    dP.x = CONTRA_DP(dg_dX);
-    dP.y = CONTRA_DP(dg_dY);
-    dP.z = CONTRA_DP(dg_dZ);
+    dP.x = Lp * (dH_dX * Lp + twoH * dl_p_X);
+    dP.y = Lp * (dH_dY * Lp + twoH * dl_p_Y);
+    dP.z = Lp * (dH_dZ * Lp + twoH * dl_p_Z);
 }
 
 // Single RK4 step
@@ -352,7 +320,7 @@ void main() {
         vec3 prevP = p_spatial;
 
         // Adaptive step size: smaller near photon sphere and horizon
-        float dlambda = clamp(0.08 * r, 0.015, 0.45);
+        float dlambda = clamp(0.08 * r, 0.02, 0.35);
         rk4_step(u_Mass, u_Spin, pos, p_spatial, dlambda);
 
         // Check for intersection with thin equatorial accretion disk at Z = 0
@@ -368,15 +336,16 @@ void main() {
                     float omega = sqrt(u_Mass) / (pow(rHit, 1.5) + u_Spin * sqrt(u_Mass));
 
                     // Disk 4-velocity u^mu = u0 * (1, -Omega * Y, Omega * X, 0)
-                    mat4 gHit = compute_g_lower(u_Mass, u_Spin, hitPos.x, hitPos.y, 0.0, rHit);
-                    vec4 vEmit = vec4(1.0, -omega * hitPos.y, omega * hitPos.x, 0.0);
+                    // Factored Kerr-Schild metric contraction at Z = 0:
+                    float a2 = u_Spin * u_Spin;
+                    float denom_v = rHit * rHit + a2;
+                    float lx = (rHit * hitPos.x + u_Spin * hitPos.y) / denom_v;
+                    float ly = (rHit * hitPos.y - u_Spin * hitPos.x) / denom_v;
+                    float H = u_Mass / rHit;
 
-                    float denomContract = 0.0;
-                    for (int i = 0; i < 4; i++) {
-                        for (int j = 0; j < 4; j++) {
-                            denomContract += gHit[i][j] * vEmit[i] * vEmit[j];
-                        }
-                    }
+                    float l_dot_u = 1.0 + omega * (ly * hitPos.x - lx * hitPos.y);
+                    float eta_u_u = -1.0 + (omega * omega) * (hitPos.x * hitPos.x + hitPos.y * hitPos.y);
+                    float denomContract = eta_u_u + 2.0 * H * (l_dot_u * l_dot_u);
                     float u0 = (denomContract < 0.0) ? 1.0 / sqrt(-denomContract) : 1.0;
 
                     // Invariant frequency shift g = (-p_mu u_obs^mu) / (-p_mu u_emit^mu)

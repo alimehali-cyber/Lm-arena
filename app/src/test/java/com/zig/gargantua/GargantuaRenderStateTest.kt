@@ -23,9 +23,20 @@ class GargantuaRenderStateTest {
         val state = GargantuaRenderState()
         assertEquals(0, state.viewportWidth)
         assertEquals(0, state.viewportHeight)
+        assertEquals(0.5f, state.renderScale, 0.001f)
         assertFalse(state.isPaused)
         assertTrue(state.isDarkTheme)
         assertFalse(state.isPersian)
+    }
+
+    @Test
+    fun renderScaleCanBeConfiguredUpToScientificCeiling() {
+        val state = GargantuaRenderState(renderScale = 1.0f)
+        assertEquals(1.0f, state.renderScale, 0.001f)
+
+        val holder = RenderStateHolder(state)
+        holder.updateState { it.copy(renderScale = 0.75f) }
+        assertEquals(0.75f, holder.getState().renderScale, 0.001f)
     }
 
     @Test
@@ -89,7 +100,9 @@ class GargantuaRenderStateTest {
                 frameTimeMs = 16.7f,
                 glesVersion = "OpenGL ES 3.2",
                 glRenderer = "Adreno 740",
-                isInitialized = true
+                isInitialized = true,
+                renderScale = 0.5f,
+                renderResolution = "540x1200"
             )
         )
 
@@ -97,6 +110,8 @@ class GargantuaRenderStateTest {
         assertEquals(59.8f, updated.fps, 0.01f)
         assertEquals(16.7f, updated.frameTimeMs, 0.01f)
         assertEquals("OpenGL ES 3.2", updated.glesVersion)
+        assertEquals(0.5f, updated.renderScale, 0.001f)
+        assertEquals("540x1200", updated.renderResolution)
         assertTrue(updated.isInitialized)
     }
 }

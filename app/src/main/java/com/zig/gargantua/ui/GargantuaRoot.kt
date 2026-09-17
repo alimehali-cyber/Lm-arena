@@ -396,6 +396,13 @@ private fun GargantuaRendererScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+                    if (telemetry.renderResolution.isNotEmpty()) {
+                        Text(
+                            text = String.format(Locale.US, "%s@%.1fx", telemetry.renderResolution, telemetry.renderScale),
+                            color = Color(0xFF81C784),
+                            fontSize = 11.sp
+                        )
+                    }
                     if (telemetry.frameTimeMs > 0f) {
                         Text(
                             text = String.format(Locale.US, "(%.1f ms)", telemetry.frameTimeMs),
