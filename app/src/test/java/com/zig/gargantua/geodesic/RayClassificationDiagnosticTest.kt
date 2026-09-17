@@ -138,7 +138,7 @@ class RayClassificationDiagnosticTest {
                         break
                     }
 
-                    if ((r >= rEscape || (r >= 35.0f && movingOutward)) && (movingOutward || step > 15)) {
+                    if ((r >= rEscape || (r >= diskOuterRadius && movingOutward)) && (movingOutward || step > 10)) {
                         outcome = RayClassification.ESCAPED
                         break
                     }
@@ -153,10 +153,10 @@ class RayClassificationDiagnosticTest {
                         baseStep.coerceIn(0.02f, 0.35f)
                     }
 
-                    if (abs(pos[2]) < 0.35f && r <= diskOuterRadius + 1.0f) {
+                    if (abs(pos[2]) < 0.60f && r <= diskOuterRadius + 1.0f) {
                         val vz = abs(pSpatial[2])
-                        val stepToDisk = abs(pos[2]) / max(0.12f, vz)
-                        dlambda = min(dlambda, max(0.03f, stepToDisk * 0.75f + 0.02f))
+                        val stepToDisk = abs(pos[2]) / max(0.15f, vz)
+                        dlambda = min(dlambda, max(0.04f, stepToDisk * 0.80f + 0.02f))
                     }
 
                     val nextState = GpuEquivalentIntegrator.rk4_step(
@@ -168,16 +168,22 @@ class RayClassificationDiagnosticTest {
                     pSpatial = floatArrayOf(nextState[3], nextState[4], nextState[5])
 
                     if (prevPos[2] * pos[2] <= 0.0f && prevPos[2] != pos[2]) {
-                        val tau = -prevPos[2] / (pos[2] - prevPos[2])
-                        if (tau in 0.0f..1.0f) {
-                            val hitX = prevPos[0] + tau * (pos[0] - prevPos[0])
-                            val hitY = prevPos[1] + tau * (pos[1] - prevPos[1])
-                            val rHit = sqrt(hitX * hitX + hitY * hitY)
-                            if (rHit in diskInnerRadius..diskOuterRadius) {
-                                outcome = RayClassification.DISK_EMISSION
-                                break
-                            }
+                        val tau = (-prevPos[2] / (pos[2] - prevPos[2])).coerceIn(0.0f, 1.0f)
+                        val hitX = prevPos[0] + tau * (pos[0] - prevPos[0])
+                        val hitY = prevPos[1] + tau * (pos[1] - prevPos[1])
+                        val rHit = sqrt(hitX * hitX + hitY * hitY)
+                        if (rHit in diskInnerRadius..diskOuterRadius) {
+                            outcome = RayClassification.DISK_EMISSION
+                            break
                         }
+                    }
+                }
+
+                if (outcome == RayClassification.UNRESOLVED) {
+                    if (movingOutward && prevR > 5.0f) {
+                        outcome = RayClassification.ESCAPED
+                    } else if (prevR <= rCapture + 0.3f) {
+                        outcome = RayClassification.CAPTURED
                     }
                 }
 

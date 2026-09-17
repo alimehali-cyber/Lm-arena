@@ -278,8 +278,10 @@ void main() {
     // Primary null Hamiltonian geodesic integration loop
     for (int step = 0; step < MAX_INTEGRATION_STEPS; step++) {
         if (step >= maxSteps) {
-            // Integration budget exhausted without proof of escape or disk intersection
-            if (rInit < rCapture || pos.x * pos.x + pos.y * pos.y + pos.z * pos.z <= (rCapture + 0.3) * (rCapture + 0.3)) {
+            // Integration budget exhausted: classify according to physical trajectory state
+            if (movingOutward && r > 5.0) {
+                rayState = 2; // Moving outward into asymptotic Minkowski space
+            } else if (rInit < rCapture || pos.x * pos.x + pos.y * pos.y + pos.z * pos.z <= (rCapture + 0.3) * (rCapture + 0.3)) {
                 rayState = 1; // Trapped in horizon vicinity
             }
             break;
@@ -297,8 +299,8 @@ void main() {
             break;
         }
 
-        // 2. Escape detection (physically reached asymptotic background)
-        if ((r >= rEscape || (r >= 35.0 && movingOutward)) && (movingOutward || step > 15)) {
+        // 2. Escape detection (physically reached asymptotic background or cleared outer disk boundary moving outward)
+        if ((r >= rEscape || (r >= u_DiskOuterRadius && movingOutward)) && (movingOutward || step > 10)) {
             // Compute spatial 3-velocity direction at escape
             mat4 gInv = compute_g_inv(u_Mass, u_Spin, pos.x, pos.y, pos.z, r);
             vec4 pFinal = vec4(-1.0, p_spatial);
@@ -315,85 +317,83 @@ void main() {
         vec3 prevPos = pos;
         vec3 prevP = p_spatial;
 
-        // Adaptive step size: smaller near photon sphere and equatorial plane, larger in weak field
+        // Adaptive step size: robust bounded steps preventing ray-crawling near disk plane
         float baseStep = 0.08 * r;
         float dlambda = (r > 10.0 && (movingOutward || r > 20.0)) ? clamp(baseStep, 0.02, 0.75) : clamp(baseStep, 0.02, 0.35);
-        if (u_EnableDisk == 1 && abs(pos.z) < 0.35 && r <= u_DiskOuterRadius + 1.0) {
+        if (u_EnableDisk == 1 && abs(pos.z) < 0.60 && r <= u_DiskOuterRadius + 1.0) {
             float vz = abs(p_spatial.z);
-            float stepToDisk = abs(pos.z) / max(0.12, vz);
-            dlambda = min(dlambda, max(0.03, stepToDisk * 0.75 + 0.02));
+            float stepToDisk = abs(pos.z) / max(0.15, vz);
+            dlambda = min(dlambda, max(0.04, stepToDisk * 0.80 + 0.02));
         }
         rk4_step(u_Mass, u_Spin, pos, p_spatial, dlambda);
 
         // Check for intersection with thin equatorial accretion disk at Z = 0
         if (u_EnableDisk == 1 && prevPos.z * pos.z <= 0.0 && prevPos.z != pos.z) {
-            float tau = -prevPos.z / (pos.z - prevPos.z);
-            if (tau >= 0.0 && tau <= 1.0) {
-                vec3 hitPos = prevPos + tau * (pos - prevPos);
-                float rHit = length(hitPos.xy);
-                if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
-                    vec3 hitP = prevP + tau * (p_spatial - prevP);
+            float tau = clamp(-prevPos.z / (pos.z - prevPos.z), 0.0, 1.0);
+            vec3 hitPos = mix(prevPos, pos, tau);
+            float rHit = length(hitPos.xy);
+            if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
+                vec3 hitP = mix(prevP, p_spatial, tau);
 
-                    // Relativistic Keplerian angular velocity Omega = sqrt(M) / (r^(3/2) + a * sqrt(M))
-                    float omega = sqrt(u_Mass) / (pow(rHit, 1.5) + u_Spin * sqrt(u_Mass));
+                // Relativistic Keplerian angular velocity Omega = sqrt(M) / (r^(3/2) + a * sqrt(M))
+                float omega = sqrt(u_Mass) / (pow(rHit, 1.5) + u_Spin * sqrt(u_Mass));
 
-                    // Disk 4-velocity u^mu = u0 * (1, -Omega * Y, Omega * X, 0)
-                    // Factored Kerr-Schild metric contraction at Z = 0:
-                    float a2 = u_Spin * u_Spin;
-                    float denom_v = rHit * rHit + a2;
-                    float lx = (rHit * hitPos.x + u_Spin * hitPos.y) / denom_v;
-                    float ly = (rHit * hitPos.y - u_Spin * hitPos.x) / denom_v;
-                    float H = u_Mass / rHit;
+                // Disk 4-velocity u^mu = u0 * (1, -Omega * Y, Omega * X, 0)
+                // Factored Kerr-Schild metric contraction at Z = 0:
+                float a2 = u_Spin * u_Spin;
+                float denom_v = rHit * rHit + a2;
+                float lx = (rHit * hitPos.x + u_Spin * hitPos.y) / denom_v;
+                float ly = (rHit * hitPos.y - u_Spin * hitPos.x) / denom_v;
+                float H = u_Mass / rHit;
 
-                    float l_dot_u = 1.0 + omega * (ly * hitPos.x - lx * hitPos.y);
-                    float eta_u_u = -1.0 + (omega * omega) * (hitPos.x * hitPos.x + hitPos.y * hitPos.y);
-                    float denomContract = eta_u_u + 2.0 * H * (l_dot_u * l_dot_u);
-                    float u0 = (denomContract < 0.0) ? 1.0 / sqrt(-denomContract) : 1.0;
+                float l_dot_u = 1.0 + omega * (ly * hitPos.x - lx * hitPos.y);
+                float eta_u_u = -1.0 + (omega * omega) * (hitPos.x * hitPos.x + hitPos.y * hitPos.y);
+                float denomContract = eta_u_u + 2.0 * H * (l_dot_u * l_dot_u);
+                float u0 = (denomContract < 0.0) ? 1.0 / sqrt(-denomContract) : 1.0;
 
-                    // Invariant frequency shift g = (-p_mu u_obs^mu) / (-p_mu u_emit^mu)
-                    float lz = hitPos.x * hitP.y - hitPos.y * hitP.x;
-                    float denomG = u0 * (1.0 + omega * lz);
+                // Invariant frequency shift g = (-p_mu u_obs^mu) / (-p_mu u_emit^mu)
+                float lz = hitPos.x * hitP.y - hitPos.y * hitP.x;
+                float denomG = u0 * (1.0 + omega * lz);
 
-                    // Static observer at camera position
-                    float uObs0 = 1.0 / sqrt(max(1.0e-6, -g[0][0]));
-                    float gShift = (abs(denomG) > 1.0e-6) ? clamp(uObs0 / denomG, 0.05, 5.0) : 1.0;
+                // Static observer at camera position
+                float uObs0 = 1.0 / sqrt(max(1.0e-6, -g[0][0]));
+                float gShift = (abs(denomG) > 1.0e-6) ? clamp(uObs0 / denomG, 0.05, 5.0) : 1.0;
 
-                    // Novikov-Thorne-inspired thin-disk flux profile F(r) = (M/r^3) * [1 - sqrt(r_in/r)]
-                    float rRatio = u_DiskInnerRadius / rHit;
-                    float F = (u_Mass / (rHit * rHit * rHit)) * max(0.0, 1.0 - sqrt(rRatio));
-                    float tEmit = pow(max(0.0, F), 0.25);
-                    float tObs = gShift * tEmit;
+                // Novikov-Thorne-inspired thin-disk flux profile F(r) = (M/r^3) * [1 - sqrt(r_in/r)]
+                float rRatio = u_DiskInnerRadius / rHit;
+                float F = (u_Mass / (rHit * rHit * rHit)) * max(0.0, 1.0 - sqrt(rRatio));
+                float tEmit = pow(max(1.0e-12, F), 0.25);
+                float tObs = gShift * tEmit;
 
-                    // Relativistic frequency shift beaming g^4
-                    float g2 = gShift * gShift;
-                    float g4 = g2 * g2;
+                // Relativistic frequency shift beaming g^4
+                float g2 = gShift * gShift;
+                float g4 = g2 * g2;
 
-                    // Principled dimensionless reference normalization:
-                    // Peak emissivity of Novikov-Thorne profile analytically occurs at r_peak = (49/36) * r_in:
-                    float rPeak = 1.361111 * u_DiskInnerRadius;
-                    float fPeak = u_Mass / (7.0 * rPeak * rPeak * rPeak);
-                    float fNorm = (fPeak > 1.0e-7) ? clamp(F / fPeak, 0.0, 1.0) : 0.0;
+                // Principled dimensionless reference normalization:
+                // Peak emissivity of Novikov-Thorne profile analytically occurs at r_peak = (49/36) * r_in:
+                float rPeak = 1.361111 * u_DiskInnerRadius;
+                float fPeak = u_Mass / (7.0 * rPeak * rPeak * rPeak);
+                float fNorm = (fPeak > 1.0e-7) ? clamp(F / fPeak, 0.0, 1.0) : 0.0;
 
-                    // Physical beamed intensity: I_phys = g^4 * fNorm
-                    float iPhys = g4 * fNorm;
+                // Continuous physical outer boundary taper approaching black at finite boundary
+                float outerTaper = clamp((u_DiskOuterRadius - rHit) / 1.5, 0.0, 1.0);
 
-                    // Dimensionless dynamic-range calibration for optical display:
-                    // Bridges optical Rayleigh-Jeans regime (B_nu ~ T ~ F^0.25) and bolometric transfer,
-                    // expanding visual visibility of the redshifted receding flank without blowing out approaching hotspot.
-                    float radiance = 0.60 * pow(max(0.0, iPhys), 0.60);
+                // Physical beamed transferred emission: I_phys = g^4 * fNorm * outerTaper
+                // Preserves exact physical radial hierarchy and strong falloff without nonlinear dynamic-range flattening
+                float iPhys = g4 * fNorm * outerTaper;
+                float radiance = iPhys;
 
-                    // Thermal blackbody spectral color approximation
-                    float tNorm = clamp(tObs * 4.0, 0.0, 2.5);
-                    vec3 thermalRamp = vec3(
-                        clamp(1.0 + 0.3 * tNorm, 0.0, 1.5),
-                        clamp(tNorm * tNorm * 0.45 + tNorm * 0.25, 0.0, 1.2),
-                        clamp(tNorm * tNorm * tNorm * 0.35, 0.0, 1.2)
-                    );
+                // Thermal blackbody spectral color approximation
+                float tNorm = clamp(tObs * 4.0, 0.0, 2.5);
+                vec3 thermalRamp = vec3(
+                    clamp(1.0 + 0.3 * tNorm, 0.0, 1.5),
+                    clamp(tNorm * tNorm * 0.45 + tNorm * 0.25, 0.0, 1.2),
+                    clamp(tNorm * tNorm * tNorm * 0.35, 0.0, 1.2)
+                );
 
-                    diskColor = radiance * thermalRamp;
-                    rayState = 3; // DISK
-                    break;
-                }
+                diskColor = radiance * thermalRamp;
+                rayState = 3; // DISK
+                break;
             }
         }
     }

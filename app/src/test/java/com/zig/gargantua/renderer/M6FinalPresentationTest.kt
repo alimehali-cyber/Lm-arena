@@ -47,8 +47,9 @@ class M6FinalPresentationTest {
         val fPeak = peakFlux()
         val fNorm = if (fPeak > 1e-7) (f / fPeak).coerceIn(0.0, 1.0) else 0.0
         val g4 = g * g * g * g
-        val iPhys = g4 * fNorm
-        return 0.60 * max(0.0, iPhys).pow(0.60)
+        val outerTaper = ((rOut - r) / 1.5).coerceIn(0.0, 1.0)
+        val iPhys = g4 * fNorm * outerTaper
+        return iPhys
     }
 
     private fun acesFilmic(x: Double): Double {
@@ -167,7 +168,7 @@ class M6FinalPresentationTest {
             val srgb = toSrgb(postAces)
 
             // Both sides must be clearly non-zero and luminous (sRGB >= 30 out of 255)
-            assertTrue("$name (r=$r, g=$g) must be clearly visible (rad=$rad > 0.03)", rad > 0.03)
+            assertTrue("$name (r=$r, g=$g) must be clearly visible (rad=$rad > 0.01)", rad > 0.01)
             assertTrue("$name (r=$r, g=$g) post-ACES ($postAces) must be > 0.01", postAces > 0.01)
             assertTrue("$name (r=$r, g=$g) sRGB ($srgb) must be clearly visible (>= 30)", srgb >= 30)
         }
@@ -183,8 +184,8 @@ class M6FinalPresentationTest {
         assertTrue("g4 must be defined as g2 * g2", content.contains("float g4 = g2 * g2;"))
 
         // Verify iPhys uses g4 exactly once
-        assertTrue("iPhys must be g4 * fNorm", content.contains("float iPhys = g4 * fNorm;"))
-        assertTrue("radiance must use iPhys", content.contains("float radiance = 0.60 * pow(max(0.0, iPhys), 0.60);"))
+        assertTrue("iPhys must be g4 * fNorm * outerTaper", content.contains("float iPhys = g4 * fNorm * outerTaper;"))
+        assertTrue("radiance must use iPhys", content.contains("float radiance = iPhys;"))
     }
 
     // 7. Doppler asymmetry remains physically directional
@@ -347,5 +348,181 @@ class M6FinalPresentationTest {
 
         assertEquals("Stationary state objects must be equal", stateA, stateB)
         assertEquals("Hash codes must match for identical states", stateA.hashCode(), stateB.hashCode())
+    }
+
+    // =========================================================================
+    // SECTION D: DETERMINISTIC TESTS FOR VISUAL / PHYSICAL HIERARCHY & REPAIRS
+    // =========================================================================
+
+    // D1. F(r) decreases from its peak toward the outer disk
+    @Test
+    fun fluxDecreasesFromPeakTowardOuterDisk() {
+        val rPeak = (49.0 / 36.0) * rIn
+        val testRadii = listOf(4.5, 6.0, 8.0, 10.0, 12.0, 16.0, 19.0, 21.8)
+
+        var prevFlux = novikovThorneFlux(rPeak)
+        assertTrue("Peak flux must be positive", prevFlux > 0.0)
+
+        for (r in testRadii) {
+            val currFlux = novikovThorneFlux(r)
+            assertTrue(
+                "Flux must monotonically decrease beyond peak: r=$r currFlux=$currFlux < prevFlux=$prevFlux",
+                currFlux < prevFlux
+            )
+            prevFlux = currFlux
+        }
+
+        // Verify strong physical radial falloff: outer disk flux is > 30x lower than peak flux
+        val fOuter = novikovThorneFlux(21.8)
+        val fPeak = novikovThorneFlux(rPeak)
+        val ratio = fPeak / fOuter
+        assertTrue("Flux falloff ratio from peak to outer edge must exceed 30x, got $ratio", ratio > 30.0)
+    }
+
+    // D2. F(rISCO) = 0 and plunge region is strictly zero
+    @Test
+    fun fluxAtIscoIsStrictlyZero() {
+        assertEquals("Flux exactly at ISCO must be strictly 0.0", 0.0, novikovThorneFlux(rIn), 1e-15)
+        assertEquals("Flux inside ISCO (plunge region) must be 0.0", 0.0, novikovThorneFlux(rIn - 0.1), 1e-15)
+        assertEquals("Flux near horizon must be 0.0", 0.0, novikovThorneFlux(1.8), 1e-15)
+        assertTrue("Flux just outside ISCO must be strictly positive", novikovThorneFlux(rIn + 0.05) > 0.0)
+    }
+
+    // D3. Physical transferred emission g^4 * F retains expected radial ordering when g is held constant
+    @Test
+    fun physicalEmissionRetainsRadialOrderingWhenGIsConstant() {
+        val constantG = 1.0
+        val rPeak = (49.0 / 36.0) * rIn
+        val testRadii = listOf(4.5, 6.0, 8.0, 12.0, 16.0, 20.0, 21.5)
+
+        var prevRad = diskRadianceNormalized(rPeak, constantG)
+        for (r in testRadii) {
+            val currRad = diskRadianceNormalized(r, constantG)
+            assertTrue(
+                "Physical emission at constant g must strictly decrease beyond peak: r=$r ($currRad) < ($prevRad)",
+                currRad < prevRad
+            )
+            prevRad = currRad
+        }
+
+        // At finite outer boundary rOut, emission must approach 0
+        assertEquals("Emission at rOut must be exactly 0.0", 0.0, diskRadianceNormalized(rOut, constantG), 1e-15)
+    }
+
+    // D4. No emitting-disk sample becomes black because of an unexplained renderer/compositor state
+    @Test
+    fun noEmittingDiskSampleBecomesBlack() {
+        val radii = listOf(3.1, 3.5, 4.0, 5.5, 7.0, 10.0, 14.0, 18.0, 21.0)
+        val gShifts = listOf(0.35, 0.45, 0.65, 0.85, 1.00, 1.25, 1.60, 2.10)
+
+        for (r in radii) {
+            for (g in gShifts) {
+                val rad = diskRadianceNormalized(r, g)
+                val postAces = acesFilmic(rad * 1.8)
+                val srgb = toSrgb(postAces)
+
+                assertTrue("Radiance at r=$r, g=$g must be > 0.0 (got $rad)", rad > 0.0)
+                assertTrue("Post-ACES at r=$r, g=$g must be > 0.0 (got $postAces)", postAces > 0.0)
+                assertTrue("sRGB at r=$r, g=$g must be >= 1 (got $srgb)", srgb >= 1)
+            }
+        }
+    }
+
+    // D5. Approaching/receding Doppler asymmetry remains intact
+    @Test
+    fun approachingRecedingDopplerAsymmetryIntact() {
+        val testRadii = listOf(3.5, 4.0, 6.0, 8.0, 12.0, 16.0, 20.0)
+        for (r in testRadii) {
+            val gApp = 1.0 + 1.2 / sqrt(r)
+            val gRec = 1.0 - 0.9 / sqrt(r)
+
+            val radApp = diskRadianceNormalized(r, gApp)
+            val radRec = diskRadianceNormalized(r, gRec)
+
+            assertTrue(
+                "Approaching radiance ($radApp) must exceed receding radiance ($radRec) at r=$r",
+                radApp > radRec
+            )
+
+            val acesApp = acesFilmic(radApp * 1.8)
+            val acesRec = acesFilmic(radRec * 1.8)
+            assertTrue(
+                "Approaching display ($acesApp) must exceed receding display ($acesRec) at r=$r",
+                acesApp > acesRec
+            )
+        }
+    }
+
+    // D6. No stars/background are reintroduced
+    @Test
+    fun noStarsOrBackgroundAreReintroduced() {
+        val content = readShader("gargantua_geodesic.frag")
+
+        // Escaped rays must produce clean black background without procedural stars
+        assertTrue(
+            "Escaped branch must output clean black background",
+            content.contains("fragColor = vec4(0.0, 0.0, 0.0, 1.0);")
+        )
+
+        // Shadow rays must produce pure black with alpha 0.0
+        assertTrue(
+            "Captured shadow branch must output alpha 0.0",
+            content.contains("fragColor = vec4(0.0, 0.0, 0.0, 0.0);")
+        )
+
+        // Escaped branch must never invoke sample_procedural_sky
+        assertFalse(
+            "sample_procedural_sky must not be called in fragColor assignment",
+            content.contains("fragColor = vec4(sample_procedural_sky")
+        )
+    }
+
+    // D7. Display transform does not reverse the physical brightness ordering of disk samples
+    @Test
+    fun displayTransformPreservesPhysicalBrightnessOrdering() {
+        // Monotonicity of ACES display transform: if A >= B, then ACES(A) >= ACES(B)
+        val linearRadianceSamples = listOf(0.0, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 2.5, 5.0, 12.0)
+        var prevLdr = -1.0
+        for (rad in linearRadianceSamples) {
+            val ldr = acesFilmic(rad * 1.8)
+            assertTrue("Display transform must be non-decreasing: prev=$prevLdr curr=$ldr", ldr >= prevLdr)
+            prevLdr = ldr
+        }
+
+        // Test radial ordering along the disk from peak outward on approaching side
+        val radii = listOf(4.0, 6.0, 8.0, 12.0, 16.0, 20.0, 21.8)
+        var prevDisplay = 1.1
+        for (r in radii) {
+            val g = 1.0 + 1.2 / sqrt(r)
+            val rad = diskRadianceNormalized(r, g)
+            val display = acesFilmic(rad * 1.8)
+            assertTrue(
+                "Display brightness at r=$r ($display) must not exceed inner peak ($prevDisplay)",
+                display <= prevDisplay + 1e-12
+            )
+            prevDisplay = display
+        }
+    }
+
+    // D8. Finite deterministic output; no NaN/Inf
+    @Test
+    fun physicalEmissionAndDisplayOutputAreFiniteAndDeterministic() {
+        for (step in 0..100) {
+            val r = rIn + (rOut - rIn) * (step / 100.0)
+            for (gInt in 2..40) {
+                val g = gInt * 0.1 // 0.2 to 4.0
+                val rad = diskRadianceNormalized(r, g)
+                assertFalse("Radiance must not be NaN for r=$r, g=$g", rad.isNaN())
+                assertFalse("Radiance must not be Infinite for r=$r, g=$g", rad.isInfinite())
+                assertTrue("Radiance must be non-negative for r=$r, g=$g", rad >= 0.0)
+
+                val postAces = acesFilmic(rad * 1.8)
+                assertFalse("Post-ACES must not be NaN for r=$r, g=$g", postAces.isNaN())
+                assertTrue("Post-ACES must be in [0, 1] for r=$r, g=$g", postAces in 0.0..1.0)
+
+                val srgb = toSrgb(postAces)
+                assertTrue("sRGB must be in [0, 255] for r=$r, g=$g", srgb in 0..255)
+            }
+        }
     }
 }
