@@ -1,7 +1,6 @@
 package com.zig.gargantua.validation
 
-import kotlin.math.abs
-import kotlin.math.sqrt
+import kotlin.math.*
 
 /**
  * Null Hamiltonian formulation for photon geodesics in Kerr spacetime.
