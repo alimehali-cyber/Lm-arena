@@ -66,12 +66,28 @@ class M6FinalPresentationTest {
         return (linear.coerceIn(0.0, 1.0).pow(1.0 / 2.2) * 255.0).roundToInt()
     }
 
+    private fun mainDir(): File {
+        var dir: File? = File("").absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, "app/src/main")
+            if (File(candidate, "assets/shaders").isDirectory) return candidate
+            val direct = File(dir, "src/main")
+            if (File(direct, "assets/shaders").isDirectory) return direct
+            dir = dir.parentFile
+        }
+        throw AssertionError("could not locate app/src/main")
+    }
+
+    private fun readShader(fileName: String): String {
+        val f = File(mainDir(), "assets/shaders/$fileName")
+        assertTrue("Shader file must exist: ${f.absolutePath}", f.exists())
+        return f.readText()
+    }
+
     // 1. M6 visible background contains no procedural stars
     @Test
     fun m6VisibleBackgroundContainsNoProceduralStars() {
-        val shaderFile = File("app/src/main/assets/shaders/gargantua_geodesic.frag")
-        assertTrue("Geodesic shader file must exist", shaderFile.exists())
-        val content = shaderFile.readText()
+        val content = readShader("gargantua_geodesic.frag")
 
         // Check that escaped rays output strictly vec4(0.0, 0.0, 0.0, 1.0)
         assertTrue(
@@ -90,8 +106,7 @@ class M6FinalPresentationTest {
     // 2. Captured rays remain black
     @Test
     fun capturedRaysRemainBlack() {
-        val shaderFile = File("app/src/main/assets/shaders/gargantua_geodesic.frag")
-        val content = shaderFile.readText()
+        val content = readShader("gargantua_geodesic.frag")
 
         assertTrue(
             "Captured branch must output pure black shadow with alpha 0.0",
@@ -102,8 +117,7 @@ class M6FinalPresentationTest {
     // 3. Escaped rays produce black M6 background
     @Test
     fun escapedRaysProduceBlackM6Background() {
-        val shaderFile = File("app/src/main/assets/shaders/gargantua_geodesic.frag")
-        val content = shaderFile.readText()
+        val content = readShader("gargantua_geodesic.frag")
 
         assertTrue(
             "Escaped rayState 2 must produce clean black background",
@@ -115,8 +129,7 @@ class M6FinalPresentationTest {
     // 4. Unresolved rays never produce stars
     @Test
     fun unresolvedRaysNeverProduceStars() {
-        val shaderFile = File("app/src/main/assets/shaders/gargantua_geodesic.frag")
-        val content = shaderFile.readText()
+        val content = readShader("gargantua_geodesic.frag")
 
         assertTrue(
             "Unresolved branch must produce pure black with diagnostic alpha 0.5",
@@ -124,11 +137,10 @@ class M6FinalPresentationTest {
         )
 
         // Check composite shader rejects alpha <= 0.5
-        val compositeFile = File("app/src/main/assets/shaders/gargantua_composite.frag")
-        assertTrue(compositeFile.exists())
+        val compositeContent = readShader("gargantua_composite.frag")
         assertTrue(
             "Composite shader must reject alpha <= 0.5 to keep unresolved rays strictly black",
-            compositeFile.readText().contains("if (hdr.a <= 0.5)")
+            compositeContent.contains("if (hdr.a <= 0.5)")
         )
     }
 
@@ -284,8 +296,8 @@ class M6FinalPresentationTest {
     // 12. Information card uses compact bottom-corner placement
     @Test
     fun informationCardUsesCompactBottomCornerPlacement() {
-        val rootFile = File("app/src/main/java/com/zig/gargantua/ui/GargantuaRoot.kt")
-        assertTrue("GargantuaRoot.kt must exist", rootFile.exists())
+        val rootFile = File(mainDir(), "java/com/zig/gargantua/ui/GargantuaRoot.kt")
+        assertTrue("GargantuaRoot.kt must exist: ${rootFile.absolutePath}", rootFile.exists())
         val content = rootFile.readText()
 
         assertTrue(
