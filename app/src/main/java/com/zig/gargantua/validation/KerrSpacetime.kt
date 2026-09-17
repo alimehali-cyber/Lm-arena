@@ -5,6 +5,11 @@ import kotlin.math.*
 /**
  * Exact mathematical formulation of Kerr spacetime in Boyer-Lindquist coordinates (t, r, θ, φ).
  *
+ * COORDINATE-ROLE SEPARATION ARCHITECTURE:
+ * - M2 reference/validation mathematics: Boyer-Lindquist coordinates (t, r, θ, φ).
+ * - M3/M4 production renderer: horizon-penetrating Kerr-Schild coordinates (T, X, Y, Z).
+ * - This separation is intentional so the production implementation is not validated only against itself.
+ *
  * Primary Reference:
  *   Kyleyhw "black_hole" repository (Kerr metric and null geodesic formulation).
  * Supporting References:

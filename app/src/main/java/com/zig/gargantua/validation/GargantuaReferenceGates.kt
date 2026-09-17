@@ -5,6 +5,11 @@ import kotlin.math.*
 /**
  * Machine-checkable numerical reference gates for Gargantua.
  * Provides deterministic mathematical verification across all 7 M2 reference cases.
+ *
+ * COORDINATE-ROLE SEPARATION ARCHITECTURE:
+ * - M2 reference/validation mathematics: Boyer-Lindquist coordinates (t, r, θ, φ).
+ * - M3/M4 production renderer: horizon-penetrating Kerr-Schild coordinates (T, X, Y, Z).
+ * - This separation is intentional so the production implementation is not validated only against itself.
  */
 object GargantuaReferenceGates {
 

@@ -6,6 +6,11 @@ import kotlin.math.sqrt
 /**
  * Null Hamiltonian formulation for photon geodesics in Kerr spacetime.
  *
+ * COORDINATE-ROLE SEPARATION ARCHITECTURE:
+ * - M2 reference/validation mathematics: Boyer-Lindquist coordinates (t, r, θ, φ).
+ * - M3/M4 production renderer: horizon-penetrating Kerr-Schild coordinates (T, X, Y, Z).
+ * - This separation is intentional so the production implementation is not validated only against itself.
+ *
  * For a massless particle (photon):
  * H = 1/2 g^μν p_μ p_ν = 0
  *
@@ -88,6 +93,64 @@ object NullHamiltonian {
             p_r = pr,
             p_theta = p_theta,
             p_phi = p_phi
+        )
+    }
+
+    /**
+     * Independently constructs a null photon state from analytically specified Carter integrals:
+     * Energy E, axial angular momentum L_z, and Carter constant Q (Carter 1968):
+     *
+     *   p_θ = ± √[ Q + cos²θ ( a² E² - L_z² / sin²θ ) ]
+     *   p_r = ± √[ P(r)² - Δ(r) ( Q + (L_z - a E)² ) ] / Δ(r)
+     *   where P(r) = E(r² + a²) - a L_z.
+     *
+     * This formulation is completely independent of the inverse metric Hamiltonian inversion,
+     * breaking circularity between state construction and Hamiltonian evaluation.
+     */
+    fun createCarterAnalyticNullState(
+        spacetime: KerrSpacetime,
+        t: Double = 0.0,
+        r: Double,
+        theta: Double,
+        phi: Double = 0.0,
+        energy: Double = 1.0,
+        Lz: Double,
+        carterQ: Double,
+        inward: Boolean = true,
+        upward: Boolean = false
+    ): PhotonState {
+        val cosT = cos(theta)
+        val sinT = sin(theta).coerceAtLeast(1e-12)
+        val a = spacetime.a
+        val del = spacetime.delta(r)
+
+        // Polar momentum from Carter's Θ(θ)
+        val thetaPotential = carterQ + cosT * cosT * (a * a * energy * energy - (Lz * Lz) / (sinT * sinT))
+        require(thetaPotential >= -1e-12) {
+            "Forbidden polar turning region: Θ(θ) = $thetaPotential < 0"
+        }
+        val pThetaMag = sqrt(thetaPotential.coerceAtLeast(0.0))
+        val pTheta = if (upward) pThetaMag else -pThetaMag
+
+        // Radial momentum from Carter's R(r)
+        val bigP = energy * (r * r + a * a) - a * Lz
+        val totalCarterK = carterQ + (Lz - a * energy) * (Lz - a * energy)
+        val radialPotential = bigP * bigP - del * totalCarterK
+        require(radialPotential >= -1e-12) {
+            "Forbidden radial turning region: R(r) = $radialPotential < 0"
+        }
+        val prMag = sqrt(radialPotential.coerceAtLeast(0.0)) / del
+        val p_r = if (inward) -prMag else prMag
+
+        return PhotonState(
+            t = t,
+            r = r,
+            theta = theta,
+            phi = phi,
+            p_t = -energy,
+            p_r = p_r,
+            p_theta = pTheta,
+            p_phi = Lz
         )
     }
 

@@ -36,6 +36,31 @@ class NullHamiltonianTest {
     }
 
     @Test
+    fun independentCarterConstructedNullStateSatisfiesZeroHamiltonian() {
+        // Breaks state-construction circularity: constructs momentum via Carter's first-order integrals
+        // and evaluates H independently through the metric tensor.
+        val spacetime = KerrSpacetime(M = 1.0, a = 0.7)
+
+        for (r in listOf(8.0, 15.0, 30.0)) {
+            for (th in listOf(Math.PI * 0.4, Math.PI * 0.5, Math.PI * 0.6)) {
+                val state = NullHamiltonian.createCarterAnalyticNullState(
+                    spacetime = spacetime,
+                    r = r,
+                    theta = th,
+                    energy = 1.0,
+                    Lz = 2.5,
+                    carterQ = 4.0,
+                    inward = true,
+                    upward = true
+                )
+
+                val h = NullHamiltonian.evaluate(spacetime, state)
+                assertEquals("Independent Carter-constructed state must satisfy H = 0 within 1e-13", 0.0, h, 1e-13)
+            }
+        }
+    }
+
+    @Test
     fun forbiddenStateThrowsException() {
         val spacetime = KerrSpacetime(M = 1.0, a = 0.8)
         org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
