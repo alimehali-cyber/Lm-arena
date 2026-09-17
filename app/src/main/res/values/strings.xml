@@ -109,4 +109,9 @@
     <!-- Gravity Sandbox -->
     <string name="gravity_sandbox_title">Gravity Sandbox</string>
     <string name="gravity_sandbox_subtitle">N-Body Newton-Kepler Simulator</string>
+
+    <!-- Gargantua Laboratory -->
+    <string name="gargantua_title">Gargantua</string>
+    <string name="gargantua_subtitle">Relativistic Black Hole Laboratory</string>
+    <string name="gargantua_description">Interactive Kerr metric black hole laboratory: curved spacetime ray-marching, accretion disk relativistic beaming, gravitational redshift, and photon orbits.</string>
 </resources>

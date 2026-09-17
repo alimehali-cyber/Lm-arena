@@ -109,4 +109,9 @@
     <!-- Gravity Sandbox -->
     <string name="gravity_sandbox_title">میز گرانش</string>
     <string name="gravity_sandbox_subtitle">شبیه‌سازی برهم‌کنش‌های N-جرم گرانشی</string>
+
+    <!-- Gargantua Laboratory -->
+    <string name="gargantua_title">گارگانتوا</string>
+    <string name="gargantua_subtitle">آزمایشگاه نسبیتی سیاه‌چاله</string>
+    <string name="gargantua_description">آزمایشگاه تعاملی سیاه‌چاله چرخان کر: ردیابی پرتو در فضازمان خمیده، درخشش نسبیتی قرص برافزایشی، انتقال به سرخ گرانشی و مدار فوتون‌ها.</string>
 </resources>

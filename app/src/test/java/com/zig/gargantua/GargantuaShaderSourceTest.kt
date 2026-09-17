@@ -1,0 +1,83 @@
+package com.zig.gargantua
+
+import com.zig.gargantua.renderer.ShaderSource
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.io.File
+
+/**
+ * Validates Gargantua canonical shader assets and roadmap lock constraints.
+ * Ensures the M1 GPU health test contains NO Kerr physics or black hole approximations.
+ */
+class GargantuaShaderSourceTest {
+
+    @Test
+    fun canonicalShaderAssetPathsAreConfigured() {
+        assertEquals("shaders/gargantua_test.vert", ShaderSource.VERTEX_SHADER_ASSET_PATH)
+        assertEquals("shaders/gargantua_test.frag", ShaderSource.FRAGMENT_SHADER_ASSET_PATH)
+    }
+
+    @Test
+    fun canonicalVertexShaderDeclaresExpectedGles3Layout() {
+        val vertFile = findAssetFile(ShaderSource.VERTEX_SHADER_ASSET_PATH)
+        assertTrue("Canonical vertex shader asset must exist", vertFile.isFile)
+
+        val vert = vertFile.readText()
+        assertTrue("Must declare #version 300 es", vert.contains("#version 300 es"))
+        assertTrue("Must declare a_Position attribute", vert.contains("a_Position"))
+        assertTrue("Must declare a_TexCoord attribute", vert.contains("a_TexCoord"))
+        assertTrue("Must compute gl_Position", vert.contains("gl_Position"))
+    }
+
+    @Test
+    fun canonicalFragmentShaderDeclaresExpectedUniformsAndOutputs() {
+        val fragFile = findAssetFile(ShaderSource.FRAGMENT_SHADER_ASSET_PATH)
+        assertTrue("Canonical fragment shader asset must exist", fragFile.isFile)
+
+        val frag = fragFile.readText()
+        assertTrue("Must declare #version 300 es", frag.contains("#version 300 es"))
+        assertTrue("Must declare u_Resolution uniform", frag.contains("uniform vec2 u_Resolution;"))
+        assertTrue("Must declare u_Time uniform", frag.contains("uniform float u_Time;"))
+        assertTrue("Must declare output fragColor", frag.contains("out vec4 fragColor;"))
+    }
+
+    @Test
+    fun m1CanonicalShaderDoesNotContainAnyKerrOrGeodesicPhysics() {
+        // Strict M1 non-goal check: ensure no black hole math was prematurely added
+        val bannedKeywords = listOf(
+            "kerr", "schwarzschild", "geodesic", "isco", "ergosphere",
+            "eventhorizon", "event_horizon", "christoffel", "rungekutta",
+            "accretion", "redshift", "beaming", "lorentz", "\\bmetric\\b"
+        )
+
+        val vertText = findAssetFile(ShaderSource.VERTEX_SHADER_ASSET_PATH).readText()
+        val fragText = findAssetFile(ShaderSource.FRAGMENT_SHADER_ASSET_PATH).readText()
+        val allShaderText = (vertText + fragText).lowercase()
+
+        for (banned in bannedKeywords) {
+            val found = if (banned.startsWith("\\b")) {
+                Regex(banned).containsMatchIn(allShaderText)
+            } else {
+                allShaderText.contains(banned)
+            }
+            assertFalse(
+                "M1 canonical shader must not contain '$banned' (reserved for M3-M6)",
+                found
+            )
+        }
+    }
+
+    private fun findAssetFile(relativePath: String): File {
+        var dir: File? = File("").absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, "app/src/main/assets/$relativePath")
+            if (candidate.isFile) return candidate
+            val direct = File(dir, "src/main/assets/$relativePath")
+            if (direct.isFile) return direct
+            dir = dir.parentFile
+        }
+        return File("app/src/main/assets/$relativePath")
+    }
+}

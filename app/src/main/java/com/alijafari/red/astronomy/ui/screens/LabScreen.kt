@@ -59,6 +59,16 @@ enum class LabFeatureType(
         icon = Icons.Default.Public,
         isAvailable = true
     ),
+    GARGANTUA(
+        titleEn = "Gargantua",
+        titleFa = "گارگانتوا",
+        subtitleEn = "Relativistic Black Hole Laboratory",
+        subtitleFa = "آزمایشگاه نسبیتی سیاه‌چاله",
+        descriptionEn = "Interactive Kerr metric black hole laboratory: curved spacetime ray-marching, accretion disk relativistic beaming, gravitational redshift, and photon orbits.",
+        descriptionFa = "آزمایشگاه تعاملی سیاه‌چاله چرخان کر: ردیابی پرتو در فضازمان خمیده، درخشش نسبیتی قرص برافزایشی، انتقال به سرخ گرانشی و مدار فوتون‌ها.",
+        icon = Icons.Default.FilterTiltShift,
+        isAvailable = true
+    ),
     ORBITAL_RESONANCE(
         titleEn = "Orbital Resonance & Keplerian Elements",
         titleFa = "رزونانس مداری و عناصر کپلری",
@@ -98,6 +108,13 @@ fun LabScreen(
         )
     } else if (selectedFeature == LabFeatureType.GRAVITY_SANDBOX) {
         com.zig.gravity.ui.GravitySandboxRoot(
+            onBack = { selectedFeature = null },
+            modifier = modifier,
+            startInPersian = isFa,
+            startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
+        )
+    } else if (selectedFeature == LabFeatureType.GARGANTUA) {
+        com.zig.gargantua.ui.GargantuaRoot(
             onBack = { selectedFeature = null },
             modifier = modifier,
             startInPersian = isFa,
