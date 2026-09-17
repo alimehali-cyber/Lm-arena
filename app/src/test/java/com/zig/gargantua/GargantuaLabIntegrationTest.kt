@@ -69,8 +69,8 @@ class GargantuaLabIntegrationTest {
 
     @Test
     fun stringResourcesArePresentInBothLocales() {
-        val enXml = readSource("../res/values/strings.xml")
-        val faXml = readSource("../res/values-fa/strings.xml")
+        val enXml = readSource("res/values/strings.xml")
+        val faXml = readSource("res/values-fa/strings.xml")
 
         assertTrue(enXml.contains("<string name=\"gargantua_title\">$titleEn</string>"))
         assertTrue(faXml.contains("<string name=\"gargantua_title\">$titleFa</string>"))
