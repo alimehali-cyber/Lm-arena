@@ -70,4 +70,57 @@ class DiskConvergenceTest {
         assertTrue("Hit radius difference between finest meshes must be < 1e-3, got $diffR23", diffR23 < 1e-3)
         assertTrue("Frequency shift difference between finest meshes must be < 1e-3, got $diffG23", diffG23 < 1e-3)
     }
+
+    @Test
+    fun thinDiskIntersectionNearIscoConvergesAcrossThreeRefinementLevels() {
+        val M = 1.0
+        val a = 0.8
+        val spacetime = KerrSchildSpacetime(M = M, a = a)
+        val disk = AccretionDiskModel(M = M, a = a, outerRadius = 22.0)
+
+        // Grazing near-ISCO ray crossing the equatorial plane in the strong relativistic field
+        val initialPhoton = CameraModel.createNullStateFromDirection(
+            spacetime = spacetime,
+            X = -20.0, Y = 1.5, Z = 2.5,
+            dx = 1.0, dy = 0.05, dz = 0.12
+        )
+
+        // Three successive refinement levels (standard, fine, ultra-fine)
+        val stepLevels = listOf(0.08, 0.04, 0.02)
+        val hitRadii = mutableListOf<Double>()
+        val hitPositionsX = mutableListOf<Double>()
+        val hitPositionsY = mutableListOf<Double>()
+
+        for (h in stepLevels) {
+            val integrator = KerrPhotonIntegrator(
+                spacetime = spacetime,
+                disk = disk,
+                maxSteps = 3000
+            )
+            val result = integrator.traceRay(initialPhoton, fixedStepSize = h)
+            assertTrue("Ray must consistently detect thin-disk intersection at step size $h", result.isDiskHit)
+            val hit = result.diskHit
+            assertNotNull("Disk hit result must not be null at step size $h", hit)
+
+            hitRadii.add(hit!!.rHit)
+            hitPositionsX.add(hit.hitX)
+            hitPositionsY.add(hit.hitY)
+        }
+
+        // Measure spatial distance between intersection coordinates across refinement levels
+        val d12 = kotlin.math.hypot(hitPositionsX[0] - hitPositionsX[1], hitPositionsY[0] - hitPositionsY[1])
+        val d23 = kotlin.math.hypot(hitPositionsX[1] - hitPositionsX[2], hitPositionsY[1] - hitPositionsY[2])
+
+        // Step refinement must monotonically reduce intersection uncertainty
+        assertTrue(
+            "Spatial intersection must converge with refinement: d23 ($d23) <= d12 ($d12)",
+            d23 <= d12 + 1e-10
+        )
+
+        // Ultra-fine agreement must be sub-millimeter (< 5e-4 in geometric M units)
+        assertTrue(
+            "Finest level intersection discrepancy must be < 5e-4 M, got $d23",
+            d23 < 5e-4
+        )
+    }
 }

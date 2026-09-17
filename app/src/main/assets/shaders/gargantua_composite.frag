@@ -23,9 +23,10 @@ vec3 aces_filmic(vec3 x) {
 void main() {
     vec4 hdr = texture(u_HdrTexture, v_TexCoord);
 
-    // Black hole shadow protection:
-    // If ray hit event horizon, alpha is 0.0. Shadow is guaranteed pure black.
-    if (hdr.a <= 0.0) {
+    // Black hole shadow protection and unresolved ray handling:
+    // If ray hit event horizon (alpha <= 0.0) or remained unresolved (alpha <= 0.5),
+    // strictly guarantee pure black.
+    if (hdr.a <= 0.5) {
         fragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }

@@ -203,29 +203,16 @@ vec3 sample_procedural_sky(vec3 dir) {
     float theta = acos(clamp(d.z, -1.0, 1.0));
     float phi = atan(d.y, d.x);
 
-    // Deep space background gradient
-    vec3 bgSlate = vec3(0.02, 0.03, 0.06);
-    vec3 bgDeepBlue = vec3(0.04, 0.06, 0.12);
-    float grad = 0.5 + 0.5 * d.z;
-    vec3 col = mix(bgSlate, bgDeepBlue, grad);
+    // Deep cosmic space void (pitch black baseline)
+    vec3 col = vec3(0.0004, 0.0006, 0.0010);
 
-    // Galactic equator plane
+    // Subtle galactic plane band (very faint deep space nebula)
     float galacticDist = abs(d.z * 0.8 + d.y * 0.6);
-    float milkyWay = exp(-galacticDist * galacticDist * 16.0) * 0.25;
-    col += vec3(0.25, 0.22, 0.35) * milkyWay;
-
-    // Structured celestial coordinate grid lines (every 30 degrees = π/6 rad)
-    float gridSpacing = 3.14159265 / 6.0;
-    float latRem = abs(mod(theta, gridSpacing) - gridSpacing * 0.5);
-    float lonRem = abs(mod(phi + 3.14159265, gridSpacing) - gridSpacing * 0.5);
-    float gridLineWidth = 0.015;
-    float latLine = 1.0 - smoothstep(0.0, gridLineWidth, abs(latRem - gridSpacing * 0.5));
-    float lonLine = 1.0 - smoothstep(0.0, gridLineWidth, abs(lonRem - gridSpacing * 0.5));
-    float grid = max(latLine, lonLine) * 0.20;
-    col += vec3(0.18, 0.35, 0.55) * grid;
+    float milkyWay = exp(-galacticDist * galacticDist * 16.0) * 0.005;
+    col += vec3(0.005, 0.006, 0.010) * milkyWay;
 
     // Procedural point stars using angular grid cells
-    float starScale = 40.0;
+    float starScale = 45.0;
     vec2 cell = floor(vec2(phi, theta) * starScale);
     float starRand = hash21(cell);
     if (starRand > 0.75) {
@@ -233,11 +220,11 @@ vec3 sample_procedural_sky(vec3 dir) {
         float dist = length(vec2(phi, theta) - starCenter) * starScale;
         float starBrightness = max(0.0, 1.0 - dist * 3.5);
         float starMag = (starRand - 0.75) * 4.0 * starBrightness;
-        vec3 starCol = (hash21(cell * 2.0) > 0.5) ? vec3(0.9, 0.95, 1.0) : vec3(1.0, 0.85, 0.65);
-        col += starCol * starMag;
+        vec3 starCol = (hash21(cell * 2.0) > 0.5) ? vec3(0.85, 0.92, 1.0) : vec3(1.0, 0.85, 0.65);
+        col += starCol * (starMag * 0.5);
     }
 
-    return clamp(col, 0.0, 1.0);
+    return col;
 }
 
 void main() {
@@ -275,8 +262,13 @@ void main() {
     float rEscape = 50.0;
 
     int maxSteps = clamp(u_MaxSteps, 40, MAX_INTEGRATION_STEPS);
-    bool isCaptured = false;
-    bool hitDisk = false;
+    
+    // Explicit Ray Termination Classification:
+    // 0 = UNRESOLVED (budget exhausted without proving capture, escape, or disk intersection)
+    // 1 = CAPTURED   (physically crossed event horizon capture threshold r <= rCapture)
+    // 2 = ESCAPED    (physically reached asymptotic background r >= rEscape moving outward)
+    // 3 = DISK       (physically intersected equatorial accretion disk)
+    int rayState = 0;
     vec3 diskColor = vec3(0.0);
     vec3 finalDir = rayDir;
 
@@ -286,9 +278,9 @@ void main() {
     // Primary null Hamiltonian geodesic integration loop
     for (int step = 0; step < MAX_INTEGRATION_STEPS; step++) {
         if (step >= maxSteps) {
-            // Only classify as shadow if photon is actually trapped near or inside horizon
+            // Integration budget exhausted without proof of escape or disk intersection
             if (rInit < rCapture || pos.x * pos.x + pos.y * pos.y + pos.z * pos.z <= (rCapture + 0.3) * (rCapture + 0.3)) {
-                isCaptured = true;
+                rayState = 1; // Trapped in horizon vicinity
             }
             break;
         }
@@ -299,13 +291,13 @@ void main() {
         }
         prevR = r;
 
-        // 1. Capture detection (inside black hole shadow)
+        // 1. Capture detection (physically inside black hole shadow)
         if (r <= rCapture) {
-            isCaptured = true;
+            rayState = 1;
             break;
         }
 
-        // 2. Escape detection (asymptotic background reached)
+        // 2. Escape detection (physically reached asymptotic background)
         if ((r >= rEscape || (r >= 35.0 && movingOutward)) && (movingOutward || step > 15)) {
             // Compute spatial 3-velocity direction at escape
             mat4 gInv = compute_g_inv(u_Mass, u_Spin, pos.x, pos.y, pos.z, r);
@@ -316,6 +308,7 @@ void main() {
                 gInv[0][3] * pFinal.x + gInv[1][3] * pFinal.y + gInv[2][3] * pFinal.z + gInv[3][3] * pFinal.w
             );
             finalDir = normalize(vSpatial);
+            rayState = 2;
             break;
         }
 
@@ -326,7 +319,9 @@ void main() {
         float baseStep = 0.08 * r;
         float dlambda = (r > 10.0 && (movingOutward || r > 20.0)) ? clamp(baseStep, 0.02, 0.75) : clamp(baseStep, 0.02, 0.35);
         if (u_EnableDisk == 1 && abs(pos.z) < 0.35 && r <= u_DiskOuterRadius + 1.0) {
-            dlambda = min(dlambda, max(0.02, abs(pos.z) * 0.5 + 0.03));
+            float vz = abs(p_spatial.z);
+            float stepToDisk = abs(pos.z) / max(0.12, vz);
+            dlambda = min(dlambda, max(0.03, stepToDisk * 0.75 + 0.02));
         }
         rk4_step(u_Mass, u_Spin, pos, p_spatial, dlambda);
 
@@ -372,7 +367,7 @@ void main() {
                     // Radiance with relativistic beaming g^4 (genuine unclipped HDR)
                     float g2 = gShift * gShift;
                     float g4 = g2 * g2;
-                    float radiance = max(0.0, g4 * F * 60.0);
+                    float radiance = max(0.0, g4 * F * 120.0);
 
                     // Thermal blackbody spectral color approximation
                     float tNorm = clamp(tObs * 4.0, 0.0, 2.5);
@@ -383,36 +378,26 @@ void main() {
                     );
 
                     diskColor = radiance * thermalRamp;
-                    hitDisk = true;
+                    rayState = 3; // DISK
                     break;
                 }
             }
         }
     }
 
-    if (hitDisk) {
+    if (rayState == 3) {
         // Relativistic equatorial accretion disk (unbounded HDR radiance)
         fragColor = vec4(diskColor, 1.0);
-    } else if (isCaptured) {
+    } else if (rayState == 1) {
         // True black hole shadow (strictly 0.0 radiance, alpha 0.0 for shadow protection)
         fragColor = vec4(0.0, 0.0, 0.0, 0.0);
-    } else {
-        // Gravitationally lensed procedural celestial background
-        if (finalDir == rayDir || length(finalDir) < 0.1) {
-            float rFinal = compute_r_KS(u_Spin, pos.x, pos.y, pos.z);
-            mat4 gInv = compute_g_inv(u_Mass, u_Spin, pos.x, pos.y, pos.z, rFinal);
-            vec4 pFinal = vec4(-1.0, p_spatial);
-            vec3 vSpatial = vec3(
-                gInv[0][1] * pFinal.x + gInv[1][1] * pFinal.y + gInv[2][1] * pFinal.z + gInv[3][1] * pFinal.w,
-                gInv[0][2] * pFinal.x + gInv[1][2] * pFinal.y + gInv[2][2] * pFinal.z + gInv[3][2] * pFinal.w,
-                gInv[0][3] * pFinal.x + gInv[1][3] * pFinal.y + gInv[2][3] * pFinal.z + gInv[3][3] * pFinal.w
-            );
-            float vLen = length(vSpatial);
-            if (vLen > 1.0e-6) {
-                finalDir = vSpatial / vLen;
-            }
-        }
+    } else if (rayState == 2) {
+        // Physically escaped ray: deep cosmic void with faint lensed stars
         vec3 color = sample_procedural_sky(finalDir);
         fragColor = vec4(color, 1.0);
+    } else {
+        // UNRESOLVED: budget exhausted without proving capture, escape, or disk intersection.
+        // Strictly avoid false star field or navy background. Alpha 0.5 marks unresolved in telemetry.
+        fragColor = vec4(0.0, 0.0, 0.0, 0.5);
     }
 }
