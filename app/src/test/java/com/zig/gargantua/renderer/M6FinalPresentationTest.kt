@@ -30,7 +30,7 @@ class M6FinalPresentationTest {
     private val M = 1.0
     private val a = 0.8
     private val rIn = KerrIsco.compute(M, a) // 2.9066M
-    private val rOut = 22.0M
+    private val rOut = 22.0
 
     private fun novikovThorneFlux(r: Double): Double {
         if (r <= rIn || r > rOut) return 0.0
