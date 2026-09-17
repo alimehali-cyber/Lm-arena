@@ -61,6 +61,9 @@ class GargantuaRenderer(
         val camDist: Float,
         val camInclinationDeg: Float,
         val camAzimuthDeg: Float,
+        val camTargetX: Float,
+        val camTargetY: Float,
+        val camTargetZ: Float,
         val maxSteps: Int,
         val enableDisk: Boolean,
         val diskOuterRadius: Float,
@@ -221,6 +224,9 @@ class GargantuaRenderer(
             camDist = state.camDist,
             camInclinationDeg = state.camInclinationDeg,
             camAzimuthDeg = state.camAzimuthDeg,
+            camTargetX = state.camTargetX,
+            camTargetY = state.camTargetY,
+            camTargetZ = state.camTargetZ,
             maxSteps = state.maxSteps,
             enableDisk = state.enableDisk,
             diskOuterRadius = state.diskOuterRadius,
@@ -256,15 +262,25 @@ class GargantuaRenderer(
                 val azRad = Math.toRadians(state.camAzimuthDeg.toDouble())
                 val dist = state.camDist.toDouble()
 
-                val camX = dist * sin(inclRad) * cos(azRad)
-                val camY = dist * sin(inclRad) * sin(azRad)
-                val camZ = dist * cos(inclRad)
+                val dirX = sin(inclRad) * cos(azRad)
+                val dirY = sin(inclRad) * sin(azRad)
+                val dirZ = cos(inclRad)
 
-                // Observer target is coordinate origin (0, 0, 0)
-                val fwdLen = sqrt(camX * camX + camY * camY + camZ * camZ)
-                val fwdX = -camX / fwdLen
-                val fwdY = -camY / fwdLen
-                val fwdZ = -camZ / fwdLen
+                // Observer target is (camTargetX, camTargetY, camTargetZ)
+                val camX = state.camTargetX.toDouble() + dist * dirX
+                val camY = state.camTargetY.toDouble() + dist * dirY
+                val camZ = state.camTargetZ.toDouble() + dist * dirZ
+
+                // Observer forward points from cam towards target
+                val fwdRawX = state.camTargetX.toDouble() - camX
+                val fwdRawY = state.camTargetY.toDouble() - camY
+                val fwdRawZ = state.camTargetZ.toDouble() - camZ
+                val fwdLen = sqrt(fwdRawX * fwdRawX + fwdRawY * fwdRawY + fwdRawZ * fwdRawZ)
+                val (fwdX, fwdY, fwdZ) = if (fwdLen > 1e-6) {
+                    Triple(fwdRawX / fwdLen, fwdRawY / fwdLen, fwdRawZ / fwdLen)
+                } else {
+                    Triple(-dirX, -dirY, -dirZ)
+                }
 
                 // Observer orthonormal tetrad basis
                 val rightRawX = fwdY
@@ -384,7 +400,10 @@ class GargantuaRenderer(
                     exposure = state.exposure,
                     camDist = state.camDist,
                     camInclinationDeg = state.camInclinationDeg,
-                    camAzimuthDeg = state.camAzimuthDeg
+                    camAzimuthDeg = state.camAzimuthDeg,
+                    camTargetX = state.camTargetX,
+                    camTargetY = state.camTargetY,
+                    camTargetZ = state.camTargetZ
                 )
             }
             fpsFrames = 0

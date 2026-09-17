@@ -18,11 +18,14 @@ data class GargantuaRenderState(
     val camDist: Float = 24.0f,
     val camInclinationDeg: Float = 82.0f,
     val camAzimuthDeg: Float = 0.0f,
-    val maxSteps: Int = 150,
+    val camTargetX: Float = 0.0f,
+    val camTargetY: Float = 0.0f,
+    val camTargetZ: Float = 0.0f,
+    val maxSteps: Int = 180,
     val useGeodesicShader: Boolean = true,
     val enableDisk: Boolean = true,
     val diskOuterRadius: Float = 22.0f,
-    val exposure: Float = 1.25f,
+    val exposure: Float = 1.8f,
     val enableBloom: Boolean = true,
     val bloomIntensity: Float = 0.20f,
     val bloomThreshold: Float = 1.0f
@@ -45,10 +48,13 @@ data class GargantuaTelemetry(
     val renderScale: Float = 0.5f,
     val renderResolution: String = "",
     val isHdrActive: Boolean = false,
-    val exposure: Float = 1.25f,
+    val exposure: Float = 1.8f,
     val camDist: Float = 24.0f,
     val camInclinationDeg: Float = 82.0f,
-    val camAzimuthDeg: Float = 0.0f
+    val camAzimuthDeg: Float = 0.0f,
+    val camTargetX: Float = 0.0f,
+    val camTargetY: Float = 0.0f,
+    val camTargetZ: Float = 0.0f
 )
 
 /**

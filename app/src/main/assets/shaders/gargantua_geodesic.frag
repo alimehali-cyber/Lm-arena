@@ -286,7 +286,10 @@ void main() {
     // Primary null Hamiltonian geodesic integration loop
     for (int step = 0; step < MAX_INTEGRATION_STEPS; step++) {
         if (step >= maxSteps) {
-            isCaptured = true;
+            // Only classify as shadow if photon is actually trapped near or inside horizon
+            if (rInit < rCapture || pos.x * pos.x + pos.y * pos.y + pos.z * pos.z <= (rCapture + 0.3) * (rCapture + 0.3)) {
+                isCaptured = true;
+            }
             break;
         }
 
@@ -303,7 +306,7 @@ void main() {
         }
 
         // 2. Escape detection (asymptotic background reached)
-        if (r >= rEscape && (movingOutward || step > 20)) {
+        if ((r >= rEscape || (r >= 35.0 && movingOutward)) && (movingOutward || step > 15)) {
             // Compute spatial 3-velocity direction at escape
             mat4 gInv = compute_g_inv(u_Mass, u_Spin, pos.x, pos.y, pos.z, r);
             vec4 pFinal = vec4(-1.0, p_spatial);
@@ -319,8 +322,12 @@ void main() {
         vec3 prevPos = pos;
         vec3 prevP = p_spatial;
 
-        // Adaptive step size: smaller near photon sphere and horizon
-        float dlambda = clamp(0.08 * r, 0.02, 0.35);
+        // Adaptive step size: smaller near photon sphere and equatorial plane, larger in weak field
+        float baseStep = 0.08 * r;
+        float dlambda = (r > 10.0 && (movingOutward || r > 20.0)) ? clamp(baseStep, 0.02, 0.75) : clamp(baseStep, 0.02, 0.35);
+        if (u_EnableDisk == 1 && abs(pos.z) < 0.35 && r <= u_DiskOuterRadius + 1.0) {
+            dlambda = min(dlambda, max(0.02, abs(pos.z) * 0.5 + 0.03));
+        }
         rk4_step(u_Mass, u_Spin, pos, p_spatial, dlambda);
 
         // Check for intersection with thin equatorial accretion disk at Z = 0
@@ -391,6 +398,20 @@ void main() {
         fragColor = vec4(0.0, 0.0, 0.0, 0.0);
     } else {
         // Gravitationally lensed procedural celestial background
+        if (finalDir == rayDir || length(finalDir) < 0.1) {
+            float rFinal = compute_r_KS(u_Spin, pos.x, pos.y, pos.z);
+            mat4 gInv = compute_g_inv(u_Mass, u_Spin, pos.x, pos.y, pos.z, rFinal);
+            vec4 pFinal = vec4(-1.0, p_spatial);
+            vec3 vSpatial = vec3(
+                gInv[0][1] * pFinal.x + gInv[1][1] * pFinal.y + gInv[2][1] * pFinal.z + gInv[3][1] * pFinal.w,
+                gInv[0][2] * pFinal.x + gInv[1][2] * pFinal.y + gInv[2][2] * pFinal.z + gInv[3][2] * pFinal.w,
+                gInv[0][3] * pFinal.x + gInv[1][3] * pFinal.y + gInv[2][3] * pFinal.z + gInv[3][3] * pFinal.w
+            );
+            float vLen = length(vSpatial);
+            if (vLen > 1.0e-6) {
+                finalDir = vSpatial / vLen;
+            }
+        }
         vec3 color = sample_procedural_sky(finalDir);
         fragColor = vec4(color, 1.0);
     }

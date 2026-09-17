@@ -52,7 +52,10 @@ class CameraInteractionTest {
             it.copy(
                 camDist = 48.5f,
                 camInclinationDeg = 25.0f,
-                camAzimuthDeg = 142.0f
+                camAzimuthDeg = 142.0f,
+                camTargetX = 5.0f,
+                camTargetY = -3.0f,
+                camTargetZ = 2.0f
             )
         }
 
@@ -61,7 +64,10 @@ class CameraInteractionTest {
             it.copy(
                 camDist = 24.0f,
                 camInclinationDeg = 82.0f,
-                camAzimuthDeg = 0.0f
+                camAzimuthDeg = 0.0f,
+                camTargetX = 0.0f,
+                camTargetY = 0.0f,
+                camTargetZ = 0.0f
             )
         }
 
@@ -69,6 +75,67 @@ class CameraInteractionTest {
         assertEquals(24.0f, resetState.camDist, 1e-4f)
         assertEquals(82.0f, resetState.camInclinationDeg, 1e-4f)
         assertEquals(0.0f, resetState.camAzimuthDeg, 1e-4f)
+        assertEquals(0.0f, resetState.camTargetX, 1e-4f)
+        assertEquals(0.0f, resetState.camTargetY, 1e-4f)
+        assertEquals(0.0f, resetState.camTargetZ, 1e-4f)
+    }
+
+    @Test
+    fun twoFingerPanTranslatesCameraTargetAndPreservesOrthonormalTetrad() {
+        val holder = RenderStateHolder()
+
+        // Apply two-finger translation/pan offset
+        holder.updateState {
+            it.copy(
+                camTargetX = 3.5f,
+                camTargetY = -2.0f,
+                camTargetZ = 1.0f
+            )
+        }
+
+        val state = holder.getState()
+        assertEquals(3.5f, state.camTargetX, 1e-4f)
+        assertEquals(-2.0f, state.camTargetY, 1e-4f)
+        assertEquals(1.0f, state.camTargetZ, 1e-4f)
+
+        // Verify tetrad orthonormal property remains invariant under translation
+        val inclRad = Math.toRadians(state.camInclinationDeg.toDouble())
+        val azRad = Math.toRadians(state.camAzimuthDeg.toDouble())
+        val dist = state.camDist.toDouble()
+
+        val dirX = sin(inclRad) * cos(azRad)
+        val dirY = sin(inclRad) * sin(azRad)
+        val dirZ = cos(inclRad)
+
+        val camX = state.camTargetX.toDouble() + dist * dirX
+        val camY = state.camTargetY.toDouble() + dist * dirY
+        val camZ = state.camTargetZ.toDouble() + dist * dirZ
+
+        val fwdRawX = state.camTargetX.toDouble() - camX
+        val fwdRawY = state.camTargetY.toDouble() - camY
+        val fwdRawZ = state.camTargetZ.toDouble() - camZ
+        val fwdLen = sqrt(fwdRawX * fwdRawX + fwdRawY * fwdRawY + fwdRawZ * fwdRawZ)
+        val fwd = doubleArrayOf(fwdRawX / fwdLen, fwdRawY / fwdLen, fwdRawZ / fwdLen)
+
+        val rightRaw = doubleArrayOf(fwd[1], -fwd[0], 0.0)
+        val rightLen = sqrt(rightRaw[0] * rightRaw[0] + rightRaw[1] * rightRaw[1])
+        val right = doubleArrayOf(rightRaw[0] / rightLen, rightRaw[1] / rightLen, 0.0)
+
+        val up = doubleArrayOf(
+            right[1] * fwd[2] - right[2] * fwd[1],
+            right[2] * fwd[0] - right[0] * fwd[2],
+            right[0] * fwd[1] - right[1] * fwd[0]
+        )
+
+        fun norm(v: DoubleArray) = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+        fun dot(v1: DoubleArray, v2: DoubleArray) = v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
+
+        assertEquals("Forward must be unit length", 1.0, norm(fwd), 1e-6)
+        assertEquals("Right must be unit length", 1.0, norm(right), 1e-6)
+        assertEquals("Up must be unit length", 1.0, norm(up), 1e-6)
+        assertEquals("Forward and Right must be orthogonal", 0.0, dot(fwd, right), 1e-6)
+        assertEquals("Forward and Up must be orthogonal", 0.0, dot(fwd, up), 1e-6)
+        assertEquals("Right and Up must be orthogonal", 0.0, dot(right, up), 1e-6)
     }
 
     @Test

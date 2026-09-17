@@ -25,6 +25,9 @@ class DeviceReadinessAuditTest {
         val camDist: Float,
         val camInclinationDeg: Float,
         val camAzimuthDeg: Float,
+        val camTargetX: Float,
+        val camTargetY: Float,
+        val camTargetZ: Float,
         val maxSteps: Int,
         val enableDisk: Boolean,
         val diskOuterRadius: Float,
@@ -45,6 +48,9 @@ class DeviceReadinessAuditTest {
             camDist = state.camDist,
             camInclinationDeg = state.camInclinationDeg,
             camAzimuthDeg = state.camAzimuthDeg,
+            camTargetX = state.camTargetX,
+            camTargetY = state.camTargetY,
+            camTargetZ = state.camTargetZ,
             maxSteps = state.maxSteps,
             enableDisk = state.enableDisk,
             diskOuterRadius = state.diskOuterRadius,
@@ -72,6 +78,10 @@ class DeviceReadinessAuditTest {
         // 3. Distance zoom change
         val distState = baseState.copy(camDist = 30.0f)
         assertNotEquals("Distance change must invalidate SceneSignature", baseSig, createSignature(distState))
+
+        // 4. Two-finger translation/pan change
+        val panState = baseState.copy(camTargetX = 2.5f, camTargetY = -1.2f)
+        assertNotEquals("Pan target change must invalidate SceneSignature", baseSig, createSignature(panState))
     }
 
     @Test
