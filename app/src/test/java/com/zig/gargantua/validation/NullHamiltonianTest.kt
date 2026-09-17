@@ -17,14 +17,14 @@ class NullHamiltonianTest {
         val spacetime = KerrSpacetime(M = 1.0, a = 0.8)
 
         for (r in listOf(3.0, 5.0, 10.0, 25.0)) {
-            for (th in listOf(Math.PI * 0.5, Math.PI * 0.3, Math.PI * 0.7)) {
+            for (th in listOf(Math.PI * 0.5, Math.PI * 0.35, Math.PI * 0.65)) {
                 val state = NullHamiltonian.createNullState(
                     spacetime = spacetime,
                     r = r,
                     theta = th,
                     energy = 1.0,
-                    Lz = 3.5,
-                    p_theta = 0.8,
+                    Lz = 2.0,
+                    p_theta = 0.3,
                     inward = true
                 )
 
@@ -32,6 +32,22 @@ class NullHamiltonianTest {
                 assertEquals("Null Hamiltonian must be 0 within 1e-12", 0.0, h, 1e-12)
                 assertTrue("isNull predicate must return true", NullHamiltonian.isNull(spacetime, state, 1e-12))
             }
+        }
+    }
+
+    @Test
+    fun forbiddenStateThrowsException() {
+        val spacetime = KerrSpacetime(M = 1.0, a = 0.8)
+        org.junit.Assert.assertThrows(IllegalArgumentException::class.java) {
+            // High angular momentum at low radius exceeds available energy: classically forbidden turning region
+            NullHamiltonian.createNullState(
+                spacetime = spacetime,
+                r = 3.0,
+                theta = Math.PI * 0.3,
+                energy = 1.0,
+                Lz = 3.5,
+                p_theta = 0.8
+            )
         }
     }
 

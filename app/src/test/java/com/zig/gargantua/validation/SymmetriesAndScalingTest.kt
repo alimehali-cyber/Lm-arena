@@ -28,16 +28,40 @@ class SymmetriesAndScalingTest {
             assertEquals("Horizon must depend only on a²", sPlus.rPlus, sMinus.rPlus, 1e-15)
             assertEquals("Inner horizon must depend only on a²", sPlus.rMinus, sMinus.rMinus, 1e-15)
 
-            // Prograde of (+a) equals Retrograde of (-a)
+            // Co-rotating and counter-rotating radii depend only on |a|
             assertEquals(
-                "Spin sign reversal must swap prograde and retrograde photon orbits",
-                sPlus.rPhotonPrograde(),
-                sMinus.rPhotonRetrograde(),
+                sPlus.rPhotonCorotating(),
+                sMinus.rPhotonCorotating(),
                 1e-14
             )
             assertEquals(
-                sPlus.rPhotonRetrograde(),
-                sMinus.rPhotonPrograde(),
+                sPlus.rPhotonCounterrotating(),
+                sMinus.rPhotonCounterrotating(),
+                1e-14
+            )
+
+            // Parity symmetry: (+a, +Lz) orbit has identical radius to (-a, -Lz) orbit
+            assertEquals(
+                "Spin sign reversal parity must match (+a, +Lz) with (-a, -Lz)",
+                sPlus.rPhotonForSignedLz(+1.0),
+                sMinus.rPhotonForSignedLz(-1.0),
+                1e-14
+            )
+            assertEquals(
+                sPlus.rPhotonForSignedLz(-1.0),
+                sMinus.rPhotonForSignedLz(+1.0),
+                1e-14
+            )
+
+            // Reversing spin sign swaps an orbit with fixed coordinate angular momentum (+Lz) from co- to counter-rotating
+            assertEquals(
+                sPlus.rPhotonCorotating(),
+                sPlus.rPhotonForSignedLz(+1.0),
+                1e-14
+            )
+            assertEquals(
+                sPlus.rPhotonCounterrotating(),
+                sMinus.rPhotonForSignedLz(+1.0),
                 1e-14
             )
         }

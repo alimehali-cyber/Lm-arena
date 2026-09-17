@@ -70,26 +70,41 @@ data class KerrSpacetime(
         get() = 3.0 * sqrt(3.0) * M
 
     /**
-     * Equatorial circular photon orbit radius for prograde rays (Bardeen, Press, Teukolsky 1972):
-     * r_ph^- = 2M [ 1 + cos( 2/3 arccos(-|a|/M) ) ]
+     * Equatorial circular photon orbit radius for co-rotating (prograde) rays (Bardeen, Press, Teukolsky 1972):
+     * Rays orbiting in the same angular direction as the black hole spin (sgn(L_z) == sgn(a)):
+     * r_ph = 2M [ 1 + cos( 2/3 arccos(-|a|/M) ) ]
      *
-     * In Schwarzschild (a = 0): r_ph^- = 3M.
-     * In extremal Kerr (|a| = M): r_ph^- = M.
+     * In Schwarzschild (a = 0): r_ph = 3M.
+     * In extremal Kerr (|a| = M): r_ph = M.
      */
-    fun rPhotonPrograde(): Double {
+    fun rPhotonPrograde(): Double = rPhotonCorotating()
+    fun rPhotonCorotating(): Double {
         val frac = (-abs(a) / M).coerceIn(-1.0, 1.0)
         return 2.0 * M * (1.0 + cos((2.0 / 3.0) * acos(frac)))
     }
 
     /**
-     * Equatorial circular photon orbit radius for retrograde rays (Bardeen, Press, Teukolsky 1972):
-     * r_ph^+ = 2M [ 1 + cos( 2/3 arccos(+|a|/M) ) ]
+     * Equatorial circular photon orbit radius for counter-rotating (retrograde) rays (Bardeen, Press, Teukolsky 1972):
+     * Rays orbiting opposite to the black hole spin (sgn(L_z) != sgn(a)):
+     * r_ph = 2M [ 1 + cos( 2/3 arccos(+|a|/M) ) ]
      *
-     * In Schwarzschild (a = 0): r_ph^+ = 3M.
-     * In extremal Kerr (|a| = M): r_ph^+ = 4M.
+     * In Schwarzschild (a = 0): r_ph = 3M.
+     * In extremal Kerr (|a| = M): r_ph = 4M.
      */
-    fun rPhotonRetrograde(): Double {
+    fun rPhotonRetrograde(): Double = rPhotonCounterrotating()
+    fun rPhotonCounterrotating(): Double {
         val frac = (abs(a) / M).coerceIn(-1.0, 1.0)
+        return 2.0 * M * (1.0 + cos((2.0 / 3.0) * acos(frac)))
+    }
+
+    /**
+     * Equatorial circular photon orbit radius given the sign of axial angular momentum L_z:
+     * When sgn(a * signLz) > 0, the ray is co-rotating (r < 3M).
+     * When sgn(a * signLz) < 0, the ray is counter-rotating (r > 3M).
+     */
+    fun rPhotonForSignedLz(signLz: Double): Double {
+        val prod = (a * signLz) / M
+        val frac = (-prod.coerceIn(-1.0, 1.0))
         return 2.0 * M * (1.0 + cos((2.0 / 3.0) * acos(frac)))
     }
 

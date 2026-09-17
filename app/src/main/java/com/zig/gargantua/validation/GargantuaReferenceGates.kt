@@ -217,28 +217,30 @@ object GargantuaReferenceGates {
     /**
      * Gate 7: Symmetries & Limiting Cases
      * - a = 0 removes spin asymmetry (r_prog = r_retro = 3M)
-     * - Spin reversal symmetry: r_ph(M, a, prograde) = r_ph(M, -a, retrograde)
-     * - Mass scaling: lengths scale linearly with M
+     * - Spin reversal parity symmetry: (+a, +Lz) has identical radius to (-a, -Lz)
+     * - Mass scaling: lengths scale linearly with M under geometrized units
      */
     fun verifySymmetriesAndLimits(tolerance: Double = 1e-13): GateResult {
         // 1. Schwarzschild spin asymmetry check
         val schw = KerrSpacetime(1.0, 0.0)
         val errSchwAsym = abs(schw.rPhotonPrograde() - schw.rPhotonRetrograde())
 
-        // 2. Spin sign reversal symmetry
+        // 2. Parity / spin sign reversal symmetry:
+        // Ray with +Lz around +a has identical radius to ray with -Lz around -a
         val kerrPlus = KerrSpacetime(1.0, 0.7)
         val kerrMinus = KerrSpacetime(1.0, -0.7)
-        val errSpinRev = abs(kerrPlus.rPhotonPrograde() - kerrMinus.rPhotonRetrograde())
+        val errParity = abs(kerrPlus.rPhotonForSignedLz(+1.0) - kerrMinus.rPhotonForSignedLz(-1.0))
+        val errCoRotating = abs(kerrPlus.rPhotonCorotating() - kerrMinus.rPhotonCorotating())
 
-        // 3. Mass scaling invariance: r_ph(2M, 2a) / 2 == r_ph(M, a)
+        // 3. Mass scaling invariance: r_ph(2.5M, 2.5a) / 2.5 == r_ph(M, a)
         val kerrScaled = KerrSpacetime(2.5, 0.7 * 2.5)
         val errMassScale = abs(kerrScaled.rPhotonPrograde() / 2.5 - kerrPlus.rPhotonPrograde())
 
-        val maxErr = maxOf(errSchwAsym, errSpinRev, errMassScale)
+        val maxErr = maxOf(errSchwAsym, errParity, errCoRotating, errMassScale)
         val passed = maxErr <= tolerance
 
         val msg = if (passed) {
-            "Symmetries and mass scaling confirmed: a=0 symmetry, spin sign reversal, and M-scaling invariant (maxErr=$maxErr)"
+            "Symmetries and mass scaling confirmed: a=0 symmetry, spin sign reversal parity, and M-scaling invariant (maxErr=$maxErr)"
         } else {
             "Symmetry check failed: maxErr=$maxErr"
         }
