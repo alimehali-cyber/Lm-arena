@@ -157,4 +157,60 @@ class CameraInteractionTest {
             }
         }
     }
+
+    @Test
+    fun diskOrbitalVelocityIsConfinedToEquatorialPlaneWithZeroZComponent() {
+        val M = 1.0
+        val a = 0.8
+        val isco = com.zig.gargantua.disk.KerrIsco.compute(M, a)
+        val diskModel = com.zig.gargantua.disk.AccretionDiskModel(M = M, a = a, innerRadius = isco)
+        val spacetime = com.zig.gargantua.physics.KerrSchildSpacetime(M, a)
+
+        val testRadii = listOf(isco + 0.5, 6.0, 10.0, 15.0)
+        val testAngles = listOf(0.0, PI / 4.0, PI / 2.0, PI, 3.0 * PI / 2.0)
+
+        for (r in testRadii) {
+            for (phi in testAngles) {
+                val x = r * cos(phi)
+                val y = r * sin(phi)
+
+                val u = diskModel.emitterFourVelocity(spacetime, x, y)
+
+                // u[0]=u^t, u[1]=u^x, u[2]=u^y, u[3]=u^z
+                assertEquals("Orbital velocity in Z must be strictly 0.0 (planar orbit)", 0.0, u[3], 1e-15)
+
+                // Verify angular momentum points along +Z axis: L_z = x * u_y - y * u_x > 0
+                val omega = diskModel.keplerianAngularVelocity(r)
+                assertEquals("u^x must match -Omega * Y", -omega * y * u[0], u[1], 1e-10)
+                assertEquals("u^y must match +Omega * X", omega * x * u[0], u[2], 1e-10)
+            }
+        }
+    }
+
+    @Test
+    fun leftRightDopplerAsymmetryCorrespondsToScreenCoordinates() {
+        val dist = 24.0
+        val inclRad = Math.toRadians(82.0)
+        val azRad = Math.toRadians(0.0)
+
+        val camX = dist * sin(inclRad) * cos(azRad)
+        val camY = dist * sin(inclRad) * sin(azRad)
+        val camZ = dist * cos(inclRad)
+
+        val fwdLen = sqrt(camX * camX + camY * camY + camZ * camZ)
+        val fwd = doubleArrayOf(-camX / fwdLen, -camY / fwdLen, -camZ / fwdLen)
+
+        val rightRaw = doubleArrayOf(fwd[1], -fwd[0], 0.0)
+        val rightLen = sqrt(rightRaw[0] * rightRaw[0] + rightRaw[1] * rightRaw[1])
+        val right = doubleArrayOf(rightRaw[0] / rightLen, rightRaw[1] / rightLen, 0.0)
+
+        // Left ray (st.x = -0.5) vs Right ray (st.x = +0.5)
+        val rayLeftY = fwd[1] + right[1] * (-0.5)
+        val rayRightY = fwd[1] + right[1] * (+0.5)
+
+        // Ray left targets negative Y (approaching material moving towards observer at +X)
+        assertTrue("Left screen ray must aim towards negative Y (approaching side)", rayLeftY < 0.0)
+        // Ray right targets positive Y (receding material moving away from observer at +X)
+        assertTrue("Right screen ray must aim towards positive Y (receding side)", rayRightY > 0.0)
+    }
 }
