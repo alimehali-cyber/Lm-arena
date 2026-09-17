@@ -12,6 +12,7 @@ object ShaderSource {
 
     const val VERTEX_SHADER_ASSET_PATH = "shaders/gargantua_test.vert"
     const val FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_test.frag"
+    const val GEODESIC_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_geodesic.frag"
 
     fun loadVertexShader(context: Context): String {
         return readAsset(context, VERTEX_SHADER_ASSET_PATH)
@@ -19,6 +20,10 @@ object ShaderSource {
 
     fun loadFragmentShader(context: Context): String {
         return readAsset(context, FRAGMENT_SHADER_ASSET_PATH)
+    }
+
+    fun loadGeodesicFragmentShader(context: Context): String {
+        return readAsset(context, GEODESIC_FRAGMENT_SHADER_ASSET_PATH)
     }
 
     private fun readAsset(context: Context, path: String): String {

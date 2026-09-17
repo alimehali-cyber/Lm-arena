@@ -314,7 +314,7 @@ private fun GargantuaRendererScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (isFa) "زیرساخت پردازش گرافیکی (M1)" else "GPU Renderer Foundation (M1)",
+                        text = if (isFa) "ردیاب فوتونی نسبیتی (M4)" else "Relativistic Photon Tracer (M4)",
                         color = Color(0xFF88A0C0),
                         fontSize = 11.sp
                     )
@@ -373,13 +373,21 @@ private fun GargantuaRendererScreen(
                     )
                     Text(
                         text = if (isFa)
-                            "تست سلامت رندرینگ GPU فعال است"
+                            "ردیابی ژئودزیک فوتون در فضازمان کر فعال است"
                         else
-                            "GPU Health Test Active",
+                            "Kerr Photon Geodesic Tracing Active",
                         color = Color(0xFFD0D8E8),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
+                    if (telemetry.isGeodesicActive) {
+                        Text(
+                            text = String.format(Locale.US, "a*=%.2f", telemetry.spin),
+                            color = Color(0xFF64B5F6),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                     if (telemetry.frameTimeMs > 0f) {
                         Text(
                             text = String.format(Locale.US, "(%.1f ms)", telemetry.frameTimeMs),

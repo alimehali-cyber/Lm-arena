@@ -11,7 +11,14 @@ data class GargantuaRenderState(
     val viewportHeight: Int = 0,
     val isPaused: Boolean = false,
     val isDarkTheme: Boolean = true,
-    val isPersian: Boolean = false
+    val isPersian: Boolean = false,
+    val mass: Float = 1.0f,
+    val spin: Float = 0.8f,
+    val camDist: Float = 25.0f,
+    val camInclinationDeg: Float = 85.0f,
+    val camAzimuthDeg: Float = 0.0f,
+    val maxSteps: Int = 150,
+    val useGeodesicShader: Boolean = true
 )
 
 /**
@@ -23,7 +30,9 @@ data class GargantuaTelemetry(
     val glesVersion: String = "Detecting...",
     val glRenderer: String = "",
     val isInitialized: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val spin: Float = 0.8f,
+    val isGeodesicActive: Boolean = true
 )
 
 /**

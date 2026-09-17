@@ -6,18 +6,20 @@ import android.opengl.GLSurfaceView
 import android.util.Log
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import kotlin.math.*
 
 /**
- * OpenGL ES 3.x Renderer for the Gargantua laboratory foundation.
- * Orchestrates full-screen shader pipeline, timing, viewport sizing,
- * and immutable state synchronization between UI and GL threads.
+ * OpenGL ES 3.x Renderer for Gargantua.
+ * Orchestrates full-screen relativistic photon geodesic tracing through Kerr-Schild spacetime,
+ * timing, viewport sizing, and immutable state synchronization between UI and GL threads.
  */
 class GargantuaRenderer(
     private val context: Context,
     val stateHolder: RenderStateHolder = RenderStateHolder()
 ) : GLSurfaceView.Renderer {
 
-    private var program: ShaderProgram? = null
+    private var geodesicProgram: ShaderProgram? = null
+    private var testProgram: ShaderProgram? = null
     private var quadGeometry: QuadGeometry? = null
 
     private var startTimeNanos: Long = 0L
@@ -32,17 +34,31 @@ class GargantuaRenderer(
         val glVendor = GLES30.glGetString(GLES30.GL_VENDOR) ?: "Unknown"
         Log.i(TAG, "Gargantua GLES surface created: Version=$glVersion, Renderer=$glRenderer, Vendor=$glVendor")
 
-        // Load shader source code
         val vertSource = ShaderSource.loadVertexShader(context)
-        val fragSource = ShaderSource.loadFragmentShader(context)
 
-        // Compile and link shader program
-        program?.release()
-        val newProgram = ShaderProgram.create(vertSource, fragSource)
-        program = newProgram
+        // 1. Attempt compilation of Phase M4 relativistic photon geodesic shader
+        var isGeodesicReady = false
+        try {
+            val geodesicFragSource = ShaderSource.loadGeodesicFragmentShader(context)
+            geodesicProgram?.release()
+            geodesicProgram = ShaderProgram.create(vertSource, geodesicFragSource)
+            isGeodesicReady = (geodesicProgram != null)
+            if (isGeodesicReady) {
+                Log.i(TAG, "Gargantua M4 relativistic photon geodesic shader compiled and linked successfully.")
+            } else {
+                Log.w(TAG, "Gargantua M4 geodesic shader failed to link; preparing fallback.")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not load geodesic shader asset; falling back to test shader", e)
+        }
 
-        if (newProgram == null) {
-            val errorMsg = "Failed to compile/link Gargantua shader program."
+        // 2. Compile M1 baseline test shader as guaranteed fallback
+        val testFragSource = ShaderSource.loadFragmentShader(context)
+        testProgram?.release()
+        testProgram = ShaderProgram.create(vertSource, testFragSource)
+
+        if (!isGeodesicReady && testProgram == null) {
+            val errorMsg = "Failed to compile any Gargantua shader program."
             Log.e(TAG, errorMsg)
             stateHolder.updateTelemetry {
                 it.copy(
@@ -67,15 +83,16 @@ class GargantuaRenderer(
         fpsFrames = 0
         frameCount = 0L
 
-        // Clear color (deep space slate)
-        GLES30.glClearColor(0.04f, 0.05f, 0.09f, 1.0f)
+        // Clear color (pure black for black hole horizon)
+        GLES30.glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
 
         stateHolder.updateTelemetry {
             it.copy(
                 glesVersion = glVersion,
                 glRenderer = glRenderer,
                 isInitialized = true,
-                errorMessage = null
+                errorMessage = null,
+                isGeodesicActive = isGeodesicReady
             )
         }
     }
@@ -95,7 +112,7 @@ class GargantuaRenderer(
         val deltaNanos = now - lastFrameTimeNanos
         lastFrameTimeNanos = now
 
-        // Calculate elapsed time in seconds for procedural animation
+        // Calculate elapsed time in seconds for procedural sky animation
         val elapsedSeconds = (now - startTimeNanos) / 1_000_000_000.0f
 
         // Frame rate / timing telemetry
@@ -108,32 +125,81 @@ class GargantuaRenderer(
             stateHolder.updateTelemetry {
                 it.copy(
                     fps = measuredFps,
-                    frameTimeMs = frameTimeMs
+                    frameTimeMs = frameTimeMs,
+                    spin = state.spin
                 )
             }
             fpsFrames = 0
             fpsAccumulatorTimeNanos = now
         }
 
-        val prog = program
-        val quad = quadGeometry
-        if (prog != null && quad != null) {
-            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+        val quad = quadGeometry ?: return
+        val activeProg = if (state.useGeodesicShader && geodesicProgram != null) {
+            geodesicProgram
+        } else {
+            testProgram
+        } ?: return
 
-            prog.use()
+        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+        activeProg.use()
 
-            val w = if (state.viewportWidth > 0) state.viewportWidth.toFloat() else 1.0f
-            val h = if (state.viewportHeight > 0) state.viewportHeight.toFloat() else 1.0f
-            prog.setUniform2f("u_Resolution", w, h)
-            prog.setUniform1f("u_Time", elapsedSeconds)
+        val w = if (state.viewportWidth > 0) state.viewportWidth.toFloat() else 1.0f
+        val h = if (state.viewportHeight > 0) state.viewportHeight.toFloat() else 1.0f
+        activeProg.setUniform2f("u_Resolution", w, h)
+        activeProg.setUniform1f("u_Time", elapsedSeconds)
 
-            quad.draw()
+        if (activeProg == geodesicProgram) {
+            // Camera position in Kerr-Schild Cartesian coordinates
+            val inclRad = Math.toRadians(state.camInclinationDeg.toDouble())
+            val azRad = Math.toRadians(state.camAzimuthDeg.toDouble())
+            val dist = state.camDist.toDouble()
+
+            val camX = dist * sin(inclRad) * cos(azRad)
+            val camY = dist * sin(inclRad) * sin(azRad)
+            val camZ = dist * cos(inclRad)
+
+            // Target is coordinate origin (0, 0, 0)
+            val fwdLen = sqrt(camX * camX + camY * camY + camZ * camZ)
+            val fwdX = -camX / fwdLen
+            val fwdY = -camY / fwdLen
+            val fwdZ = -camZ / fwdLen
+
+            // Camera orthonormal basis
+            val rightRawX = fwdY
+            val rightRawY = -fwdX
+            val rightRawZ = 0.0
+            val rightLen = sqrt(rightRawX * rightRawX + rightRawY * rightRawY)
+            val (rX, rY, rZ) = if (rightLen > 1e-6) {
+                Triple(rightRawX / rightLen, rightRawY / rightLen, 0.0)
+            } else {
+                Triple(1.0, 0.0, 0.0)
+            }
+
+            // up = right x forward
+            val upX = rY * fwdZ - rZ * fwdY
+            val upY = rZ * fwdX - rX * fwdZ
+            val upZ = rX * fwdY - rY * fwdX
+
+            val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
+
+            activeProg.setUniform1f("u_Mass", state.mass)
+            activeProg.setUniform1f("u_Spin", state.spin * state.mass)
+            activeProg.setUniform3f("u_CamPos", camX.toFloat(), camY.toFloat(), camZ.toFloat())
+            activeProg.setUniform3f("u_CamForward", fwdX.toFloat(), fwdY.toFloat(), fwdZ.toFloat())
+            activeProg.setUniform3f("u_CamRight", rX.toFloat(), rY.toFloat(), rZ.toFloat())
+            activeProg.setUniform3f("u_CamUp", upX.toFloat(), upY.toFloat(), upZ.toFloat())
+            activeProg.setUniform1f("u_FovScale", fovScale)
+            activeProg.setUniform1i("u_MaxSteps", state.maxSteps)
         }
+
+        quad.draw()
     }
 
     fun release() {
-        program?.release()
-        program = null
+        geodesicProgram?.release()
+        geodesicProgram = null
+        testProgram?.release()
+        testProgram = null
         quadGeometry?.release()
         quadGeometry = null
     }
