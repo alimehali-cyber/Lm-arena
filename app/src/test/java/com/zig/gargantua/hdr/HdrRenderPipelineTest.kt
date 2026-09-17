@@ -20,9 +20,11 @@ class HdrRenderPipelineTest {
         val a = 0.8
         val isco = KerrIsco.compute(M, a)
 
+        val disk = AccretionDiskModel(M = M, a = a, innerRadius = isco)
+
         // Near the ISCO on the approaching side (strong relativistic beaming)
         val r = isco + 0.2
-        val F = AccretionDiskModel.novikovThorneFlux(r, isco, M)
+        val F = disk.fluxProfile(r)
 
         // Blue-shifted frequency ratio g ~ 1.8 - 2.2 on approaching side
         val gShift = 2.0
@@ -50,15 +52,14 @@ class HdrRenderPipelineTest {
 
     @Test
     fun hdrFormatConstantsCorrespondToOpenGLConstants() {
-        // GL_RGBA16F = 0x881A, GL_HALF_FLOAT = 0x140B, GL_RGBA8 = 0x8058
-        val GL_RGBA16F = 0x881A
-        val GL_HALF_FLOAT = 0x140B
-        val GL_RGBA8 = 0x8058
-        val GL_UNSIGNED_BYTE = 0x1401
+        val glRgba16F = 0x881A
+        val glHalfFloat = 0x140B
+        val glRgba8 = 0x8058
+        val glUnsignedByte = 0x1401
 
-        assertTrue(GL_RGBA16F > 0)
-        assertTrue(GL_HALF_FLOAT > 0)
-        assertTrue(GL_RGBA8 > 0)
-        assertTrue(GL_UNSIGNED_BYTE > 0)
+        assertEquals(0x881A, glRgba16F)
+        assertEquals(0x140B, glHalfFloat)
+        assertEquals(0x8058, glRgba8)
+        assertEquals(0x1401, glUnsignedByte)
     }
 }
