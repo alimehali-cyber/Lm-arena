@@ -16,7 +16,7 @@ class SchwarzschildSymmetryTest {
     fun rotatedInitialRaysProduceIdenticalTrajectoriesInSchwarzschild() {
         val M = 1.0
         val spacetime = KerrSchildSpacetime(M = M, a = 0.0)
-        val integrator = KerrPhotonIntegrator(spacetime, escapeRadius = 40.0, maxSteps = 600)
+        val integrator = KerrPhotonIntegrator(spacetime, escapeRadius = 40.0, maxSteps = 2000)
 
         val rotationAngles = listOf(0.0, Math.PI * 0.25, Math.PI * 0.5, Math.PI * 0.75, Math.PI, Math.PI * 1.5)
         val impactParameter = 8.0 // b = 8M
