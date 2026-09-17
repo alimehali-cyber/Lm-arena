@@ -22,12 +22,15 @@ object GpuEquivalentIntegrator {
     data class GpuRayResult(
         val isCaptured: Boolean,
         val isEscaped: Boolean,
+        val isDiskHit: Boolean = false,
         val stepsTaken: Int,
         val finalPos: FloatArray,      // [X, Y, Z]
         val finalMomentum: FloatArray, // [pX, pY, pZ]
         val minRadiusReached: Float,
         val maxHamiltonianResidual: Float,
-        val intermediateStates: List<FloatArray> // List of 6D states [X, Y, Z, pX, pY, pZ]
+        val intermediateStates: List<FloatArray>, // List of 6D states [X, Y, Z, pX, pY, pZ]
+        val frequencyShift: Float = 1.0f,
+        val rHit: Float = 0.0f
     )
 
     fun compute_r_KS(a: Float, X: Float, Y: Float, Z: Float): Float {
@@ -288,7 +291,10 @@ object GpuEquivalentIntegrator {
         a: Float,
         camPos: FloatArray,
         rayDir: FloatArray,
-        maxSteps: Int = 150
+        maxSteps: Int = 150,
+        enableDisk: Boolean = false,
+        diskInnerRadius: Float = 6.0f,
+        diskOuterRadius: Float = 22.0f
     ): GpuRayResult {
         var state = createInitialRay(M, a, camPos, rayDir)
         val rPlus = M + sqrt(max(0.0f, M * M - a * a))
@@ -302,7 +308,14 @@ object GpuEquivalentIntegrator {
         var prevR = minR
         var isEscaped = false
         var isCaptured = false
+        var isDiskHit = false
+        var rHitResult = 0.0f
+        var gShiftResult = 1.0f
         var stepCount = 0
+
+        val rInitCam = compute_r_KS(a, camPos[0], camPos[1], camPos[2])
+        val gCam = compute_g_lower(M, a, camPos[0], camPos[1], camPos[2], rInitCam)
+        val uObs0 = 1.0f / sqrt(max(1.0e-6f, -gCam[0][0]))
 
         for (step in 0 until maxSteps) {
             stepCount++
@@ -323,19 +336,58 @@ object GpuEquivalentIntegrator {
             prevR = r
 
             val dlambda = (0.08f * r).coerceIn(0.02f, 0.35f)
+            val prevState = state.clone()
             state = rk4_step(M, a, state, dlambda)
             intermediateList.add(state.clone())
+
+            if (enableDisk && prevState[2] * state[2] <= 0.0f && prevState[2] != state[2]) {
+                val tau = -prevState[2] / (state[2] - prevState[2])
+                if (tau in 0.0f..1.0f) {
+                    val hitX = prevState[0] + tau * (state[0] - prevState[0])
+                    val hitY = prevState[1] + tau * (state[1] - prevState[1])
+                    val rHit = sqrt(hitX * hitX + hitY * hitY)
+
+                    if (rHit in diskInnerRadius..diskOuterRadius) {
+                        val hitPx = prevState[3] + tau * (state[3] - prevState[3])
+                        val hitPy = prevState[4] + tau * (state[4] - prevState[4])
+
+                        val omega = sqrt(M) / (rHit.pow(1.5f) + a * sqrt(M))
+                        val gHit = compute_g_lower(M, a, hitX, hitY, 0.0f, rHit)
+                        val vEmit = floatArrayOf(1.0f, -omega * hitY, omega * hitX, 0.0f)
+
+                        var denomContract = 0.0f
+                        for (i in 0 until 4) {
+                            for (j in 0 until 4) {
+                                denomContract += gHit[i][j] * vEmit[i] * vEmit[j]
+                            }
+                        }
+                        val u0 = if (denomContract < 0.0f) 1.0f / sqrt(-denomContract) else 1.0f
+
+                        val lz = hitX * hitPy - hitY * hitPx
+                        val denomG = u0 * (1.0f + omega * lz)
+                        val gShift = if (abs(denomG) > 1.0e-6f) uObs0 / denomG else 1.0f
+
+                        isDiskHit = true
+                        rHitResult = rHit
+                        gShiftResult = gShift
+                        break
+                    }
+                }
+            }
         }
 
         return GpuRayResult(
             isCaptured = isCaptured,
             isEscaped = isEscaped,
+            isDiskHit = isDiskHit,
             stepsTaken = stepCount,
             finalPos = floatArrayOf(state[0], state[1], state[2]),
             finalMomentum = floatArrayOf(state[3], state[4], state[5]),
             minRadiusReached = minR,
             maxHamiltonianResidual = maxH,
-            intermediateStates = intermediateList
+            intermediateStates = intermediateList,
+            frequencyShift = gShiftResult,
+            rHit = rHitResult
         )
     }
 }

@@ -15,6 +15,9 @@ uniform vec3 u_CamRight;     // Camera right vector
 uniform vec3 u_CamUp;        // Camera up vector
 uniform float u_FovScale;    // tan(FOV/2)
 uniform int u_MaxSteps;      // Maximum RK4 steps per pixel ray (e.g. 150)
+uniform float u_DiskInnerRadius; // ISCO radius r_in
+uniform float u_DiskOuterRadius; // Outer boundary r_out
+uniform int u_EnableDisk;        // 1 to render relativistic accretion disk, 0 otherwise
 
 // Maximum fixed compile-time loop bound for mobile GLSL ES 3.0 compliance
 const int MAX_INTEGRATION_STEPS = 180;
@@ -305,6 +308,8 @@ void main() {
 
     int maxSteps = clamp(u_MaxSteps, 40, MAX_INTEGRATION_STEPS);
     bool isCaptured = false;
+    bool hitDisk = false;
+    vec3 diskColor = vec3(0.0);
     vec3 finalDir = rayDir;
 
     float prevR = rInit;
@@ -343,12 +348,76 @@ void main() {
             break;
         }
 
+        vec3 prevPos = pos;
+        vec3 prevP = p_spatial;
+
         // Adaptive step size: smaller near photon sphere and horizon
         float dlambda = clamp(0.08 * r, 0.015, 0.45);
         rk4_step(u_Mass, u_Spin, pos, p_spatial, dlambda);
+
+        // Check for intersection with thin equatorial accretion disk at Z = 0
+        if (u_EnableDisk == 1 && prevPos.z * pos.z <= 0.0 && prevPos.z != pos.z) {
+            float tau = -prevPos.z / (pos.z - prevPos.z);
+            if (tau >= 0.0 && tau <= 1.0) {
+                vec3 hitPos = prevPos + tau * (pos - prevPos);
+                float rHit = length(hitPos.xy);
+                if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
+                    vec3 hitP = prevP + tau * (p_spatial - prevP);
+
+                    // Relativistic Keplerian angular velocity Omega = sqrt(M) / (r^(3/2) + a * sqrt(M))
+                    float omega = sqrt(u_Mass) / (pow(rHit, 1.5) + u_Spin * sqrt(u_Mass));
+
+                    // Disk 4-velocity u^mu = u0 * (1, -Omega * Y, Omega * X, 0)
+                    mat4 gHit = compute_g_lower(u_Mass, u_Spin, hitPos.x, hitPos.y, 0.0, rHit);
+                    vec4 vEmit = vec4(1.0, -omega * hitPos.y, omega * hitPos.x, 0.0);
+
+                    float denomContract = 0.0;
+                    for (int i = 0; i < 4; i++) {
+                        for (int j = 0; j < 4; j++) {
+                            denomContract += gHit[i][j] * vEmit[i] * vEmit[j];
+                        }
+                    }
+                    float u0 = (denomContract < 0.0) ? 1.0 / sqrt(-denomContract) : 1.0;
+
+                    // Invariant frequency shift g = (-p_mu u_obs^mu) / (-p_mu u_emit^mu)
+                    float lz = hitPos.x * hitP.y - hitPos.y * hitP.x;
+                    float denomG = u0 * (1.0 + omega * lz);
+
+                    // Static observer at camera position
+                    float uObs0 = 1.0 / sqrt(max(1.0e-6, -g[0][0]));
+                    float gShift = (abs(denomG) > 1.0e-6) ? clamp(uObs0 / denomG, 0.05, 5.0) : 1.0;
+
+                    // Novikov-Thorne-inspired thin-disk flux profile F(r) = (M/r^3) * [1 - sqrt(r_in/r)]
+                    float rRatio = u_DiskInnerRadius / rHit;
+                    float F = (u_Mass / (rHit * rHit * rHit)) * max(0.0, 1.0 - sqrt(rRatio));
+                    float tEmit = pow(max(0.0, F), 0.25);
+                    float tObs = gShift * tEmit;
+
+                    // Radiance with relativistic beaming g^4
+                    float g2 = gShift * gShift;
+                    float g4 = g2 * g2;
+                    float radiance = clamp(g4 * F * 60.0, 0.0, 2.5);
+
+                    // Thermal blackbody spectral color approximation
+                    float tNorm = clamp(tObs * 4.0, 0.0, 2.5);
+                    vec3 thermalRamp = vec3(
+                        clamp(1.0 + 0.3 * tNorm, 0.0, 1.5),
+                        clamp(tNorm * tNorm * 0.45 + tNorm * 0.25, 0.0, 1.2),
+                        clamp(tNorm * tNorm * tNorm * 0.35, 0.0, 1.2)
+                    );
+
+                    diskColor = clamp(radiance * thermalRamp, 0.0, 1.0);
+                    hitDisk = true;
+                    break;
+                }
+            }
+        }
     }
 
-    if (isCaptured) {
+    if (hitDisk) {
+        // Relativistic equatorial accretion disk
+        fragColor = vec4(diskColor, 1.0);
+    } else if (isCaptured) {
         // True black hole shadow
         fragColor = vec4(0.0, 0.0, 0.0, 1.0);
     } else {

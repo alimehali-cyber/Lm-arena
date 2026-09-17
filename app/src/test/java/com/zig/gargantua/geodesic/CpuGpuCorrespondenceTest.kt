@@ -224,4 +224,53 @@ class CpuGpuCorrespondenceTest {
             }
         }
     }
+
+    @Test
+    fun diskIntersectionCorrespondsBetweenCpuAndGpu() {
+        val M = 1.0f
+        val a = 0.5f
+        val spacetimeCpu = KerrSchildSpacetime(M.toDouble(), a.toDouble())
+        val diskCpu = com.zig.gargantua.disk.AccretionDiskModel(M.toDouble(), a.toDouble(), outerRadius = 22.0)
+
+        val camPos = floatArrayOf(-25.0f, 0.0f, 4.0f)
+        val rayDir = floatArrayOf(1.0f, 0.4f, -0.35f)
+
+        val cpuInitial = CameraModel.createNullStateFromDirection(
+            spacetimeCpu,
+            camPos[0].toDouble(), camPos[1].toDouble(), camPos[2].toDouble(),
+            rayDir[0].toDouble(), rayDir[1].toDouble(), rayDir[2].toDouble()
+        )
+
+        val cpuIntegrator = KerrPhotonIntegrator(
+            spacetimeCpu,
+            disk = diskCpu,
+            baseStepFactor = 0.08,
+            minStepSize = 0.02,
+            maxStepSize = 0.35,
+            escapeRadius = 50.0,
+            maxSteps = 400
+        )
+
+        val cpuRes = cpuIntegrator.traceRay(cpuInitial)
+        val gpuRes = GpuEquivalentIntegrator.traceRay(
+            M = M,
+            a = a,
+            camPos = camPos,
+            rayDir = rayDir,
+            maxSteps = 400,
+            enableDisk = true,
+            diskInnerRadius = diskCpu.innerRadius.toFloat(),
+            diskOuterRadius = diskCpu.outerRadius.toFloat()
+        )
+
+        assertTrue("Both CPU and GPU must detect disk hit", cpuRes.isDiskHit && gpuRes.isDiskHit)
+        assertNotNull("CPU disk hit must exist", cpuRes.diskHit)
+
+        val cpuHit = cpuRes.diskHit!!
+        val rDiff = abs(cpuHit.rHit.toFloat() - gpuRes.rHit)
+        val gDiff = abs(cpuHit.frequencyShift.toFloat() - gpuRes.frequencyShift)
+
+        assertTrue("Disk hit radius must match within 0.05 M, got $rDiff", rDiff < 0.05f)
+        assertTrue("Frequency shift must match within 0.05, got $gDiff", gDiff < 0.05f)
+    }
 }

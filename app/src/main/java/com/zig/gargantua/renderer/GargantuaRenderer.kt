@@ -122,11 +122,18 @@ class GargantuaRenderer(
         if (fpsInterval >= 500_000_000L) { // update every 500ms
             val measuredFps = (fpsFrames * 1_000_000_000.0f) / fpsInterval
             val frameTimeMs = (deltaNanos / 1_000_000.0f)
+            val isco = com.zig.gargantua.disk.KerrIsco.compute(
+                state.mass.toDouble(),
+                state.spin.toDouble() * state.mass.toDouble()
+            ).toFloat()
+
             stateHolder.updateTelemetry {
                 it.copy(
                     fps = measuredFps,
                     frameTimeMs = frameTimeMs,
-                    spin = state.spin
+                    spin = state.spin,
+                    isDiskActive = state.enableDisk,
+                    iscoRadius = isco
                 )
             }
             fpsFrames = 0
@@ -182,6 +189,11 @@ class GargantuaRenderer(
 
             val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
 
+            val isco = com.zig.gargantua.disk.KerrIsco.compute(
+                state.mass.toDouble(),
+                state.spin.toDouble() * state.mass.toDouble()
+            ).toFloat()
+
             activeProg.setUniform1f("u_Mass", state.mass)
             activeProg.setUniform1f("u_Spin", state.spin * state.mass)
             activeProg.setUniform3f("u_CamPos", camX.toFloat(), camY.toFloat(), camZ.toFloat())
@@ -190,6 +202,9 @@ class GargantuaRenderer(
             activeProg.setUniform3f("u_CamUp", upX.toFloat(), upY.toFloat(), upZ.toFloat())
             activeProg.setUniform1f("u_FovScale", fovScale)
             activeProg.setUniform1i("u_MaxSteps", state.maxSteps)
+            activeProg.setUniform1f("u_DiskInnerRadius", isco)
+            activeProg.setUniform1f("u_DiskOuterRadius", state.diskOuterRadius)
+            activeProg.setUniform1i("u_EnableDisk", if (state.enableDisk) 1 else 0)
         }
 
         quad.draw()

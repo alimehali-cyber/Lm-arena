@@ -1,5 +1,7 @@
 package com.zig.gargantua.geodesic
 
+import com.zig.gargantua.disk.AccretionDiskModel
+import com.zig.gargantua.disk.DiskIntersection
 import com.zig.gargantua.physics.KerrSchildCoordinates
 import com.zig.gargantua.physics.KerrSchildDerivatives
 import com.zig.gargantua.physics.KerrSchildSpacetime
@@ -20,11 +22,13 @@ class KerrPhotonIntegrator(
     val maxSteps: Int = 1500,
     val baseStepFactor: Double = 0.08,
     val minStepSize: Double = 0.005,
-    val maxStepSize: Double = 0.5
+    val maxStepSize: Double = 0.5,
+    val disk: AccretionDiskModel? = null
 ) {
     enum class TerminationReason {
         CAPTURED,
         ESCAPED,
+        DISK_HIT,
         MAX_STEPS_EXCEEDED,
         NUMERICAL_ERROR
     }
@@ -38,10 +42,12 @@ class KerrPhotonIntegrator(
         val path: List<PhotonState4D>? = null,
         val minStepSizeTaken: Double = 0.0,
         val maxStepSizeTaken: Double = 0.0,
-        val stepSizes: List<Double>? = null
+        val stepSizes: List<Double>? = null,
+        val diskHit: DiskIntersection.DiskHitResult? = null
     ) {
         val isCaptured: Boolean get() = terminationReason == TerminationReason.CAPTURED
         val isEscaped: Boolean get() = terminationReason == TerminationReason.ESCAPED
+        val isDiskHit: Boolean get() = terminationReason == TerminationReason.DISK_HIT
     }
 
     /**
@@ -254,21 +260,49 @@ class KerrPhotonIntegrator(
             val v = currentState.velocity(spacetime)
             currentT += v[0] * dlambda
             currentLambda += dlambda
-            state = nextState
 
-            pathList?.add(
-                PhotonState4D(
-                    t = currentT,
-                    x = state[0],
-                    y = state[1],
-                    z = state[2],
-                    p_t = -1.0,
-                    p_x = state[3],
-                    p_y = state[4],
-                    p_z = state[5],
-                    affineLambda = currentLambda
-                )
+            val nextPhotonState = PhotonState4D(
+                t = currentT,
+                x = nextState[0],
+                y = nextState[1],
+                z = nextState[2],
+                p_t = -1.0,
+                p_x = nextState[3],
+                p_y = nextState[4],
+                p_z = nextState[5],
+                affineLambda = currentLambda
             )
+
+            // Check for relativistic accretion disk intersection if disk model is active
+            if (disk != null && state[2] * nextState[2] <= 0.0 && state[2] != nextState[2]) {
+                val hit = DiskIntersection.checkIntersection(
+                    previous = currentState,
+                    current = nextPhotonState,
+                    spacetime = spacetime,
+                    disk = disk,
+                    camX = initialState.x,
+                    camY = initialState.y,
+                    camZ = initialState.z
+                )
+                if (hit != null) {
+                    pathList?.add(nextPhotonState)
+                    return RayTraceResult(
+                        finalState = nextPhotonState,
+                        terminationReason = TerminationReason.DISK_HIT,
+                        stepsTaken = step + 1,
+                        minRadiusReached = min(minR, hit.rHit),
+                        maxHamiltonianResidual = maxHResidual,
+                        path = pathList,
+                        minStepSizeTaken = if (minStepTaken == Double.MAX_VALUE) 0.0 else minStepTaken,
+                        maxStepSizeTaken = maxStepTaken,
+                        stepSizes = stepSizesList,
+                        diskHit = hit
+                    )
+                }
+            }
+
+            state = nextState
+            pathList?.add(nextPhotonState)
         }
 
         val finalState = PhotonState4D(

@@ -314,7 +314,7 @@ private fun GargantuaRendererScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (isFa) "ردیاب فوتونی نسبیتی (M4)" else "Relativistic Photon Tracer (M4)",
+                        text = if (isFa) "دیسک برافزایشی نسبیتی (M5)" else "Relativistic Accretion Disk (M5)",
                         color = Color(0xFF88A0C0),
                         fontSize = 11.sp
                     )
@@ -384,6 +384,14 @@ private fun GargantuaRendererScreen(
                         Text(
                             text = String.format(Locale.US, "a*=%.2f", telemetry.spin),
                             color = Color(0xFF64B5F6),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    if (telemetry.isDiskActive) {
+                        Text(
+                            text = String.format(Locale.US, "ISCO=%.2fM", telemetry.iscoRadius),
+                            color = Color(0xFFFFB74D),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold
                         )
