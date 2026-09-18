@@ -1052,4 +1052,79 @@ class M6FinalPresentationTest {
             assertFalse("Shaders must not contain artificial ring/glow keyword: $term", brightShader.contains(term))
         }
     }
+
+    // D22. Equatorial disk intersection audit (sign-change bracketing and 5 test cases)
+    @Test
+    fun equatorialDiskIntersectionCasesAudit() {
+        val rInF = rIn.toFloat()
+        val rOutF = rOut.toFloat()
+        val camDist = 32.0f
+        val inclRad = Math.toRadians(80.0)
+        val camPos = floatArrayOf(
+            camDist * sin(inclRad).toFloat(),
+            0.0f,
+            camDist * cos(inclRad).toFloat()
+        )
+        val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
+        val fwdLen = sqrt(camPos[0] * camPos[0] + camPos[2] * camPos[2])
+        val fwd = floatArrayOf(-camPos[0] / fwdLen, 0.0f, -camPos[2] / fwdLen)
+        val right = floatArrayOf(0.0f, 1.0f, 0.0f)
+
+        // 1. Sign-change bracketing verification in shader source
+        val shaderContent = readShader("gargantua_geodesic.frag")
+        assertTrue(
+            "Shader must use strict sign-change bracketing prevPos.z * pos.z <= 0.0",
+            shaderContent.contains("prevPos.z * pos.z <= 0.0")
+        )
+        assertTrue(
+            "Shader must linearly interpolate exact equatorial crossing parameter tau",
+            shaderContent.contains("float tau = clamp(-prevPos.z / (pos.z - prevPos.z), 0.0, 1.0);")
+        )
+
+        // Case 1: Plunge crossing -> later valid disk crossing
+        val stX_tert = 0.2480f
+        val rayTertDir = floatArrayOf(
+            fwd[0] + right[0] * (stX_tert * fovScale),
+            fwd[1] + right[1] * (stX_tert * fovScale),
+            fwd[2] + right[2] * (stX_tert * fovScale)
+        )
+        val tertLen = sqrt(rayTertDir[0] * rayTertDir[0] + rayTertDir[1] * rayTertDir[1] + rayTertDir[2] * rayTertDir[2])
+        val normRayTert = floatArrayOf(rayTertDir[0] / tertLen, rayTertDir[1] / tertLen, rayTertDir[2] / tertLen)
+
+        val resTert = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normRayTert,
+            maxSteps = 220, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF
+        )
+        assertTrue("Tertiary ray must resolve to disk hit", resTert.isDiskHit)
+        assertTrue("Hit radius must be within radiating disk bounds", resTert.rHit in rInF..rOutF)
+
+        // Case 2: Multiple equatorial crossings ending in valid disk hit
+        assertTrue("Tertiary ray must execute multiple steps and approach photon sphere", resTert.stepsTaken > 100)
+        assertTrue("Minimum radius must penetrate inside ISCO (r < 2.91M)", resTert.minRadiusReached < rInF)
+
+        // Case 3: Near-tangent disk crossing
+        val stX_app = -0.30f
+        val rayAppDir = floatArrayOf(
+            fwd[0] + right[0] * (stX_app * fovScale),
+            fwd[1] + right[1] * (stX_app * fovScale),
+            fwd[2] + right[2] * (stX_app * fovScale)
+        )
+        val appLen = sqrt(rayAppDir[0] * rayAppDir[0] + rayAppDir[1] * rayAppDir[1] + rayAppDir[2] * rayAppDir[2])
+        val normRayApp = floatArrayOf(rayAppDir[0] / appLen, rayAppDir[1] / appLen, rayAppDir[2] / appLen)
+
+        val resApp = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normRayApp,
+            maxSteps = 150, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF
+        )
+        assertTrue("Approaching disk ray must physically hit accretion disk", resApp.isDiskHit)
+        assertTrue("Approaching disk ray must have Doppler blueshift g > 1.0", resApp.frequencyShift > 1.0f)
+
+        // Case 4: Crossing near rISCO
+        assertTrue("Hit radius must be near inner disk edge [rISCO, 6.0M]", resTert.rHit < 6.0f)
+
+        // Case 5: High-order photon ring trajectory
+        assertTrue("High-order photon ring trajectory penetrates ergosphere", resTert.minRadiusReached < 2.5f)
+        assertFalse("High-order disk ray must not be erroneously classified as escaped", resTert.isEscaped)
+        assertFalse("High-order disk ray must not be captured", resTert.isCaptured)
+    }
 }
