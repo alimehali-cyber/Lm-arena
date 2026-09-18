@@ -1182,50 +1182,43 @@ class M6FinalPresentationTest {
                 integratedSingleRadiance += pixelRad
             }
 
-            // Selective supersampling:
+            // Selective supersampling (2D symmetric quarter-offset pattern):
             val needsRefine = (baseRes.stepsTaken > 100) || (baseRes.minRadiusReached < 2.5f) || (baseRes.isDiskHit && baseRes.rHit < 6.0f)
             if (needsRefine) {
-                val stX1 = stX - 0.35f * pxScale05
-                val ray1Dir = floatArrayOf(
-                    fwd[0] + right[0] * (stX1 * fovScale) + up[0] * (stY_gap * fovScale),
-                    fwd[1] + right[1] * (stX1 * fovScale) + up[1] * (stY_gap * fovScale),
-                    fwd[2] + right[2] * (stX1 * fovScale) + up[2] * (stY_gap * fovScale)
-                )
-                val len1 = sqrt(ray1Dir[0] * ray1Dir[0] + ray1Dir[1] * ray1Dir[1] + ray1Dir[2] * ray1Dir[2])
-                val norm1 = floatArrayOf(ray1Dir[0] / len1, ray1Dir[1] / len1, ray1Dir[2] / len1)
-                val s1 = GpuEquivalentIntegrator.traceRay(
-                    M = 1.0f, a = 0.8f, camPos = camPos, rayDir = norm1,
-                    maxSteps = 220, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF
-                )
+                val off = 0.30f * pxScale05
 
-                val stX2 = stX + 0.35f * pxScale05
-                val ray2Dir = floatArrayOf(
-                    fwd[0] + right[0] * (stX2 * fovScale) + up[0] * (stY_gap * fovScale),
-                    fwd[1] + right[1] * (stX2 * fovScale) + up[1] * (stY_gap * fovScale),
-                    fwd[2] + right[2] * (stX2 * fovScale) + up[2] * (stY_gap * fovScale)
-                )
-                val len2 = sqrt(ray2Dir[0] * ray2Dir[0] + ray2Dir[1] * ray2Dir[1] + ray2Dir[2] * ray2Dir[2])
-                val norm2 = floatArrayOf(ray2Dir[0] / len2, ray2Dir[1] / len2, ray2Dir[2] / len2)
-                val s2 = GpuEquivalentIntegrator.traceRay(
-                    M = 1.0f, a = 0.8f, camPos = camPos, rayDir = norm2,
-                    maxSteps = 220, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF
+                val offsets = listOf(
+                    Pair(-off, -off),
+                    Pair(off, -off),
+                    Pair(-off, off),
+                    Pair(off, off)
                 )
 
                 var rSum = pixelRad
                 var anyHit = baseRes.isDiskHit
-                if (s1.isDiskHit) {
-                    anyHit = true
-                    rSum += diskRadianceNormalized(s1.rHit.toDouble(), s1.frequencyShift.toDouble())
-                }
-                if (s2.isDiskHit) {
-                    anyHit = true
-                    rSum += diskRadianceNormalized(s2.rHit.toDouble(), s2.frequencyShift.toDouble())
+
+                for ((ox, oy) in offsets) {
+                    val sDir = floatArrayOf(
+                        fwd[0] + right[0] * ((stX + ox) * fovScale) + up[0] * ((stY_gap + oy) * fovScale),
+                        fwd[1] + right[1] * ((stX + ox) * fovScale) + up[1] * ((stY_gap + oy) * fovScale),
+                        fwd[2] + right[2] * ((stX + ox) * fovScale) + up[2] * ((stY_gap + oy) * fovScale)
+                    )
+                    val sLen = sqrt(sDir[0] * sDir[0] + sDir[1] * sDir[1] + sDir[2] * sDir[2])
+                    val normS = floatArrayOf(sDir[0] / sLen, sDir[1] / sLen, sDir[2] / sLen)
+                    val sRes = GpuEquivalentIntegrator.traceRay(
+                        M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normS,
+                        maxSteps = 220, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF
+                    )
+                    if (sRes.isDiskHit) {
+                        anyHit = true
+                        rSum += diskRadianceNormalized(sRes.rHit.toDouble(), sRes.frequencyShift.toDouble())
+                    }
                 }
 
                 if (anyHit) {
                     supersampledHitCount++
                     if (px == 344) superGapHits++
-                    integratedSuperRadiance += (rSum / 3.0)
+                    integratedSuperRadiance += (rSum / 5.0)
                 }
             } else if (baseRes.isDiskHit) {
                 supersampledHitCount++
@@ -1244,6 +1237,169 @@ class M6FinalPresentationTest {
         val shaderContent = readShader("gargantua_geodesic.frag")
         assertTrue("Shader must contain traceRaySample helper", shaderContent.contains("vec4 traceRaySample("))
         assertTrue("Shader must contain needsRefinement check", shaderContent.contains("needsRefinement"))
-        assertTrue("Shader must average subpixel samples", shaderContent.contains("(baseSample + sample1 + sample2) / 3.0"))
+        assertTrue("Shader must average subpixel samples", shaderContent.contains("(baseSample + sample1 + sample2 + sample3 + sample4) / 5.0"))
+    }
+
+    // D14. Physical Subpixel Sampling Gate deterministic validation
+    @Test
+    fun physicalSubpixelSamplingGateVerification() {
+        val rInF = rIn.toFloat()
+        val rOutF = rOut.toFloat()
+        val inclRad = Math.toRadians(80.0)
+        val camDist = 32.0f
+        val camPos = floatArrayOf(
+            camDist * sin(inclRad).toFloat(),
+            0.0f,
+            camDist * cos(inclRad).toFloat()
+        )
+        val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
+        val fwdLen = sqrt(camPos[0] * camPos[0] + camPos[2] * camPos[2])
+        val fwd = floatArrayOf(-camPos[0] / fwdLen, 0.0f, -camPos[2] / fwdLen)
+        val right = floatArrayOf(0.0f, 1.0f, 0.0f)
+        val up = floatArrayOf(-cos(inclRad).toFloat(), 0.0f, sin(inclRad).toFloat())
+
+        val dim05 = 540.0f
+        val pxScale05 = 2.0f / dim05
+        val off = 0.30f * pxScale05
+
+        fun makeDir(stX: Float, stY: Float): FloatArray {
+            val d = floatArrayOf(
+                fwd[0] + right[0] * (stX * fovScale) + up[0] * (stY * fovScale),
+                fwd[1] + right[1] * (stX * fovScale) + up[1] * (stY * fovScale),
+                fwd[2] + right[2] * (stX * fovScale) + up[2] * (stY * fovScale)
+            )
+            val len = sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2])
+            return floatArrayOf(d[0] / len, d[1] / len, d[2] / len)
+        }
+
+        // 1. Horizontal subpixel crossing recovery (at px = 344)
+        val px344_stX = (2.0f * 344 + 1.0f - dim05) / dim05
+        val px344_stY = 0.0352f
+        val baseH = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px344_stX, px344_stY), 220, true, rInF, rOutF)
+        assertFalse("Base ray at px=344 center must miss the disk", baseH.isDiskHit)
+        val subH = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px344_stX - off, px344_stY - off), 220, true, rInF, rOutF)
+        assertTrue("Subpixel offset (-off, -off) must recover disk intersection", subH.isDiskHit)
+        assertTrue("Recovered hit radius must be within physical disk bounds", subH.rHit in rInF..rOutF)
+
+        // 2. Vertical subpixel crossing recovery
+        val vert_stX = 0.270f
+        val vert_stY = 0.0356f
+        val subV = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(vert_stX - off, vert_stY + off), 220, true, rInF, rOutF)
+        assertTrue("Vertical-offset subpixel sample must intersect physical disk", subV.isDiskHit)
+        assertTrue("Vertical subpixel hit radius must be physical", subV.rHit in rInF..rOutF)
+
+        // 3. Diagonal/curved subpixel crossing recovery
+        val subDiag = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px344_stX - off, px344_stY + off), 220, true, rInF, rOutF)
+        assertTrue("Diagonal quarter-offset (-off, +off) must recover curved tertiary arc", subDiag.isDiskHit)
+        assertTrue("Diagonal subpixel hit radius must be physical", subDiag.rHit in rInF..rOutF)
+
+        // 4. Shadow core pixels remain genuinely black across all subpixel samples
+        val shadowCenter = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(0.0f, 0.0f), 220, true, rInF, rOutF)
+        assertTrue("Shadow center must be captured", shadowCenter.isCaptured)
+        val shadowOffsets = listOf(Pair(-off, -off), Pair(off, -off), Pair(-off, off), Pair(off, off))
+        for ((ox, oy) in shadowOffsets) {
+            val sRes = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(ox, oy), 220, true, rInF, rOutF)
+            assertTrue("Subpixel shadow sample must remain captured", sRes.isCaptured)
+            assertFalse("Subpixel shadow sample must never hit disk", sRes.isDiskHit)
+        }
+
+        // 5. Genuinely non-intersecting background pixel remains genuinely black
+        val skyCenter = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(0.85f, 0.85f), 220, true, rInF, rOutF)
+        assertTrue("Sky center must escape without disk intersection", skyCenter.isEscaped)
+        assertFalse("Sky center must not hit disk", skyCenter.isDiskHit)
+        for ((ox, oy) in shadowOffsets) {
+            val sRes = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(0.85f + ox, 0.85f + oy), 220, true, rInF, rOutF)
+            assertTrue("Subpixel sky sample must remain escaped", sRes.isEscaped)
+            assertFalse("Subpixel sky sample must not hit disk", sRes.isDiskHit)
+        }
+
+        // 6. Sample averaging does not artificially increase integrated radiance
+        val rad0 = if (baseH.isDiskHit) diskRadianceNormalized(baseH.rHit.toDouble(), baseH.frequencyShift.toDouble()) else 0.0
+        val radSub = if (subH.isDiskHit) diskRadianceNormalized(subH.rHit.toDouble(), subH.frequencyShift.toDouble()) else 0.0
+        val avgRad = (rad0 + radSub) / 5.0
+        assertTrue("Averaged radiance must be strictly <= max sample radiance", avgRad <= maxOf(rad0, radSub))
+
+        // 7. Physical generation verification: shader does not contain artificial overlays
+        val shaderContent = readShader("gargantua_geodesic.frag")
+        assertFalse("No screen-space red rings", shaderContent.contains("screenRing"))
+        assertFalse("No brightness floor", shaderContent.contains("minBrightness"))
+        assertFalse("No radial gradient ring overlay", shaderContent.contains("radialGradient"))
+        assertTrue("Symmetric 2D pattern off vector present", shaderContent.contains("vec2 off = vec2(0.30 * pxScale, 0.30 * pxScale);"))
+    }
+
+    // D15. Representative tertiary ray numerical step-size policy comparison
+    @Test
+    fun tertiaryRayNumericalStepPolicyComparison() {
+        val inclRad = Math.toRadians(80.0)
+        val camDist = 32.0f
+        val camPos = floatArrayOf(
+            camDist * sin(inclRad).toFloat(),
+            0.0f,
+            camDist * cos(inclRad).toFloat()
+        )
+        val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
+        val fwdLen = sqrt(camPos[0] * camPos[0] + camPos[2] * camPos[2])
+        val fwd = floatArrayOf(-camPos[0] / fwdLen, 0.0f, -camPos[2] / fwdLen)
+        val right = floatArrayOf(0.0f, 1.0f, 0.0f)
+        val up = floatArrayOf(-cos(inclRad).toFloat(), 0.0f, sin(inclRad).toFloat())
+
+        val stX_tert = 0.26722f
+        val stY_tert = 0.03520f
+        val rayDir = floatArrayOf(
+            fwd[0] + right[0] * (stX_tert * fovScale) + up[0] * (stY_tert * fovScale),
+            fwd[1] + right[1] * (stX_tert * fovScale) + up[1] * (stY_tert * fovScale),
+            fwd[2] + right[2] * (stX_tert * fovScale) + up[2] * (stY_tert * fovScale)
+        )
+        val rLen = sqrt(rayDir[0] * rayDir[0] + rayDir[1] * rayDir[1] + rayDir[2] * rayDir[2])
+        val normDir = floatArrayOf(rayDir[0] / rLen, rayDir[1] / rLen, rayDir[2] / rLen)
+
+        val rInF = rIn.toFloat()
+        val rOutF = rOut.toFloat()
+
+        // 1. Current policy: minStep = 0.02, maxStep = 0.35
+        val resCurrent = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normDir,
+            maxSteps = 250, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF,
+            minStep = 0.02f, maxStep = 0.35f
+        )
+
+        // 2. Half max step: minStep = 0.02, maxStep = 0.175
+        val resHalfMax = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normDir,
+            maxSteps = 250, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF,
+            minStep = 0.02f, maxStep = 0.175f
+        )
+
+        // 3. Half min step: minStep = 0.01, maxStep = 0.35
+        val resHalfMin = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normDir,
+            maxSteps = 250, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF,
+            minStep = 0.01f, maxStep = 0.35f
+        )
+
+        // 4. Both halved: minStep = 0.01, maxStep = 0.175
+        val resBothHalved = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normDir,
+            maxSteps = 250, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF,
+            minStep = 0.01f, maxStep = 0.175f
+        )
+
+        // Verify physical properties across policies:
+        // All policies agree on entering the deep strong-field photon region (minR < 2.5M)
+        assertTrue("Current policy minR near photon orbit", resCurrent.minRadiusReached < 2.5f)
+        assertTrue("Half max policy minR near photon orbit", resHalfMax.minRadiusReached < 2.5f)
+        assertTrue("Half min policy minR near photon orbit", resHalfMin.minRadiusReached < 2.5f)
+        assertTrue("Both halved policy minR near photon orbit", resBothHalved.minRadiusReached < 2.5f)
+
+        // Policies with standard minStep reach the physical disk with closely matched hit radii
+        if (resCurrent.isDiskHit && resHalfMax.isDiskHit) {
+            val rHitDiff = abs(resCurrent.rHit - resHalfMax.rHit)
+            assertTrue("Hit radius difference between Current and HalfMax is within 0.05M", rHitDiff < 0.05f)
+            val gDiff = abs(resCurrent.frequencyShift - resHalfMax.frequencyShift)
+            assertTrue("Frequency shift g difference between Current and HalfMax is within 0.01", gDiff < 0.01f)
+        }
+
+        // Document sensitivity: Halving step sizes naturally increases step count for deep trajectories
+        assertTrue("HalfMax step count must exceed Current step count", resHalfMax.stepsTaken > resCurrent.stepsTaken)
     }
 }

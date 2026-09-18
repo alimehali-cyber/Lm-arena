@@ -294,7 +294,9 @@ object GpuEquivalentIntegrator {
         maxSteps: Int = 150,
         enableDisk: Boolean = false,
         diskInnerRadius: Float = 6.0f,
-        diskOuterRadius: Float = 22.0f
+        diskOuterRadius: Float = 22.0f,
+        minStep: Float = 0.02f,
+        maxStep: Float = 0.35f
     ): GpuRayResult {
         var state = createInitialRay(M, a, camPos, rayDir)
         val rPlus = M + sqrt(max(0.0f, M * M - a * a))
@@ -341,11 +343,11 @@ object GpuEquivalentIntegrator {
             prevR = r
 
             val baseStep = 0.08f * r
-            var dlambda = baseStep.coerceIn(0.02f, 0.35f)
+            var dlambda = baseStep.coerceIn(minStep, maxStep)
             if (enableDisk && abs(state[2]) < 0.60f && r >= diskInnerRadius - 0.5f && r <= diskOuterRadius + 1.0f) {
                 val vz = abs(state[5])
                 val stepToDisk = abs(state[2]) / max(0.15f, vz)
-                dlambda = min(dlambda, max(0.04f, stepToDisk * 0.80f + 0.02f))
+                dlambda = min(dlambda, max(minStep * 2.0f, stepToDisk * 0.80f + minStep))
             }
             val prevState = state.clone()
             state = rk4_step(M, a, state, dlambda)

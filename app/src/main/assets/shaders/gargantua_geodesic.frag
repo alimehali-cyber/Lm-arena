@@ -436,22 +436,26 @@ void main() {
         fragColor = vec4(0.0, 0.0, 0.0, 0.5);
     }
 
-    // Selective Subpixel Supersampling:
+    // Selective Subpixel Supersampling (Physical Subpixel Sampling Gate):
     // Only pixels near strong-lensing/shadow boundary or unresolved subpixel filaments
-    // take 2 additional physical rays. 98%+ of screen executes only the single base ray.
+    // take 4 additional physical rays in a symmetric 2D pattern around pixel center.
+    // 97%+ of screen executes only the single base ray.
     bool needsRefinement = (baseCrossings >= 2) || (baseMinR < 2.5) || (baseState == 3 && baseHitR < 6.0);
 
     if (needsRefinement) {
         float pxScale = 2.0 / min(u_Resolution.x, u_Resolution.y);
-        vec2 offset = vec2(0.35 * pxScale, 0.0);
+        vec2 off = vec2(0.30 * pxScale, 0.30 * pxScale);
 
-        int s1State, s2State;
-        float s1MinR, s2MinR, s1HitR, s2HitR;
-        int s1Crossings, s2Crossings;
+        int s1State, s2State, s3State, s4State;
+        float s1MinR, s2MinR, s3MinR, s4MinR;
+        float s1HitR, s2HitR, s3HitR, s4HitR;
+        int s1Crossings, s2Crossings, s3Crossings, s4Crossings;
 
-        vec4 sample1 = traceRaySample(st - offset, s1State, s1MinR, s1Crossings, s1HitR);
-        vec4 sample2 = traceRaySample(st + offset, s2State, s2MinR, s2Crossings, s2HitR);
+        vec4 sample1 = traceRaySample(st + vec2(-off.x, -off.y), s1State, s1MinR, s1Crossings, s1HitR);
+        vec4 sample2 = traceRaySample(st + vec2( off.x, -off.y), s2State, s2MinR, s2Crossings, s2HitR);
+        vec4 sample3 = traceRaySample(st + vec2(-off.x,  off.y), s3State, s3MinR, s3Crossings, s3HitR);
+        vec4 sample4 = traceRaySample(st + vec2( off.x,  off.y), s4State, s4MinR, s4Crossings, s4HitR);
 
-        fragColor = (baseSample + sample1 + sample2) / 3.0;
+        fragColor = (baseSample + sample1 + sample2 + sample3 + sample4) / 5.0;
     }
 }
