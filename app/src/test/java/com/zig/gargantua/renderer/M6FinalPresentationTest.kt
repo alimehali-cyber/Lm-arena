@@ -1103,17 +1103,15 @@ class M6FinalPresentationTest {
         assertTrue("Minimum radius must penetrate inside ISCO (r < 2.91M)", resTert.minRadiusReached < rInF)
 
         // Case 3: Near-tangent disk crossing
-        val stX_app = -0.30f
-        val rayAppDir = floatArrayOf(
-            fwd[0] + right[0] * (stX_app * fovScale),
-            fwd[1] + right[1] * (stX_app * fovScale),
-            fwd[2] + right[2] * (stX_app * fovScale)
-        )
-        val appLen = sqrt(rayAppDir[0] * rayAppDir[0] + rayAppDir[1] * rayAppDir[1] + rayAppDir[2] * rayAppDir[2])
-        val normRayApp = floatArrayOf(rayAppDir[0] / appLen, rayAppDir[1] / appLen, rayAppDir[2] / appLen)
+        val camPosApp = floatArrayOf(0.0f, -24.0f, 3.0f)
+        val dxApp = -0.25f
+        val dyApp = 0.95f
+        val dzApp = -0.12f
+        val magApp = sqrt(dxApp * dxApp + dyApp * dyApp + dzApp * dzApp)
+        val normRayApp = floatArrayOf(dxApp / magApp, dyApp / magApp, dzApp / magApp)
 
         val resApp = GpuEquivalentIntegrator.traceRay(
-            M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normRayApp,
+            M = 1.0f, a = 0.8f, camPos = camPosApp, rayDir = normRayApp,
             maxSteps = 150, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF
         )
         assertTrue("Approaching disk ray must physically hit accretion disk", resApp.isDiskHit)
