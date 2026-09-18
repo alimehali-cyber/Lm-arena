@@ -260,7 +260,7 @@ class M9StepConvergenceTest {
         val s1 = com.zig.gargantua.physics.TimelikeState(
             tau = 10.0, T = 10.0, X = 1.0, Y = 0.0, Z = 0.0, pT = -1.0, pX = -0.1, pY = 0.0, pZ = 0.0
         )
-        val worldlineInside = com.zig.gargantua.worldline.NumericalWorldline(listOf(s0, s1))
+        val worldlineInside = com.zig.gargantua.worldline.IntegratedTimelikeWorldline(spacetime, listOf(s0, s1))
         val objInside = RelativisticObject(worldlineInside, radius = 0.2)
 
         // Backward ray from external camera that terminates at or outside horizon
