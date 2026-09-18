@@ -268,7 +268,8 @@ class M7AdaptiveRenderingTest {
         )
 
         // 4. Verify no runaway loops or recursion
-        assertFalse("Shader must not contain recursion", shaderContent.contains("main(") && shaderContent.count { it == '{' } <= 50)
+        assertFalse("Shader must not contain unbounded while loops", shaderContent.contains("while (true)") || shaderContent.contains("while(true)"))
+        assertTrue("Integration loop must use bounded MAX_INTEGRATION_STEPS", shaderContent.contains("step < MAX_INTEGRATION_STEPS"))
     }
 
     // 7. Forensic audit of tertiary accretion disk structure
