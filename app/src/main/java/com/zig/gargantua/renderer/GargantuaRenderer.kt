@@ -251,27 +251,7 @@ class GargantuaRenderer(
         val elapsedSeconds = (now - startTimeNanos) / 1_000_000_000.0f
 
         // Check if observer or spacetime state has changed
-        val currentSig = SceneSignature(
-            width = surfaceW,
-            height = surfaceH,
-            renderScale = scale,
-            mass = state.mass,
-            spin = state.spin,
-            camDist = state.camDist,
-            camInclinationDeg = state.camInclinationDeg,
-            camAzimuthDeg = state.camAzimuthDeg,
-            camTargetX = state.camTargetX,
-            camTargetY = state.camTargetY,
-            camTargetZ = state.camTargetZ,
-            maxSteps = state.maxSteps,
-            enableDisk = state.enableDisk,
-            diskOuterRadius = state.diskOuterRadius,
-            useGeodesicShader = (activeProg == geodesicProgram),
-            exposure = state.exposure,
-            enableBloom = state.enableBloom,
-            bloomIntensity = state.bloomIntensity,
-            bloomThreshold = state.bloomThreshold
-        )
+        val currentSig = SceneSignature.fromState(state, surfaceW, surfaceH)
 
         if (currentSig != lastSceneSignature) {
             lastSceneSignature = currentSig
