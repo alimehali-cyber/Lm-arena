@@ -352,5 +352,21 @@ class M9RelativisticObjectRenderingTest {
         assertEquals("Hit spatial X must match GPU formula", hitPos[0], cpuHit.hitX, 1e-12)
         assertEquals("Hit spatial Y must match GPU formula", hitPos[1], cpuHit.hitY, 1e-12)
         assertEquals("Hit spatial Z must match GPU formula", hitPos[2], cpuHit.hitZ, 1e-12)
+
+        // Verify exact Doppler and Radiance equivalence
+        val hitPx = p1.p_x + sStar * (p2.p_x - p1.p_x)
+        val hitPy = p1.p_y + sStar * (p2.p_y - p1.p_y)
+        val hitPz = p1.p_z + sStar * (p2.p_z - p1.p_z)
+        val uEmit = obj.fourVelocityAt(hitT)
+        val u0 = uEmit[0]
+        val vx = uEmit[1] / u0
+        val vy = uEmit[2] / u0
+        val vz = uEmit[3] / u0
+        val pDotV = hitPx * vx + hitPy * vy + hitPz * vz
+        val denomG = u0 * (1.0 + pDotV)
+        val gCam = spacetime.metric(30.0, 0.0, 5.0)
+        val uObs0 = 1.0 / sqrt(-gCam[0, 0])
+        val gShift = uObs0 / denomG
+        assertEquals("Doppler g must match GPU formula to machine precision", gShift, cpuHit.frequencyShift, 1e-12)
     }
 }

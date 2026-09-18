@@ -388,9 +388,11 @@ vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int o
                 float vy = u_ObjectOmega * objPosHit.x;
                 float vz = 0.0;
 
-                // Invariant frequency shift: g = u_obs^0 / [ u^0 (1 - p · v) ]
+                // Invariant frequency shift: g = (-p_μ u_obs^μ) / (-p_μ u_emit^μ)
+                // In backward ray tracing, hitP is directed from observer into scene.
+                // Consistent with thin-disk invariant convention: denomG = u0 * (1.0 + omega * lz) = u0 * (1.0 + p · v)
                 float pDotV = hitP.x * vx + hitP.y * vy + hitP.z * vz;
-                float denomG = u0 * (1.0 - pDotV);
+                float denomG = u0 * (1.0 + pDotV);
                 float uObs0 = 1.0 / sqrt(max(1.0e-6, -g[0][0]));
                 float gShift = (abs(denomG) > 1.0e-6) ? clamp(uObs0 / denomG, 0.05, 5.0) : 1.0;
 

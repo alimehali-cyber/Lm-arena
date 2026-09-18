@@ -117,9 +117,13 @@ object RelativisticObjectIntersection {
         val vy = if (abs(u0) > 1e-12) uEmit[2] / u0 else 0.0
         val vz = if (abs(u0) > 1e-12) uEmit[3] / u0 else 0.0
 
-        // Denominator of frequency shift: -p_μ u_emit^μ = u^0 (1 - p · v) with p_0 = -1
+        // Invariant frequency shift: g = (-p_μ u_obs^μ) / (-p_μ u_emit^μ)
+        // Along backward ray tracing, p_spatial is directed from observer into scene.
+        // For an emitter moving toward the observer, p · v < 0, giving (1 + p · v) < 1, so g > 1 (blueshift).
+        // For an emitter moving away from observer, p · v > 0, giving (1 + p · v) > 1, so g < 1 (redshift).
+        // This is mathematically identical to the M5/M6 thin-disk convention: denom = u0 * (1.0 + omega * lz).
         val pDotV = hitPx * vx + hitPy * vy + hitPz * vz
-        val denomEmit = u0 * (1.0 - pDotV)
+        val denomEmit = u0 * (1.0 + pDotV)
 
         // Static observer at camera position
         val gCam = spacetime.metric(camX, camY, camZ)
