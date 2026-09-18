@@ -83,11 +83,11 @@ class TimelikeOrbitFactoryTest {
         assertTrue("Prograde L_z must be positive", progradeState.angularMomentumZ > 0.0)
         assertTrue("Retrograde L_z must be negative", retrogradeState.angularMomentumZ < 0.0)
 
-        // Frame dragging effect: prograde Keplerian angular velocity is larger than retrograde
-        // Ω = √M / ( r^(3/2) ± a √M )
+        // Frame dragging effect: prograde Keplerian angular velocity magnitude is smaller than retrograde
+        // Ω_prog = √M / ( r^(3/2) + a √M ),  |Ω_retr| = √M / ( r^(3/2) - a √M )
         val omegaProg = 1.0 / (r.pow(1.5) + spacetime.a)
-        val omegaRetr = 1.0 / (r.pow(1.5) - spacetime.a)
-        assertTrue("Prograde frequency Ω_prog must be smaller than retrograde Ω_retr with respect to coordinate time denominator", omegaProg < omegaRetr)
+        val omegaRetrMag = 1.0 / (r.pow(1.5) - spacetime.a)
+        assertTrue("Prograde frequency magnitude must be smaller than retrograde magnitude", omegaProg < omegaRetrMag)
 
         val vProg = progradeState.coordinateVelocity(spacetime)
         assertEquals(0.0, vProg[0], 1e-10)
@@ -95,7 +95,7 @@ class TimelikeOrbitFactoryTest {
 
         val vRetr = retrogradeState.coordinateVelocity(spacetime)
         assertEquals(0.0, vRetr[0], 1e-10)
-        assertEquals(-omegaRetr * r, vRetr[1], 1e-10)
+        assertEquals(-omegaRetrMag * r, vRetr[1], 1e-10)
     }
 
     @Test

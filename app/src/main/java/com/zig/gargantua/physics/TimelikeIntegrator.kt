@@ -187,7 +187,7 @@ class TimelikeIntegrator(
      * Computes the adaptive proper-time step size based on local coordinate radius r.
      */
     fun computeAdaptiveStepSize(r: Double): Double {
-        val distToHorizon = max(r - spacetime.rPlus, 0.2)
+        val distToHorizon = max(0.0, r - spacetime.rPlus)
         return (stepFactor * distToHorizon).coerceIn(minStep, maxStep)
     }
 

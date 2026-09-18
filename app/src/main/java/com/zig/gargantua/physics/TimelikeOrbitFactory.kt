@@ -202,7 +202,7 @@ object TimelikeOrbitFactory {
         val denom = r.pow(1.5) + sign * a * sqrt(M)
         require(abs(denom) > 1e-12) { "Singular circular orbit denominator at r=$r" }
 
-        val omega = sqrt(M) / denom
+        val omega = sign * (sqrt(M) / denom)
         val X = r * cos(phi0)
         val Y = r * sin(phi0)
         val Z = 0.0
