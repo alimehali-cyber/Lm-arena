@@ -52,7 +52,7 @@ class GargantuaRenderer(
     private var fpsAccumulatorTimeNanos: Long = 0L
     private var fpsFrames: Int = 0
 
-    private data class SceneSignature(
+    internal data class SceneSignature(
         val width: Int,
         val height: Int,
         val renderScale: Float,
@@ -72,7 +72,33 @@ class GargantuaRenderer(
         val enableBloom: Boolean,
         val bloomIntensity: Float,
         val bloomThreshold: Float
-    )
+    ) {
+        companion object {
+            fun fromState(state: GargantuaRenderState, w: Int, h: Int): SceneSignature {
+                return SceneSignature(
+                    width = w,
+                    height = h,
+                    renderScale = state.renderScale,
+                    mass = state.mass,
+                    spin = state.spin,
+                    camDist = state.camDist,
+                    camInclinationDeg = state.camInclinationDeg,
+                    camAzimuthDeg = state.camAzimuthDeg,
+                    camTargetX = state.camTargetX,
+                    camTargetY = state.camTargetY,
+                    camTargetZ = state.camTargetZ,
+                    maxSteps = state.maxSteps,
+                    enableDisk = state.enableDisk,
+                    diskOuterRadius = state.diskOuterRadius,
+                    useGeodesicShader = state.useGeodesicShader,
+                    exposure = state.exposure,
+                    enableBloom = state.enableBloom,
+                    bloomIntensity = state.bloomIntensity,
+                    bloomThreshold = state.bloomThreshold
+                )
+            }
+        }
+    }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         val glVersion = GLES30.glGetString(GLES30.GL_VERSION) ?: "Unknown"
