@@ -343,7 +343,10 @@ vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int o
         rayT -= dt_dlambda * dlambda;
 
         // Check for intersection with relativistic test object
-        if (u_EnableObject == 1 && abs(r - u_ObjectOrbitRadius) < u_ObjectRadius + 1.2) {
+        float minStepR = min(prevR, r);
+        float maxStepR = max(prevR, r);
+        float objMargin = u_ObjectRadius + 1.2;
+        if (u_EnableObject == 1 && u_ObjectOrbitRadius >= minStepR - objMargin && u_ObjectOrbitRadius <= maxStepR + objMargin) {
             float phiPrev = u_ObjectOmega * prevT + u_ObjectPhi0;
             vec3 objPosPrev = vec3(u_ObjectOrbitRadius * cos(phiPrev), u_ObjectOrbitRadius * sin(phiPrev), u_ObjectZ);
 

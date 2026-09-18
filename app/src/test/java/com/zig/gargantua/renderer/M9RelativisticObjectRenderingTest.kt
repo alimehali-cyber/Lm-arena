@@ -125,8 +125,9 @@ class M9RelativisticObjectRenderingTest {
 
         // At T = 0, object is on +X axis at X = 40.0, Y = 0.0, Z = 0.0
         // A ray aimed straight along -X from (50, 0, 0) towards (40, 0, 0)
-        val p1 = PhotonState4D(t = 10.0, x = 45.0, y = 0.0, z = 0.0, p_x = -1.0, p_y = 0.0, p_z = 0.0)
-        val p2 = PhotonState4D(t = 0.0, x = 35.0, y = 0.0, z = 0.0, p_x = -1.0, p_y = 0.0, p_z = 0.0)
+        // With t centered at 0 at x = 40 (s = 0.5)
+        val p1 = PhotonState4D(t = 5.0, x = 45.0, y = 0.0, z = 0.0, p_x = -1.0, p_y = 0.0, p_z = 0.0)
+        val p2 = PhotonState4D(t = -5.0, x = 35.0, y = 0.0, z = 0.0, p_x = -1.0, p_y = 0.0, p_z = 0.0)
 
         val hit = RelativisticObjectIntersection.checkIntersection(
             previous = p1,

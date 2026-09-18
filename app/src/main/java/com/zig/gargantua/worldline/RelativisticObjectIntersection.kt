@@ -55,12 +55,16 @@ object RelativisticObjectIntersection {
     ): ObjectHitResult? {
         if (!obj.enabled) return null
 
+        val rPrev = previous.computeR(spacetime.a)
         val rCurrent = current.computeR(spacetime.a)
         val rObj = obj.positionAt(current.t)
         val rObjRadius = sqrt(rObj[0] * rObj[0] + rObj[1] * rObj[1] + rObj[2] * rObj[2])
 
-        // Fast bounding shell rejection: skip detailed intersection if far from object radius
-        if (abs(rCurrent - rObjRadius) > obj.radius + 1.2) {
+        // Fast bounding shell rejection: skip detailed intersection if step segment is far from object radius
+        val minR = min(rPrev, rCurrent)
+        val maxR = max(rPrev, rCurrent)
+        val margin = obj.radius + 1.2
+        if (rObjRadius < minR - margin || rObjRadius > maxR + margin) {
             return null
         }
 
