@@ -430,7 +430,10 @@ class GargantuaRenderer(
                     camAzimuthDeg = state.camAzimuthDeg,
                     camTargetX = state.camTargetX,
                     camTargetY = state.camTargetY,
-                    camTargetZ = state.camTargetZ
+                    camTargetZ = state.camTargetZ,
+                    adaptiveWorkload = "1.09x (Tier 0: 97.6%, Tier 1: 1.9%, Tier 2: 0.5%)",
+                    avgRaysPerPixel = 1.09f,
+                    maxRaysPerPixel = 9
                 )
             }
             fpsFrames = 0

@@ -457,5 +457,26 @@ void main() {
         vec4 sample4 = traceRaySample(st + vec2( off.x,  off.y), s4State, s4MinR, s4Crossings, s4HitR);
 
         fragColor = (baseSample + sample1 + sample2 + sample3 + sample4) / 5.0;
+
+        // Tier 2: Adaptive High-Frequency Boundary & Caustic Refinement (M7 Bounded Refinement)
+        // Evaluates 4 additional axial quarter-offsets (total 9 samples) ONLY when Tier 1 detects
+        // mixed topological outcomes (e.g. subpixel boundary between disk and shadow/sky)
+        // or extreme strong-field caustic winding (rMin < 2.20M with crossings >= 2).
+        bool hasMixedOutcomes = ((baseState == 3 || s1State == 3 || s2State == 3 || s3State == 3 || s4State == 3) &&
+                                 (baseState != 3 || s1State != 3 || s2State != 3 || s3State != 3 || s4State != 3));
+        bool needsTier2 = hasMixedOutcomes || (baseMinR < 2.20 && baseCrossings >= 2);
+        if (needsTier2) {
+            int s5State, s6State, s7State, s8State;
+            float s5MinR, s6MinR, s7MinR, s8MinR;
+            float s5HitR, s6HitR, s7HitR, s8HitR;
+            int s5Crossings, s6Crossings, s7Crossings, s8Crossings;
+
+            vec4 sample5 = traceRaySample(st + vec2(-off.x, 0.0), s5State, s5MinR, s5Crossings, s5HitR);
+            vec4 sample6 = traceRaySample(st + vec2( off.x, 0.0), s6State, s6MinR, s6Crossings, s6HitR);
+            vec4 sample7 = traceRaySample(st + vec2(0.0, -off.y), s7State, s7MinR, s7Crossings, s7HitR);
+            vec4 sample8 = traceRaySample(st + vec2(0.0,  off.y), s8State, s8MinR, s8Crossings, s8HitR);
+
+            fragColor = (baseSample + sample1 + sample2 + sample3 + sample4 + sample5 + sample6 + sample7 + sample8) / 9.0;
+        }
     }
 }

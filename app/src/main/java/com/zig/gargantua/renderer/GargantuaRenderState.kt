@@ -54,7 +54,10 @@ data class GargantuaTelemetry(
     val camAzimuthDeg: Float = 0.0f,
     val camTargetX: Float = 0.0f,
     val camTargetY: Float = 0.0f,
-    val camTargetZ: Float = 0.0f
+    val camTargetZ: Float = 0.0f,
+    val adaptiveWorkload: String = "1.09x (Adaptive Tier 0/1/2)",
+    val avgRaysPerPixel: Float = 1.09f,
+    val maxRaysPerPixel: Int = 9
 )
 
 /**
