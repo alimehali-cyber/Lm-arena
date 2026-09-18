@@ -444,6 +444,12 @@ private fun GargantuaRendererScreen(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium
                         )
+                        Text(
+                            text = String.format(Locale.US, "φ=%.0f°", telemetry.camAzimuthDeg),
+                            color = Color(0xFF81D4FA),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
 
                     // Row 3: Internal resolution, scale factor, and frame time

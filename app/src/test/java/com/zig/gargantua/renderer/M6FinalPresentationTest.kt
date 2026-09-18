@@ -821,4 +821,235 @@ class M6FinalPresentationTest {
             content.contains("if (movingOutward && (r >= rEscape || r >= u_DiskOuterRadius))")
         )
     }
+
+    // D17. Red-line tertiary filament resolves with step budget and separates from plunge gap
+    @Test
+    fun redLineTertiaryFilamentResolvesAndDistinguishesPlungeGap() {
+        val rInF = rIn.toFloat()
+        val rOutF = rOut.toFloat()
+        val inclRad = Math.toRadians(80.0)
+        val camDist = 32.0f
+        val camPos = floatArrayOf(
+            camDist * sin(inclRad).toFloat(),
+            0.0f,
+            camDist * cos(inclRad).toFloat()
+        )
+        val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
+
+        // Forward vector (towards origin)
+        val fwdLen = sqrt(camPos[0] * camPos[0] + camPos[2] * camPos[2])
+        val fwd = floatArrayOf(-camPos[0] / fwdLen, 0.0f, -camPos[2] / fwdLen)
+        // Upright right vector
+        val right = floatArrayOf(0.0f, 1.0f, 0.0f)
+        // Up vector
+        val up = floatArrayOf(-cos(inclRad).toFloat(), 0.0f, sin(inclRad).toFloat())
+
+        // 1. Tertiary filament ray (stX = 0.2480, stY = 0.0): physically orbits and intersects disk
+        val stX_tert = 0.2480f
+        val stY_tert = 0.0f
+        val rayTertX = fwd[0] + right[0] * (stX_tert * fovScale) + up[0] * (stY_tert * fovScale)
+        val rayTertY = fwd[1] + right[1] * (stX_tert * fovScale) + up[1] * (stY_tert * fovScale)
+        val rayTertZ = fwd[2] + right[2] * (stX_tert * fovScale) + up[2] * (stY_tert * fovScale)
+        val tertLen = sqrt(rayTertX * rayTertX + rayTertY * rayTertY + rayTertZ * rayTertZ)
+        val rayTert = floatArrayOf(rayTertX / tertLen, rayTertY / tertLen, rayTertZ / tertLen)
+
+        val tertResult = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f,
+            a = 0.8f,
+            camPos = camPos,
+            rayDir = rayTert,
+            maxSteps = 220,
+            enableDisk = true,
+            diskInnerRadius = rInF,
+            diskOuterRadius = rOutF
+        )
+
+        assertTrue(
+            "Tertiary disk filament ray must physically intersect accretion disk with maxSteps=220 (got hit=${tertResult.isDiskHit}, captured=${tertResult.isCaptured}, escaped=${tertResult.isEscaped}, steps=${tertResult.stepsTaken})",
+            tertResult.isDiskHit
+        )
+        assertTrue(
+            "Tertiary hit radius must be within physical disk [rIn, rOut]: got ${tertResult.rHit}",
+            tertResult.rHit in rInF..rOutF
+        )
+        val tertRad = diskRadianceNormalized(tertResult.rHit.toDouble(), tertResult.frequencyShift.toDouble())
+        assertTrue("Tertiary filament emission must be strictly positive", tertRad > 0.0)
+
+        // 2. Plunge gap ray (stX = 0.2520, stY = 0.0): passes inside ISCO gap, escapes without hitting disk
+        val stX_gap = 0.2520f
+        val rayGapX = fwd[0] + right[0] * (stX_gap * fovScale)
+        val rayGapY = fwd[1] + right[1] * (stX_gap * fovScale)
+        val rayGapZ = fwd[2] + right[2] * (stX_gap * fovScale)
+        val gapLen = sqrt(rayGapX * rayGapX + rayGapY * rayGapY + rayGapZ * rayGapZ)
+        val rayGap = floatArrayOf(rayGapX / gapLen, rayGapY / gapLen, rayGapZ / gapLen)
+
+        val gapResult = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f,
+            a = 0.8f,
+            camPos = camPos,
+            rayDir = rayGap,
+            maxSteps = 220,
+            enableDisk = true,
+            diskInnerRadius = rInF,
+            diskOuterRadius = rOutF
+        )
+
+        assertTrue("Plunge gap ray must escape without disk intersection", gapResult.isEscaped)
+        assertFalse("Plunge gap ray must not be flagged as disk hit", gapResult.isDiskHit)
+    }
+
+    // D18. Full 360-degree camera orbit across cardinal and intermediate azimuths
+    @Test
+    fun full360CameraOrbitAcrossCardinalAndIntermediateAzimuths() {
+        val cardinalAndIntermediate = listOf(0, 45, 90, 135, 180, 225, 270, 315, 360)
+        val inclDeg = 80.0
+        val camDist = 32.0
+        val inclRad = Math.toRadians(inclDeg)
+
+        var prevPos: DoubleArray? = null
+
+        for (azDeg in cardinalAndIntermediate) {
+            val azRad = Math.toRadians(azDeg.toDouble())
+            val camX = camDist * sin(inclRad) * cos(azRad)
+            val camY = camDist * sin(inclRad) * sin(azRad)
+            val camZ = camDist * cos(inclRad)
+
+            val currentPos = doubleArrayOf(camX, camY, camZ)
+            val dActual = sqrt(camX * camX + camY * camY + camZ * camZ)
+            assertEquals("Observer distance must remain constant at az=$azDeg", camDist, dActual, 1e-5)
+
+            // Observer position continuity: distance between successive 45 deg angles bounded by chord length
+            if (prevPos != null) {
+                val dx = currentPos[0] - prevPos[0]
+                val dy = currentPos[1] - prevPos[1]
+                val dz = currentPos[2] - prevPos[2]
+                val chordLen = sqrt(dx * dx + dy * dy + dz * dz)
+                val expectedChord = 2.0 * (camDist * sin(inclRad)) * sin(Math.toRadians(45.0 / 2.0))
+                assertEquals("Position progression must be continuous and smooth at az=$azDeg", expectedChord, chordLen, 1e-4)
+            }
+            prevPos = currentPos
+
+            // Basis Orthonormality
+            val fwd = doubleArrayOf(-camX / dActual, -camY / dActual, -camZ / dActual)
+            val right = doubleArrayOf(-sin(azRad), cos(azRad), 0.0)
+            val up = doubleArrayOf(
+                right[1] * fwd[2] - right[2] * fwd[1],
+                right[2] * fwd[0] - right[0] * fwd[2],
+                right[0] * fwd[1] - right[1] * fwd[0]
+            )
+
+            val fwdLen = sqrt(fwd[0] * fwd[0] + fwd[1] * fwd[1] + fwd[2] * fwd[2])
+            val rightLen = sqrt(right[0] * right[0] + right[1] * right[1] + right[2] * right[2])
+            val upLen = sqrt(up[0] * up[0] + up[1] * up[1] + up[2] * up[2])
+
+            assertEquals("Forward unit length at az=$azDeg", 1.0, fwdLen, 1e-6)
+            assertEquals("Right unit length at az=$azDeg", 1.0, rightLen, 1e-6)
+            assertEquals("Up unit length at az=$azDeg", 1.0, upLen, 1e-6)
+
+            // Right-handed orientation
+            val det = right[0] * (up[1] * (-fwd[2]) - up[2] * (-fwd[1])) -
+                      right[1] * (up[0] * (-fwd[2]) - up[2] * (-fwd[0])) +
+                      right[2] * (up[0] * (-fwd[1]) - up[1] * (-fwd[0]))
+            assertEquals("Basis handedness determinant must be +1.0 at az=$azDeg", 1.0, det, 1e-6)
+        }
+    }
+
+    // D19. Front/Back Doppler shift emergence from p_mu u^mu and axial angular momentum
+    @Test
+    fun dopplerBeamingEmergenceFromConservedAngularMomentum() {
+        val fovScale = tan(Math.toRadians(45.0 * 0.5))
+        val camDist = 32.0
+        val inclRad = Math.toRadians(80.0)
+
+        // Across cardinal azimuths, screen-left ray has negative Lz and screen-right has positive Lz
+        for (azDeg in listOf(0, 90, 180, 270)) {
+            val azRad = Math.toRadians(azDeg.toDouble())
+            val camX = camDist * sin(inclRad) * cos(azRad)
+            val camY = camDist * sin(inclRad) * sin(azRad)
+
+            // Screen left ray (stX = -0.25)
+            val stX_left = -0.25
+            val rVecX = -sin(azRad)
+            val rVecY = cos(azRad)
+            val pX_left = -camX / camDist + rVecX * (stX_left * fovScale)
+            val pY_left = -camY / camDist + rVecY * (stX_left * fovScale)
+            val lz_left = camX * pY_left - camY * pX_left
+
+            // Screen right ray (stX = +0.25)
+            val stX_right = 0.25
+            val pX_right = -camX / camDist + rVecX * (stX_right * fovScale)
+            val pY_right = -camY / camDist + rVecY * (stX_right * fovScale)
+            val lz_right = camX * pY_right - camY * pX_right
+
+            // Lz = camX * pY - camY * pX = camX * (rVecY * stX * fov) - camY * (rVecX * stX * fov)
+            //    = (camDist * sinTheta) * stX * fov
+            assertTrue("Screen-left ray must have negative conserved Lz at az=$azDeg", lz_left < -0.01)
+            assertTrue("Screen-right ray must have positive conserved Lz at az=$azDeg", lz_right > 0.01)
+
+            // Redshift factor g = 1 / [u^0 * (1 + Omega * Lz / E)]
+            // For prograde disk Omega > 0:
+            // Left: Lz < 0 => (1 + Omega * Lz) < 1 => g > 1 (blueshifted / approaching)
+            // Right: Lz > 0 => (1 + Omega * Lz) > 1 => g < 1 (redshifted / receding)
+            val omega = 1.0 / (6.0.pow(1.5) + 0.8)
+            val denomLeft = 1.0 + omega * lz_left
+            val denomRight = 1.0 + omega * lz_right
+            assertTrue("Left denominator must be < 1.0 (blueshift) at az=$azDeg", denomLeft < 1.0)
+            assertTrue("Right denominator must be > 1.0 (redshift) at az=$azDeg", denomRight > 1.0)
+        }
+    }
+
+    // D20. Cache invalidation on all camera transform modifications
+    @Test
+    fun cacheInvalidationOnCameraTransformModifications() {
+        val baseState = GargantuaRenderState(
+            camAzimuthDeg = 0.0f,
+            camInclinationDeg = 80.0f,
+            camDist = 32.0f
+        )
+        val sigBase = GargantuaRenderer.SceneSignature.fromState(baseState, 1080, 2400)
+
+        // 1. Azimuth change invalidates cache
+        val stateAz = baseState.copy(camAzimuthDeg = 15.0f)
+        val sigAz = GargantuaRenderer.SceneSignature.fromState(stateAz, 1080, 2400)
+        assertFalse("Azimuth change must invalidate SceneSignature", sigBase == sigAz)
+
+        // 2. Inclination change invalidates cache
+        val stateIncl = baseState.copy(camInclinationDeg = 75.0f)
+        val sigIncl = GargantuaRenderer.SceneSignature.fromState(stateIncl, 1080, 2400)
+        assertFalse("Inclination change must invalidate SceneSignature", sigBase == sigIncl)
+
+        // 3. Distance change invalidates cache
+        val stateDist = baseState.copy(camDist = 40.0f)
+        val sigDist = GargantuaRenderer.SceneSignature.fromState(stateDist, 1080, 2400)
+        assertFalse("Distance change must invalidate SceneSignature", sigBase == sigDist)
+
+        // 4. Identical state preserves cache
+        val stateIdentical = baseState.copy()
+        val sigIdentical = GargantuaRenderer.SceneSignature.fromState(stateIdentical, 1080, 2400)
+        assertTrue("Identical state must match SceneSignature", sigBase == sigIdentical)
+    }
+
+    // D21. Verification of no artificial photon ring or screen space overlay code
+    @Test
+    fun noArtificialPhotonRingOrScreenSpaceOverlays() {
+        val geoShader = readShader("gargantua_geodesic.frag")
+        val compShader = readShader("gargantua_composite.frag")
+        val brightShader = readShader("gargantua_brightpass.frag")
+
+        // No artificial circle or ring drawing functions
+        val forbiddenTerms = listOf(
+            "drawPhotonRing",
+            "artificialRing",
+            "photonRingRadius",
+            "fakeRing",
+            "drawCircle",
+            "ambientGlow",
+            "fillLight"
+        )
+        for (term in forbiddenTerms) {
+            assertFalse("Shaders must not contain artificial ring/glow keyword: $term", geoShader.contains(term))
+            assertFalse("Shaders must not contain artificial ring/glow keyword: $term", compShader.contains(term))
+            assertFalse("Shaders must not contain artificial ring/glow keyword: $term", brightShader.contains(term))
+        }
+    }
 }

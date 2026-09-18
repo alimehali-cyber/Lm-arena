@@ -21,7 +21,7 @@ data class GargantuaRenderState(
     val camTargetX: Float = 0.0f,
     val camTargetY: Float = 0.0f,
     val camTargetZ: Float = 0.0f,
-    val maxSteps: Int = 180,
+    val maxSteps: Int = 220,
     val useGeodesicShader: Boolean = true,
     val enableDisk: Boolean = true,
     val diskOuterRadius: Float = 22.0f,

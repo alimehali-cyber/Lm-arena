@@ -313,7 +313,7 @@ void main() {
 
         // Adaptive step size: robust bounded steps preventing ray-crawling near disk plane
         float baseStep = 0.08 * r;
-        float dlambda = (r > 10.0 && (movingOutward || r > 20.0)) ? clamp(baseStep, 0.02, 0.75) : clamp(baseStep, 0.02, 0.35);
+        float dlambda = (r > 5.0 && (movingOutward || r > 20.0)) ? clamp(baseStep, 0.02, 0.50) : clamp(baseStep, 0.02, 0.35);
         if (u_EnableDisk == 1 && abs(pos.z) < 0.60 && r >= u_DiskInnerRadius - 0.5 && r <= u_DiskOuterRadius + 1.0) {
             float vz = abs(p_spatial.z);
             float stepToDisk = abs(pos.z) / max(0.15, vz);
