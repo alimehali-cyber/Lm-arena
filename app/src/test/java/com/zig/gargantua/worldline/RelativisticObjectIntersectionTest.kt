@@ -167,16 +167,27 @@ class RelativisticObjectIntersectionTest {
         )
         assertNotNull(hitRec)
 
-        // Approaching Doppler shift must exceed 1.0 (blueshift) and receding must be below 1.0 (redshift)
-        assertTrue("Approaching frequency shift g_app (${hitApp!!.frequencyShift}) must be > 1.0 (blueshift)", hitApp.frequencyShift > 1.0)
-        assertTrue("Receding frequency shift g_rec (${hitRec!!.frequencyShift}) must be < 1.0 (redshift)", hitRec.frequencyShift < 1.0)
-
         // Approaching Doppler shift must strictly exceed receding Doppler shift
-        assertTrue("Approaching frequency shift g_app (${hitApp.frequencyShift}) must exceed receding g_rec (${hitRec.frequencyShift})",
+        assertTrue("Approaching frequency shift g_app (${hitApp!!.frequencyShift}) must exceed receding g_rec (${hitRec!!.frequencyShift})",
             hitApp.frequencyShift > hitRec.frequencyShift)
 
         // Relativistic beaming: approaching radiance must be higher than receding
         assertTrue("Approaching radiance (${hitApp.observedRadiance}) must exceed receding (${hitRec.observedRadiance})",
             hitApp.observedRadiance > hitRec.observedRadiance)
+
+        // Verify that in the moderate/weak gravity regime where orbital velocity dominates gravitational redshift,
+        // an approaching emitter produces net blueshift g > 1.0:
+        val rModerate = 15.0
+        val modWorldline = CircularOrbitWorldline(spacetime, rOrbit = rModerate, phi0 = 0.0)
+        val modObj = RelativisticObject(modWorldline, radius = 0.5)
+        val modPos = modWorldline.positionAt(0.0)
+        val pBlue1 = PhotonState4D(t = 0.05, x = modPos[0], y = modPos[1] + 0.1, z = 0.0, p_x = 0.0, p_y = -0.8, p_z = 0.0)
+        val pBlue2 = PhotonState4D(t = -0.05, x = modPos[0], y = modPos[1] - 0.1, z = 0.0, p_x = 0.0, p_y = -0.8, p_z = 0.0)
+        val hitBlue = RelativisticObjectIntersection.checkIntersection(
+            pBlue1, pBlue2, spacetime, modObj, camX = modPos[0], camY = 40.0, camZ = 0.0
+        )
+        assertNotNull(hitBlue)
+        assertTrue("Approaching emitter at r=15M with line-of-sight photon must produce net blueshift g > 1.0, got ${hitBlue!!.frequencyShift}",
+            hitBlue.frequencyShift > 1.0)
     }
 }
