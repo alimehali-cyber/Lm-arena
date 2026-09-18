@@ -425,6 +425,17 @@ void main() {
     float baseHitR;
     vec4 baseSample = traceRaySample(st, baseState, baseMinR, baseCrossings, baseHitR);
 
+    int rayState = baseState;
+    if (rayState == 1) {
+        fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+    } else if (rayState == 2) {
+        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    } else if (rayState == 3) {
+        fragColor = baseSample;
+    } else {
+        fragColor = vec4(0.0, 0.0, 0.0, 0.5);
+    }
+
     // Selective Subpixel Supersampling:
     // Only pixels near strong-lensing/shadow boundary or unresolved subpixel filaments
     // take 2 additional physical rays. 98%+ of screen executes only the single base ray.
@@ -442,7 +453,5 @@ void main() {
         vec4 sample2 = traceRaySample(st + offset, s2State, s2MinR, s2Crossings, s2HitR);
 
         fragColor = (baseSample + sample1 + sample2) / 3.0;
-    } else {
-        fragColor = baseSample;
     }
 }

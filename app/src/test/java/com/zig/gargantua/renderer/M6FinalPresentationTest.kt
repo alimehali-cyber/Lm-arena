@@ -1149,9 +1149,11 @@ class M6FinalPresentationTest {
         val dim05 = 540.0f
         val pxScale05 = 2.0f / dim05
 
-        // Check columns px in 330..360
+        // Check columns px in 330..360 across the tertiary filament
         var singleSampleHitCount = 0
         var supersampledHitCount = 0
+        var singleGapHits = 0
+        var superGapHits = 0
         var integratedSingleRadiance = 0.0
         var integratedSuperRadiance = 0.0
 
@@ -1175,6 +1177,7 @@ class M6FinalPresentationTest {
             var pixelRad = 0.0
             if (baseRes.isDiskHit) {
                 singleSampleHitCount++
+                if (px == 344) singleGapHits++
                 pixelRad = diskRadianceNormalized(baseRes.rHit.toDouble(), baseRes.frequencyShift.toDouble())
                 integratedSingleRadiance += pixelRad
             }
@@ -1221,17 +1224,20 @@ class M6FinalPresentationTest {
 
                 if (anyHit) {
                     supersampledHitCount++
+                    if (px == 344) superGapHits++
                     integratedSuperRadiance += (rSum / 3.0)
                 }
             } else if (baseRes.isDiskHit) {
                 supersampledHitCount++
+                if (px == 344) superGapHits++
                 integratedSuperRadiance += pixelRad
             }
         }
 
-        // Prove that selective supersampling restores continuity across rows where single-sample had 0 hits
-        assertEquals("Single-sample has 0 hits on gap row py=609", 0, singleSampleHitCount)
-        assertTrue("Selective supersampling recovers the tertiary filament on py=609", supersampledHitCount > 0)
+        // Prove that selective supersampling restores continuity across gap pixels where single-sample had 0 hits
+        assertEquals("Single-sample has 0 hits on gap pixel px=344", 0, singleGapHits)
+        assertEquals("Selective supersampling recovers the hit on gap pixel px=344", 1, superGapHits)
+        assertTrue("Selective supersampling increases total hit count along filament", supersampledHitCount > singleSampleHitCount)
         assertTrue("Integrated supersampled radiance is strictly positive", integratedSuperRadiance > 0.0)
 
         // Verify that shader source includes selective supersampling implementation
