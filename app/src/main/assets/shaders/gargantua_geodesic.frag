@@ -19,6 +19,16 @@ uniform float u_DiskInnerRadius; // ISCO radius r_in
 uniform float u_DiskOuterRadius; // Outer boundary r_out
 uniform int u_EnableDisk;        // 1 to render relativistic accretion disk, 0 otherwise
 
+// Relativistic synthetic test object uniforms
+uniform int u_EnableObject;         // 1 to render relativistic test object, 0 otherwise
+uniform float u_ObjectRadius;       // Physical radius of test object
+uniform float u_ObjectOrbitRadius;  // Orbital coordinate radius in Kerr-Schild coordinates
+uniform float u_ObjectOmega;        // Keplerian angular velocity Ω
+uniform float u_ObjectPhi0;         // Initial phase angle φ_0
+uniform float u_ObjectZ;            // Z coordinate of orbit (0 for equatorial)
+uniform vec3 u_ObjectBaseColor;     // Procedural base color (e.g. cyan/electric azure)
+uniform float u_ObjectRadiance;     // Base surface radiance
+
 // Maximum fixed compile-time loop bound for mobile GLSL ES 3.0 compliance
 const int MAX_INTEGRATION_STEPS = 180;
 
@@ -265,8 +275,11 @@ vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int o
     // 1 = CAPTURED   (physically crossed event horizon capture threshold r <= rCapture)
     // 2 = ESCAPED    (physically reached asymptotic background r >= rEscape moving outward)
     // 3 = DISK       (physically intersected equatorial accretion disk)
+    // 4 = OBJECT     (physically intersected relativistic synthetic test object)
     int rayState = 0;
     vec3 diskColor = vec3(0.0);
+    vec3 objectColor = vec3(0.0);
+    float rayT = u_Time;
     float minR = rInit;
     int crossings = 0;
     float hitRadius = 0.0;
@@ -303,6 +316,7 @@ vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int o
 
         vec3 prevPos = pos;
         vec3 prevP = p_spatial;
+        float prevT = rayT;
 
         // Adaptive step size: robust bounded steps preventing ray-crawling near disk plane
         float baseStep = 0.08 * r;
@@ -313,6 +327,92 @@ vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int o
             dlambda = min(dlambda, max(0.04, stepToDisk * 0.80 + 0.02));
         }
         rk4_step(u_Mass, u_Spin, pos, p_spatial, dlambda);
+
+        // Coordinate time evolution along backward null ray:
+        // dT = -(1.0 + 2.0 * H * Lp) * dlambda
+        float rMid = compute_r_KS(u_Spin, pos.x, pos.y, pos.z);
+        float a2_m = u_Spin * u_Spin;
+        float denomSigma_m = rMid * rMid * rMid * rMid + a2_m * pos.z * pos.z;
+        float H_m = (denomSigma_m > 1.0e-20) ? (u_Mass * rMid * rMid * rMid) / denomSigma_m : 0.0;
+        float denomV_m = rMid * rMid + a2_m;
+        float lx_m = (denomV_m > 1.0e-12) ? (rMid * pos.x + u_Spin * pos.y) / denomV_m : 0.0;
+        float ly_m = (denomV_m > 1.0e-12) ? (rMid * pos.y - u_Spin * pos.x) / denomV_m : 0.0;
+        float lz_m = (rMid > 1.0e-7) ? pos.z / rMid : 0.0;
+        float Lp_m = 1.0 + (lx_m * p_spatial.x + ly_m * p_spatial.y + lz_m * p_spatial.z);
+        float dt_dlambda = 1.0 + 2.0 * H_m * Lp_m;
+        rayT -= dt_dlambda * dlambda;
+
+        // Check for intersection with relativistic test object
+        if (u_EnableObject == 1 && abs(r - u_ObjectOrbitRadius) < u_ObjectRadius + 1.2) {
+            float phiPrev = u_ObjectOmega * prevT + u_ObjectPhi0;
+            vec3 objPosPrev = vec3(u_ObjectOrbitRadius * cos(phiPrev), u_ObjectOrbitRadius * sin(phiPrev), u_ObjectZ);
+
+            float phiCurr = u_ObjectOmega * rayT + u_ObjectPhi0;
+            vec3 objPosCurr = vec3(u_ObjectOrbitRadius * cos(phiCurr), u_ObjectOrbitRadius * sin(phiCurr), u_ObjectZ);
+
+            vec3 dp0 = prevPos - objPosPrev;
+            vec3 dp1 = pos - objPosCurr;
+            vec3 vRel = dp1 - dp0;
+            float vRel2 = dot(vRel, vRel);
+            float sStar = (vRel2 > 1.0e-10) ? clamp(-dot(dp0, vRel) / vRel2, 0.0, 1.0) : 0.0;
+
+            vec3 hitPos = mix(prevPos, pos, sStar);
+            float hitT = mix(prevT, rayT, sStar);
+            float phiHit = u_ObjectOmega * hitT + u_ObjectPhi0;
+            vec3 objPosHit = vec3(u_ObjectOrbitRadius * cos(phiHit), u_ObjectOrbitRadius * sin(phiHit), u_ObjectZ);
+
+            vec3 hitRel = hitPos - objPosHit;
+            float hitDist = length(hitRel);
+
+            if (hitDist <= u_ObjectRadius) {
+                vec3 hitP = mix(prevP, p_spatial, sStar);
+
+                // Object 4-velocity u^mu = u0 * (1, -Omega * Y, Omega * X, 0)
+                float rObjHit = length(objPosHit.xy);
+                float a2Obj = u_Spin * u_Spin;
+                float denomVObj = rObjHit * rObjHit + a2Obj;
+                float lxObj = (rObjHit * objPosHit.x + u_Spin * objPosHit.y) / denomVObj;
+                float lyObj = (rObjHit * objPosHit.y - u_Spin * objPosHit.x) / denomVObj;
+                float HObj = u_Mass / max(1.0e-6, rObjHit);
+
+                float l_dot_u = 1.0 + u_ObjectOmega * (lyObj * objPosHit.x - lxObj * objPosHit.y);
+                float eta_u_u = -1.0 + (u_ObjectOmega * u_ObjectOmega) * (objPosHit.x * objPosHit.x + objPosHit.y * objPosHit.y);
+                float denomContract = eta_u_u + 2.0 * HObj * (l_dot_u * l_dot_u);
+                float u0 = (denomContract < 0.0) ? 1.0 / sqrt(-denomContract) : 1.0;
+
+                // Contravariant coordinate 3-velocity
+                float vx = -u_ObjectOmega * objPosHit.y;
+                float vy = u_ObjectOmega * objPosHit.x;
+                float vz = 0.0;
+
+                // Invariant frequency shift: g = u_obs^0 / [ u^0 (1 - p · v) ]
+                float pDotV = hitP.x * vx + hitP.y * vy + hitP.z * vz;
+                float denomG = u0 * (1.0 - pDotV);
+                float uObs0 = 1.0 / sqrt(max(1.0e-6, -g[0][0]));
+                float gShift = (abs(denomG) > 1.0e-6) ? clamp(uObs0 / denomG, 0.05, 5.0) : 1.0;
+
+                float g2 = gShift * gShift;
+                float g4 = g2 * g2;
+
+                // Distinctive procedural surface appearance
+                float distNorm = hitDist / u_ObjectRadius;
+                vec3 localNormal = (hitDist > 1.0e-6) ? hitRel / hitDist : vec3(0.0, 0.0, 1.0);
+                float lat = acos(clamp(localNormal.z, -1.0, 1.0));
+                float lon = atan(localNormal.y, localNormal.x);
+                float bands = 0.85 + 0.15 * cos(lat * 12.0) * cos(lon * 8.0);
+                float coreGlow = exp(-distNorm * distNorm * 2.0);
+                float limb = 0.7 + 0.3 * (1.0 - distNorm);
+
+                vec3 dopplerTint = (gShift > 1.0) ? mix(vec3(1.0), vec3(0.8, 0.95, 1.2), min(1.0, (gShift - 1.0) * 0.5))
+                                                   : mix(vec3(1.0), vec3(1.2, 0.75, 0.5), min(1.0, (1.0 - gShift) * 0.5));
+
+                vec3 emitColor = u_ObjectBaseColor * (bands * limb + 0.5 * coreGlow) * dopplerTint;
+                objectColor = g4 * u_ObjectRadiance * emitColor;
+
+                rayState = 4; // OBJECT
+                break;
+            }
+        }
 
         // Check for intersection with thin equatorial accretion disk at Z = 0
         if (u_EnableDisk == 1 && prevPos.z * pos.z <= 0.0 && prevPos.z != pos.z) {
@@ -399,7 +499,10 @@ vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int o
     outCrossings = crossings;
     outHitR = hitRadius;
 
-    if (rayState == 3) {
+    if (rayState == 4) {
+        // Relativistic test object (unbounded HDR radiance)
+        return vec4(objectColor, 1.0);
+    } else if (rayState == 3) {
         // Relativistic equatorial accretion disk (unbounded HDR radiance)
         return vec4(diskColor, 1.0);
     } else if (rayState == 1) {
@@ -432,6 +535,8 @@ void main() {
         fragColor = vec4(0.0, 0.0, 0.0, 1.0);
     } else if (rayState == 3) {
         fragColor = baseSample;
+    } else if (rayState == 4) {
+        fragColor = baseSample;
     } else {
         fragColor = vec4(0.0, 0.0, 0.0, 0.5);
     }
@@ -440,7 +545,7 @@ void main() {
     // Only pixels near strong-lensing/shadow boundary or unresolved subpixel filaments
     // take 4 additional physical rays in a symmetric 2D pattern around pixel center.
     // 97%+ of screen executes only the single base ray.
-    bool needsRefinement = (baseCrossings >= 2) || (baseMinR < 2.5) || (baseState == 3 && baseHitR < 6.0);
+    bool needsRefinement = (baseCrossings >= 2) || (baseMinR < 2.5) || (baseState == 3 && baseHitR < 6.0) || (baseState == 4);
 
     if (needsRefinement) {
         float pxScale = 2.0 / min(u_Resolution.x, u_Resolution.y);
@@ -462,8 +567,10 @@ void main() {
         // Evaluates 4 additional axial quarter-offsets (total 9 samples) ONLY when Tier 1 detects
         // mixed topological outcomes (e.g. subpixel boundary between disk and shadow/sky)
         // or extreme strong-field caustic winding (rMin < 2.20M with crossings >= 2).
-        bool hasMixedOutcomes = ((baseState == 3 || s1State == 3 || s2State == 3 || s3State == 3 || s4State == 3) &&
-                                 (baseState != 3 || s1State != 3 || s2State != 3 || s3State != 3 || s4State != 3));
+        bool hasMixedOutcomes = ((baseState == 3 || s1State == 3 || s2State == 3 || s3State == 3 || s4State == 3 ||
+                                  baseState == 4 || s1State == 4 || s2State == 4 || s3State == 4 || s4State == 4) &&
+                                 (baseState != 3 || s1State != 3 || s2State != 3 || s3State != 3 || s4State != 3 ||
+                                  baseState != 4 || s1State != 4 || s2State != 4 || s3State != 4 || s4State != 4));
         bool needsTier2 = hasMixedOutcomes || (baseMinR < 2.20 && baseCrossings >= 2);
         if (needsTier2) {
             int s5State, s6State, s7State, s8State;

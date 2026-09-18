@@ -67,6 +67,11 @@ class GargantuaRenderer(
         val maxSteps: Int,
         val enableDisk: Boolean,
         val diskOuterRadius: Float,
+        val enableObject: Boolean,
+        val objectRadius: Float,
+        val objectOrbitRadius: Float,
+        val objectPhi0: Float,
+        val objectZ: Float,
         val useGeodesicShader: Boolean,
         val exposure: Float,
         val enableBloom: Boolean,
@@ -90,6 +95,11 @@ class GargantuaRenderer(
                     maxSteps = state.maxSteps,
                     enableDisk = state.enableDisk,
                     diskOuterRadius = state.diskOuterRadius,
+                    enableObject = state.enableObject,
+                    objectRadius = state.objectRadius,
+                    objectOrbitRadius = state.objectOrbitRadius,
+                    objectPhi0 = state.objectPhi0,
+                    objectZ = state.objectZ,
                     useGeodesicShader = state.useGeodesicShader,
                     exposure = state.exposure,
                     enableBloom = state.enableBloom,
@@ -268,7 +278,7 @@ class GargantuaRenderer(
             dirtyFramesRemaining = 3 // Ensure double/triple buffered EGL surfaces are refreshed
         }
 
-        val needsGeodesicRender = (dirtyFramesRemaining > 0) || (activeProg == testProgram)
+        val needsGeodesicRender = (dirtyFramesRemaining > 0) || state.enableObject || (activeProg == testProgram)
 
         if (needsGeodesicRender) {
             // ==========================================
@@ -332,6 +342,13 @@ class GargantuaRenderer(
                     state.spin.toDouble() * state.mass.toDouble()
                 ).toFloat()
 
+                // Object Keplerian angular velocity Ω
+                val rObj = state.objectOrbitRadius.toDouble()
+                val mBH = state.mass.toDouble()
+                val aBH = state.spin.toDouble() * mBH
+                val denomOmega = rObj.pow(1.5) + aBH * sqrt(mBH)
+                val omegaObj = if (abs(denomOmega) > 1e-12) (sqrt(mBH) / denomOmega).toFloat() else 0.0f
+
                 activeProg.setUniform1f("u_Mass", state.mass)
                 activeProg.setUniform1f("u_Spin", state.spin * state.mass)
                 activeProg.setUniform3f("u_CamPos", camX.toFloat(), camY.toFloat(), camZ.toFloat())
@@ -343,6 +360,15 @@ class GargantuaRenderer(
                 activeProg.setUniform1f("u_DiskInnerRadius", isco)
                 activeProg.setUniform1f("u_DiskOuterRadius", state.diskOuterRadius)
                 activeProg.setUniform1i("u_EnableDisk", if (state.enableDisk) 1 else 0)
+
+                activeProg.setUniform1i("u_EnableObject", if (state.enableObject) 1 else 0)
+                activeProg.setUniform1f("u_ObjectRadius", state.objectRadius)
+                activeProg.setUniform1f("u_ObjectOrbitRadius", state.objectOrbitRadius)
+                activeProg.setUniform1f("u_ObjectOmega", omegaObj)
+                activeProg.setUniform1f("u_ObjectPhi0", state.objectPhi0)
+                activeProg.setUniform1f("u_ObjectZ", state.objectZ)
+                activeProg.setUniform3f("u_ObjectBaseColor", 0.15f, 0.85f, 1.0f)
+                activeProg.setUniform1f("u_ObjectRadiance", 35.0f)
             }
 
             quad.draw()
@@ -420,6 +446,7 @@ class GargantuaRenderer(
                     frameTimeMs = frameTimeMs,
                     spin = state.spin,
                     isDiskActive = state.enableDisk,
+                    isObjectActive = state.enableObject,
                     iscoRadius = isco,
                     renderScale = scale,
                     renderResolution = resStr,

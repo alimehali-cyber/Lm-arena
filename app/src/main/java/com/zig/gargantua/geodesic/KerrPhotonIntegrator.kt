@@ -5,6 +5,8 @@ import com.zig.gargantua.disk.DiskIntersection
 import com.zig.gargantua.physics.KerrSchildCoordinates
 import com.zig.gargantua.physics.KerrSchildDerivatives
 import com.zig.gargantua.physics.KerrSchildSpacetime
+import com.zig.gargantua.worldline.RelativisticObject
+import com.zig.gargantua.worldline.RelativisticObjectIntersection
 import kotlin.math.*
 
 /**
@@ -23,12 +25,14 @@ class KerrPhotonIntegrator(
     val baseStepFactor: Double = 0.08,
     val minStepSize: Double = 0.005,
     val maxStepSize: Double = 0.5,
-    val disk: AccretionDiskModel? = null
+    val disk: AccretionDiskModel? = null,
+    val objectModel: RelativisticObject? = null
 ) {
     enum class TerminationReason {
         CAPTURED,
         ESCAPED,
         DISK_HIT,
+        OBJECT_HIT,
         MAX_STEPS_EXCEEDED,
         NUMERICAL_ERROR
     }
@@ -43,11 +47,13 @@ class KerrPhotonIntegrator(
         val minStepSizeTaken: Double = 0.0,
         val maxStepSizeTaken: Double = 0.0,
         val stepSizes: List<Double>? = null,
-        val diskHit: DiskIntersection.DiskHitResult? = null
+        val diskHit: DiskIntersection.DiskHitResult? = null,
+        val objectHit: RelativisticObjectIntersection.ObjectHitResult? = null
     ) {
         val isCaptured: Boolean get() = terminationReason == TerminationReason.CAPTURED
         val isEscaped: Boolean get() = terminationReason == TerminationReason.ESCAPED
         val isDiskHit: Boolean get() = terminationReason == TerminationReason.DISK_HIT
+        val isObjectHit: Boolean get() = terminationReason == TerminationReason.OBJECT_HIT
     }
 
     /**
@@ -272,6 +278,34 @@ class KerrPhotonIntegrator(
                 p_z = nextState[5],
                 affineLambda = currentLambda
             )
+
+            // Check for relativistic test object intersection
+            if (objectModel != null && objectModel.enabled) {
+                val hit = RelativisticObjectIntersection.checkIntersection(
+                    previous = currentState,
+                    current = nextPhotonState,
+                    spacetime = spacetime,
+                    obj = objectModel,
+                    camX = initialState.x,
+                    camY = initialState.y,
+                    camZ = initialState.z
+                )
+                if (hit != null) {
+                    pathList?.add(nextPhotonState)
+                    return RayTraceResult(
+                        finalState = nextPhotonState,
+                        terminationReason = TerminationReason.OBJECT_HIT,
+                        stepsTaken = step + 1,
+                        minRadiusReached = min(minR, hit.hitDistance),
+                        maxHamiltonianResidual = maxHResidual,
+                        path = pathList,
+                        minStepSizeTaken = if (minStepTaken == Double.MAX_VALUE) 0.0 else minStepTaken,
+                        maxStepSizeTaken = maxStepTaken,
+                        stepSizes = stepSizesList,
+                        objectHit = hit
+                    )
+                }
+            }
 
             // Check for relativistic accretion disk intersection if disk model is active
             if (disk != null && state[2] * nextState[2] <= 0.0 && state[2] != nextState[2]) {
