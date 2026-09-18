@@ -253,9 +253,14 @@ class M9StepConvergenceTest {
         val spacetime = KerrSchildSpacetime(M = 1.0, a = 0.9375)
         val rPlus = 1.0 + sqrt(1.0 - 0.9375 * 0.9375) // r_+ ≈ 1.348M
 
-        // Place object inside the horizon at r = 1.2M < r_+
-        val rInside = 1.2
-        val worldlineInside = CircularOrbitWorldline(spacetime, rOrbit = rInside, phi0 = 0.0)
+        // Place object inside the horizon at r = 1.2M < r_+ using an infalling numerical worldline
+        val s0 = com.zig.gargantua.physics.TimelikeState(
+            tau = 0.0, T = -10.0, X = 1.2, Y = 0.0, Z = 0.0, pT = -1.0, pX = -0.1, pY = 0.0, pZ = 0.0
+        )
+        val s1 = com.zig.gargantua.physics.TimelikeState(
+            tau = 10.0, T = 10.0, X = 1.0, Y = 0.0, Z = 0.0, pT = -1.0, pX = -0.1, pY = 0.0, pZ = 0.0
+        )
+        val worldlineInside = com.zig.gargantua.worldline.NumericalWorldline(listOf(s0, s1))
         val objInside = RelativisticObject(worldlineInside, radius = 0.2)
 
         // Backward ray from external camera that terminates at or outside horizon
