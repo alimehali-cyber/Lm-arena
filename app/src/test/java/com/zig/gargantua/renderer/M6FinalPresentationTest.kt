@@ -731,7 +731,7 @@ class M6FinalPresentationTest {
         val rightY = cos(azRad)
         val rightZ = 0.0f
 
-        val stX = -0.10f // Aimed at approaching disk
+        val stX = -0.30f // Aimed at approaching disk (r ~ 6.0M)
         val diskRayDirX = rayShadow[0] + rightX * (stX * fovScale)
         val diskRayDirY = rayShadow[1] + rightY * (stX * fovScale)
         val diskRayDirZ = rayShadow[2] + rightZ * (stX * fovScale)

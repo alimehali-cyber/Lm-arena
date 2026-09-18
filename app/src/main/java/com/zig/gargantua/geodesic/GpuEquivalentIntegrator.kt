@@ -341,7 +341,7 @@ object GpuEquivalentIntegrator {
             prevR = r
 
             val baseStep = 0.08f * r
-            var dlambda = if (r > 10.0f && (movingOutward || r > 20.0f)) baseStep.coerceIn(0.02f, 0.75f) else baseStep.coerceIn(0.02f, 0.35f)
+            var dlambda = baseStep.coerceIn(0.02f, 0.35f)
             if (enableDisk && abs(state[2]) < 0.60f && r >= diskInnerRadius - 0.5f && r <= diskOuterRadius + 1.0f) {
                 val vz = abs(state[5])
                 val stepToDisk = abs(state[2]) / max(0.15f, vz)
