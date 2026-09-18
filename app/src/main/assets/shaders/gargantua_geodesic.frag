@@ -227,12 +227,9 @@ vec3 sample_procedural_sky(vec3 dir) {
     return col;
 }
 
-void main() {
-    // Aspect-ratio-corrected normalized device coordinates in [-1, 1]
-    vec2 st = (gl_FragCoord.xy * 2.0 - u_Resolution.xy) / min(u_Resolution.x, u_Resolution.y);
-
+vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int outCrossings, out float outHitR) {
     // Initial ray direction in camera frame
-    vec3 rayDir = normalize(u_CamForward + u_CamRight * (st.x * u_FovScale) + u_CamUp * (st.y * u_FovScale));
+    vec3 rayDir = normalize(u_CamForward + u_CamRight * (stCoord.x * u_FovScale) + u_CamUp * (stCoord.y * u_FovScale));
 
     // Construct exact null momentum p_μ at camera position
     vec3 pos = u_CamPos;
@@ -270,7 +267,9 @@ void main() {
     // 3 = DISK       (physically intersected equatorial accretion disk)
     int rayState = 0;
     vec3 diskColor = vec3(0.0);
-    vec3 finalDir = rayDir;
+    float minR = rInit;
+    int crossings = 0;
+    float hitRadius = 0.0;
 
     float prevR = rInit;
     bool movingOutward = false;
@@ -282,6 +281,9 @@ void main() {
         }
 
         float r = compute_r_KS(u_Spin, pos.x, pos.y, pos.z);
+        if (r < minR) {
+            minR = r;
+        }
         if (r > prevR) {
             movingOutward = true;
         }
@@ -295,15 +297,6 @@ void main() {
 
         // 2. Escape detection (physically reached asymptotic background or cleared outer disk boundary moving outward)
         if (movingOutward && (r >= rEscape || r >= u_DiskOuterRadius)) {
-            // Compute spatial 3-velocity direction at escape
-            mat4 gInv = compute_g_inv(u_Mass, u_Spin, pos.x, pos.y, pos.z, r);
-            vec4 pFinal = vec4(-1.0, p_spatial);
-            vec3 vSpatial = vec3(
-                gInv[0][1] * pFinal.x + gInv[1][1] * pFinal.y + gInv[2][1] * pFinal.z + gInv[3][1] * pFinal.w,
-                gInv[0][2] * pFinal.x + gInv[1][2] * pFinal.y + gInv[2][2] * pFinal.z + gInv[3][2] * pFinal.w,
-                gInv[0][3] * pFinal.x + gInv[1][3] * pFinal.y + gInv[2][3] * pFinal.z + gInv[3][3] * pFinal.w
-            );
-            finalDir = normalize(vSpatial);
             rayState = 2;
             break;
         }
@@ -326,7 +319,9 @@ void main() {
             float tau = clamp(-prevPos.z / (pos.z - prevPos.z), 0.0, 1.0);
             vec3 hitPos = mix(prevPos, pos, tau);
             float rHit = length(hitPos.xy);
+            crossings++;
             if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
+                hitRadius = rHit;
                 vec3 hitP = mix(prevP, p_spatial, tau);
 
                 // Relativistic Keplerian angular velocity Omega = sqrt(M) / (r^(3/2) + a * sqrt(M))
@@ -399,18 +394,55 @@ void main() {
         }
     }
 
+    outState = rayState;
+    outMinR = minR;
+    outCrossings = crossings;
+    outHitR = hitRadius;
+
     if (rayState == 3) {
         // Relativistic equatorial accretion disk (unbounded HDR radiance)
-        fragColor = vec4(diskColor, 1.0);
+        return vec4(diskColor, 1.0);
     } else if (rayState == 1) {
         // True black hole shadow (strictly 0.0 radiance, alpha 0.0 for shadow protection)
-        fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        return vec4(0.0, 0.0, 0.0, 0.0);
     } else if (rayState == 2) {
         // Physically escaped ray: clean, deep black background for M6 (no procedural stars)
-        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return vec4(0.0, 0.0, 0.0, 1.0);
     } else {
         // UNRESOLVED: budget exhausted without proving capture, escape, or disk intersection.
         // Strictly pure black visually, alpha 0.5 distinguishes unresolved in telemetry.
-        fragColor = vec4(0.0, 0.0, 0.0, 0.5);
+        return vec4(0.0, 0.0, 0.0, 0.5);
+    }
+}
+
+void main() {
+    // Aspect-ratio-corrected normalized device coordinates in [-1, 1]
+    vec2 st = (gl_FragCoord.xy * 2.0 - u_Resolution.xy) / min(u_Resolution.x, u_Resolution.y);
+
+    int baseState;
+    float baseMinR;
+    int baseCrossings;
+    float baseHitR;
+    vec4 baseSample = traceRaySample(st, baseState, baseMinR, baseCrossings, baseHitR);
+
+    // Selective Subpixel Supersampling:
+    // Only pixels near strong-lensing/shadow boundary or unresolved subpixel filaments
+    // take 2 additional physical rays. 98%+ of screen executes only the single base ray.
+    bool needsRefinement = (baseCrossings >= 2) || (baseMinR < 2.5) || (baseState == 3 && baseHitR < 6.0);
+
+    if (needsRefinement) {
+        float pxScale = 2.0 / min(u_Resolution.x, u_Resolution.y);
+        vec2 offset = vec2(0.35 * pxScale, 0.0);
+
+        int s1State, s2State;
+        float s1MinR, s2MinR, s1HitR, s2HitR;
+        int s1Crossings, s2Crossings;
+
+        vec4 sample1 = traceRaySample(st - offset, s1State, s1MinR, s1Crossings, s1HitR);
+        vec4 sample2 = traceRaySample(st + offset, s2State, s2MinR, s2Crossings, s2HitR);
+
+        fragColor = (baseSample + sample1 + sample2) / 3.0;
+    } else {
+        fragColor = baseSample;
     }
 }

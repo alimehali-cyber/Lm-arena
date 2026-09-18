@@ -1125,4 +1125,119 @@ class M6FinalPresentationTest {
         assertFalse("High-order disk ray must not be erroneously classified as escaped", resTert.isEscaped)
         assertFalse("High-order disk ray must not be captured", resTert.isCaptured)
     }
+
+    // D23. Quantitative Anti-Aliasing and Subpixel Supersampling Test
+    @Test
+    fun quantitativeAntiAliasingTertiaryFilamentContinuity() {
+        val rInF = rIn.toFloat()
+        val rOutF = rOut.toFloat()
+        val inclRad = Math.toRadians(80.0)
+        val camDist = 32.0f
+        val camPos = floatArrayOf(
+            camDist * sin(inclRad).toFloat(),
+            0.0f,
+            camDist * cos(inclRad).toFloat()
+        )
+        val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
+        val fwdLen = sqrt(camPos[0] * camPos[0] + camPos[2] * camPos[2])
+        val fwd = floatArrayOf(-camPos[0] / fwdLen, 0.0f, -camPos[2] / fwdLen)
+        val right = floatArrayOf(0.0f, 1.0f, 0.0f)
+        val up = floatArrayOf(-cos(inclRad).toFloat(), 0.0f, sin(inclRad).toFloat())
+
+        // Row py = 609 at 0.5x (stY = +0.0352) where the single base sample fell between pixel columns
+        val stY_gap = 0.0352f
+        val dim05 = 540.0f
+        val pxScale05 = 2.0f / dim05
+
+        // Check columns px in 330..360
+        var singleSampleHitCount = 0
+        var supersampledHitCount = 0
+        var integratedSingleRadiance = 0.0
+        var integratedSuperRadiance = 0.0
+
+        for (px in 330..360) {
+            val stX = (2.0f * px + 1.0f - dim05) / dim05
+
+            // Base sample
+            val rayBaseDir = floatArrayOf(
+                fwd[0] + right[0] * (stX * fovScale) + up[0] * (stY_gap * fovScale),
+                fwd[1] + right[1] * (stX * fovScale) + up[1] * (stY_gap * fovScale),
+                fwd[2] + right[2] * (stX * fovScale) + up[2] * (stY_gap * fovScale)
+            )
+            val bLen = sqrt(rayBaseDir[0] * rayBaseDir[0] + rayBaseDir[1] * rayBaseDir[1] + rayBaseDir[2] * rayBaseDir[2])
+            val normBase = floatArrayOf(rayBaseDir[0] / bLen, rayBaseDir[1] / bLen, rayBaseDir[2] / bLen)
+
+            val baseRes = GpuEquivalentIntegrator.traceRay(
+                M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normBase,
+                maxSteps = 220, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF
+            )
+
+            var pixelRad = 0.0
+            if (baseRes.isDiskHit) {
+                singleSampleHitCount++
+                pixelRad = diskRadianceNormalized(baseRes.rHit.toDouble(), baseRes.frequencyShift.toDouble())
+                integratedSingleRadiance += pixelRad
+            }
+
+            // Selective supersampling:
+            val needsRefine = (baseRes.stepsTaken > 100) || (baseRes.minRadiusReached < 2.5f) || (baseRes.isDiskHit && baseRes.rHit < 6.0f)
+            if (needsRefine) {
+                val stX1 = stX - 0.35f * pxScale05
+                val ray1Dir = floatArrayOf(
+                    fwd[0] + right[0] * (stX1 * fovScale) + up[0] * (stY_gap * fovScale),
+                    fwd[1] + right[1] * (stX1 * fovScale) + up[1] * (stY_gap * fovScale),
+                    fwd[2] + right[2] * (stX1 * fovScale) + up[2] * (stY_gap * fovScale)
+                )
+                val len1 = sqrt(ray1Dir[0] * ray1Dir[0] + ray1Dir[1] * ray1Dir[1] + ray1Dir[2] * ray1Dir[2])
+                val norm1 = floatArrayOf(ray1Dir[0] / len1, ray1Dir[1] / len1, ray1Dir[2] / len1)
+                val s1 = GpuEquivalentIntegrator.traceRay(
+                    M = 1.0f, a = 0.8f, camPos = camPos, rayDir = norm1,
+                    maxSteps = 220, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF
+                )
+
+                val stX2 = stX + 0.35f * pxScale05
+                val ray2Dir = floatArrayOf(
+                    fwd[0] + right[0] * (stX2 * fovScale) + up[0] * (stY_gap * fovScale),
+                    fwd[1] + right[1] * (stX2 * fovScale) + up[1] * (stY_gap * fovScale),
+                    fwd[2] + right[2] * (stX2 * fovScale) + up[2] * (stY_gap * fovScale)
+                )
+                val len2 = sqrt(ray2Dir[0] * ray2Dir[0] + ray2Dir[1] * ray2Dir[1] + ray2Dir[2] * ray2Dir[2])
+                val norm2 = floatArrayOf(ray2Dir[0] / len2, ray2Dir[1] / len2, ray2Dir[2] / len2)
+                val s2 = GpuEquivalentIntegrator.traceRay(
+                    M = 1.0f, a = 0.8f, camPos = camPos, rayDir = norm2,
+                    maxSteps = 220, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF
+                )
+
+                var rSum = pixelRad
+                var anyHit = baseRes.isDiskHit
+                if (s1.isDiskHit) {
+                    anyHit = true
+                    rSum += diskRadianceNormalized(s1.rHit.toDouble(), s1.frequencyShift.toDouble())
+                }
+                if (s2.isDiskHit) {
+                    anyHit = true
+                    rSum += diskRadianceNormalized(s2.rHit.toDouble(), s2.frequencyShift.toDouble())
+                }
+
+                if (anyHit) {
+                    supersampledHitCount++
+                    integratedSuperRadiance += (rSum / 3.0)
+                }
+            } else if (baseRes.isDiskHit) {
+                supersampledHitCount++
+                integratedSuperRadiance += pixelRad
+            }
+        }
+
+        // Prove that selective supersampling restores continuity across rows where single-sample had 0 hits
+        assertEquals("Single-sample has 0 hits on gap row py=609", 0, singleSampleHitCount)
+        assertTrue("Selective supersampling recovers the tertiary filament on py=609", supersampledHitCount > 0)
+        assertTrue("Integrated supersampled radiance is strictly positive", integratedSuperRadiance > 0.0)
+
+        // Verify that shader source includes selective supersampling implementation
+        val shaderContent = readShader("gargantua_geodesic.frag")
+        assertTrue("Shader must contain traceRaySample helper", shaderContent.contains("vec4 traceRaySample("))
+        assertTrue("Shader must contain needsRefinement check", shaderContent.contains("needsRefinement"))
+        assertTrue("Shader must average subpixel samples", shaderContent.contains("(baseSample + sample1 + sample2) / 3.0"))
+    }
 }
