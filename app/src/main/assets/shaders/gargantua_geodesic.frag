@@ -278,12 +278,6 @@ void main() {
     // Primary null Hamiltonian geodesic integration loop
     for (int step = 0; step < MAX_INTEGRATION_STEPS; step++) {
         if (step >= maxSteps) {
-            // Integration budget exhausted: classify according to physical trajectory state
-            if (movingOutward && r > 5.0) {
-                rayState = 2; // Moving outward into asymptotic Minkowski space
-            } else if (rInit < rCapture || pos.x * pos.x + pos.y * pos.y + pos.z * pos.z <= (rCapture + 0.3) * (rCapture + 0.3)) {
-                rayState = 1; // Trapped in horizon vicinity
-            }
             break;
         }
 
@@ -375,12 +369,10 @@ void main() {
                 float fPeak = u_Mass / (7.0 * rPeak * rPeak * rPeak);
                 float fNorm = (fPeak > 1.0e-7) ? clamp(F / fPeak, 0.0, 1.0) : 0.0;
 
-                // Continuous physical outer boundary taper approaching black at finite boundary
-                float outerTaper = clamp((u_DiskOuterRadius - rHit) / 1.5, 0.0, 1.0);
-
-                // Physical beamed transferred emission: I_phys = g^4 * fNorm * outerTaper
-                // Preserves exact physical radial hierarchy and strong falloff without nonlinear dynamic-range flattening
-                float iPhys = g4 * fNorm * outerTaper;
+                // Physical transferred emission: I_phys = g^4 * fNorm
+                // Follows relativistic invariant intensity transfer I_obs ∝ g^4 * I_emit
+                // No artificial outer taper or edge gradient; emissivity is governed purely by the physical model
+                float iPhys = g4 * fNorm;
                 float radiance = iPhys;
 
                 // Thermal blackbody spectral color approximation
@@ -395,6 +387,15 @@ void main() {
                 rayState = 3; // DISK
                 break;
             }
+        }
+    }
+
+    // Finalize classification of unresolved rays using physical trajectory state
+    if (rayState == 0) {
+        if (movingOutward && prevR > 5.0) {
+            rayState = 2; // Moving outward into asymptotic Minkowski space
+        } else if (prevR <= rCapture + 0.3) {
+            rayState = 1; // Trapped in horizon vicinity
         }
     }
 

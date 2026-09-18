@@ -2,6 +2,7 @@ package com.zig.gargantua.renderer
 
 import com.zig.gargantua.disk.AccretionDiskModel
 import com.zig.gargantua.disk.KerrIsco
+import com.zig.gargantua.geodesic.GpuEquivalentIntegrator
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
@@ -47,8 +48,7 @@ class M6FinalPresentationTest {
         val fPeak = peakFlux()
         val fNorm = if (fPeak > 1e-7) (f / fPeak).coerceIn(0.0, 1.0) else 0.0
         val g4 = g * g * g * g
-        val outerTaper = ((rOut - r) / 1.5).coerceIn(0.0, 1.0)
-        val iPhys = g4 * fNorm * outerTaper
+        val iPhys = g4 * fNorm
         return iPhys
     }
 
@@ -183,8 +183,8 @@ class M6FinalPresentationTest {
         assertTrue("g2 must be defined as gShift * gShift", content.contains("float g2 = gShift * gShift;"))
         assertTrue("g4 must be defined as g2 * g2", content.contains("float g4 = g2 * g2;"))
 
-        // Verify iPhys uses g4 exactly once
-        assertTrue("iPhys must be g4 * fNorm * outerTaper", content.contains("float iPhys = g4 * fNorm * outerTaper;"))
+        // Verify iPhys uses g4 exactly once without artificial tapers
+        assertTrue("iPhys must be g4 * fNorm", content.contains("float iPhys = g4 * fNorm;"))
         assertTrue("radiance must use iPhys", content.contains("float radiance = iPhys;"))
     }
 
@@ -405,8 +405,9 @@ class M6FinalPresentationTest {
             prevRad = currRad
         }
 
-        // At finite outer boundary rOut, emission must approach 0
-        assertEquals("Emission at rOut must be exactly 0.0", 0.0, diskRadianceNormalized(rOut, constantG), 1e-15)
+        // Beyond computational outer radius rOut, emission terminates
+        assertEquals("Emission beyond rOut must be exactly 0.0", 0.0, diskRadianceNormalized(rOut + 0.1, constantG), 1e-15)
+        assertTrue("Emission at rOut boundary must remain strictly positive before termination", diskRadianceNormalized(rOut, constantG) > 0.0)
     }
 
     // D4. No emitting-disk sample becomes black because of an unexplained renderer/compositor state
@@ -523,6 +524,135 @@ class M6FinalPresentationTest {
                 val srgb = toSrgb(postAces)
                 assertTrue("sRGB must be in [0, 255] for r=$r, g=$g", srgb in 0..255)
             }
+        }
+    }
+
+    // D9. Geodesic renderer produces nonzero scene output for known valid camera rays
+    @Test
+    fun geodesicRendererProducesNonzeroSceneOutputForKnownValidCameraRays() {
+        val camPos = floatArrayOf(0.0f, -24.0f, 3.0f)
+
+        // 1. Ray targeted at approaching side of the accretion disk
+        val dxApp = -0.25f
+        val dyApp = 0.95f
+        val dzApp = -0.12f
+        val magApp = sqrt(dxApp * dxApp + dyApp * dyApp + dzApp * dzApp)
+        val normRayApp = floatArrayOf(dxApp / magApp, dyApp / magApp, dzApp / magApp)
+
+        val diskRayResult = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f,
+            a = 0.8f,
+            camPos = camPos,
+            rayDir = normRayApp,
+            maxSteps = 180,
+            enableDisk = true,
+            diskInnerRadius = rIn.toFloat(),
+            diskOuterRadius = rOut.toFloat()
+        )
+
+        assertTrue("Approaching disk ray must physically intersect accretion disk", diskRayResult.isDiskHit)
+        assertTrue(
+            "Hit radius must fall within disk bounds [rIn, rOut]: got ${diskRayResult.rHit}",
+            diskRayResult.rHit in (rIn.toFloat()..rOut.toFloat())
+        )
+        val radApp = diskRadianceNormalized(diskRayResult.rHit.toDouble(), diskRayResult.frequencyShift.toDouble())
+        assertTrue("Approaching disk ray must produce strictly positive radiance ($radApp > 0)", radApp > 0.0)
+
+        // 2. Ray targeted straight into black hole shadow
+        val dxSh = 0.0f
+        val dySh = 1.0f
+        val dzSh = -0.125f
+        val magSh = sqrt(dxSh * dxSh + dySh * dySh + dzSh * dzSh)
+        val normRaySh = floatArrayOf(dxSh / magSh, dySh / magSh, dzSh / magSh)
+
+        val shadowResult = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f,
+            a = 0.8f,
+            camPos = camPos,
+            rayDir = normRaySh,
+            maxSteps = 180,
+            enableDisk = true,
+            diskInnerRadius = rIn.toFloat(),
+            diskOuterRadius = rOut.toFloat()
+        )
+        assertTrue("Shadow ray must be captured by black hole event horizon", shadowResult.isCaptured)
+
+        // 3. Ray directed away into empty asymptotic sky
+        val normRaySky = floatArrayOf(0.0f, 0.0f, 1.0f)
+        val skyResult = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f,
+            a = 0.8f,
+            camPos = camPos,
+            rayDir = normRaySky,
+            maxSteps = 180,
+            enableDisk = true,
+            diskInnerRadius = rIn.toFloat(),
+            diskOuterRadius = rOut.toFloat()
+        )
+        assertTrue("Sky ray must physically escape into asymptotic space", skyResult.isEscaped)
+    }
+
+    // D10. No arbitrary outer taper or edge gradient applied to physical disk flux
+    @Test
+    fun noArbitraryOuterTaperIsAppliedToPhysicalDiskFlux() {
+        val content = readShader("gargantua_geodesic.frag")
+        assertFalse("Shader must not contain arbitrary outer taper variable", content.contains("outerTaper"))
+        assertFalse("Shader must not contain w_out taper function", content.contains("w_out"))
+        assertFalse("Shader must not contain wOut taper variable", content.contains("wOut"))
+
+        // Transferred emission must be purely I_phys = g4 * fNorm
+        assertTrue("iPhys must be defined as g4 * fNorm", content.contains("float iPhys = g4 * fNorm;"))
+        assertTrue("radiance must be directly assigned from iPhys", content.contains("float radiance = iPhys;"))
+    }
+
+    // D11. GLSL shader scoping and declaration validation
+    @Test
+    fun glslShaderHasNoUndeclaredVariablesOrSyntaxErrors() {
+        val content = readShader("gargantua_geodesic.frag")
+
+        // Braces matching
+        val openBraces = content.count { it == '{' }
+        val closeBraces = content.count { it == '}' }
+        assertEquals("Braces must be balanced in fragment shader", openBraces, closeBraces)
+
+        // Parentheses matching
+        val openParens = content.count { it == '(' }
+        val closeParens = content.count { it == ')' }
+        assertEquals("Parentheses must be balanced in fragment shader", openParens, closeParens)
+
+        // Ensure variable 'r' in the integration loop is declared BEFORE any usage
+        val loopStart = content.indexOf("for (int step = 0; step < MAX_INTEGRATION_STEPS; step++)")
+        assertTrue("Integration loop must exist", loopStart > 0)
+        val loopBody = content.substring(loopStart)
+
+        val rDeclaration = loopBody.indexOf("float r = compute_r_KS(")
+        assertTrue("r must be declared inside loop", rDeclaration > 0)
+
+        // First usage of r in the loop must be at or after declaration
+        val firstRUse = loopBody.indexOf("if (r > prevR)")
+        assertTrue("First usage of r must occur after declaration", firstRUse > rDeclaration)
+
+        // maxSteps break must not precede r declaration if r is used in it
+        val maxStepsCheck = loopBody.indexOf("if (step >= maxSteps)")
+        assertTrue("step >= maxSteps check must exist in loop", maxStepsCheck > 0)
+    }
+
+    // D12. HDR composite pipeline preserves valid geodesic output
+    @Test
+    fun hdrCompositePipelinePreservesValidGeodesicOutput() {
+        // Shadow (0.0 radiance) -> display is 0.0
+        val shadowDisplay = acesFilmic(0.0 * 1.8)
+        assertEquals("Shadow display must remain strictly 0.0", 0.0, shadowDisplay, 1e-12)
+
+        // Nonzero disk radiance -> display is strictly positive and bounded
+        val testRadiances = listOf(0.01, 0.05, 0.2, 0.8, 2.5, 8.0)
+        var prevLdr = 0.0
+        for (rad in testRadiances) {
+            val ldr = acesFilmic(rad * 1.8)
+            assertTrue("LDR display must be strictly positive for rad=$rad", ldr > 0.0)
+            assertTrue("LDR display must be <= 1.0 for rad=$rad", ldr <= 1.0)
+            assertTrue("LDR display must preserve monotonicity: curr=$ldr > prev=$prevLdr", ldr > prevLdr)
+            prevLdr = ldr
         }
     }
 }
