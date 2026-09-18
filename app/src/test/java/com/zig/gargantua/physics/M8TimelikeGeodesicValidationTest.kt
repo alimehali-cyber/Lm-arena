@@ -430,18 +430,18 @@ class M8TimelikeGeodesicValidationTest {
 
         val gLowerTimelike = timelikeIntegrator.spacetime.metric(testX, testY, testZ)
         val gLowerPhoton = photonIntegrator.spacetime.metric(testX, testY, testZ)
-        assertArrayEquals(gLowerTimelike.components, gLowerPhoton.components, 1e-15)
+        assertArrayEquals(gLowerTimelike.elements, gLowerPhoton.elements, 1e-15)
 
         val gUpperTimelike = timelikeIntegrator.spacetime.inverseMetric(testX, testY, testZ)
         val gUpperPhoton = photonIntegrator.spacetime.inverseMetric(testX, testY, testZ)
-        assertArrayEquals(gUpperTimelike.components, gUpperPhoton.components, 1e-15)
+        assertArrayEquals(gUpperTimelike.elements, gUpperPhoton.elements, 1e-15)
 
         // 2. Prove identical spatial derivatives
         val derivTimelike = timelikeIntegrator.spacetime.derivativesOfInverseMetric(testX, testY, testZ)
         val derivPhoton = photonIntegrator.spacetime.derivativesOfInverseMetric(testX, testY, testZ)
-        assertArrayEquals(derivTimelike.d_dX.components, derivPhoton.d_dX.components, 1e-15)
-        assertArrayEquals(derivTimelike.d_dY.components, derivPhoton.d_dY.components, 1e-15)
-        assertArrayEquals(derivTimelike.d_dZ.components, derivPhoton.d_dZ.components, 1e-15)
+        assertArrayEquals(derivTimelike.d_dX.elements, derivPhoton.d_dX.elements, 1e-15)
+        assertArrayEquals(derivTimelike.d_dY.elements, derivPhoton.d_dY.elements, 1e-15)
+        assertArrayEquals(derivTimelike.d_dZ.elements, derivPhoton.d_dZ.elements, 1e-15)
 
         // 3. Prove identical horizon and ISCO geometry
         assertEquals(timelikeIntegrator.spacetime.rPlus, photonIntegrator.spacetime.rPlus, 1e-15)
