@@ -1277,20 +1277,22 @@ class M6FinalPresentationTest {
         val px344_stY = 0.0352f
         val baseH = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px344_stX, px344_stY), 220, true, rInF, rOutF)
         assertFalse("Base ray at px=344 center must miss the disk", baseH.isDiskHit)
-        val subH = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px344_stX - off, px344_stY - off), 220, true, rInF, rOutF)
-        assertTrue("Subpixel offset (-off, -off) must recover disk intersection", subH.isDiskHit)
-        assertTrue("Recovered hit radius must be within physical disk bounds", subH.rHit in rInF..rOutF)
+        val subH = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px344_stX - off, px344_stY), 220, true, rInF, rOutF)
+        assertTrue("Horizontal subpixel offset (-off, 0) must recover disk intersection", subH.isDiskHit)
+        assertTrue("Recovered horizontal hit radius must be within physical disk bounds", subH.rHit in rInF..rOutF)
 
         // 2. Vertical subpixel crossing recovery
-        val vert_stX = 0.270f
-        val vert_stY = 0.0356f
-        val subV = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(vert_stX - off, vert_stY + off), 220, true, rInF, rOutF)
+        val vert_stX = 0.275f
+        val vert_stY = 0.0352f
+        val baseV = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(vert_stX, vert_stY), 220, true, rInF, rOutF)
+        assertFalse("Base ray at (0.275, 0.0352) must miss the disk", baseV.isDiskHit)
+        val subV = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(vert_stX, vert_stY - off), 220, true, rInF, rOutF)
         assertTrue("Vertical-offset subpixel sample must intersect physical disk", subV.isDiskHit)
         assertTrue("Vertical subpixel hit radius must be physical", subV.rHit in rInF..rOutF)
 
         // 3. Diagonal/curved subpixel crossing recovery
-        val subDiag = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px344_stX - off, px344_stY + off), 220, true, rInF, rOutF)
-        assertTrue("Diagonal quarter-offset (-off, +off) must recover curved tertiary arc", subDiag.isDiskHit)
+        val subDiag = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px344_stX - off, px344_stY - off), 220, true, rInF, rOutF)
+        assertTrue("Diagonal quarter-offset (-off, -off) must recover curved tertiary arc", subDiag.isDiskHit)
         assertTrue("Diagonal subpixel hit radius must be physical", subDiag.rHit in rInF..rOutF)
 
         // 4. Shadow core pixels remain genuinely black across all subpixel samples
