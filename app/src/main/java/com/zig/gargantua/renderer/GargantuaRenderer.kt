@@ -282,21 +282,22 @@ class GargantuaRenderer(
                     Triple(-dirX, -dirY, -dirZ)
                 }
 
-                // Observer orthonormal tetrad basis
-                val rightRawX = fwdY
-                val rightRawY = -fwdX
-                val rightRawZ = 0.0
-                val rightLen = sqrt(rightRawX * rightRawX + rightRawY * rightRawY)
-                val (rX, rY, rZ) = if (rightLen > 1e-6) {
-                    Triple(rightRawX / rightLen, rightRawY / rightLen, 0.0)
-                } else {
-                    Triple(1.0, 0.0, 0.0)
-                }
+                // Stable orthonormal camera basis for full 360° orbit
+                // Right vector along increasing azimuth: R = (-sin(phi), cos(phi), 0)
+                val rX = -sin(azRad)
+                val rY = cos(azRad)
+                val rZ = 0.0
 
-                // up = right x forward
+                // Up vector = Right x Forward (right-handed camera frame)
                 val upX = rY * fwdZ - rZ * fwdY
                 val upY = rZ * fwdX - rX * fwdZ
                 val upZ = rX * fwdY - rY * fwdX
+                val upLen = sqrt(upX * upX + upY * upY + upZ * upZ)
+                val (normUpX, normUpY, normUpZ) = if (upLen > 1e-6) {
+                    Triple(upX / upLen, upY / upLen, upZ / upLen)
+                } else {
+                    Triple(0.0, 0.0, 1.0)
+                }
 
                 val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
 
@@ -310,7 +311,7 @@ class GargantuaRenderer(
                 activeProg.setUniform3f("u_CamPos", camX.toFloat(), camY.toFloat(), camZ.toFloat())
                 activeProg.setUniform3f("u_CamForward", fwdX.toFloat(), fwdY.toFloat(), fwdZ.toFloat())
                 activeProg.setUniform3f("u_CamRight", rX.toFloat(), rY.toFloat(), rZ.toFloat())
-                activeProg.setUniform3f("u_CamUp", upX.toFloat(), upY.toFloat(), upZ.toFloat())
+                activeProg.setUniform3f("u_CamUp", normUpX.toFloat(), normUpY.toFloat(), normUpZ.toFloat())
                 activeProg.setUniform1f("u_FovScale", fovScale)
                 activeProg.setUniform1i("u_MaxSteps", state.maxSteps)
                 activeProg.setUniform1f("u_DiskInnerRadius", isco)

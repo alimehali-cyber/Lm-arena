@@ -62,8 +62,8 @@ class CameraInteractionTest {
         // Trigger reset
         holder.updateState {
             it.copy(
-                camDist = 24.0f,
-                camInclinationDeg = 82.0f,
+                camDist = 32.0f,
+                camInclinationDeg = 80.0f,
                 camAzimuthDeg = 0.0f,
                 camTargetX = 0.0f,
                 camTargetY = 0.0f,
@@ -72,8 +72,8 @@ class CameraInteractionTest {
         }
 
         val resetState = holder.getState()
-        assertEquals(24.0f, resetState.camDist, 1e-4f)
-        assertEquals(82.0f, resetState.camInclinationDeg, 1e-4f)
+        assertEquals(32.0f, resetState.camDist, 1e-4f)
+        assertEquals(80.0f, resetState.camInclinationDeg, 1e-4f)
         assertEquals(0.0f, resetState.camAzimuthDeg, 1e-4f)
         assertEquals(0.0f, resetState.camTargetX, 1e-4f)
         assertEquals(0.0f, resetState.camTargetY, 1e-4f)

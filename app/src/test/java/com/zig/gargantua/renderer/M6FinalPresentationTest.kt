@@ -325,11 +325,11 @@ class M6FinalPresentationTest {
             camInclinationDeg = (initial.camInclinationDeg + 5.0f).coerceIn(5.0f, 175.0f)
         )
         assertEquals(15.0f, orbited.camAzimuthDeg, 1e-4f)
-        assertEquals(87.0f, orbited.camInclinationDeg, 1e-4f)
+        assertEquals(85.0f, orbited.camInclinationDeg, 1e-4f)
 
         // Pinch zoom
         val zoomed = initial.copy(camDist = (initial.camDist * 1.5f).coerceIn(12.0f, 60.0f))
-        assertEquals(36.0f, zoomed.camDist, 1e-4f)
+        assertEquals(48.0f, zoomed.camDist, 1e-4f)
 
         // 2-finger pan
         val panned = initial.copy(
@@ -654,5 +654,171 @@ class M6FinalPresentationTest {
             assertTrue("LDR display must preserve monotonicity: curr=$ldr > prev=$prevLdr", ldr > prevLdr)
             prevLdr = ldr
         }
+    }
+
+    // D13. Default camera framing provides adequate margin around black-hole shadow
+    @Test
+    fun defaultCameraFramingProvidesAdequateMarginAroundShadow() {
+        val defaultState = GargantuaRenderState()
+        assertEquals("Default observer distance must be 32.0M", 32.0f, defaultState.camDist, 1e-4f)
+        assertEquals("Default observer inclination must be 80.0 deg", 80.0f, defaultState.camInclinationDeg, 1e-4f)
+        assertEquals("Default observer azimuth must be 0.0 deg", 0.0f, defaultState.camAzimuthDeg, 1e-4f)
+
+        // Apparent shadow radius for Kerr black hole with a=0.8M is bounded by b_crit ~ 5.2M
+        val bShadow = 5.20
+        val halfFovRad = Math.toRadians(45.0 * 0.5)
+        val viewportHalfExtentAtObserver = defaultState.camDist * tan(halfFovRad) // 32 * tan(22.5) ~ 13.255M
+
+        // Shadow fraction of viewport half-dimension
+        val shadowFraction = bShadow / viewportHalfExtentAtObserver
+        val viewportMargin = 1.0 - shadowFraction
+
+        // Margin around shadow must be at least 50% (got ~ 60.7%)
+        assertTrue(
+            "Viewport margin around shadow ($viewportMargin) must be >= 50% to prevent cramped framing",
+            viewportMargin >= 0.50
+        )
+
+        // Ensure inner and mid accretion disk up to r=12M fits comfortably
+        val midDiskRadius = 12.0
+        val diskFraction = midDiskRadius / viewportHalfExtentAtObserver
+        assertTrue(
+            "Inner and mid disk footprint ($diskFraction) must fit comfortably within viewport",
+            diskFraction < 1.0
+        )
+    }
+
+    // D14. Maximum camera distance never causes premature scene escape or disappearance
+    @Test
+    fun maxCameraDistanceNeverCausesPrematureSceneEscape() {
+        val maxDist = 60.0f
+        val inclRad = Math.toRadians(80.0).toFloat()
+        val azRad = 0.0f
+
+        val camX = maxDist * sin(inclRad) * cos(azRad)
+        val camY = maxDist * sin(inclRad) * sin(azRad)
+        val camZ = maxDist * cos(inclRad)
+
+        val camPos = floatArrayOf(camX, camY, camZ)
+
+        // 1. Shadow ray: directed straight at origin
+        val fwdLen = sqrt(camX * camX + camY * camY + camZ * camZ)
+        val rayShadow = floatArrayOf(-camX / fwdLen, -camY / fwdLen, -camZ / fwdLen)
+
+        val shadowResult = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f,
+            a = 0.8f,
+            camPos = camPos,
+            rayDir = rayShadow,
+            maxSteps = 180,
+            enableDisk = true,
+            diskInnerRadius = rIn.toFloat(),
+            diskOuterRadius = rOut.toFloat()
+        )
+
+        assertTrue(
+            "Ray aimed at black hole from d=60M must be captured, not prematurely escaped (escaped=${shadowResult.isEscaped}, captured=${shadowResult.isCaptured})",
+            shadowResult.isCaptured
+        )
+        assertFalse(
+            "Ray aimed at black hole from d=60M must not escape",
+            shadowResult.isEscaped
+        )
+
+        // 2. Accretion disk ray: directed at approaching disk from d=60M
+        val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
+        val rightX = -sin(azRad)
+        val rightY = cos(azRad)
+        val rightZ = 0.0f
+
+        val stX = -0.10f // Aimed at approaching disk
+        val diskRayDirX = rayShadow[0] + rightX * (stX * fovScale)
+        val diskRayDirY = rayShadow[1] + rightY * (stX * fovScale)
+        val diskRayDirZ = rayShadow[2] + rightZ * (stX * fovScale)
+        val dLen = sqrt(diskRayDirX * diskRayDirX + diskRayDirY * diskRayDirY + diskRayDirZ * diskRayDirZ)
+        val rayDisk = floatArrayOf(diskRayDirX / dLen, diskRayDirY / dLen, diskRayDirZ / dLen)
+
+        val diskResult = GpuEquivalentIntegrator.traceRay(
+            M = 1.0f,
+            a = 0.8f,
+            camPos = camPos,
+            rayDir = rayDisk,
+            maxSteps = 180,
+            enableDisk = true,
+            diskInnerRadius = rIn.toFloat(),
+            diskOuterRadius = rOut.toFloat()
+        )
+
+        assertTrue(
+            "Ray aimed at disk from d=60M must hit disk, not escape (escaped=${diskResult.isEscaped}, diskHit=${diskResult.isDiskHit})",
+            diskResult.isDiskHit
+        )
+        assertTrue(
+            "Disk hit radius must be in valid range [rIn, rOut]: got ${diskResult.rHit}",
+            diskResult.rHit in (rIn.toFloat()..rOut.toFloat())
+        )
+    }
+
+    // D15. Continuous 360-degree orbit basis remains singularity-free and orthonormal
+    @Test
+    fun continuous360OrbitBasisRemainsSingularityFreeAndOrthonormal() {
+        for (azDeg in 0..360 step 15) {
+            for (inclDeg in 10..170 step 15) {
+                val azRad = Math.toRadians(azDeg.toDouble())
+                val inclRad = Math.toRadians(inclDeg.toDouble())
+
+                val fwdX = -sin(inclRad) * cos(azRad)
+                val fwdY = -sin(inclRad) * sin(azRad)
+                val fwdZ = -cos(inclRad)
+
+                val rX = -sin(azRad)
+                val rY = cos(azRad)
+                val rZ = 0.0
+
+                val upX = rY * fwdZ - rZ * fwdY
+                val upY = rZ * fwdX - rX * fwdZ
+                val upZ = rX * fwdY - rY * fwdX
+
+                val fwdLen = sqrt(fwdX * fwdX + fwdY * fwdY + fwdZ * fwdZ)
+                val rightLen = sqrt(rX * rX + rY * rY + rZ * rZ)
+                val upLen = sqrt(upX * upX + upY * upY + upZ * upZ)
+
+                assertEquals("Forward vector must have unit length at az=$azDeg, incl=$inclDeg", 1.0, fwdLen, 1e-6)
+                assertEquals("Right vector must have unit length at az=$azDeg, incl=$inclDeg", 1.0, rightLen, 1e-6)
+                assertEquals("Up vector must have unit length at az=$azDeg, incl=$inclDeg", 1.0, upLen, 1e-6)
+
+                val dotFR = fwdX * rX + fwdY * rY + fwdZ * rZ
+                val dotFU = fwdX * upX + fwdY * upY + fwdZ * upZ
+                val dotRU = rX * upX + rY * upY + rZ * upZ
+
+                assertEquals("Forward and Right must be orthogonal at az=$azDeg, incl=$inclDeg", 0.0, dotFR, 1e-6)
+                assertEquals("Forward and Up must be orthogonal at az=$azDeg, incl=$inclDeg", 0.0, dotFU, 1e-6)
+                assertEquals("Right and Up must be orthogonal at az=$azDeg, incl=$inclDeg", 0.0, dotRU, 1e-6)
+
+                // Determinant of [R, U, -F] must be +1 (standard right-handed camera coordinates)
+                val det = rX * (upY * (-fwdZ) - upZ * (-fwdY)) -
+                          rY * (upX * (-fwdZ) - upZ * (-fwdX)) +
+                          rZ * (upX * (-fwdY) - upY * (-fwdX))
+                assertEquals("Camera basis determinant must be +1.0 at az=$azDeg, incl=$inclDeg", 1.0, det, 1e-6)
+            }
+        }
+    }
+
+    // D16. Equatorial step refinement preserves step budget inside ISCO plunge region
+    @Test
+    fun equatorialStepRefinementPreservesStepBudgetInsideIsco() {
+        val content = readShader("gargantua_geodesic.frag")
+
+        // Fragment shader must guard disk step refinement by r >= u_DiskInnerRadius - 0.5
+        assertTrue(
+            "Shader must avoid clamping step size inside empty ISCO plunge region",
+            content.contains("r >= u_DiskInnerRadius - 0.5")
+        )
+
+        // Escape check must strictly require movingOutward to prevent premature escape at large distances
+        assertTrue(
+            "Escape check must require movingOutward",
+            content.contains("if (movingOutward && (r >= rEscape || r >= u_DiskOuterRadius))")
+        )
     }
 }

@@ -82,8 +82,9 @@ class GargantuaSurfaceView(
                     lastTouchY = event.y
 
                     renderer.stateHolder.updateState { current ->
-                        val newAzimuth = (current.camAzimuthDeg - dx * 0.25f + 360.0f) % 360.0f
-                        val newInclination = (current.camInclinationDeg - dy * 0.25f).coerceIn(5.0f, 175.0f)
+                        var newAzimuth = (current.camAzimuthDeg - dx * 0.35f) % 360.0f
+                        if (newAzimuth < 0.0f) newAzimuth += 360.0f
+                        val newInclination = (current.camInclinationDeg - dy * 0.35f).coerceIn(5.0f, 175.0f)
                         current.copy(
                             camAzimuthDeg = newAzimuth,
                             camInclinationDeg = newInclination
@@ -102,22 +103,12 @@ class GargantuaSurfaceView(
                         val inclRad = Math.toRadians(current.camInclinationDeg.toDouble())
                         val azRad = Math.toRadians(current.camAzimuthDeg.toDouble())
 
-                        val dirX = sin(inclRad) * cos(azRad)
-                        val dirY = sin(inclRad) * sin(azRad)
-                        val dirZ = cos(inclRad)
+                        val rX = -sin(azRad)
+                        val rY = cos(azRad)
 
-                        val fwdX = -dirX
-                        val fwdY = -dirY
-                        val fwdZ = -dirZ
-
-                        val rightRawX = fwdY
-                        val rightRawY = -fwdX
-                        val rightLen = sqrt(rightRawX * rightRawX + rightRawY * rightRawY)
-                        val (rX, rY) = if (rightLen > 1e-6) Pair(rightRawX / rightLen, rightRawY / rightLen) else Pair(1.0, 0.0)
-
-                        val upX = rY * fwdZ
-                        val upY = -rX * fwdZ
-                        val upZ = rX * fwdY - rY * fwdX
+                        val upX = -cos(inclRad) * cos(azRad)
+                        val upY = -cos(inclRad) * sin(azRad)
+                        val upZ = sin(inclRad)
 
                         val viewDim = max(100, min(width, height))
                         val panFactor = (current.camDist / viewDim) * 0.8f
@@ -159,8 +150,8 @@ class GargantuaSurfaceView(
     fun resetCamera() {
         renderer.stateHolder.updateState {
             it.copy(
-                camDist = 24.0f,
-                camInclinationDeg = 82.0f,
+                camDist = 32.0f,
+                camInclinationDeg = 80.0f,
                 camAzimuthDeg = 0.0f,
                 camTargetX = 0.0f,
                 camTargetY = 0.0f,

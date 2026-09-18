@@ -299,13 +299,16 @@ object GpuEquivalentIntegrator {
         var state = createInitialRay(M, a, camPos, rayDir)
         val rPlus = M + sqrt(max(0.0f, M * M - a * a))
         val rCapture = rPlus + 0.05f
-        val rEscape = 50.0f
 
-        var minR = compute_r_KS(a, state[0], state[1], state[2])
+        val rInitCam = compute_r_KS(a, camPos[0], camPos[1], camPos[2])
+        val rEscape = max(50.0f, rInitCam + 15.0f)
+
+        var minR = rInitCam
         var maxH = abs(computeHamiltonian(M, a, state))
         val intermediateList = mutableListOf(state.clone())
 
         var prevR = minR
+        var movingOutward = false
         var isEscaped = false
         var isCaptured = false
         var isDiskHit = false
@@ -313,7 +316,6 @@ object GpuEquivalentIntegrator {
         var gShiftResult = 1.0f
         var stepCount = 0
 
-        val rInitCam = compute_r_KS(a, camPos[0], camPos[1], camPos[2])
         val gCam = compute_g_lower(M, a, camPos[0], camPos[1], camPos[2], rInitCam)
         val uObs0 = 1.0f / sqrt(max(1.0e-6f, -gCam[0][0]))
 
@@ -321,6 +323,9 @@ object GpuEquivalentIntegrator {
             stepCount++
             val r = compute_r_KS(a, state[0], state[1], state[2])
             if (r < minR) minR = r
+            if (r > prevR) {
+                movingOutward = true
+            }
 
             val h = abs(computeHamiltonian(M, a, state))
             if (h > maxH) maxH = h
@@ -329,13 +334,19 @@ object GpuEquivalentIntegrator {
                 isCaptured = true
                 break
             }
-            if (r >= rEscape && (r > prevR || step > 20)) {
+            if (movingOutward && (r >= rEscape || (enableDisk && r >= diskOuterRadius))) {
                 isEscaped = true
                 break
             }
             prevR = r
 
-            val dlambda = (0.08f * r).coerceIn(0.02f, 0.35f)
+            val baseStep = 0.08f * r
+            var dlambda = if (r > 10.0f && (movingOutward || r > 20.0f)) baseStep.coerceIn(0.02f, 0.75f) else baseStep.coerceIn(0.02f, 0.35f)
+            if (enableDisk && abs(state[2]) < 0.60f && r >= diskInnerRadius - 0.5f && r <= diskOuterRadius + 1.0f) {
+                val vz = abs(state[5])
+                val stepToDisk = abs(state[2]) / max(0.15f, vz)
+                dlambda = min(dlambda, max(0.04f, stepToDisk * 0.80f + 0.02f))
+            }
             val prevState = state.clone()
             state = rk4_step(M, a, state, dlambda)
             intermediateList.add(state.clone())

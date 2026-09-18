@@ -138,7 +138,7 @@ class RayClassificationDiagnosticTest {
                         break
                     }
 
-                    if ((r >= rEscape || (r >= diskOuterRadius && movingOutward)) && (movingOutward || step > 10)) {
+                    if (movingOutward && (r >= rEscape || r >= diskOuterRadius)) {
                         outcome = RayClassification.ESCAPED
                         break
                     }
@@ -153,7 +153,7 @@ class RayClassificationDiagnosticTest {
                         baseStep.coerceIn(0.02f, 0.35f)
                     }
 
-                    if (abs(pos[2]) < 0.60f && r <= diskOuterRadius + 1.0f) {
+                    if (abs(pos[2]) < 0.60f && r >= diskInnerRadius - 0.5f && r <= diskOuterRadius + 1.0f) {
                         val vz = abs(pSpatial[2])
                         val stepToDisk = abs(pos[2]) / max(0.15f, vz)
                         dlambda = min(dlambda, max(0.04f, stepToDisk * 0.80f + 0.02f))

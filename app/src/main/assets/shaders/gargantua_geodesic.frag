@@ -259,7 +259,7 @@ void main() {
     // Numerical integration constants
     float rPlus = u_Mass + sqrt(max(0.0, u_Mass * u_Mass - u_Spin * u_Spin));
     float rCapture = rPlus + 0.05;
-    float rEscape = 50.0;
+    float rEscape = max(50.0, rInit + 15.0);
 
     int maxSteps = clamp(u_MaxSteps, 40, MAX_INTEGRATION_STEPS);
     
@@ -294,7 +294,7 @@ void main() {
         }
 
         // 2. Escape detection (physically reached asymptotic background or cleared outer disk boundary moving outward)
-        if ((r >= rEscape || (r >= u_DiskOuterRadius && movingOutward)) && (movingOutward || step > 10)) {
+        if (movingOutward && (r >= rEscape || r >= u_DiskOuterRadius)) {
             // Compute spatial 3-velocity direction at escape
             mat4 gInv = compute_g_inv(u_Mass, u_Spin, pos.x, pos.y, pos.z, r);
             vec4 pFinal = vec4(-1.0, p_spatial);
@@ -314,7 +314,7 @@ void main() {
         // Adaptive step size: robust bounded steps preventing ray-crawling near disk plane
         float baseStep = 0.08 * r;
         float dlambda = (r > 10.0 && (movingOutward || r > 20.0)) ? clamp(baseStep, 0.02, 0.75) : clamp(baseStep, 0.02, 0.35);
-        if (u_EnableDisk == 1 && abs(pos.z) < 0.60 && r <= u_DiskOuterRadius + 1.0) {
+        if (u_EnableDisk == 1 && abs(pos.z) < 0.60 && r >= u_DiskInnerRadius - 0.5 && r <= u_DiskOuterRadius + 1.0) {
             float vz = abs(p_spatial.z);
             float stepToDisk = abs(pos.z) / max(0.15, vz);
             dlambda = min(dlambda, max(0.04, stepToDisk * 0.80 + 0.02));
