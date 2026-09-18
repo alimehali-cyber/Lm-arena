@@ -19,9 +19,9 @@ uniform float u_DiskInnerRadius; // ISCO radius r_in
 uniform float u_DiskOuterRadius; // Outer boundary r_out
 uniform int u_EnableDisk;        // 1 to render relativistic accretion disk, 0 otherwise
 
-// Relativistic synthetic test object uniforms
-uniform int u_EnableObject;         // 1 to render relativistic test object, 0 otherwise
-uniform float u_ObjectRadius;       // Physical radius of test object
+// Relativistic synthetic test marker uniforms (M9 Option B: coordinate sphere in Kerr-Schild Cartesian chart)
+uniform int u_EnableObject;         // 1 to render relativistic test marker, 0 otherwise
+uniform float u_ObjectRadius;       // Coordinate radius R_coord of test marker in Kerr-Schild units M
 uniform float u_ObjectOrbitRadius;  // Orbital coordinate radius in Kerr-Schild coordinates
 uniform float u_ObjectOmega;        // Keplerian angular velocity Ω
 uniform float u_ObjectPhi0;         // Initial phase angle φ_0
@@ -342,7 +342,7 @@ vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int o
         float dt_dlambda = 1.0 + 2.0 * H_m * Lp_m;
         rayT -= dt_dlambda * dlambda;
 
-        // Check for intersection with relativistic test object
+        // Check for intersection with relativistic test marker (bounded linear-interpolation closest-approach approximation)
         float minStepR = min(prevR, r);
         float maxStepR = max(prevR, r);
         float objMargin = u_ObjectRadius + 1.2;

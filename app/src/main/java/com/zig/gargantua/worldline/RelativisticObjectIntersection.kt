@@ -6,16 +6,22 @@ import com.zig.gargantua.physics.KerrSchildSpacetime
 import kotlin.math.*
 
 /**
- * Detects and evaluates relativistic photon ray intersections with the finite world-tube
- * of a synthetic test object moving along an M8 timelike Kerr worldline.
+ * Detects and evaluates relativistic photon ray intersections with the coordinate-defined
+ * world-tube of a synthetic test marker moving along an M8 timelike Kerr worldline.
  *
- * PHYSICAL PRINCIPLES:
- * 1. Finite-speed light travel: The emission event (T_emit, X_emit) occurs in the past of the
- *    camera observation time T_cam, satisfying T_emit = T_cam - Δt_flight.
- * 2. World-tube intersection: Tested via closest approach between the backward ray segment and
- *    the object's worldline state at that exact coordinate time.
- * 3. Relativistic frequency shift: Invariant g = (-p_μ u_obs^μ) / (-p_μ u_emit^μ).
- * 4. Relativistic intensity transfer: I_obs = g^4 I_emit (Liouville's theorem / relativistic beaming).
+ * M9 GEOMETRY DEFINITION (Option B):
+ * The test marker is deliberately defined as a coordinate sphere in the Kerr-Schild Cartesian chart (X, Y, Z)
+ * at emission coordinate time T: || X_ray - X_obj(T) || <= R_coord. It is not an invariant proper-radius sphere
+ * in the emitter's rest frame, but a coordinate-defined synthetic marker in the shared Kerr-Schild spacetime chart.
+ *
+ * NUMERICAL INTERSECTION ALGORITHM:
+ * Bounded linear-interpolation closest-approach approximation across integration steps [λ_k, λ_{k+1}]:
+ * 1. Coordinates and time are linearly interpolated along the step:
+ *    X_ray(s) = (1-s) X_0 + s X_1,  T_ray(s) = (1-s) T_0 + s T_1,  s in [0, 1].
+ * 2. Object positions at step endpoints are evaluated at corresponding times: X_obj(T_0), X_obj(T_1).
+ * 3. Bounded quadratic minimum parameter s* = clamp(-dot(dp0, vRel) / ||vRel||^2, 0, 1) identifies closest approach.
+ * 4. Object position is re-evaluated at T(s*), and separation ||X_ray(s*) - X_obj(T(s*))|| is compared to R_coord.
+ * 5. Invariant frequency shift g = (-p_μ u_obs^μ) / (-p_μ u_emit^μ) and beaming I_obs = g^4 I_emit are evaluated at hit event.
  */
 object RelativisticObjectIntersection {
 
