@@ -1,6 +1,7 @@
 package com.zig.gargantua
 
 import com.zig.gargantua.renderer.GargantuaRenderState
+import com.zig.gargantua.renderer.GargantuaRenderer
 import com.zig.gargantua.renderer.GargantuaTelemetry
 import com.zig.gargantua.renderer.RenderStateHolder
 import org.junit.Assert.assertEquals
@@ -33,9 +34,25 @@ class GargantuaRenderStateTest {
         assertEquals(1.8f, state.exposure, 0.001f)
         assertTrue(state.enableBloom)
         assertEquals(0.20f, state.bloomIntensity, 0.001f)
+        assertFalse("M9 object rendering must be opt-in", state.enableObject)
+        assertEquals(1, state.debugCoarseSamplingBlockSize)
+        assertFalse("Debug workload instrumentation must be opt-in", state.enableWorkloadTelemetry)
         assertFalse(state.isPaused)
         assertTrue(state.isDarkTheme)
         assertFalse(state.isPersian)
+    }
+
+    @Test
+    fun coarseSamplingModeParticipatesInRaySceneInvalidationSignature() {
+        val modes = listOf(1, 2, 3, 4, 6, 8)
+        modes.forEach { mode ->
+            val signature = GargantuaRenderer.RaySceneSignature.fromState(
+                GargantuaRenderState(debugCoarseSamplingBlockSize = mode),
+                540,
+                1200
+            )
+            assertEquals(mode, signature.debugCoarseSamplingBlockSize)
+        }
     }
 
     @Test
@@ -64,6 +81,29 @@ class GargantuaRenderStateTest {
         holder.updateState { it.copy(isPaused = true) }
         assertTrue(holder.getState().isPaused)
         assertEquals(1080, holder.getState().viewportWidth)
+    }
+
+    @Test
+    fun stateHolderInvokesInvalidationOnlyForActualStateChanges() {
+        val holder = RenderStateHolder()
+        var invalidations = 0
+        holder.setStateChangeListener { invalidations++ }
+
+        holder.updateState { it }
+        assertEquals("Identical state must not request a render", 0, invalidations)
+
+        holder.updateState { it.copy(camAzimuthDeg = 15.0f) }
+        assertEquals("Camera changes must request a render", 1, invalidations)
+
+        holder.setState(holder.getState())
+        assertEquals("Setting an identical snapshot must not request a render", 1, invalidations)
+
+        holder.updateState { it.copy(debugCoarseSamplingBlockSize = 4) }
+        assertEquals("Changing the sampling mode must request a render", 2, invalidations)
+        assertEquals(4, holder.getState().debugCoarseSamplingBlockSize)
+
+        holder.notifyRenderNeeded()
+        assertEquals("Lifecycle invalidation must request a render without mutating state", 3, invalidations)
     }
 
     @Test
@@ -102,6 +142,9 @@ class GargantuaRenderStateTest {
         assertEquals(0f, initialTelemetry.fps, 0.001f)
         assertEquals("Detecting...", initialTelemetry.glesVersion)
         assertNull(initialTelemetry.errorMessage)
+        assertFalse(initialTelemetry.workloadStats.available)
+        assertFalse(initialTelemetry.passTimings.gpuTimerAvailable)
+        assertTrue(initialTelemetry.adaptiveWorkload.startsWith("Unavailable"))
 
         holder.setTelemetry(
             GargantuaTelemetry(

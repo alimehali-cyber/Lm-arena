@@ -4,9 +4,16 @@ import android.content.Context
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.util.Log
+import com.alijafari.red.astronomy.BuildConfig
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.Locale
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 import kotlin.math.*
+
+private fun effectiveCoarseSamplingBlockSize(state: GargantuaRenderState): Int =
+    GargantuaCoarseSampling.sanitizeBlockSize(state.debugCoarseSamplingBlockSize)
 
 /**
  * OpenGL ES 3.x Renderer for Gargantua.
@@ -20,11 +27,13 @@ class GargantuaRenderer(
 ) : GLSurfaceView.Renderer {
 
     private var geodesicProgram: ShaderProgram? = null
+    private var workloadGeodesicProgram: ShaderProgram? = null
     private var testProgram: ShaderProgram? = null
     private var blitProgram: ShaderProgram? = null
     private var brightPassProgram: ShaderProgram? = null
     private var blurProgram: ShaderProgram? = null
     private var compositeProgram: ShaderProgram? = null
+    private var reduceProgram: ShaderProgram? = null
     private var quadGeometry: QuadGeometry? = null
 
     // Primary HDR Framebuffer Object (FBO) resources (GL_RGBA16F with GL_RGBA8 fallback)
@@ -42,14 +51,50 @@ class GargantuaRenderer(
     private var bloomWidth = 0
     private var bloomHeight = 0
 
-    // Stationary frame scheduling cache
+    // Temporary coarse ray target. The unchanged full internal HDR target is still used for
+    // upsampling, bloom, and composite; only the expensive geodesic pass uses this smaller grid.
+    private var coarseRayFboId = 0
+    private var coarseRayTextureId = 0
+    private var coarseRayWidth = 0
+    private var coarseRayHeight = 0
+    private var coarseRayTargetAvailable = false
+
+    // Debug-only workload instrumentation FBOs. These are never allocated or attached during
+    // normal production rendering. A second and third color attachment carry per-pixel counters;
+    // reduction passes collapse them to one texel before the debug-only readback.
+    private var workloadFboId = 0
+    private var workloadTierTextureId = 0
+    private var workloadCostTextureId = 0
+    private var workloadReduceFboA = 0
+    private var workloadReduceTextureA = 0
+    private var workloadReduceFboB = 0
+    private var workloadReduceTextureB = 0
+    private var workloadWidth = 0
+    private var workloadHeight = 0
+    private var workloadRayTextureId = 0
+    private var workloadTelemetrySupported = false
+
+    // Dirty/invalidation scheduling. Ray-scene changes, bloom extraction changes, and composite
+    // changes are intentionally tracked separately so exposure/bloom-intensity changes do not
+    // retrace photons.
     private var lastSceneSignature: SceneSignature? = null
-    private var dirtyFramesRemaining: Int = 3
+    private var lastRaySceneSignature: RaySceneSignature? = null
+    private var lastBloomSignature: BloomSignature? = null
+    private var lastCompositeSignature: CompositeSignature? = null
+    private var sceneDirty = true
+    @Volatile private var presentationInvalidationPending = true
+    @Volatile private var renderReadyListener: (() -> Unit)? = null
+    private val renderReadyGate = GargantuaRenderReadyGate {
+        renderReadyListener?.invoke()
+    }
+
+    private var lastWorkloadStats = GargantuaWorkloadStats.unavailable()
+    private var lastPassTimings = GargantuaPassTimings()
+    private var lastIscoRadius = 2.91f
 
     private var startTimeNanos: Long = 0L
-    private var lastFrameTimeNanos: Long = 0L
-    private var frameCount: Long = 0L
     private var fpsAccumulatorTimeNanos: Long = 0L
+    private var fpsLastSubmittedNanos: Long = 0L
     private var fpsFrames: Int = 0
 
     internal data class SceneSignature(
@@ -110,19 +155,91 @@ class GargantuaRenderer(
         }
     }
 
+    internal data class RaySceneSignature(
+        val width: Int,
+        val height: Int,
+        val renderScale: Float,
+        val mass: Float,
+        val spin: Float,
+        val camDist: Float,
+        val camInclinationDeg: Float,
+        val camAzimuthDeg: Float,
+        val camTargetX: Float,
+        val camTargetY: Float,
+        val camTargetZ: Float,
+        val maxSteps: Int,
+        val enableDisk: Boolean,
+        val diskOuterRadius: Float,
+        val enableObject: Boolean,
+        val objectRadius: Float,
+        val objectOrbitRadius: Float,
+        val objectPhi0: Float,
+        val objectZ: Float,
+        val useGeodesicShader: Boolean,
+        val debugCoarseSamplingBlockSize: Int,
+        val enableWorkloadTelemetry: Boolean
+    ) {
+        companion object {
+            fun fromState(state: GargantuaRenderState, w: Int, h: Int): RaySceneSignature =
+                RaySceneSignature(
+                    width = w,
+                    height = h,
+                    renderScale = state.renderScale,
+                    mass = state.mass,
+                    spin = state.spin,
+                    camDist = state.camDist,
+                    camInclinationDeg = state.camInclinationDeg,
+                    camAzimuthDeg = state.camAzimuthDeg,
+                    camTargetX = state.camTargetX,
+                    camTargetY = state.camTargetY,
+                    camTargetZ = state.camTargetZ,
+                    maxSteps = state.maxSteps,
+                    enableDisk = state.enableDisk,
+                    diskOuterRadius = state.diskOuterRadius,
+                    enableObject = state.enableObject,
+                    objectRadius = state.objectRadius,
+                    objectOrbitRadius = state.objectOrbitRadius,
+                    objectPhi0 = state.objectPhi0,
+                    objectZ = state.objectZ,
+                    useGeodesicShader = state.useGeodesicShader,
+                    debugCoarseSamplingBlockSize = effectiveCoarseSamplingBlockSize(state),
+                    enableWorkloadTelemetry = state.enableWorkloadTelemetry
+                )
+        }
+    }
+
+    private data class BloomSignature(
+        val enableBloom: Boolean,
+        val bloomThreshold: Float
+    )
+
+    private data class CompositeSignature(
+        val exposure: Float,
+        val enableBloom: Boolean,
+        val bloomIntensity: Float,
+        val isPaused: Boolean
+    )
+
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         val glVersion = GLES30.glGetString(GLES30.GL_VERSION) ?: "Unknown"
         val glRenderer = GLES30.glGetString(GLES30.GL_RENDERER) ?: "Unknown"
         val glVendor = GLES30.glGetString(GLES30.GL_VENDOR) ?: "Unknown"
         Log.i(TAG, "Gargantua GLES surface created: Version=$glVersion, Renderer=$glRenderer, Vendor=$glVendor")
 
+        // EGL context recreation invalidates all prior object names; do not let stationary-cache
+        // dimensions accidentally skip reallocation in the new context. The ready gate also
+        // requires a fresh post-resource request for this context generation.
+        renderReadyGate.reset()
+        resetGpuResourceHandlesForNewContext()
+
         val vertSource = ShaderSource.loadVertexShader(context)
 
         // 1. Compile Phase M4/M5/M6 relativistic photon geodesic shader
         var isGeodesicReady = false
+        geodesicProgram?.release()
+        geodesicProgram = null
         try {
             val geodesicFragSource = ShaderSource.loadGeodesicFragmentShader(context)
-            geodesicProgram?.release()
             geodesicProgram = ShaderProgram.create(vertSource, geodesicFragSource)
             isGeodesicReady = (geodesicProgram != null)
             if (isGeodesicReady) {
@@ -132,6 +249,36 @@ class GargantuaRenderer(
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not load geodesic shader asset; falling back to test shader", e)
+        }
+
+        // Debug-only workload variant of the same canonical geodesic shader. It writes two extra
+        // MRT attachments for bounded counters; it is never selected by a release build.
+        workloadGeodesicProgram?.release()
+        workloadGeodesicProgram = null
+        reduceProgram?.release()
+        reduceProgram = null
+        if (BuildConfig.DEBUG && isGeodesicReady) {
+            try {
+                val workloadSource = ShaderSource.loadWorkloadTelemetryGeodesicFragmentShader(context)
+                workloadGeodesicProgram = ShaderProgram.create(vertSource, workloadSource)
+                reduceProgram = ShaderProgram.create(
+                    vertSource,
+                    ShaderSource.loadReduceFragmentShader(context)
+                )
+                if (workloadGeodesicProgram == null || reduceProgram == null) {
+                    Log.w(TAG, "Debug workload shaders failed to compile; workload telemetry unavailable")
+                    workloadGeodesicProgram?.release()
+                    reduceProgram?.release()
+                    workloadGeodesicProgram = null
+                    reduceProgram = null
+                }
+            } catch (e: Exception) {
+                workloadGeodesicProgram?.release()
+                workloadGeodesicProgram = null
+                reduceProgram?.release()
+                reduceProgram = null
+                Log.w(TAG, "Could not compile debug workload shaders; telemetry unavailable", e)
+            }
         }
 
         // 2. Compile M1 baseline test shader as guaranteed fallback
@@ -186,20 +333,26 @@ class GargantuaRenderer(
         // Clear color (pure black for black hole horizon)
         GLES30.glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
 
-        // Force initial render of swapchain buffer passes
+        // Force one initial scene render. Subsequent frames are requested only by state changes.
         lastSceneSignature = null
-        dirtyFramesRemaining = 3
+        lastRaySceneSignature = null
+        lastBloomSignature = null
+        lastCompositeSignature = null
+        sceneDirty = true
+        presentationInvalidationPending = true
+        lastWorkloadStats = GargantuaWorkloadStats.unavailable()
+        lastPassTimings = GargantuaPassTimings()
 
         // Initialize baseline timers
         val now = System.nanoTime()
         startTimeNanos = now
-        lastFrameTimeNanos = now
         fpsAccumulatorTimeNanos = now
+        fpsLastSubmittedNanos = 0L
         fpsFrames = 0
-        frameCount = 0L
 
         stateHolder.updateTelemetry {
             it.copy(
+                fps = 0f,
                 glesVersion = glVersion,
                 glRenderer = glRenderer,
                 isInitialized = true,
@@ -207,6 +360,12 @@ class GargantuaRenderer(
                 isGeodesicActive = isGeodesicReady
             )
         }
+        // This is the explicit post-resource lifecycle handshake. If the size was already known,
+        // it requests the first presentation for this new EGL context; otherwise onSurfaceChanged
+        // completes the gate after the non-empty size arrives.
+        val currentViewport = stateHolder.getState()
+        renderReadyGate.markSurfaceSize(currentViewport.viewportWidth, currentViewport.viewportHeight)
+        renderReadyGate.markResourcesReady()
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -215,65 +374,145 @@ class GargantuaRenderer(
             it.copy(viewportWidth = width, viewportHeight = height)
         }
         lastSceneSignature = null
-        dirtyFramesRemaining = 3
+        lastRaySceneSignature = null
+        lastBloomSignature = null
+        lastCompositeSignature = null
+        sceneDirty = true
+        presentationInvalidationPending = true
+        // The state listener covers a changed size. The ready gate additionally covers an
+        // unchanged-size callback and guarantees the request occurs after resources are ready.
+        renderReadyGate.markSurfaceSize(width, height)
     }
 
     override fun onDrawFrame(gl: GL10?) {
+        val frameStartNanos = System.nanoTime()
         val state = stateHolder.getState()
-        if (state.isPaused) return
+        if (state.isPaused) {
+            // Resume must re-present the cached HDR image even if the camera state is unchanged.
+            lastCompositeSignature = null
+            return
+        }
 
         val surfaceW = state.viewportWidth
         val surfaceH = state.viewportHeight
         if (surfaceW <= 0 || surfaceH <= 0) return
 
         val quad = quadGeometry ?: return
-        val activeProg = if (state.useGeodesicShader && geodesicProgram != null) {
+        val activeProductionProgram = if (state.useGeodesicShader && geodesicProgram != null) {
             geodesicProgram
         } else {
             testProgram
         } ?: return
 
+        val forcePresentation = presentationInvalidationPending
+        presentationInvalidationPending = false
+
         val scale = state.renderScale.coerceIn(0.25f, 1.0f)
         val renderW = max(1, (surfaceW * scale).roundToInt())
         val renderH = max(1, (surfaceH * scale).roundToInt())
 
-        // Ensure HDR FBO and downsampled bloom buffers match current resolution
+        // FBO allocation is dimension-dependent and therefore cheap on a stationary frame: helpers
+        // return immediately when their existing attachments already match the target. The main
+        // HDR target remains at the existing internal resolution for bloom/composite; only the
+        // temporary coarse ray target may use a coarser uniform grid.
         updateHdrFbo(renderW, renderH)
+        val requestedSamplingGrid = GargantuaCoarseSampling.grid(
+            renderW,
+            renderH,
+            if (state.useGeodesicShader) effectiveCoarseSamplingBlockSize(state)
+            else GargantuaCoarseSampling.BASELINE_BLOCK_SIZE
+        )
+        val rayGrid = if (
+            requestedSamplingGrid.blockSize > GargantuaCoarseSampling.BASELINE_BLOCK_SIZE &&
+            ensureCoarseRayFbo(requestedSamplingGrid.rayWidth, requestedSamplingGrid.rayHeight)
+        ) {
+            requestedSamplingGrid
+        } else {
+            // Returning to 1x1 does not need the diagnostic target; release it immediately so a
+            // later mode change allocates a fresh target with the new ray-grid dimensions.
+            if (coarseRayTargetAvailable || requestedSamplingGrid.blockSize > GargantuaCoarseSampling.BASELINE_BLOCK_SIZE) {
+                deleteCoarseRayFbo()
+            }
+            GargantuaCoarseSampling.grid(renderW, renderH, GargantuaCoarseSampling.BASELINE_BLOCK_SIZE)
+        }
+        val rayTextureId = if (rayGrid.blockSize > 1) coarseRayTextureId else hdrTextureId
+        val rayFboId = if (rayGrid.blockSize > 1) coarseRayFboId else hdrFboId
+
         if (state.enableBloom) {
             updateBloomFbos(max(1, renderW / 2), max(1, renderH / 2))
         }
 
         val now = System.nanoTime()
-        val deltaNanos = now - lastFrameTimeNanos
-        lastFrameTimeNanos = now
-
-        // Calculate elapsed time in seconds
         val elapsedSeconds = (now - startTimeNanos) / 1_000_000_000.0f
 
-        // Check if observer or spacetime state has changed
+        // SceneSignature remains the complete public/test-visible equality record. The renderer
+        // uses the narrower signatures below to avoid retracing for presentation-only changes.
         val currentSig = SceneSignature.fromState(state, surfaceW, surfaceH)
-
         if (currentSig != lastSceneSignature) {
             lastSceneSignature = currentSig
-            dirtyFramesRemaining = 3 // Ensure double/triple buffered EGL surfaces are refreshed
         }
 
-        val needsGeodesicRender = (dirtyFramesRemaining > 0) || state.enableObject || (activeProg == testProgram)
+        val raySig = RaySceneSignature.fromState(state, surfaceW, surfaceH)
+        if (raySig != lastRaySceneSignature) {
+            lastRaySceneSignature = raySig
+            sceneDirty = true
+        }
 
-        if (needsGeodesicRender) {
-            // ==========================================
-            // Pass 1: Primary HDR Geodesic Raymarching
-            // ==========================================
-            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, hdrFboId)
-            GLES30.glViewport(0, 0, renderW, renderH)
+        val bloomSig = BloomSignature(state.enableBloom, state.bloomThreshold)
+        val bloomChanged = bloomSig != lastBloomSignature
+        lastBloomSignature = bloomSig
+
+        val compositeSig = CompositeSignature(
+            exposure = state.exposure,
+            enableBloom = state.enableBloom,
+            bloomIntensity = state.bloomIntensity,
+            isPaused = state.isPaused
+        )
+        val compositeChanged = compositeSig != lastCompositeSignature
+        lastCompositeSignature = compositeSig
+
+        val workloadRequested =
+            BuildConfig.DEBUG &&
+                state.useGeodesicShader &&
+                state.enableWorkloadTelemetry &&
+                workloadGeodesicProgram != null &&
+                reduceProgram != null &&
+                ensureWorkloadFbo(rayGrid.rayWidth, rayGrid.rayHeight, rayTextureId)
+
+        var geodesicCpuSubmitMs = 0f
+        var coarseUpscaleCpuSubmitMs = 0f
+        var brightPassCpuSubmitMs = 0f
+        var horizontalBlurCpuSubmitMs = 0f
+        var verticalBlurCpuSubmitMs = 0f
+        var compositeCpuSubmitMs = 0f
+
+        val renderedScene = sceneDirty
+        if (renderedScene) {
+            if (workloadRequested) {
+                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, workloadFboId)
+                GLES30.glDrawBuffers(
+                    3,
+                    intArrayOf(
+                        GLES30.GL_COLOR_ATTACHMENT0,
+                        GLES30.GL_COLOR_ATTACHMENT1,
+                        GLES30.GL_COLOR_ATTACHMENT2
+                    ),
+                    0
+                )
+            } else {
+                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, rayFboId)
+            }
+            GLES30.glViewport(0, 0, rayGrid.rayWidth, rayGrid.rayHeight)
             GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
 
+            val activeProg = if (workloadRequested) workloadGeodesicProgram!! else activeProductionProgram
+            val geodesicStart = System.nanoTime()
             activeProg.use()
-            activeProg.setUniform2f("u_Resolution", renderW.toFloat(), renderH.toFloat())
+            activeProg.setUniform2f("u_Resolution", rayGrid.rayWidth.toFloat(), rayGrid.rayHeight.toFloat())
             activeProg.setUniform1f("u_Time", elapsedSeconds)
 
-            if (activeProg == geodesicProgram) {
-                // Interactive Observer Position in Kerr-Schild Cartesian coordinates
+            if (activeProg == geodesicProgram || activeProg == workloadGeodesicProgram) {
+                // Interactive observer position in Kerr-Schild Cartesian coordinates.
                 val inclRad = Math.toRadians(state.camInclinationDeg.toDouble())
                 val azRad = Math.toRadians(state.camAzimuthDeg.toDouble())
                 val dist = state.camDist.toDouble()
@@ -282,12 +521,10 @@ class GargantuaRenderer(
                 val dirY = sin(inclRad) * sin(azRad)
                 val dirZ = cos(inclRad)
 
-                // Observer target is (camTargetX, camTargetY, camTargetZ)
                 val camX = state.camTargetX.toDouble() + dist * dirX
                 val camY = state.camTargetY.toDouble() + dist * dirY
                 val camZ = state.camTargetZ.toDouble() + dist * dirZ
 
-                // Observer forward points from cam towards target
                 val fwdRawX = state.camTargetX.toDouble() - camX
                 val fwdRawY = state.camTargetY.toDouble() - camY
                 val fwdRawZ = state.camTargetZ.toDouble() - camZ
@@ -298,13 +535,10 @@ class GargantuaRenderer(
                     Triple(-dirX, -dirY, -dirZ)
                 }
 
-                // Stable orthonormal camera basis for full 360° orbit
-                // Right vector along increasing azimuth: R = (-sin(phi), cos(phi), 0)
+                // Stable orthonormal camera basis for full 360-degree orbit.
                 val rX = -sin(azRad)
                 val rY = cos(azRad)
                 val rZ = 0.0
-
-                // Up vector = Right x Forward (right-handed camera frame)
                 val upX = rY * fwdZ - rZ * fwdY
                 val upY = rZ * fwdX - rX * fwdZ
                 val upZ = rX * fwdY - rY * fwdX
@@ -316,18 +550,23 @@ class GargantuaRenderer(
                 }
 
                 val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
-
                 val isco = com.zig.gargantua.disk.KerrIsco.compute(
                     state.mass.toDouble(),
                     state.spin.toDouble() * state.mass.toDouble()
                 ).toFloat()
+                lastIscoRadius = isco
 
-                // Object Keplerian angular velocity Ω
-                val rObj = state.objectOrbitRadius.toDouble()
-                val mBH = state.mass.toDouble()
-                val aBH = state.spin.toDouble() * mBH
-                val denomOmega = rObj.pow(1.5) + aBH * sqrt(mBH)
-                val omegaObj = if (abs(denomOmega) > 1e-12) (sqrt(mBH) / denomOmega).toFloat() else 0.0f
+                // M9 is not part of the production baseline. Avoid even calculating its angular
+                // velocity unless an explicit experimental/instrumentation state enables it.
+                val omegaObj = if (state.enableObject) {
+                    val rObj = state.objectOrbitRadius.toDouble()
+                    val mBH = state.mass.toDouble()
+                    val aBH = state.spin.toDouble() * mBH
+                    val denomOmega = rObj.pow(1.5) + aBH * sqrt(mBH)
+                    if (abs(denomOmega) > 1e-12) (sqrt(mBH) / denomOmega).toFloat() else 0.0f
+                } else {
+                    0.0f
+                }
 
                 activeProg.setUniform1f("u_Mass", state.mass)
                 activeProg.setUniform1f("u_Spin", state.spin * state.mass)
@@ -352,101 +591,174 @@ class GargantuaRenderer(
             }
 
             quad.draw()
+            geodesicCpuSubmitMs = elapsedMilliseconds(geodesicStart)
 
-            // ==========================================
-            // Pass 2: Restrained Downsampled Bloom Pipeline
-            // ==========================================
-            if (state.enableBloom && brightPassProgram != null && blurProgram != null && bloomFboA != 0) {
-                // 2a. Bright-Pass Extraction & Downsampling
-                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, bloomFboA)
-                GLES30.glViewport(0, 0, bloomWidth, bloomHeight)
-                GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
-
-                brightPassProgram?.let { bp ->
-                    bp.use()
-                    GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-                    GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, hdrTextureId)
-                    bp.setUniform1i("u_HdrTexture", 0)
-                    bp.setUniform1f("u_BloomThreshold", state.bloomThreshold)
-                    quad.draw()
-                }
-
-                // 2b. Separable Gaussian Blur Horizontal (bloomFboA -> bloomFboB)
-                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, bloomFboB)
-                GLES30.glViewport(0, 0, bloomWidth, bloomHeight)
-                blurProgram?.let { blur ->
-                    blur.use()
-                    GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-                    GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, bloomTexA)
-                    blur.setUniform1i("u_Texture", 0)
-                    blur.setUniform2f("u_Direction", 1.0f / bloomWidth, 0.0f)
-                    quad.draw()
-                }
-
-                // 2c. Separable Gaussian Blur Vertical (bloomFboB -> bloomFboA)
-                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, bloomFboA)
-                GLES30.glViewport(0, 0, bloomWidth, bloomHeight)
-                blurProgram?.let { blur ->
-                    blur.use()
-                    GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-                    GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, bloomTexB)
-                    blur.setUniform1i("u_Texture", 0)
-                    blur.setUniform2f("u_Direction", 0.0f, 1.0f / bloomHeight)
-                    quad.draw()
-                }
+            lastWorkloadStats = if (workloadRequested) {
+                collectWorkloadStats(renderW, renderH, rayGrid)
+            } else {
+                samplingSummary(rayGrid)
             }
 
-            if (dirtyFramesRemaining > 0) {
-                dirtyFramesRemaining--
+            if (rayGrid.blockSize > GargantuaCoarseSampling.BASELINE_BLOCK_SIZE) {
+                val upscaleStart = System.nanoTime()
+                upscaleCoarseRayTexture(rayTextureId, renderW, renderH, quad)
+                coarseUpscaleCpuSubmitMs = elapsedMilliseconds(upscaleStart)
             }
+            sceneDirty = false
         }
 
-        // ==========================================
-        // Pass 3: ACES Filmic Tone Mapping & Display Composite
-        // ==========================================
-        renderCompositeToDisplay(surfaceW, surfaceH, state, quad)
+        val shouldRunBloom =
+            state.enableBloom &&
+                brightPassProgram != null &&
+                blurProgram != null &&
+                bloomFboA != 0 &&
+                (renderedScene || bloomChanged)
 
-        // Telemetry calculation
-        frameCount++
-        fpsFrames++
-        val fpsInterval = now - fpsAccumulatorTimeNanos
-        if (fpsInterval >= 500_000_000L) { // update every 500ms
-            val measuredFps = (fpsFrames * 1_000_000_000.0f) / fpsInterval
-            val frameTimeMs = (deltaNanos / 1_000_000.0f)
-            val isco = com.zig.gargantua.disk.KerrIsco.compute(
-                state.mass.toDouble(),
-                state.spin.toDouble() * state.mass.toDouble()
-            ).toFloat()
+        if (shouldRunBloom) {
+            // Bright-pass extraction and downsampling.
+            val brightStart = System.nanoTime()
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, bloomFboA)
+            GLES30.glViewport(0, 0, bloomWidth, bloomHeight)
+            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+            brightPassProgram?.let { bp ->
+                bp.use()
+                GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+                GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, hdrTextureId)
+                bp.setUniform1i("u_HdrTexture", 0)
+                bp.setUniform1f("u_BloomThreshold", state.bloomThreshold)
+                quad.draw()
+            }
+            brightPassCpuSubmitMs = elapsedMilliseconds(brightStart)
 
-            val resStr = "${renderW}x${renderH}"
+            // Separable Gaussian blur, horizontal.
+            val horizontalStart = System.nanoTime()
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, bloomFboB)
+            GLES30.glViewport(0, 0, bloomWidth, bloomHeight)
+            blurProgram?.let { blur ->
+                blur.use()
+                GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+                GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, bloomTexA)
+                blur.setUniform1i("u_Texture", 0)
+                blur.setUniform2f("u_Direction", 1.0f / bloomWidth, 0.0f)
+                quad.draw()
+            }
+            horizontalBlurCpuSubmitMs = elapsedMilliseconds(horizontalStart)
 
-            stateHolder.updateTelemetry {
-                it.copy(
-                    fps = measuredFps,
-                    frameTimeMs = frameTimeMs,
-                    spin = state.spin,
-                    isDiskActive = state.enableDisk,
-                    isObjectActive = state.enableObject,
-                    iscoRadius = isco,
-                    renderScale = scale,
-                    renderResolution = resStr,
-                    isHdrActive = isHdrSupported,
-                    exposure = state.exposure,
-                    camDist = state.camDist,
-                    camInclinationDeg = state.camInclinationDeg,
-                    camAzimuthDeg = state.camAzimuthDeg,
-                    camTargetX = state.camTargetX,
-                    camTargetY = state.camTargetY,
-                    camTargetZ = state.camTargetZ,
-                    adaptiveWorkload = "1.09x (Tier 0: 97.6%, Tier 1: 1.9%, Tier 2: 0.5%)",
-                    avgRaysPerPixel = 1.09f,
-                    maxRaysPerPixel = 9
+            // Separable Gaussian blur, vertical.
+            val verticalStart = System.nanoTime()
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, bloomFboA)
+            GLES30.glViewport(0, 0, bloomWidth, bloomHeight)
+            blurProgram?.let { blur ->
+                blur.use()
+                GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+                GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, bloomTexB)
+                blur.setUniform1i("u_Texture", 0)
+                blur.setUniform2f("u_Direction", 0.0f, 1.0f / bloomHeight)
+                quad.draw()
+            }
+            verticalBlurCpuSubmitMs = elapsedMilliseconds(verticalStart)
+        }
+
+        val shouldRunComposite = renderedScene || bloomChanged || compositeChanged || forcePresentation
+        if (shouldRunComposite) {
+            val compositeStart = System.nanoTime()
+            renderCompositeToDisplay(surfaceW, surfaceH, state, quad)
+            compositeCpuSubmitMs = elapsedMilliseconds(compositeStart)
+        }
+        lastPassTimings = GargantuaPassTimings(
+            geodesicCpuSubmitMs = geodesicCpuSubmitMs,
+            coarseUpscaleCpuSubmitMs = coarseUpscaleCpuSubmitMs,
+            brightPassCpuSubmitMs = brightPassCpuSubmitMs,
+            horizontalBlurCpuSubmitMs = horizontalBlurCpuSubmitMs,
+            verticalBlurCpuSubmitMs = verticalBlurCpuSubmitMs,
+            compositeCpuSubmitMs = compositeCpuSubmitMs,
+            gpuTimerAvailable = false
+        )
+
+        // A WHEN_DIRTY callback is not a continuously ticking display clock. Count only frames
+        // that actually submit a composite, and restart the measurement window after an idle gap;
+        // otherwise the first frame after a stationary period would be diluted by idle time.
+        val submittedAtNanos = System.nanoTime()
+        val presentationSubmitted = shouldRunComposite
+        var fpsWindowRestarted = false
+        if (presentationSubmitted) {
+            if (
+                fpsLastSubmittedNanos == 0L ||
+                submittedAtNanos - fpsLastSubmittedNanos > FPS_IDLE_RESET_NANOS
+            ) {
+                fpsFrames = 0
+                fpsAccumulatorTimeNanos = submittedAtNanos
+                fpsWindowRestarted = true
+            }
+            fpsFrames++
+            fpsLastSubmittedNanos = submittedAtNanos
+        }
+        val fpsInterval = submittedAtNanos - fpsAccumulatorTimeNanos
+        val shouldUpdateFps = presentationSubmitted && fpsInterval >= FPS_WINDOW_NANOS
+        val measuredFps = when {
+            shouldUpdateFps -> (fpsFrames * 1_000_000_000.0f) / fpsInterval
+            fpsWindowRestarted -> 0f
+            else -> stateHolder.getTelemetry().fps
+        }
+        val stats = lastWorkloadStats
+        val workloadText = when {
+            stats.available && stats.totalPixels > 0L -> {
+                val total = stats.totalPixels.toFloat()
+                String.format(
+                    Locale.US,
+                    "block %dx: %.3fx (Tier 0: %.1f%%, Tier 1: %.1f%%, Tier 2: %.1f%%)",
+                    stats.samplingBlockSize,
+                    stats.averageRaysPerPixel,
+                    stats.tier0Pixels * 100.0f / total,
+                    stats.tier1Pixels * 100.0f / total,
+                    stats.tier2Pixels * 100.0f / total
                 )
             }
+            state.enableWorkloadTelemetry && !BuildConfig.DEBUG ->
+                "Unavailable (debug build required)"
+            state.enableWorkloadTelemetry && !state.useGeodesicShader ->
+                "Unavailable (geodesic shader disabled)"
+            state.enableWorkloadTelemetry ->
+                "Unavailable (debug workload attachments unsupported)"
+            stats.samplingBlockSize > 1 ->
+                "block ${stats.samplingBlockSize}x: unavailable (enable debug telemetry)"
+            else ->
+                "Unavailable (debug instrumentation disabled)"
+        }
+
+        stateHolder.updateTelemetry {
+            it.copy(
+                fps = measuredFps,
+                frameTimeMs = ((System.nanoTime() - frameStartNanos) / 1_000_000.0f),
+                spin = state.spin,
+                isDiskActive = state.enableDisk,
+                isObjectActive = state.enableObject,
+                iscoRadius = lastIscoRadius,
+                renderScale = scale,
+                renderResolution = "${renderW}x${renderH}",
+                isHdrActive = isHdrSupported,
+                exposure = state.exposure,
+                camDist = state.camDist,
+                camInclinationDeg = state.camInclinationDeg,
+                camAzimuthDeg = state.camAzimuthDeg,
+                camTargetX = state.camTargetX,
+                camTargetY = state.camTargetY,
+                camTargetZ = state.camTargetZ,
+                adaptiveWorkload = workloadText,
+                avgRaysPerPixel = stats.averageRaysPerPixel,
+                maxRaysPerPixel = stats.maximumRaysPerPixel,
+                workloadStats = stats,
+                passTimings = lastPassTimings
+            )
+        }
+        if (shouldUpdateFps) {
             fpsFrames = 0
-            fpsAccumulatorTimeNanos = now
+            fpsAccumulatorTimeNanos = submittedAtNanos
         }
     }
+
+    private fun elapsedMilliseconds(startNanos: Long): Float =
+        (System.nanoTime() - startNanos) / 1_000_000.0f
 
     private fun renderCompositeToDisplay(
         dstWidth: Int,
@@ -464,7 +776,13 @@ class GargantuaRenderer(
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, hdrTextureId)
             composite.setUniform1i("u_HdrTexture", 0)
 
-            if (state.enableBloom && bloomTexA != 0) {
+            val bloomReady =
+                state.enableBloom &&
+                    brightPassProgram != null &&
+                    blurProgram != null &&
+                    bloomFboA != 0 &&
+                    bloomTexA != 0
+            if (bloomReady) {
                 GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
                 GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, bloomTexA)
                 composite.setUniform1i("u_BloomTexture", 1)
@@ -505,10 +823,442 @@ class GargantuaRenderer(
         }
     }
 
+    /**
+     * Upscales the coarse ray texture into the unchanged internal HDR target. This is a diagnostic
+     * texture-filtering pass only; it does not alter the ray shader or any physical calculation.
+     */
+    private fun upscaleCoarseRayTexture(
+        rayTextureId: Int,
+        targetWidth: Int,
+        targetHeight: Int,
+        quad: QuadGeometry
+    ) {
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, hdrFboId)
+        GLES30.glViewport(0, 0, targetWidth, targetHeight)
+        val blit = blitProgram
+        if (blit != null) {
+            blit.use()
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, rayTextureId)
+            blit.setUniform1i("u_Texture", 0)
+            quad.draw()
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+        } else {
+            GLES30.glBindFramebuffer(GLES30.GL_READ_FRAMEBUFFER, coarseRayFboId)
+            GLES30.glBindFramebuffer(GLES30.GL_DRAW_FRAMEBUFFER, hdrFboId)
+            GLES30.glBlitFramebuffer(
+                0, 0, coarseRayWidth, coarseRayHeight,
+                0, 0, targetWidth, targetHeight,
+                GLES30.GL_COLOR_BUFFER_BIT,
+                GLES30.GL_LINEAR
+            )
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, hdrFboId)
+        }
+    }
+
+    /**
+     * Allocates the temporary coarse ray target. The full internal HDR target is intentionally
+     * retained so the existing bloom and composite pipeline receives the same-sized input.
+     */
+    private fun ensureCoarseRayFbo(targetWidth: Int, targetHeight: Int): Boolean {
+        if (
+            coarseRayTargetAvailable &&
+            coarseRayWidth == targetWidth &&
+            coarseRayHeight == targetHeight &&
+            coarseRayFboId != 0 &&
+            coarseRayTextureId != 0
+        ) {
+            return true
+        }
+
+        deleteCoarseRayFbo()
+        val fboIds = IntArray(1)
+        val textureIds = IntArray(1)
+        GLES30.glGenFramebuffers(1, fboIds, 0)
+        GLES30.glGenTextures(1, textureIds, 0)
+        coarseRayFboId = fboIds[0]
+        coarseRayTextureId = textureIds[0]
+        coarseRayWidth = targetWidth
+        coarseRayHeight = targetHeight
+
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, coarseRayTextureId)
+        val internalFormat = if (isHdrSupported) GLES30.GL_RGBA16F else GLES30.GL_RGBA8
+        val formatType = if (isHdrSupported) GLES30.GL_HALF_FLOAT else GLES30.GL_UNSIGNED_BYTE
+        GLES30.glTexImage2D(
+            GLES30.GL_TEXTURE_2D,
+            0,
+            internalFormat,
+            coarseRayWidth,
+            coarseRayHeight,
+            0,
+            GLES30.GL_RGBA,
+            formatType,
+            null
+        )
+        // Linear filtering is the diagnostic upscale requested by the experiment.
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
+        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
+
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, coarseRayFboId)
+        GLES30.glFramebufferTexture2D(
+            GLES30.GL_FRAMEBUFFER,
+            GLES30.GL_COLOR_ATTACHMENT0,
+            GLES30.GL_TEXTURE_2D,
+            coarseRayTextureId,
+            0
+        )
+        val status = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+        if (status != GLES30.GL_FRAMEBUFFER_COMPLETE) {
+            Log.w(TAG, "Coarse diagnostic framebuffer unavailable: status=$status")
+            deleteCoarseRayFbo()
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+            return false
+        }
+
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+        coarseRayTargetAvailable = true
+        return true
+    }
+
+    private fun deleteCoarseRayFbo() {
+        if (coarseRayFboId != 0) {
+            GLES30.glDeleteFramebuffers(1, intArrayOf(coarseRayFboId), 0)
+        }
+        if (coarseRayTextureId != 0) {
+            GLES30.glDeleteTextures(1, intArrayOf(coarseRayTextureId), 0)
+        }
+        coarseRayFboId = 0
+        coarseRayTextureId = 0
+        coarseRayWidth = 0
+        coarseRayHeight = 0
+        coarseRayTargetAvailable = false
+    }
+
+    /**
+     * Allocates the debug-only MRT and reduction attachments. RGBA32F is intentionally required
+     * here: counters are summed over the internal frame and must not silently overflow/quantize
+     * in a half-float debug buffer. If the device cannot render to RGBA32F, telemetry reports
+     * unavailable instead of guessing.
+     */
+    private fun ensureWorkloadFbo(targetWidth: Int, targetHeight: Int, rayTextureId: Int): Boolean {
+        if (!BuildConfig.DEBUG || workloadGeodesicProgram == null || reduceProgram == null) return false
+        if (rayTextureId == 0) return false
+        if (
+            workloadTelemetrySupported &&
+            workloadWidth == targetWidth &&
+            workloadHeight == targetHeight &&
+            workloadRayTextureId == rayTextureId &&
+            workloadFboId != 0
+        ) {
+            return true
+        }
+
+        deleteWorkloadFbos()
+
+        val fboIds = IntArray(3)
+        val textureIds = IntArray(4)
+        GLES30.glGenFramebuffers(3, fboIds, 0)
+        GLES30.glGenTextures(4, textureIds, 0)
+
+        workloadFboId = fboIds[0]
+        workloadReduceFboA = fboIds[1]
+        workloadReduceFboB = fboIds[2]
+        workloadTierTextureId = textureIds[0]
+        workloadCostTextureId = textureIds[1]
+        workloadReduceTextureA = textureIds[2]
+        workloadReduceTextureB = textureIds[3]
+        workloadWidth = targetWidth
+        workloadHeight = targetHeight
+        workloadRayTextureId = rayTextureId
+
+        fun initFloatTexture(textureId: Int) {
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, textureId)
+            GLES30.glTexImage2D(
+                GLES30.GL_TEXTURE_2D,
+                0,
+                GLES30.GL_RGBA32F,
+                targetWidth,
+                targetHeight,
+                0,
+                GLES30.GL_RGBA,
+                GLES30.GL_FLOAT,
+                null
+            )
+            GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_NEAREST)
+            GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_NEAREST)
+            GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
+            GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
+        }
+
+        initFloatTexture(workloadTierTextureId)
+        initFloatTexture(workloadCostTextureId)
+        initFloatTexture(workloadReduceTextureA)
+        initFloatTexture(workloadReduceTextureB)
+
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, workloadFboId)
+        GLES30.glFramebufferTexture2D(
+            GLES30.GL_FRAMEBUFFER,
+            GLES30.GL_COLOR_ATTACHMENT0,
+            GLES30.GL_TEXTURE_2D,
+            rayTextureId,
+            0
+        )
+        GLES30.glFramebufferTexture2D(
+            GLES30.GL_FRAMEBUFFER,
+            GLES30.GL_COLOR_ATTACHMENT1,
+            GLES30.GL_TEXTURE_2D,
+            workloadTierTextureId,
+            0
+        )
+        GLES30.glFramebufferTexture2D(
+            GLES30.GL_FRAMEBUFFER,
+            GLES30.GL_COLOR_ATTACHMENT2,
+            GLES30.GL_TEXTURE_2D,
+            workloadCostTextureId,
+            0
+        )
+        GLES30.glDrawBuffers(
+            3,
+            intArrayOf(
+                GLES30.GL_COLOR_ATTACHMENT0,
+                GLES30.GL_COLOR_ATTACHMENT1,
+                GLES30.GL_COLOR_ATTACHMENT2
+            ),
+            0
+        )
+        val workloadStatus = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+        if (workloadStatus != GLES30.GL_FRAMEBUFFER_COMPLETE) {
+            Log.w(TAG, "RGBA32F workload framebuffer unavailable: status=$workloadStatus")
+            deleteWorkloadFbos()
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+            return false
+        }
+
+        fun attachReductionFbo(fboId: Int, textureId: Int): Boolean {
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fboId)
+            GLES30.glFramebufferTexture2D(
+                GLES30.GL_FRAMEBUFFER,
+                GLES30.GL_COLOR_ATTACHMENT0,
+                GLES30.GL_TEXTURE_2D,
+                textureId,
+                0
+            )
+            GLES30.glDrawBuffers(1, intArrayOf(GLES30.GL_COLOR_ATTACHMENT0), 0)
+            return GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER) == GLES30.GL_FRAMEBUFFER_COMPLETE
+        }
+
+        val reductionAComplete = attachReductionFbo(workloadReduceFboA, workloadReduceTextureA)
+        val reductionBComplete = attachReductionFbo(workloadReduceFboB, workloadReduceTextureB)
+        if (!reductionAComplete || !reductionBComplete) {
+            Log.w(TAG, "RGBA32F workload reduction framebuffer unavailable")
+            deleteWorkloadFbos()
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+            return false
+        }
+
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+        workloadTelemetrySupported = true
+        Log.i(TAG, "Debug workload telemetry enabled for ${targetWidth}x${targetHeight} internal pixels")
+        return true
+    }
+
+    private fun samplingSummary(grid: GargantuaCoarseSampling.Grid): GargantuaWorkloadStats =
+        GargantuaWorkloadStats(
+            available = false,
+            internalWidth = grid.internalWidth,
+            internalHeight = grid.internalHeight,
+            frameWidth = grid.rayWidth,
+            frameHeight = grid.rayHeight,
+            samplingBlockSize = grid.blockSize,
+            shadedBlocks = grid.shadedBlocks,
+            primaryRayCalculations = grid.shadedBlocks,
+            primaryRayReductionVsBaseline = grid.primaryRayReductionVsBaseline
+        )
+
+    private fun collectWorkloadStats(
+        internalWidth: Int,
+        internalHeight: Int,
+        grid: GargantuaCoarseSampling.Grid
+    ): GargantuaWorkloadStats {
+        if (!workloadTelemetrySupported || reduceProgram == null || quadGeometry == null) {
+            return samplingSummary(grid)
+        }
+
+        val width = grid.rayWidth
+        val height = grid.rayHeight
+
+        val tierTotals = reduceWorkloadTexture(workloadTierTextureId, width, height, maxChannel = -1)
+        val costTotals = reduceWorkloadTexture(workloadCostTextureId, width, height, maxChannel = 2)
+
+        val tier0 = tierTotals[0].roundToLong().coerceAtLeast(0L)
+        val tier1 = tierTotals[1].roundToLong().coerceAtLeast(0L)
+        val tier2 = tierTotals[2].roundToLong().coerceAtLeast(0L)
+        val difficult = tierTotals[3].roundToLong().coerceAtLeast(0L)
+        val totalPixels = tier0 + tier1 + tier2
+        val totalRays = costTotals[0].roundToLong().coerceAtLeast(0L)
+        val totalSteps = costTotals[1].roundToLong().coerceAtLeast(0L)
+        val maximumSteps = costTotals[2].roundToInt().coerceAtLeast(0)
+        val diskIntersections = costTotals[3].roundToLong().coerceAtLeast(0L)
+        val averageRays = if (totalPixels > 0L) totalRays.toFloat() / totalPixels.toFloat() else 0f
+        val averageSteps = if (totalRays > 0L) totalSteps.toFloat() / totalRays.toFloat() else 0f
+        val maximumRays = when {
+            tier2 > 0L -> 9
+            tier1 > 0L -> 5
+            tier0 > 0L -> 1
+            else -> 0
+        }
+
+        return GargantuaWorkloadStats(
+            available = true,
+            internalWidth = internalWidth,
+            internalHeight = internalHeight,
+            frameWidth = width,
+            frameHeight = height,
+            samplingBlockSize = grid.blockSize,
+            shadedBlocks = grid.shadedBlocks,
+            primaryRayCalculations = grid.shadedBlocks,
+            primaryRayReductionVsBaseline = grid.primaryRayReductionVsBaseline,
+            tier0Pixels = tier0,
+            tier1Pixels = tier1,
+            tier2Pixels = tier2,
+            difficultRayCount = difficult,
+            totalRaysFrame = totalRays,
+            averageRaysPerPixel = averageRays,
+            maximumRaysPerPixel = maximumRays,
+            totalIntegrationSteps = totalSteps,
+            averageIntegrationSteps = averageSteps,
+            maximumIntegrationSteps = maximumSteps,
+            diskIntersections = diskIntersections
+        )
+    }
+
+    /** One 1x1 float readback per metric group, only in the explicit debug instrumentation path. */
+    private fun reduceWorkloadTexture(
+        inputTextureId: Int,
+        inputWidth: Int,
+        inputHeight: Int,
+        maxChannel: Int
+    ): FloatArray {
+        var sourceTexture = inputTextureId
+        var sourceWidth = inputWidth
+        var sourceHeight = inputHeight
+        var ping = 0
+        var lastOutputFbo = workloadReduceFboA
+
+        if (sourceWidth == 1 && sourceHeight == 1) {
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, workloadReduceFboA)
+            GLES30.glFramebufferTexture2D(
+                GLES30.GL_FRAMEBUFFER,
+                GLES30.GL_COLOR_ATTACHMENT0,
+                GLES30.GL_TEXTURE_2D,
+                sourceTexture,
+                0
+            )
+        } else {
+            while (sourceWidth > 1 || sourceHeight > 1) {
+                val targetWidth = max(1, (sourceWidth + 1) / 2)
+                val targetHeight = max(1, (sourceHeight + 1) / 2)
+                val targetFbo = if (ping == 0) workloadReduceFboA else workloadReduceFboB
+                val targetTexture = if (ping == 0) workloadReduceTextureA else workloadReduceTextureB
+                lastOutputFbo = targetFbo
+
+                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, targetFbo)
+                GLES30.glViewport(0, 0, targetWidth, targetHeight)
+                reduceProgram?.use()
+                GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+                GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, sourceTexture)
+                reduceProgram?.setUniform1i("u_Texture", 0)
+                reduceProgram?.setUniform2f("u_SourceSize", sourceWidth.toFloat(), sourceHeight.toFloat())
+                reduceProgram?.setUniform1i("u_MaxChannel", maxChannel)
+                quadGeometry?.draw()
+
+                sourceTexture = targetTexture
+                sourceWidth = targetWidth
+                sourceHeight = targetHeight
+                ping = 1 - ping
+            }
+        }
+
+        val values = ByteBuffer.allocateDirect(4 * 4)
+            .order(ByteOrder.nativeOrder())
+            .asFloatBuffer()
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, lastOutputFbo)
+        GLES30.glViewport(0, 0, 1, 1)
+        GLES30.glReadPixels(0, 0, 1, 1, GLES30.GL_RGBA, GLES30.GL_FLOAT, values)
+        values.position(0)
+        return FloatArray(4).also { values.get(it) }
+    }
+
+    private fun resetGpuResourceHandlesForNewContext() {
+        hdrFboId = 0
+        hdrTextureId = 0
+        hdrWidth = 0
+        hdrHeight = 0
+        isHdrSupported = false
+        bloomFboA = 0
+        bloomTexA = 0
+        bloomFboB = 0
+        bloomTexB = 0
+        bloomWidth = 0
+        bloomHeight = 0
+        coarseRayFboId = 0
+        coarseRayTextureId = 0
+        coarseRayWidth = 0
+        coarseRayHeight = 0
+        coarseRayTargetAvailable = false
+        workloadFboId = 0
+        workloadTierTextureId = 0
+        workloadCostTextureId = 0
+        workloadReduceFboA = 0
+        workloadReduceTextureA = 0
+        workloadReduceFboB = 0
+        workloadReduceTextureB = 0
+        workloadWidth = 0
+        workloadHeight = 0
+        workloadRayTextureId = 0
+        workloadTelemetrySupported = false
+    }
+
+    private fun deleteWorkloadFbos() {
+        if (workloadFboId != 0) {
+            GLES30.glDeleteFramebuffers(1, intArrayOf(workloadFboId), 0)
+        }
+        if (workloadReduceFboA != 0) {
+            GLES30.glDeleteFramebuffers(1, intArrayOf(workloadReduceFboA), 0)
+        }
+        if (workloadReduceFboB != 0) {
+            GLES30.glDeleteFramebuffers(1, intArrayOf(workloadReduceFboB), 0)
+        }
+        if (workloadTierTextureId != 0 || workloadCostTextureId != 0) {
+            GLES30.glDeleteTextures(2, intArrayOf(workloadTierTextureId, workloadCostTextureId), 0)
+        }
+        if (workloadReduceTextureA != 0 || workloadReduceTextureB != 0) {
+            GLES30.glDeleteTextures(2, intArrayOf(workloadReduceTextureA, workloadReduceTextureB), 0)
+        }
+        workloadFboId = 0
+        workloadTierTextureId = 0
+        workloadCostTextureId = 0
+        workloadReduceFboA = 0
+        workloadReduceTextureA = 0
+        workloadReduceFboB = 0
+        workloadReduceTextureB = 0
+        workloadWidth = 0
+        workloadHeight = 0
+        workloadRayTextureId = 0
+        workloadTelemetrySupported = false
+    }
+
     private fun updateHdrFbo(targetWidth: Int, targetHeight: Int) {
         if (hdrWidth == targetWidth && hdrHeight == targetHeight && hdrFboId != 0) {
             return
         }
+        // Workload MRT attachment 0 aliases the HDR texture, so it must be released before the
+        // HDR attachment is resized or replaced.
+        deleteWorkloadFbos()
         deleteHdrFbo()
 
         val fbos = IntArray(1)
@@ -605,6 +1355,19 @@ class GargantuaRenderer(
         initBloomAttachment(bloomFboA, bloomTexA)
         initBloomAttachment(bloomFboB, bloomTexB)
 
+        val bloomAStatus = run {
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, bloomFboA)
+            GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+        }
+        val bloomBStatus = run {
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, bloomFboB)
+            GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+        }
+        if (bloomAStatus != GLES30.GL_FRAMEBUFFER_COMPLETE || bloomBStatus != GLES30.GL_FRAMEBUFFER_COMPLETE) {
+            Log.w(TAG, "Bloom framebuffer unavailable: A=$bloomAStatus, B=$bloomBStatus")
+            deleteBloomFbos()
+        }
+
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
     }
@@ -637,11 +1400,29 @@ class GargantuaRenderer(
         bloomHeight = 0
     }
 
+    /**
+     * Installs the surface callback used to request a dirty frame after GLES resources and the
+     * non-empty surface size are both ready. The listener is invoked from the GL thread; the view
+     * queues the actual request behind the lifecycle callback before asking for a dirty frame.
+     */
+    fun setRenderReadyListener(listener: (() -> Unit)?) {
+        renderReadyListener = listener
+    }
+
+    /** Marks the cached image for presentation; the owning GLSurfaceView schedules the dirty frame. */
+    fun requestPresentation() {
+        presentationInvalidationPending = true
+    }
+
     fun release() {
+        deleteWorkloadFbos()
+        deleteCoarseRayFbo()
         deleteHdrFbo()
         deleteBloomFbos()
         geodesicProgram?.release()
         geodesicProgram = null
+        workloadGeodesicProgram?.release()
+        workloadGeodesicProgram = null
         testProgram?.release()
         testProgram = null
         blitProgram?.release()
@@ -652,11 +1433,15 @@ class GargantuaRenderer(
         blurProgram = null
         compositeProgram?.release()
         compositeProgram = null
+        reduceProgram?.release()
+        reduceProgram = null
         quadGeometry?.release()
         quadGeometry = null
     }
 
     companion object {
         private const val TAG = "GargantuaRenderer"
+        private const val FPS_WINDOW_NANOS = 500_000_000L
+        private const val FPS_IDLE_RESET_NANOS = 750_000_000L
     }
 }

@@ -4,6 +4,14 @@ precision highp float;
 in vec2 v_TexCoord;
 out vec4 fragColor;
 
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+// Debug-only MRT outputs. The normal production program is compiled without this define and
+// therefore writes only the HDR scene color. These values are reduced to 1x1 offscreen textures
+// only when explicit debug instrumentation is enabled.
+layout(location = 1) out vec4 workloadTierStats;
+layout(location = 2) out vec4 workloadCostStats;
+#endif
+
 // Uniforms
 uniform vec2 u_Resolution;   // Screen or scaled FBO resolution (width, height)
 uniform float u_Time;        // Elapsed time (seconds)
@@ -237,7 +245,16 @@ vec3 sample_procedural_sky(vec3 dir) {
     return col;
 }
 
-vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int outCrossings, out float outHitR) {
+vec4 traceRaySample(
+    vec2 stCoord,
+    out int outState,
+    out float outMinR,
+    out int outCrossings,
+    out float outHitR
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+    , out int outStepsTaken
+#endif
+) {
     // Initial ray direction in camera frame
     vec3 rayDir = normalize(u_CamForward + u_CamRight * (stCoord.x * u_FovScale) + u_CamUp * (stCoord.y * u_FovScale));
 
@@ -286,12 +303,18 @@ vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int o
 
     float prevR = rInit;
     bool movingOutward = false;
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+    int stepsTaken = 0;
+#endif
 
     // Primary null Hamiltonian geodesic integration loop
     for (int step = 0; step < MAX_INTEGRATION_STEPS; step++) {
         if (step >= maxSteps) {
             break;
         }
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+        stepsTaken = step + 1;
+#endif
 
         float r = compute_r_KS(u_Spin, pos.x, pos.y, pos.z);
         if (r < minR) {
@@ -503,6 +526,9 @@ vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int o
     outMinR = minR;
     outCrossings = crossings;
     outHitR = hitRadius;
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+    outStepsTaken = stepsTaken;
+#endif
 
     if (rayState == 4) {
         // Relativistic test object (unbounded HDR radiance)
@@ -523,6 +549,31 @@ vec4 traceRaySample(vec2 stCoord, out int outState, out float outMinR, out int o
     }
 }
 
+// M7 outcome classes: disk/object share the material class, while captured and escaped remain
+// distinct topological outcomes. This prevents uniform disk/object samples from escalating while
+// still refining captured/escaped boundaries.
+int adaptiveOutcomeClass(int state) {
+    if (state == 3 || state == 4) return 0; // emitting material
+    if (state == 1) return 1; // captured
+    if (state == 2) return 2; // escaped
+    if (state == 0) return 3; // unresolved
+    return 4; // invalid/unknown state; never collapse it into unresolved
+}
+
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+bool gargantuaRayIsDifficult(int state, float minR, int crossings, float hitR) {
+    return crossings >= 2 || minR < 2.5 || (state == 3 && hitR < 6.0) || state == 4;
+}
+#endif
+
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+#define GARGANTUA_TRACE_RAY_SAMPLE(coord, state, minR, crossings, hitR, steps) \
+    traceRaySample(coord, state, minR, crossings, hitR, steps)
+#else
+#define GARGANTUA_TRACE_RAY_SAMPLE(coord, state, minR, crossings, hitR, steps) \
+    traceRaySample(coord, state, minR, crossings, hitR)
+#endif
+
 void main() {
     // Aspect-ratio-corrected normalized device coordinates in [-1, 1]
     vec2 st = (gl_FragCoord.xy * 2.0 - u_Resolution.xy) / min(u_Resolution.x, u_Resolution.y);
@@ -531,7 +582,12 @@ void main() {
     float baseMinR;
     int baseCrossings;
     float baseHitR;
-    vec4 baseSample = traceRaySample(st, baseState, baseMinR, baseCrossings, baseHitR);
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+    int baseSteps;
+#endif
+    vec4 baseSample = GARGANTUA_TRACE_RAY_SAMPLE(
+        st, baseState, baseMinR, baseCrossings, baseHitR, baseSteps
+    );
 
     int rayState = baseState;
     if (rayState == 1) {
@@ -546,11 +602,23 @@ void main() {
         fragColor = vec4(0.0, 0.0, 0.0, 0.5);
     }
 
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+    // Bounded M7 adaptive statistics. Values describe the actual rays executed by this pixel.
+    int tierForStats = 0;
+    int raysForStats = 1;
+    int totalStepsForStats = baseSteps;
+    int maxStepsForStats = baseSteps;
+    int diskHitsForStats = (baseState == 3) ? 1 : 0;
+    int difficultRayCountForStats = 0;
+#endif
+
     // Selective Subpixel Supersampling (Physical Subpixel Sampling Gate):
     // Only pixels near strong-lensing/shadow boundary or unresolved subpixel filaments
     // take 4 additional physical rays in a symmetric 2D pattern around pixel center.
-    // 97%+ of screen executes only the single base ray.
     bool needsRefinement = (baseCrossings >= 2) || (baseMinR < 2.5) || (baseState == 3 && baseHitR < 6.0) || (baseState == 4);
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+    difficultRayCountForStats = gargantuaRayIsDifficult(baseState, baseMinR, baseCrossings, baseHitR) ? 1 : 0;
+#endif
 
     if (needsRefinement) {
         float pxScale = 2.0 / min(u_Resolution.x, u_Resolution.y);
@@ -560,35 +628,84 @@ void main() {
         float s1MinR, s2MinR, s3MinR, s4MinR;
         float s1HitR, s2HitR, s3HitR, s4HitR;
         int s1Crossings, s2Crossings, s3Crossings, s4Crossings;
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+        int s1Steps, s2Steps, s3Steps, s4Steps;
+#endif
 
-        vec4 sample1 = traceRaySample(st + vec2(-off.x, -off.y), s1State, s1MinR, s1Crossings, s1HitR);
-        vec4 sample2 = traceRaySample(st + vec2( off.x, -off.y), s2State, s2MinR, s2Crossings, s2HitR);
-        vec4 sample3 = traceRaySample(st + vec2(-off.x,  off.y), s3State, s3MinR, s3Crossings, s3HitR);
-        vec4 sample4 = traceRaySample(st + vec2( off.x,  off.y), s4State, s4MinR, s4Crossings, s4HitR);
+        vec4 sample1 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2(-off.x, -off.y), s1State, s1MinR, s1Crossings, s1HitR, s1Steps);
+        vec4 sample2 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2( off.x, -off.y), s2State, s2MinR, s2Crossings, s2HitR, s2Steps);
+        vec4 sample3 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2(-off.x,  off.y), s3State, s3MinR, s3Crossings, s3HitR, s3Steps);
+        vec4 sample4 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2( off.x,  off.y), s4State, s4MinR, s4Crossings, s4HitR, s4Steps);
+
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+        tierForStats = 1;
+        raysForStats = 5;
+        totalStepsForStats = baseSteps + s1Steps + s2Steps + s3Steps + s4Steps;
+        maxStepsForStats = max(max(baseSteps, s1Steps), max(max(s2Steps, s3Steps), s4Steps));
+        difficultRayCountForStats +=
+            (gargantuaRayIsDifficult(s1State, s1MinR, s1Crossings, s1HitR) ? 1 : 0) +
+            (gargantuaRayIsDifficult(s2State, s2MinR, s2Crossings, s2HitR) ? 1 : 0) +
+            (gargantuaRayIsDifficult(s3State, s3MinR, s3Crossings, s3HitR) ? 1 : 0) +
+            (gargantuaRayIsDifficult(s4State, s4MinR, s4Crossings, s4HitR) ? 1 : 0);
+        diskHitsForStats = (baseState == 3 ? 1 : 0) + (s1State == 3 ? 1 : 0) +
+            (s2State == 3 ? 1 : 0) + (s3State == 3 ? 1 : 0) + (s4State == 3 ? 1 : 0);
+#endif
 
         fragColor = (baseSample + sample1 + sample2 + sample3 + sample4) / 5.0;
 
-        // Tier 2: Adaptive High-Frequency Boundary & Caustic Refinement (M7 Bounded Refinement)
-        // Evaluates 4 additional axial quarter-offsets (total 9 samples) ONLY when Tier 1 detects
-        // mixed topological outcomes (e.g. subpixel boundary between disk and shadow/sky)
-        // or extreme strong-field caustic winding (rMin < 2.20M with crossings >= 2).
-        bool hasMixedOutcomes = ((baseState == 3 || s1State == 3 || s2State == 3 || s3State == 3 || s4State == 3 ||
-                                  baseState == 4 || s1State == 4 || s2State == 4 || s3State == 4 || s4State == 4) &&
-                                 (baseState != 3 || s1State != 3 || s2State != 3 || s3State != 3 || s4State != 3 ||
-                                  baseState != 4 || s1State != 4 || s2State != 4 || s3State != 4 || s4State != 4));
+        // Tier 2: refine only a genuine outcome boundary or deep winding. Disk/object share one
+        // material class; captured and escaped remain distinct classes.
+        int baseOutcomeClass = adaptiveOutcomeClass(baseState);
+        bool hasMixedOutcomes =
+            adaptiveOutcomeClass(s1State) != baseOutcomeClass ||
+            adaptiveOutcomeClass(s2State) != baseOutcomeClass ||
+            adaptiveOutcomeClass(s3State) != baseOutcomeClass ||
+            adaptiveOutcomeClass(s4State) != baseOutcomeClass;
         bool needsTier2 = hasMixedOutcomes || (baseMinR < 2.20 && baseCrossings >= 2);
         if (needsTier2) {
             int s5State, s6State, s7State, s8State;
             float s5MinR, s6MinR, s7MinR, s8MinR;
             float s5HitR, s6HitR, s7HitR, s8HitR;
             int s5Crossings, s6Crossings, s7Crossings, s8Crossings;
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+            int s5Steps, s6Steps, s7Steps, s8Steps;
+#endif
 
-            vec4 sample5 = traceRaySample(st + vec2(-off.x, 0.0), s5State, s5MinR, s5Crossings, s5HitR);
-            vec4 sample6 = traceRaySample(st + vec2( off.x, 0.0), s6State, s6MinR, s6Crossings, s6HitR);
-            vec4 sample7 = traceRaySample(st + vec2(0.0, -off.y), s7State, s7MinR, s7Crossings, s7HitR);
-            vec4 sample8 = traceRaySample(st + vec2(0.0,  off.y), s8State, s8MinR, s8Crossings, s8HitR);
+            vec4 sample5 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2(-off.x, 0.0), s5State, s5MinR, s5Crossings, s5HitR, s5Steps);
+            vec4 sample6 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2( off.x, 0.0), s6State, s6MinR, s6Crossings, s6HitR, s6Steps);
+            vec4 sample7 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2(0.0, -off.y), s7State, s7MinR, s7Crossings, s7HitR, s7Steps);
+            vec4 sample8 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2(0.0,  off.y), s8State, s8MinR, s8Crossings, s8HitR, s8Steps);
+
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+            tierForStats = 2;
+            raysForStats = 9;
+            totalStepsForStats += s5Steps + s6Steps + s7Steps + s8Steps;
+            maxStepsForStats = max(maxStepsForStats, max(max(s5Steps, s6Steps), max(s7Steps, s8Steps)));
+            difficultRayCountForStats +=
+                (gargantuaRayIsDifficult(s5State, s5MinR, s5Crossings, s5HitR) ? 1 : 0) +
+                (gargantuaRayIsDifficult(s6State, s6MinR, s6Crossings, s6HitR) ? 1 : 0) +
+                (gargantuaRayIsDifficult(s7State, s7MinR, s7Crossings, s7HitR) ? 1 : 0) +
+                (gargantuaRayIsDifficult(s8State, s8MinR, s8Crossings, s8HitR) ? 1 : 0);
+            diskHitsForStats += (s5State == 3 ? 1 : 0) + (s6State == 3 ? 1 : 0) +
+                (s7State == 3 ? 1 : 0) + (s8State == 3 ? 1 : 0);
+#endif
 
             fragColor = (baseSample + sample1 + sample2 + sample3 + sample4 + sample5 + sample6 + sample7 + sample8) / 9.0;
         }
     }
+
+#ifdef GARGANTUA_WORKLOAD_TELEMETRY
+    workloadTierStats = vec4(
+        tierForStats == 0 ? 1.0 : 0.0,
+        tierForStats == 1 ? 1.0 : 0.0,
+        tierForStats == 2 ? 1.0 : 0.0,
+        float(difficultRayCountForStats)
+    );
+    workloadCostStats = vec4(
+        float(raysForStats),
+        float(totalStepsForStats),
+        float(maxStepsForStats),
+        float(diskHitsForStats)
+    );
+#endif
 }

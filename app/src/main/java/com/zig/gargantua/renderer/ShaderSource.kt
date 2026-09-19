@@ -17,6 +17,7 @@ object ShaderSource {
     const val BRIGHTPASS_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_brightpass.frag"
     const val BLUR_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_blur.frag"
     const val COMPOSITE_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_composite.frag"
+    const val REDUCE_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_reduce.frag"
 
     fun loadVertexShader(context: Context): String {
         return readAsset(context, VERTEX_SHADER_ASSET_PATH)
@@ -28,6 +29,24 @@ object ShaderSource {
 
     fun loadGeodesicFragmentShader(context: Context): String {
         return readAsset(context, GEODESIC_FRAGMENT_SHADER_ASSET_PATH)
+    }
+
+    /**
+     * Loads the same canonical geodesic shader with optional MRT workload outputs enabled.
+     * The define is inserted after #version because GLSL ES requires #version to be first.
+     */
+    fun loadWorkloadTelemetryGeodesicFragmentShader(context: Context): String {
+        val source = readAsset(context, GEODESIC_FRAGMENT_SHADER_ASSET_PATH)
+        val versionLine = "#version 300 es"
+        return if (source.startsWith(versionLine)) {
+            source.replaceFirst(versionLine, "$versionLine\n#define GARGANTUA_WORKLOAD_TELEMETRY 1")
+        } else {
+            throw IllegalStateException("Canonical geodesic shader must begin with #version 300 es")
+        }
+    }
+
+    fun loadReduceFragmentShader(context: Context): String {
+        return readAsset(context, REDUCE_FRAGMENT_SHADER_ASSET_PATH)
     }
 
     fun loadBlitFragmentShader(context: Context): String {
