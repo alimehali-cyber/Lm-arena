@@ -1,5 +1,7 @@
 package com.zig.gargantua
 
+import com.zig.gargantua.renderer.GargantuaCoarseSampling
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,12 +22,8 @@ class GargantuaSamplingSelectorTest {
         val selectorSource = mainFile.readText()
         val rootSource = rootFile.readText()
         assertTrue(selectorSource.contains("GargantuaSamplingSelector"))
-        assertTrue(selectorSource.contains("BASELINE_BLOCK_SIZE"))
-        assertTrue(selectorSource.contains("COARSE_2X2_BLOCK_SIZE"))
-        assertTrue(selectorSource.contains("COARSE_3X3_BLOCK_SIZE"))
-        assertTrue(selectorSource.contains("COARSE_4X4_BLOCK_SIZE"))
-        assertTrue(selectorSource.contains("COARSE_6X6_BLOCK_SIZE"))
-        assertTrue(selectorSource.contains("COARSE_8X8_BLOCK_SIZE"))
+        assertTrue(selectorSource.contains("GargantuaCoarseSampling.supportedBlockSizes()"))
+        assertEquals(listOf(1, 2, 3, 4, 6, 8), GargantuaCoarseSampling.supportedBlockSizes())
         assertTrue(selectorSource.contains("debugCoarseSamplingBlockSize = mode"))
         assertFalse("AUTO must not remain in the user-facing selector", selectorSource.contains("AUTO"))
         assertTrue(selectorSource.contains("gargantua_sampling_mode_\$mode"))
