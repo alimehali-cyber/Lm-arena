@@ -5,6 +5,7 @@ import android.opengl.GLSurfaceView
 import android.util.Log
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
+import android.view.SurfaceHolder
 import kotlin.math.*
 
 /**
@@ -25,6 +26,7 @@ class GargantuaSurfaceView(
     private var lastTouchY = 0f
     private var lastFocusX = 0f
     private var lastFocusY = 0f
+    private var hasWindowFocus = false
     private var isDragging = false
 
     private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -53,8 +55,78 @@ class GargantuaSurfaceView(
         // Preserve EGL context across onPause to avoid costly shader recompilation on transient pauses
         preserveEGLContextOnPause = true
 
+        // Install the callback before setRenderer. setRenderer starts the GL thread, and a surface
+        // can already be available when a view is reattached; the renderer's surface callbacks must
+        // therefore never observe a missing invalidation listener.
+        renderer.stateHolder.setStateChangeListener {
+            requestRender()
+        }
+        renderer.setRenderReadyListener {
+            // Queue behind the renderer callback itself. The GL thread then requests the frame
+            // after resource/size setup has returned to GLSurfaceView's lifecycle loop.
+            queueEvent {
+                renderer.requestPresentation()
+                requestRender()
+            }
+        }
         setRenderer(renderer)
-        renderMode = RENDERMODE_CONTINUOUSLY
+        renderMode = RENDERMODE_WHEN_DIRTY
+
+        // Capture state mutations made during construction and request once even before the view is
+        // attached. onAttachedToWindow/onSurfaceCreated/onSurfaceChanged provide the post-attach
+        // and post-surface requests that WHEN_DIRTY cannot infer by itself.
+        requestRender()
+    }
+
+    /**
+     * Requests a lifecycle presentation without starting a continuous render loop.
+     * The request is queued onto GLSurfaceView's GL thread so onResume is complete before the dirty
+     * frame is requested. This is required when EGL preserves the context and emits no new
+     * onSurfaceCreated callback.
+     */
+    fun requestFrameForLifecycle() {
+        queueEvent {
+            renderer.requestPresentation()
+            requestRender()
+        }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        // The constructor request may have occurred before SurfaceView attachment and is not a
+        // sufficient first-frame guarantee for a newly composed/navigation-created view.
+        requestFrameForLifecycle()
+    }
+
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility == VISIBLE) {
+            requestFrameForLifecycle()
+        }
+    }
+
+    override fun onWindowFocusChanged(focused: Boolean) {
+        super.onWindowFocusChanged(focused)
+        val focusGained = focused && !hasWindowFocus
+        hasWindowFocus = focused
+        if (focusGained) {
+            // Covers display-off/unlock paths that restore window focus without recreating the EGL
+            // context or emitting a new SurfaceHolder callback.
+            requestFrameForLifecycle()
+        }
+    }
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        super.surfaceCreated(holder)
+        // This is the first callback after the native SurfaceHolder becomes available. Request
+        // here as well as from Renderer.onSurfaceCreated so the dirty request cannot be lost in
+        // the gap between AndroidView attachment and EGL callback delivery.
+        requestFrameForLifecycle()
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        super.surfaceChanged(holder, format, width, height)
+        requestFrameForLifecycle()
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -168,6 +240,7 @@ class GargantuaSurfaceView(
     override fun onResume() {
         super.onResume()
         renderer.stateHolder.updateState { it.copy(isPaused = false) }
+        requestFrameForLifecycle()
     }
 
     override fun onDetachedFromWindow() {

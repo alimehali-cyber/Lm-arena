@@ -120,6 +120,33 @@ class DeviceReadinessAuditTest {
     }
 
     @Test
+    fun presentationOnlyChangesDoNotInvalidateRaySceneSignature() {
+        val baseState = GargantuaRenderState(viewportWidth = 1080, viewportHeight = 2400)
+        val baseSig = GargantuaRenderer.RaySceneSignature.fromState(baseState, 1080, 2400)
+
+        assertEquals(
+            "Exposure must reuse the geodesic output",
+            baseSig,
+            GargantuaRenderer.RaySceneSignature.fromState(baseState.copy(exposure = 1.5f), 1080, 2400)
+        )
+        assertEquals(
+            "Bloom intensity must reuse the geodesic output",
+            baseSig,
+            GargantuaRenderer.RaySceneSignature.fromState(baseState.copy(bloomIntensity = 0.5f), 1080, 2400)
+        )
+        assertEquals(
+            "Bloom threshold must reuse the geodesic output",
+            baseSig,
+            GargantuaRenderer.RaySceneSignature.fromState(baseState.copy(bloomThreshold = 1.4f), 1080, 2400)
+        )
+        assertNotEquals(
+            "Camera orbit must invalidate the geodesic output",
+            baseSig,
+            GargantuaRenderer.RaySceneSignature.fromState(baseState.copy(camAzimuthDeg = 5.0f), 1080, 2400)
+        )
+    }
+
+    @Test
     fun highFrequencyTouchUpdatesOperateRaceFreeAndNonBlocking() {
         val holder = RenderStateHolder()
         val threadCount = 4

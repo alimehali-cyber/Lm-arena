@@ -22,6 +22,7 @@ class GargantuaShaderSourceTest {
         assertEquals("shaders/gargantua_brightpass.frag", ShaderSource.BRIGHTPASS_FRAGMENT_SHADER_ASSET_PATH)
         assertEquals("shaders/gargantua_blur.frag", ShaderSource.BLUR_FRAGMENT_SHADER_ASSET_PATH)
         assertEquals("shaders/gargantua_composite.frag", ShaderSource.COMPOSITE_FRAGMENT_SHADER_ASSET_PATH)
+        assertEquals("shaders/gargantua_reduce.frag", ShaderSource.REDUCE_FRAGMENT_SHADER_ASSET_PATH)
     }
 
     @Test

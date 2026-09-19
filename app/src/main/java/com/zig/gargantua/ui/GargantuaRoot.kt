@@ -237,6 +237,17 @@ private fun GargantuaRendererScreen(
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
+
+        // AndroidView can be created after the host has already reached RESUMED. In that case the
+        // observer must not be the only source of the resume event: explicitly resume and request
+        // a lifecycle frame for the newly created surface.
+        if (sv != null && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            // The factory handles the matching GLSurfaceView.onResume call. This second request is
+            // intentionally presentation-only and covers a surface whose first callback raced the
+            // AndroidView attachment.
+            sv.requestFrameForLifecycle()
+        }
+
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             sv?.onPause()
@@ -269,6 +280,11 @@ private fun GargantuaRendererScreen(
                         )
                     }
                     surfaceViewRef = sv
+                    if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                        // Navigation can compose this AndroidView after Activity.onResume has
+                        // already happened; do not wait for a future lifecycle event.
+                        sv.onResume()
+                    }
                 }
             },
             modifier = Modifier
@@ -355,9 +371,9 @@ private fun GargantuaRendererScreen(
                         .testTag("gargantua_fps_badge")
                 ) {
                     val fpsText = if (telemetry.fps > 0f) {
-                        String.format(Locale.US, "%.0f FPS", telemetry.fps)
+                        String.format(Locale.US, "%.0f FPS (last active)", telemetry.fps)
                     } else {
-                        "-- FPS"
+                        "-- FPS (waiting)"
                     }
                     Text(
                         text = fpsText,
@@ -492,5 +508,15 @@ private fun GargantuaRendererScreen(
                 }
             }
         }
+
+        // Temporary physical-device sampling control. It sits below the top-right reset/FPS controls
+        // and above the bottom HUD so it does not steal scene gestures outside this compact row.
+        GargantuaSamplingSelector(
+            surfaceView = surfaceViewRef,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 82.dp, end = 12.dp)
+        )
     }
 }
