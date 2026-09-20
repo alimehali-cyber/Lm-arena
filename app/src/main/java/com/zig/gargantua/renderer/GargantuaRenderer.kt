@@ -76,6 +76,7 @@ class GargantuaRenderer(
     private var workloadProgramFailureStatus: String? = null
     private var workloadDiagnosticStatus = "TEL OFF"
     private var workloadReadbackValid = true
+    private var workloadReadbackFailureStatus: String? = null
 
     // Dirty/invalidation scheduling. Ray-scene changes, bloom extraction changes, and composite
     // changes are intentionally tracked separately so exposure/bloom-intensity changes do not
@@ -265,6 +266,7 @@ class GargantuaRenderer(
         workloadProgramFailureStatus = null
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
+        workloadReadbackFailureStatus = null
 
         // 2. Compile M1 baseline test shader as guaranteed fallback
         val testFragSource = ShaderSource.loadFragmentShader(context)
@@ -453,6 +455,7 @@ class GargantuaRenderer(
         workloadProgramFailureStatus = null
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
+        workloadReadbackFailureStatus = null
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -738,7 +741,9 @@ class GargantuaRenderer(
                 workloadDiagnosticStatus = "TEL ON · WORKLOAD PASS SUBMITTED"
                 collectWorkloadStats(renderW, renderH, rayGrid).also { stats ->
                     workloadDiagnosticStatus = when {
-                        !workloadReadbackValid -> "TEL ON · REDUCTION READBACK INVALID"
+                        !workloadReadbackValid ->
+                            "TEL ON · REDUCTION READBACK INVALID · " +
+                                (workloadReadbackFailureStatus ?: "CHECK=UNKNOWN")
                         stats.available && stats.totalPixels > 0L -> "TEL ON · STATS READY"
                         stats.available -> "TEL ON · REDUCTION READBACK ZERO"
                         else -> "TEL ON · REDUCTION READBACK UNAVAILABLE"
@@ -1230,12 +1235,25 @@ class GargantuaRenderer(
             return samplingSummary(grid)
         }
         workloadReadbackValid = true
+        workloadReadbackFailureStatus = null
 
         val width = grid.rayWidth
         val height = grid.rayHeight
 
-        val tierTotals = reduceWorkloadTexture(workloadTierTextureId, width, height, maxChannel = -1)
-        val costTotals = reduceWorkloadTexture(workloadCostTextureId, width, height, maxChannel = 2)
+        val tierTotals = reduceWorkloadTexture(
+            workloadTierTextureId,
+            width,
+            height,
+            maxChannel = -1,
+            metricName = "TIER"
+        )
+        val costTotals = reduceWorkloadTexture(
+            workloadCostTextureId,
+            width,
+            height,
+            maxChannel = 2,
+            metricName = "COST"
+        )
         if (!workloadReadbackValid) {
             return samplingSummary(grid)
         }
@@ -1287,7 +1305,8 @@ class GargantuaRenderer(
         inputTextureId: Int,
         inputWidth: Int,
         inputHeight: Int,
-        maxChannel: Int
+        maxChannel: Int,
+        metricName: String
     ): FloatArray {
         var sourceTexture = inputTextureId
         var sourceWidth = inputWidth
@@ -1335,11 +1354,20 @@ class GargantuaRenderer(
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, lastOutputFbo)
         GLES30.glViewport(0, 0, 1, 1)
         GLES30.glReadPixels(0, 0, 1, 1, GLES30.GL_RGBA, GLES30.GL_FLOAT, values)
+        val readError = GLES30.glGetError()
         values.position(0)
-        return FloatArray(4).also {
-            values.get(it)
-            if (it.any { value -> !value.isFinite() }) {
+        return FloatArray(4).also { rawValues ->
+            values.get(rawValues)
+            val nonFinite = rawValues.any { value -> !value.isFinite() }
+            if (readError != GLES30.GL_NO_ERROR || nonFinite) {
                 workloadReadbackValid = false
+                if (workloadReadbackFailureStatus == null) {
+                    val check = if (readError != GLES30.GL_NO_ERROR) "GL_ERROR" else "NONFINITE"
+                    val errorHex = "0x${readError.toString(16)}"
+                    val raw = rawValues.joinToString(",") { value -> value.toString() }
+                    workloadReadbackFailureStatus =
+                        "$metricName CHECK=$check GLERR=$errorHex READ=RGBA/FLOAT/1x1 RAW=[$raw]"
+                }
             }
         }
     }
@@ -1376,6 +1404,7 @@ class GargantuaRenderer(
         workloadProgramFailureStatus = null
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
+        workloadReadbackFailureStatus = null
     }
 
     private fun deleteWorkloadFbos() {
@@ -1594,6 +1623,7 @@ class GargantuaRenderer(
         workloadProgramFailureStatus = null
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
+        workloadReadbackFailureStatus = null
         quadGeometry?.release()
         quadGeometry = null
     }
