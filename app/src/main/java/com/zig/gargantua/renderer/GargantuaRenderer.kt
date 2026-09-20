@@ -73,6 +73,7 @@ class GargantuaRenderer(
     private var workloadRayTextureId = 0
     private var workloadTelemetrySupported = false
     private var workloadProgramAttempted = false
+    private var workloadProgramFailureStatus: String? = null
     private var workloadDiagnosticStatus = "TEL OFF"
     private var workloadReadbackValid = true
 
@@ -261,6 +262,7 @@ class GargantuaRenderer(
         reduceProgram?.release()
         reduceProgram = null
         workloadProgramAttempted = false
+        workloadProgramFailureStatus = null
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
 
@@ -362,10 +364,11 @@ class GargantuaRenderer(
             return true
         }
         if (workloadProgramAttempted) {
-            workloadDiagnosticStatus = "TEL ON · WORKLOAD NOT READY"
+            workloadDiagnosticStatus = workloadProgramFailureStatus ?: "TEL ON · WORKLOAD NOT READY"
             return false
         }
         workloadProgramAttempted = true
+        workloadProgramFailureStatus = null
         workloadDiagnosticStatus = "TEL ON · WORKLOAD COMPILING"
 
         return try {
@@ -381,11 +384,20 @@ class GargantuaRenderer(
                 reduce?.release()
                 workloadGeodesicProgram = null
                 reduceProgram = null
-                workloadDiagnosticStatus = "TEL ON · WORKLOAD NOT READY"
+                workloadProgramFailureStatus = when {
+                    workload == null && reduce == null ->
+                        "TEL ON · WORKLOAD/REDUCE CREATE FAILED"
+                    workload == null ->
+                        "TEL ON · WORKLOAD PROGRAM CREATE FAILED"
+                    else ->
+                        "TEL ON · REDUCE PROGRAM CREATE FAILED"
+                }
+                workloadDiagnosticStatus = workloadProgramFailureStatus!!
                 false
             } else {
                 workloadGeodesicProgram = workload
                 reduceProgram = reduce
+                workloadProgramFailureStatus = null
                 workloadDiagnosticStatus = "TEL ON · WORKLOAD READY"
                 true
             }
@@ -394,7 +406,8 @@ class GargantuaRenderer(
             workloadGeodesicProgram = null
             reduceProgram?.release()
             reduceProgram = null
-            workloadDiagnosticStatus = "TEL ON · WORKLOAD NOT READY"
+            workloadProgramFailureStatus = "TEL ON · WORKLOAD INIT EXCEPTION"
+            workloadDiagnosticStatus = workloadProgramFailureStatus!!
             false
         }
     }
@@ -407,6 +420,7 @@ class GargantuaRenderer(
         reduceProgram?.release()
         reduceProgram = null
         workloadProgramAttempted = false
+        workloadProgramFailureStatus = null
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
     }
@@ -558,7 +572,7 @@ class GargantuaRenderer(
                 workloadRequested ->
                     workloadDiagnosticStatus = "TEL ON · MRT/FBO READY"
                 workloadGeodesicProgram == null || reduceProgram == null ->
-                    workloadDiagnosticStatus = "TEL ON · WORKLOAD NOT READY"
+                    workloadDiagnosticStatus = workloadProgramFailureStatus ?: "TEL ON · WORKLOAD NOT READY"
                 else -> {
                     if (workloadDiagnosticStatus != "TEL ON · REDUCTION FBO NOT READY") {
                         workloadDiagnosticStatus = "TEL ON · MRT/FBO NOT READY"
@@ -1329,6 +1343,7 @@ class GargantuaRenderer(
         workloadRayTextureId = 0
         workloadTelemetrySupported = false
         workloadProgramAttempted = false
+        workloadProgramFailureStatus = null
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
     }
@@ -1546,6 +1561,7 @@ class GargantuaRenderer(
         reduceProgram?.release()
         reduceProgram = null
         workloadProgramAttempted = false
+        workloadProgramFailureStatus = null
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
         quadGeometry?.release()
