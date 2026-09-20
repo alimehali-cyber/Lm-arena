@@ -1,5 +1,6 @@
 #version 300 es
 precision highp float;
+precision highp sampler2D;
 
 uniform sampler2D u_Texture;
 uniform vec2 u_SourceSize;

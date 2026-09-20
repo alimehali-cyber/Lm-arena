@@ -1255,6 +1255,10 @@ class GargantuaRenderer(
             metricName = "COST"
         )
         if (!workloadReadbackValid) {
+            val tierSum = tierTotals[0] + tierTotals[1] + tierTotals[2]
+            workloadReadbackFailureStatus =
+                "${workloadReadbackFailureStatus ?: "CHECK=UNKNOWN"}" +
+                    " SUM_T012=$tierSum EXP_PRIMARY=${grid.shadedBlocks}"
             return samplingSummary(grid)
         }
 
