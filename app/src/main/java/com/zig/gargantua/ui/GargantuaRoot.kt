@@ -228,7 +228,7 @@ private fun GargantuaRendererScreen(
     var surfaceViewRef by remember { mutableStateOf<GargantuaSurfaceView?>(null) }
     var telemetry by remember { mutableStateOf(GargantuaTelemetry()) }
     // Keep the hidden switch mirrored in Compose so the diagnostic HUD reacts immediately to the
-    // long-press; RenderStateHolder itself is intentionally not a Compose observable.
+    // tap; RenderStateHolder itself is intentionally not a Compose observable.
     var workloadTelemetryEnabled by remember { mutableStateOf(false) }
 
     // Lifecycle observation to pause/resume the GL thread cleanly
@@ -373,11 +373,10 @@ private fun GargantuaRendererScreen(
                         .background(Color(0x99181B26))
                         .border(1.dp, Color(0x33446688), RoundedCornerShape(16.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp)
-                        // Temporary physical-device diagnostic switch. A normal tap has no
-                        // behavior, as before; only a long-press toggles the existing state flag.
+                        // Temporary physical-device diagnostic switch on the existing FPS pill.
                         .pointerInput(surfaceViewRef) {
                             detectTapGestures(
-                                onLongPress = {
+                                onTap = {
                                     val nextState = surfaceViewRef?.renderer?.stateHolder?.updateState { current ->
                                         current.copy(enableWorkloadTelemetry = !current.enableWorkloadTelemetry)
                                     }
