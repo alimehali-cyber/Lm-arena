@@ -444,6 +444,13 @@ class GargantuaRenderer(
     private fun compactWorkloadDetail(value: String): String =
         value.replace(Regex("\\s+"), " ").trim().ifEmpty { "EMPTY" }
 
+    private fun workloadStatsDiagnosticStatus(stats: GargantuaWorkloadStats): String =
+        "TEL ON · STATS READY · " +
+            "N0=${stats.tier0Pixels} N1=${stats.tier1Pixels} N2=${stats.tier2Pixels} " +
+            "EXP_PRIMARY=${stats.shadedBlocks} · " +
+            "TOTAL_RAYS=${stats.totalRaysFrame} TOTAL_STEPS=${stats.totalIntegrationSteps} " +
+            "MAX_STEPS=${stats.maximumIntegrationSteps} DISK_HITS=${stats.diskIntersections}"
+
     /** Releases only the temporary diagnostic resources when it is toggled off. */
     private fun releaseWorkloadDiagnosticResources() {
         deleteWorkloadFbos()
@@ -744,7 +751,7 @@ class GargantuaRenderer(
                         !workloadReadbackValid ->
                             "TEL ON · REDUCTION READBACK INVALID · " +
                                 (workloadReadbackFailureStatus ?: "CHECK=UNKNOWN")
-                        stats.available && stats.totalPixels > 0L -> "TEL ON · STATS READY"
+                        stats.available && stats.totalPixels > 0L -> workloadStatsDiagnosticStatus(stats)
                         stats.available -> "TEL ON · REDUCTION READBACK ZERO"
                         else -> "TEL ON · REDUCTION READBACK UNAVAILABLE"
                     }

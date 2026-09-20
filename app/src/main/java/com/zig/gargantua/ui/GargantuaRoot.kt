@@ -587,7 +587,7 @@ private fun GargantuaRendererScreen(
                         Text(
                             text = String.format(
                                 Locale.US,
-                                "RAYS %.2f  TOTAL %d",
+                                "RAYS %.2f  TOTAL_RAYS %d",
                                 workload.averageRaysPerPixel,
                                 workload.totalRaysFrame
                             ),
