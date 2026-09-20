@@ -61,6 +61,31 @@ class GargantuaShaderSourceTest {
     }
 
     @Test
+    fun semanticRecordUsesBaseRayValuesAndSnapshotsAzimuthBeforeRefinement() {
+        val source = findAssetFile(ShaderSource.GEODESIC_FRAGMENT_SHADER_ASSET_PATH).readText()
+        val baseCallEnd = source.indexOf(
+            "    );\n#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE\n    float baseDiskHitAzimuth =",
+            source.indexOf("vec4 baseSample = GARGANTUA_TRACE_RAY_SAMPLE(")
+        )
+        val refinementCall = source.indexOf("vec4 sample1 = GARGANTUA_TRACE_RAY_SAMPLE(")
+        val outputStart = source.indexOf("    float diskRadiusNormalized =")
+        val outputEnd = source.indexOf("#endif\n#endif\n}", outputStart)
+        assertTrue("Semantic azimuth must be snapshotted after the base ray call", baseCallEnd >= 0)
+        assertTrue("Semantic azimuth snapshot must precede refinement rays", baseCallEnd < refinementCall)
+        assertTrue("Semantic output block must be present", outputStart >= 0 && outputEnd > outputStart)
+
+        val outputBlock = source.substring(outputStart, outputEnd)
+        assertTrue(outputBlock.contains("baseHitR"))
+        assertTrue(outputBlock.contains("baseDiskHitAzimuth"))
+        assertTrue(outputBlock.contains("baseCrossings"))
+        assertTrue(outputBlock.contains("baseState"))
+        assertFalse(Regex("\\bhitRadius\\b").containsMatchIn(outputBlock))
+        assertFalse(Regex("\\bdiskHitAzimuth\\b").containsMatchIn(outputBlock))
+        assertFalse(Regex("\\bcrossings\\b").containsMatchIn(outputBlock))
+        assertFalse(Regex("\\brayState\\b").containsMatchIn(outputBlock))
+    }
+
+    @Test
     fun geodesicAssetHasBalancedIfdefBlocks() {
         val lines = findAssetFile(ShaderSource.GEODESIC_FRAGMENT_SHADER_ASSET_PATH).readLines()
         var depth = 0

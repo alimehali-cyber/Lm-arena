@@ -15,6 +15,10 @@ layout(location = 3) out vec4 workloadSemanticCache;
 #endif
 #endif
 
+#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
+float gargantuaSemanticDiskHitAzimuth = 0.0;
+#endif
+
 // Uniforms
 uniform vec2 u_Resolution;   // Screen or scaled FBO resolution (width, height)
 uniform float u_Time;        // Elapsed time (seconds)
@@ -303,9 +307,6 @@ vec4 traceRaySample(
     float minR = rInit;
     int crossings = 0;
     float hitRadius = 0.0;
-#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
-    float diskHitAzimuth = 0.0;
-#endif
 
     float prevR = rInit;
     bool movingOutward = false;
@@ -457,7 +458,7 @@ vec4 traceRaySample(
             if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
                 hitRadius = rHit;
 #ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
-                diskHitAzimuth = atan(hitPos.y, hitPos.x);
+                gargantuaSemanticDiskHitAzimuth = atan(hitPos.y, hitPos.x);
 #endif
                 vec3 hitP = mix(prevP, p_spatial, tau);
 
@@ -597,6 +598,9 @@ void main() {
     vec4 baseSample = GARGANTUA_TRACE_RAY_SAMPLE(
         st, baseState, baseMinR, baseCrossings, baseHitR, baseSteps
     );
+#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
+    float baseDiskHitAzimuth = gargantuaSemanticDiskHitAzimuth;
+#endif
 
     int rayState = baseState;
     if (rayState == 1) {
@@ -717,22 +721,22 @@ void main() {
         float(diskHitsForStats)
     );
 #ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
-    float diskRadiusNormalized = (rayState == 3)
+    float diskRadiusNormalized = (baseState == 3)
         ? clamp(
-            (hitRadius - u_DiskInnerRadius) /
+            (baseHitR - u_DiskInnerRadius) /
                 max(1.0e-6, u_DiskOuterRadius - u_DiskInnerRadius),
             0.0,
             1.0
         )
         : 0.0;
-    float diskAzimuthNormalized = (rayState == 3)
-        ? fract(diskHitAzimuth / 6.28318530718 + 0.5)
+    float diskAzimuthNormalized = (baseState == 3)
+        ? fract(baseDiskHitAzimuth / 6.28318530718 + 0.5)
         : 0.0;
     workloadSemanticCache = vec4(
         diskRadiusNormalized,
         diskAzimuthNormalized,
-        float(crossings),
-        float(rayState)
+        float(baseCrossings),
+        float(baseState)
     );
 #endif
 #endif
