@@ -532,6 +532,24 @@ private fun GargantuaRendererScreen(
                         }
                     }
 
+                    // Temporary renderer-stage status. The waiting label is the UI-side state before
+                    // the first GL frame publishes a renderer result through existing telemetry.
+                    if (workloadTelemetryEnabled) {
+                        val diagnosticStatus = if (
+                            telemetry.adaptiveWorkload == "Unavailable (debug instrumentation disabled)"
+                        ) {
+                            "TEL ON · WAITING FOR GL FRAME"
+                        } else {
+                            telemetry.adaptiveWorkload
+                        }
+                        Text(
+                            text = diagnosticStatus,
+                            color = Color(0xFFB0BEC5),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
                     // Temporary workload diagnostic. It is absent unless the temporary telemetry
                     // toggle enabled telemetry and a completed reduction is available.
                     val workload = telemetry.workloadStats

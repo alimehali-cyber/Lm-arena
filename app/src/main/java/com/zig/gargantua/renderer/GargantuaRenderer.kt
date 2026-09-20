@@ -73,6 +73,8 @@ class GargantuaRenderer(
     private var workloadRayTextureId = 0
     private var workloadTelemetrySupported = false
     private var workloadProgramAttempted = false
+    private var workloadDiagnosticStatus = "TEL OFF"
+    private var workloadReadbackValid = true
 
     // Dirty/invalidation scheduling. Ray-scene changes, bloom extraction changes, and composite
     // changes are intentionally tracked separately so exposure/bloom-intensity changes do not
@@ -259,6 +261,8 @@ class GargantuaRenderer(
         reduceProgram?.release()
         reduceProgram = null
         workloadProgramAttempted = false
+        workloadDiagnosticStatus = "TEL OFF"
+        workloadReadbackValid = true
 
         // 2. Compile M1 baseline test shader as guaranteed fallback
         val testFragSource = ShaderSource.loadFragmentShader(context)
@@ -349,13 +353,20 @@ class GargantuaRenderer(
 
     /**
      * Compiles the existing workload/reduction programs only after the temporary diagnostic is
-     * enabled. This keeps the normal release render path identical until the hidden long-press is
-     * used on the physical device.
+     * enabled. This keeps the normal release render path identical until the temporary diagnostic
+     * control is used on the physical device.
      */
     private fun ensureWorkloadPrograms(): Boolean {
-        if (workloadGeodesicProgram != null && reduceProgram != null) return true
-        if (workloadProgramAttempted) return false
+        if (workloadGeodesicProgram != null && reduceProgram != null) {
+            workloadDiagnosticStatus = "TEL ON · WORKLOAD READY"
+            return true
+        }
+        if (workloadProgramAttempted) {
+            workloadDiagnosticStatus = "TEL ON · WORKLOAD NOT READY"
+            return false
+        }
         workloadProgramAttempted = true
+        workloadDiagnosticStatus = "TEL ON · WORKLOAD COMPILING"
 
         return try {
             val vertexSource = ShaderSource.loadVertexShader(context)
@@ -370,10 +381,12 @@ class GargantuaRenderer(
                 reduce?.release()
                 workloadGeodesicProgram = null
                 reduceProgram = null
+                workloadDiagnosticStatus = "TEL ON · WORKLOAD NOT READY"
                 false
             } else {
                 workloadGeodesicProgram = workload
                 reduceProgram = reduce
+                workloadDiagnosticStatus = "TEL ON · WORKLOAD READY"
                 true
             }
         } catch (e: Exception) {
@@ -381,6 +394,7 @@ class GargantuaRenderer(
             workloadGeodesicProgram = null
             reduceProgram?.release()
             reduceProgram = null
+            workloadDiagnosticStatus = "TEL ON · WORKLOAD NOT READY"
             false
         }
     }
@@ -393,6 +407,8 @@ class GargantuaRenderer(
         reduceProgram?.release()
         reduceProgram = null
         workloadProgramAttempted = false
+        workloadDiagnosticStatus = "TEL OFF"
+        workloadReadbackValid = true
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -415,6 +431,10 @@ class GargantuaRenderer(
         val frameStartNanos = System.nanoTime()
         val state = stateHolder.getState()
         if (state.isPaused) {
+            if (state.enableWorkloadTelemetry) {
+                workloadDiagnosticStatus = "TEL ON · GL PAUSED"
+                stateHolder.updateTelemetry { it.copy(adaptiveWorkload = workloadDiagnosticStatus) }
+            }
             // Resume must re-present the cached HDR image even if the camera state is unchanged.
             lastCompositeSignature = null
             return
@@ -422,14 +442,35 @@ class GargantuaRenderer(
 
         val surfaceW = state.viewportWidth
         val surfaceH = state.viewportHeight
-        if (surfaceW <= 0 || surfaceH <= 0) return
+        if (surfaceW <= 0 || surfaceH <= 0) {
+            if (state.enableWorkloadTelemetry) {
+                workloadDiagnosticStatus = "TEL ON · WAITING FOR SURFACE"
+                stateHolder.updateTelemetry { it.copy(adaptiveWorkload = workloadDiagnosticStatus) }
+            }
+            return
+        }
 
-        val quad = quadGeometry ?: return
+        val quad = quadGeometry ?: run {
+            if (state.enableWorkloadTelemetry) {
+                workloadDiagnosticStatus = "TEL ON · GL NOT READY"
+                stateHolder.updateTelemetry { it.copy(adaptiveWorkload = workloadDiagnosticStatus) }
+            }
+            return
+        }
+        if (state.enableWorkloadTelemetry) {
+            workloadDiagnosticStatus = "TEL ON · GL FRAME OBSERVED"
+        }
         val activeProductionProgram = if (state.useGeodesicShader && geodesicProgram != null) {
             geodesicProgram
         } else {
             testProgram
-        } ?: return
+        } ?: run {
+            if (state.enableWorkloadTelemetry) {
+                workloadDiagnosticStatus = "TEL ON · PRODUCTION PROGRAM NOT READY"
+                stateHolder.updateTelemetry { it.copy(adaptiveWorkload = workloadDiagnosticStatus) }
+            }
+            return
+        }
 
         val forcePresentation = presentationInvalidationPending
         presentationInvalidationPending = false
@@ -510,6 +551,21 @@ class GargantuaRenderer(
                 workloadGeodesicProgram != null &&
                 reduceProgram != null &&
                 ensureWorkloadFbo(rayGrid.rayWidth, rayGrid.rayHeight, rayTextureId)
+        if (state.enableWorkloadTelemetry) {
+            when {
+                !state.useGeodesicShader ->
+                    workloadDiagnosticStatus = "TEL ON · GEODESIC PATH OFF"
+                workloadRequested ->
+                    workloadDiagnosticStatus = "TEL ON · MRT/FBO READY"
+                workloadGeodesicProgram == null || reduceProgram == null ->
+                    workloadDiagnosticStatus = "TEL ON · WORKLOAD NOT READY"
+                else -> {
+                    if (workloadDiagnosticStatus != "TEL ON · REDUCTION FBO NOT READY") {
+                        workloadDiagnosticStatus = "TEL ON · MRT/FBO NOT READY"
+                    }
+                }
+            }
+        }
 
         var geodesicCpuSubmitMs = 0f
         var coarseUpscaleCpuSubmitMs = 0f
@@ -519,6 +575,15 @@ class GargantuaRenderer(
         var compositeCpuSubmitMs = 0f
 
         val renderedScene = sceneDirty
+        if (state.enableWorkloadTelemetry && workloadRequested && !renderedScene) {
+            workloadDiagnosticStatus = if (
+                lastWorkloadStats.available && lastWorkloadStats.totalPixels > 0L
+            ) {
+                "TEL ON · STATS READY"
+            } else {
+                "TEL ON · NO SCENE RENDER"
+            }
+        }
         if (renderedScene) {
             if (workloadRequested) {
                 GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, workloadFboId)
@@ -626,7 +691,15 @@ class GargantuaRenderer(
             geodesicCpuSubmitMs = elapsedMilliseconds(geodesicStart)
 
             lastWorkloadStats = if (workloadRequested) {
-                collectWorkloadStats(renderW, renderH, rayGrid)
+                workloadDiagnosticStatus = "TEL ON · WORKLOAD PASS SUBMITTED"
+                collectWorkloadStats(renderW, renderH, rayGrid).also { stats ->
+                    workloadDiagnosticStatus = when {
+                        !workloadReadbackValid -> "TEL ON · REDUCTION READBACK INVALID"
+                        stats.available && stats.totalPixels > 0L -> "TEL ON · STATS READY"
+                        stats.available -> "TEL ON · REDUCTION READBACK ZERO"
+                        else -> "TEL ON · REDUCTION READBACK UNAVAILABLE"
+                    }
+                }
             } else {
                 samplingSummary(rayGrid)
             }
@@ -733,27 +806,15 @@ class GargantuaRenderer(
             else -> stateHolder.getTelemetry().fps
         }
         val stats = lastWorkloadStats
-        val workloadText = when {
-            stats.available && stats.totalPixels > 0L -> {
-                val total = stats.totalPixels.toFloat()
-                String.format(
-                    Locale.US,
-                    "block %dx: %.3fx (Tier 0: %.1f%%, Tier 1: %.1f%%, Tier 2: %.1f%%)",
-                    stats.samplingBlockSize,
-                    stats.averageRaysPerPixel,
-                    stats.tier0Pixels * 100.0f / total,
-                    stats.tier1Pixels * 100.0f / total,
-                    stats.tier2Pixels * 100.0f / total
-                )
+        val workloadText = if (state.enableWorkloadTelemetry) {
+            workloadDiagnosticStatus
+        } else {
+            when {
+                stats.samplingBlockSize > 1 ->
+                    "block ${stats.samplingBlockSize}x: unavailable (enable debug telemetry)"
+                else ->
+                    "Unavailable (debug instrumentation disabled)"
             }
-            state.enableWorkloadTelemetry && !state.useGeodesicShader ->
-                "Unavailable (geodesic shader disabled)"
-            state.enableWorkloadTelemetry ->
-                "Unavailable (workload attachments unsupported)"
-            stats.samplingBlockSize > 1 ->
-                "block ${stats.samplingBlockSize}x: unavailable (enable debug telemetry)"
-            else ->
-                "Unavailable (debug instrumentation disabled)"
         }
 
         stateHolder.updateTelemetry {
@@ -975,7 +1036,10 @@ class GargantuaRenderer(
      */
     private fun ensureWorkloadFbo(targetWidth: Int, targetHeight: Int, rayTextureId: Int): Boolean {
         if (workloadGeodesicProgram == null || reduceProgram == null) return false
-        if (rayTextureId == 0) return false
+        if (rayTextureId == 0) {
+            workloadDiagnosticStatus = "TEL ON · MRT/FBO NOT READY"
+            return false
+        }
         if (
             workloadTelemetrySupported &&
             workloadWidth == targetWidth &&
@@ -987,6 +1051,7 @@ class GargantuaRenderer(
         }
 
         deleteWorkloadFbos()
+        workloadDiagnosticStatus = "TEL ON · MRT/FBO ALLOCATING"
 
         val fboIds = IntArray(3)
         val textureIds = IntArray(4)
@@ -1063,6 +1128,7 @@ class GargantuaRenderer(
         if (workloadStatus != GLES30.GL_FRAMEBUFFER_COMPLETE) {
             Log.w(TAG, "RGBA32F workload framebuffer unavailable: status=$workloadStatus")
             deleteWorkloadFbos()
+            workloadDiagnosticStatus = "TEL ON · MRT/FBO NOT READY"
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
             return false
         }
@@ -1085,6 +1151,7 @@ class GargantuaRenderer(
         if (!reductionAComplete || !reductionBComplete) {
             Log.w(TAG, "RGBA32F workload reduction framebuffer unavailable")
             deleteWorkloadFbos()
+            workloadDiagnosticStatus = "TEL ON · REDUCTION FBO NOT READY"
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
             return false
         }
@@ -1093,6 +1160,7 @@ class GargantuaRenderer(
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
         workloadTelemetrySupported = true
         Log.i(TAG, "Debug workload telemetry enabled for ${targetWidth}x${targetHeight} internal pixels")
+        workloadDiagnosticStatus = "TEL ON · MRT/FBO READY"
         return true
     }
 
@@ -1117,12 +1185,16 @@ class GargantuaRenderer(
         if (!workloadTelemetrySupported || reduceProgram == null || quadGeometry == null) {
             return samplingSummary(grid)
         }
+        workloadReadbackValid = true
 
         val width = grid.rayWidth
         val height = grid.rayHeight
 
         val tierTotals = reduceWorkloadTexture(workloadTierTextureId, width, height, maxChannel = -1)
         val costTotals = reduceWorkloadTexture(workloadCostTextureId, width, height, maxChannel = 2)
+        if (!workloadReadbackValid) {
+            return samplingSummary(grid)
+        }
 
         val tier0 = tierTotals[0].roundToLong().coerceAtLeast(0L)
         val tier1 = tierTotals[1].roundToLong().coerceAtLeast(0L)
@@ -1220,7 +1292,12 @@ class GargantuaRenderer(
         GLES30.glViewport(0, 0, 1, 1)
         GLES30.glReadPixels(0, 0, 1, 1, GLES30.GL_RGBA, GLES30.GL_FLOAT, values)
         values.position(0)
-        return FloatArray(4).also { values.get(it) }
+        return FloatArray(4).also {
+            values.get(it)
+            if (it.any { value -> !value.isFinite() }) {
+                workloadReadbackValid = false
+            }
+        }
     }
 
     private fun resetGpuResourceHandlesForNewContext() {
@@ -1252,6 +1329,8 @@ class GargantuaRenderer(
         workloadRayTextureId = 0
         workloadTelemetrySupported = false
         workloadProgramAttempted = false
+        workloadDiagnosticStatus = "TEL OFF"
+        workloadReadbackValid = true
     }
 
     private fun deleteWorkloadFbos() {
@@ -1467,6 +1546,8 @@ class GargantuaRenderer(
         reduceProgram?.release()
         reduceProgram = null
         workloadProgramAttempted = false
+        workloadDiagnosticStatus = "TEL OFF"
+        workloadReadbackValid = true
         quadGeometry?.release()
         quadGeometry = null
     }
