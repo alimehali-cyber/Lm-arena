@@ -451,6 +451,33 @@ private fun GargantuaRendererScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
+
+                        // Temporary, explicit diagnostic activation control. Its state mirrors the
+                        // same RenderStateHolder flag used by the renderer and the workload HUD.
+                        Box(
+                            modifier = Modifier
+                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(
+                                    if (workloadTelemetryEnabled) Color(0x334CAF50) else Color(0x332F3B4F)
+                                )
+                                .clickable {
+                                    val nextState = surfaceViewRef?.renderer?.stateHolder?.updateState { current ->
+                                        current.copy(enableWorkloadTelemetry = !current.enableWorkloadTelemetry)
+                                    }
+                                    workloadTelemetryEnabled = nextState?.enableWorkloadTelemetry == true
+                                }
+                                .padding(horizontal = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (workloadTelemetryEnabled) "TEL ON" else "TEL OFF",
+                                color = if (workloadTelemetryEnabled) Color(0xFF81C784) else Color(0xFFB0BEC5),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
 
                     // Row 2: Physical & Camera parameters
@@ -505,8 +532,8 @@ private fun GargantuaRendererScreen(
                         }
                     }
 
-                    // Temporary workload diagnostic. It is absent unless the hidden FPS-chip
-                    // long-press enabled telemetry and a completed reduction is available.
+                    // Temporary workload diagnostic. It is absent unless the temporary telemetry
+                    // toggle enabled telemetry and a completed reduction is available.
                     val workload = telemetry.workloadStats
                     if (
                         workloadTelemetryEnabled &&
