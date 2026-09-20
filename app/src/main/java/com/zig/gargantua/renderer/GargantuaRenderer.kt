@@ -371,27 +371,38 @@ class GargantuaRenderer(
         workloadProgramFailureStatus = null
         workloadDiagnosticStatus = "TEL ON · WORKLOAD COMPILING"
 
+        var workloadSourceLength = 0
+        val glVersion = GLES30.glGetString(GLES30.GL_VERSION) ?: "UNKNOWN"
+        val glslVersion = GLES30.glGetString(GLES30.GL_SHADING_LANGUAGE_VERSION) ?: "UNKNOWN"
+
         return try {
             val vertexSource = ShaderSource.loadVertexShader(context)
             val workloadSource = ShaderSource.loadWorkloadTelemetryGeodesicFragmentShader(context)
-            val workload = ShaderProgram.create(vertexSource, workloadSource)
+            workloadSourceLength = workloadSource.length
+            var workloadFailure: ShaderProgram.CreationFailure? = null
+            val workload = ShaderProgram.create(
+                vertexSource,
+                workloadSource,
+                onFailure = { workloadFailure = it }
+            )
+            var reduceFailure: ShaderProgram.CreationFailure? = null
             val reduce = ShaderProgram.create(
                 vertexSource,
-                ShaderSource.loadReduceFragmentShader(context)
+                ShaderSource.loadReduceFragmentShader(context),
+                onFailure = { reduceFailure = it }
             )
             if (workload == null || reduce == null) {
                 workload?.release()
                 reduce?.release()
                 workloadGeodesicProgram = null
                 reduceProgram = null
-                workloadProgramFailureStatus = when {
-                    workload == null && reduce == null ->
-                        "TEL ON · WORKLOAD/REDUCE CREATE FAILED"
-                    workload == null ->
-                        "TEL ON · WORKLOAD PROGRAM CREATE FAILED"
-                    else ->
-                        "TEL ON · REDUCE PROGRAM CREATE FAILED"
-                }
+                val failure = if (workload == null) workloadFailure else reduceFailure
+                workloadProgramFailureStatus = workloadProgramFailureStatus(
+                    failure = failure,
+                    sourceLength = workloadSourceLength,
+                    glVersion = glVersion,
+                    glslVersion = glslVersion
+                )
                 workloadDiagnosticStatus = workloadProgramFailureStatus!!
                 false
             } else {
@@ -406,11 +417,30 @@ class GargantuaRenderer(
             workloadGeodesicProgram = null
             reduceProgram?.release()
             reduceProgram = null
-            workloadProgramFailureStatus = "TEL ON · WORKLOAD INIT EXCEPTION"
+            workloadProgramFailureStatus =
+                "TEL ON · WORKLOAD INIT EXCEPTION · ${compactWorkloadDetail(e.message ?: e.javaClass.simpleName)}" +
+                    " · SRC_LEN=$workloadSourceLength · GL_VERSION=${compactWorkloadDetail(glVersion)}" +
+                    " · GLSL_VERSION=${compactWorkloadDetail(glslVersion)}"
             workloadDiagnosticStatus = workloadProgramFailureStatus!!
             false
         }
     }
+
+    private fun workloadProgramFailureStatus(
+        failure: ShaderProgram.CreationFailure?,
+        sourceLength: Int,
+        glVersion: String,
+        glslVersion: String
+    ): String {
+        val label = failure?.label ?: "UNKNOWN"
+        val log = compactWorkloadDetail(failure?.log ?: "NO_INFO_LOG").take(200)
+        return "TEL ON · WORKLOAD PROGRAM CREATE FAILED · $label · $log" +
+            " · SRC_LEN=$sourceLength · GL_VERSION=${compactWorkloadDetail(glVersion)}" +
+            " · GLSL_VERSION=${compactWorkloadDetail(glslVersion)}"
+    }
+
+    private fun compactWorkloadDetail(value: String): String =
+        value.replace(Regex("\\s+"), " ").trim().ifEmpty { "EMPTY" }
 
     /** Releases only the temporary diagnostic resources when it is toggled off. */
     private fun releaseWorkloadDiagnosticResources() {

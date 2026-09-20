@@ -2,12 +2,18 @@ package com.zig.gargantua.renderer
 
 import android.opengl.GLES30
 import android.util.Log
+import java.util.Locale
 
 /**
  * Encapsulates an OpenGL ES shader program, managing shader compilation,
  * program linking, error logging, uniform location caching, and clean teardown.
  */
 class ShaderProgram private constructor(val programId: Int) {
+
+    data class CreationFailure(
+        val label: String,
+        val log: String
+    )
 
     private val uniformLocations = mutableMapOf<String, Int>()
 
@@ -66,11 +72,15 @@ class ShaderProgram private constructor(val programId: Int) {
     companion object {
         private const val TAG = "GargantuaShader"
 
-        fun create(vertexSource: String, fragmentSource: String): ShaderProgram? {
-            val vertexShader = compileShader(GLES30.GL_VERTEX_SHADER, vertexSource)
+        fun create(
+            vertexSource: String,
+            fragmentSource: String,
+            onFailure: ((CreationFailure) -> Unit)? = null
+        ): ShaderProgram? {
+            val vertexShader = compileShader(GLES30.GL_VERTEX_SHADER, vertexSource, onFailure)
             if (vertexShader == 0) return null
 
-            val fragmentShader = compileShader(GLES30.GL_FRAGMENT_SHADER, fragmentSource)
+            val fragmentShader = compileShader(GLES30.GL_FRAGMENT_SHADER, fragmentSource, onFailure)
             if (fragmentShader == 0) {
                 GLES30.glDeleteShader(vertexShader)
                 return null
@@ -78,7 +88,13 @@ class ShaderProgram private constructor(val programId: Int) {
 
             val program = GLES30.glCreateProgram()
             if (program == 0) {
-                Log.e(TAG, "Failed to create GL program object")
+                reportFailure(
+                    CreationFailure(
+                        label = "CREATE0",
+                        log = "glCreateProgram returned 0; glError=${glErrorHex()}"
+                    ),
+                    onFailure
+                )
                 GLES30.glDeleteShader(vertexShader)
                 GLES30.glDeleteShader(fragmentShader)
                 return null
@@ -97,7 +113,7 @@ class ShaderProgram private constructor(val programId: Int) {
 
             if (linkStatus[0] == 0) {
                 val log = GLES30.glGetProgramInfoLog(program)
-                Log.e(TAG, "GL program link failed: $log")
+                reportFailure(CreationFailure("LINK", log), onFailure)
                 GLES30.glDeleteProgram(program)
                 return null
             }
@@ -105,10 +121,20 @@ class ShaderProgram private constructor(val programId: Int) {
             return ShaderProgram(program)
         }
 
-        private fun compileShader(type: Int, source: String): Int {
+        private fun compileShader(
+            type: Int,
+            source: String,
+            onFailure: ((CreationFailure) -> Unit)?
+        ): Int {
             val shader = GLES30.glCreateShader(type)
             if (shader == 0) {
-                Log.e(TAG, "Could not create shader of type: $type")
+                reportFailure(
+                    CreationFailure(
+                        label = "CREATE0",
+                        log = "glCreateShader returned 0; glError=${glErrorHex()}"
+                    ),
+                    onFailure
+                )
                 return 0
             }
 
@@ -119,13 +145,24 @@ class ShaderProgram private constructor(val programId: Int) {
             GLES30.glGetShaderiv(shader, GLES30.GL_COMPILE_STATUS, compiled, 0)
             if (compiled[0] == 0) {
                 val log = GLES30.glGetShaderInfoLog(shader)
-                val typeStr = if (type == GLES30.GL_VERTEX_SHADER) "VERTEX" else "FRAGMENT"
-                Log.e(TAG, "Shader compilation error in $typeStr: $log")
+                val label = if (type == GLES30.GL_VERTEX_SHADER) "VERTEX" else "FRAGMENT"
+                reportFailure(CreationFailure(label, log), onFailure)
                 GLES30.glDeleteShader(shader)
                 return 0
             }
 
             return shader
         }
+
+        private fun reportFailure(
+            failure: CreationFailure,
+            onFailure: ((CreationFailure) -> Unit)?
+        ) {
+            Log.e(TAG, "GL ${failure.label} failure: ${failure.log}")
+            onFailure?.invoke(failure)
+        }
+
+        private fun glErrorHex(): String =
+            String.format(Locale.US, "0x%04X", GLES30.glGetError())
     }
 }
