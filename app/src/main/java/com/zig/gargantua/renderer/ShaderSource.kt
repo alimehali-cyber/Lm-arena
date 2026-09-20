@@ -39,7 +39,14 @@ object ShaderSource {
         val source = readAsset(context, GEODESIC_FRAGMENT_SHADER_ASSET_PATH)
         val versionLine = "#version 300 es"
         return if (source.startsWith(versionLine)) {
-            source.replaceFirst(versionLine, "$versionLine\n#define GARGANTUA_WORKLOAD_TELEMETRY 1")
+            // Keep the canonical production asset unchanged. The workload variant has three
+            // outputs and therefore needs an explicit location for output 0 as well as the two
+            // existing MRT outputs at locations 1 and 2.
+            val workloadSource = source.replaceFirst(
+                "out vec4 fragColor;",
+                "layout(location = 0) out vec4 fragColor;"
+            )
+            workloadSource.replaceFirst(versionLine, "$versionLine\n#define GARGANTUA_WORKLOAD_TELEMETRY 1")
         } else {
             throw IllegalStateException("Canonical geodesic shader must begin with #version 300 es")
         }
