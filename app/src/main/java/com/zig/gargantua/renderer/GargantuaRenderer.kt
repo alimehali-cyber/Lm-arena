@@ -1793,7 +1793,7 @@ class GargantuaRenderer(
     }
 
     companion object {
-        private const val ENABLE_SEMANTIC_CACHE_DEBUG = false
+        private const val ENABLE_SEMANTIC_CACHE_DEBUG = true
         private const val SEMANTIC_CACHE_FORMAT = "16F"
         private const val TAG = "GargantuaRenderer"
         private const val FPS_WINDOW_NANOS = 500_000_000L
