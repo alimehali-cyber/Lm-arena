@@ -10,8 +10,10 @@ in vec2 v_TexCoord;
 out vec4 fragColor;
 
 vec4 sampleSource(ivec2 p, ivec2 sourceSize) {
-    ivec2 clamped = clamp(p, ivec2(0), sourceSize - ivec2(1));
-    return texelFetch(u_Texture, clamped, 0);
+    if (any(lessThan(p, ivec2(0))) || any(greaterThanEqual(p, sourceSize))) {
+        return vec4(0.0);
+    }
+    return texelFetch(u_Texture, p, 0);
 }
 
 float max4(float a, float b, float c, float d) {

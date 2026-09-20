@@ -444,12 +444,20 @@ class GargantuaRenderer(
     private fun compactWorkloadDetail(value: String): String =
         value.replace(Regex("\\s+"), " ").trim().ifEmpty { "EMPTY" }
 
-    private fun workloadStatsDiagnosticStatus(stats: GargantuaWorkloadStats): String =
-        "TEL ON · STATS READY · " +
+    private fun workloadStatsDiagnosticStatus(stats: GargantuaWorkloadStats): String {
+        val sumOk = stats.totalPixels == stats.shadedBlocks
+        val averageRays = if (stats.shadedBlocks > 0L) {
+            stats.totalRaysFrame.toDouble() / stats.shadedBlocks.toDouble()
+        } else {
+            0.0
+        }
+        return "TEL ON · STATS READY · " +
             "N0=${stats.tier0Pixels} N1=${stats.tier1Pixels} N2=${stats.tier2Pixels} " +
-            "EXP_PRIMARY=${stats.shadedBlocks} · " +
-            "TOTAL_RAYS=${stats.totalRaysFrame} TOTAL_STEPS=${stats.totalIntegrationSteps} " +
-            "MAX_STEPS=${stats.maximumIntegrationSteps} DISK_HITS=${stats.diskIntersections}"
+            "EXP_PRIMARY=${stats.shadedBlocks} SUM_OK=$sumOk · " +
+            "TOTAL_RAYS=${stats.totalRaysFrame} AVG_RAYS=${String.format(Locale.US, "%.3f", averageRays)} " +
+            "TOTAL_STEPS=${stats.totalIntegrationSteps} MAX_STEPS=${stats.maximumIntegrationSteps} " +
+            "DISK_HITS=${stats.diskIntersections}"
+    }
 
     /** Releases only the temporary diagnostic resources when it is toggled off. */
     private fun releaseWorkloadDiagnosticResources() {
