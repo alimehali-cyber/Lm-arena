@@ -370,12 +370,10 @@ class GargantuaRenderer(
                 reduce?.release()
                 workloadGeodesicProgram = null
                 reduceProgram = null
-                Log.w(TAG, "Workload diagnostic shaders failed to compile")
                 false
             } else {
                 workloadGeodesicProgram = workload
                 reduceProgram = reduce
-                Log.i(TAG, "Workload diagnostic shaders compiled lazily")
                 true
             }
         } catch (e: Exception) {
@@ -383,7 +381,6 @@ class GargantuaRenderer(
             workloadGeodesicProgram = null
             reduceProgram?.release()
             reduceProgram = null
-            Log.w(TAG, "Could not compile workload diagnostic shaders", e)
             false
         }
     }
