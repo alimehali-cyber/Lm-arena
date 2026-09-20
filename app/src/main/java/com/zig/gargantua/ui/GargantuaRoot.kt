@@ -227,7 +227,9 @@ private fun GargantuaRendererScreen(
 ) {
     var surfaceViewRef by remember { mutableStateOf<GargantuaSurfaceView?>(null) }
     var telemetry by remember { mutableStateOf(GargantuaTelemetry()) }
-    val workloadTelemetryEnabled = surfaceViewRef?.renderer?.stateHolder?.getState()?.enableWorkloadTelemetry == true
+    // Keep the hidden switch mirrored in Compose so the diagnostic HUD reacts immediately to the
+    // long-press; RenderStateHolder itself is intentionally not a Compose observable.
+    var workloadTelemetryEnabled by remember { mutableStateOf(false) }
 
     // Lifecycle observation to pause/resume the GL thread cleanly
     DisposableEffect(lifecycleOwner, surfaceViewRef) {
@@ -376,9 +378,10 @@ private fun GargantuaRendererScreen(
                         .pointerInput(surfaceViewRef) {
                             detectTapGestures(
                                 onLongPress = {
-                                    surfaceViewRef?.renderer?.stateHolder?.updateState { current ->
+                                    val nextState = surfaceViewRef?.renderer?.stateHolder?.updateState { current ->
                                         current.copy(enableWorkloadTelemetry = !current.enableWorkloadTelemetry)
                                     }
+                                    workloadTelemetryEnabled = nextState?.enableWorkloadTelemetry == true
                                 }
                             )
                         }
