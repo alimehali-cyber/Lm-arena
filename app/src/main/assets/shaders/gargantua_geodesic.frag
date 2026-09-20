@@ -10,6 +10,9 @@ out vec4 fragColor;
 // only when explicit debug instrumentation is enabled.
 layout(location = 1) out vec4 workloadTierStats;
 layout(location = 2) out vec4 workloadCostStats;
+#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
+layout(location = 3) out vec4 workloadSemanticCache;
+#endif
 #endif
 
 // Uniforms
@@ -300,6 +303,9 @@ vec4 traceRaySample(
     float minR = rInit;
     int crossings = 0;
     float hitRadius = 0.0;
+#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
+    float diskHitAzimuth = 0.0;
+#endif
 
     float prevR = rInit;
     bool movingOutward = false;
@@ -450,6 +456,9 @@ vec4 traceRaySample(
             crossings++;
             if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
                 hitRadius = rHit;
+#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
+                diskHitAzimuth = atan(hitPos.y, hitPos.x);
+#endif
                 vec3 hitP = mix(prevP, p_spatial, tau);
 
                 // Relativistic Keplerian angular velocity Omega = sqrt(M) / (r^(3/2) + a * sqrt(M))
@@ -707,5 +716,24 @@ void main() {
         float(maxStepsForStats),
         float(diskHitsForStats)
     );
+#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
+    float diskRadiusNormalized = (rayState == 3)
+        ? clamp(
+            (hitRadius - u_DiskInnerRadius) /
+                max(1.0e-6, u_DiskOuterRadius - u_DiskInnerRadius),
+            0.0,
+            1.0
+        )
+        : 0.0;
+    float diskAzimuthNormalized = (rayState == 3)
+        ? fract(diskHitAzimuth / 6.28318530718 + 0.5)
+        : 0.0;
+    workloadSemanticCache = vec4(
+        diskRadiusNormalized,
+        diskAzimuthNormalized,
+        float(crossings),
+        float(rayState)
+    );
+#endif
 #endif
 }

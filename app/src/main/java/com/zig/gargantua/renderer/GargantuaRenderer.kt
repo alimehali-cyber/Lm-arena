@@ -29,6 +29,7 @@ class GargantuaRenderer(
     private var workloadGeodesicProgram: ShaderProgram? = null
     private var testProgram: ShaderProgram? = null
     private var blitProgram: ShaderProgram? = null
+    private var semanticCacheDebugProgram: ShaderProgram? = null
     private var brightPassProgram: ShaderProgram? = null
     private var blurProgram: ShaderProgram? = null
     private var compositeProgram: ShaderProgram? = null
@@ -64,6 +65,7 @@ class GargantuaRenderer(
     private var workloadFboId = 0
     private var workloadTierTextureId = 0
     private var workloadCostTextureId = 0
+    private var workloadSemanticCacheTextureId = 0
     private var workloadReduceFboA = 0
     private var workloadReduceTextureA = 0
     private var workloadReduceFboB = 0
@@ -77,6 +79,7 @@ class GargantuaRenderer(
     private var workloadDiagnosticStatus = "TEL OFF"
     private var workloadReadbackValid = true
     private var workloadReadbackFailureStatus: String? = null
+    private var semanticCacheDiagnosticStatus: String? = null
 
     // Dirty/invalidation scheduling. Ray-scene changes, bloom extraction changes, and composite
     // changes are intentionally tracked separately so exposure/bloom-intensity changes do not
@@ -267,6 +270,7 @@ class GargantuaRenderer(
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
         workloadReadbackFailureStatus = null
+        semanticCacheDiagnosticStatus = null
 
         // 2. Compile M1 baseline test shader as guaranteed fallback
         val testFragSource = ShaderSource.loadFragmentShader(context)
@@ -297,6 +301,21 @@ class GargantuaRenderer(
             blitProgram = ShaderProgram.create(vertSource, blitFragSource)
         } catch (e: Exception) {
             Log.w(TAG, "Could not load blit shader", e)
+        }
+
+        semanticCacheDebugProgram?.release()
+        semanticCacheDebugProgram = if (ENABLE_SEMANTIC_CACHE_DEBUG) {
+            try {
+                ShaderProgram.create(
+                    vertSource,
+                    ShaderSource.loadSemanticCacheFalseColorFragmentShader(context)
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not load semantic-cache false-color shader", e)
+                null
+            }
+        } else {
+            null
         }
 
         if (!isGeodesicReady && testProgram == null) {
@@ -379,7 +398,10 @@ class GargantuaRenderer(
 
         return try {
             val vertexSource = ShaderSource.loadVertexShader(context)
-            val workloadSource = ShaderSource.loadWorkloadTelemetryGeodesicFragmentShader(context)
+            val workloadSource = ShaderSource.loadWorkloadTelemetryGeodesicFragmentShader(
+                context,
+                includeSemanticCache = ENABLE_SEMANTIC_CACHE_DEBUG
+            )
             workloadSourceLength = workloadSource.length
             var workloadFailure: ShaderProgram.CreationFailure? = null
             val workload = ShaderProgram.create(
@@ -456,8 +478,21 @@ class GargantuaRenderer(
             "EXP_PRIMARY=${stats.shadedBlocks} SUM_OK=$sumOk · " +
             "TOTAL_RAYS=${stats.totalRaysFrame} AVG_RAYS=${String.format(Locale.US, "%.3f", averageRays)} " +
             "TOTAL_STEPS=${stats.totalIntegrationSteps} MAX_STEPS=${stats.maximumIntegrationSteps} " +
-            "DISK_HITS=${stats.diskIntersections}"
+            "DISK_HITS=${stats.diskIntersections}" + semanticCacheStatusSuffix()
     }
+
+    private fun semanticCacheInternalFormat(): Int =
+        if (SEMANTIC_CACHE_FORMAT == "32F") GLES30.GL_RGBA32F else GLES30.GL_RGBA16F
+
+    private fun semanticCacheStatusSuffix(): String = when {
+        semanticCacheDiagnosticStatus != null -> " · ${semanticCacheDiagnosticStatus}"
+        ENABLE_SEMANTIC_CACHE_DEBUG && workloadSemanticCacheTextureId != 0 ->
+            " · SEM OK $SEMANTIC_CACHE_FORMAT"
+        else -> ""
+    }
+
+    private fun workloadStatusWithSemantic(baseStatus: String): String =
+        baseStatus + semanticCacheStatusSuffix()
 
     /** Releases only the temporary diagnostic resources when it is toggled off. */
     private fun releaseWorkloadDiagnosticResources() {
@@ -471,6 +506,7 @@ class GargantuaRenderer(
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
         workloadReadbackFailureStatus = null
+        semanticCacheDiagnosticStatus = null
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -618,7 +654,7 @@ class GargantuaRenderer(
                 !state.useGeodesicShader ->
                     workloadDiagnosticStatus = "TEL ON · GEODESIC PATH OFF"
                 workloadRequested ->
-                    workloadDiagnosticStatus = "TEL ON · MRT/FBO READY"
+                    workloadDiagnosticStatus = workloadStatusWithSemantic("TEL ON · MRT/FBO READY")
                 workloadGeodesicProgram == null || reduceProgram == null ->
                     workloadDiagnosticStatus = workloadProgramFailureStatus ?: "TEL ON · WORKLOAD NOT READY"
                 else -> {
@@ -638,26 +674,34 @@ class GargantuaRenderer(
 
         val renderedScene = sceneDirty
         if (state.enableWorkloadTelemetry && workloadRequested && !renderedScene) {
-            workloadDiagnosticStatus = if (
-                lastWorkloadStats.available && lastWorkloadStats.totalPixels > 0L
-            ) {
-                "TEL ON · STATS READY"
-            } else {
-                "TEL ON · NO SCENE RENDER"
-            }
+            workloadDiagnosticStatus = workloadStatusWithSemantic(
+                if (lastWorkloadStats.available && lastWorkloadStats.totalPixels > 0L) {
+                    "TEL ON · STATS READY"
+                } else {
+                    "TEL ON · NO SCENE RENDER"
+                }
+            )
         }
         if (renderedScene) {
             if (workloadRequested) {
                 GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, workloadFboId)
-                GLES30.glDrawBuffers(
-                    3,
+                val workloadDrawBuffers = if (
+                    ENABLE_SEMANTIC_CACHE_DEBUG && workloadSemanticCacheTextureId != 0
+                ) {
+                    intArrayOf(
+                        GLES30.GL_COLOR_ATTACHMENT0,
+                        GLES30.GL_COLOR_ATTACHMENT1,
+                        GLES30.GL_COLOR_ATTACHMENT2,
+                        GLES30.GL_COLOR_ATTACHMENT3
+                    )
+                } else {
                     intArrayOf(
                         GLES30.GL_COLOR_ATTACHMENT0,
                         GLES30.GL_COLOR_ATTACHMENT1,
                         GLES30.GL_COLOR_ATTACHMENT2
-                    ),
-                    0
-                )
+                    )
+                }
+                GLES30.glDrawBuffers(workloadDrawBuffers.size, workloadDrawBuffers, 0)
             } else {
                 GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, rayFboId)
             }
@@ -753,15 +797,16 @@ class GargantuaRenderer(
             geodesicCpuSubmitMs = elapsedMilliseconds(geodesicStart)
 
             lastWorkloadStats = if (workloadRequested) {
-                workloadDiagnosticStatus = "TEL ON · WORKLOAD PASS SUBMITTED"
+                workloadDiagnosticStatus = workloadStatusWithSemantic("TEL ON · WORKLOAD PASS SUBMITTED")
                 collectWorkloadStats(renderW, renderH, rayGrid).also { stats ->
                     workloadDiagnosticStatus = when {
-                        !workloadReadbackValid ->
+                        !workloadReadbackValid -> workloadStatusWithSemantic(
                             "TEL ON · REDUCTION READBACK INVALID · " +
                                 (workloadReadbackFailureStatus ?: "CHECK=UNKNOWN")
+                        )
                         stats.available && stats.totalPixels > 0L -> workloadStatsDiagnosticStatus(stats)
-                        stats.available -> "TEL ON · REDUCTION READBACK ZERO"
-                        else -> "TEL ON · REDUCTION READBACK UNAVAILABLE"
+                        stats.available -> workloadStatusWithSemantic("TEL ON · REDUCTION READBACK ZERO")
+                        else -> workloadStatusWithSemantic("TEL ON · REDUCTION READBACK UNAVAILABLE")
                     }
                 }
             } else {
@@ -833,6 +878,9 @@ class GargantuaRenderer(
             val compositeStart = System.nanoTime()
             renderCompositeToDisplay(surfaceW, surfaceH, state, quad)
             compositeCpuSubmitMs = elapsedMilliseconds(compositeStart)
+        }
+        if (ENABLE_SEMANTIC_CACHE_DEBUG && workloadRequested && renderedScene) {
+            renderSemanticCacheDebugToDisplay(surfaceW, surfaceH, quad)
         }
         lastPassTimings = GargantuaPassTimings(
             geodesicCpuSubmitMs = geodesicCpuSubmitMs,
@@ -914,6 +962,23 @@ class GargantuaRenderer(
 
     private fun elapsedMilliseconds(startNanos: Long): Float =
         (System.nanoTime() - startNanos) / 1_000_000.0f
+
+    private fun renderSemanticCacheDebugToDisplay(
+        dstWidth: Int,
+        dstHeight: Int,
+        quad: QuadGeometry
+    ) {
+        val program = semanticCacheDebugProgram ?: return
+        if (workloadSemanticCacheTextureId == 0) return
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+        GLES30.glViewport(0, 0, dstWidth, dstHeight)
+        program.use()
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, workloadSemanticCacheTextureId)
+        program.setUniform1i("u_Texture", 0)
+        quad.draw()
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+    }
 
     private fun renderCompositeToDisplay(
         dstWidth: Int,
@@ -1115,30 +1180,45 @@ class GargantuaRenderer(
         }
 
         deleteWorkloadFbos()
+        semanticCacheDiagnosticStatus = null
         workloadDiagnosticStatus = "TEL ON · MRT/FBO ALLOCATING"
 
+        val maxDrawBuffers = IntArray(1)
+        GLES30.glGetIntegerv(GLES30.GL_MAX_DRAW_BUFFERS, maxDrawBuffers, 0)
+        val semanticCacheFboRequested =
+            ENABLE_SEMANTIC_CACHE_DEBUG && maxDrawBuffers[0] >= 4
+        if (ENABLE_SEMANTIC_CACHE_DEBUG && maxDrawBuffers[0] < 4) {
+            semanticCacheDiagnosticStatus = "SEM MAXDRAW=${maxDrawBuffers[0]}"
+        }
+
         val fboIds = IntArray(3)
-        val textureIds = IntArray(4)
+        val textureIds = IntArray(if (semanticCacheFboRequested) 5 else 4)
         GLES30.glGenFramebuffers(3, fboIds, 0)
-        GLES30.glGenTextures(4, textureIds, 0)
+        GLES30.glGenTextures(textureIds.size, textureIds, 0)
 
         workloadFboId = fboIds[0]
         workloadReduceFboA = fboIds[1]
         workloadReduceFboB = fboIds[2]
         workloadTierTextureId = textureIds[0]
         workloadCostTextureId = textureIds[1]
-        workloadReduceTextureA = textureIds[2]
-        workloadReduceTextureB = textureIds[3]
+        var textureIndex = 2
+        workloadSemanticCacheTextureId =
+            if (semanticCacheFboRequested) textureIds[textureIndex++] else 0
+        workloadReduceTextureA = textureIds[textureIndex++]
+        workloadReduceTextureB = textureIds[textureIndex]
         workloadWidth = targetWidth
         workloadHeight = targetHeight
         workloadRayTextureId = rayTextureId
 
-        fun initFloatTexture(textureId: Int) {
+        fun initFloatTexture(
+            textureId: Int,
+            internalFormat: Int = GLES30.GL_RGBA32F
+        ) {
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, textureId)
             GLES30.glTexImage2D(
                 GLES30.GL_TEXTURE_2D,
                 0,
-                GLES30.GL_RGBA32F,
+                internalFormat,
                 targetWidth,
                 targetHeight,
                 0,
@@ -1154,6 +1234,9 @@ class GargantuaRenderer(
 
         initFloatTexture(workloadTierTextureId)
         initFloatTexture(workloadCostTextureId)
+        if (semanticCacheFboRequested) {
+            initFloatTexture(workloadSemanticCacheTextureId, semanticCacheInternalFormat())
+        }
         initFloatTexture(workloadReduceTextureA)
         initFloatTexture(workloadReduceTextureB)
 
@@ -1179,16 +1262,69 @@ class GargantuaRenderer(
             workloadCostTextureId,
             0
         )
-        GLES30.glDrawBuffers(
-            3,
+        var semanticCacheAttached = false
+        if (semanticCacheFboRequested) {
+            GLES30.glFramebufferTexture2D(
+                GLES30.GL_FRAMEBUFFER,
+                GLES30.GL_COLOR_ATTACHMENT3,
+                GLES30.GL_TEXTURE_2D,
+                workloadSemanticCacheTextureId,
+                0
+            )
+            val semanticStatus = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+            if (semanticStatus == GLES30.GL_FRAMEBUFFER_COMPLETE) {
+                semanticCacheAttached = true
+            } else {
+                semanticCacheDiagnosticStatus =
+                    "SEM FBO INCOMPLETE 0x${semanticStatus.toString(16).uppercase()}"
+                GLES30.glFramebufferTexture2D(
+                    GLES30.GL_FRAMEBUFFER,
+                    GLES30.GL_COLOR_ATTACHMENT3,
+                    GLES30.GL_TEXTURE_2D,
+                    0,
+                    0
+                )
+                GLES30.glDeleteTextures(1, intArrayOf(workloadSemanticCacheTextureId), 0)
+                workloadSemanticCacheTextureId = 0
+            }
+        }
+        val workloadDrawBuffers = if (semanticCacheAttached) {
+            intArrayOf(
+                GLES30.GL_COLOR_ATTACHMENT0,
+                GLES30.GL_COLOR_ATTACHMENT1,
+                GLES30.GL_COLOR_ATTACHMENT2,
+                GLES30.GL_COLOR_ATTACHMENT3
+            )
+        } else {
             intArrayOf(
                 GLES30.GL_COLOR_ATTACHMENT0,
                 GLES30.GL_COLOR_ATTACHMENT1,
                 GLES30.GL_COLOR_ATTACHMENT2
-            ),
-            0
-        )
-        val workloadStatus = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+            )
+        }
+        GLES30.glDrawBuffers(workloadDrawBuffers.size, workloadDrawBuffers, 0)
+        var workloadStatus = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+        if (workloadStatus != GLES30.GL_FRAMEBUFFER_COMPLETE && semanticCacheAttached) {
+            semanticCacheDiagnosticStatus =
+                "SEM FBO INCOMPLETE 0x${workloadStatus.toString(16).uppercase()}"
+            GLES30.glFramebufferTexture2D(
+                GLES30.GL_FRAMEBUFFER,
+                GLES30.GL_COLOR_ATTACHMENT3,
+                GLES30.GL_TEXTURE_2D,
+                0,
+                0
+            )
+            GLES30.glDeleteTextures(1, intArrayOf(workloadSemanticCacheTextureId), 0)
+            workloadSemanticCacheTextureId = 0
+            semanticCacheAttached = false
+            val telemetryDrawBuffers = intArrayOf(
+                GLES30.GL_COLOR_ATTACHMENT0,
+                GLES30.GL_COLOR_ATTACHMENT1,
+                GLES30.GL_COLOR_ATTACHMENT2
+            )
+            GLES30.glDrawBuffers(telemetryDrawBuffers.size, telemetryDrawBuffers, 0)
+            workloadStatus = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+        }
         if (workloadStatus != GLES30.GL_FRAMEBUFFER_COMPLETE) {
             Log.w(TAG, "RGBA32F workload framebuffer unavailable: status=$workloadStatus")
             deleteWorkloadFbos()
@@ -1224,7 +1360,7 @@ class GargantuaRenderer(
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
         workloadTelemetrySupported = true
         Log.i(TAG, "Debug workload telemetry enabled for ${targetWidth}x${targetHeight} internal pixels")
-        workloadDiagnosticStatus = "TEL ON · MRT/FBO READY"
+        workloadDiagnosticStatus = workloadStatusWithSemantic("TEL ON · MRT/FBO READY")
         return true
     }
 
@@ -1411,6 +1547,7 @@ class GargantuaRenderer(
         workloadFboId = 0
         workloadTierTextureId = 0
         workloadCostTextureId = 0
+        workloadSemanticCacheTextureId = 0
         workloadReduceFboA = 0
         workloadReduceTextureA = 0
         workloadReduceFboB = 0
@@ -1424,6 +1561,7 @@ class GargantuaRenderer(
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
         workloadReadbackFailureStatus = null
+        semanticCacheDiagnosticStatus = null
     }
 
     private fun deleteWorkloadFbos() {
@@ -1439,12 +1577,16 @@ class GargantuaRenderer(
         if (workloadTierTextureId != 0 || workloadCostTextureId != 0) {
             GLES30.glDeleteTextures(2, intArrayOf(workloadTierTextureId, workloadCostTextureId), 0)
         }
+        if (workloadSemanticCacheTextureId != 0) {
+            GLES30.glDeleteTextures(1, intArrayOf(workloadSemanticCacheTextureId), 0)
+        }
         if (workloadReduceTextureA != 0 || workloadReduceTextureB != 0) {
             GLES30.glDeleteTextures(2, intArrayOf(workloadReduceTextureA, workloadReduceTextureB), 0)
         }
         workloadFboId = 0
         workloadTierTextureId = 0
         workloadCostTextureId = 0
+        workloadSemanticCacheTextureId = 0
         workloadReduceFboA = 0
         workloadReduceTextureA = 0
         workloadReduceFboB = 0
@@ -1630,6 +1772,8 @@ class GargantuaRenderer(
         testProgram = null
         blitProgram?.release()
         blitProgram = null
+        semanticCacheDebugProgram?.release()
+        semanticCacheDebugProgram = null
         brightPassProgram?.release()
         brightPassProgram = null
         blurProgram?.release()
@@ -1643,11 +1787,14 @@ class GargantuaRenderer(
         workloadDiagnosticStatus = "TEL OFF"
         workloadReadbackValid = true
         workloadReadbackFailureStatus = null
+        semanticCacheDiagnosticStatus = null
         quadGeometry?.release()
         quadGeometry = null
     }
 
     companion object {
+        private const val ENABLE_SEMANTIC_CACHE_DEBUG = false
+        private const val SEMANTIC_CACHE_FORMAT = "16F"
         private const val TAG = "GargantuaRenderer"
         private const val FPS_WINDOW_NANOS = 500_000_000L
         private const val FPS_IDLE_RESET_NANOS = 750_000_000L

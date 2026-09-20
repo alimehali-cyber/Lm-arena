@@ -26,6 +26,57 @@ class GargantuaShaderSourceTest {
     }
 
     @Test
+    fun workloadSourceFlagOffMatchesCurrentGeneratedSourceByteForByte() {
+        val asset = findAssetFile(ShaderSource.GEODESIC_FRAGMENT_SHADER_ASSET_PATH).readText()
+        val expected = asset
+            .replaceFirst(
+                "out vec4 fragColor;",
+                "layout(location = 0) out vec4 fragColor;"
+            )
+            .replaceFirst(
+                "#version 300 es",
+                "#version 300 es\n#define GARGANTUA_WORKLOAD_TELEMETRY 1"
+            )
+        val actual = ShaderSource.buildWorkloadTelemetryGeodesicFragmentShader(
+            asset,
+            includeSemanticCache = false
+        )
+
+        assertEquals(expected, actual)
+        assertFalse(actual.contains("#define GARGANTUA_WORKLOAD_SEMANTIC_CACHE"))
+    }
+
+    @Test
+    fun workloadSourceFlagOnPlacesSemanticDefineAfterVersion() {
+        val asset = findAssetFile(ShaderSource.GEODESIC_FRAGMENT_SHADER_ASSET_PATH).readText()
+        val actual = ShaderSource.buildWorkloadTelemetryGeodesicFragmentShader(
+            asset,
+            includeSemanticCache = true
+        )
+        val lines = actual.lines()
+
+        assertEquals("#version 300 es", lines[0])
+        assertEquals("#define GARGANTUA_WORKLOAD_TELEMETRY 1", lines[1])
+        assertEquals("#define GARGANTUA_WORKLOAD_SEMANTIC_CACHE 1", lines[2])
+    }
+
+    @Test
+    fun geodesicAssetHasBalancedIfdefBlocks() {
+        val lines = findAssetFile(ShaderSource.GEODESIC_FRAGMENT_SHADER_ASSET_PATH).readLines()
+        var depth = 0
+        for (line in lines) {
+            when {
+                line.trim().startsWith("#ifdef ") -> depth++
+                line.trim() == "#endif" -> {
+                    assertTrue("#endif must match a preceding #ifdef", depth > 0)
+                    depth--
+                }
+            }
+        }
+        assertEquals("Every #ifdef must have a matching #endif", 0, depth)
+    }
+
+    @Test
     fun canonicalM6ShadersExistAndDeclareGles3() {
         val brightPass = findAssetFile(ShaderSource.BRIGHTPASS_FRAGMENT_SHADER_ASSET_PATH).readText()
         val blur = findAssetFile(ShaderSource.BLUR_FRAGMENT_SHADER_ASSET_PATH).readText()
