@@ -4,7 +4,6 @@ import android.content.Context
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.util.Log
-import com.alijafari.red.astronomy.BuildConfig
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Locale
@@ -73,6 +72,7 @@ class GargantuaRenderer(
     private var workloadHeight = 0
     private var workloadRayTextureId = 0
     private var workloadTelemetrySupported = false
+    private var workloadProgramAttempted = false
 
     // Dirty/invalidation scheduling. Ray-scene changes, bloom extraction changes, and composite
     // changes are intentionally tracked separately so exposure/bloom-intensity changes do not
@@ -251,35 +251,14 @@ class GargantuaRenderer(
             Log.w(TAG, "Could not load geodesic shader asset; falling back to test shader", e)
         }
 
-        // Debug-only workload variant of the same canonical geodesic shader. It writes two extra
-        // MRT attachments for bounded counters; it is never selected by a release build.
+        // The workload variant of the canonical geodesic shader is compiled lazily only after
+        // the temporary on-device diagnostic is explicitly enabled. The normal render path does
+        // not pay the shader/FBO setup cost and continues to use the production program directly.
         workloadGeodesicProgram?.release()
         workloadGeodesicProgram = null
         reduceProgram?.release()
         reduceProgram = null
-        if (BuildConfig.DEBUG && isGeodesicReady) {
-            try {
-                val workloadSource = ShaderSource.loadWorkloadTelemetryGeodesicFragmentShader(context)
-                workloadGeodesicProgram = ShaderProgram.create(vertSource, workloadSource)
-                reduceProgram = ShaderProgram.create(
-                    vertSource,
-                    ShaderSource.loadReduceFragmentShader(context)
-                )
-                if (workloadGeodesicProgram == null || reduceProgram == null) {
-                    Log.w(TAG, "Debug workload shaders failed to compile; workload telemetry unavailable")
-                    workloadGeodesicProgram?.release()
-                    reduceProgram?.release()
-                    workloadGeodesicProgram = null
-                    reduceProgram = null
-                }
-            } catch (e: Exception) {
-                workloadGeodesicProgram?.release()
-                workloadGeodesicProgram = null
-                reduceProgram?.release()
-                reduceProgram = null
-                Log.w(TAG, "Could not compile debug workload shaders; telemetry unavailable", e)
-            }
-        }
+        workloadProgramAttempted = false
 
         // 2. Compile M1 baseline test shader as guaranteed fallback
         val testFragSource = ShaderSource.loadFragmentShader(context)
@@ -366,6 +345,57 @@ class GargantuaRenderer(
         val currentViewport = stateHolder.getState()
         renderReadyGate.markSurfaceSize(currentViewport.viewportWidth, currentViewport.viewportHeight)
         renderReadyGate.markResourcesReady()
+    }
+
+    /**
+     * Compiles the existing workload/reduction programs only after the temporary diagnostic is
+     * enabled. This keeps the normal release render path identical until the hidden long-press is
+     * used on the physical device.
+     */
+    private fun ensureWorkloadPrograms(): Boolean {
+        if (workloadGeodesicProgram != null && reduceProgram != null) return true
+        if (workloadProgramAttempted) return false
+        workloadProgramAttempted = true
+
+        return try {
+            val vertexSource = ShaderSource.loadVertexShader(context)
+            val workloadSource = ShaderSource.loadWorkloadTelemetryGeodesicFragmentShader(context)
+            val workload = ShaderProgram.create(vertexSource, workloadSource)
+            val reduce = ShaderProgram.create(
+                vertexSource,
+                ShaderSource.loadReduceFragmentShader(context)
+            )
+            if (workload == null || reduce == null) {
+                workload?.release()
+                reduce?.release()
+                workloadGeodesicProgram = null
+                reduceProgram = null
+                Log.w(TAG, "Workload diagnostic shaders failed to compile")
+                false
+            } else {
+                workloadGeodesicProgram = workload
+                reduceProgram = reduce
+                Log.i(TAG, "Workload diagnostic shaders compiled lazily")
+                true
+            }
+        } catch (e: Exception) {
+            workloadGeodesicProgram?.release()
+            workloadGeodesicProgram = null
+            reduceProgram?.release()
+            reduceProgram = null
+            Log.w(TAG, "Could not compile workload diagnostic shaders", e)
+            false
+        }
+    }
+
+    /** Releases only the temporary diagnostic resources when it is toggled off. */
+    private fun releaseWorkloadDiagnosticResources() {
+        deleteWorkloadFbos()
+        workloadGeodesicProgram?.release()
+        workloadGeodesicProgram = null
+        reduceProgram?.release()
+        reduceProgram = null
+        workloadProgramAttempted = false
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -471,9 +501,14 @@ class GargantuaRenderer(
         val compositeChanged = compositeSig != lastCompositeSignature
         lastCompositeSignature = compositeSig
 
+        if (state.enableWorkloadTelemetry) {
+            ensureWorkloadPrograms()
+        } else if (workloadGeodesicProgram != null || reduceProgram != null || workloadFboId != 0) {
+            releaseWorkloadDiagnosticResources()
+        }
+
         val workloadRequested =
-            BuildConfig.DEBUG &&
-                state.useGeodesicShader &&
+            state.useGeodesicShader &&
                 state.enableWorkloadTelemetry &&
                 workloadGeodesicProgram != null &&
                 reduceProgram != null &&
@@ -714,12 +749,10 @@ class GargantuaRenderer(
                     stats.tier2Pixels * 100.0f / total
                 )
             }
-            state.enableWorkloadTelemetry && !BuildConfig.DEBUG ->
-                "Unavailable (debug build required)"
             state.enableWorkloadTelemetry && !state.useGeodesicShader ->
                 "Unavailable (geodesic shader disabled)"
             state.enableWorkloadTelemetry ->
-                "Unavailable (debug workload attachments unsupported)"
+                "Unavailable (workload attachments unsupported)"
             stats.samplingBlockSize > 1 ->
                 "block ${stats.samplingBlockSize}x: unavailable (enable debug telemetry)"
             else ->
@@ -944,7 +977,7 @@ class GargantuaRenderer(
      * unavailable instead of guessing.
      */
     private fun ensureWorkloadFbo(targetWidth: Int, targetHeight: Int, rayTextureId: Int): Boolean {
-        if (!BuildConfig.DEBUG || workloadGeodesicProgram == null || reduceProgram == null) return false
+        if (workloadGeodesicProgram == null || reduceProgram == null) return false
         if (rayTextureId == 0) return false
         if (
             workloadTelemetrySupported &&
@@ -1221,6 +1254,7 @@ class GargantuaRenderer(
         workloadHeight = 0
         workloadRayTextureId = 0
         workloadTelemetrySupported = false
+        workloadProgramAttempted = false
     }
 
     private fun deleteWorkloadFbos() {
@@ -1435,6 +1469,7 @@ class GargantuaRenderer(
         compositeProgram = null
         reduceProgram?.release()
         reduceProgram = null
+        workloadProgramAttempted = false
         quadGeometry?.release()
         quadGeometry = null
     }

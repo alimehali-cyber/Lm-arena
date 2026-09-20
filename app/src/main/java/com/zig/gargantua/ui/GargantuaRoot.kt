@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -225,6 +227,7 @@ private fun GargantuaRendererScreen(
 ) {
     var surfaceViewRef by remember { mutableStateOf<GargantuaSurfaceView?>(null) }
     var telemetry by remember { mutableStateOf(GargantuaTelemetry()) }
+    val workloadTelemetryEnabled = surfaceViewRef?.renderer?.stateHolder?.getState()?.enableWorkloadTelemetry == true
 
     // Lifecycle observation to pause/resume the GL thread cleanly
     DisposableEffect(lifecycleOwner, surfaceViewRef) {
@@ -368,6 +371,17 @@ private fun GargantuaRendererScreen(
                         .background(Color(0x99181B26))
                         .border(1.dp, Color(0x33446688), RoundedCornerShape(16.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp)
+                        // Temporary physical-device diagnostic switch. A normal tap has no
+                        // behavior, as before; only a long-press toggles the existing state flag.
+                        .pointerInput(surfaceViewRef) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    surfaceViewRef?.renderer?.stateHolder?.updateState { current ->
+                                        current.copy(enableWorkloadTelemetry = !current.enableWorkloadTelemetry)
+                                    }
+                                }
+                            )
+                        }
                         .testTag("gargantua_fps_badge")
                 ) {
                     val fpsText = if (telemetry.fps > 0f) {
@@ -487,6 +501,66 @@ private fun GargantuaRendererScreen(
                                 fontSize = 10.sp
                             )
                         }
+                    }
+
+                    // Temporary workload diagnostic. It is absent unless the hidden FPS-chip
+                    // long-press enabled telemetry and a completed reduction is available.
+                    val workload = telemetry.workloadStats
+                    if (
+                        workloadTelemetryEnabled &&
+                        workload.available &&
+                        workload.totalPixels > 0L
+                    ) {
+                        val total = workload.totalPixels.toFloat()
+                        Text(
+                            text = String.format(
+                                Locale.US,
+                                "SAMPLE %d×%d  %dx%d",
+                                workload.samplingBlockSize,
+                                workload.samplingBlockSize,
+                                workload.frameWidth,
+                                workload.frameHeight
+                            ),
+                            color = Color(0xFFB0BEC5),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = String.format(
+                                Locale.US,
+                                "T0 %.1f%%  T1 %.1f%%  T2 %.1f%%",
+                                workload.tier0Pixels * 100.0f / total,
+                                workload.tier1Pixels * 100.0f / total,
+                                workload.tier2Pixels * 100.0f / total
+                            ),
+                            color = Color(0xFFFFCC80),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = String.format(
+                                Locale.US,
+                                "RAYS %.2f  TOTAL %d",
+                                workload.averageRaysPerPixel,
+                                workload.totalRaysFrame
+                            ),
+                            color = Color(0xFF80CBC4),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = String.format(
+                                Locale.US,
+                                "a*=%.2f  d=%.0fM  φ=%.0f°  i=%.0f°",
+                                telemetry.spin,
+                                telemetry.camDist,
+                                telemetry.camAzimuthDeg,
+                                telemetry.camInclinationDeg
+                            ),
+                            color = Color(0xFFB39DDB),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
             }
