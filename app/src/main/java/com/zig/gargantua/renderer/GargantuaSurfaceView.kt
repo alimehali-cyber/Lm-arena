@@ -1,6 +1,8 @@
 package com.zig.gargantua.renderer
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.opengl.GLSurfaceView
 import android.util.Log
 import android.view.MotionEvent
@@ -28,6 +30,16 @@ class GargantuaSurfaceView(
     private var lastFocusY = 0f
     private var hasWindowFocus = false
     private var isDragging = false
+
+    private val animationHandler = Handler(Looper.getMainLooper())
+    private val animationTicker = object : Runnable {
+        override fun run() {
+            if (shouldTickAnimation()) {
+                requestRender()
+                animationHandler.postDelayed(this, GargantuaAnimation.TICK_INTERVAL_MS)
+            }
+        }
+    }
 
     private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScale(detector: ScaleGestureDetector): Boolean {
@@ -60,6 +72,7 @@ class GargantuaSurfaceView(
         // therefore never observe a missing invalidation listener.
         renderer.stateHolder.setStateChangeListener {
             requestRender()
+            syncAnimationTicker()
         }
         renderer.setRenderReadyListener {
             // Queue behind the renderer callback itself. The GL thread then requests the frame
@@ -96,6 +109,7 @@ class GargantuaSurfaceView(
         // The constructor request may have occurred before SurfaceView attachment and is not a
         // sufficient first-frame guarantee for a newly composed/navigation-created view.
         requestFrameForLifecycle()
+        syncAnimationTicker()
     }
 
     override fun onWindowVisibilityChanged(visibility: Int) {
@@ -233,6 +247,7 @@ class GargantuaSurfaceView(
     }
 
     override fun onPause() {
+        stopAnimationTicker()
         renderer.stateHolder.updateState { it.copy(isPaused = true) }
         super.onPause()
     }
@@ -241,14 +256,37 @@ class GargantuaSurfaceView(
         super.onResume()
         renderer.stateHolder.updateState { it.copy(isPaused = false) }
         requestFrameForLifecycle()
+        syncAnimationTicker()
     }
 
     override fun onDetachedFromWindow() {
+        stopAnimationTicker()
         super.onDetachedFromWindow()
         // Queue release on GL thread
         queueEvent {
             renderer.release()
         }
+    }
+
+    private fun shouldTickAnimation(): Boolean {
+        val state = renderer.stateHolder.getState()
+        return isAttachedToWindow &&
+            windowVisibility == VISIBLE &&
+            !state.isPaused &&
+            !state.enableWorkloadTelemetry &&
+            state.enableAnimation &&
+            state.animationAmplitudePercent > 0
+    }
+
+    private fun syncAnimationTicker() {
+        animationHandler.removeCallbacks(animationTicker)
+        if (shouldTickAnimation()) {
+            animationHandler.postDelayed(animationTicker, GargantuaAnimation.TICK_INTERVAL_MS)
+        }
+    }
+
+    private fun stopAnimationTicker() {
+        animationHandler.removeCallbacks(animationTicker)
     }
 
     companion object {

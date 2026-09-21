@@ -19,6 +19,8 @@ object ShaderSource {
     const val COMPOSITE_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_composite.frag"
     const val REDUCE_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_reduce.frag"
     const val SEMANTIC_CACHE_FALSE_COLOR_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_semantic_false_color.frag"
+    const val ANIMATION_MODULATION_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_animation_modulation.frag"
+    const val ANIMATION_APPLY_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_animation_apply.frag"
 
     fun loadVertexShader(context: Context): String {
         return readAsset(context, VERTEX_SHADER_ASSET_PATH)
@@ -42,6 +44,11 @@ object ShaderSource {
     ): String {
         val source = readAsset(context, GEODESIC_FRAGMENT_SHADER_ASSET_PATH)
         return buildWorkloadTelemetryGeodesicFragmentShader(source, includeSemanticCache)
+    }
+
+    fun loadAnimationGeodesicFragmentShader(context: Context): String {
+        val source = readAsset(context, GEODESIC_FRAGMENT_SHADER_ASSET_PATH)
+        return buildGeodesicVariant(source, listOf("GARGANTUA_ANIMATION_SEMANTIC_CACHE"))
     }
 
     internal fun buildWorkloadTelemetryGeodesicFragmentShader(
@@ -69,6 +76,27 @@ object ShaderSource {
         } else {
             throw IllegalStateException("Canonical geodesic shader must begin with #version 300 es")
         }
+    }
+
+    internal fun buildGeodesicVariant(source: String, defines: List<String>): String {
+        val versionLine = "#version 300 es"
+        require(source.startsWith(versionLine)) {
+            "Canonical geodesic shader must begin with #version 300 es"
+        }
+        val variantSource = source.replaceFirst(
+            "out vec4 fragColor;",
+            "layout(location = 0) out vec4 fragColor;"
+        )
+        val defineBlock = defines.joinToString("\n") { "#define $it 1" }
+        return variantSource.replaceFirst(versionLine, "$versionLine\n$defineBlock")
+    }
+
+    fun loadAnimationModulationFragmentShader(context: Context): String {
+        return readAsset(context, ANIMATION_MODULATION_FRAGMENT_SHADER_ASSET_PATH)
+    }
+
+    fun loadAnimationApplyFragmentShader(context: Context): String {
+        return readAsset(context, ANIMATION_APPLY_FRAGMENT_SHADER_ASSET_PATH)
     }
 
     fun loadReduceFragmentShader(context: Context): String {

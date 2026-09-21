@@ -39,7 +39,10 @@ data class GargantuaRenderState(
     // Temporary uniform spatial ray sampling control. The startup default remains 1x1.
     val debugCoarseSamplingBlockSize: Int = 1,
     // Debug-only GPU workload instrumentation. Production rendering leaves this disabled.
-    val enableWorkloadTelemetry: Boolean = false
+    val enableWorkloadTelemetry: Boolean = false,
+    // Temporary, non-persisted animated-disk control. TEL and ANIM are mutually exclusive in the HUD.
+    val enableAnimation: Boolean = false,
+    val animationAmplitudePercent: Int = 0
 )
 
 /**
@@ -55,6 +58,8 @@ data class GargantuaPassTimings(
     val horizontalBlurCpuSubmitMs: Float = 0f,
     val verticalBlurCpuSubmitMs: Float = 0f,
     val compositeCpuSubmitMs: Float = 0f,
+    val animationModulationCpuSubmitMs: Float = 0f,
+    val animationApplyCpuSubmitMs: Float = 0f,
     val gpuTimerAvailable: Boolean = false
 )
 
@@ -127,7 +132,11 @@ data class GargantuaTelemetry(
     val avgRaysPerPixel: Float = 0f,
     val maxRaysPerPixel: Int = 0,
     val workloadStats: GargantuaWorkloadStats = GargantuaWorkloadStats(),
-    val passTimings: GargantuaPassTimings = GargantuaPassTimings()
+    val passTimings: GargantuaPassTimings = GargantuaPassTimings(),
+    val animationFps: Float = 0f,
+    val animationFrameTimeMs: Float = 0f,
+    val animationStatus: String = "ANIM OFF",
+    val timerQueryAvailable: Boolean = false
 )
 
 /**

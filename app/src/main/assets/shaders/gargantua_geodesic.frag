@@ -10,18 +10,26 @@ out vec4 fragColor;
 // only when explicit debug instrumentation is enabled.
 layout(location = 1) out vec4 workloadTierStats;
 layout(location = 2) out vec4 workloadCostStats;
-#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
-layout(location = 3) out vec4 workloadSemanticCache;
-#endif
 #endif
 
-#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
+#if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+#if defined(GARGANTUA_WORKLOAD_TELEMETRY) && defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE)
+layout(location = 3) out vec4 workloadSemanticCache;
+#elif defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+layout(location = 1) out vec4 animationSemanticCache;
+#endif
 float gargantuaSemanticDiskHitAzimuth = 0.0;
 #endif
 
 // Uniforms
 uniform vec2 u_Resolution;   // Screen or scaled FBO resolution (width, height)
-uniform float u_Time;        // Elapsed time (seconds)
+uniform float u_Time;        // Elapsed time, or base-16 digit zero for animation variants
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+uniform float u_TimeDigit1;
+uniform vec2 u_TimeDigits23;
+uniform vec2 u_TimeDigits45;
+uniform vec2 u_TimeDigits67;
+#endif
 uniform float u_Mass;        // Black hole mass M (geometrized, G=c=1)
 uniform float u_Spin;        // Kerr spin parameter a (|a| <= M)
 uniform vec3 u_CamPos;       // Camera position in Kerr-Schild Cartesian coordinates
@@ -43,6 +51,35 @@ uniform float u_ObjectPhi0;         // Initial phase angle φ_0
 uniform float u_ObjectZ;            // Z coordinate of orbit (0 for equatorial)
 uniform vec3 u_ObjectBaseColor;     // Procedural base color (e.g. cyan/electric azure)
 uniform float u_ObjectRadiance;     // Base surface radiance
+
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+const float GARGANTUA_TIME_BASE = 16.0;
+const float GARGANTUA_TAU = 6.28318530718;
+
+float gargantuaAnimationPhaseAdvance(float factor) {
+    float coefficient = fract(factor);
+    float advance = u_Time * coefficient;
+    coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
+    advance += u_TimeDigit1 * coefficient;
+    coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
+    advance += u_TimeDigits23.x * coefficient;
+    coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
+    advance += u_TimeDigits23.y * coefficient;
+    coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
+    advance += u_TimeDigits45.x * coefficient;
+    coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
+    advance += u_TimeDigits45.y * coefficient;
+    coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
+    advance += u_TimeDigits67.x * coefficient;
+    coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
+    advance += u_TimeDigits67.y * coefficient;
+    return fract(advance);
+}
+
+#define GARGANTUA_OBJECT_PHASE(t) (GARGANTUA_TAU * gargantuaAnimationPhaseAdvance(u_ObjectOmega / GARGANTUA_TAU) + u_ObjectOmega * (t) + u_ObjectPhi0)
+#else
+#define GARGANTUA_OBJECT_PHASE(t) (u_ObjectOmega * (t) + u_ObjectPhi0)
+#endif
 
 // Maximum fixed compile-time loop bound for mobile GLSL ES 3.0 compliance
 const int MAX_INTEGRATION_STEPS = 180;
@@ -303,7 +340,11 @@ vec4 traceRaySample(
     int rayState = 0;
     vec3 diskColor = vec3(0.0);
     vec3 objectColor = vec3(0.0);
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+    float rayT = 0.0;
+#else
     float rayT = u_Time;
+#endif
     float minR = rInit;
     int crossings = 0;
     float hitRadius = 0.0;
@@ -377,10 +418,10 @@ vec4 traceRaySample(
         float maxStepR = max(prevR, r);
         float objMargin = u_ObjectRadius + 1.2;
         if (u_EnableObject == 1 && u_ObjectOrbitRadius >= minStepR - objMargin && u_ObjectOrbitRadius <= maxStepR + objMargin) {
-            float phiPrev = u_ObjectOmega * prevT + u_ObjectPhi0;
+            float phiPrev = GARGANTUA_OBJECT_PHASE(prevT);
             vec3 objPosPrev = vec3(u_ObjectOrbitRadius * cos(phiPrev), u_ObjectOrbitRadius * sin(phiPrev), u_ObjectZ);
 
-            float phiCurr = u_ObjectOmega * rayT + u_ObjectPhi0;
+            float phiCurr = GARGANTUA_OBJECT_PHASE(rayT);
             vec3 objPosCurr = vec3(u_ObjectOrbitRadius * cos(phiCurr), u_ObjectOrbitRadius * sin(phiCurr), u_ObjectZ);
 
             vec3 dp0 = prevPos - objPosPrev;
@@ -391,7 +432,7 @@ vec4 traceRaySample(
 
             vec3 hitPos = mix(prevPos, pos, sStar);
             float hitT = mix(prevT, rayT, sStar);
-            float phiHit = u_ObjectOmega * hitT + u_ObjectPhi0;
+            float phiHit = GARGANTUA_OBJECT_PHASE(hitT);
             vec3 objPosHit = vec3(u_ObjectOrbitRadius * cos(phiHit), u_ObjectOrbitRadius * sin(phiHit), u_ObjectZ);
 
             vec3 hitRel = hitPos - objPosHit;
@@ -457,7 +498,7 @@ vec4 traceRaySample(
             crossings++;
             if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
                 hitRadius = rHit;
-#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
+#if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
                 gargantuaSemanticDiskHitAzimuth = atan(hitPos.y, hitPos.x);
 #endif
                 vec3 hitP = mix(prevP, p_spatial, tau);
@@ -598,7 +639,7 @@ void main() {
     vec4 baseSample = GARGANTUA_TRACE_RAY_SAMPLE(
         st, baseState, baseMinR, baseCrossings, baseHitR, baseSteps
     );
-#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
+#if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
     float baseDiskHitAzimuth = gargantuaSemanticDiskHitAzimuth;
 #endif
 
@@ -720,7 +761,9 @@ void main() {
         float(maxStepsForStats),
         float(diskHitsForStats)
     );
-#ifdef GARGANTUA_WORKLOAD_SEMANTIC_CACHE
+#endif
+
+#if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
     float diskRadiusNormalized = (baseState == 3)
         ? clamp(
             (baseHitR - u_DiskInnerRadius) /
@@ -732,12 +775,16 @@ void main() {
     float diskAzimuthNormalized = (baseState == 3)
         ? fract(baseDiskHitAzimuth / 6.28318530718 + 0.5)
         : 0.0;
-    workloadSemanticCache = vec4(
+    vec4 semanticRecord = vec4(
         diskRadiusNormalized,
         diskAzimuthNormalized,
         float(baseCrossings),
         float(baseState)
     );
+#if defined(GARGANTUA_WORKLOAD_TELEMETRY) && defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE)
+    workloadSemanticCache = semanticRecord;
+#elif defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+    animationSemanticCache = semanticRecord;
 #endif
 #endif
 }

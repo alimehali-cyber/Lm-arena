@@ -1,5 +1,6 @@
 package com.zig.gargantua
 
+import com.zig.gargantua.renderer.GargantuaAnimation
 import com.zig.gargantua.renderer.GargantuaRenderState
 import com.zig.gargantua.renderer.GargantuaRenderer
 import com.zig.gargantua.renderer.GargantuaTelemetry
@@ -37,9 +38,64 @@ class GargantuaRenderStateTest {
         assertFalse("M9 object rendering must be opt-in", state.enableObject)
         assertEquals(1, state.debugCoarseSamplingBlockSize)
         assertFalse("Debug workload instrumentation must be opt-in", state.enableWorkloadTelemetry)
+        assertFalse("Animated disk must default to OFF", state.enableAnimation)
+        assertEquals(0, state.animationAmplitudePercent)
+        assertTrue(state.useGeodesicShader)
         assertFalse(state.isPaused)
         assertTrue(state.isDarkTheme)
         assertFalse(state.isPersian)
+    }
+
+    @Test
+    fun animationControlCyclesOffZeroFifteenThirtyAndBack() {
+        var mode = false to 0
+        mode = GargantuaAnimation.nextMode(mode.first, mode.second)
+        assertEquals(true to 0, mode)
+        mode = GargantuaAnimation.nextMode(mode.first, mode.second)
+        assertEquals(true to 15, mode)
+        mode = GargantuaAnimation.nextMode(mode.first, mode.second)
+        assertEquals(true to 30, mode)
+        mode = GargantuaAnimation.nextMode(mode.first, mode.second)
+        assertEquals(false to 0, mode)
+        assertEquals(true to 0, GargantuaAnimation.nextMode(false, 15))
+    }
+
+    @Test
+    fun animationTimeDigitsKeepShaderInputsSmallAfterHours() {
+        val digits = GargantuaAnimation.timeDigits(8.0 * 60.0 * 60.0)
+        assertEquals(GargantuaAnimation.TIME_DIGIT_COUNT, digits.size)
+        digits.forEach { assertTrue(it >= 0.0f && it < 16.0f) }
+    }
+
+    @Test
+    fun deterministicNoiseIsPeriodicAndMeasuredAfterQuantization() {
+        val noise = GargantuaAnimation.deterministicNoise()
+        val width = GargantuaAnimation.NOISE_WIDTH
+        val height = GargantuaAnimation.NOISE_HEIGHT
+        val value = { x: Int, y: Int -> noise[y * width + x].toInt() and 0xFF }
+        assertTrue(noise.contentEquals(GargantuaAnimation.deterministicNoise()))
+        assertEquals(0, noise.minOf { it.toInt() and 0xFF })
+        assertEquals(255, noise.maxOf { it.toInt() and 0xFF })
+        assertEquals(
+            noise.sumOf { it.toInt() and 0xFF }.toFloat() / (noise.size * 255.0f),
+            GargantuaAnimation.normalizedMean(noise),
+            0.0f
+        )
+        assertTrue((0 until height).all { kotlin.math.abs(value(0, it) - value(width - 1, it)) <= 12 })
+        assertTrue((0 until width).all { kotlin.math.abs(value(it, 0) - value(it, height - 1)) <= 12 })
+    }
+
+    @Test
+    fun animationEnableParticipatesInRaySceneInvalidationSignatureButAmplitudeDoesNot() {
+        val off = GargantuaRenderer.RaySceneSignature.fromState(GargantuaRenderState(), 540, 1200)
+        val on = GargantuaRenderer.RaySceneSignature.fromState(
+            GargantuaRenderState(enableAnimation = true, animationAmplitudePercent = 15), 540, 1200
+        )
+        val onOtherAmplitude = GargantuaRenderer.RaySceneSignature.fromState(
+            GargantuaRenderState(enableAnimation = true, animationAmplitudePercent = 30), 540, 1200
+        )
+        assertFalse(off == on)
+        assertEquals(on, onOtherAmplitude)
     }
 
     @Test
