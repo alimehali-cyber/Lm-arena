@@ -30,6 +30,8 @@ class GargantuaSurfaceView(
     private var lastFocusY = 0f
     private var hasWindowFocus = false
     private var isDragging = false
+    private var touchMoved = false
+    var onRenderTap: (() -> Unit)? = null
 
     private val animationHandler = Handler(Looper.getMainLooper())
     private val animationTicker = object : Runnable {
@@ -150,6 +152,7 @@ class GargantuaSurfaceView(
             MotionEvent.ACTION_DOWN -> {
                 lastTouchX = event.x
                 lastTouchY = event.y
+                touchMoved = false
                 isDragging = true
             }
 
@@ -161,6 +164,12 @@ class GargantuaSurfaceView(
             }
 
             MotionEvent.ACTION_MOVE -> {
+                if (event.pointerCount == 1 && (abs(event.x - lastTouchX) > 2.0f || abs(event.y - lastTouchY) > 2.0f)) {
+                    touchMoved = true
+                }
+                if (event.pointerCount >= 2) {
+                    touchMoved = true
+                }
                 if (event.pointerCount == 1 && !scaleDetector.isInProgress) {
                     val dx = event.x - lastTouchX
                     val dy = event.y - lastTouchY
@@ -224,7 +233,11 @@ class GargantuaSurfaceView(
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (event.actionMasked == MotionEvent.ACTION_UP && !touchMoved && event.pointerCount == 1) {
+                    onRenderTap?.invoke()
+                }
                 isDragging = false
+                touchMoved = false
             }
         }
         return true
@@ -254,8 +267,12 @@ class GargantuaSurfaceView(
 
     override fun onResume() {
         super.onResume()
+        queueEvent {
+            renderer.onResume()
+            renderer.requestPresentation()
+            requestRender()
+        }
         renderer.stateHolder.updateState { it.copy(isPaused = false) }
-        requestFrameForLifecycle()
         syncAnimationTicker()
     }
 

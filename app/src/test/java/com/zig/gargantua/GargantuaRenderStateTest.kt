@@ -40,6 +40,15 @@ class GargantuaRenderStateTest {
         assertFalse("Debug workload instrumentation must be opt-in", state.enableWorkloadTelemetry)
         assertFalse("Animated disk must default to OFF", state.enableAnimation)
         assertEquals(0, state.animationAmplitudePercent)
+        assertEquals(GargantuaAnimation.AnimationSpeed.NORMAL, state.animationSpeed)
+        assertEquals(2, GargantuaAnimation.NOISE_OCTAVES)
+        assertEquals(
+            listOf(
+                GargantuaAnimation.NoiseOctave(8, 4, 0.65f),
+                GargantuaAnimation.NoiseOctave(16, 8, 0.35f)
+            ),
+            GargantuaAnimation.NOISE_OCTAVE_SPECS
+        )
         assertTrue(state.useGeodesicShader)
         assertFalse(state.isPaused)
         assertTrue(state.isDarkTheme)

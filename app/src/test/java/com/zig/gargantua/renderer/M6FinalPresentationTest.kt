@@ -22,7 +22,7 @@ import kotlin.math.*
  * 9. Disk radiance remains finite, non-NaN, and deterministic.
  * 10. HDR/ACES pipeline remains deterministic and monotonic.
  * 11. Information card fits large numerical values without clipping.
- * 12. Information card uses compact bottom-corner placement.
+ * 12. Final UI uses a slim top bar, one status line, and a full-width three-button dock.
  * 13. Existing camera gestures remain functional.
  * 14. Stationary caching remains functional.
  */
@@ -293,25 +293,34 @@ class M6FinalPresentationTest {
         assertTrue("Row 3 combined characters must be <= 25", (resStr.length + timeStr.length) <= 25)
     }
 
-    // 12. Information card uses compact bottom-corner placement
+    // 12. The final UI keeps the render open and uses a full-width three-button dock.
     @Test
-    fun informationCardUsesCompactBottomCornerPlacement() {
+    fun finalUiUsesSlimChromeAndRtlSafeThreeButtonDock() {
         val rootFile = File(mainDir(), "java/com/zig/gargantua/ui/GargantuaRoot.kt")
         assertTrue("GargantuaRoot.kt must exist: ${rootFile.absolutePath}", rootFile.exists())
         val content = rootFile.readText()
 
-        assertTrue(
-            "Card must use Alignment.BottomStart for bottom corner placement",
-            content.contains("Alignment.BottomStart")
-        )
-        assertTrue(
-            "Card must constrain maximum width to prevent full-width panel",
-            content.contains("widthIn(max = 240.dp)")
-        )
-        assertTrue(
-            "Card must use testTag gargantua_status_card",
-            content.contains("testTag(\"gargantua_status_card\")")
-        )
+        assertTrue(content.contains("gargantua_three_button_dock"))
+        assertTrue(content.contains("gargantua_quality_selector"))
+        assertTrue(content.contains("GargantuaSamplingSelector("))
+        assertTrue(content.contains("QualityPanel("))
+        assertTrue(content.contains("else \"Quality\""))
+        assertTrue(content.contains("else \"Animation\""))
+        assertTrue(content.contains("else \"Info\""))
+        assertTrue(content.contains("LocalLayoutDirection provides"))
+        assertTrue(content.contains("Arrangement.spacedBy"))
+        assertTrue(content.contains("Modifier.weight(1f)"))
+        assertTrue(content.contains("maxLines = 1"))
+        assertTrue(content.contains("maxLines = 4"))
+        assertTrue(content.contains("softWrap = false"))
+        assertTrue(content.contains("sizeIn(minWidth = 44.dp"))
+        assertTrue(content.contains("GargantuaAnimation.AnimationSpeed.values()"))
+        assertTrue(content.contains("±15%"))
+        assertTrue(content.contains("±30%"))
+        assertTrue(content.contains("adaptiveWorkload"))
+        assertTrue(content.contains("heightIn(max = 96.dp)"))
+        assertTrue(content.contains("verticalScroll(telScrollState)"))
+        assertTrue(content.contains("TextOverflow.Clip"))
     }
 
     // 13. Existing camera gestures remain functional

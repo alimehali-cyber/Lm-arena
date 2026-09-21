@@ -1,5 +1,6 @@
 package com.zig.gargantua.renderer
 
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -12,9 +13,38 @@ object GargantuaAnimation {
     const val NOISE_BYTES = NOISE_WIDTH * NOISE_HEIGHT
     const val TICK_INTERVAL_MS = 34L
     const val CAMERA_SETTLE_MS = 300L
-    const val ISCO_PERIOD_SECONDS = 12.0f
+    const val FLOW_MAP_PERIOD_SECONDS = 24.0
     const val TIME_DIGIT_BASE = 16.0
     const val TIME_DIGIT_COUNT = 8
+    const val NOISE_OCTAVES = 2
+
+    data class NoiseOctave(val latticeWidth: Int, val latticeHeight: Int, val weight: Float)
+
+    val NOISE_OCTAVE_SPECS: List<NoiseOctave> = listOf(
+        NoiseOctave(8, 4, 0.65f),
+        NoiseOctave(16, 8, 0.35f)
+    )
+
+    enum class AnimationSpeed(
+        val periodSeconds: Double,
+        val englishLabel: String,
+        val persianLabel: String
+    ) {
+        SLOW(90.0, "Slow", "آهسته"),
+        NORMAL(45.0, "Normal", "عادی"),
+        FAST(20.0, "Fast", "سریع")
+    }
+
+    data class FlowMapTimes(
+        val timeA: Double,
+        val timeB: Double,
+        val blendA: Double
+    ) {
+        val tA: Double get() = timeA
+        val tB: Double get() = timeB
+        val blendWeight: Double get() = blendA
+        val blendB: Double get() = 1.0 - blendA
+    }
 
     val AMPLITUDE_STEPS: List<Pair<Boolean, Int>> = listOf(
         false to 0,
@@ -34,19 +64,30 @@ object GargantuaAnimation {
         else -> "ANIM ±${amplitudePercent.coerceIn(0, 30)}%"
     }
 
+    fun flowMapTimes(seconds: Double): FlowMapTimes {
+        val periodSeconds = FLOW_MAP_PERIOD_SECONDS
+        val tA = positiveModulo(seconds, periodSeconds)
+        val tB = positiveModulo(tA + periodSeconds * 0.5, periodSeconds)
+        val blendA = 1.0 - abs(2.0 * tA / periodSeconds - 1.0)
+        return FlowMapTimes(tA, tB, blendA.coerceIn(0.0, 1.0))
+    }
+
+    private fun positiveModulo(value: Double, modulus: Double): Double {
+        val result = value % modulus
+        return if (result < 0.0) result + modulus else result
+    }
+
     /**
      * Generates deterministic smooth periodic value noise. Each octave wraps at both lattice
-     * boundaries, and the three octave periods divide the finite tile dimensions exactly.
+     * boundaries, and both octave periods divide the finite tile dimensions exactly.
      * Contrast stretching is performed before quantization so the byte tile contains 0 and 255.
      */
     fun deterministicNoise(seed: Int = 0x5EED1234): ByteArray {
         val values = FloatArray(NOISE_BYTES)
-        val octaves = listOf(
-            Triple(8, 4, 0.55f),
-            Triple(16, 8, 0.30f),
-            Triple(32, 16, 0.15f)
-        )
-        octaves.forEachIndexed { octave, (latticeWidth, latticeHeight, weight) ->
+        NOISE_OCTAVE_SPECS.forEachIndexed { octave, spec ->
+            val latticeWidth = spec.latticeWidth
+            val latticeHeight = spec.latticeHeight
+            val weight = spec.weight
             val lattice = latticeValues(latticeWidth, latticeHeight, seed + octave * 0x45D9F3B)
             for (y in 0 until NOISE_HEIGHT) {
                 for (x in 0 until NOISE_WIDTH) {

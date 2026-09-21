@@ -42,7 +42,8 @@ data class GargantuaRenderState(
     val enableWorkloadTelemetry: Boolean = false,
     // Temporary, non-persisted animated-disk control. TEL and ANIM are mutually exclusive in the HUD.
     val enableAnimation: Boolean = false,
-    val animationAmplitudePercent: Int = 0
+    val animationAmplitudePercent: Int = 0,
+    val animationSpeed: GargantuaAnimation.AnimationSpeed = GargantuaAnimation.AnimationSpeed.NORMAL
 )
 
 /**
@@ -136,6 +137,7 @@ data class GargantuaTelemetry(
     val animationFps: Float = 0f,
     val animationFrameTimeMs: Float = 0f,
     val animationStatus: String = "ANIM OFF",
+    val animationDiagnostics: String = "ANIM DIAGNOSTICS: state=PLAIN cache=false since=0ms field=none rebuilds=0 notReady=none block=1 render=0x0",
     val timerQueryAvailable: Boolean = false
 )
 

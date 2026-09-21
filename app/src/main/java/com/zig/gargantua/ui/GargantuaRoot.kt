@@ -4,8 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -21,18 +22,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.zig.gargantua.renderer.GargantuaAnimation
+import com.zig.gargantua.renderer.GargantuaRenderState
 import com.zig.gargantua.renderer.GargantuaSurfaceView
 import com.zig.gargantua.renderer.GargantuaTelemetry
 import com.zig.gargantua.util.GargantuaCapability
@@ -40,12 +45,7 @@ import com.zig.gravity.ui.ImmersiveScreenState
 import kotlinx.coroutines.delay
 import java.util.Locale
 
-/**
- * Root Composable for the Gargantua laboratory screen.
- * Validates GLES 3.x capability before creating the surface. On supported devices,
- * hosts the native OpenGL ES 3.x surface view via AndroidView with lifecycle observation.
- * On unsupported devices, renders a clean informative fallback card.
- */
+/** Root screen for the Gargantua renderer and its deliberately small control surface. */
 @Composable
 fun GargantuaRoot(
     onBack: () -> Unit,
@@ -55,48 +55,36 @@ fun GargantuaRoot(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val isPersian = startInPersian
+    val isGles3Supported = remember(context) { GargantuaCapability.isGles3Supported(context) }
 
-    val isFa = startInPersian
-    val isGles3Supported = remember(context) {
-        GargantuaCapability.isGles3Supported(context)
-    }
-
-    // Intercept Android hardware/gesture back to return cleanly to Lab screen
-    BackHandler(enabled = true) {
-        onBack()
-    }
-
-    // Host shell hides bottom floating navigation while Gargantua owns the display
+    BackHandler(enabled = true, onBack = onBack)
     DisposableEffect(Unit) {
         ImmersiveScreenState.enter()
-        onDispose {
-            ImmersiveScreenState.exit()
-        }
+        onDispose { ImmersiveScreenState.exit() }
     }
 
-    if (!isGles3Supported) {
-        // Fallback screen for devices lacking OpenGL ES 3.x capability
-        GargantuaUnsupportedScreen(
-            onBack = onBack,
-            isFa = isFa,
-            modifier = modifier
-        )
-    } else {
-        // Active OpenGL ES 3.x Renderer
-        GargantuaRendererScreen(
-            onBack = onBack,
-            isFa = isFa,
-            startInDarkTheme = startInDarkTheme,
-            lifecycleOwner = lifecycleOwner,
-            modifier = modifier
-        )
+    CompositionLocalProvider(
+        LocalLayoutDirection provides if (isPersian) LayoutDirection.Rtl else LayoutDirection.Ltr
+    ) {
+        if (!isGles3Supported) {
+            GargantuaUnsupportedScreen(onBack, isPersian, modifier)
+        } else {
+            GargantuaRendererScreen(
+                onBack = onBack,
+                isPersian = isPersian,
+                startInDarkTheme = startInDarkTheme,
+                lifecycleOwner = lifecycleOwner,
+                modifier = modifier
+            )
+        }
     }
 }
 
 @Composable
 private fun GargantuaUnsupportedScreen(
     onBack: () -> Unit,
-    isFa: Boolean,
+    isPersian: Boolean,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -105,48 +93,39 @@ private fun GargantuaUnsupportedScreen(
             .background(Color(0xFF0A0C14))
             .testTag("gargantua_unsupported_root")
     ) {
-        // Top navigation bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(Color(0x99181B26))
-                    .border(1.dp, Color(0x338899AA), CircleShape)
-                    .clickable { onBack() }
-                    .testTag("gargantua_back_button"),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = if (isFa) "بازگشت" else "Back",
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
+            GargantuaIconButton(
+                onClick = onBack,
+                contentDescription = if (isPersian) "بازگشت" else "Back",
+                modifier = Modifier.testTag("gargantua_back_button")
+            )
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (isFa) "گارگانتوا" else "Gargantua",
+                    text = if (isPersian) "گارگانتوا" else "Gargantua",
                     color = Color.White,
                     fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (isFa) "عدم پشتیبانی سخت‌افزاری" else "Hardware Not Supported",
+                    text = if (isPersian) "عدم پشتیبانی سخت‌افزاری" else "Hardware Not Supported",
                     color = Color(0xFFEF9A9A),
-                    fontSize = 11.sp
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
         }
 
-        // Informative center card
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
@@ -176,28 +155,24 @@ private fun GargantuaUnsupportedScreen(
                         modifier = Modifier.size(28.dp)
                     )
                 }
-
                 Text(
-                    text = if (isFa) "نیازمند OpenGL ES 3.x" else "OpenGL ES 3.x Required",
+                    text = if (isPersian) "نیازمند OpenGL ES 3.x" else "OpenGL ES 3.x Required",
                     color = Color.White,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
-
                 Text(
-                    text = if (isFa)
-                        "آزمایشگاه نسبیتی گارگانتوا به خط لوله پردازش گرافیکی OpenGL ES 3.0 نیازمند است که توسط پردازنده گرافیکی این دستگاه پشتیبانی نمی‌شود.\n\nسایر بخش‌های برنامه زیگ (رصد ستاره‌ها، ردگیری ماهواره‌ها، واقعیت افزوده و میز گرانش) بدون هیچ مشکلی در دسترس شما هستند."
-                    else
-                        "Gargantua's laboratory requires hardware OpenGL ES 3.0 or higher for its native shader pipeline. This device's GPU does not support OpenGL ES 3.0.\n\nThe rest of ZIG (sky observation, satellite tracking, AR compass, and Gravity Sandbox) remains fully functional.",
+                    text = if (isPersian) {
+                        "آزمایشگاه نسبیتی گارگانتوا به OpenGL ES 3.0 نیاز دارد که توسط پردازنده گرافیکی این دستگاه پشتیبانی نمی‌شود."
+                    } else {
+                        "Gargantua's laboratory requires OpenGL ES 3.0 or higher, which is not supported by this device's GPU."
+                    },
                     color = Color(0xFFB0BEC5),
                     fontSize = 13.sp,
                     lineHeight = 20.sp,
                     textAlign = TextAlign.Center
                 )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
                 ElevatedButton(
                     onClick = onBack,
                     colors = ButtonDefaults.elevatedButtonColors(
@@ -205,67 +180,56 @@ private fun GargantuaUnsupportedScreen(
                         contentColor = Color(0xFF90CAF9)
                     ),
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.testTag("gargantua_fallback_back_button")
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .testTag("gargantua_fallback_back_button")
                 ) {
-                    Text(
-                        text = if (isFa) "بازگشت به آزمایشگاه" else "Return to Lab",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text(if (isPersian) "بازگشت" else "Return")
                 }
-
             }
         }
     }
 }
 
+private enum class GargantuaPanel { QUALITY, ANIMATION, INFO }
+
 @Composable
 private fun GargantuaRendererScreen(
     onBack: () -> Unit,
-    isFa: Boolean,
+    isPersian: Boolean,
     startInDarkTheme: Boolean,
-    lifecycleOwner: androidx.lifecycle.LifecycleOwner,
+    lifecycleOwner: LifecycleOwner,
     modifier: Modifier = Modifier
 ) {
     var surfaceViewRef by remember { mutableStateOf<GargantuaSurfaceView?>(null) }
     var telemetry by remember { mutableStateOf(GargantuaTelemetry()) }
-    // Keep the hidden switch mirrored in Compose so the diagnostic HUD reacts immediately to the
-    // tap; RenderStateHolder itself is intentionally not a Compose observable.
-    var workloadTelemetryEnabled by remember { mutableStateOf(false) }
+    var renderState by remember { mutableStateOf(GargantuaRenderState()) }
+    var openPanel by remember { mutableStateOf<GargantuaPanel?>(null) }
 
-    // Lifecycle observation to pause/resume the GL thread cleanly
     DisposableEffect(lifecycleOwner, surfaceViewRef) {
-        val sv = surfaceViewRef
+        val surfaceView = surfaceViewRef
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_PAUSE -> sv?.onPause()
-                Lifecycle.Event.ON_RESUME -> sv?.onResume()
+                Lifecycle.Event.ON_PAUSE -> surfaceView?.onPause()
+                Lifecycle.Event.ON_RESUME -> surfaceView?.onResume()
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-
-        // AndroidView can be created after the host has already reached RESUMED. In that case the
-        // observer must not be the only source of the resume event: explicitly resume and request
-        // a lifecycle frame for the newly created surface.
-        if (sv != null && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-            // The factory handles the matching GLSurfaceView.onResume call. This second request is
-            // intentionally presentation-only and covers a surface whose first callback raced the
-            // AndroidView attachment.
-            sv.requestFrameForLifecycle()
+        if (surfaceView != null && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            surfaceView.requestFrameForLifecycle()
         }
-
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            sv?.onPause()
+            surfaceView?.onPause()
         }
     }
 
-    // Periodic telemetry polling loop (every 250ms) to update UI HUD
     LaunchedEffect(surfaceViewRef) {
-        val sv = surfaceViewRef ?: return@LaunchedEffect
+        val surfaceView = surfaceViewRef ?: return@LaunchedEffect
         while (true) {
-            telemetry = sv.renderer.stateHolder.getTelemetry()
+            telemetry = surfaceView.renderer.stateHolder.getTelemetry()
+            renderState = surfaceView.renderer.stateHolder.getState()
             delay(250)
         }
     }
@@ -273,24 +237,21 @@ private fun GargantuaRendererScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0C14))
+            .background(Color.Black)
             .testTag("gargantua_root")
     ) {
-        // Native GPU surface view embedded via AndroidView
+        // The surface owns the whole screen so orbit, pan, and pinch remain available anywhere
+        // that is not an explicit control. Panels are intentionally small and edge anchored.
         AndroidView(
-            factory = { ctx ->
-                GargantuaSurfaceView(ctx).also { sv ->
-                    sv.renderer.stateHolder.updateState {
-                        it.copy(
-                            isDarkTheme = startInDarkTheme,
-                            isPersian = isFa
-                        )
+            factory = { context ->
+                GargantuaSurfaceView(context).also { surfaceView ->
+                    surfaceView.renderer.stateHolder.updateState {
+                        it.copy(isDarkTheme = startInDarkTheme, isPersian = isPersian)
                     }
-                    surfaceViewRef = sv
+                    surfaceView.onRenderTap = { openPanel = null }
+                    surfaceViewRef = surfaceView
                     if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-                        // Navigation can compose this AndroidView after Activity.onResume has
-                        // already happened; do not wait for a future lifecycle event.
-                        sv.onResume()
+                        surfaceView.onResume()
                     }
                 }
             },
@@ -299,386 +260,519 @@ private fun GargantuaRendererScreen(
                 .testTag("gargantua_gl_surface")
         )
 
-        // Top Chrome: Back button, title, reset button, and telemetry chip
-        Row(
+        GargantuaTopBar(
+            isPersian = isPersian,
+            onBack = onBack,
+            onReset = { surfaceViewRef?.resetCamera() },
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
+
+        Text(
+            text = statusLine(telemetry, isPersian),
             modifier = Modifier
-                .fillMaxWidth()
+                .align(Alignment.TopCenter)
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(top = 56.dp, start = 16.dp, end = 16.dp)
+                .fillMaxWidth()
+                .testTag("gargantua_status_line"),
+            color = Color(0xFFD0D8E8),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        openPanel?.let { panel ->
+            GargantuaPanelCard(
+                panel = panel,
+                isPersian = isPersian,
+                telemetry = telemetry,
+                renderState = renderState,
+                surfaceView = surfaceViewRef,
+                onClose = { openPanel = null },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(start = 12.dp, end = 12.dp, bottom = 76.dp)
+                    .fillMaxWidth()
+                    .testTag("gargantua_panel")
+            )
+        }
+
+        GargantuaDock(
+            isPersian = isPersian,
+            selectedPanel = openPanel,
+            onPanelSelected = { selected ->
+                openPanel = if (openPanel == selected) null else selected
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .testTag("gargantua_three_button_dock")
+        )
+    }
+}
+
+@Composable
+private fun GargantuaTopBar(
+    isPersian: Boolean,
+    onBack: () -> Unit,
+    onReset: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        GargantuaIconButton(
+            onClick = onBack,
+            contentDescription = if (isPersian) "بازگشت" else "Back",
+            modifier = Modifier.testTag("gargantua_back_button")
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (isPersian) "گارگانتوا" else "Gargantua",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = if (isPersian) "شبیه‌سازی کر" else "Kerr spacetime",
+                color = Color(0xFF8FA3BD),
+                fontSize = 10.sp,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+        GargantuaIconButton(
+            onClick = onReset,
+            contentDescription = if (isPersian) "بازنشانی دوربین" else "Reset camera",
+            modifier = Modifier.testTag("gargantua_reset_camera_button")
+        ) {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = if (isPersian) "بازنشانی دوربین" else "Reset camera",
+                tint = Color(0xFF90CAF9),
+                modifier = Modifier.size(19.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun GargantuaIconButton(
+    onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit = {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = contentDescription,
+            tint = Color.White,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+) {
+    Box(
+        modifier = modifier
+            .sizeIn(minWidth = 44.dp, minHeight = 44.dp)
+            .clip(CircleShape)
+            .background(Color(0xAA181B26))
+            .border(1.dp, Color(0x448899AA), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun GargantuaDock(
+    isPersian: Boolean,
+    selectedPanel: GargantuaPanel?,
+    onPanelSelected: (GargantuaPanel) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .background(Color(0xEE111622))
+            .border(1.dp, Color(0x33446688)),
+        horizontalArrangement = Arrangement.spacedBy(1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        listOf(
+            GargantuaPanel.QUALITY to if (isPersian) "کیفیت" else "Quality",
+            GargantuaPanel.ANIMATION to if (isPersian) "حرکت" else "Animation",
+            GargantuaPanel.INFO to if (isPersian) "اطلاعات" else "Info"
+        ).forEach { (panel, label) ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 56.dp)
+                    .clickable { onPanelSelected(panel) }
+                    .background(
+                        if (selectedPanel == panel) Color(0xFF263B52) else Color.Transparent
+                    )
+                    .testTag("gargantua_dock_${panel.name.lowercase(Locale.US)}"),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    color = if (selectedPanel == panel) Color(0xFFB3E5FC) else Color(0xFFD7E3F4),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GargantuaPanelCard(
+    panel: GargantuaPanel,
+    isPersian: Boolean,
+    telemetry: GargantuaTelemetry,
+    renderState: GargantuaRenderState,
+    surfaceView: GargantuaSurfaceView?,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val panelScrollState = rememberScrollState()
+    Box(
+        modifier = modifier
+            .heightIn(max = 300.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xF2141A27))
+            .border(1.dp, Color(0x55446688), RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Column(
+            modifier = Modifier.verticalScroll(panelScrollState),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x99181B26))
-                        .border(1.dp, Color(0x338899AA), CircleShape)
-                        .clickable { onBack() }
-                        .testTag("gargantua_back_button"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = if (isFa) "بازگشت" else "Back",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Column {
-                    Text(
-                        text = if (isFa) "گارگانتوا" else "Gargantua",
-                        color = Color.White,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (isFa) "دوربین نسبیتی و رندر سینمایی (M6)" else "Relativistic Camera & Cinematic HDR (M6)",
-                        color = Color(0xFF88A0C0),
-                        fontSize = 11.sp
-                    )
-                }
-            }
-
-            Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Reset Camera Action Button
+                Text(
+                    text = when (panel) {
+                        GargantuaPanel.QUALITY -> if (isPersian) "کیفیت نمونه‌برداری" else "Quality"
+                        GargantuaPanel.ANIMATION -> if (isPersian) "حرکت دیسک" else "Animation"
+                        GargantuaPanel.INFO -> if (isPersian) "اطلاعات رندر" else "Info"
+                    },
+                    modifier = Modifier.weight(1f),
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x99181B26))
-                        .border(1.dp, Color(0x338899AA), CircleShape)
-                        .clickable { surfaceViewRef?.resetCamera() }
-                        .testTag("gargantua_reset_camera_button"),
+                        .sizeIn(minWidth = 44.dp, minHeight = 44.dp)
+                        .clickable(onClick = onClose),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = if (isFa) "بازنشانی زاویه دید دوربین" else "Reset Observer Camera",
-                        tint = Color(0xFF90CAF9),
-                        modifier = Modifier.size(18.dp)
+                    Text(
+                        text = if (isPersian) "بستن" else "Close",
+                        color = Color(0xFF90CAF9),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
+            }
+            when (panel) {
+                GargantuaPanel.QUALITY -> QualityPanel(isPersian, renderState, surfaceView)
+                GargantuaPanel.ANIMATION -> AnimationPanel(isPersian, renderState, surfaceView)
+                GargantuaPanel.INFO -> InfoPanel(isPersian, telemetry, renderState, surfaceView)
+            }
+        }
+    }
+}
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (workloadTelemetryEnabled) Color(0x332F3B4F) else Color(0x332E5A73))
-                        .border(1.dp, Color(0x335B8CA8), RoundedCornerShape(16.dp))
-                        .clickable {
-                            val sv = surfaceViewRef
-                            val current = sv?.renderer?.stateHolder?.getState()
-                            if (sv != null && current != null && !current.enableWorkloadTelemetry) {
-                                val next = GargantuaAnimation.nextMode(
-                                    current.enableAnimation,
-                                    current.animationAmplitudePercent
+@Composable
+private fun QualityPanel(
+    isPersian: Boolean,
+    state: GargantuaRenderState,
+    surfaceView: GargantuaSurfaceView?
+) {
+    val currentMode = state.debugCoarseSamplingBlockSize
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = if (isPersian) {
+                "کیفیت نمونه‌برداری · ${currentMode}×${currentMode}"
+            } else {
+                "Sampling quality · ${currentMode}×${currentMode}"
+            },
+            color = Color(0xFFB0BEC5),
+            fontSize = 11.sp,
+            maxLines = 1,
+            softWrap = false
+        )
+        GargantuaSamplingSelector(
+            surfaceView = surfaceView,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("gargantua_quality_selector")
+        )
+        Text(
+            text = if (isPersian) {
+                "حالت SAMPLE تعداد پرتوهای اولیه را کاهش می‌دهد و رزولوشن خروجی را ثابت نگه می‌دارد."
+            } else {
+                "SAMPLE changes the ray-grid density while keeping the output resolution fixed."
+            },
+            color = Color(0xFF90A4AE),
+            fontSize = 10.sp,
+            maxLines = 2,
+            softWrap = true,
+            overflow = TextOverflow.Clip
+        )
+    }
+}
+
+@Composable
+private fun AnimationPanel(
+    isPersian: Boolean,
+    state: GargantuaRenderState,
+    surfaceView: GargantuaSurfaceView?
+) {
+    val amplitudeOptions = listOf(0, 15, 30)
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = if (isPersian) "دامنه حرکت" else "Amplitude",
+            color = Color(0xFFB0BEC5),
+            fontSize = 11.sp,
+            maxLines = 1,
+            softWrap = false
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            amplitudeOptions.forEach { amplitude ->
+                PanelButton(
+                    label = when (amplitude) {
+                        0 -> "OFF"
+                        15 -> "±15%"
+                        else -> "±30%"
+                    },
+                    selected = (
+                        state.enableAnimation &&
+                            state.animationAmplitudePercent == amplitude &&
+                            amplitude > 0
+                        ) || (!state.enableAnimation && amplitude == 0),
+                    onClick = {
+                        surfaceView?.renderer?.stateHolder?.updateState { old ->
+                            if (amplitude == 0) {
+                                old.copy(
+                                    enableAnimation = false,
+                                    animationAmplitudePercent = 0
                                 )
-                                sv.renderer.stateHolder.updateState {
-                                    it.copy(enableAnimation = next.first, animationAmplitudePercent = next.second)
-                                }
+                            } else {
+                                old.copy(
+                                    enableWorkloadTelemetry = false,
+                                    enableAnimation = true,
+                                    animationAmplitudePercent = amplitude
+                                )
                             }
                         }
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                        .testTag("gargantua_animation_chip"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (workloadTelemetryEnabled) "ANIM IGNORED · TEL ON" else telemetry.animationStatus,
-                        color = if (workloadTelemetryEnabled) Color(0xFF90A4AE) else Color(0xFF80CBC4),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                // GPU telemetry badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0x99181B26))
-                        .border(1.dp, Color(0x33446688), RoundedCornerShape(16.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                        // Temporary physical-device diagnostic switch on the existing FPS pill.
-                        .pointerInput(surfaceViewRef) {
-                            detectTapGestures(
-                                onTap = {
-                                    val nextState = surfaceViewRef?.renderer?.stateHolder?.updateState { current ->
-                                        current.copy(
-                                            enableWorkloadTelemetry = !current.enableWorkloadTelemetry,
-                                            enableAnimation = if (!current.enableWorkloadTelemetry) false else current.enableAnimation,
-                                            animationAmplitudePercent = if (!current.enableWorkloadTelemetry) 0 else current.animationAmplitudePercent
-                                        )
-                                    }
-                                    workloadTelemetryEnabled = nextState?.enableWorkloadTelemetry == true
-                                }
-                            )
-                        }
-                        .testTag("gargantua_fps_badge")
-                ) {
-                    val fpsText = if (telemetry.fps > 0f) {
-                        String.format(Locale.US, "%.0f FPS (last active)", telemetry.fps)
-                    } else {
-                        "-- FPS (waiting)"
-                    }
-                    Text(
-                        text = fpsText,
-                        color = Color(0xFF64B5F6),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
-
-        // Bottom-corner compact information HUD card
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .navigationBarsPadding()
-                .padding(start = 16.dp, bottom = 16.dp, end = 16.dp)
-                .testTag("gargantua_status_card")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Text(
+                text = if (isPersian) "دوره مدار ISCO" else "ISCO period",
+                color = Color(0xFFB0BEC5),
+                fontSize = 11.sp,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                softWrap = false
+            )
+            GargantuaAnimation.AnimationSpeed.values().forEach { speed ->
+                PanelButton(
+                    label = if (isPersian) speed.persianLabel else speed.englishLabel,
+                    selected = state.animationSpeed == speed,
+                    onClick = {
+                        surfaceView?.renderer?.stateHolder?.updateState { old ->
+                            old.copy(animationSpeed = speed)
+                        }
+                    },
+                    modifier = Modifier.weight(0.7f)
+                )
+            }
+        }
+        Text(
+            text = if (isPersian) {
+                "TEL و ANIM هم‌زمان فعال نمی‌شوند."
+            } else {
+                "TEL and ANIM cannot be enabled together."
+            },
+            color = Color(0xFF90A4AE),
+            fontSize = 10.sp,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun InfoPanel(
+    isPersian: Boolean,
+    telemetry: GargantuaTelemetry,
+    state: GargantuaRenderState,
+    surfaceView: GargantuaSurfaceView?
+) {
+    val telScrollState = rememberScrollState()
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Text(
+                text = "${telemetry.animationStatus} · ${telemetry.fps.toInt()} FPS",
+                modifier = Modifier.weight(1f),
+                color = Color(0xFFB3E5FC),
+                fontSize = 11.sp,
+                maxLines = 4,
+                softWrap = true,
+                overflow = TextOverflow.Clip
+            )
+            PanelButton(
+                label = if (state.enableWorkloadTelemetry) "TEL ON" else "TEL OFF",
+                selected = state.enableWorkloadTelemetry,
+                onClick = {
+                    surfaceView?.renderer?.stateHolder?.updateState { current ->
+                        if (current.enableWorkloadTelemetry) {
+                            current.copy(enableWorkloadTelemetry = false)
+                        } else {
+                            current.copy(
+                                enableWorkloadTelemetry = true,
+                                enableAnimation = false,
+                                animationAmplitudePercent = 0
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier.weight(0.55f)
+            )
+        }
+
+        Text(
+            text = telemetry.animationDiagnostics,
+            color = Color(0xFF90A4AE),
+            fontSize = 9.sp,
+            maxLines = 4,
+            softWrap = true,
+            overflow = TextOverflow.Clip
+        )
+
+        if (telemetry.animationStatus.startsWith("ANIM FAILED")) {
+            Text(
+                text = telemetry.animationStatus,
+                color = Color(0xFFFFAB91),
+                fontSize = 9.sp,
+                maxLines = Int.MAX_VALUE,
+                softWrap = true,
+                overflow = TextOverflow.Clip
+            )
+        }
+
+        if (state.enableWorkloadTelemetry) {
             Box(
                 modifier = Modifier
-                    .widthIn(max = 240.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xD9121520))
-                    .border(1.dp, Color(0x33446688), RoundedCornerShape(14.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .fillMaxWidth()
+                    .heightIn(max = 96.dp)
+                    .verticalScroll(telScrollState)
+                    .background(Color(0x55263342), RoundedCornerShape(8.dp))
+                    .padding(8.dp)
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // Row 1: Status indicator, Title, and HDR Badge
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(if (telemetry.isInitialized) Color(0xFF4CAF50) else Color(0xFFFF9800))
-                        )
-                        Text(
-                            text = if (isFa) "فضازمان کر (نسبیتی)" else "Kerr GR (M6)",
-                            color = Color(0xFFD0D8E8),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(if (telemetry.isHdrActive) Color(0x3381C784) else Color(0x33FFB74D))
-                                .padding(horizontal = 5.dp, vertical = 1.dp)
-                        ) {
-                            Text(
-                                text = if (telemetry.isHdrActive) "HDR" else "LDR",
-                                color = if (telemetry.isHdrActive) Color(0xFF81C784) else Color(0xFFFFB74D),
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        // Temporary, explicit diagnostic activation control. Its state mirrors the
-                        // same RenderStateHolder flag used by the renderer and the workload HUD.
-                        Box(
-                            modifier = Modifier
-                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(
-                                    if (workloadTelemetryEnabled) Color(0x334CAF50) else Color(0x332F3B4F)
-                                )
-                                .clickable {
-                                    val nextState = surfaceViewRef?.renderer?.stateHolder?.updateState { current ->
-                                        current.copy(
-                                            enableWorkloadTelemetry = !current.enableWorkloadTelemetry,
-                                            enableAnimation = if (!current.enableWorkloadTelemetry) false else current.enableAnimation,
-                                            animationAmplitudePercent = if (!current.enableWorkloadTelemetry) 0 else current.animationAmplitudePercent
-                                        )
-                                    }
-                                    workloadTelemetryEnabled = nextState?.enableWorkloadTelemetry == true
-                                }
-                                .padding(horizontal = 5.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (workloadTelemetryEnabled) "TEL ON" else "TEL OFF",
-                                color = if (workloadTelemetryEnabled) Color(0xFF81C784) else Color(0xFFB0BEC5),
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-
-                    // Row 2: Physical & Camera parameters
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = String.format(Locale.US, "a*=%.2f", telemetry.spin),
-                            color = Color(0xFF64B5F6),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = String.format(Locale.US, "ISCO=%.2fM", telemetry.iscoRadius),
-                            color = Color(0xFFFFB74D),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = String.format(Locale.US, "d=%.0fM", telemetry.camDist),
-                            color = Color(0xFFCE93D8),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = String.format(Locale.US, "φ=%.0f°", telemetry.camAzimuthDeg),
-                            color = Color(0xFF81D4FA),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    // Row 3: Internal resolution, scale factor, and frame time
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (telemetry.renderResolution.isNotEmpty()) {
-                            Text(
-                                text = String.format(Locale.US, "%s@%.1fx", telemetry.renderResolution, telemetry.renderScale),
-                                color = Color(0xFF80CBC4),
-                                fontSize = 10.sp
-                            )
-                        }
-                        if (telemetry.frameTimeMs > 0f) {
-                            Text(
-                                text = String.format(Locale.US, "• %.1f ms", telemetry.frameTimeMs),
-                                color = Color(0xFF88A0C0),
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-
-                    // Temporary renderer-stage status. The waiting label is the UI-side state before
-                    // the first GL frame publishes a renderer result through existing telemetry.
-                    if (workloadTelemetryEnabled) {
-                        val diagnosticStatus = if (
-                            telemetry.adaptiveWorkload == "Unavailable (debug instrumentation disabled)"
-                        ) {
-                            "TEL ON · WAITING FOR GL FRAME"
-                        } else {
-                            telemetry.adaptiveWorkload
-                        }
-                        Text(
-                            text = diagnosticStatus,
-                            color = Color(0xFFB0BEC5),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    // Temporary workload diagnostic. It is absent unless the temporary telemetry
-                    // toggle enabled telemetry and a completed reduction is available.
-                    val workload = telemetry.workloadStats
-                    if (
-                        workloadTelemetryEnabled &&
-                        workload.available &&
-                        workload.totalPixels > 0L
-                    ) {
-                        val total = workload.totalPixels.toFloat()
-                        Text(
-                            text = String.format(
-                                Locale.US,
-                                "SAMPLE %d×%d  %dx%d",
-                                workload.samplingBlockSize,
-                                workload.samplingBlockSize,
-                                workload.frameWidth,
-                                workload.frameHeight
-                            ),
-                            color = Color(0xFFB0BEC5),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = String.format(
-                                Locale.US,
-                                "T0 %.1f%%  T1 %.1f%%  T2 %.1f%%",
-                                workload.tier0Pixels * 100.0f / total,
-                                workload.tier1Pixels * 100.0f / total,
-                                workload.tier2Pixels * 100.0f / total
-                            ),
-                            color = Color(0xFFFFCC80),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = String.format(
-                                Locale.US,
-                                "RAYS %.2f  TOTAL_RAYS %d",
-                                workload.averageRaysPerPixel,
-                                workload.totalRaysFrame
-                            ),
-                            color = Color(0xFF80CBC4),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = String.format(
-                                Locale.US,
-                                "a*=%.2f  d=%.0fM  φ=%.0f°  i=%.0f°",
-                                telemetry.spin,
-                                telemetry.camDist,
-                                telemetry.camAzimuthDeg,
-                                telemetry.camInclinationDeg
-                            ),
-                            color = Color(0xFFB39DDB),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-
-            // Error message if any
-            if (telemetry.errorMessage != null) {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 4.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xCCB71C1C))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = telemetry.errorMessage ?: "",
-                        color = Color.White,
-                        fontSize = 10.sp
-                    )
-                }
+                Text(
+                    text = "TEL: ${telemetry.adaptiveWorkload}",
+                    color = Color(0xFFFFCC80),
+                    fontSize = 9.sp,
+                    maxLines = Int.MAX_VALUE,
+                    softWrap = true,
+                    overflow = TextOverflow.Clip
+                )
             }
         }
 
-        // Temporary physical-device sampling control. It sits below the top-right reset/FPS controls
-        // and above the bottom HUD so it does not steal scene gestures outside this compact row.
-        GargantuaSamplingSelector(
-            surfaceView = surfaceViewRef,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(top = 82.dp, end = 12.dp)
+        Text(
+            text = if (isPersian) {
+                "${telemetry.renderResolution} · HDR ${if (telemetry.isHdrActive) "روشن" else "خاموش"}"
+            } else {
+                "${telemetry.renderResolution} · HDR ${if (telemetry.isHdrActive) "on" else "off"}"
+            },
+            color = Color(0xFF90A4AE),
+            fontSize = 9.sp,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+private fun PanelButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false
+) {
+    Box(
+        modifier = modifier
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) Color(0xFF365A75) else Color(0xFF263242))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+private fun statusLine(telemetry: GargantuaTelemetry, isPersian: Boolean): String {
+    val fps = if (telemetry.fps > 0f) String.format(Locale.US, "%.0f FPS", telemetry.fps) else "-- FPS"
+    return if (isPersian) {
+        "${telemetry.animationStatus} · $fps"
+    } else {
+        "${telemetry.animationStatus} · $fps"
     }
 }

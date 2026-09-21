@@ -86,8 +86,13 @@ class GargantuaRenderer(
     private var animationCacheValid = false
     private var animationCacheSignature: RaySceneSignature? = null
     private var lastRaySignatureChangeNanos = 0L
+    private var lastRaySignatureField = "none"
+    private var animationLastNotReadyReason = "none"
+    private var animationRebuildCount = 0
+    private var animOriginNanos = 0L
     private var lastPresentedModulated = false
     private var lastAnimationControlKey: Pair<Boolean, Int>? = null
+    private val animationGate = AnimationGate()
 
     // Debug-only workload instrumentation FBOs. These are never allocated or attached during
     // normal production rendering. A second and third color attachment carry per-pixel counters;
@@ -315,6 +320,9 @@ class GargantuaRenderer(
         animationFailureLatched = false
         animationCacheValid = false
         animationCacheSignature = null
+        lastRaySignatureField = "context"
+        animationLastNotReadyReason = "none"
+        animationRebuildCount = 0
         lastPresentedModulated = false
         lastAnimationControlKey = null
 
@@ -398,6 +406,8 @@ class GargantuaRenderer(
         // Initialize baseline timers
         val now = System.nanoTime()
         startTimeNanos = now
+        lastRaySignatureChangeNanos = now
+        animOriginNanos = now
         fpsAccumulatorTimeNanos = now
         fpsLastSubmittedNanos = 0L
         fpsFrames = 0
@@ -564,6 +574,9 @@ class GargantuaRenderer(
         lastRaySceneSignature = null
         lastBloomSignature = null
         lastCompositeSignature = null
+        animationCacheValid = false
+        animationCacheSignature = null
+        lastRaySignatureField = "resize"
         sceneDirty = true
         presentationInvalidationPending = true
         // The state listener covers a changed size. The ready gate additionally covers an
@@ -657,34 +670,64 @@ class GargantuaRenderer(
         val now = System.nanoTime()
         val elapsedSecondsDouble = (now - startTimeNanos).toDouble() / 1_000_000_000.0
         val elapsedSeconds = elapsedSecondsDouble.toFloat()
-        val animationTimeDigits = GargantuaAnimation.timeDigits(elapsedSecondsDouble)
-        val animationRequested = state.enableAnimation && state.useGeodesicShader && !state.enableWorkloadTelemetry
+        val animationRequested =
+            state.enableAnimation &&
+                state.animationAmplitudePercent.coerceIn(0, 30) > 0 &&
+                state.useGeodesicShader &&
+                !state.enableWorkloadTelemetry
         val animationControlKey = Pair(animationRequested, state.animationAmplitudePercent.coerceIn(0, 30))
         if (animationControlKey != lastAnimationControlKey) {
             if (animationControlKey.first && lastAnimationControlKey?.first != true) {
-                // A new user enable is the only retry gate after a latched real failure.
+                // Enabling ANIM restarts both the clock and the settle gate.
+                animOriginNanos = now
+                lastRaySignatureChangeNanos = now
+                lastRaySignatureField = "ANIM ENABLE"
                 animationFailureLatched = false
                 animationProgramAttempted = false
                 animationFailureStatus = null
+                animationCacheValid = false
+                animationCacheSignature = null
+                sceneDirty = true
             }
             lastAnimationControlKey = animationControlKey
             presentationInvalidationPending = true
         }
+        val animationElapsedSecondsDouble =
+            ((now - animOriginNanos).coerceAtLeast(0L)).toDouble() / 1_000_000_000.0
+        val animationTimeDigits = GargantuaAnimation.timeDigits(animationElapsedSecondsDouble)
+        val flowMapTimes = GargantuaAnimation.flowMapTimes(animationElapsedSecondsDouble)
+        animationLastNotReadyReason = "none"
         val animationReady = when {
             !animationRequested -> false
-            animationFailureLatched -> false
-            rayTextureId == 0 || renderW <= 0 || renderH <= 0 || rayGrid.rayWidth <= 0 || rayGrid.rayHeight <= 0 -> false
-            !isHdrSupported -> {
-                failAnimation("ANIM FAILED: HDR16F REQUIRED")
+            animationFailureLatched -> {
+                animationLastNotReadyReason = animationFailureStatus ?: "LATCHED_FAILURE"
                 false
             }
-            !ensureAnimationPrograms() -> false
+            rayTextureId == 0 || renderW <= 0 || renderH <= 0 || rayGrid.rayWidth <= 0 || rayGrid.rayHeight <= 0 -> {
+                animationLastNotReadyReason = "TARGET/DIMENSIONS"
+                false
+            }
+            !isHdrSupported -> {
+                failAnimation("ANIM FAILED: HDR16F REQUIRED")
+                animationLastNotReadyReason = "HDR"
+                false
+            }
+            !ensureAnimationPrograms() -> {
+                animationLastNotReadyReason = animationFailureStatus ?: "PROGRAM"
+                false
+            }
             else -> when (ensureAnimationFbos(
                 rayGrid.rayWidth, rayGrid.rayHeight, rayTextureId, renderW, renderH
             )) {
                 AnimationResourceResult.READY -> true
-                AnimationResourceResult.NOT_READY,
-                AnimationResourceResult.FAILED -> false
+                AnimationResourceResult.NOT_READY -> {
+                    animationLastNotReadyReason = "RESIZE"
+                    false
+                }
+                AnimationResourceResult.FAILED -> {
+                    animationLastNotReadyReason = animationFailureStatus ?: "FBO"
+                    false
+                }
             }
         }
 
@@ -696,13 +739,30 @@ class GargantuaRenderer(
         }
 
         val raySig = RaySceneSignature.fromState(state, surfaceW, surfaceH)
-        if (raySig != lastRaySceneSignature) {
+        val previousRaySig = lastRaySceneSignature
+        val signatureChangedThisFrame = raySig != previousRaySig
+        if (signatureChangedThisFrame) {
             lastRaySceneSignature = raySig
             sceneDirty = true
             animationCacheValid = false
             animationCacheSignature = null
             lastRaySignatureChangeNanos = now
+            lastRaySignatureField = changedRaySignatureField(previousRaySig, raySig)
         }
+
+        val gateDecision = animationGate.decide(
+            AnimationGate.Input(
+                animationRequested = animationRequested,
+                resourcesReady = animationReady,
+                cacheValid = animationCacheValid,
+                sceneDirty = sceneDirty,
+                signatureChangedThisFrame = signatureChangedThisFrame,
+                nowNanos = now,
+                lastChangeNanos = lastRaySignatureChangeNanos,
+                amplitudePercent = state.animationAmplitudePercent
+            )
+        )
+        val cameraStable = gateDecision.cameraStable
 
         val bloomSig = BloomSignature(state.enableBloom, state.bloomThreshold)
         val bloomChanged = bloomSig != lastBloomSignature
@@ -752,7 +812,15 @@ class GargantuaRenderer(
         var verticalBlurCpuSubmitMs = 0f
         var compositeCpuSubmitMs = 0f
 
-        val renderedScene = sceneDirty
+        val gateRequestsRebuild = when (gateDecision.action) {
+            AnimationGate.Action.REBUILD -> true
+            AnimationGate.Action.MODULATE,
+            AnimationGate.Action.PLAIN -> false
+        }
+        val renderedScene = sceneDirty || (animationRequested && animationReady && gateRequestsRebuild)
+        if (gateRequestsRebuild && animationRequested && animationReady) {
+            animationRebuildCount++
+        }
         if (state.enableWorkloadTelemetry && workloadRequested && !renderedScene) {
             workloadDiagnosticStatus = workloadStatusWithSemantic(
                 if (lastWorkloadStats.available && lastWorkloadStats.totalPixels > 0L) {
@@ -917,13 +985,25 @@ class GargantuaRenderer(
                 animationCacheValid = true
                 animationCacheSignature = raySig
             }
-            sceneDirty = false
+            if (!(animationRequested && !animationReady)) {
+                sceneDirty = false
+            }
         }
 
-        val cameraStable = lastRaySignatureChangeNanos != 0L &&
-            now - lastRaySignatureChangeNanos >= GargantuaAnimation.CAMERA_SETTLE_MS * 1_000_000L
-        val animationFrameActive = animationReady && state.animationAmplitudePercent > 0 && animationCacheValid && cameraStable &&
-            runAnimationPass(state, animationTimeDigits, renderW, renderH, rayGrid.rayWidth, rayGrid.rayHeight, quad)
+        val animationFrameActive = when (gateDecision.action) {
+            AnimationGate.Action.REBUILD,
+            AnimationGate.Action.PLAIN -> false
+            AnimationGate.Action.MODULATE -> animationReady &&
+                runAnimationPass(
+                    state,
+                    flowMapTimes,
+                    renderW,
+                    renderH,
+                    rayGrid.rayWidth,
+                    rayGrid.rayHeight,
+                    quad
+                )
+        }
         val activePresentationHdrTextureId = if (animationFrameActive) modulatedHdrTextureId else hdrTextureId
         val presentationModulated = animationFrameActive
         val presentationChanged = presentationModulated != lastPresentedModulated
@@ -1039,12 +1119,26 @@ class GargantuaRenderer(
             state.enableWorkloadTelemetry -> "ANIM IGNORED · TEL ON"
             animationFailureStatus != null -> animationFailureStatus ?: "ANIM FAILED"
             !state.enableAnimation -> "ANIM OFF"
-            state.animationAmplitudePercent == 0 -> "ANIM ±0% · CACHE READY"
+            state.animationAmplitudePercent == 0 -> "ANIM ±0% · BYPASS"
             !animationReady -> "ANIM WAITING"
             !cameraStable -> "ANIM ±${state.animationAmplitudePercent}% · CAMERA SETTLING"
             animationFrameActive -> "ANIM ±${state.animationAmplitudePercent}% · ACTIVE"
+            gateDecision.state == AnimationGate.State.BUILD -> "ANIM BUILD"
             else -> "ANIM ±${state.animationAmplitudePercent}% · READY"
         }
+        val animationDiagnostics = String.format(
+            Locale.US,
+            "ANIM DIAGNOSTICS: state=%s cache=%s since=%dms field=%s rebuilds=%d notReady=%s block=%d render=%dx%d",
+            gateDecision.state.name,
+            animationCacheValid,
+            gateDecision.elapsedSinceChangeNanos / 1_000_000L,
+            lastRaySignatureField,
+            animationRebuildCount,
+            animationLastNotReadyReason,
+            rayGrid.blockSize,
+            renderW,
+            renderH
+        )
 
         stateHolder.updateTelemetry {
             it.copy(
@@ -1052,6 +1146,7 @@ class GargantuaRenderer(
                 animationFps = if (animationFrameActive) measuredFps else 0f,
                 animationFrameTimeMs = if (animationFrameActive) ((System.nanoTime() - frameStartNanos) / 1_000_000.0f) else 0f,
                 animationStatus = animationStatus,
+                animationDiagnostics = animationDiagnostics,
                 frameTimeMs = ((System.nanoTime() - frameStartNanos) / 1_000_000.0f),
                 spin = state.spin,
                 isDiskActive = state.enableDisk,
@@ -1082,6 +1177,39 @@ class GargantuaRenderer(
 
     private fun elapsedMilliseconds(startNanos: Long): Float =
         (System.nanoTime() - startNanos) / 1_000_000.0f
+
+    private fun changedRaySignatureField(
+        previous: RaySceneSignature?,
+        current: RaySceneSignature
+    ): String {
+        if (previous == null) return "initial"
+        return when {
+            previous.width != current.width -> "width"
+            previous.height != current.height -> "height"
+            previous.renderScale != current.renderScale -> "renderScale"
+            previous.mass != current.mass -> "mass"
+            previous.spin != current.spin -> "spin"
+            previous.camDist != current.camDist -> "camDist"
+            previous.camInclinationDeg != current.camInclinationDeg -> "camInclinationDeg"
+            previous.camAzimuthDeg != current.camAzimuthDeg -> "camAzimuthDeg"
+            previous.camTargetX != current.camTargetX -> "camTargetX"
+            previous.camTargetY != current.camTargetY -> "camTargetY"
+            previous.camTargetZ != current.camTargetZ -> "camTargetZ"
+            previous.maxSteps != current.maxSteps -> "maxSteps"
+            previous.enableDisk != current.enableDisk -> "enableDisk"
+            previous.diskOuterRadius != current.diskOuterRadius -> "diskOuterRadius"
+            previous.enableObject != current.enableObject -> "enableObject"
+            previous.objectRadius != current.objectRadius -> "objectRadius"
+            previous.objectOrbitRadius != current.objectOrbitRadius -> "objectOrbitRadius"
+            previous.objectPhi0 != current.objectPhi0 -> "objectPhi0"
+            previous.objectZ != current.objectZ -> "objectZ"
+            previous.useGeodesicShader != current.useGeodesicShader -> "useGeodesicShader"
+            previous.debugCoarseSamplingBlockSize != current.debugCoarseSamplingBlockSize -> "blockSize"
+            previous.enableWorkloadTelemetry != current.enableWorkloadTelemetry -> "telemetry"
+            previous.enableAnimation != current.enableAnimation -> "animation"
+            else -> "unknown"
+        }
+    }
 
     private fun animationProgramFailureStatus(failure: ShaderProgram.CreationFailure?): String {
         val label = failure?.label ?: "UNKNOWN"
@@ -1285,11 +1413,15 @@ class GargantuaRenderer(
         modulationFboId = 0; modulationTextureId = 0; modulationWidth = 0; modulationHeight = 0
         modulatedHdrFboId = 0; modulatedHdrTextureId = 0; modulatedHdrWidth = 0; modulatedHdrHeight = 0
         animationResourcesReady = false
+        animationCacheValid = false
+        animationCacheSignature = null
+        sceneDirty = true
+        presentationInvalidationPending = true
     }
 
     private fun runAnimationPass(
         state: GargantuaRenderState,
-        digits: FloatArray,
+        flowMapTimes: GargantuaAnimation.FlowMapTimes,
         renderWidth: Int,
         renderHeight: Int,
         rayWidth: Int,
@@ -1311,14 +1443,17 @@ class GargantuaRenderer(
         modulation.setUniform1i("u_NoiseTexture", 1)
         val mass = state.mass
         val spin = state.spin * mass
-        val sqrtMass = sqrt(max(mass, 1.0e-6f))
-        val omega = sqrtMass / max(1.0e-6f, lastIscoRadius.toDouble().pow(1.5).toFloat() + spin * sqrtMass)
-        val scale = ((2.0 * PI / GargantuaAnimation.ISCO_PERIOD_SECONDS) / omega).toFloat()
-        modulation.setUniform1f("u_Time", digits[0])
-        modulation.setUniform1f("u_TimeDigit1", digits[1])
-        modulation.setUniform2f("u_TimeDigits23", digits[2], digits[3])
-        modulation.setUniform2f("u_TimeDigits45", digits[4], digits[5])
-        modulation.setUniform2f("u_TimeDigits67", digits[6], digits[7])
+        val massDouble = mass.toDouble()
+        val spinDouble = spin.toDouble()
+        val sqrtMass = sqrt(max(massDouble, 1.0e-6))
+        val omega = sqrtMass / max(
+            1.0e-6,
+            lastIscoRadius.toDouble().pow(1.5) + spinDouble * sqrtMass
+        )
+        val scale = ((2.0 * PI / state.animationSpeed.periodSeconds) / omega).toFloat()
+        modulation.setUniform1f("u_TimeA", flowMapTimes.timeA.toFloat())
+        modulation.setUniform1f("u_TimeB", flowMapTimes.timeB.toFloat())
+        modulation.setUniform1f("u_BlendA", flowMapTimes.blendA.toFloat())
         modulation.setUniform1f("u_TimeScale", scale)
         modulation.setUniform1f("u_Amplitude", state.animationAmplitudePercent / 100.0f)
         modulation.setUniform1f("u_NoiseMean", noiseMean)
@@ -2167,6 +2302,16 @@ class GargantuaRenderer(
 
     /** Marks the cached image for presentation; the owning GLSurfaceView schedules the dirty frame. */
     fun requestPresentation() {
+        presentationInvalidationPending = true
+    }
+
+    fun onResume() {
+        val now = System.nanoTime()
+        lastRaySignatureChangeNanos = now
+        lastRaySignatureField = "resume"
+        animationCacheValid = false
+        animationCacheSignature = null
+        sceneDirty = true
         presentationInvalidationPending = true
     }
 

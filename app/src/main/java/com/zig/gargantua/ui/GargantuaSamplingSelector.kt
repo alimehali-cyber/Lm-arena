@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
@@ -42,7 +44,7 @@ internal fun GargantuaSamplingSelector(
     LaunchedEffect(currentMode) {
         selectedMode.value = currentMode
     }
-    val modes = GargantuaCoarseSampling.supportedBlockSizes()
+    val modes = GargantuaCoarseSampling.supportedBlockSizes().sortedDescending()
 
     Surface(
         modifier = modifier
@@ -54,16 +56,18 @@ internal fun GargantuaSamplingSelector(
         tonalElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 2.dp, vertical = 2.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(1.dp)
+            horizontalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             Text(
                 text = "SAMPLE",
                 color = Color(0xFF9FB5D1),
-                fontSize = 9.sp,
+                fontSize = 8.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 3.dp)
+                modifier = Modifier.padding(horizontal = 2.dp)
             )
             modes.forEach { mode ->
                 TextButton(
@@ -78,6 +82,8 @@ internal fun GargantuaSamplingSelector(
                         }
                     },
                     modifier = Modifier
+                        .weight(1f)
+                        .defaultMinSize(minWidth = 0.dp, minHeight = 44.dp)
                         .background(
                             color = if (selectedMode.value == mode) Color(0xCCEF8F2F) else Color.Transparent,
                             shape = RoundedCornerShape(5.dp)

@@ -23,7 +23,11 @@ class GargantuaSamplingSelectorTest {
         val rootSource = rootFile.readText()
         assertTrue(selectorSource.contains("GargantuaSamplingSelector"))
         assertTrue(selectorSource.contains("GargantuaCoarseSampling.supportedBlockSizes()"))
+        assertTrue(selectorSource.contains("sortedDescending()"))
         assertEquals(listOf(1, 2, 3, 4, 6, 8), GargantuaCoarseSampling.supportedBlockSizes())
+        assertTrue(selectorSource.contains("text = \"SAMPLE\""))
+        assertTrue(selectorSource.contains("text = \"${'$'}{mode}×${'$'}{mode}\""))
+        assertTrue(selectorSource.contains("testTag(\"gargantua_sampling_mode_${'$'}mode\")"))
         assertTrue(selectorSource.contains("debugCoarseSamplingBlockSize = mode"))
         assertFalse("AUTO must not remain in the user-facing selector", selectorSource.contains("AUTO"))
         assertTrue(selectorSource.contains("gargantua_sampling_mode_\$mode"))
@@ -42,9 +46,15 @@ class GargantuaSamplingSelectorTest {
         assertFalse(productionSources.contains("adaptiveMask"))
         assertFalse(productionSources.contains("u_Adaptive"))
 
-        assertTrue(rootSource.contains("GargantuaSamplingSelector("))
-        assertTrue(rootSource.contains(".align(Alignment.TopEnd)"))
-        assertTrue(rootSource.contains(".padding(top = 82.dp, end = 12.dp)"))
+        assertTrue("Quality panel must contain the selector", rootSource.contains("GargantuaSamplingSelector("))
+        assertTrue(rootSource.contains("QualityPanel("))
+        assertTrue(rootSource.contains("gargantua_quality_selector"))
+        assertTrue(rootSource.contains("gargantua_three_button_dock"))
+        assertTrue(rootSource.contains("else \"Quality\""))
+        assertTrue(rootSource.contains("else \"Animation\""))
+        assertTrue(rootSource.contains("else \"Info\""))
+        assertTrue(rootSource.contains("GargantuaAnimation.AnimationSpeed.values()"))
+        assertTrue(rootSource.contains("LocalLayoutDirection provides"))
     }
 
     private fun findSourceFile(path: String): File {
