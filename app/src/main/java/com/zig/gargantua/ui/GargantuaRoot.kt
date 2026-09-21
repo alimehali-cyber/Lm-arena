@@ -214,36 +214,6 @@ private fun GargantuaUnsupportedScreen(
                     )
                 }
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (workloadTelemetryEnabled) Color(0x332F3B4F) else Color(0x332E5A73))
-                        .border(1.dp, Color(0x335B8CA8), RoundedCornerShape(16.dp))
-                        .clickable {
-                            val sv = surfaceViewRef
-                            val current = sv?.renderer?.stateHolder?.getState()
-                            if (sv != null && current != null && !current.enableWorkloadTelemetry) {
-                                val next = GargantuaAnimation.nextMode(
-                                    current.enableAnimation,
-                                    current.animationAmplitudePercent
-                                )
-                                sv.renderer.stateHolder.updateState {
-                                    it.copy(enableAnimation = next.first, animationAmplitudePercent = next.second)
-                                }
-                            }
-                        }
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                        .testTag("gargantua_animation_chip"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (workloadTelemetryEnabled) "ANIM IGNORED · TEL ON" else telemetry.animationStatus,
-                        color = if (workloadTelemetryEnabled) Color(0xFF90A4AE) else Color(0xFF80CBC4),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                }
             }
         }
     }
@@ -395,6 +365,37 @@ private fun GargantuaRendererScreen(
                         contentDescription = if (isFa) "بازنشانی زاویه دید دوربین" else "Reset Observer Camera",
                         tint = Color(0xFF90CAF9),
                         modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (workloadTelemetryEnabled) Color(0x332F3B4F) else Color(0x332E5A73))
+                        .border(1.dp, Color(0x335B8CA8), RoundedCornerShape(16.dp))
+                        .clickable {
+                            val sv = surfaceViewRef
+                            val current = sv?.renderer?.stateHolder?.getState()
+                            if (sv != null && current != null && !current.enableWorkloadTelemetry) {
+                                val next = GargantuaAnimation.nextMode(
+                                    current.enableAnimation,
+                                    current.animationAmplitudePercent
+                                )
+                                sv.renderer.stateHolder.updateState {
+                                    it.copy(enableAnimation = next.first, animationAmplitudePercent = next.second)
+                                }
+                            }
+                        }
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .testTag("gargantua_animation_chip"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (workloadTelemetryEnabled) "ANIM IGNORED · TEL ON" else telemetry.animationStatus,
+                        color = if (workloadTelemetryEnabled) Color(0xFF90A4AE) else Color(0xFF80CBC4),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
                     )
                 }
 
