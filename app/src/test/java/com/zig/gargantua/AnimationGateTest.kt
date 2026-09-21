@@ -164,7 +164,7 @@ class AnimationGateTest {
         val gate = AnimationGate()
         assertEquals(
             AnimationGate.Action.PLAIN,
-            gate.decide(AnimationGate.Input(false, true, true, true, 1_000_000_000L, 1_000_000_000L, 15)).action
+            gate.decide(AnimationGate.Input(false, true, true, true, true, 1_000_000_000L, 1_000_000_000L, 15)).action
         )
         assertRebuildThenModulate(gate)
     }
