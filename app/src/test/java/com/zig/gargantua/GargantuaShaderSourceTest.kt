@@ -349,6 +349,16 @@ class GargantuaShaderSourceTest {
         }
     }
 
+    private fun findSourceFile(relativePath: String): File {
+        var dir: File? = File("").absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, relativePath)
+            if (candidate.isFile) return candidate
+            dir = dir.parentFile
+        }
+        return File(relativePath)
+    }
+
     private fun findAssetFile(relativePath: String): File {
         var dir: File? = File("").absoluteFile
         while (dir != null) {
