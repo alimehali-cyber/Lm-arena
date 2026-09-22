@@ -123,6 +123,8 @@ class GargantuaShaderSourceTest {
     fun animationMotionUsesExpectedConventionAndNoiseInputs() {
         val geodesic = findAssetFile(ShaderSource.GEODESIC_FRAGMENT_SHADER_ASSET_PATH).readText()
         val modulation = findAssetFile(ShaderSource.ANIMATION_MODULATION_FRAGMENT_SHADER_ASSET_PATH).readText()
+        val animation = findSourceFile("app/src/main/java/com/zig/gargantua/renderer/GargantuaAnimation.kt").readText()
+        val renderer = findSourceFile("app/src/main/java/com/zig/gargantua/renderer/GargantuaRenderer.kt").readText()
         assertTrue(geodesic.contains("#define GARGANTUA_OBJECT_PHASE(t)"))
         assertTrue(geodesic.contains("u_TimeDigit1"))
         assertTrue(geodesic.contains("u_TimeDigits23"))
@@ -136,17 +138,41 @@ class GargantuaShaderSourceTest {
         assertTrue(modulation.contains("u_BlendA"))
         assertTrue(modulation.contains("u_NoiseMean"))
         assertTrue(modulation.contains("texture(u_NoiseTexture, vec2(phaseA, radiusNorm))"))
+        assertTrue(modulation.contains("texture(u_NoiseTexture, vec2(phaseB + 0.37, radiusNorm + 0.29))"))
+        assertFalse(modulation.contains("phaseA *"))
+        assertFalse(modulation.contains("phaseA /"))
+        assertFalse(modulation.contains("phaseB *"))
+        assertFalse(modulation.contains("phaseB /"))
+        assertTrue(animation.contains("NoiseOctave(2, 16, 0.65f)"))
+        assertTrue(animation.contains("NoiseOctave(4, 24, 0.35f)"))
+        assertTrue(
+            GargantuaAnimation.NOISE_OCTAVE_SPECS.all { it.latticeHeight >= 4 * it.latticeWidth }
+        )
+        assertFalse(animation.contains("NoiseOctave(8, 4, 0.65f)"))
+        assertFalse(animation.contains("NoiseOctave(16, 8, 0.35f)"))
         assertFalse(modulation.contains("semantic.g * TAU"))
         assertFalse(modulation.contains("semantic.g*  TAU"))
         assertTrue(modulation.contains("phaseA = fract(semantic.g - omega * u_TimeScale * u_TimeA / TAU);"))
         assertTrue(modulation.contains("phaseB = fract(semantic.g - omega * u_TimeScale * u_TimeB / TAU);"))
         assertFalse(modulation.contains("phaseA = fract(semantic.g + omega * u_TimeScale * u_TimeA / TAU);"))
         assertFalse(modulation.contains("phaseB = fract(semantic.g + omega * u_TimeScale * u_TimeB / TAU);"))
-        assertTrue(modulation.contains("vec2(phaseA, radiusNorm)"))
-        assertTrue(modulation.contains("vec2(phaseB + 0.37, radiusNorm + 0.29)"))
+        assertTrue(modulation.contains("radiusNorm + 0.29"))
         assertTrue(modulation.contains("if (u_Amplitude == 0.0)"))
         assertTrue(modulation.contains("if (state != 3)"))
+        assertTrue(renderer.contains("GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_REPEAT"))
+        assertTrue(renderer.contains("GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_REPEAT"))
         assertEquals(45.0, GargantuaAnimation.AnimationSpeed.NORMAL.periodSeconds, 0.0)
+        assertEquals(
+            listOf(false to 0, true to 15, true to 40, true to 80),
+            GargantuaAnimation.AMPLITUDE_STEPS
+        )
+        assertEquals(
+            listOf(
+                GargantuaAnimation.NoiseOctave(2, 16, 0.65f),
+                GargantuaAnimation.NoiseOctave(4, 24, 0.35f)
+            ),
+            GargantuaAnimation.NOISE_OCTAVE_SPECS
+        )
     }
 
     @Test

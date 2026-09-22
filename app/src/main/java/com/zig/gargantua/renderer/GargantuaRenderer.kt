@@ -672,10 +672,10 @@ class GargantuaRenderer(
         val elapsedSeconds = elapsedSecondsDouble.toFloat()
         val animationRequested =
             state.enableAnimation &&
-                state.animationAmplitudePercent.coerceIn(0, 30) > 0 &&
+                state.animationAmplitudePercent.coerceIn(0, 80) > 0 &&
                 state.useGeodesicShader &&
                 !state.enableWorkloadTelemetry
-        val animationControlKey = Pair(animationRequested, state.animationAmplitudePercent.coerceIn(0, 30))
+        val animationControlKey = Pair(animationRequested, state.animationAmplitudePercent.coerceIn(0, 80))
         if (animationControlKey != lastAnimationControlKey) {
             if (animationControlKey.first && lastAnimationControlKey?.first != true) {
                 // Enabling ANIM restarts both the clock and the settle gate.

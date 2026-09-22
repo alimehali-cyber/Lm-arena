@@ -21,8 +21,8 @@ object GargantuaAnimation {
     data class NoiseOctave(val latticeWidth: Int, val latticeHeight: Int, val weight: Float)
 
     val NOISE_OCTAVE_SPECS: List<NoiseOctave> = listOf(
-        NoiseOctave(8, 4, 0.65f),
-        NoiseOctave(16, 8, 0.35f)
+        NoiseOctave(2, 16, 0.65f),
+        NoiseOctave(4, 24, 0.35f)
     )
 
     enum class AnimationSpeed(
@@ -48,20 +48,20 @@ object GargantuaAnimation {
 
     val AMPLITUDE_STEPS: List<Pair<Boolean, Int>> = listOf(
         false to 0,
-        true to 0,
         true to 15,
-        true to 30
+        true to 40,
+        true to 80
     )
 
     fun nextMode(enabled: Boolean, amplitudePercent: Int): Pair<Boolean, Int> {
-        if (!enabled) return true to 0
-        val current = AMPLITUDE_STEPS.indexOf(true to amplitudePercent.coerceIn(0, 30))
-        return AMPLITUDE_STEPS[(current + 1) % AMPLITUDE_STEPS.size]
+        if (!enabled) return AMPLITUDE_STEPS[1]
+        val current = AMPLITUDE_STEPS.indexOf(true to amplitudePercent)
+        return AMPLITUDE_STEPS[if (current >= 0) (current + 1) % AMPLITUDE_STEPS.size else 1]
     }
 
     fun label(enabled: Boolean, amplitudePercent: Int): String = when {
         !enabled -> "ANIM OFF"
-        else -> "ANIM ±${amplitudePercent.coerceIn(0, 30)}%"
+        else -> "ANIM ±${amplitudePercent.coerceIn(15, 80)}%"
     }
 
     fun flowMapTimes(seconds: Double): FlowMapTimes {
@@ -79,8 +79,8 @@ object GargantuaAnimation {
 
     /**
      * Generates deterministic smooth periodic value noise. Each octave wraps at both lattice
-     * boundaries, and both octave periods divide the finite tile dimensions exactly.
-     * Contrast stretching is performed before quantization so the byte tile contains 0 and 255.
+     * boundaries through samplePeriodic's explicit modulo interpolation. Contrast stretching is
+     * performed before quantization so the byte tile contains 0 and 255.
      */
     fun deterministicNoise(seed: Int = 0x5EED1234): ByteArray {
         val values = FloatArray(NOISE_BYTES)

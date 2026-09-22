@@ -44,10 +44,13 @@ class GargantuaRenderStateTest {
         assertEquals(2, GargantuaAnimation.NOISE_OCTAVES)
         assertEquals(
             listOf(
-                GargantuaAnimation.NoiseOctave(8, 4, 0.65f),
-                GargantuaAnimation.NoiseOctave(16, 8, 0.35f)
+                GargantuaAnimation.NoiseOctave(2, 16, 0.65f),
+                GargantuaAnimation.NoiseOctave(4, 24, 0.35f)
             ),
             GargantuaAnimation.NOISE_OCTAVE_SPECS
+        )
+        assertTrue(
+            GargantuaAnimation.NOISE_OCTAVE_SPECS.all { it.latticeHeight >= 4 * it.latticeWidth }
         )
         assertTrue(state.useGeodesicShader)
         assertFalse(state.isPaused)
@@ -56,17 +59,21 @@ class GargantuaRenderStateTest {
     }
 
     @Test
-    fun animationControlCyclesOffZeroFifteenThirtyAndBack() {
+    fun animationControlCyclesOffFifteenFortyEightyAndBack() {
+        assertEquals(
+            listOf(false to 0, true to 15, true to 40, true to 80),
+            GargantuaAnimation.AMPLITUDE_STEPS
+        )
         var mode = false to 0
-        mode = GargantuaAnimation.nextMode(mode.first, mode.second)
-        assertEquals(true to 0, mode)
         mode = GargantuaAnimation.nextMode(mode.first, mode.second)
         assertEquals(true to 15, mode)
         mode = GargantuaAnimation.nextMode(mode.first, mode.second)
-        assertEquals(true to 30, mode)
+        assertEquals(true to 40, mode)
+        mode = GargantuaAnimation.nextMode(mode.first, mode.second)
+        assertEquals(true to 80, mode)
         mode = GargantuaAnimation.nextMode(mode.first, mode.second)
         assertEquals(false to 0, mode)
-        assertEquals(true to 0, GargantuaAnimation.nextMode(false, 15))
+        assertEquals(true to 15, GargantuaAnimation.nextMode(false, 15))
     }
 
     @Test
@@ -101,7 +108,7 @@ class GargantuaRenderStateTest {
             GargantuaRenderState(enableAnimation = true, animationAmplitudePercent = 15), 540, 1200
         )
         val onOtherAmplitude = GargantuaRenderer.RaySceneSignature.fromState(
-            GargantuaRenderState(enableAnimation = true, animationAmplitudePercent = 30), 540, 1200
+            GargantuaRenderState(enableAnimation = true, animationAmplitudePercent = 80), 540, 1200
         )
         assertFalse(off == on)
         assertEquals(on, onOtherAmplitude)

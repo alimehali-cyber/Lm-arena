@@ -553,8 +553,6 @@ private fun AnimationPanel(
     state: GargantuaRenderState,
     surfaceView: GargantuaSurfaceView?
 ) {
-    val amplitudeOptions = listOf(0, 15, 30)
-
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = if (isPersian) "دامنه حرکت" else "Amplitude",
@@ -568,30 +566,26 @@ private fun AnimationPanel(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            amplitudeOptions.forEach { amplitude ->
+            GargantuaAnimation.AMPLITUDE_STEPS.forEach { (enabled, amplitude) ->
                 PanelButton(
-                    label = when (amplitude) {
-                        0 -> "OFF"
-                        15 -> "±15%"
-                        else -> "±30%"
+                    label = if (enabled) "±${amplitude}%" else "OFF",
+                    selected = if (enabled) {
+                        state.enableAnimation && state.animationAmplitudePercent == amplitude
+                    } else {
+                        !state.enableAnimation
                     },
-                    selected = (
-                        state.enableAnimation &&
-                            state.animationAmplitudePercent == amplitude &&
-                            amplitude > 0
-                        ) || (!state.enableAnimation && amplitude == 0),
                     onClick = {
                         surfaceView?.renderer?.stateHolder?.updateState { old ->
-                            if (amplitude == 0) {
-                                old.copy(
-                                    enableAnimation = false,
-                                    animationAmplitudePercent = 0
-                                )
-                            } else {
+                            if (enabled) {
                                 old.copy(
                                     enableWorkloadTelemetry = false,
                                     enableAnimation = true,
                                     animationAmplitudePercent = amplitude
+                                )
+                            } else {
+                                old.copy(
+                                    enableAnimation = false,
+                                    animationAmplitudePercent = 0
                                 )
                             }
                         }
