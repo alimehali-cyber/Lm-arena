@@ -31,9 +31,9 @@ object GargantuaAnimation {
         val englishLabel: String,
         val persianLabel: String
     ) {
-        SLOW(24.0, "Slow", "آهسته"),
-        NORMAL(12.0, "Normal", "عادی"),
-        FAST(6.0, "Fast", "سریع")
+        SLOW(12.0, "Slow", "آهسته"),
+        NORMAL(6.0, "Normal", "عادی"),
+        FAST(3.5, "Fast", "سریع")
     }
 
     data class FlowMapTimes(

@@ -254,7 +254,7 @@ void rk4_step(
     p_spatial += (dlambda / 6.0) * (k1_p + 2.0 * k2_p + 2.0 * k3_p + k4_p);
 }
 
-// High-fidelity procedural cosmos - pinpoint stars with realistic magnitude distribution
+// High-fidelity anti-aliased cosmos with Galactic Plane
 float hash21(vec2 p) {
     p = fract(p * vec2(127.1, 311.7));
     p += dot(p, p + 45.32);
@@ -294,82 +294,77 @@ float valueNoise3(vec3 p) {
     return mix(nxy0, nxy1, f.z);
 }
 
+float fbm3D(vec3 p) {
+    float v = 0.0;
+    float a = 0.5;
+    for (int i = 0; i < 3; i++) {
+        v += a * valueNoise3(p);
+        p *= 2.0;
+        a *= 0.5;
+    }
+    return v;
+}
+
 vec3 sample_procedural_sky(vec3 dir) {
     vec3 d = normalize(dir);
+    vec3 col = vec3(0.0006, 0.0008, 0.0014);
 
-    // Deep cosmic void baseline (pitch black with subtle blue tint)
-    vec3 col = vec3(0.0005, 0.0007, 0.0012);
+    // Ethereal Galactic Plane - inclined band that lenses into Einstein arcs
+    float b = dot(d, vec3(0.577, 0.577, -0.577));
+    float galacticDisk = exp(-abs(b) * 4.5);
+    float galacticHalo = exp(-abs(b) * 1.5) * 0.35;
+    float dustNoise = fbm3D(d * 12.0);
+    float dustAbsorption = smoothstep(0.35, 0.75, dustNoise) * 0.7;
+    vec3 galacticColor = vec3(0.85, 0.75, 0.65) * (galacticDisk * (1.0 - dustAbsorption))
+                       + vec3(0.30, 0.35, 0.60) * galacticHalo;
+    galacticColor *= 0.18;
+    col += galacticColor;
 
-    // Ethereal nebula: 2 octaves low amplitude deep space-blue/purple (0.04,0.03,0.08)
-    // Gives depth between stars without overpowering
+    // Deep nebula
     float nebula1 = valueNoise3(d * 2.5);
     float nebula2 = valueNoise3(d * 5.0 + vec3(12.3, 7.1, 3.7));
     float nebula = nebula1 * 0.6 + nebula2 * 0.4;
     nebula = pow(nebula, 1.6) * 0.85;
-    vec3 nebulaColor = vec3(0.04, 0.03, 0.08) * nebula * 0.06;
-    // Add faint purple-blue variation
-    nebulaColor += vec3(0.02, 0.015, 0.05) * pow(nebula2, 2.2) * 0.03;
-    col += nebulaColor;
+    col += vec3(0.04, 0.03, 0.08) * nebula * 0.05;
 
-    // Subtle galactic plane (very faint)
-    float galacticDist = abs(d.z * 0.8 + d.y * 0.6);
-    float milkyWay = exp(-galacticDist * galacticDist * 18.0) * 0.004;
-    col += vec3(0.005, 0.006, 0.012) * milkyWay;
+    // Anti-aliased stars with Gaussian falloff - lower frequency 85.0 prevents twinkling
+    vec3 p = d * 85.0;
+    vec3 ip = floor(p);
+    vec3 fp = fract(p);
+    vec3 starRadiance = vec3(0.0);
 
-    // Pinpoint stars: 3D hash lattice over direction * 280.0
-    vec3 p = d * 280.0;
-    vec3 i = floor(p);
-    vec3 f = fract(p);
+    // 8-cell search for static pass (cheaper than 27-cell but still anti-aliased)
+    for (int z = -1; z <= 0; z++) {
+        for (int y = -1; y <= 0; y++) {
+            for (int x = -1; x <= 0; x++) {
+                vec3 neighbor = vec3(float(x), float(y), float(z));
+                vec3 cellHash = hash33(ip + neighbor);
+                vec3 starPos = neighbor + cellHash - 0.5;
+                float dist = length(fp - starPos);
 
-    // Single cell star placement (cheap but effective for static pass)
-    // For dynamic lensing pass we will use more accurate neighbor search in apply shader
-    vec3 starOffset = hash33(i);
-    vec3 starPos = starOffset; // random position within cell [0,1]
-    float dist = length(f - starPos);
+                float brightnessHash = cellHash.x;
+                float isProminent = step(0.96, brightnessHash);
+                float isMedium = step(0.82, brightnessHash) * (1.0 - isProminent);
+                float isFaint = (1.0 - isProminent) * (1.0 - isMedium);
 
-    // High-exponent sharpness for pinpoint look
-    float starIntensity = pow(max(0.0, 1.0 - dist * 2.5), 32.0);
+                float baseIntensity = isProminent * (0.8 + 0.6 * cellHash.y)
+                                    + isMedium * (0.35 + 0.25 * cellHash.y)
+                                    + isFaint * (0.08 + 0.08 * cellHash.y);
 
-    if (starIntensity > 0.0001) {
-        float rand = hash13(i);
-        float mag;
-        vec3 starCol;
-        // Stellar color temperature based on hash
-        float colorRand = hash13(i + vec3(19.7, 27.3, 11.5));
-        if (colorRand < 0.33) {
-            starCol = vec3(1.0, 0.75, 0.5); // warm amber
-        } else if (colorRand < 0.66) {
-            starCol = vec3(0.95, 0.95, 1.0); // pure white
-        } else {
-            starCol = vec3(0.7, 0.85, 1.0); // faint blue-white
+                float coreRadius = isProminent > 0.5 ? 0.38 : (isMedium > 0.5 ? 0.28 : 0.20);
+                float core = exp(-(dist * dist) / (2.0 * coreRadius * coreRadius));
+                float corona = isProminent > 0.5 ? exp(-dist * 2.2) * 0.20 : 0.0;
+
+                vec3 warm = vec3(1.0, 0.78, 0.55);
+                vec3 whiteBlue = mix(vec3(0.95, 0.95, 1.0), vec3(0.65, 0.82, 1.0), cellHash.y);
+                vec3 starColor = mix(warm, whiteBlue, cellHash.z);
+
+                starRadiance += starColor * (core + corona) * baseIntensity;
+            }
         }
-
-        // Power-law magnitude distribution
-        if (rand < 0.90) {
-            // 90% faint background specks 0.05-0.15
-            mag = 0.05 + rand * 0.11; // 0.05-0.149
-            starIntensity *= mag;
-        } else if (rand < 0.99) {
-            // 9% medium stars 0.2-0.5
-            mag = 0.2 + (rand - 0.90) * 3.33; // 0.2-0.5
-            starIntensity *= mag;
-            // Slightly larger apparent size for medium stars
-            starIntensity *= 1.5;
-        } else {
-            // 1% prominent stars 0.8-1.5 with tiny cross-diffraction spikes
-            mag = 0.8 + (rand - 0.99) * 70.0; // 0.8-1.5
-            starIntensity *= mag * 2.0;
-
-            // Tiny cross-diffraction spikes for bright stars
-            float spikeX = pow(max(0.0, 1.0 - abs(f.y - starPos.y) * 32.0), 24.0) * pow(max(0.0, 1.0 - abs(f.x - starPos.x) * 3.0), 4.0);
-            float spikeY = pow(max(0.0, 1.0 - abs(f.x - starPos.x) * 32.0), 24.0) * pow(max(0.0, 1.0 - abs(f.y - starPos.y) * 3.0), 4.0);
-            float spikes = (spikeX + spikeY) * 0.12 * mag;
-            col += starCol * spikes;
-        }
-
-        col += starCol * starIntensity;
     }
 
+    col += starRadiance;
     return col;
 }
 

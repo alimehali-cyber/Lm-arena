@@ -19,8 +19,6 @@ out float fragColor;
 
 const float TAU = 6.28318530718;
 
-// ---- Smooth hash / value noise with azimuthal periodicity ----
-
 float hash12(vec2 p) {
     float h = dot(p, vec2(127.1, 311.7));
     return fract(sin(h) * 43758.5453123);
@@ -29,7 +27,6 @@ float hash12(vec2 p) {
 float valueNoisePeriodicX(vec2 uv, float periodX) {
     vec2 i = floor(uv);
     vec2 f = fract(uv);
-    // Hermite smoothstep for continuous fBm
     f = f * f * (3.0 - 2.0 * f);
     float px = periodX;
     float x0 = mod(i.x, px);
@@ -45,32 +42,27 @@ float valueNoisePeriodicX(vec2 uv, float periodX) {
     return mix(top, bottom, f.y);
 }
 
-// Multi-scale Keplerian sheared fBm turbulence
-// Returns noise in [0,1] with smooth continuous filaments
+// Multi-scale Keplerian sheared fBm - all prograde, no counter-shear
 float keplerianNoise(vec2 azimuthRadiusNorm, float shiftNorm, float radiusNorm) {
     float az = azimuthRadiusNorm.x;
     float rn = azimuthRadiusNorm.y;
 
-    // Octave 1: Macro stream (32, 4) weight 0.55 - primary filament direction
+    // Octave 1: Macro stream (32, 4) weight 0.55 - prograde only
     vec2 uv1 = vec2(az * 32.0 + shiftNorm * 32.0, rn * 4.0);
     float n1 = valueNoisePeriodicX(uv1, 32.0);
 
-    // Octave 2: Turbulent eddies (64, 12) weight 0.30, counter-sheared slightly
-    vec2 uv2 = vec2(az * 64.0 + shiftNorm * 64.0 - rn * 2.5, rn * 12.0 + az * 1.5);
+    // Octave 2: Turbulent eddies (64, 12) weight 0.30 - prograde, no negative shear
+    vec2 uv2 = vec2(az * 64.0 + shiftNorm * 64.0, rn * 12.0);
     float n2 = valueNoisePeriodicX(uv2, 64.0);
 
-    // Octave 3: Micro filaments (128, 24) weight 0.15 - fine detail
-    vec2 uv3 = vec2(az * 128.0 + shiftNorm * 128.0 + rn * 1.2, rn * 24.0);
+    // Octave 3: Micro filaments (128, 24) weight 0.15 - prograde
+    vec2 uv3 = vec2(az * 128.0 + shiftNorm * 128.0, rn * 24.0);
     float n3 = valueNoisePeriodicX(uv3, 128.0);
 
-    // Continuous fBm combine with smooth weights
     float combined = n1 * 0.55 + n2 * 0.30 + n3 * 0.15;
 
-    // Soft secondary filament enhancement without harsh pow
     float filament = valueNoisePeriodicX(vec2(az * 96.0 + shiftNorm * 96.0, rn * 18.0), 96.0);
-    // Use smooth curve instead of harsh pow to avoid zebra
     filament = smoothstep(0.25, 0.85, filament);
-
     combined = mix(combined, filament, 0.16);
 
     return clamp(combined, 0.0, 1.0);
@@ -86,8 +78,6 @@ void main() {
     vec4 semantic = texelFetch(u_SemanticTexture, recordCoord, 0);
     int state = int(floor(semantic.a + 0.5));
 
-    // For non-disk (including escaped sky state 2) keep modulation at 1.0
-    // Sky dynamics are handled in the apply pass using the deflected vector packed in semantic
     if (state != 3) {
         fragColor = 1.0;
         return;
@@ -113,17 +103,15 @@ void main() {
     float noiseCombined = wA * noiseA + wB * noiseB;
     noiseCombined = clamp(noiseCombined, 0.0, 1.0);
 
-    // Softer extinction to fix ±80% tearing / zebra bands / moiré
-    // Multi-scale soft dust density
-    float dust = smoothstep(0.15, 0.85, noiseCombined);
+    // Stable modulation formula - no tearing at ±80%
+    float n = noiseCombined;
+    float dust = smoothstep(0.20, 0.80, n);
 
-    float effectiveAmp = u_Amplitude; // 0.15, 0.40, 0.80
-    float bright = 1.0 + effectiveAmp * 0.75 * (1.0 - dust);
-    float absorb = exp(-effectiveAmp * 1.6 * dust);
-    float modulation = bright * absorb;
+    float amp = u_Amplitude; // 0.15, 0.40, 0.80
+    float brightFactor = 1.0 + amp * 0.60 * (1.0 - dust);
+    float absorbFactor = exp(-amp * 1.10 * dust);
 
-    // Clamp to prevent extreme black holes in disk but allow rich contrast
-    modulation = clamp(modulation, 0.12, 2.5);
+    float finalMod = clamp(brightFactor * absorbFactor, 0.35, 1.85);
 
-    fragColor = modulation;
+    fragColor = finalMod;
 }

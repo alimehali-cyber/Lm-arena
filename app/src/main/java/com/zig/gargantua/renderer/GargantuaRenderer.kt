@@ -1476,11 +1476,16 @@ class GargantuaRenderer(
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, modulationTextureId)
         apply.setUniform1i("u_ModulationTexture", 1)
         // Dynamic lensed sky: semantic cache carries exact deflected vector for state==2
+        // Fix frozen sky: use integer rounding on half-float, inclined axis, 0.045 rad/s ~2.6 deg/sec
         GLES30.glActiveTexture(GLES30.GL_TEXTURE2)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, animationSemanticTextureId)
         apply.setUniform1i("u_SemanticTexture", 2)
+        val skySpeedRadPerSec = 0.045f
+        val skyAngle = (animationElapsedSeconds * skySpeedRadPerSec).toFloat() % (2.0f * PI.toFloat())
+        apply.setUniform3f("u_SkyAxis", 0.28f, 0.86f, 0.42f)
+        apply.setUniform1f("u_SkyAngle", skyAngle)
         apply.setUniform1f("u_Time", animationElapsedSeconds.toFloat())
-        apply.setUniform1f("u_SkyRotationSpeed", 0.015f)
+        apply.setUniform1f("u_SkyRotationSpeed", skySpeedRadPerSec)
         quad.draw()
         GLES30.glActiveTexture(GLES30.GL_TEXTURE2)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
