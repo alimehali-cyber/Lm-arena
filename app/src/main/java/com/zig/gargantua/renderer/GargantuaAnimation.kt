@@ -8,21 +8,22 @@ import kotlin.math.roundToInt
  * these values are intentionally deterministic and not persisted.
  */
 object GargantuaAnimation {
-    const val NOISE_WIDTH = 256
-    const val NOISE_HEIGHT = 128
+    const val NOISE_WIDTH = 512
+    const val NOISE_HEIGHT = 256
     const val NOISE_BYTES = NOISE_WIDTH * NOISE_HEIGHT
     const val TICK_INTERVAL_MS = 34L
     const val CAMERA_SETTLE_MS = 300L
     const val FLOW_MAP_PERIOD_SECONDS = 24.0
     const val TIME_DIGIT_BASE = 16.0
     const val TIME_DIGIT_COUNT = 8
-    const val NOISE_OCTAVES = 2
+    const val NOISE_OCTAVES = 3
 
     data class NoiseOctave(val latticeWidth: Int, val latticeHeight: Int, val weight: Float)
 
     val NOISE_OCTAVE_SPECS: List<NoiseOctave> = listOf(
-        NoiseOctave(2, 16, 0.65f),
-        NoiseOctave(4, 24, 0.35f)
+        NoiseOctave(32, 8, 0.50f),
+        NoiseOctave(64, 16, 0.35f),
+        NoiseOctave(128, 32, 0.15f)
     )
 
     enum class AnimationSpeed(
@@ -30,9 +31,9 @@ object GargantuaAnimation {
         val englishLabel: String,
         val persianLabel: String
     ) {
-        SLOW(90.0, "Slow", "آهسته"),
-        NORMAL(45.0, "Normal", "عادی"),
-        FAST(20.0, "Fast", "سریع")
+        SLOW(24.0, "Slow", "آهسته"),
+        NORMAL(12.0, "Normal", "عادی"),
+        FAST(6.0, "Fast", "سریع")
     }
 
     data class FlowMapTimes(

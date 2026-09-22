@@ -997,6 +997,7 @@ class GargantuaRenderer(
                 runAnimationPass(
                     state,
                     flowMapTimes,
+                    animationElapsedSecondsDouble,
                     renderW,
                     renderH,
                     rayGrid.rayWidth,
@@ -1422,6 +1423,7 @@ class GargantuaRenderer(
     private fun runAnimationPass(
         state: GargantuaRenderState,
         flowMapTimes: GargantuaAnimation.FlowMapTimes,
+        animationElapsedSeconds: Double,
         renderWidth: Int,
         renderHeight: Int,
         rayWidth: Int,
@@ -1473,7 +1475,15 @@ class GargantuaRenderer(
         GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, modulationTextureId)
         apply.setUniform1i("u_ModulationTexture", 1)
+        // Dynamic lensed sky: semantic cache carries exact deflected vector for state==2
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE2)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, animationSemanticTextureId)
+        apply.setUniform1i("u_SemanticTexture", 2)
+        apply.setUniform1f("u_Time", animationElapsedSeconds.toFloat())
+        apply.setUniform1f("u_SkyRotationSpeed", 0.015f)
         quad.draw()
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE2)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)

@@ -41,16 +41,17 @@ class GargantuaRenderStateTest {
         assertFalse("Animated disk must default to OFF", state.enableAnimation)
         assertEquals(0, state.animationAmplitudePercent)
         assertEquals(GargantuaAnimation.AnimationSpeed.NORMAL, state.animationSpeed)
-        assertEquals(2, GargantuaAnimation.NOISE_OCTAVES)
+        assertEquals(3, GargantuaAnimation.NOISE_OCTAVES)
         assertEquals(
             listOf(
-                GargantuaAnimation.NoiseOctave(2, 16, 0.65f),
-                GargantuaAnimation.NoiseOctave(4, 24, 0.35f)
+                GargantuaAnimation.NoiseOctave(32, 8, 0.50f),
+                GargantuaAnimation.NoiseOctave(64, 16, 0.35f),
+                GargantuaAnimation.NoiseOctave(128, 32, 0.15f)
             ),
             GargantuaAnimation.NOISE_OCTAVE_SPECS
         )
         assertTrue(
-            GargantuaAnimation.NOISE_OCTAVE_SPECS.all { it.latticeHeight >= 4 * it.latticeWidth }
+            GargantuaAnimation.NOISE_OCTAVE_SPECS.all { it.latticeWidth >= it.latticeHeight }
         )
         assertTrue(state.useGeodesicShader)
         assertFalse(state.isPaused)

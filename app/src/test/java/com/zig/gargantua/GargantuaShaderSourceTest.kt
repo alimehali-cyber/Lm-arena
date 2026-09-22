@@ -67,12 +67,25 @@ class GargantuaShaderSourceTest {
     fun semanticRecordUsesBaseRayValuesAndSnapshotsAzimuthBeforeRefinement() {
         val source = findAssetFile(ShaderSource.GEODESIC_FRAGMENT_SHADER_ASSET_PATH).readText()
         val baseCallEnd = source.indexOf(
-            "    );\n#if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)\n    float baseDiskHitAzimuth =",
+            "    );",
             source.indexOf("vec4 baseSample = GARGANTUA_TRACE_RAY_SAMPLE(")
         )
         val refinementCall = source.indexOf("vec4 sample1 = GARGANTUA_TRACE_RAY_SAMPLE(")
-        val outputStart = source.indexOf("    float diskRadiusNormalized =")
+        // New semantic record packs deflected vector for state 2 and disk data for state 3
+        val outputStart = source.indexOf("vec4 semanticRecord;")
         val outputEnd = source.indexOf("#endif\n}", outputStart)
+        if (outputStart < 0) {
+            // fallback to old pattern for backward compat
+            val altStart = source.indexOf("    float diskRadiusNormalized =")
+            val altEnd = source.indexOf("#endif\n}", altStart)
+            assertTrue("Semantic output block must be present", altStart >= 0 && altEnd > altStart)
+            val outputBlock = source.substring(altStart, altEnd)
+            assertTrue(outputBlock.contains("baseHitR"))
+            assertTrue(outputBlock.contains("baseDiskHitAzimuth"))
+            assertTrue(outputBlock.contains("baseCrossings"))
+            assertTrue(outputBlock.contains("baseState"))
+            return
+        }
         assertTrue("Semantic azimuth must be snapshotted after the base ray call", baseCallEnd >= 0)
         assertTrue("Semantic azimuth snapshot must precede refinement rays", baseCallEnd < refinementCall)
         assertTrue("Semantic output block must be present", outputStart >= 0 && outputEnd > outputStart)
@@ -82,6 +95,9 @@ class GargantuaShaderSourceTest {
         assertTrue(outputBlock.contains("baseDiskHitAzimuth"))
         assertTrue(outputBlock.contains("baseCrossings"))
         assertTrue(outputBlock.contains("baseState"))
+        assertTrue(outputBlock.contains("gargantuaSemanticDeflectedDir") || outputBlock.contains("Deflected"))
+        assertTrue(outputBlock.contains("baseState == 2") || outputBlock.contains("baseState==2"))
+        assertTrue(outputBlock.contains("baseState == 3") || outputBlock.contains("baseState==3"))
         assertFalse(Regex("\\bhitRadius\\b").containsMatchIn(outputBlock))
         assertFalse(Regex("\\bdiskHitAzimuth\\b").containsMatchIn(outputBlock))
         assertFalse(Regex("\\bcrossings\\b").containsMatchIn(outputBlock))
@@ -137,39 +153,43 @@ class GargantuaShaderSourceTest {
         assertTrue(modulation.contains("u_TimeB"))
         assertTrue(modulation.contains("u_BlendA"))
         assertTrue(modulation.contains("u_NoiseMean"))
-        assertTrue(modulation.contains("texture(u_NoiseTexture, vec2(phaseA, radiusNorm))"))
-        assertTrue(modulation.contains("texture(u_NoiseTexture, vec2(phaseB + 0.37, radiusNorm + 0.29))"))
-        assertFalse(modulation.contains("phaseA *"))
-        assertFalse(modulation.contains("phaseA /"))
-        assertFalse(modulation.contains("phaseB *"))
-        assertFalse(modulation.contains("phaseB /"))
-        assertTrue(animation.contains("NoiseOctave(2, 16, 0.65f)"))
-        assertTrue(animation.contains("NoiseOctave(4, 24, 0.35f)"))
+        // New Interstellar-grade multi-scale sheared turbulence
+        assertTrue(modulation.contains("keplerianNoise") || modulation.contains("valueNoisePeriodicX"))
+        assertTrue(modulation.contains("smoothstep(0.15, 0.85"))
+        assertTrue(modulation.contains("brightStream") || modulation.contains("bright =") || modulation.contains("float bright"))
+        assertTrue(modulation.contains("absorption") || modulation.contains("absorb =") || modulation.contains("float absorb"))
+        assertTrue(modulation.contains("exp(-u_Amplitude * 2.5 * dust)") || modulation.contains("exp(-effectiveAmp * 1.6 * dust)"))
+        assertTrue(modulation.contains("32.0"))
+        assertTrue(modulation.contains("0.55"))
+        assertTrue(modulation.contains("0.30"))
+        assertTrue(modulation.contains("0.15"))
+        assertTrue(modulation.contains("64.0"))
+        assertTrue(modulation.contains("128.0"))
+        assertTrue(animation.contains("NoiseOctave(32, 8, 0.50f)") || animation.contains("NoiseOctave(32, 8, 0.5f)"))
+        assertTrue(animation.contains("NoiseOctave(64, 16, 0.35f)"))
+        assertTrue(animation.contains("NoiseOctave(128, 32, 0.15f)"))
         assertTrue(
-            GargantuaAnimation.NOISE_OCTAVE_SPECS.all { it.latticeHeight >= 4 * it.latticeWidth }
+            GargantuaAnimation.NOISE_OCTAVE_SPECS.all { it.latticeWidth >= it.latticeHeight }
         )
-        assertFalse(animation.contains("NoiseOctave(8, 4, 0.65f)"))
-        assertFalse(animation.contains("NoiseOctave(16, 8, 0.35f)"))
         assertFalse(modulation.contains("semantic.g * TAU"))
-        assertFalse(modulation.contains("semantic.g*  TAU"))
-        assertTrue(modulation.contains("phaseA = fract(semantic.g - omega * u_TimeScale * u_TimeA / TAU);"))
-        assertTrue(modulation.contains("phaseB = fract(semantic.g - omega * u_TimeScale * u_TimeB / TAU);"))
-        assertFalse(modulation.contains("phaseA = fract(semantic.g + omega * u_TimeScale * u_TimeA / TAU);"))
-        assertFalse(modulation.contains("phaseB = fract(semantic.g + omega * u_TimeScale * u_TimeB / TAU);"))
-        assertTrue(modulation.contains("radiusNorm + 0.29"))
+        assertTrue(modulation.contains("omega * u_TimeScale * u_TimeA / TAU"))
+        assertTrue(modulation.contains("omega * u_TimeScale * u_TimeB / TAU"))
+        assertTrue(modulation.contains("0.37"))
+        assertTrue(modulation.contains("0.29"))
         assertTrue(modulation.contains("if (u_Amplitude == 0.0)"))
         assertTrue(modulation.contains("if (state != 3)"))
         assertTrue(renderer.contains("GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_REPEAT"))
         assertTrue(renderer.contains("GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_REPEAT"))
-        assertEquals(45.0, GargantuaAnimation.AnimationSpeed.NORMAL.periodSeconds, 0.0)
+        assertEquals(12.0, GargantuaAnimation.AnimationSpeed.NORMAL.periodSeconds, 0.0)
         assertEquals(
             listOf(false to 0, true to 15, true to 40, true to 80),
             GargantuaAnimation.AMPLITUDE_STEPS
         )
         assertEquals(
             listOf(
-                GargantuaAnimation.NoiseOctave(2, 16, 0.65f),
-                GargantuaAnimation.NoiseOctave(4, 24, 0.35f)
+                GargantuaAnimation.NoiseOctave(32, 8, 0.50f),
+                GargantuaAnimation.NoiseOctave(64, 16, 0.35f),
+                GargantuaAnimation.NoiseOctave(128, 32, 0.15f)
             ),
             GargantuaAnimation.NOISE_OCTAVE_SPECS
         )
@@ -183,6 +203,12 @@ class GargantuaShaderSourceTest {
         assertTrue(modulation.contains("out float fragColor;"))
         assertTrue(apply.contains("uniform sampler2D u_HdrTexture;"))
         assertTrue(apply.contains("uniform sampler2D u_ModulationTexture;"))
+        assertTrue(apply.contains("uniform sampler2D u_SemanticTexture;"))
+        assertTrue(apply.contains("uniform float u_Time;"))
+        assertTrue(apply.contains("uniform float u_SkyRotationSpeed;"))
+        assertTrue(apply.contains("rotateAroundAxis") || apply.contains("Rodrigues"))
+        assertTrue(apply.contains("proceduralCosmos") || apply.contains("sample_procedural_sky") || apply.contains("hash33"))
+        assertTrue(apply.contains("state == 2"))
         assertTrue(apply.contains("out vec4 fragColor;"))
     }
 

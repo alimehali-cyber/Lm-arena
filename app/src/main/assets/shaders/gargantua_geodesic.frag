@@ -19,6 +19,7 @@ layout(location = 3) out vec4 workloadSemanticCache;
 layout(location = 1) out vec4 animationSemanticCache;
 #endif
 float gargantuaSemanticDiskHitAzimuth = 0.0;
+vec3 gargantuaSemanticDeflectedDir = vec3(0.0, 0.0, 1.0);
 #endif
 
 // Uniforms
@@ -253,37 +254,120 @@ void rk4_step(
     p_spatial += (dlambda / 6.0) * (k1_p + 2.0 * k2_p + 2.0 * k3_p + k4_p);
 }
 
-// Procedural starfield on celestial sphere
+// High-fidelity procedural cosmos - pinpoint stars with realistic magnitude distribution
 float hash21(vec2 p) {
     p = fract(p * vec2(127.1, 311.7));
     p += dot(p, p + 45.32);
     return fract(p.x * p.y);
 }
 
+float hash13(vec3 p) {
+    p = fract(p * 0.1031);
+    p += dot(p, p.yzx + 33.33);
+    return fract((p.x + p.y) * p.z);
+}
+
+vec3 hash33(vec3 p) {
+    p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+    p += dot(p, p.yxz + 33.33);
+    return fract((p.xxy + p.yzz) * p.zyx);
+}
+
+float valueNoise3(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float n000 = hash13(i + vec3(0.0, 0.0, 0.0));
+    float n100 = hash13(i + vec3(1.0, 0.0, 0.0));
+    float n010 = hash13(i + vec3(0.0, 1.0, 0.0));
+    float n110 = hash13(i + vec3(1.0, 1.0, 0.0));
+    float n001 = hash13(i + vec3(0.0, 0.0, 1.0));
+    float n101 = hash13(i + vec3(1.0, 0.0, 1.0));
+    float n011 = hash13(i + vec3(0.0, 1.0, 1.0));
+    float n111 = hash13(i + vec3(1.0, 1.0, 1.0));
+    float nx00 = mix(n000, n100, f.x);
+    float nx10 = mix(n010, n110, f.x);
+    float nx01 = mix(n001, n101, f.x);
+    float nx11 = mix(n011, n111, f.x);
+    float nxy0 = mix(nx00, nx10, f.y);
+    float nxy1 = mix(nx01, nx11, f.y);
+    return mix(nxy0, nxy1, f.z);
+}
+
 vec3 sample_procedural_sky(vec3 dir) {
     vec3 d = normalize(dir);
-    float theta = acos(clamp(d.z, -1.0, 1.0));
-    float phi = atan(d.y, d.x);
 
-    // Deep cosmic space void (pitch black baseline)
-    vec3 col = vec3(0.0004, 0.0006, 0.0010);
+    // Deep cosmic void baseline (pitch black with subtle blue tint)
+    vec3 col = vec3(0.0005, 0.0007, 0.0012);
 
-    // Subtle galactic plane band (very faint deep space nebula)
+    // Ethereal nebula: 2 octaves low amplitude deep space-blue/purple (0.04,0.03,0.08)
+    // Gives depth between stars without overpowering
+    float nebula1 = valueNoise3(d * 2.5);
+    float nebula2 = valueNoise3(d * 5.0 + vec3(12.3, 7.1, 3.7));
+    float nebula = nebula1 * 0.6 + nebula2 * 0.4;
+    nebula = pow(nebula, 1.6) * 0.85;
+    vec3 nebulaColor = vec3(0.04, 0.03, 0.08) * nebula * 0.06;
+    // Add faint purple-blue variation
+    nebulaColor += vec3(0.02, 0.015, 0.05) * pow(nebula2, 2.2) * 0.03;
+    col += nebulaColor;
+
+    // Subtle galactic plane (very faint)
     float galacticDist = abs(d.z * 0.8 + d.y * 0.6);
-    float milkyWay = exp(-galacticDist * galacticDist * 16.0) * 0.005;
-    col += vec3(0.005, 0.006, 0.010) * milkyWay;
+    float milkyWay = exp(-galacticDist * galacticDist * 18.0) * 0.004;
+    col += vec3(0.005, 0.006, 0.012) * milkyWay;
 
-    // Procedural point stars using angular grid cells
-    float starScale = 45.0;
-    vec2 cell = floor(vec2(phi, theta) * starScale);
-    float starRand = hash21(cell);
-    if (starRand > 0.75) {
-        vec2 starCenter = (cell + vec2(hash21(cell + vec2(0.0, 1.0)), hash21(cell + vec2(1.0, 0.0)))) / starScale;
-        float dist = length(vec2(phi, theta) - starCenter) * starScale;
-        float starBrightness = max(0.0, 1.0 - dist * 3.5);
-        float starMag = (starRand - 0.75) * 4.0 * starBrightness;
-        vec3 starCol = (hash21(cell * 2.0) > 0.5) ? vec3(0.85, 0.92, 1.0) : vec3(1.0, 0.85, 0.65);
-        col += starCol * (starMag * 0.5);
+    // Pinpoint stars: 3D hash lattice over direction * 280.0
+    vec3 p = d * 280.0;
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+
+    // Single cell star placement (cheap but effective for static pass)
+    // For dynamic lensing pass we will use more accurate neighbor search in apply shader
+    vec3 starOffset = hash33(i);
+    vec3 starPos = starOffset; // random position within cell [0,1]
+    float dist = length(f - starPos);
+
+    // High-exponent sharpness for pinpoint look
+    float starIntensity = pow(max(0.0, 1.0 - dist * 2.5), 32.0);
+
+    if (starIntensity > 0.0001) {
+        float rand = hash13(i);
+        float mag;
+        vec3 starCol;
+        // Stellar color temperature based on hash
+        float colorRand = hash13(i + vec3(19.7, 27.3, 11.5));
+        if (colorRand < 0.33) {
+            starCol = vec3(1.0, 0.75, 0.5); // warm amber
+        } else if (colorRand < 0.66) {
+            starCol = vec3(0.95, 0.95, 1.0); // pure white
+        } else {
+            starCol = vec3(0.7, 0.85, 1.0); // faint blue-white
+        }
+
+        // Power-law magnitude distribution
+        if (rand < 0.90) {
+            // 90% faint background specks 0.05-0.15
+            mag = 0.05 + rand * 0.11; // 0.05-0.149
+            starIntensity *= mag;
+        } else if (rand < 0.99) {
+            // 9% medium stars 0.2-0.5
+            mag = 0.2 + (rand - 0.90) * 3.33; // 0.2-0.5
+            starIntensity *= mag;
+            // Slightly larger apparent size for medium stars
+            starIntensity *= 1.5;
+        } else {
+            // 1% prominent stars 0.8-1.5 with tiny cross-diffraction spikes
+            mag = 0.8 + (rand - 0.99) * 70.0; // 0.8-1.5
+            starIntensity *= mag * 2.0;
+
+            // Tiny cross-diffraction spikes for bright stars
+            float spikeX = pow(max(0.0, 1.0 - abs(f.y - starPos.y) * 32.0), 24.0) * pow(max(0.0, 1.0 - abs(f.x - starPos.x) * 3.0), 4.0);
+            float spikeY = pow(max(0.0, 1.0 - abs(f.x - starPos.x) * 32.0), 24.0) * pow(max(0.0, 1.0 - abs(f.y - starPos.y) * 3.0), 4.0);
+            float spikes = (spikeX + spikeY) * 0.12 * mag;
+            col += starCol * spikes;
+        }
+
+        col += starCol * starIntensity;
     }
 
     return col;
@@ -340,6 +424,9 @@ vec4 traceRaySample(
     int rayState = 0;
     vec3 diskColor = vec3(0.0);
     vec3 objectColor = vec3(0.0);
+#if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+    gargantuaSemanticDiskHitAzimuth = 0.0;
+#endif
 #if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
     float rayT = 0.0;
 #else
@@ -413,6 +500,8 @@ vec4 traceRaySample(
         float dt_dlambda = 1.0 + 2.0 * H_m * Lp_m;
         rayT -= dt_dlambda * dlambda;
 
+        // M9 experimental marker disabled for production to eliminate cyan horizon fringe
+#if 0
         // Check for intersection with relativistic test marker (bounded linear-interpolation closest-approach approximation)
         float minStepR = min(prevR, r);
         float maxStepR = max(prevR, r);
@@ -489,6 +578,7 @@ vec4 traceRaySample(
                 break;
             }
         }
+#endif
 
         // Check for intersection with thin equatorial accretion disk at Z = 0
         if (u_EnableDisk == 1 && prevPos.z * pos.z <= 0.0 && prevPos.z != pos.z) {
@@ -549,12 +639,21 @@ vec4 traceRaySample(
                 float iPhys = g4 * fNorm;
                 float radiance = iPhys;
 
-                // Thermal blackbody spectral color approximation
+                // Interstellar-grade thermal ramp: blueshifted side = incandescent white-hot
+                // with pale gold edges, redshifted side = deep amber-brown.
+                // Calibrated to survive ACES shoulder while preserving filament contrast.
                 float tNorm = clamp(tObs * 4.0, 0.0, 2.5);
+                // Explicit ISCO rejection for inner silhouette cleanup (razor-sharp torque-free boundary)
+                // Disk hit already gated by rHit >= r_in, but enforce strict zero below to avoid fringe.
+                if (rHit < u_DiskInnerRadius) {
+                    // Should never reach here due to outer gate, but guard against numerical fringe
+                    continue;
+                }
+                // Amber-brown to white-hot grading
                 vec3 thermalRamp = vec3(
-                    clamp(1.0 + 0.3 * tNorm, 0.0, 1.5),
-                    clamp(tNorm * tNorm * 0.45 + tNorm * 0.25, 0.0, 1.2),
-                    clamp(tNorm * tNorm * tNorm * 0.35, 0.0, 1.2)
+                    clamp(1.0 + 0.25 * tNorm + 0.05 * tNorm * tNorm, 0.0, 1.95),
+                    clamp(0.35 + 0.25 * tNorm + 0.10 * tNorm * tNorm, 0.0, 1.65),
+                    clamp(0.15 + 0.15 * tNorm + 0.08 * tNorm * tNorm, 0.0, 1.25)
                 );
 
                 diskColor = radiance * thermalRamp;
@@ -591,8 +690,19 @@ vec4 traceRaySample(
         // True black hole shadow (strictly 0.0 radiance, alpha 0.0 for shadow protection)
         return vec4(0.0, 0.0, 0.0, 0.0);
     } else if (rayState == 2) {
-        // Physically escaped ray: clean, deep black background for M6 (no procedural stars)
-        return vec4(0.0, 0.0, 0.0, 1.0);
+        // Re-enabled lensed background starfield with deflected vector packing for dynamic lensing
+        vec3 skyDir = normalize(p_spatial);
+        if (dot(skyDir, skyDir) < 0.5) {
+            skyDir = normalize(vec3(0.0, 0.0, 1.0));
+        }
+#if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+        gargantuaSemanticDeflectedDir = skyDir;
+#endif
+        vec3 sky = sample_procedural_sky(skyDir);
+        float skyScale = 0.85;
+        vec3 scaledSky = sky * skyScale;
+        scaledSky = clamp(scaledSky, vec3(0.0), vec3(0.45));
+        return vec4(scaledSky, 1.0);
     } else {
         // UNRESOLVED: budget exhausted without proving capture, escape, or disk intersection.
         // Strictly pure black visually, alpha 0.5 distinguishes unresolved in telemetry.
@@ -645,9 +755,11 @@ void main() {
 
     int rayState = baseState;
     if (rayState == 1) {
+        // Strict shadow: pure black, alpha 0.0 for shadow protection (never bloomed)
         fragColor = vec4(0.0, 0.0, 0.0, 0.0);
     } else if (rayState == 2) {
-        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        // Escaped: lensed starfield background, alpha 1.0 preserved
+        fragColor = baseSample;
     } else if (rayState == 3) {
         fragColor = baseSample;
     } else if (rayState == 4) {
@@ -764,23 +876,35 @@ void main() {
 #endif
 
 #if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
-    float diskRadiusNormalized = (baseState == 3)
-        ? clamp(
+    vec4 semanticRecord;
+    if (baseState == 3) {
+        float diskRadiusNormalized = clamp(
             (baseHitR - u_DiskInnerRadius) /
                 max(1.0e-6, u_DiskOuterRadius - u_DiskInnerRadius),
             0.0,
             1.0
-        )
-        : 0.0;
-    float diskAzimuthNormalized = (baseState == 3)
-        ? fract(baseDiskHitAzimuth / 6.28318530718 + 0.5)
-        : 0.0;
-    vec4 semanticRecord = vec4(
-        diskRadiusNormalized,
-        diskAzimuthNormalized,
-        float(baseCrossings),
-        float(baseState)
-    );
+        );
+        float diskAzimuthNormalized = fract(baseDiskHitAzimuth / 6.28318530718 + 0.5);
+        semanticRecord = vec4(
+            diskRadiusNormalized,
+            diskAzimuthNormalized,
+            float(baseCrossings),
+            float(baseState)
+        );
+    } else if (baseState == 2) {
+        // Pack exact curved-spacetime deflected unit vector for zero-cost dynamic lensing
+        // Format: vec4(d.x, d.y, d.z, 2.0) as per flagship spec
+        vec3 d = normalize(gargantuaSemanticDeflectedDir);
+        if (dot(d, d) < 0.5) d = vec3(0.0, 0.0, 1.0);
+        semanticRecord = vec4(d, 2.0);
+    } else {
+        semanticRecord = vec4(
+            0.0,
+            0.0,
+            float(baseCrossings),
+            float(baseState)
+        );
+    }
 #if defined(GARGANTUA_WORKLOAD_TELEMETRY) && defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE)
     workloadSemanticCache = semanticRecord;
 #elif defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)

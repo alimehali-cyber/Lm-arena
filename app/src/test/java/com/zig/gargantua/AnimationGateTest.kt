@@ -39,9 +39,9 @@ class AnimationGateTest {
 
     @Test
     fun animationSpeedPeriodsAreNonPersistedSlowNormalFastValues() {
-        assertEquals(90.0, GargantuaAnimation.AnimationSpeed.SLOW.periodSeconds, 0.0)
-        assertEquals(45.0, GargantuaAnimation.AnimationSpeed.NORMAL.periodSeconds, 0.0)
-        assertEquals(20.0, GargantuaAnimation.AnimationSpeed.FAST.periodSeconds, 0.0)
+        assertEquals(24.0, GargantuaAnimation.AnimationSpeed.SLOW.periodSeconds, 0.0)
+        assertEquals(12.0, GargantuaAnimation.AnimationSpeed.NORMAL.periodSeconds, 0.0)
+        assertEquals(6.0, GargantuaAnimation.AnimationSpeed.FAST.periodSeconds, 0.0)
     }
 
     @Test

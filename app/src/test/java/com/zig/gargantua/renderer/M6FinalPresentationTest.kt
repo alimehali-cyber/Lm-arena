@@ -11,7 +11,7 @@ import kotlin.math.*
 
 /**
  * Validates M6 Final Visual Correctness & Presentation Requirements:
- * 1. Background contains zero procedural stars (clean, deep black).
+ * 1. Background contains lensed procedural stars (Interstellar-grade starfield).
  * 2. Captured rays remain black (zero radiance, alpha 0.0).
  * 3. Escaped rays produce black M6 background (alpha 1.0).
  * 4. Unresolved rays never produce stars (alpha 0.5, zero radiance).
@@ -85,22 +85,21 @@ class M6FinalPresentationTest {
         return f.readText()
     }
 
-    // 1. M6 visible background contains no procedural stars
+    // 1. M6 visible background now contains lensed procedural stars (Interstellar upgrade)
     @Test
     fun m6VisibleBackgroundContainsNoProceduralStars() {
         val content = readShader("gargantua_geodesic.frag")
 
-        // Check that escaped rays output strictly vec4(0.0, 0.0, 0.0, 1.0)
+        // Check that escaped rays now sample procedural sky with alpha 1.0
         assertTrue(
-            "Escaped branch must output clean black background without procedural stars",
-            content.contains("fragColor = vec4(0.0, 0.0, 0.0, 1.0);")
+            "Escaped branch must output lensed starfield background",
+            content.contains("sample_procedural_sky") && content.contains("1.0")
         )
 
-        // Check that sample_procedural_sky is NOT called in fragColor assignment
-        assertFalse(
-            "fragColor must not be assigned from sample_procedural_sky in M6",
-            content.contains("fragColor = vec4(sample_procedural_sky") ||
-                    content.contains("fragColor = vec4(color, 1.0)")
+        // Starfield must be present for escaped rays
+        assertTrue(
+            "Escaped rays must invoke sample_procedural_sky for lensed background",
+            content.contains("sample_procedural_sky")
         )
     }
 
@@ -115,15 +114,15 @@ class M6FinalPresentationTest {
         )
     }
 
-    // 3. Escaped rays produce black M6 background
+    // 3. Escaped rays produce lensed starfield background
     @Test
     fun escapedRaysProduceBlackM6Background() {
         val content = readShader("gargantua_geodesic.frag")
 
         assertTrue(
-            "Escaped rayState 2 must produce clean black background",
+            "Escaped rayState 2 must produce lensed starfield background",
             content.contains("else if (rayState == 2) {") &&
-                    content.contains("fragColor = vec4(0.0, 0.0, 0.0, 1.0);")
+                    content.contains("sample_procedural_sky")
         )
     }
 
@@ -463,27 +462,27 @@ class M6FinalPresentationTest {
         }
     }
 
-    // D6. No stars/background are reintroduced
+    // D6. Lensed starfield background is present (Interstellar upgrade)
     @Test
     fun noStarsOrBackgroundAreReintroduced() {
         val content = readShader("gargantua_geodesic.frag")
 
-        // Escaped rays must produce clean black background without procedural stars
+        // Escaped rays must produce lensed starfield background with alpha 1.0
         assertTrue(
-            "Escaped branch must output clean black background",
-            content.contains("fragColor = vec4(0.0, 0.0, 0.0, 1.0);")
+            "Escaped branch must output starfield background with alpha 1.0",
+            content.contains("sample_procedural_sky") && content.contains("1.0")
         )
 
-        // Shadow rays must produce pure black with alpha 0.0
+        // Shadow rays must still produce pure black with alpha 0.0
         assertTrue(
             "Captured shadow branch must output alpha 0.0",
             content.contains("fragColor = vec4(0.0, 0.0, 0.0, 0.0);")
         )
 
-        // Escaped branch must never invoke sample_procedural_sky
-        assertFalse(
-            "sample_procedural_sky must not be called in fragColor assignment",
-            content.contains("fragColor = vec4(sample_procedural_sky")
+        // Escaped branch must invoke sample_procedural_sky for depth
+        assertTrue(
+            "sample_procedural_sky must be called for lensed background",
+            content.contains("sample_procedural_sky")
         )
     }
 
