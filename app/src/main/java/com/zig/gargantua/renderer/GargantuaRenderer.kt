@@ -331,7 +331,8 @@ class GargantuaRenderer(
         animationLastNotReadyReason = "none"
         animationRebuildCount = 0
         lastPresentedModulated = false
-        lastAnimationControlKey = null
+        lastAnimationRequested = false
+        lastAnimationAmplitudePercent = -1
 
         // 2. Compile M1 baseline test shader as guaranteed fallback
         val testFragSource = ShaderSource.loadFragmentShader(context)
@@ -2383,7 +2384,8 @@ class GargantuaRenderer(
         animationCacheValid = false
         animationCacheSignature = null
         lastPresentedModulated = false
-        lastAnimationControlKey = null
+        lastAnimationRequested = false
+        lastAnimationAmplitudePercent = -1
         testProgram?.release()
         testProgram = null
         blitProgram?.release()
