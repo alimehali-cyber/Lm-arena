@@ -625,11 +625,14 @@ vec4 traceRaySample(
         }
 #endif
 
-        // Check for intersection with thin equatorial accretion disk at Z = 0
+        // Check for intersection with thin equatorial accretion disk at Z=0
         if (u_EnableDisk == 1 && prevPos.z * pos.z <= 0.0 && prevPos.z != pos.z) {
             float tau = clamp(-prevPos.z / (pos.z - prevPos.z), 0.0, 1.0);
             vec3 hitPos = mix(prevPos, pos, tau);
-            float rHit = length(hitPos.xy);
+            // True Kerr-Schild equatorial radius: r = sqrt(rho^2 - a^2) where rho^2 = x^2 + y^2
+            float rho2 = hitPos.x * hitPos.x + hitPos.y * hitPos.y;
+            float a2_kerr = u_Spin * u_Spin;
+            float rHit = sqrt(max(0.0, rho2 - a2_kerr));
             crossings++;
             if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
                 hitRadius = rHit;
@@ -647,7 +650,7 @@ vec4 traceRaySample(
                 float denom_v = rHit * rHit + a2;
                 float lx = (rHit * hitPos.x + u_Spin * hitPos.y) / denom_v;
                 float ly = (rHit * hitPos.y - u_Spin * hitPos.x) / denom_v;
-                float H = u_Mass / rHit;
+                float H = u_Mass / max(1.0e-6, rHit);
 
                 float l_dot_u = 1.0 + omega * (ly * hitPos.x - lx * hitPos.y);
                 float eta_u_u = -1.0 + (omega * omega) * (hitPos.x * hitPos.x + hitPos.y * hitPos.y);
@@ -668,33 +671,22 @@ vec4 traceRaySample(
                 float tEmit = pow(max(1.0e-12, F), 0.25);
                 float tObs = gShift * tEmit;
 
-                // Relativistic frequency shift beaming g^4
-                float g2 = gShift * gShift;
-                float g4 = g2 * g2;
+                // Clamped Doppler amplification to prevent numerical explosion
+                float gClamped = clamp(gShift, 0.1, 3.2);
+                float g4 = pow(gClamped, 4.0);
+                float fNormPeak = 0.0;
+                {
+                    float rPeak = 1.361111 * u_DiskInnerRadius;
+                    float fPeak = u_Mass / (7.0 * rPeak * rPeak * rPeak);
+                    fNormPeak = (fPeak > 1.0e-7) ? clamp(F / fPeak, 0.0, 1.0) : 0.0;
+                }
+                float radiance = clamp(g4 * fNormPeak, 0.0, 18.0);
 
-                // Principled dimensionless reference normalization:
-                // Peak emissivity of Novikov-Thorne profile analytically occurs at r_peak = (49/36) * r_in:
-                float rPeak = 1.361111 * u_DiskInnerRadius;
-                float fPeak = u_Mass / (7.0 * rPeak * rPeak * rPeak);
-                float fNorm = (fPeak > 1.0e-7) ? clamp(F / fPeak, 0.0, 1.0) : 0.0;
-
-                // Physical transferred emission: I_phys = g^4 * fNorm
-                // Follows relativistic invariant intensity transfer I_obs ∝ g^4 * I_emit
-                // No artificial outer taper or edge gradient; emissivity is governed purely by the physical model
-                float iPhys = g4 * fNorm;
-                float radiance = iPhys;
-
-                // Interstellar-grade thermal ramp: blueshifted side = incandescent white-hot
-                // with pale gold edges, redshifted side = deep amber-brown.
-                // Calibrated to survive ACES shoulder while preserving filament contrast.
                 float tNorm = clamp(tObs * 4.0, 0.0, 2.5);
-                // Explicit ISCO rejection for inner silhouette cleanup (razor-sharp torque-free boundary)
-                // Disk hit already gated by rHit >= r_in, but enforce strict zero below to avoid fringe.
                 if (rHit < u_DiskInnerRadius) {
-                    // Should never reach here due to outer gate, but guard against numerical fringe
                     continue;
                 }
-                // Amber-brown to white-hot grading
+                // Amber-brown to white-hot grading (physical Planckian)
                 vec3 thermalRamp = vec3(
                     clamp(1.0 + 0.25 * tNorm + 0.05 * tNorm * tNorm, 0.0, 1.95),
                     clamp(0.35 + 0.25 * tNorm + 0.10 * tNorm * tNorm, 0.0, 1.65),
@@ -703,31 +695,24 @@ vec4 traceRaySample(
 
                 diskColor = radiance * thermalRamp;
 
-                // --- CYAN CRESCENT ERADICATION: Planckian white-hot clamp for blueshift ---
-                if (gShift > 1.2) {
-                    float t = smoothstep(1.2, 1.65, gShift);
-                    diskColor = mix(diskColor, vec3(1.4, 1.35, 1.25) * radiance, t);
-                    diskColor = mix(diskColor, vec3(1.6, 1.55, 1.45) * radiance, t * 0.5);
-                }
-                if (diskColor.b > diskColor.r && diskColor.g > diskColor.r) {
-                    diskColor.r = max(diskColor.r, min(diskColor.g, diskColor.b) * 0.95);
-                }
-                if (diskColor.r < 0.25 && (diskColor.g > 0.4 || diskColor.b > 0.5)) {
-                    diskColor = vec3(0.0);
+                // Smooth Planckian saturation for extreme blueshift (never cyan, never notched)
+                if (gShift > 1.15) {
+                    float t = smoothstep(1.15, 1.60, gShift);
+                    diskColor = mix(diskColor, vec3(1.35, 1.30, 1.20) * radiance, t);
                 }
 
-                rayState = 3; // DISK
-                break;
+                rayState = 3; // DISK HIT
+                break; // Opaque disk: terminate integration immediately
             }
         }
     }
 
-    // Finalize classification of unresolved rays using physical trajectory state
+    // Finalize classification: any ray that exhausted budget near photon sphere is captured
     if (rayState == 0) {
-        if (movingOutward && prevR > 5.0) {
-            rayState = 2; // Moving outward into asymptotic Minkowski space
-        } else if (prevR <= rCapture + 0.3) {
-            rayState = 1; // Trapped in horizon vicinity
+        if (minR <= (rCapture + 0.4) || prevR <= 3.8) {
+            rayState = 1; // Capture as shadow
+        } else {
+            rayState = 2; // Escaped to sky
         }
     }
 
