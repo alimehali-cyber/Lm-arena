@@ -431,70 +431,69 @@ float gargantuaStriatedNoise1D(float x) {
     return mix(gargantuaHash12(vec2(i, 0.0)), gargantuaHash12(vec2(i + 1.0, 0.0)), u);
 }
 
+// --- High-Frequency Striated Keplerian Filament Generator ---
 float evaluateKeplerianFilamentDensity(float r, float phi, float time, float fNorm, float rIn, float rOut) {
     // Local Keplerian angular velocity
     float omega = sqrt(u_Mass) / (pow(r, 1.5) + u_Spin * sqrt(u_Mass));
-    // Azimuthally sheared coordinate along prograde flow
-    float phiSheared = phi - omega * (time * 0.65);
+    float phiSheared = phi - omega * (time * 0.70);
 
-    // 1. Concentric razor-thin Keplerian harmonic rings
-    float rings = 0.0;
-    rings += sin(r * 48.0) * 0.28;
-    rings += sin(r * 115.0 + rings * 1.5) * 0.22;
-    rings += sin(r * 290.0) * 0.16;
-    rings += (gargantuaStriatedNoise1D(r * 80.0) - 0.5) * 0.45;
+    // 1. Razor-thin concentric rings using power-sine harmonics (interstellar needle filaments)
+    float rRing1 = pow(sin(r * 52.0) * 0.5 + 0.5, 4.0);
+    float rRing2 = pow(sin(r * 128.0 + phiSheared * 2.0) * 0.5 + 0.5, 3.0);
+    float rRing3 = pow(sin(r * 310.0) * 0.5 + 0.5, 2.0);
+    float fineRings = rRing1 * 0.45 + rRing2 * 0.35 + rRing3 * 0.20;
 
-    // 2. High-aspect-ratio sheared filaments (40:1 azimuthal stretching)
-    float filamentCoord = r * 16.0 + sin(phiSheared * 3.0) * 1.2;
-    float filaments = gargantuaStriatedNoise1D(filamentCoord) * 0.55;
-    filaments += gargantuaStriatedNoise1D(filamentCoord * 2.2 + phiSheared * 4.0) * 0.35;
+    // 2. Azimuthally sheared fibrous turbulence (40:1 aspect ratio)
+    float fibCoord = r * 14.0 + sin(phiSheared * 3.5) * 1.5;
+    float fib1 = sin(fibCoord * 2.5 + phiSheared * 6.0) * 0.5 + 0.5;
+    float fib2 = sin(fibCoord * 5.0 - phiSheared * 12.0) * 0.5 + 0.5;
+    float fibers = pow(fib1 * 0.6 + fib2 * 0.4, 2.5);
 
-    // 3. Macro spiral dust clumping
-    float spiral = sin(phiSheared * 2.0 - log(max(1.0, r)) * 5.5) * 0.25 + 0.75;
+    // 3. Dark Interstellar Dust Absorption Lanes (creates rich contrast and depth)
+    float dustLane1 = smoothstep(0.15, 0.75, sin(phiSheared * 2.0 - log(max(1.0, r)) * 6.0) * 0.5 + 0.5);
+    float dustLane2 = smoothstep(0.20, 0.80, sin(r * 18.0 + phiSheared * 4.0) * 0.5 + 0.5);
+    float dustMask = 0.35 + 0.65 * (dustLane1 * 0.7 + dustLane2 * 0.3);
 
-    // 4. Radial boundary window
-    float radialWindow = smoothstep(rIn, rIn + 0.35, r) * smoothstep(rOut, rOut - 3.5, r);
+    // 4. Smooth radial boundaries
+    float radialEnvelope = smoothstep(rIn, rIn + 0.22, r) * smoothstep(rOut, rOut - 3.0, r);
 
-    float rawDensity = (0.40 + 0.35 * rings + 0.45 * filaments) * spiral;
-    return clamp(rawDensity * (0.60 + 0.40 * fNorm) * radialWindow, 0.0, 3.0);
+    // Combined density: high contrast between bright filaments and dark dust rifts
+    float rawDensity = (0.25 + 1.10 * fineRings + 0.65 * fibers) * dustMask;
+    return clamp(rawDensity * (0.50 + 0.50 * fNorm) * radialEnvelope, 0.0, 3.5);
 }
 
-// --- 4-Tier Incandescent Blackbody Spectrum ---
+// --- Calibrated 4-Tier Incandescent Blackbody Spectrum ---
 vec3 evaluate4TierBlackbodySpectrum(float fNorm, float gShift) {
     // Relativistic Doppler Beaming (g^4)
-    float gClamped = clamp(gShift, 0.15, 3.8);
+    float gClamped = clamp(gShift, 0.15, 3.2);
     float g4 = pow(gClamped, 4.0);
     float iPhys = g4 * fNorm;
 
     // Effective Temperature: T_eff ~ g * F^(1/4)
     float tEff = gClamped * pow(fNorm, 0.25);
 
-    // 4-Tier Cinematic Palette
-    // Tier 0: Redshifted Smoke / Outer Accretion Veil
-    vec3 cSmoke    = vec3(0.35, 0.06, 0.01);
-    // Tier 1: Warm Radiative Copper-Bronze
-    vec3 cBronze   = vec3(1.15, 0.42, 0.07);
-    // Tier 2: Brilliant Solar Gold
-    vec3 cGold     = vec3(1.65, 1.05, 0.32);
-    // Tier 3: Extreme Blueshift Incandescent Cream-White Core
-    vec3 cCreamHot = vec3(2.40, 2.15, 1.85);
+    // Interstellar Cinematic Palette (Rich Copper -> Molten Gold -> Incandescent Cream)
+    vec3 cSmoke    = vec3(0.18, 0.04, 0.01); // Deep interstellar charcoal/copper dust
+    vec3 cBronze   = vec3(0.95, 0.32, 0.04); // Fiery burnt bronze / deep orange
+    vec3 cGold     = vec3(1.55, 0.82, 0.22); // Warm luminous solar gold
+    vec3 cCreamHot = vec3(2.60, 2.30, 2.00); // Pearlescent cream-white core
 
     vec3 thermalColor;
-    if (tEff < 0.20) {
-        thermalColor = mix(cSmoke, cBronze, smoothstep(0.0, 0.20, tEff));
-    } else if (tEff < 0.55) {
-        thermalColor = mix(cBronze, cGold, smoothstep(0.20, 0.55, tEff));
+    if (tEff < 0.22) {
+        thermalColor = mix(cSmoke, cBronze, smoothstep(0.0, 0.22, tEff));
+    } else if (tEff < 0.60) {
+        thermalColor = mix(cBronze, cGold, smoothstep(0.22, 0.60, tEff));
     } else {
-        thermalColor = mix(cGold, cCreamHot, smoothstep(0.55, 1.05, tEff));
+        thermalColor = mix(cGold, cCreamHot, smoothstep(0.60, 1.10, tEff));
     }
 
-    // Smooth transition to pure incandescent core on extreme prograde blueshift
-    if (gShift > 1.25) {
-        float whiteBoost = smoothstep(1.25, 2.10, gShift);
-        thermalColor = mix(thermalColor, vec3(2.80, 2.70, 2.60), whiteBoost * 0.85);
+    // Blueshift Core Whitening: smooth incandescent rolloff (avoids harsh flat white)
+    if (gShift > 1.20) {
+        float whiteBoost = smoothstep(1.20, 2.20, gShift);
+        thermalColor = mix(thermalColor, vec3(2.70, 2.55, 2.40), whiteBoost * 0.70);
     }
 
-    return thermalColor * iPhys * 1.4;
+    return thermalColor * iPhys * 1.25;
 }
 
 
@@ -606,19 +605,16 @@ vec4 traceRaySample(
         vec3 prevP = p_spatial;
         float prevT = rayT;
 
-        // Adaptive Step Controller: Caustic refinement near photon sphere & fast asymptotic marching
+        // Calibrated Adaptive Step Controller: Smooth Caustic Refinement at 30+ FPS
         // Avoid clamping step size inside empty ISCO plunge region: r >= u_DiskInnerRadius - 0.5
-        float rProg = 2.0 * u_Mass * (1.0 + cos(0.666667 * acos(-clamp(u_Spin / u_Mass, -1.0, 1.0))));
-        float rRetro = 2.0 * u_Mass * (1.0 + cos(0.666667 * acos(clamp(u_Spin / u_Mass, -1.0, 1.0))));
-        float rPhMax = max(rProg, rRetro) + 0.35; // ~4.17M for a=0.8M
+        float baseStep = 0.085 * r;
+        float dlambda = (r > 6.0 && (movingOutward || r > 18.0)) ? clamp(baseStep, 0.035, 0.55) : clamp(baseStep, 0.035, 0.32);
 
-        float baseStep = 0.075 * r;
-        float dlambda = (r > 5.0 && (movingOutward || r > 20.0)) ? clamp(baseStep, 0.02, 0.50) : clamp(baseStep, 0.02, 0.35);
-
-        // Caustic refinement zone: subdivide steps near photon orbits to resolve razor-sharp caustic ring
-        if (r > rCapture && r < rPhMax) {
-            float proximity = clamp((r - rCapture) / (rPhMax - rCapture), 0.0, 1.0);
-            float causticStep = mix(0.012, 0.060, proximity);
+        // Tight, efficient caustic refinement zone: only subdivide in the immediate photon sphere vicinity
+        float rCausticMax = rCapture + 0.95; // ~2.60M for a=0.8M
+        if (r > rCapture && r < rCausticMax) {
+            float proximity = (r - rCapture) / 0.95;
+            float causticStep = mix(0.032, 0.075, proximity);
             dlambda = min(dlambda, causticStep);
         }
 
@@ -755,16 +751,17 @@ vec4 traceRaySample(
                 float opticalDensity = evaluateKeplerianFilamentDensity(rHit, phiHit, u_Time, fNorm, u_DiskInnerRadius, u_DiskOuterRadius);
                 vec3 crossingColor = evaluate4TierBlackbodySpectrum(fNorm, gShift);
 
-                // 6. Volumetric Absorption & Radiative Accumulation
-                float tauSegment = opticalDensity * pathLength * 8.5;
+                // 6. Volumetric Absorption & Radiative Accumulation (Calibrated Translucency)
+                // Dropped from 8.5 to 1.35 to allow background lensed arcs to shine through
+                float tauSegment = opticalDensity * pathLength * 1.35;
                 float segmentAlpha = 1.0 - exp(-tauSegment);
 
                 // Front-to-back accumulation
                 accumDiskRadiance += diskTransmittance * crossingColor * segmentAlpha;
                 diskTransmittance *= (1.0 - segmentAlpha);
 
-                // Opaque termination: break only if transmittance is completely extinguished
-                if (diskTransmittance < 0.02) {
+                // Opaque termination: only break if transmittance is completely extinguished
+                if (diskTransmittance < 0.03) {
                     diskTransmittance = 0.0;
                     rayState = 3; // DISK HIT
                     break;
@@ -773,12 +770,12 @@ vec4 traceRaySample(
         }
     }
 
-    // Finalize classification: any ray that exhausted budget near photon sphere is captured
+    // Robust Horizon Resolution: eliminates jagged bitten teeth
     if (rayState == 0) {
-        if (minR <= (rCapture + 0.4) || prevR <= 3.8) {
-            rayState = 1; // Capture as shadow
+        if (minR <= (rCapture + 0.25) || (prevR <= 3.2 && length(p_spatial) < 1.5)) {
+            rayState = 1; // Pure Horizon Shadow
         } else {
-            rayState = 2; // Escaped to sky
+            rayState = 2; // Escaped Sky
         }
     }
 

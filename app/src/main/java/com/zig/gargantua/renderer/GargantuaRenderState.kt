@@ -34,10 +34,10 @@ data class GargantuaRenderState(
     val objectOrbitRadius: Float = 6.5f,
     val objectPhi0: Float = 0.0f,
     val objectZ: Float = 0.0f,
-    val exposure: Float = 1.8f,
+    val exposure: Float = 1.35f,           // Calibrated for deep copper-gold dynamic range
     val enableBloom: Boolean = true,
-    val bloomIntensity: Float = 0.20f,
-    val bloomThreshold: Float = 1.0f,
+    val bloomIntensity: Float = 0.22f,     // Soft ethereal glow without blowing out core
+    val bloomThreshold: Float = 0.90f,     // Clean threshold preserving filament details
     // Temporary uniform spatial ray sampling control. The startup default remains 1x1.
     val debugCoarseSamplingBlockSize: Int = 1,
     // Debug-only GPU workload instrumentation. Production rendering leaves this disabled.
