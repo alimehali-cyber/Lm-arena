@@ -166,6 +166,7 @@ class GargantuaRenderer(
         val objectOrbitRadius: Float,
         val objectPhi0: Float,
         val objectZ: Float,
+        val enableDoppler: Boolean,
         val useGeodesicShader: Boolean,
         val exposure: Float,
         val enableBloom: Boolean,
@@ -194,6 +195,7 @@ class GargantuaRenderer(
                     objectOrbitRadius = state.objectOrbitRadius,
                     objectPhi0 = state.objectPhi0,
                     objectZ = state.objectZ,
+                    enableDoppler = state.enableDoppler,
                     useGeodesicShader = state.useGeodesicShader,
                     exposure = state.exposure,
                     enableBloom = state.enableBloom,
@@ -224,6 +226,7 @@ class GargantuaRenderer(
         val objectOrbitRadius: Float,
         val objectPhi0: Float,
         val objectZ: Float,
+        val enableDoppler: Boolean,
         val useGeodesicShader: Boolean,
         val debugCoarseSamplingBlockSize: Int,
         val enableWorkloadTelemetry: Boolean,
@@ -251,6 +254,7 @@ class GargantuaRenderer(
                     objectOrbitRadius = state.objectOrbitRadius,
                     objectPhi0 = state.objectPhi0,
                     objectZ = state.objectZ,
+                    enableDoppler = state.enableDoppler,
                     useGeodesicShader = state.useGeodesicShader,
                     debugCoarseSamplingBlockSize = effectiveCoarseSamplingBlockSize(state),
                     enableWorkloadTelemetry = state.enableWorkloadTelemetry,
@@ -968,6 +972,7 @@ class GargantuaRenderer(
                 activeProg.setUniform1f("u_DiskInnerRadius", isco)
                 activeProg.setUniform1f("u_DiskOuterRadius", state.diskOuterRadius)
                 activeProg.setUniform1i("u_EnableDisk", if (state.enableDisk) 1 else 0)
+                activeProg.setUniform1i("u_EnableDoppler", if (state.enableDoppler) 1 else 0)
 
                 activeProg.setUniform1i("u_EnableObject", if (state.enableObject) 1 else 0)
                 activeProg.setUniform1f("u_ObjectRadius", state.objectRadius)
@@ -1231,6 +1236,7 @@ class GargantuaRenderer(
             previous.objectOrbitRadius != current.objectOrbitRadius -> "objectOrbitRadius"
             previous.objectPhi0 != current.objectPhi0 -> "objectPhi0"
             previous.objectZ != current.objectZ -> "objectZ"
+            previous.enableDoppler != current.enableDoppler -> "enableDoppler"
             previous.useGeodesicShader != current.useGeodesicShader -> "useGeodesicShader"
             previous.debugCoarseSamplingBlockSize != current.debugCoarseSamplingBlockSize -> "blockSize"
             previous.enableWorkloadTelemetry != current.enableWorkloadTelemetry -> "telemetry"

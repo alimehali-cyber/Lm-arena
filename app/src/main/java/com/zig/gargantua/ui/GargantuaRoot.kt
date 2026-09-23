@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -544,6 +545,49 @@ private fun QualityPanel(
             softWrap = true,
             overflow = TextOverflow.Clip
         )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Relativistic Doppler Effect Toggle
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    surfaceView?.renderer?.stateHolder?.updateState { it.copy(enableDoppler = !it.enableDoppler) }
+                },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isPersian) "اثر دوپلر نسبیتی" else "Relativistic Doppler Effect",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Text(
+                    text = if (isPersian) {
+                        "خاموش: حالت سینمایی نولان (پیش‌فرض) · روشن: پرتوتابی دقیق نسبیت عام (g⁴)"
+                    } else {
+                        "OFF: Christopher Nolan Movie Mode (Default) · ON: Strict GR Beaming (g⁴)"
+                    },
+                    color = Color(0xFF90A4AE),
+                    fontSize = 10.sp,
+                    maxLines = 2,
+                    softWrap = true,
+                    overflow = TextOverflow.Clip
+                )
+            }
+            Switch(
+                checked = state.enableDoppler,
+                onCheckedChange = { checked ->
+                    surfaceView?.renderer?.stateHolder?.updateState { it.copy(enableDoppler = checked) }
+                },
+                modifier = Modifier.testTag("gargantua_doppler_switch")
+            )
+        }
     }
 }
 

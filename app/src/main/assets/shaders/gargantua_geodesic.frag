@@ -42,6 +42,7 @@ uniform int u_MaxSteps;      // Maximum RK4 steps per pixel ray (e.g. 150)
 uniform float u_DiskInnerRadius; // ISCO radius r_in
 uniform float u_DiskOuterRadius; // Outer boundary r_out
 uniform int u_EnableDisk;        // 1 to render relativistic accretion disk, 0 otherwise
+uniform int u_EnableDoppler;     // 0 = Movie Mode (Default), 1 = Strict GR Mode
 
 // Relativistic synthetic test marker uniforms (M9 Option B: coordinate sphere in Kerr-Schild Cartesian chart)
 uniform int u_EnableObject;         // 1 to render relativistic test marker, 0 otherwise
@@ -417,107 +418,107 @@ float fbm3D(vec3 p) {
     return v;
 }
 
-// --- 2D Procedural Simplex-Style Hash & Turbulence ---
-vec2 gargantuaHash22(vec2 p) {
-    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
-    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+// --- Fast Branchless 3D Procedural Hash & Gradient Turbulence ---
+float gargantuaHash3D(vec3 p) {
+    p = fract(p * 0.3183099 + vec3(0.1, 0.1, 0.1));
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
 }
 
-float gargantuaNoise2D(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    vec2 u = f * f * (3.0 - 2.0 * f);
+float gargantuaNoise3D(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    vec2 u = f.xy * f.xy * (3.0 - 2.0 * f.xy);
+    float uz = f.z * f.z * (3.0 - 2.0 * f.z);
+
+    float n000 = gargantuaHash3D(i + vec3(0.0, 0.0, 0.0));
+    float n100 = gargantuaHash3D(i + vec3(1.0, 0.0, 0.0));
+    float n010 = gargantuaHash3D(i + vec3(0.0, 1.0, 0.0));
+    float n110 = gargantuaHash3D(i + vec3(1.0, 1.0, 0.0));
+    float n001 = gargantuaHash3D(i + vec3(0.0, 0.0, 1.0));
+    float n101 = gargantuaHash3D(i + vec3(1.0, 0.0, 1.0));
+    float n011 = gargantuaHash3D(i + vec3(0.0, 1.0, 1.0));
+    float n111 = gargantuaHash3D(i + vec3(1.0, 1.0, 1.0));
+
     return mix(
-        mix(dot(gargantuaHash22(i + vec2(0.0, 0.0)), f - vec2(0.0, 0.0)),
-            dot(gargantuaHash22(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0)), u.x),
-        mix(dot(gargantuaHash22(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0)),
-            dot(gargantuaHash22(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0)), u.x), u.y
+        mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y),
+        mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y),
+        uz
     );
 }
 
-float evaluateKeplerianFilamentDensity(float r, float phi, float time, float fNorm, float rIn, float rOut) {
-    // Local Keplerian angular velocity
-    float omega = sqrt(u_Mass) / (pow(r, 1.5) + u_Spin * sqrt(u_Mass));
-    float phiSheared = phi - omega * (time * 0.75);
+// 3D Volumetric Gas Density: Combines vertical Gaussian flaring with 3D swirling fluid eddies
+float evaluate3DVolumetricGasDensity(float r, float phi, float zeta, float fNorm, float rIn, float rOut) {
+    // 1. Vertical Gaussian density profile: dense at midplane, tenuous at cloud boundaries
+    float verticalFalloff = exp(-2.6 * zeta * zeta);
 
-    // Sheared polar domain coordinates
+    // 2. Local Keplerian sheared 3D coordinates
     float logR = log(max(1.0, r / rIn));
-    vec2 uv = vec2(logR * 6.0, phiSheared * 2.5);
+    vec3 p3D = vec3(logR * 7.0, phi * 3.5, zeta * 2.8);
 
-    // 1. Turbulent Domain Warping (Creates billowy, swirling fluid eddies)
-    vec2 warp = vec2(
-        gargantuaNoise2D(uv * 1.5 + vec2(time * 0.1, 0.0)),
-        gargantuaNoise2D(uv * 1.5 + vec2(4.3, time * 0.15))
-    );
-    vec2 warpedUv = uv + warp * 0.85;
+    // 3. Billowing 3D Fluid Eddies (Swirling vertically and azimuthally)
+    float baseCloud = gargantuaNoise3D(p3D);
+    float fineWisps = gargantuaNoise3D(p3D * 2.4 + vec3(0.0, 0.0, 1.5));
+    float clouds3D = baseCloud * 0.65 + fineWisps * 0.35;
 
-    // 2. High-Speed Luminous Plasma Streaks (Elongated along azimuthal flow)
-    vec2 streakUv = vec2(logR * 18.0 + warp.x * 0.5, phiSheared * 14.0);
-    float streakNoise = gargantuaNoise2D(streakUv) * 0.5 + 0.5;
-    float fineStreakNoise = gargantuaNoise2D(streakUv * 2.5) * 0.5 + 0.5;
-    float lightStreaks = pow(streakNoise * 0.65 + fineStreakNoise * 0.35, 1.8);
+    // 4. High-Speed Luminous Plasma Streaks (Elongated along prograde flow)
+    vec3 streakCoord = vec3(logR * 22.0, phi * 16.0, zeta * 4.0);
+    float lightStreaks = pow(gargantuaNoise3D(streakCoord), 2.2) * 1.4;
 
-    // 3. Billowing Gas Clouds & Fractal Pockets
-    float cloudNoise = gargantuaNoise2D(warpedUv * 2.8) * 0.5 + 0.5;
-    float microNoise = gargantuaNoise2D(warpedUv * 6.5) * 0.5 + 0.5;
-    float clouds = cloudNoise * 0.70 + microNoise * 0.30;
+    // 5. Deep Interstellar Dust Absorption Rifts (Creates rich, dark shadows)
+    float dustRift = smoothstep(0.30, 0.75, gargantuaNoise3D(vec3(logR * 3.8, phi * 2.0, zeta * 1.5)));
 
-    // 4. Dark Interstellar Dust Channels (Carves organic rifts into the glowing gas)
-    float dustRift = smoothstep(0.18, 0.82, gargantuaNoise2D(vec2(logR * 3.5, phiSheared * 1.8) + warp * 0.5) * 0.5 + 0.5);
+    // 6. Smooth radial boundaries
+    float radialEnvelope = smoothstep(rIn, rIn + 0.18, r) * smoothstep(rOut, rOut - 2.8, r);
 
-    // 5. Dense Underlying Continuous Fluid Slab (Prevents hollow strings, provides body)
-    float baseGasBody = 0.55;
-
-    // Radial boundary envelope
-    float radialEnvelope = smoothstep(rIn, rIn + 0.20, r) * smoothstep(rOut, rOut - 2.5, r);
-
-    // Combined density: organic fluid mass with brilliant streaks and dusty rifts
-    float rawDensity = (baseGasBody + 1.10 * lightStreaks + 0.60 * clouds) * dustRift;
-    return clamp(rawDensity * (0.65 + 0.35 * fNorm) * radialEnvelope, 0.0, 3.5);
+    // Combined 3D density: deep dark dust lanes carved into glowing, billowing plasma
+    float rawDensity = (0.28 + 0.85 * lightStreaks + 0.65 * clouds3D) * (0.20 + 0.80 * dustRift);
+    return clamp(rawDensity * verticalFalloff * (0.55 + 0.45 * fNorm) * radialEnvelope, 0.0, 4.0);
 }
 
-// --- Vibrant Cinematic Blackbody Spectrum (Interstellar Calibration) ---
+// --- Calibrated High-Contrast 4-Tier Blackbody Curve & Doppler Modes ---
 vec3 evaluate4TierBlackbodySpectrum(float fNorm, float gShift) {
-    // 1. Christopher Nolan / Kip Thorne Aesthetic Doppler Softening:
-    // Pure g^4 extinguishes the receding (right) limb.
-    // Blending toward unity preserves visibility and brilliant color across both limbs.
-    float gArtistic = mix(1.0, gShift, 0.32); // 32% physical asymmetry, 68% symmetric illumination
-    float gEffective = clamp(gArtistic, 0.65, 2.4);
-    float gBeaming = pow(gEffective, 2.2);
+    float gFactor;
+    float iPhys;
 
-    // Boosted base emissivity: ensure mid and outer radii remain brightly illuminated
-    float intrinsicFlux = pow(fNorm, 0.55) * 1.6 + 0.40;
-    float iPhys = gBeaming * intrinsicFlux;
+    if (u_EnableDoppler == 1) {
+        // --- 100% SCIENTIFICALLY ACCURATE GENERAL RELATIVITY (Strict g^4 Beaming) ---
+        float gClamped = clamp(gShift, 0.10, 4.2);
+        gFactor = gClamped;
+        iPhys = pow(gClamped, 4.0) * fNorm; // Pure Liouville bolometric beaming
+    } else {
+        // --- CHRISTOPHER NOLAN / KIP THORNE MOVIE MODE (Balanced Illumination) ---
+        // Subtle 12% asymmetry for 3D depth, but both limbs are fully visible and glorious
+        float gMovie = mix(1.0, clamp(gShift, 0.65, 1.65), 0.12);
+        gFactor = gMovie;
+        iPhys = pow(fNorm, 0.65) * 1.85 + 0.30;
+    }
 
-    // Effective Temperature for color grading
-    float tEff = gEffective * pow(max(1.0e-5, fNorm), 0.25);
+    float tEff = gFactor * pow(max(1.0e-5, fNorm), 0.25);
 
-    // 2. High-Chroma, Living Cinematic Palette
-    // Deep fiery copper/blood-amber base
-    vec3 cSmoke    = vec3(1.65, 0.22, 0.02);
-    // Electric molten burnt-orange / bronze
-    vec3 cBronze   = vec3(3.20, 0.85, 0.08);
-    // Brilliant radiant solar gold
-    vec3 cGold     = vec3(4.80, 2.20, 0.25);
-    // Incandescent pearlescent cream-white core
-    vec3 cCreamHot = vec3(7.20, 6.00, 4.60);
+    // High-Contrast Interstellar Cinematic Palette
+    // Low values in dust rifts -> rich copper in mid-gas -> hot cream at core
+    vec3 cSmoke    = vec3(0.08, 0.015, 0.003); // Deep charcoal dust rift base
+    vec3 cBronze   = vec3(0.95, 0.30, 0.04);   // Fiery burnt copper-bronze
+    vec3 cGold     = vec3(2.20, 1.10, 0.20);   // Radiant molten gold
+    vec3 cCreamHot = vec3(4.20, 3.80, 3.20);   // Incandescent pearlescent cream core
 
     vec3 thermalColor;
-    if (tEff < 0.25) {
-        thermalColor = mix(cSmoke, cBronze, smoothstep(0.0, 0.25, tEff));
+    if (tEff < 0.22) {
+        thermalColor = mix(cSmoke, cBronze, smoothstep(0.0, 0.22, tEff));
     } else if (tEff < 0.65) {
-        thermalColor = mix(cBronze, cGold, smoothstep(0.25, 0.65, tEff));
+        thermalColor = mix(cBronze, cGold, smoothstep(0.22, 0.65, tEff));
     } else {
         thermalColor = mix(cGold, cCreamHot, smoothstep(0.65, 1.15, tEff));
     }
 
-    // Prograde Blueshift Core Whitening: smooth incandescent highlight
-    if (gShift > 1.25) {
-        float whiteBoost = smoothstep(1.25, 2.10, gShift);
-        thermalColor = mix(thermalColor, vec3(7.8, 7.2, 6.5), whiteBoost * 0.75);
+    // Blueshift Core Whitening in Realistic Mode
+    if (u_EnableDoppler == 1 && gShift > 1.25) {
+        float whiteBoost = smoothstep(1.25, 2.20, gShift);
+        thermalColor = mix(thermalColor, vec3(4.8, 4.6, 4.4), whiteBoost * 0.85);
     }
 
-    return thermalColor * iPhys * 0.95;
+    return thermalColor * iPhys * 1.15;
 }
 
 
@@ -710,7 +711,7 @@ vec4 traceRaySample(
             }
         }
 
-        // Volumetric Multi-Crossing Equatorial Disk Slab Radiative Transfer
+        // Volumetric Multi-Crossing Flared 3D Disk Slab Traversal
         if (u_EnableDisk == 1 && prevPos.z * pos.z <= 0.0 && prevPos.z != pos.z && diskCrossings < 4) {
             float tau = clamp(-prevPos.z / (pos.z - prevPos.z), 0.0, 1.0);
             vec3 hitPos = mix(prevPos, pos, tau);
@@ -728,17 +729,20 @@ vec4 traceRaySample(
 #endif
                 }
 
-                // 1. Flared scale height H(r) = h0 * (r / r_in)^1.15 (DNeg / Thorne model)
-                float h0 = 0.045 * u_Mass;
+                // 1. Flared 3D Scale Height H(r) = h0 * (r / r_in)^1.20
+                float h0 = 0.075 * u_Mass; // Generous 3D thickness for volumetric depth
                 float rNormScale = rHit / max(1.0e-5, u_DiskInnerRadius);
-                float H_r = h0 * pow(rNormScale, 1.15);
+                float H_r = h0 * pow(rNormScale, 1.20);
 
-                // 2. Geometric slab path length traversal
+                // 2. Normalized vertical coordinate zeta in [-1.0, 1.0]
+                float zeta = clamp(hitPos.z / max(1.0e-4, H_r), -1.0, 1.0);
+
+                // 3. Physical path length traversal through the flared slab
                 vec3 rayStepDir = normalize(pos - prevPos);
                 float cosIncidence = max(abs(rayStepDir.z), 0.065);
                 float pathLength = (2.0 * H_r) / cosIncidence;
 
-                // 3. Relativistic 4-Velocity & Doppler Shift g
+                // 4. Relativistic 4-Velocity & Doppler Shift g
                 vec3 hitP = mix(prevP, p_spatial, tau);
                 float omega = sqrt(u_Mass) / (pow(rHit, 1.5) + u_Spin * sqrt(u_Mass));
 
@@ -758,31 +762,33 @@ vec4 traceRaySample(
                 float uObs0 = 1.0 / sqrt(max(1.0e-6, -g[0][0]));
                 float gShift = (abs(denomG) > 1.0e-6) ? clamp(uObs0 / denomG, 0.05, 5.0) : 1.0;
 
-                // 4. Novikov-Thorne Emissivity
+                // 5. Novikov-Thorne Emissivity
                 float rRatio = u_DiskInnerRadius / rHit;
                 float F = (u_Mass / (rHit * rHit * rHit)) * max(0.0, 1.0 - sqrt(rRatio));
                 float rPeak = 1.361111 * u_DiskInnerRadius;
                 float fPeak = u_Mass / (7.0 * rPeak * rPeak * rPeak);
                 float fNorm = (fPeak > 1.0e-7) ? clamp(F / fPeak, 0.0, 1.0) : 0.0;
 
-                // 5. High-Frequency Striated Keplerian Filaments & 4-Tier Spectrum
+                // High-Frequency Striated Keplerian Filaments & 4-Tier Spectrum
                 float g2 = gShift * gShift;
                 float g4 = g2 * g2;
                 float iPhys = g4 * fNorm;
                 float radiance = iPhys;
 
+                // 6. 3D Volumetric Gas Density & Blackbody Spectrum
                 float phiHit = atan(hitPos.y, hitPos.x);
-                float opticalDensity = evaluateKeplerianFilamentDensity(rHit, phiHit, u_Time, fNorm, u_DiskInnerRadius, u_DiskOuterRadius);
+                float opticalDensity = evaluate3DVolumetricGasDensity(rHit, phiHit, zeta, fNorm, u_DiskInnerRadius, u_DiskOuterRadius);
                 vec3 crossingColor = evaluate4TierBlackbodySpectrum(fNorm, gShift);
 
-                // Volumetric Absorption & Radiative Accumulation
-                float tauSegment = opticalDensity * pathLength * 1.85;
+                // 7. Volumetric Absorption & Radiative Accumulation
+                float tauSegment = opticalDensity * pathLength * 1.55;
                 float segmentAlpha = 1.0 - exp(-tauSegment);
 
                 // Front-to-back accumulation
                 accumDiskRadiance += diskTransmittance * crossingColor * segmentAlpha;
                 diskTransmittance *= (1.0 - segmentAlpha);
 
+                // Opaque termination: only break if transmittance is completely extinguished
                 if (diskTransmittance < 0.02) {
                     diskTransmittance = 0.0;
                     rayState = 3; // DISK HIT

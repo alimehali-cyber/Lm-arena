@@ -3,7 +3,7 @@ precision highp float;
 precision highp sampler2D;
 
 uniform sampler2D u_SemanticTexture;
-uniform sampler2D u_NoiseTexture;
+uniform sampler2D u_NoiseTexture; // 512x256 periodic R8 texture
 
 uniform float u_TimeA;
 uniform float u_TimeB;
@@ -20,62 +20,71 @@ uniform float u_DiskOuterRadius;
 out float fragColor;
 
 const float TAU = 6.28318530718;
-const float TWO_PI = 6.28318530718;
+const float TWO_PI = 6.283185307179586;
 
-// Single-phase advected noise sample with organic fluid eddies and inward drift
-float sampleAdvectedNoise(vec2 normCoord, float tPhase, float rPhysical) {
+// High-speed flowing fluid gas sample with differential Keplerian shear and inward accretion drift
+float sampleFluidFlow(vec2 normCoord, float tPhase, float rPhysical) {
     float rNorm = normCoord.x;
     float phiNorm = normCoord.y;
 
+    // 1. Keplerian differential angular velocity
     float sqrtMass = sqrt(max(u_Mass, 1.0e-6));
     float denomOmega = pow(max(rPhysical, 1.0e-6), 1.5) + u_Spin * sqrtMass;
     float omega = sqrtMass / max(1.0e-6, denomOmega);
 
-    // Inward accretion drift
+    // 2. Transonic inward accretion drift (matter visibly accelerates as it nears ISCO)
     float rRatio = u_DiskInnerRadius / max(1.0e-5, rPhysical);
-    float vInflow = 0.040 * sqrt(rRatio);
+    float vInflow = 0.060 * sqrt(rRatio);
     float rDrift = rNorm - vInflow * (tPhase / 24.0);
 
-    // Logarithmic spiral advection
-    float spiralCoil = 1.6 * log(max(1.0, rPhysical / u_DiskInnerRadius));
+    // 3. Logarithmic spiral advection (creates coiled matter streams)
+    float spiralCoil = 2.2 * log(max(1.0, rPhysical / u_DiskInnerRadius));
     float phiSheared = phiNorm - (omega * u_TimeScale * tPhase) / TWO_PI - spiralCoil / TWO_PI;
 
-    vec2 uv = vec2(fract(phiSheared * 4.0), fract(rDrift * 3.0));
-    vec2 uvFine = vec2(fract(phiSheared * 12.0), fract(rDrift * 8.0));
+    // 4. Multi-Scale Periodic Texture Sampling (Fluid Eddies & Pockets)
+    vec2 uvMacro = vec2(fract(phiSheared * 3.0), fract(rDrift * 2.0));
+    vec2 uvMeso  = vec2(fract(phiSheared * 8.0), fract(rDrift * 5.0));
+    vec2 uvMicro = vec2(fract(phiSheared * 20.0), fract(rDrift * 12.0));
 
-    float n1 = texture(u_NoiseTexture, uv).r;
-    float n2 = texture(u_NoiseTexture, uvFine).r;
+    float nMacro = texture(u_NoiseTexture, uvMacro).r;
+    float nMeso  = texture(u_NoiseTexture, uvMeso).r;
+    float nMicro = texture(u_NoiseTexture, uvMicro).r;
 
-    return n1 * 0.65 + n2 * 0.35;
+    // 5. High-Speed Luminous Plasma Streaks
+    float streakPattern = pow(texture(u_NoiseTexture, vec2(fract(phiSheared * 16.0), fract(rDrift * 3.0))).r, 2.2);
+
+    // 6. Deep Dark Interstellar Dust Lanes
+    float dustRift = smoothstep(0.25, 0.75, texture(u_NoiseTexture, vec2(fract(phiSheared * 2.0), fract(rDrift * 1.5))).r);
+
+    // Combined high-contrast fluid mass
+    float fluidNoise = (nMacro * 0.40 + nMeso * 0.35 + nMicro * 0.25 + streakPattern * 0.85) * (0.25 + 0.75 * dustRift);
+    return fluidNoise;
 }
 
-// Multi-scale Keplerian sheared fBm with organic 2D fluid eddies and inward transonic advection
+// Multi-scale Keplerian sheared turbulence combining 3D fluid streams
 float keplerianNoise(vec2 azimuthRadiusNorm, float shiftNorm, float radiusNorm, float tPhase, float rPhysical) {
     float az = azimuthRadiusNorm.x;
     float rn = azimuthRadiusNorm.y;
 
-    // Inward transonic accretion drift
     float rRatio = u_DiskInnerRadius / max(1.0e-5, rPhysical);
-    float vInflow = 0.040 * sqrt(rRatio);
+    float vInflow = 0.060 * sqrt(rRatio);
     float rDrift = rn - vInflow * (tPhase / 24.0);
-    float spiralCoil = 1.6 * log(max(1.0, rPhysical / u_DiskInnerRadius));
+    float spiralCoil = 2.2 * log(max(1.0, rPhysical / u_DiskInnerRadius));
     float phiSheared = az + shiftNorm - spiralCoil / TAU;
 
-    // Octave 1: Macro stream (32, 4) weight 0.55
+    // Multi-scale octaves: weights 0.55, 0.30, 0.15 for frequencies 32.0, 64.0, 128.0
     vec2 uv1 = vec2(fract(phiSheared * 32.0), fract(rDrift * 4.0));
     float n1 = texture(u_NoiseTexture, uv1).r;
 
-    // Octave 2: Turbulent eddies (64, 12) weight 0.30
     vec2 uv2 = vec2(fract(phiSheared * 64.0), fract(rDrift * 12.0));
     float n2 = texture(u_NoiseTexture, uv2).r;
 
-    // Octave 3: Micro filaments (128, 24) weight 0.15
     vec2 uv3 = vec2(fract(phiSheared * 128.0), fract(rDrift * 24.0));
     float n3 = texture(u_NoiseTexture, uv3).r;
 
     float combined = n1 * 0.55 + n2 * 0.30 + n3 * 0.15;
-    float organicSample = sampleAdvectedNoise(vec2(rn, az), tPhase, rPhysical);
-    return clamp(combined * 0.60 + organicSample * 0.40, 0.0, 1.0);
+    float fluidSample = sampleFluidFlow(vec2(rn, az), tPhase, rPhysical);
+    return clamp(combined * 0.40 + fluidSample * 0.60, 0.0, 1.0);
 }
 
 void main() {
@@ -84,10 +93,11 @@ void main() {
         return;
     }
 
-    ivec2 recordCoord = ivec2(gl_FragCoord.xy);
-    vec4 semantic = texelFetch(u_SemanticTexture, recordCoord, 0);
+    ivec2 texCoord = ivec2(gl_FragCoord.xy);
+    vec4 semantic = texelFetch(u_SemanticTexture, texCoord, 0);
     int state = int(floor(semantic.a + 0.5));
 
+    // Passthrough if not accretion disk
     if (state != 3) {
         fragColor = 1.0;
         return;
@@ -110,18 +120,24 @@ void main() {
     float noiseA = keplerianNoise(vec2(azimuthNorm, radiusNorm), shiftA, radiusNorm, u_TimeA, radius);
     float noiseB = keplerianNoise(vec2(azimuthNorm, radiusNorm), shiftB + 0.37, radiusNorm + 0.29, u_TimeB, radius);
 
-    float noiseCombined = wA * noiseA + wB * noiseB;
-    noiseCombined = clamp(noiseCombined, 0.0, 1.0);
+    float fluidSignal = wA * noiseA + wB * noiseB;
+    fluidSignal = clamp(fluidSignal, 0.0, 1.0);
 
-    float n = noiseCombined;
-    float dust = smoothstep(0.20, 0.80, n);
+    float dust = smoothstep(0.20, 0.80, fluidSignal);
 
     float amp = u_Amplitude;
-    float brightFactor = 1.0 + amp * 0.60 * (1.0 - dust);
+    float brightFactor = 1.0 + amp * 0.85 * (1.0 - dust);
     float absorbFactor = exp(-amp * 1.10 * dust);
 
-    float boundaryFade = smoothstep(0.0, 0.05, radiusNorm) * smoothstep(1.0, 0.85, radiusNorm);
-    float finalMod = mix(1.0, clamp(brightFactor * absorbFactor, 0.35, 1.85), boundaryFade);
+    // High dynamic range contrast curve: deep dark dust lanes (0.15) to blazing highlights (2.6)
+    float centered = fluidSignal - u_NoiseMean;
+    float dynamicAmplitude = max(amp * 1.8, 0.45);
+    float modFactor = clamp(1.0 + dynamicAmplitude * centered * 2.5, 0.15, 2.60);
+    modFactor = modFactor * (brightFactor * absorbFactor);
 
-    fragColor = finalMod;
+    // Radial boundary fade
+    float boundaryFade = smoothstep(0.0, 0.04, radiusNorm) * smoothstep(1.0, 0.88, radiusNorm);
+    float finalModulation = mix(1.0, clamp(modFactor, 0.15, 2.60), boundaryFade);
+
+    fragColor = finalModulation;
 }

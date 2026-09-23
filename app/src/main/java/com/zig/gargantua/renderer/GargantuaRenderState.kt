@@ -34,10 +34,11 @@ data class GargantuaRenderState(
     val objectOrbitRadius: Float = 6.5f,
     val objectPhi0: Float = 0.0f,
     val objectZ: Float = 0.0f,
-    val exposure: Float = 2.20f,           // Raised to ensure the right side is well-exposed and glorious
+    val enableDoppler: Boolean = false, // false = Movie Mode (Default, Balanced), true = Strict GR Beaming (g^4)
+    val exposure: Float = 1.35f,        // Calibrated exposure for deep contrast and dark dust rifts
     val enableBloom: Boolean = true,
-    val bloomIntensity: Float = 0.35f,     // Broad, cinematic glowing halo
-    val bloomThreshold: Float = 0.70f,     // Lowered threshold so vibrant gold filaments bleed softly
+    val bloomIntensity: Float = 0.22f,  // Ethereal glow without washing out cloud details
+    val bloomThreshold: Float = 1.15f,  // High threshold: only incandescent highlights bleed, preserving dark lanes
     // Temporary uniform spatial ray sampling control. The startup default remains 1x1.
     val debugCoarseSamplingBlockSize: Int = 1,
     // Debug-only GPU workload instrumentation. Production rendering leaves this disabled.
