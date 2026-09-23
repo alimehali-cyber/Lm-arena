@@ -16,7 +16,7 @@ uniform float u_Spin;
 uniform float u_DiskInnerRadius;
 uniform float u_DiskOuterRadius;
 
-out vec4 fragColor;
+out float fragColor;
 
 const float PI = 3.141592653589793;
 const float TWO_PI = 6.283185307179586;
@@ -73,7 +73,7 @@ void main() {
 
     // If not accretion disk (state != 3), output identity modulation
     if (abs(rayState - 3.0) > 0.1) {
-        fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        fragColor = 1.0;
         return;
     }
 
@@ -97,5 +97,5 @@ void main() {
     float finalModulation = mix(1.0, modFactor, boundaryFade);
 
     // Output single-channel float scalar (R16F / R8)
-    fragColor = vec4(max(0.15, finalModulation), 0.0, 0.0, 1.0);
+    fragColor = max(0.15, finalModulation);
 }

@@ -3,7 +3,6 @@ package com.zig.gargantua.renderer
 import android.content.Context
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
-import android.os.SystemClock
 import android.util.Log
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -1150,7 +1149,7 @@ class GargantuaRenderer(
             gateDecision.state == AnimationGate.State.BUILD -> "ANIM BUILD"
             else -> "ANIM ±${state.animationAmplitudePercent}% · READY"
         }
-        val currentUptime = SystemClock.uptimeMillis()
+        val currentUptime = System.nanoTime() / 1_000_000L
         if (currentUptime - lastTelemetryDispatchUptimeMs >= TELEMETRY_DISPATCH_INTERVAL_MS || forcePresentation || signatureChangedThisFrame) {
             lastTelemetryDispatchUptimeMs = currentUptime
             val animationDiagnostics = String.format(

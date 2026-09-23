@@ -2,7 +2,10 @@ package com.zig.gargantua.disk
 
 import com.zig.gargantua.geodesic.ProceduralSky
 import com.zig.gargantua.physics.KerrSchildSpacetime
-import kotlin.math.*
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.pow
+import kotlin.math.sqrt
 
 /**
  * Physical model of a thin, relativistic equatorial accretion disk in Kerr spacetime.
@@ -66,11 +69,11 @@ data class AccretionDiskModel(
     /**
      * Analytical vertical scale height H(r) = h0 * (r / r_in)^beta (Thorne & DNeg 2015).
      */
-    fun scaleHeight(r: Double, h0: Double = 0.045 * M, beta: Double = 1.15): Double {
+    fun scaleHeight(r: Double, h0: Double = 0.045, beta: Double = 1.15): Double {
         require(r > 0.0) { "Radius must be positive" }
-        val rIn = innerRadius
+        val rIn = rIsco
         val normR = r / rIn
-        return h0 * normR.pow(beta)
+        return (h0 * M) * normR.pow(beta)
     }
 
     /**
@@ -79,7 +82,7 @@ data class AccretionDiskModel(
     fun computeSlabOpticalDepth(
         r: Double,
         cosIncidence: Double,
-        h0: Double = 0.045 * M,
+        h0: Double = 0.045,
         beta: Double = 1.15,
         baseOpacity: Double = 12.0
     ): Double {
@@ -87,7 +90,7 @@ data class AccretionDiskModel(
         val clampedCos = max(abs(cosIncidence), 0.065)
         val pathLength = (2.0 * h) / clampedCos
         val fNorm = normalizedFlux(r)
-        val radialWindow = ((r - innerRadius) / 0.25).coerceIn(0.0, 1.0) * ((outerRadius - r) / 2.0).coerceIn(0.0, 1.0)
+        val radialWindow = ((r - rIsco) / 0.25).coerceIn(0.0, 1.0) * ((rOut - r) / 2.0).coerceIn(0.0, 1.0)
         val density = (0.55 + 0.45 * fNorm) * radialWindow
         return density * pathLength * baseOpacity
     }
@@ -227,18 +230,10 @@ data class AccretionDiskModel(
             r: Double,
             cosIncidence: Double,
             M: Double = 1.0,
-            a: Double = 0.8,
-            h0: Double = 0.045 * M,
-            beta: Double = 1.15,
-            baseOpacity: Double = 12.0
+            a: Double = 0.8
         ): Double {
-            return AccretionDiskModel(M = M, a = a).computeSlabOpticalDepth(
-                r = r,
-                cosIncidence = cosIncidence,
-                h0 = h0,
-                beta = beta,
-                baseOpacity = baseOpacity
-            )
+            val model = AccretionDiskModel(M = M, a = a)
+            return model.computeSlabOpticalDepth(r, cosIncidence)
         }
     }
 }

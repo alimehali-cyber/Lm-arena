@@ -1,6 +1,8 @@
 package com.zig.gargantua.renderer
 
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.pow
+import kotlin.math.sqrt
 
 /**
  * Immutable render-state snapshot passed from the UI thread to the OpenGL ES render thread.
