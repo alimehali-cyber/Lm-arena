@@ -115,7 +115,7 @@ class DeviceReadinessAuditTest {
         val exposureState = baseState.copy(exposure = 1.50f)
         assertNotEquals("Exposure change must invalidate SceneSignature", baseSig, createSignature(exposureState))
 
-        val bloomState = baseState.copy(bloomIntensity = 0.35f)
+        val bloomState = baseState.copy(bloomIntensity = 0.50f)
         assertNotEquals("Bloom intensity change must invalidate SceneSignature", baseSig, createSignature(bloomState))
     }
 
