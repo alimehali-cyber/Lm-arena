@@ -49,7 +49,7 @@ float cosmosFbm(vec3 p) {
     return cosmosNoise3D(p) * 0.65 + cosmosNoise3D(p * 2.05) * 0.35;
 }
 
-// Master Procedural Deep-Blue Cosmos (Darker inky midnight-blue + 30% more stars)
+// Master Procedural Deep-Blue Cosmos (Darker inky midnight-blue + 20% more stars, refined radii)
 vec3 renderProceduralCosmos(vec3 skyDir) {
     // -------------------------------------------------------------
     // 1. Inky Midnight-Blue Backdrop with Moody Sapphire Clouds
@@ -71,7 +71,7 @@ vec3 renderProceduralCosmos(vec3 skyDir) {
     celestialBg = mix(celestialBg, darkDust, riftFactor * 0.75);
 
     // -------------------------------------------------------------
-    // 2. Sparse Optical Pinpoint Starfield (+30% Star Count)
+    // 2. Sparse Optical Pinpoint Starfield (+20% Star Count, Refined Radii)
     // -------------------------------------------------------------
     vec3 p = skyDir * 80.0;
     vec3 ip = floor(p);
@@ -85,31 +85,31 @@ vec3 renderProceduralCosmos(vec3 skyDir) {
                 vec3 cellId = ip + neighbor;
                 vec3 h = cosmosHash33(cellId);
 
-                // SPARSITY GATE: 0.091 provides exactly 30% more stars than 0.070
-                if (h.x > 0.091) continue;
+                // +20% star quantity gate (0.109)
+                if (h.x > 0.109) continue;
 
                 vec3 starPos = neighbor + h.yzx - 0.5;
                 float dist = length(fp - starPos);
 
-                // Natural brightness distribution
+                // Natural distribution weighted heavily toward faint pinpoints
                 float roll = h.y;
-                float isProminent = step(0.96, roll);
+                float isProminent = step(0.97, roll);
                 float isMedium = step(0.80, roll) * (1.0 - isProminent);
                 float isFaint = (1.0 - isProminent) * (1.0 - isMedium);
 
-                float intensity = isProminent * (0.85 + 0.45 * h.z)
-                                + isMedium * (0.32 + 0.18 * h.z)
-                                + isFaint * (0.12 + 0.08 * h.z);
+                float intensity = isProminent * (0.80 + 0.40 * h.z)
+                                + isMedium * (0.30 + 0.15 * h.z)
+                                + isFaint * (0.10 + 0.06 * h.z);
 
-                // Optical core radius (crisp pinpoints)
-                float coreRadius = isProminent > 0.5 ? 0.12 : (isMedium > 0.5 ? 0.08 : 0.055);
+                // Refined optical radii: all new stars are delicate sub-pixel pinpoints
+                float coreRadius = isProminent > 0.5 ? 0.10 : (isMedium > 0.5 ? 0.065 : 0.040);
                 float starProfile = exp(-(dist * dist) / (2.0 * coreRadius * coreRadius));
 
-                // Star spectrum: crisp diamond white, icy blue, and warm amber
+                // Balanced star spectral palette
                 vec3 starColor = mix(
                     vec3(1.0, 0.88, 0.72),
-                    mix(vec3(0.95, 0.98, 1.0), vec3(0.72, 0.88, 1.0), h.z),
-                    h.x / 0.091
+                    mix(vec3(0.95, 0.98, 1.0), vec3(0.75, 0.88, 1.0), h.z),
+                    h.x / 0.109
                 );
 
                 starAccum += starColor * starProfile * intensity;
@@ -192,8 +192,11 @@ void main() {
         }
         float skyAngle = u_SkyAngle;
         if (abs(skyAngle) < 0.0001) {
-            float speed = u_SkyRotationSpeed > 0.0001 ? u_SkyRotationSpeed : 0.045;
+            float speed = u_SkyRotationSpeed > 0.0001 ? u_SkyRotationSpeed : 0.02618;
             skyAngle = u_Time * speed;
+        }
+        if (abs(u_SkyAngle) < 0.0001 && abs(u_SkyRotationSpeed) < 0.0001) {
+            skyAngle = u_Time * 0.02618; // Exactly 1.5 degrees per second
         }
         vec3 rotatedSky = rotateAxis(deflectedRay, celestialAxis, skyAngle);
 

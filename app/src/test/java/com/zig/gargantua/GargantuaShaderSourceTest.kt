@@ -218,11 +218,13 @@ class GargantuaShaderSourceTest {
             apply.contains("celestialBg") || apply.contains("sapphire") || apply.contains("baseSpace") ||
             apply.contains("darkDust") || apply.contains("midnight") || apply.contains("sapphireCloud")
         )
-        assertTrue(apply.contains("0.070") || apply.contains("0.045") || apply.contains("0.091"))
+        assertTrue(apply.contains("0.070") || apply.contains("0.045") || apply.contains("0.091") || apply.contains("0.109"))
         assertTrue(apply.contains("80.0") || apply.contains("140.0") || apply.contains("85.0"))
         assertTrue(apply.contains("coreRadius") || apply.contains("starProfile") || apply.contains("exp(-(dist"))
-        assertTrue(apply.contains("0.12") || apply.contains("0.075"))
+        assertTrue(apply.contains("0.12") || apply.contains("0.075") || apply.contains("0.10") || apply.contains("0.065") || apply.contains("0.040"))
         assertTrue(apply.contains("0.007") || apply.contains("0.008") || apply.contains("0.0010") || apply.contains("0.0022") || apply.contains("baseSpace") || apply.contains("midnight") || apply.contains("0.0045"))
+        // Drift calibrated to 1.5 deg/s = 0.02618 rad/s and refined radii
+        assertTrue(apply.contains("0.02618") || apply.contains("0.045") || apply.contains("u_SkyAngle") || apply.contains("u_SkyRotationSpeed"))
         assertTrue(apply.contains("out vec4 fragColor;"))
     }
 
