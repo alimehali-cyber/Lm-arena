@@ -254,7 +254,7 @@ void rk4_step(
     p_spatial += (dlambda / 6.0) * (k1_p + 2.0 * k2_p + 2.0 * k3_p + k4_p);
 }
 
-// High-fidelity anti-aliased cosmos with Galactic Plane
+// High-fidelity anti-aliased cosmos with Galactic Plane - Dark inky midnight-blue +30% stars
 
 // Deterministic high-precision 3D hash
 vec3 cosmosHash33(vec3 p) {
@@ -273,7 +273,7 @@ float cosmosNoise3D(vec3 p) {
     float n100 = dot(cosmosHash33(i + vec3(1.0, 0.0, 0.0)) - 0.5, f - vec3(1.0, 0.0, 0.0));
     float n010 = dot(cosmosHash33(i + vec3(0.0, 1.0, 0.0)) - 0.5, f - vec3(0.0, 1.0, 0.0));
     float n110 = dot(cosmosHash33(i + vec3(1.0, 1.0, 0.0)) - 0.5, f - vec3(1.0, 1.0, 0.0));
-    float n001 = dot(cosmosHash33(i + vec3(0.0, 0.0, 1.0)) - 0.5, f - vec3(0.0, 0.0, 1.0));
+    float n001 = dot(cosmosHash33(i + vec3(0.0, 0.0, 1.0)) - 0.5, f - vec3(0.0, 1.0, 1.0));
     float n101 = dot(cosmosHash33(i + vec3(1.0, 0.0, 1.0)) - 0.5, f - vec3(1.0, 0.0, 1.0));
     float n011 = dot(cosmosHash33(i + vec3(0.0, 1.0, 1.0)) - 0.5, f - vec3(0.0, 1.0, 1.0));
     float n111 = dot(cosmosHash33(i + vec3(1.0, 1.0, 1.0)) - 0.5, f - vec3(1.0, 1.0, 1.0));
@@ -290,29 +290,29 @@ float cosmosFbm(vec3 p) {
     return cosmosNoise3D(p) * 0.65 + cosmosNoise3D(p * 2.05) * 0.35;
 }
 
-// Master Procedural Deep-Blue Cosmos
+// Master Procedural Deep-Blue Cosmos (Darker inky midnight-blue + 30% more stars)
 vec3 renderProceduralCosmos(vec3 skyDir) {
     // -------------------------------------------------------------
-    // 1. Deep Celestial Midnight & Sapphire Nebula Backdrop
+    // 1. Inky Midnight-Blue Backdrop with Moody Sapphire Clouds
     // -------------------------------------------------------------
     float nebulaVal = cosmosFbm(skyDir * 3.5);
     float cloudNoise = cosmosFbm(skyDir * 7.5 + vec3(1.7, 9.2, 4.3));
 
-    // Base dark navy space
-    vec3 baseSpace = vec3(0.007, 0.014, 0.038);
-    // Luminous midnight-sapphire nebula
-    vec3 sapphireCloud = vec3(0.022, 0.048, 0.115);
-    // Dark silhouette dust rift
-    vec3 darkDust = vec3(0.002, 0.004, 0.009);
+    // Deep inky midnight void (darkened so space stays deep and rich)
+    vec3 baseSpace = vec3(0.0010, 0.0022, 0.0065);
+    // Subtle sapphire-blue dust
+    vec3 sapphireCloud = vec3(0.0045, 0.0095, 0.0260);
+    // Dark silhouette absorption rift
+    vec3 darkDust = vec3(0.0003, 0.0006, 0.0015);
 
-    float cloudFactor = smoothstep(-0.25, 0.45, nebulaVal);
+    float cloudFactor = smoothstep(-0.25, 0.50, nebulaVal);
     float riftFactor = smoothstep(0.05, 0.50, cloudNoise);
 
     vec3 celestialBg = mix(baseSpace, sapphireCloud, cloudFactor);
-    celestialBg = mix(celestialBg, darkDust, riftFactor * 0.70);
+    celestialBg = mix(celestialBg, darkDust, riftFactor * 0.75);
 
     // -------------------------------------------------------------
-    // 2. Sparse Pinpoint Starfield (93% Empty Void)
+    // 2. Sparse Optical Pinpoint Starfield (+30% Star Count)
     // -------------------------------------------------------------
     vec3 p = skyDir * 80.0;
     vec3 ip = floor(p);
@@ -326,10 +326,9 @@ vec3 renderProceduralCosmos(vec3 skyDir) {
                 vec3 cellId = ip + neighbor;
                 vec3 h = cosmosHash33(cellId);
 
-                // CRITICAL SPARSITY GATE: 93% of cells are pure empty void
-                if (h.x > 0.070) continue;
+                // SPARSITY GATE: 0.091 provides exactly 30% more stars than 0.070
+                if (h.x > 0.091) continue;
 
-                // Jittered position within neighbor cell
                 vec3 starPos = neighbor + h.yzx - 0.5;
                 float dist = length(fp - starPos);
 
@@ -343,15 +342,15 @@ vec3 renderProceduralCosmos(vec3 skyDir) {
                                 + isMedium * (0.32 + 0.18 * h.z)
                                 + isFaint * (0.12 + 0.08 * h.z);
 
-                // Core radius calibrated to 1.0 - 2.5 mobile screen pixels
+                // Optical core radius (crisp pinpoints)
                 float coreRadius = isProminent > 0.5 ? 0.12 : (isMedium > 0.5 ? 0.08 : 0.055);
                 float starProfile = exp(-(dist * dist) / (2.0 * coreRadius * coreRadius));
 
-                // Star spectrum: crisp diamond white, icy blue, and pale warm gold
+                // Star spectrum: crisp diamond white, icy blue, and warm amber
                 vec3 starColor = mix(
-                    vec3(1.0, 0.88, 0.72), // Subtle warm star
-                    mix(vec3(0.95, 0.98, 1.0), vec3(0.72, 0.88, 1.0), h.z), // Crisp icy-blue/white
-                    h.x / 0.070
+                    vec3(1.0, 0.88, 0.72),
+                    mix(vec3(0.95, 0.98, 1.0), vec3(0.72, 0.88, 1.0), h.z),
+                    h.x / 0.091
                 );
 
                 starAccum += starColor * starProfile * intensity;
@@ -365,6 +364,7 @@ vec3 renderProceduralCosmos(vec3 skyDir) {
 vec3 sample_procedural_sky(vec3 dir) {
     return renderProceduralCosmos(normalize(dir));
 }
+
 
 // Legacy helpers for compatibility - DO NOT REMOVE, disk code uses some
 float hash21(vec2 p) {
