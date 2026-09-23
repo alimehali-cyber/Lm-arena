@@ -62,4 +62,14 @@ object KerrIsco {
 
         return M * rIscoOverM
     }
+
+    /**
+     * Computes the prograde (co-rotating) ISCO coordinate radius.
+     */
+    fun progradeIscoRadius(M: Double, a: Double): Double = compute(M, abs(a))
+
+    /**
+     * Computes the retrograde (counter-rotating) ISCO coordinate radius.
+     */
+    fun retrogradeIscoRadius(M: Double, a: Double): Double = compute(M, -abs(a))
 }

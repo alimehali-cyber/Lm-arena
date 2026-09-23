@@ -1,117 +1,101 @@
 #version 300 es
 precision highp float;
-precision highp sampler2D;
 
-uniform sampler2D u_SemanticTexture;
-uniform sampler2D u_NoiseTexture;
+uniform sampler2D u_SemanticTexture; // Attachment 1 from ray-trace pass
+uniform sampler2D u_NoiseTexture;    // Deterministic 512x256 periodic R8 texture
+
 uniform float u_TimeA;
 uniform float u_TimeB;
 uniform float u_BlendA;
 uniform float u_TimeScale;
 uniform float u_Amplitude;
 uniform float u_NoiseMean;
+
 uniform float u_Mass;
 uniform float u_Spin;
 uniform float u_DiskInnerRadius;
 uniform float u_DiskOuterRadius;
 
-out float fragColor;
+out vec4 fragColor;
 
-const float TAU = 6.28318530718;
+const float PI = 3.141592653589793;
+const float TWO_PI = 6.283185307179586;
 
-float hash12(vec2 p) {
-    float h = dot(p, vec2(127.1, 311.7));
-    return fract(sin(h) * 43758.5453123);
+// Concentric harmonic striation generator for modulation
+float computeHarmonicStriations(float r) {
+    float rings = 0.0;
+    rings += sin(r * 48.0) * 0.25;
+    rings += sin(r * 115.0 + rings * 1.5) * 0.20;
+    rings += sin(r * 290.0) * 0.15;
+    return rings;
 }
 
-float valueNoisePeriodicX(vec2 uv, float periodX) {
-    vec2 i = floor(uv);
-    vec2 f = fract(uv);
-    f = f * f * (3.0 - 2.0 * f);
-    float px = periodX;
-    float x0 = mod(i.x, px);
-    float x1 = mod(i.x + 1.0, px);
-    float y0 = i.y;
-    float y1 = i.y + 1.0;
-    float a = hash12(vec2(x0, y0));
-    float b = hash12(vec2(x1, y0));
-    float c = hash12(vec2(x0, y1));
-    float d = hash12(vec2(x1, y1));
-    float top = mix(a, b, f.x);
-    float bottom = mix(c, d, f.x);
-    return mix(top, bottom, f.y);
-}
+// Single-phase advected noise sample with Keplerian shear and inward spiral drift
+float sampleAdvectedNoise(vec2 normCoord, float tPhase, float rPhysical) {
+    float rNorm = normCoord.x;
+    float phiNorm = normCoord.y;
 
-// Multi-scale Keplerian sheared fBm - all prograde, no counter-shear
-float keplerianNoise(vec2 azimuthRadiusNorm, float shiftNorm, float radiusNorm) {
-    float az = azimuthRadiusNorm.x;
-    float rn = azimuthRadiusNorm.y;
+    // 1. Keplerian differential angular velocity
+    float sqrtMass = sqrt(max(u_Mass, 1.0e-6));
+    float denomOmega = pow(max(rPhysical, 1.0e-6), 1.5) + u_Spin * sqrtMass;
+    float omega = sqrtMass / max(1.0e-6, denomOmega);
 
-    // Octave 1: Macro stream (32, 4) weight 0.55 - prograde only
-    vec2 uv1 = vec2(az * 32.0 + shiftNorm * 32.0, rn * 4.0);
-    float n1 = valueNoisePeriodicX(uv1, 32.0);
+    // 2. Inward viscous accretion drift: matter accelerates as it approaches ISCO
+    float rRatio = u_DiskInnerRadius / max(1.0e-5, rPhysical);
+    float vInflow = 0.045 * sqrt(rRatio); // Transonic drift parameter
+    float rDrift = rNorm - vInflow * (tPhase / 24.0);
 
-    // Octave 2: Turbulent eddies (64, 12) weight 0.30 - prograde, no negative shear
-    vec2 uv2 = vec2(az * 64.0 + shiftNorm * 64.0, rn * 12.0);
-    float n2 = valueNoisePeriodicX(uv2, 64.0);
+    // 3. Logarithmic spiral coordinate: coils inward toward the black hole
+    float spiralCoil = 1.8 * log(max(1.0, rPhysical / u_DiskInnerRadius));
+    float phiSheared = phiNorm - (omega * u_TimeScale * tPhase) / TWO_PI - spiralCoil / TWO_PI;
 
-    // Octave 3: Micro filaments (128, 24) weight 0.15 - prograde
-    vec2 uv3 = vec2(az * 128.0 + shiftNorm * 128.0, rn * 24.0);
-    float n3 = valueNoisePeriodicX(uv3, 128.0);
+    // 4. Multi-scale periodic hardware texture sampling
+    // Texture wraps periodically along X (phi) and Y (r)
+    vec2 uvMacro = vec2(fract(phiSheared * 4.0), fract(rDrift * 2.0));
+    vec2 uvMeso  = vec2(fract(phiSheared * 12.0), fract(rDrift * 6.0));
+    vec2 uvMicro = vec2(fract(phiSheared * 32.0), fract(rDrift * 16.0));
 
-    float combined = n1 * 0.55 + n2 * 0.30 + n3 * 0.15;
+    float nMacro = texture(u_NoiseTexture, uvMacro).r;
+    float nMeso  = texture(u_NoiseTexture, uvMeso).r;
+    float nMicro = texture(u_NoiseTexture, uvMicro).r;
 
-    float filament = valueNoisePeriodicX(vec2(az * 96.0 + shiftNorm * 96.0, rn * 18.0), 96.0);
-    filament = smoothstep(0.25, 0.85, filament);
-    combined = mix(combined, filament, 0.16);
+    float combinedNoise = nMacro * 0.50 + nMeso * 0.35 + nMicro * 0.15;
 
-    return clamp(combined, 0.0, 1.0);
+    // Inject concentric rings
+    float rings = computeHarmonicStriations(rPhysical);
+    return combinedNoise + rings * 0.35;
 }
 
 void main() {
-    if (u_Amplitude == 0.0) {
-        fragColor = 1.0;
+    ivec2 texCoord = ivec2(gl_FragCoord.xy);
+    vec4 semantic = texelFetch(u_SemanticTexture, texCoord, 0);
+    float rayState = semantic.a;
+
+    // If not accretion disk (state != 3), output identity modulation
+    if (abs(rayState - 3.0) > 0.1) {
+        fragColor = vec4(1.0, 0.0, 0.0, 1.0);
         return;
     }
 
-    ivec2 recordCoord = ivec2(gl_FragCoord.xy);
-    vec4 semantic = texelFetch(u_SemanticTexture, recordCoord, 0);
-    int state = int(floor(semantic.a + 0.5));
+    float rNorm = semantic.r;
+    float phiNorm = semantic.g;
+    float rPhysical = mix(u_DiskInnerRadius, u_DiskOuterRadius, rNorm);
 
-    if (state != 3) {
-        fragColor = 1.0;
-        return;
-    }
+    // Dual-phase flow-mapping ping-pong evaluation
+    float sampleA = sampleAdvectedNoise(vec2(rNorm, phiNorm), u_TimeA, rPhysical);
+    float sampleB = sampleAdvectedNoise(vec2(rNorm, phiNorm), u_TimeB, rPhysical);
 
-    float radiusNorm = clamp(semantic.r, 0.0, 1.0);
-    float azimuthNorm = fract(semantic.g);
+    // Seamless cross-fade between Phase A and Phase B
+    float rawNoise = mix(sampleB, sampleA, u_BlendA);
 
-    float radius = mix(u_DiskInnerRadius, u_DiskOuterRadius, radiusNorm);
-    float sqrtMass = sqrt(max(u_Mass, 1.0e-6));
-    float denominator = pow(max(radius, 1.0e-6), 1.5) + u_Spin * sqrtMass;
-    float omega = sqrtMass / max(1.0e-6, denominator);
+    // Scale by user-configured modulation amplitude centered around noise mean
+    float centered = rawNoise - u_NoiseMean;
+    float modFactor = 1.0 + u_Amplitude * centered;
 
-    float shiftA = omega * u_TimeScale * u_TimeA / TAU;
-    float shiftB = omega * u_TimeScale * u_TimeB / TAU;
+    // Radial boundary fade: modulation gracefully vanishes at disk edges
+    float boundaryFade = smoothstep(0.0, 0.05, rNorm) * smoothstep(1.0, 0.85, rNorm);
+    float finalModulation = mix(1.0, modFactor, boundaryFade);
 
-    float wA = clamp(u_BlendA, 0.0, 1.0);
-    float wB = 1.0 - wA;
-
-    float noiseA = keplerianNoise(vec2(azimuthNorm, radiusNorm), shiftA, radiusNorm);
-    float noiseB = keplerianNoise(vec2(azimuthNorm, radiusNorm), shiftB + 0.37, radiusNorm + 0.29);
-
-    float noiseCombined = wA * noiseA + wB * noiseB;
-    noiseCombined = clamp(noiseCombined, 0.0, 1.0);
-
-    // Stable modulation formula - no tearing at ±80%
-    float n = noiseCombined;
-    float dust = smoothstep(0.20, 0.80, n);
-
-    float amp = u_Amplitude; // 0.15, 0.40, 0.80
-    float brightFactor = 1.0 + amp * 0.60 * (1.0 - dust);
-    float absorbFactor = exp(-amp * 1.10 * dust);
-
-    float finalMod = clamp(brightFactor * absorbFactor, 0.35, 1.85);
-
-    fragColor = finalMod;
+    // Output single-channel float scalar (R16F / R8)
+    fragColor = vec4(max(0.15, finalModulation), 0.0, 0.0, 1.0);
 }

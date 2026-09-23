@@ -168,16 +168,32 @@ vec3 sample_procedural_sky(vec3 dir) { return renderProceduralCosmos(dir); }
 void main() {
     ivec2 coord = ivec2(gl_FragCoord.xy);
     vec4 hdrColor = texelFetch(u_HdrTexture, coord, 0);
-    vec4 sem = texelFetch(u_SemanticTexture, coord, 0);
+    vec4 semantic = texelFetch(u_SemanticTexture, coord, 0);
+    float state = semantic.a;
 
-    int state = int(sem.w + 0.5);
+    if (state <= 1.5) {
+        // Event Horizon Shadow or Unresolved: Preserve pure black & strict alpha
+        // If HDR color has accumulated foreground disk radiance, preserve it; otherwise pure black
+        if (hdrColor.a <= 0.5) {
+            fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        } else {
+            // Foreground gas in front of horizon: modulate radiance
+            float modFactor = texelFetch(u_ModulationTexture, coord, 0).r;
+            fragColor = vec4(hdrColor.rgb * modFactor, 1.0);
+        }
+        return;
+    }
 
-    if (state <= 1) {
-        // Event Horizon / Shadow: Pure Invariant Black (Never blooms)
-        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
-    } else if (state == 2) {
-        // Escaped Sky Ray: sem.xyz holds deflected unit ray direction
-        vec3 deflectedRay = normalize(sem.xyz);
+    if (abs(state - 3.0) < 0.1) {
+        // Accretion Disk Texel: multiply HDR radiance by the Keplerian flow factor
+        float modFactor = texelFetch(u_ModulationTexture, coord, 0).r;
+        fragColor = vec4(hdrColor.rgb * modFactor, 1.0);
+        return;
+    }
+
+    if (abs(state - 2.0) < 0.1) {
+        // Escaped Sky Texel: dynamically rotate deflected ray around celestial axis
+        vec3 deflectedRay = semantic.rgb;
         float len2 = dot(deflectedRay, deflectedRay);
         if (len2 < 0.5 || len2 > 1.5) {
             deflectedRay = vec3(0.0, 0.0, 1.0);
@@ -199,15 +215,14 @@ void main() {
             skyAngle = u_Time * 0.02618; // Exactly 1.5 degrees per second
         }
         vec3 rotatedSky = rotateAxis(deflectedRay, celestialAxis, skyAngle);
+        vec3 skyRadiance = renderProceduralCosmos(rotatedSky);
 
-        vec3 cosmosColor = renderProceduralCosmos(rotatedSky);
-        fragColor = vec4(cosmosColor, 1.0);
-    } else if (state == 3) {
-        // Accretion Disk Texel: modulate by Keplerian flow buffer
-        float modFactor = texelFetch(u_ModulationTexture, coord, 0).r;
-        vec3 diskRadiance = hdrColor.rgb * modFactor;
-        fragColor = vec4(diskRadiance, 1.0);
-    } else {
-        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        // Blend with any translucent foreground disk radiance stored in hdrColor
+        vec3 finalSky = hdrColor.rgb + skyRadiance;
+        fragColor = vec4(finalSky, 1.0);
+        return;
     }
+
+    // Default passthrough
+    fragColor = hdrColor;
 }

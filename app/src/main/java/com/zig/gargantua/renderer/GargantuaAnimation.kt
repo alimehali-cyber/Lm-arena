@@ -128,6 +128,18 @@ object GargantuaAnimation {
         return digits
     }
 
+    /**
+     * Zero-allocation variant of timeDigits: writes base-16 digits directly into a pre-allocated array.
+     */
+    fun fillTimeDigits(seconds: Double, outDigits: FloatArray) {
+        require(outDigits.size >= TIME_DIGIT_COUNT) { "outDigits must have size >= $TIME_DIGIT_COUNT" }
+        var remaining = seconds.coerceAtLeast(0.0)
+        for (index in 0 until TIME_DIGIT_COUNT) {
+            outDigits[index] = (remaining % TIME_DIGIT_BASE).toFloat().coerceAtMost(15.999999f)
+            remaining = kotlin.math.floor(remaining / TIME_DIGIT_BASE)
+        }
+    }
+
     fun normalizedMean(bytes: ByteArray): Float {
         require(bytes.isNotEmpty())
         var sum = 0L

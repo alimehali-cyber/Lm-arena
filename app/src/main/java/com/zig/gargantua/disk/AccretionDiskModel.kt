@@ -33,6 +33,12 @@ data class AccretionDiskModel(
         require(outerRadius > innerRadius) { "Outer radius ($outerRadius) must exceed inner radius ($innerRadius)" }
     }
 
+    /** ISCO radius alias for innerRadius. */
+    val rIsco: Double get() = innerRadius
+
+    /** Outer disk radius alias for outerRadius. */
+    val rOut: Double get() = outerRadius
+
     /** Checks whether coordinate radius r lies within the active disk domain. */
     fun containsRadius(r: Double): Boolean = r in innerRadius..outerRadius
 
@@ -45,6 +51,45 @@ data class AccretionDiskModel(
         val rRatio = innerRadius / r
         val r3 = r * r * r
         return (M / r3) * max(0.0, 1.0 - sqrt(rRatio))
+    }
+
+    /**
+     * Normalized flux profile in [0, 1] relative to peak Novikov-Thorne emissivity.
+     */
+    fun normalizedFlux(r: Double): Double {
+        val f = fluxProfile(r)
+        val rPeak = 1.361111 * innerRadius
+        val fPeak = M / (7.0 * rPeak * rPeak * rPeak)
+        return if (fPeak > 1e-7) (f / fPeak).coerceIn(0.0, 1.0) else 0.0
+    }
+
+    /**
+     * Analytical vertical scale height H(r) = h0 * (r / r_in)^beta (Thorne & DNeg 2015).
+     */
+    fun scaleHeight(r: Double, h0: Double = 0.045 * M, beta: Double = 1.15): Double {
+        require(r > 0.0) { "Radius must be positive" }
+        val rIn = innerRadius
+        val normR = r / rIn
+        return h0 * normR.pow(beta)
+    }
+
+    /**
+     * Optical depth segment computation for a slab traversal.
+     */
+    fun computeSlabOpticalDepth(
+        r: Double,
+        cosIncidence: Double,
+        h0: Double = 0.045 * M,
+        beta: Double = 1.15,
+        baseOpacity: Double = 12.0
+    ): Double {
+        val h = scaleHeight(r, h0, beta)
+        val clampedCos = max(abs(cosIncidence), 0.065)
+        val pathLength = (2.0 * h) / clampedCos
+        val fNorm = normalizedFlux(r)
+        val radialWindow = ((r - innerRadius) / 0.25).coerceIn(0.0, 1.0) * ((outerRadius - r) / 2.0).coerceIn(0.0, 1.0)
+        val density = (0.55 + 0.45 * fNorm) * radialWindow
+        return density * pathLength * baseOpacity
     }
 
     /** Emitted local rest-frame effective temperature T_emit(r) ∝ F(r)^(1/4). */
@@ -172,5 +217,28 @@ data class AccretionDiskModel(
             (g * intensity).coerceIn(0.0, 1.0),
             (b * intensity).coerceIn(0.0, 1.0)
         )
+    }
+
+    companion object {
+        /**
+         * Computes optical depth segment for a default accretion disk model.
+         */
+        fun computeSlabOpticalDepth(
+            r: Double,
+            cosIncidence: Double,
+            M: Double = 1.0,
+            a: Double = 0.8,
+            h0: Double = 0.045 * M,
+            beta: Double = 1.15,
+            baseOpacity: Double = 12.0
+        ): Double {
+            return AccretionDiskModel(M = M, a = a).computeSlabOpticalDepth(
+                r = r,
+                cosIncidence = cosIncidence,
+                h0 = h0,
+                beta = beta,
+                baseOpacity = baseOpacity
+            )
+        }
     }
 }

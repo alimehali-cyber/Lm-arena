@@ -95,7 +95,7 @@ class SymmetriesAndScalingTest {
     @Test
     fun allReferenceGatesExecuteSuccessfully() {
         val results = GargantuaReferenceGates.runAllGates()
-        assertEquals(7, results.size)
+        assertEquals(15, results.size)
         for (r in results) {
             assertTrue("Gate ${r.gateId} must pass: ${r.message}", r.passed)
         }

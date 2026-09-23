@@ -43,6 +43,11 @@ data class KerrParameters(
     /** Event horizon radius r_+ = M + √(M² - a²). */
     val rPlus: Double get() = M + sqrt(max(0.0, M * M - a * a))
 
+    companion object {
+        /** Computes the outer event horizon radius r_+ = M + √(M² - a²). */
+        fun outerHorizonRadius(M: Double, a: Double): Double = KerrParameters(M, a).rPlus
+    }
+
     /** Cauchy (inner) horizon radius r_- = M - √(M² - a²). */
     val rMinus: Double get() = M - sqrt(max(0.0, M * M - a * a))
 

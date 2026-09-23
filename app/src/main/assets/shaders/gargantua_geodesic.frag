@@ -417,6 +417,86 @@ float fbm3D(vec3 p) {
     return v;
 }
 
+// --- High-Frequency Striated Keplerian Filament Generator ---
+float gargantuaHash12(vec2 p) {
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float gargantuaStriatedNoise1D(float x) {
+    float i = floor(x);
+    float f = fract(x);
+    float u = f * f * (3.0 - 2.0 * f);
+    return mix(gargantuaHash12(vec2(i, 0.0)), gargantuaHash12(vec2(i + 1.0, 0.0)), u);
+}
+
+float evaluateKeplerianFilamentDensity(float r, float phi, float time, float fNorm, float rIn, float rOut) {
+    // Local Keplerian angular velocity
+    float omega = sqrt(u_Mass) / (pow(r, 1.5) + u_Spin * sqrt(u_Mass));
+    // Azimuthally sheared coordinate along prograde flow
+    float phiSheared = phi - omega * (time * 0.65);
+
+    // 1. Concentric razor-thin Keplerian harmonic rings
+    float rings = 0.0;
+    rings += sin(r * 48.0) * 0.28;
+    rings += sin(r * 115.0 + rings * 1.5) * 0.22;
+    rings += sin(r * 290.0) * 0.16;
+    rings += (gargantuaStriatedNoise1D(r * 80.0) - 0.5) * 0.45;
+
+    // 2. High-aspect-ratio sheared filaments (40:1 azimuthal stretching)
+    float filamentCoord = r * 16.0 + sin(phiSheared * 3.0) * 1.2;
+    float filaments = gargantuaStriatedNoise1D(filamentCoord) * 0.55;
+    filaments += gargantuaStriatedNoise1D(filamentCoord * 2.2 + phiSheared * 4.0) * 0.35;
+
+    // 3. Macro spiral dust clumping
+    float spiral = sin(phiSheared * 2.0 - log(max(1.0, r)) * 5.5) * 0.25 + 0.75;
+
+    // 4. Radial boundary window
+    float radialWindow = smoothstep(rIn, rIn + 0.35, r) * smoothstep(rOut, rOut - 3.5, r);
+
+    float rawDensity = (0.40 + 0.35 * rings + 0.45 * filaments) * spiral;
+    return clamp(rawDensity * (0.60 + 0.40 * fNorm) * radialWindow, 0.0, 3.0);
+}
+
+// --- 4-Tier Incandescent Blackbody Spectrum ---
+vec3 evaluate4TierBlackbodySpectrum(float fNorm, float gShift) {
+    // Relativistic Doppler Beaming (g^4)
+    float gClamped = clamp(gShift, 0.15, 3.8);
+    float g4 = pow(gClamped, 4.0);
+    float iPhys = g4 * fNorm;
+
+    // Effective Temperature: T_eff ~ g * F^(1/4)
+    float tEff = gClamped * pow(fNorm, 0.25);
+
+    // 4-Tier Cinematic Palette
+    // Tier 0: Redshifted Smoke / Outer Accretion Veil
+    vec3 cSmoke    = vec3(0.35, 0.06, 0.01);
+    // Tier 1: Warm Radiative Copper-Bronze
+    vec3 cBronze   = vec3(1.15, 0.42, 0.07);
+    // Tier 2: Brilliant Solar Gold
+    vec3 cGold     = vec3(1.65, 1.05, 0.32);
+    // Tier 3: Extreme Blueshift Incandescent Cream-White Core
+    vec3 cCreamHot = vec3(2.40, 2.15, 1.85);
+
+    vec3 thermalColor;
+    if (tEff < 0.20) {
+        thermalColor = mix(cSmoke, cBronze, smoothstep(0.0, 0.20, tEff));
+    } else if (tEff < 0.55) {
+        thermalColor = mix(cBronze, cGold, smoothstep(0.20, 0.55, tEff));
+    } else {
+        thermalColor = mix(cGold, cCreamHot, smoothstep(0.55, 1.05, tEff));
+    }
+
+    // Smooth transition to pure incandescent core on extreme prograde blueshift
+    if (gShift > 1.25) {
+        float whiteBoost = smoothstep(1.25, 2.10, gShift);
+        thermalColor = mix(thermalColor, vec3(2.80, 2.70, 2.60), whiteBoost * 0.85);
+    }
+
+    return thermalColor * iPhys * 1.4;
+}
+
 
 vec4 traceRaySample(
     vec2 stCoord,
@@ -467,8 +547,15 @@ vec4 traceRaySample(
     // 3 = DISK       (physically intersected equatorial accretion disk)
     // 4 = OBJECT     (physically intersected relativistic synthetic test object)
     int rayState = 0;
-    vec3 diskColor = vec3(0.0);
     vec3 objectColor = vec3(0.0);
+
+    // Volumetric multi-crossing accumulation state
+    vec3 accumDiskRadiance = vec3(0.0);
+    float diskTransmittance = 1.0;
+    int diskCrossings = 0;
+    float primaryHitRadius = 0.0;
+    float primaryHitAzimuth = 0.0;
+
 #if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
     gargantuaSemanticDiskHitAzimuth = 0.0;
 #endif
@@ -478,8 +565,6 @@ vec4 traceRaySample(
     float rayT = u_Time;
 #endif
     float minR = rInit;
-    int crossings = 0;
-    float hitRadius = 0.0;
 
     float prevR = rInit;
     bool movingOutward = false;
@@ -521,14 +606,23 @@ vec4 traceRaySample(
         vec3 prevP = p_spatial;
         float prevT = rayT;
 
-        // Adaptive step size: robust bounded steps preventing ray-crawling near disk plane
-        float baseStep = 0.08 * r;
+        // Adaptive Step Controller: Caustic refinement near photon sphere & fast asymptotic marching
+        // Avoid clamping step size inside empty ISCO plunge region: r >= u_DiskInnerRadius - 0.5
+        float rProg = 2.0 * u_Mass * (1.0 + cos(0.666667 * acos(-clamp(u_Spin / u_Mass, -1.0, 1.0))));
+        float rRetro = 2.0 * u_Mass * (1.0 + cos(0.666667 * acos(clamp(u_Spin / u_Mass, -1.0, 1.0))));
+        float rPhMax = max(rProg, rRetro) + 0.35; // ~4.17M for a=0.8M
+
+        float baseStep = 0.075 * r;
         float dlambda = (r > 5.0 && (movingOutward || r > 20.0)) ? clamp(baseStep, 0.02, 0.50) : clamp(baseStep, 0.02, 0.35);
-        if (u_EnableDisk == 1 && abs(pos.z) < 0.60 && r >= u_DiskInnerRadius - 0.5 && r <= u_DiskOuterRadius + 1.0) {
-            float vz = abs(p_spatial.z);
-            float stepToDisk = abs(pos.z) / max(0.15, vz);
-            dlambda = min(dlambda, max(0.04, stepToDisk * 0.80 + 0.02));
+
+        // Caustic refinement zone: subdivide steps near photon orbits to resolve razor-sharp caustic ring
+        if (r > rCapture && r < rPhMax) {
+            float proximity = clamp((r - rCapture) / (rPhMax - rCapture), 0.0, 1.0);
+            float causticStep = mix(0.012, 0.060, proximity);
+            dlambda = min(dlambda, causticStep);
         }
+
+        // Advance geodesic via 4th-order Runge-Kutta
         rk4_step(u_Mass, u_Spin, pos, p_spatial, dlambda);
 
         // Coordinate time evolution along backward null ray:
@@ -545,173 +639,136 @@ vec4 traceRaySample(
         float dt_dlambda = 1.0 + 2.0 * H_m * Lp_m;
         rayT -= dt_dlambda * dlambda;
 
-        // M9 experimental marker disabled for production to eliminate cyan horizon fringe
-#if 0
-        // Check for intersection with relativistic test marker (bounded linear-interpolation closest-approach approximation)
-        float minStepR = min(prevR, r);
-        float maxStepR = max(prevR, r);
-        float objMargin = u_ObjectRadius + 1.2;
-        if (u_EnableObject == 1 && u_ObjectOrbitRadius >= minStepR - objMargin && u_ObjectOrbitRadius <= maxStepR + objMargin) {
-            float phiPrev = GARGANTUA_OBJECT_PHASE(prevT);
-            vec3 objPosPrev = vec3(u_ObjectOrbitRadius * cos(phiPrev), u_ObjectOrbitRadius * sin(phiPrev), u_ObjectZ);
+        // Miller's Planet Relativistic Timelike World-Tube Intersection
+        if (u_EnableObject == 1 && r > (rCapture + 0.35)) {
+            // Tight radial bounding cylinder check
+            float rStepMin = min(prevR, r);
+            float rStepMax = max(prevR, r);
+            if (u_ObjectOrbitRadius >= (rStepMin - u_ObjectRadius) && u_ObjectOrbitRadius <= (rStepMax + u_ObjectRadius)) {
+                // Evaluate planet position at coordinate times
+                float phiPrev = GARGANTUA_OBJECT_PHASE(prevT);
+                vec3 objPosPrev = vec3(u_ObjectOrbitRadius * cos(phiPrev), u_ObjectOrbitRadius * sin(phiPrev), u_ObjectZ);
 
-            float phiCurr = GARGANTUA_OBJECT_PHASE(rayT);
-            vec3 objPosCurr = vec3(u_ObjectOrbitRadius * cos(phiCurr), u_ObjectOrbitRadius * sin(phiCurr), u_ObjectZ);
+                float phiCurr = GARGANTUA_OBJECT_PHASE(rayT);
+                vec3 objPosCurr = vec3(u_ObjectOrbitRadius * cos(phiCurr), u_ObjectOrbitRadius * sin(phiCurr), u_ObjectZ);
 
-            vec3 dp0 = prevPos - objPosPrev;
-            vec3 dp1 = pos - objPosCurr;
-            vec3 vRel = dp1 - dp0;
-            float vRel2 = dot(vRel, vRel);
-            float sStar = (vRel2 > 1.0e-10) ? clamp(-dot(dp0, vRel) / vRel2, 0.0, 1.0) : 0.0;
+                vec3 dp0 = prevPos - objPosPrev;
+                vec3 dp1 = pos - objPosCurr;
+                vec3 vRel = dp1 - dp0;
+                float vRel2 = dot(vRel, vRel);
+                float sStar = (vRel2 > 1.0e-10) ? clamp(-dot(dp0, vRel) / vRel2, 0.0, 1.0) : 0.0;
 
-            vec3 hitPos = mix(prevPos, pos, sStar);
-            float hitT = mix(prevT, rayT, sStar);
-            float phiHit = GARGANTUA_OBJECT_PHASE(hitT);
-            vec3 objPosHit = vec3(u_ObjectOrbitRadius * cos(phiHit), u_ObjectOrbitRadius * sin(phiHit), u_ObjectZ);
+                vec3 hitPos = mix(prevPos, pos, sStar);
+                float hitT = mix(prevT, rayT, sStar);
+                float phiHit = GARGANTUA_OBJECT_PHASE(hitT);
+                vec3 objPosHit = vec3(u_ObjectOrbitRadius * cos(phiHit), u_ObjectOrbitRadius * sin(phiHit), u_ObjectZ);
 
-            vec3 hitRel = hitPos - objPosHit;
-            float hitDist = length(hitRel);
+                vec3 hitRel = hitPos - objPosHit;
+                float hitDist = length(hitRel);
 
-            if (hitDist <= u_ObjectRadius) {
-                vec3 hitP = mix(prevP, p_spatial, sStar);
+                // Strict sphere collision test
+                if (hitDist <= u_ObjectRadius) {
+                    vec3 sphereNormal = normalize(hitRel);
 
-                // Object 4-velocity u^mu = u0 * (1, -Omega * Y, Omega * X, 0)
-                float rObjHit = length(objPosHit.xy);
-                float a2Obj = u_Spin * u_Spin;
-                float denomVObj = rObjHit * rObjHit + a2Obj;
-                float lxObj = (rObjHit * objPosHit.x + u_Spin * objPosHit.y) / denomVObj;
-                float lyObj = (rObjHit * objPosHit.y - u_Spin * objPosHit.x) / denomVObj;
-                float HObj = u_Mass / max(1.0e-6, rObjHit);
+                    // Directional disk lighting: disk is in equatorial plane inside the orbit
+                    vec3 toBlackHole = normalize(vec3(-objPosHit.xy, 0.0));
+                    float diskIllumination = max(0.0, dot(sphereNormal, toBlackHole));
+                    float rim = pow(1.0 - max(0.0, abs(dot(sphereNormal, normalize(prevPos - pos)))), 3.0);
 
-                float l_dot_u = 1.0 + u_ObjectOmega * (lyObj * objPosHit.x - lxObj * objPosHit.y);
-                float eta_u_u = -1.0 + (u_ObjectOmega * u_ObjectOmega) * (objPosHit.x * objPosHit.x + objPosHit.y * objPosHit.y);
-                float denomContract = eta_u_u + 2.0 * HObj * (l_dot_u * l_dot_u);
-                float u0 = (denomContract < 0.0) ? 1.0 / sqrt(-denomContract) : 1.0;
+                    // Surface coloration: Dark oceanic basalt world with incandescent disk bounce
+                    vec3 oceanicBase = vec3(0.08, 0.11, 0.14);
+                    vec3 diskBounceColor = vec3(2.1, 1.4, 0.6) * diskIllumination * 3.5;
+                    vec3 atmosphericRim = vec3(0.4, 0.6, 0.9) * rim * 1.2;
+                    vec3 planetColor = oceanicBase + diskBounceColor + atmosphericRim;
 
-                // Contravariant coordinate 3-velocity
-                float vx = -u_ObjectOmega * objPosHit.y;
-                float vy = u_ObjectOmega * objPosHit.x;
-                float vz = 0.0;
-
-                // Invariant frequency shift: g = (-p_μ u_obs^μ) / (-p_μ u_emit^μ)
-                // In backward ray tracing, hitP is directed from observer into scene.
-                // Consistent with thin-disk invariant convention: denomG = u0 * (1.0 + omega * lz) = u0 * (1.0 + p · v)
-                float pDotV = hitP.x * vx + hitP.y * vy + hitP.z * vz;
-                float denomG = u0 * (1.0 + pDotV);
-                float uObs0 = 1.0 / sqrt(max(1.0e-6, -g[0][0]));
-                float gShift = (abs(denomG) > 1.0e-6) ? clamp(uObs0 / denomG, 0.05, 5.0) : 1.0;
-
-                float g2 = gShift * gShift;
-                float g4 = g2 * g2;
-
-                // Distinctive procedural surface appearance
-                float distNorm = hitDist / u_ObjectRadius;
-                vec3 localNormal = (hitDist > 1.0e-6) ? hitRel / hitDist : vec3(0.0, 0.0, 1.0);
-                float lat = acos(clamp(localNormal.z, -1.0, 1.0));
-                float lon = atan(localNormal.y, localNormal.x);
-                float bands = 0.85 + 0.15 * cos(lat * 12.0) * cos(lon * 8.0);
-                float coreGlow = exp(-distNorm * distNorm * 2.0);
-                float limb = 0.7 + 0.3 * (1.0 - distNorm);
-
-                vec3 dopplerTint = (gShift > 1.0) ? mix(vec3(1.0), vec3(0.8, 0.95, 1.2), min(1.0, (gShift - 1.0) * 0.5))
-                                                   : mix(vec3(1.0), vec3(1.2, 0.75, 0.5), min(1.0, (1.0 - gShift) * 0.5));
-
-                vec3 emitColor = u_ObjectBaseColor * (bands * limb + 0.5 * coreGlow) * dopplerTint;
-                objectColor = g4 * u_ObjectRadiance * emitColor;
-
-                rayState = 4; // OBJECT
-                break;
+                    // Physical Solid Occlusion: planet absorbs all light behind it
+                    accumDiskRadiance += diskTransmittance * planetColor;
+                    diskTransmittance = 0.0;
+                    rayState = 4; // OBJECT HIT
+                    break;
+                }
             }
         }
-#endif
 
-        // Check for intersection with thin equatorial accretion disk at Z=0
-        if (u_EnableDisk == 1 && prevPos.z * pos.z <= 0.0 && prevPos.z != pos.z) {
-            float tau = clamp(-prevPos.z / (pos.z - prevPos.z), 0.0, 1.0);
-            vec3 hitPos = mix(prevPos, pos, tau);
-            // True Kerr-Schild equatorial radius: r = sqrt(rho^2 - a^2) where rho^2 = x^2 + y^2
+        // Volumetric Multi-Crossing Equatorial Disk Slab Radiative Transfer
+        if (u_EnableDisk == 1 && prevPos.z * pos.z <= 0.0 && prevPos.z != pos.z && diskCrossings < 4) {
+            float tauCrossing = clamp(-prevPos.z / (pos.z - prevPos.z), 0.0, 1.0);
+            vec3 hitPos = mix(prevPos, pos, tauCrossing);
             float rho2 = hitPos.x * hitPos.x + hitPos.y * hitPos.y;
             float a2_kerr = u_Spin * u_Spin;
             float rHit = sqrt(max(0.0, rho2 - a2_kerr));
-            crossings++;
-            if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
-                hitRadius = rHit;
-#if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
-                gargantuaSemanticDiskHitAzimuth = atan(hitPos.y, hitPos.x);
-#endif
-                vec3 hitP = mix(prevP, p_spatial, tau);
 
-                // Relativistic Keplerian angular velocity Omega = sqrt(M) / (r^(3/2) + a * sqrt(M))
+            if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
+                diskCrossings++;
+                if (diskCrossings == 1) {
+                    primaryHitRadius = rHit;
+                    primaryHitAzimuth = atan(hitPos.y, hitPos.x);
+#if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+                    gargantuaSemanticDiskHitAzimuth = primaryHitAzimuth;
+#endif
+                }
+
+                // 1. Flared scale height H(r) = h0 * (r / r_in)^1.15 (DNeg / Thorne model)
+                float h0 = 0.045 * u_Mass;
+                float rNormScale = rHit / max(1.0e-5, u_DiskInnerRadius);
+                float H_r = h0 * pow(rNormScale, 1.15);
+
+                // 2. Geometric slab path length traversal
+                vec3 rayStepDir = normalize(pos - prevPos);
+                float cosIncidence = max(abs(rayStepDir.z), 0.065);
+                float pathLength = (2.0 * H_r) / cosIncidence;
+
+                // 3. Relativistic 4-Velocity & Doppler Shift g
+                vec3 hitP = mix(prevP, p_spatial, tauCrossing);
                 float omega = sqrt(u_Mass) / (pow(rHit, 1.5) + u_Spin * sqrt(u_Mass));
 
-                // Disk 4-velocity u^mu = u0 * (1, -Omega * Y, Omega * X, 0)
-                // Factored Kerr-Schild metric contraction at Z = 0:
                 float a2 = u_Spin * u_Spin;
                 float denom_v = rHit * rHit + a2;
                 float lx = (rHit * hitPos.x + u_Spin * hitPos.y) / denom_v;
                 float ly = (rHit * hitPos.y - u_Spin * hitPos.x) / denom_v;
-                float H = u_Mass / max(1.0e-6, rHit);
+                float H_metric = u_Mass / max(1.0e-6, rHit);
 
                 float l_dot_u = 1.0 + omega * (ly * hitPos.x - lx * hitPos.y);
                 float eta_u_u = -1.0 + (omega * omega) * (hitPos.x * hitPos.x + hitPos.y * hitPos.y);
-                float denomContract = eta_u_u + 2.0 * H * (l_dot_u * l_dot_u);
+                float denomContract = eta_u_u + 2.0 * H_metric * (l_dot_u * l_dot_u);
                 float u0 = (denomContract < 0.0) ? 1.0 / sqrt(-denomContract) : 1.0;
 
-                // Invariant frequency shift g = (-p_mu u_obs^mu) / (-p_mu u_emit^mu)
                 float lz = hitPos.x * hitP.y - hitPos.y * hitP.x;
                 float denomG = u0 * (1.0 + omega * lz);
-
-                // Static observer at camera position
                 float uObs0 = 1.0 / sqrt(max(1.0e-6, -g[0][0]));
                 float gShift = (abs(denomG) > 1.0e-6) ? clamp(uObs0 / denomG, 0.05, 5.0) : 1.0;
 
-                // Novikov-Thorne-inspired thin-disk flux profile F(r) = (M/r^3) * [1 - sqrt(r_in/r)]
+                // 4. Novikov-Thorne Emissivity
                 float rRatio = u_DiskInnerRadius / rHit;
                 float F = (u_Mass / (rHit * rHit * rHit)) * max(0.0, 1.0 - sqrt(rRatio));
-                float tEmit = pow(max(1.0e-12, F), 0.25);
-                float tObs = gShift * tEmit;
-
-                // Relativistic frequency shift beaming g^4 (test-required exact form)
-                float g2 = gShift * gShift;
-                float g4 = g2 * g2;
-
-                // Principled dimensionless reference normalization:
-                // Peak emissivity of Novikov-Thorne profile analytically occurs at r_peak = (49/36) * r_in:
                 float rPeak = 1.361111 * u_DiskInnerRadius;
                 float fPeak = u_Mass / (7.0 * rPeak * rPeak * rPeak);
                 float fNorm = (fPeak > 1.0e-7) ? clamp(F / fPeak, 0.0, 1.0) : 0.0;
 
-                // Physical transferred emission: I_phys = g^4 * fNorm
+                // 5. High-Frequency Striated Keplerian Filaments & 4-Tier Spectrum
+                float g2 = gShift * gShift;
+                float g4 = g2 * g2;
                 float iPhys = g4 * fNorm;
                 float radiance = iPhys;
 
-                // Clamped Doppler amplification to prevent numerical explosion (surgical fix)
-                float gClamped = clamp(gShift, 0.1, 3.2);
-                float g4Clamped = pow(gClamped, 4.0);
-                float radianceClamped = clamp(g4Clamped * fNorm, 0.0, 18.0);
+                float phiHit = atan(hitPos.y, hitPos.x);
+                float opticalDensity = evaluateKeplerianFilamentDensity(rHit, phiHit, u_Time, fNorm, u_DiskInnerRadius, u_DiskOuterRadius);
+                vec3 crossingColor = evaluate4TierBlackbodySpectrum(fNorm, gShift);
 
-                float tNorm = clamp(tObs * 4.0, 0.0, 2.5);
-                if (rHit < u_DiskInnerRadius) {
-                    continue;
+                // 6. Volumetric Absorption & Radiative Accumulation
+                float tauSegment = opticalDensity * pathLength * 8.5;
+                float segmentAlpha = 1.0 - exp(-tauSegment);
+
+                // Front-to-back accumulation
+                accumDiskRadiance += diskTransmittance * crossingColor * segmentAlpha;
+                diskTransmittance *= (1.0 - segmentAlpha);
+
+                // Opaque termination: break only if transmittance is completely extinguished
+                if (diskTransmittance < 0.02) {
+                    diskTransmittance = 0.0;
+                    rayState = 3; // DISK HIT
+                    break;
                 }
-                // Amber-brown to white-hot grading (physical Planckian)
-                vec3 thermalRamp = vec3(
-                    clamp(1.0 + 0.25 * tNorm + 0.05 * tNorm * tNorm, 0.0, 1.95),
-                    clamp(0.35 + 0.25 * tNorm + 0.10 * tNorm * tNorm, 0.0, 1.65),
-                    clamp(0.15 + 0.15 * tNorm + 0.08 * tNorm * tNorm, 0.0, 1.25)
-                );
-
-                // Use clamped radiance for actual display to prevent explosion, while preserving iPhys for tests
-                diskColor = radianceClamped * thermalRamp;
-
-                // Smooth Planckian saturation for extreme blueshift (never cyan, never notched)
-                if (gShift > 1.15) {
-                    float t = smoothstep(1.15, 1.60, gShift);
-                    diskColor = mix(diskColor, vec3(1.35, 1.30, 1.20) * radianceClamped, t);
-                }
-
-                rayState = 3; // DISK HIT
-                break; // Opaque disk: terminate integration immediately
             }
         }
     }
@@ -727,23 +784,22 @@ vec4 traceRaySample(
 
     outState = rayState;
     outMinR = minR;
-    outCrossings = crossings;
-    outHitR = hitRadius;
+    outCrossings = diskCrossings;
+    outHitR = primaryHitRadius;
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
     outStepsTaken = stepsTaken;
 #endif
 
-    if (rayState == 4) {
-        // Relativistic test object (unbounded HDR radiance)
-        return vec4(objectColor, 1.0);
-    } else if (rayState == 3) {
-        // Relativistic equatorial accretion disk (unbounded HDR radiance)
-        return vec4(diskColor, 1.0);
-    } else if (rayState == 1) {
-        // True black hole shadow (strictly 0.0 radiance, alpha 0.0 for shadow protection)
-        return vec4(0.0, 0.0, 0.0, 0.0);
-    } else if (rayState == 2) {
-        // Re-enabled lensed background starfield with deflected vector packing for dynamic lensing
+    // Final Radiance Composite
+    if (rayState == 1) { // Captured by Horizon
+        if (accumDiskRadiance.r + accumDiskRadiance.g + accumDiskRadiance.b > 0.005) {
+            // Emissive gas in front of the black hole
+            return vec4(accumDiskRadiance, 1.0);
+        } else {
+            // Pure un-occluded black hole shadow
+            return vec4(0.0, 0.0, 0.0, 0.0);
+        }
+    } else if (rayState == 2) { // Escaped Sky
         vec3 skyDir = normalize(p_spatial);
         if (dot(skyDir, skyDir) < 0.5) {
             skyDir = normalize(vec3(0.0, 0.0, 1.0));
@@ -753,13 +809,19 @@ vec4 traceRaySample(
 #endif
         vec3 sky = sample_procedural_sky(skyDir);
         float skyScale = 0.85;
-        vec3 scaledSky = sky * skyScale;
-        scaledSky = clamp(scaledSky, vec3(0.0), vec3(0.45));
-        return vec4(scaledSky, 1.0);
-    } else {
-        // UNRESOLVED: budget exhausted without proving capture, escape, or disk intersection.
-        // Strictly pure black visually, alpha 0.5 distinguishes unresolved in telemetry.
-        return vec4(0.0, 0.0, 0.0, 0.5);
+        vec3 scaledSky = clamp(sky * skyScale, vec3(0.0), vec3(0.45));
+        vec3 compositeSky = accumDiskRadiance + diskTransmittance * scaledSky;
+        return vec4(compositeSky, 1.0);
+    } else if (rayState == 3) { // Opaque Disk Hit
+        return vec4(accumDiskRadiance, 1.0);
+    } else if (rayState == 4) { // Relativistic Object
+        return vec4(objectColor, 1.0);
+    } else { // Unresolved / Timeout
+        if (accumDiskRadiance.r + accumDiskRadiance.g + accumDiskRadiance.b > 0.005) {
+            return vec4(accumDiskRadiance, 1.0);
+        } else {
+            return vec4(0.0, 0.0, 0.0, 0.5);
+        }
     }
 }
 
@@ -809,7 +871,8 @@ void main() {
     int rayState = baseState;
     if (rayState == 1) {
         // Strict shadow: pure black, alpha 0.0 for shadow protection (never bloomed)
-        fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        // If foreground gas is present, baseSample carries radiance with alpha 1.0; otherwise baseSample is vec4(0.0, 0.0, 0.0, 0.0);
+        fragColor = baseSample;
     } else if (rayState == 2) {
         // Escaped: lensed starfield background, alpha 1.0 preserved
         fragColor = baseSample;
@@ -818,7 +881,8 @@ void main() {
     } else if (rayState == 4) {
         fragColor = baseSample;
     } else {
-        fragColor = vec4(0.0, 0.0, 0.0, 0.5);
+        // Unresolved branch: baseSample contains vec4(0.0, 0.0, 0.0, 0.5);
+        fragColor = baseSample;
     }
 
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
@@ -930,7 +994,7 @@ void main() {
 
 #if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
     vec4 semanticRecord;
-    if (baseState == 3) {
+    if (baseCrossings > 0) {
         float diskRadiusNormalized = clamp(
             (baseHitR - u_DiskInnerRadius) /
                 max(1.0e-6, u_DiskOuterRadius - u_DiskInnerRadius),
@@ -942,7 +1006,7 @@ void main() {
             diskRadiusNormalized,
             diskAzimuthNormalized,
             float(baseCrossings),
-            float(baseState)
+            3.0
         );
     } else if (baseState == 2) {
         // Pack exact curved-spacetime deflected unit vector for zero-cost dynamic lensing

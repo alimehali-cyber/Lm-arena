@@ -3,6 +3,7 @@ package com.zig.gargantua.renderer
 import android.content.Context
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
+import android.os.SystemClock
 import android.util.Log
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -91,8 +92,15 @@ class GargantuaRenderer(
     private var animationRebuildCount = 0
     private var animOriginNanos = 0L
     private var lastPresentedModulated = false
-    private var lastAnimationControlKey: Pair<Boolean, Int>? = null
+    private var lastAnimationRequested = false
+    private var lastAnimationAmplitudePercent = -1
     private val animationGate = AnimationGate()
+
+    // Zero-allocation reusable scratch buffers
+    private val scratchDrawBuffersSingle = intArrayOf(GLES30.GL_COLOR_ATTACHMENT0)
+    private val scratchDrawBuffersDual = intArrayOf(GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_COLOR_ATTACHMENT1)
+    private val scratchTimeDigits = FloatArray(8)
+    private var lastTelemetryDispatchUptimeMs = 0L
 
     // Debug-only workload instrumentation FBOs. These are never allocated or attached during
     // normal production rendering. A second and third color attachment carry per-pixel counters;
@@ -675,9 +683,9 @@ class GargantuaRenderer(
                 state.animationAmplitudePercent.coerceIn(0, 80) > 0 &&
                 state.useGeodesicShader &&
                 !state.enableWorkloadTelemetry
-        val animationControlKey = Pair(animationRequested, state.animationAmplitudePercent.coerceIn(0, 80))
-        if (animationControlKey != lastAnimationControlKey) {
-            if (animationControlKey.first && lastAnimationControlKey?.first != true) {
+        val currentAmplitudePercent = state.animationAmplitudePercent.coerceIn(0, 80)
+        if (animationRequested != lastAnimationRequested || currentAmplitudePercent != lastAnimationAmplitudePercent) {
+            if (animationRequested && !lastAnimationRequested) {
                 // Enabling ANIM restarts both the clock and the settle gate.
                 animOriginNanos = now
                 lastRaySignatureChangeNanos = now
@@ -689,12 +697,13 @@ class GargantuaRenderer(
                 animationCacheSignature = null
                 sceneDirty = true
             }
-            lastAnimationControlKey = animationControlKey
+            lastAnimationRequested = animationRequested
+            lastAnimationAmplitudePercent = currentAmplitudePercent
             presentationInvalidationPending = true
         }
         val animationElapsedSecondsDouble =
             ((now - animOriginNanos).coerceAtLeast(0L)).toDouble() / 1_000_000_000.0
-        val animationTimeDigits = GargantuaAnimation.timeDigits(animationElapsedSecondsDouble)
+        GargantuaAnimation.fillTimeDigits(animationElapsedSecondsDouble, scratchTimeDigits)
         val flowMapTimes = GargantuaAnimation.flowMapTimes(animationElapsedSecondsDouble)
         animationLastNotReadyReason = "none"
         val animationReady = when {
@@ -833,7 +842,7 @@ class GargantuaRenderer(
         if (renderedScene) {
             if (animationReady) {
                 GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, animationRayFboId)
-                GLES30.glDrawBuffers(2, intArrayOf(GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_COLOR_ATTACHMENT1), 0)
+                GLES30.glDrawBuffers(2, scratchDrawBuffersDual, 0)
             } else if (workloadRequested) {
                 GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, workloadFboId)
                 val workloadDrawBuffers = if (
@@ -855,7 +864,7 @@ class GargantuaRenderer(
                 GLES30.glDrawBuffers(workloadDrawBuffers.size, workloadDrawBuffers, 0)
             } else {
                 GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, rayFboId)
-                GLES30.glDrawBuffers(1, intArrayOf(GLES30.GL_COLOR_ATTACHMENT0), 0)
+                GLES30.glDrawBuffers(1, scratchDrawBuffersSingle, 0)
             }
             GLES30.glViewport(0, 0, rayGrid.rayWidth, rayGrid.rayHeight)
             GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
@@ -869,12 +878,12 @@ class GargantuaRenderer(
             activeProg.use()
             activeProg.setUniform2f("u_Resolution", rayGrid.rayWidth.toFloat(), rayGrid.rayHeight.toFloat())
             val animationGeodesicActive = activeProg == animationGeodesicProgram
-            activeProg.setUniform1f("u_Time", if (animationGeodesicActive) animationTimeDigits[0] else elapsedSeconds)
+            activeProg.setUniform1f("u_Time", if (animationGeodesicActive) scratchTimeDigits[0] else elapsedSeconds)
             if (animationGeodesicActive) {
-                activeProg.setUniform1f("u_TimeDigit1", animationTimeDigits[1])
-                activeProg.setUniform2f("u_TimeDigits23", animationTimeDigits[2], animationTimeDigits[3])
-                activeProg.setUniform2f("u_TimeDigits45", animationTimeDigits[4], animationTimeDigits[5])
-                activeProg.setUniform2f("u_TimeDigits67", animationTimeDigits[6], animationTimeDigits[7])
+                activeProg.setUniform1f("u_TimeDigit1", scratchTimeDigits[1])
+                activeProg.setUniform2f("u_TimeDigits23", scratchTimeDigits[2], scratchTimeDigits[3])
+                activeProg.setUniform2f("u_TimeDigits45", scratchTimeDigits[4], scratchTimeDigits[5])
+                activeProg.setUniform2f("u_TimeDigits67", scratchTimeDigits[6], scratchTimeDigits[7])
             }
 
             if (activeProg == geodesicProgram || activeProg == workloadGeodesicProgram || activeProg == animationGeodesicProgram) {
@@ -895,10 +904,17 @@ class GargantuaRenderer(
                 val fwdRawY = state.camTargetY.toDouble() - camY
                 val fwdRawZ = state.camTargetZ.toDouble() - camZ
                 val fwdLen = sqrt(fwdRawX * fwdRawX + fwdRawY * fwdRawY + fwdRawZ * fwdRawZ)
-                val (fwdX, fwdY, fwdZ) = if (fwdLen > 1e-6) {
-                    Triple(fwdRawX / fwdLen, fwdRawY / fwdLen, fwdRawZ / fwdLen)
+                val fwdX: Double
+                val fwdY: Double
+                val fwdZ: Double
+                if (fwdLen > 1e-6) {
+                    fwdX = fwdRawX / fwdLen
+                    fwdY = fwdRawY / fwdLen
+                    fwdZ = fwdRawZ / fwdLen
                 } else {
-                    Triple(-dirX, -dirY, -dirZ)
+                    fwdX = -dirX
+                    fwdY = -dirY
+                    fwdZ = -dirZ
                 }
 
                 // Stable orthonormal camera basis for full 360-degree orbit.
@@ -909,10 +925,17 @@ class GargantuaRenderer(
                 val upY = rZ * fwdX - rX * fwdZ
                 val upZ = rX * fwdY - rY * fwdX
                 val upLen = sqrt(upX * upX + upY * upY + upZ * upZ)
-                val (normUpX, normUpY, normUpZ) = if (upLen > 1e-6) {
-                    Triple(upX / upLen, upY / upLen, upZ / upLen)
+                val normUpX: Double
+                val normUpY: Double
+                val normUpZ: Double
+                if (upLen > 1e-6) {
+                    normUpX = upX / upLen
+                    normUpY = upY / upLen
+                    normUpZ = upZ / upLen
                 } else {
-                    Triple(0.0, 0.0, 1.0)
+                    normUpX = 0.0
+                    normUpY = 0.0
+                    normUpZ = 1.0
                 }
 
                 val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
@@ -1127,48 +1150,52 @@ class GargantuaRenderer(
             gateDecision.state == AnimationGate.State.BUILD -> "ANIM BUILD"
             else -> "ANIM ±${state.animationAmplitudePercent}% · READY"
         }
-        val animationDiagnostics = String.format(
-            Locale.US,
-            "ANIM DIAGNOSTICS: state=%s cache=%s since=%dms field=%s rebuilds=%d notReady=%s block=%d render=%dx%d",
-            gateDecision.state.name,
-            animationCacheValid,
-            gateDecision.elapsedSinceChangeNanos / 1_000_000L,
-            lastRaySignatureField,
-            animationRebuildCount,
-            animationLastNotReadyReason,
-            rayGrid.blockSize,
-            renderW,
-            renderH
-        )
-
-        stateHolder.updateTelemetry {
-            it.copy(
-                fps = measuredFps,
-                animationFps = if (animationFrameActive) measuredFps else 0f,
-                animationFrameTimeMs = if (animationFrameActive) ((System.nanoTime() - frameStartNanos) / 1_000_000.0f) else 0f,
-                animationStatus = animationStatus,
-                animationDiagnostics = animationDiagnostics,
-                frameTimeMs = ((System.nanoTime() - frameStartNanos) / 1_000_000.0f),
-                spin = state.spin,
-                isDiskActive = state.enableDisk,
-                isObjectActive = state.enableObject,
-                iscoRadius = lastIscoRadius,
-                renderScale = scale,
-                renderResolution = "${renderW}x${renderH}",
-                isHdrActive = isHdrSupported,
-                exposure = state.exposure,
-                camDist = state.camDist,
-                camInclinationDeg = state.camInclinationDeg,
-                camAzimuthDeg = state.camAzimuthDeg,
-                camTargetX = state.camTargetX,
-                camTargetY = state.camTargetY,
-                camTargetZ = state.camTargetZ,
-                adaptiveWorkload = workloadText,
-                avgRaysPerPixel = stats.averageRaysPerPixel,
-                maxRaysPerPixel = stats.maximumRaysPerPixel,
-                workloadStats = stats,
-                passTimings = lastPassTimings
+        val currentUptime = SystemClock.uptimeMillis()
+        if (currentUptime - lastTelemetryDispatchUptimeMs >= TELEMETRY_DISPATCH_INTERVAL_MS || forcePresentation || signatureChangedThisFrame) {
+            lastTelemetryDispatchUptimeMs = currentUptime
+            val animationDiagnostics = String.format(
+                Locale.US,
+                "ANIM DIAGNOSTICS: state=%s cache=%s since=%dms field=%s rebuilds=%d notReady=%s block=%d render=%dx%d",
+                gateDecision.state.name,
+                animationCacheValid,
+                gateDecision.elapsedSinceChangeNanos / 1_000_000L,
+                lastRaySignatureField,
+                animationRebuildCount,
+                animationLastNotReadyReason,
+                rayGrid.blockSize,
+                renderW,
+                renderH
             )
+
+            stateHolder.updateTelemetry {
+                it.copy(
+                    fps = measuredFps,
+                    animationFps = if (animationFrameActive) measuredFps else 0f,
+                    animationFrameTimeMs = if (animationFrameActive) ((System.nanoTime() - frameStartNanos) / 1_000_000.0f) else 0f,
+                    animationStatus = animationStatus,
+                    animationDiagnostics = animationDiagnostics,
+                    frameTimeMs = ((System.nanoTime() - frameStartNanos) / 1_000_000.0f),
+                    spin = state.spin,
+                    isDiskActive = state.enableDisk,
+                    isObjectActive = state.enableObject,
+                    iscoRadius = lastIscoRadius,
+                    renderScale = scale,
+                    renderResolution = "${renderW}x${renderH}",
+                    isHdrActive = isHdrSupported,
+                    exposure = state.exposure,
+                    camDist = state.camDist,
+                    camInclinationDeg = state.camInclinationDeg,
+                    camAzimuthDeg = state.camAzimuthDeg,
+                    camTargetX = state.camTargetX,
+                    camTargetY = state.camTargetY,
+                    camTargetZ = state.camTargetZ,
+                    adaptiveWorkload = workloadText,
+                    avgRaysPerPixel = stats.averageRaysPerPixel,
+                    maxRaysPerPixel = stats.maximumRaysPerPixel,
+                    workloadStats = stats,
+                    passTimings = lastPassTimings
+                )
+            }
         }
         if (shouldUpdateFps) {
             fpsFrames = 0
@@ -2388,5 +2415,6 @@ class GargantuaRenderer(
         private const val TAG = "GargantuaRenderer"
         private const val FPS_WINDOW_NANOS = 500_000_000L
         private const val FPS_IDLE_RESET_NANOS = 750_000_000L
+        private const val TELEMETRY_DISPATCH_INTERVAL_MS = 250L // 4 Hz throttle
     }
 }
