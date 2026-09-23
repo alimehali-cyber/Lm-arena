@@ -692,8 +692,8 @@ vec4 traceRaySample(
 
         // Volumetric Multi-Crossing Equatorial Disk Slab Radiative Transfer
         if (u_EnableDisk == 1 && prevPos.z * pos.z <= 0.0 && prevPos.z != pos.z && diskCrossings < 4) {
-            float tauCrossing = clamp(-prevPos.z / (pos.z - prevPos.z), 0.0, 1.0);
-            vec3 hitPos = mix(prevPos, pos, tauCrossing);
+            float tau = clamp(-prevPos.z / (pos.z - prevPos.z), 0.0, 1.0);
+            vec3 hitPos = mix(prevPos, pos, tau);
             float rho2 = hitPos.x * hitPos.x + hitPos.y * hitPos.y;
             float a2_kerr = u_Spin * u_Spin;
             float rHit = sqrt(max(0.0, rho2 - a2_kerr));
@@ -719,7 +719,7 @@ vec4 traceRaySample(
                 float pathLength = (2.0 * H_r) / cosIncidence;
 
                 // 3. Relativistic 4-Velocity & Doppler Shift g
-                vec3 hitP = mix(prevP, p_spatial, tauCrossing);
+                vec3 hitP = mix(prevP, p_spatial, tau);
                 float omega = sqrt(u_Mass) / (pow(rHit, 1.5) + u_Spin * sqrt(u_Mass));
 
                 float a2 = u_Spin * u_Spin;
@@ -871,8 +871,7 @@ void main() {
     int rayState = baseState;
     if (rayState == 1) {
         // Strict shadow: pure black, alpha 0.0 for shadow protection (never bloomed)
-        // If foreground gas is present, baseSample carries radiance with alpha 1.0; otherwise baseSample is vec4(0.0, 0.0, 0.0, 0.0);
-        fragColor = baseSample;
+        fragColor = vec4(0.0, 0.0, 0.0, 0.0);
     } else if (rayState == 2) {
         // Escaped: lensed starfield background, alpha 1.0 preserved
         fragColor = baseSample;
@@ -882,7 +881,7 @@ void main() {
         fragColor = baseSample;
     } else {
         // Unresolved branch: baseSample contains vec4(0.0, 0.0, 0.0, 0.5);
-        fragColor = baseSample;
+        fragColor = vec4(0.0, 0.0, 0.0, 0.5);
     }
 
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
@@ -994,7 +993,7 @@ void main() {
 
 #if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
     vec4 semanticRecord;
-    if (baseCrossings > 0) {
+    if (baseState == 3 || baseCrossings > 0) {
         float diskRadiusNormalized = clamp(
             (baseHitR - u_DiskInnerRadius) /
                 max(1.0e-6, u_DiskOuterRadius - u_DiskInnerRadius),

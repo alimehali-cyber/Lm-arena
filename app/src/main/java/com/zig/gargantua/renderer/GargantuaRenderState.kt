@@ -27,16 +27,17 @@ data class GargantuaRenderState(
     val useGeodesicShader: Boolean = true,
     val enableDisk: Boolean = true,
     val diskOuterRadius: Float = 22.0f,
-    // Miller's Planet physical timelike world-tube marker
-    val enableObject: Boolean = true,
-    val objectRadius: Float = 0.32f,
-    val objectOrbitRadius: Float = 8.5f,
+    // M9 remains available as validated infrastructure, but is not part of the production baseline.
+    // It must be explicitly enabled by an instrumentation/experimental caller.
+    val enableObject: Boolean = false,
+    val objectRadius: Float = 0.45f,
+    val objectOrbitRadius: Float = 6.5f,
     val objectPhi0: Float = 0.0f,
     val objectZ: Float = 0.0f,
-    val exposure: Float = 1.45f,
+    val exposure: Float = 1.8f,
     val enableBloom: Boolean = true,
-    val bloomIntensity: Float = 0.28f,
-    val bloomThreshold: Float = 0.85f,
+    val bloomIntensity: Float = 0.20f,
+    val bloomThreshold: Float = 1.0f,
     // Temporary uniform spatial ray sampling control. The startup default remains 1x1.
     val debugCoarseSamplingBlockSize: Int = 1,
     // Debug-only GPU workload instrumentation. Production rendering leaves this disabled.
