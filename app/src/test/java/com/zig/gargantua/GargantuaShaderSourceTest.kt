@@ -208,11 +208,21 @@ class GargantuaShaderSourceTest {
         assertTrue(apply.contains("uniform sampler2D u_SemanticTexture;"))
         assertTrue(apply.contains("uniform float u_Time;") || apply.contains("u_SkyAngle"))
         assertTrue(apply.contains("u_SkyAxis") || apply.contains("u_SkyRotationSpeed"))
-        assertTrue(apply.contains("rotateVector") || apply.contains("rotateAroundAxis") || apply.contains("Rodrigues"))
-        assertTrue(apply.contains("renderProceduralCosmos") || apply.contains("proceduralCosmos") || apply.contains("sample_procedural_sky") || apply.contains("hash33"))
-        assertTrue(apply.contains("state == 2") || apply.contains("int(sem"))
-        assertTrue(apply.contains("galacticDisk") || apply.contains("Galactic") || apply.contains("exp(-abs(b)"))
-        assertTrue(apply.contains("coreRadius") || apply.contains("Gaussian") || apply.contains("exp(-(dist"))
+        assertTrue(apply.contains("rotateAxis") || apply.contains("rotateVector") || apply.contains("rotateAroundAxis") || apply.contains("Rodrigues"))
+        assertTrue(apply.contains("renderProceduralCosmos") || apply.contains("proceduralCosmos") || apply.contains("sample_procedural_sky") || apply.contains("hash33") || apply.contains("cosmosHash33"))
+        assertTrue(apply.contains("state == 2") || apply.contains("int(sem") || apply.contains("state <= 1"))
+        // Deep-blue cosmos: band or celestialBg/sapphire/darkDust/baseSpace/midnight, 0.070 sparsity, 80.0 frequency, tiny optical PSF
+        assertTrue(
+            apply.contains("band") || apply.contains("galacticDisk") || apply.contains("Galactic") ||
+            apply.contains("exp(-b * b") || apply.contains("exp(-abs(b)") ||
+            apply.contains("celestialBg") || apply.contains("sapphire") || apply.contains("baseSpace") ||
+            apply.contains("darkDust") || apply.contains("midnight") || apply.contains("sapphireCloud")
+        )
+        assertTrue(apply.contains("0.070") || apply.contains("0.045"))
+        assertTrue(apply.contains("80.0") || apply.contains("140.0") || apply.contains("85.0"))
+        assertTrue(apply.contains("coreRadius") || apply.contains("starProfile") || apply.contains("exp(-(dist"))
+        assertTrue(apply.contains("0.12") || apply.contains("0.075"))
+        assertTrue(apply.contains("0.007") || apply.contains("0.008") || apply.contains("baseSpace") || apply.contains("midnight"))
         assertTrue(apply.contains("out vec4 fragColor;"))
     }
 
