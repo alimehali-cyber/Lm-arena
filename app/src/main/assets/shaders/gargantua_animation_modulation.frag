@@ -20,26 +20,45 @@ uniform float u_DiskOuterRadius;
 out float fragColor;
 
 const float TAU = 6.28318530718;
+const float TWO_PI = 6.28318530718;
 
-// Concentric harmonic striation generator for modulation
-float computeHarmonicStriations(float r) {
-    float rings = 0.0;
-    rings += sin(r * 48.0) * 0.25;
-    rings += sin(r * 115.0 + rings * 1.5) * 0.20;
-    rings += sin(r * 290.0) * 0.15;
-    return rings;
+// Single-phase advected noise sample with organic fluid eddies and inward drift
+float sampleAdvectedNoise(vec2 normCoord, float tPhase, float rPhysical) {
+    float rNorm = normCoord.x;
+    float phiNorm = normCoord.y;
+
+    float sqrtMass = sqrt(max(u_Mass, 1.0e-6));
+    float denomOmega = pow(max(rPhysical, 1.0e-6), 1.5) + u_Spin * sqrtMass;
+    float omega = sqrtMass / max(1.0e-6, denomOmega);
+
+    // Inward accretion drift
+    float rRatio = u_DiskInnerRadius / max(1.0e-5, rPhysical);
+    float vInflow = 0.040 * sqrt(rRatio);
+    float rDrift = rNorm - vInflow * (tPhase / 24.0);
+
+    // Logarithmic spiral advection
+    float spiralCoil = 1.6 * log(max(1.0, rPhysical / u_DiskInnerRadius));
+    float phiSheared = phiNorm - (omega * u_TimeScale * tPhase) / TWO_PI - spiralCoil / TWO_PI;
+
+    vec2 uv = vec2(fract(phiSheared * 4.0), fract(rDrift * 3.0));
+    vec2 uvFine = vec2(fract(phiSheared * 12.0), fract(rDrift * 8.0));
+
+    float n1 = texture(u_NoiseTexture, uv).r;
+    float n2 = texture(u_NoiseTexture, uvFine).r;
+
+    return n1 * 0.65 + n2 * 0.35;
 }
 
-// Multi-scale Keplerian sheared fBm with inward transonic spiral advection
+// Multi-scale Keplerian sheared fBm with organic 2D fluid eddies and inward transonic advection
 float keplerianNoise(vec2 azimuthRadiusNorm, float shiftNorm, float radiusNorm, float tPhase, float rPhysical) {
     float az = azimuthRadiusNorm.x;
     float rn = azimuthRadiusNorm.y;
 
     // Inward transonic accretion drift
     float rRatio = u_DiskInnerRadius / max(1.0e-5, rPhysical);
-    float vInflow = 0.045 * sqrt(rRatio);
+    float vInflow = 0.040 * sqrt(rRatio);
     float rDrift = rn - vInflow * (tPhase / 24.0);
-    float spiralCoil = 1.8 * log(max(1.0, rPhysical / u_DiskInnerRadius));
+    float spiralCoil = 1.6 * log(max(1.0, rPhysical / u_DiskInnerRadius));
     float phiSheared = az + shiftNorm - spiralCoil / TAU;
 
     // Octave 1: Macro stream (32, 4) weight 0.55
@@ -55,8 +74,8 @@ float keplerianNoise(vec2 azimuthRadiusNorm, float shiftNorm, float radiusNorm, 
     float n3 = texture(u_NoiseTexture, uv3).r;
 
     float combined = n1 * 0.55 + n2 * 0.30 + n3 * 0.15;
-    float rings = computeHarmonicStriations(rPhysical);
-    return clamp(combined + rings * 0.35, 0.0, 1.0);
+    float organicSample = sampleAdvectedNoise(vec2(rn, az), tPhase, rPhysical);
+    return clamp(combined * 0.60 + organicSample * 0.40, 0.0, 1.0);
 }
 
 void main() {
