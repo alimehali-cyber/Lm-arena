@@ -1586,6 +1586,11 @@ class GargantuaRenderer(
 
             composite.setUniform1f("u_Exposure", state.exposure)
             composite.setUniform1f("u_BloomIntensity", state.bloomIntensity)
+            composite.setUniform2f(
+                "u_TexelSize",
+                1.0f / max(1, hdrWidth).toFloat(),
+                1.0f / max(1, hdrHeight).toFloat()
+            )
             quad.draw()
 
             GLES30.glActiveTexture(GLES30.GL_TEXTURE1)

@@ -83,6 +83,11 @@ float gargantuaAnimationPhaseAdvance(float factor) {
 #define GARGANTUA_OBJECT_PHASE(t) (u_ObjectOmega * (t) + u_ObjectPhi0)
 #endif
 
+// Total angular shear (in radians) accumulated by turbulent gas from r_in to r_out,
+// simulating many orbital periods of Keplerian differential rotation. This is what
+// produces thin, tightly-wound concentric filament structure instead of flat blobs.
+const float GARGANTUA_WIND_COEFF = 11.0;
+
 // Maximum fixed compile-time loop bound for mobile GLSL ES 3.0 compliance
 const int MAX_INTEGRATION_STEPS = 180;
 
@@ -447,49 +452,55 @@ float gargantuaNoise3D(vec3 p) {
     );
 }
 
-// 3D Volumetric Gas Density: Combines vertical Gaussian flaring with 3D swirling fluid eddies
-float evaluate3DVolumetricGasDensity(float r, float phi, float zeta, float fNorm, float rIn, float rOut) {
-    // 1. Vertical Gaussian density profile: dense at midplane, tenuous at cloud boundaries
-    float verticalFalloff = exp(-2.6 * zeta * zeta);
+// Domain warp: distorts sample coordinates using a lower-frequency noise field,
+// producing organic, non-grid-aligned billowing shapes instead of raw lattice noise.
+vec3 gargantuaDomainWarp(vec3 p, float warpStrength) {
+    vec3 warp = vec3(
+        gargantuaNoise3D(p * 0.5 + vec3(11.3, 2.1, 7.4)),
+        gargantuaNoise3D(p * 0.5 + vec3(41.7, 91.3, 3.9)),
+        gargantuaNoise3D(p * 0.5 + vec3(5.5, 63.2, 27.8))
+    ) - 0.5;
+    return p + warp * warpStrength;
+}
 
-    // 2. Local Keplerian sheared radial coordinate
+float evaluate3DVolumetricGasDensity(float r, float phi, float zeta, float fNorm, float rIn, float rOut) {
+    // Tightened vertical Gaussian (2.6 -> 4.0) for a crisper, thinner slab cross-section
+    float verticalFalloff = exp(-4.0 * zeta * zeta);
     float logR = log(max(1.0, r / rIn));
 
-    // NOTE: `phi` comes from atan(y,x) and has a hard branch-cut discontinuity at +-PI.
-    // Feeding it linearly into gargantuaNoise3D (a non-periodic hash-based noise) creates
-    // a visible seam exactly at that branch cut. FIX: embed azimuth as a point on the unit
-    // circle at an INTEGER angular frequency N. Because cos(N*(phi+2*PI)) == cos(N*phi)
-    // exactly for integer N, this is perfectly continuous across the wrap for ANY noise
-    // function, periodic or not. All frequency multipliers below are integers for this reason.
+    // Differential-rotation winding: bakes many orbital periods of Keplerian shear
+    // directly into the noise sampling phase. Shear rate ~1/r concentrates tight
+    // winding near the inner edge and loosens toward the outer rim, matching real
+    // accretion disk turbulence and the Interstellar reference look.
+    float phiWound = phi - GARGANTUA_WIND_COEFF * logR;
 
-    // 3. Billowing 3D Fluid Eddies (Swirling vertically and azimuthally)
-    vec2 circMid = vec2(cos(phi * 4.0), sin(phi * 4.0));
+    vec2 circMid = vec2(cos(phiWound * 4.0), sin(phiWound * 4.0));
     vec3 p3D = vec3(logR * 7.0, circMid.x * 3.2 + zeta * 2.8, circMid.y * 3.2);
-    float baseCloud = gargantuaNoise3D(p3D);
-    float fineWisps = gargantuaNoise3D(p3D * 2.4 + vec3(0.0, 0.0, 1.5));
+    vec3 p3Dwarped = gargantuaDomainWarp(p3D, 1.6);
+    float baseCloud = gargantuaNoise3D(p3Dwarped);
+    float fineWisps = gargantuaNoise3D(p3Dwarped * 2.4 + vec3(0.0, 0.0, 1.5));
     float clouds3D = baseCloud * 0.65 + fineWisps * 0.35;
 
-    // 4. High-Speed Luminous Plasma Streaks (Elongated along prograde flow)
-    vec2 circStreak = vec2(cos(phi * 16.0), sin(phi * 16.0));
+    vec2 circStreak = vec2(cos(phiWound * 16.0), sin(phiWound * 16.0));
     vec3 streakCoord = vec3(logR * 22.0, circStreak.x * 6.0 + zeta * 4.0, circStreak.y * 6.0);
-    float lightStreaks = pow(gargantuaNoise3D(streakCoord), 2.2) * 1.4;
+    vec3 streakWarped = gargantuaDomainWarp(streakCoord, 1.1);
+    float lightStreaks = pow(gargantuaNoise3D(streakWarped), 1.6) * 1.15;
 
-    // 5. Deep Interstellar Dust Absorption Rifts (Creates rich, dark shadows)
-    vec2 circDust = vec2(cos(phi * 2.0), sin(phi * 2.0));
-    float dustRift = smoothstep(0.30, 0.75, gargantuaNoise3D(vec3(logR * 3.8, circDust.x * 2.6 + zeta * 1.5, circDust.y * 2.6)));
+    vec2 circDust = vec2(cos(phiWound * 3.0), sin(phiWound * 3.0));
+    // Tightened edge (0.45 -> 0.22 width) for crisper dust-lane contrast
+    float dustRift = smoothstep(0.40, 0.62, gargantuaNoise3D(vec3(logR * 3.8, circDust.x * 2.6 + zeta * 1.5, circDust.y * 2.6)));
 
-    // 5b. NEW: Broad Interstellar-style dark rift band — large-scale, slow angular variation
-    // (N=1) that produces one or two sweeping dark streaks across the disk face, matching
-    // the iconic asymmetric dust lanes seen in the movie's black hole render.
+    // Broad dark rift band intentionally NOT wound (uses raw phi) — stays a single
+    // large asymmetric feature rather than a spiral thread
     vec2 circBand = vec2(cos(phi * 1.0 + 1.7), sin(phi * 1.0 + 1.7));
     float bandNoise = gargantuaNoise3D(vec3(circBand.x * 1.4, logR * 1.6, circBand.y * 1.4));
-    float darkBand = smoothstep(0.35, 0.62, bandNoise);
+    // Tightened edge (0.27 -> 0.14 width) for a crisper dark rift boundary
+    float darkBand = smoothstep(0.42, 0.56, bandNoise);
 
-    // 6. Smooth radial boundaries
-    float radialEnvelope = smoothstep(rIn, rIn + 0.18, r) * smoothstep(rOut, rOut - 2.8, r);
+    // Crisper outer-edge falloff (2.8M -> 1.2M)
+    float radialEnvelope = smoothstep(rIn, rIn + 0.18, r) * smoothstep(rOut, rOut - 1.2, r);
 
-    // Combined 3D density: deep dark dust lanes + broad rift band carved into glowing plasma
-    float rawDensity = (0.28 + 0.85 * lightStreaks + 0.65 * clouds3D) * (0.20 + 0.80 * dustRift) * (0.35 + 0.65 * darkBand);
+    float rawDensity = (0.28 + 0.95 * lightStreaks + 0.60 * clouds3D) * (0.20 + 0.80 * dustRift) * (0.35 + 0.65 * darkBand);
     return clamp(rawDensity * verticalFalloff * (0.55 + 0.45 * fNorm) * radialEnvelope, 0.0, 4.0);
 }
 
@@ -505,7 +516,12 @@ vec3 evaluate4TierBlackbodySpectrum(float fNorm, float gShift) {
     } else {
         float gMovie = mix(1.0, clamp(gShift, 0.65, 1.65), 0.12);
         gFactor = gMovie;
-        iPhys = pow(fNorm, 0.65) * 1.85 + 0.30;
+        // Lowered floor (0.30->0.06) and raised exponent (0.65->0.85): outer/cooler
+        // disk now renders distinctly darker/more saturated orange. Reduced peak
+        // multiplier (1.85->1.30) so more of the visible disk stays under the ACES
+        // saturation knee, preserving per-channel hue instead of all channels
+        // independently clamping toward white.
+        iPhys = pow(fNorm, 0.85) * 1.30 + 0.06;
     }
 
     // Widened effective-temperature curve so the reachable ceiling in Movie Mode
@@ -533,7 +549,7 @@ vec3 evaluate4TierBlackbodySpectrum(float fNorm, float gShift) {
         thermalColor = mix(thermalColor, vec3(4.8, 4.6, 4.4), whiteBoost * 0.85);
     }
 
-    return thermalColor * iPhys * 1.15;
+    return thermalColor * iPhys * 0.75;
 }
 
 
@@ -910,8 +926,17 @@ void main() {
 
     int rayState = baseState;
     if (rayState == 1) {
-        // Strict shadow: pure black, alpha 0.0 for shadow protection (never bloomed)
-        fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        // BUGFIX: traceRaySample() already correctly encodes foreground disk gas
+        // radiance (alpha=1.0) vs. genuine unobstructed shadow (alpha=0.0) in
+        // baseSample. Previously this branch unconditionally discarded baseSample,
+        // clipping legitimate foreground emission and creating a false flat notch
+        // in the shadow's silhouette wherever the near disk edge crosses in front
+        // of the horizon. Respect the alpha baseSample already computed.
+        if (baseSample.a > 0.5) {
+            fragColor = baseSample;
+        } else {
+            fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        }
     } else if (rayState == 2) {
         // Escaped: lensed starfield background, alpha 1.0 preserved
         fragColor = baseSample;

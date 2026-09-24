@@ -6,6 +6,7 @@ uniform sampler2D u_BloomTexture;
 uniform float u_Exposure;
 uniform float u_BloomIntensity;
 uniform int u_EnableBloom;
+uniform vec2 u_TexelSize; // 1.0 / hdrTextureWidth, 1.0 / hdrTextureHeight
 
 in vec2 v_TexCoord;
 out vec4 fragColor;
@@ -32,6 +33,18 @@ void main() {
     }
 
     vec3 color = hdr.rgb;
+
+    // Lightweight unsharp mask: recovers perceived detail softened by half-resolution
+    // ray tracing and bilinear upscaling, without a full resolution increase.
+    vec3 neighborAvg = (
+        texture(u_HdrTexture, v_TexCoord + vec2(u_TexelSize.x, 0.0)).rgb +
+        texture(u_HdrTexture, v_TexCoord - vec2(u_TexelSize.x, 0.0)).rgb +
+        texture(u_HdrTexture, v_TexCoord + vec2(0.0, u_TexelSize.y)).rgb +
+        texture(u_HdrTexture, v_TexCoord - vec2(0.0, u_TexelSize.y)).rgb
+    ) * 0.25;
+    color += (color - neighborAvg) * 0.55;
+    color = max(color, vec3(0.0));
+
     if (u_EnableBloom == 1) {
         vec3 bloom = texture(u_BloomTexture, v_TexCoord).rgb;
         color += bloom * u_BloomIntensity;

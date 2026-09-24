@@ -35,7 +35,7 @@ float sampleFluidFlow(vec2 normCoord, float tPhase, float rPhysical) {
     float vInflow = 0.060 * sqrt(rRatio);
     float rDrift = rNorm - vInflow * (tPhase / 24.0);
 
-    float spiralCoil = 2.2 * log(max(1.0, rPhysical / u_DiskInnerRadius));
+    float spiralCoil = 11.0 * log(max(1.0, rPhysical / u_DiskInnerRadius));
     float phiSheared = phiNorm - (omega * u_TimeScale * tPhase) / TWO_PI - spiralCoil / TWO_PI;
 
     // Rebalanced to near-isotropic phi:r frequency ratio (previously ~1.5-1.7x mismatch
@@ -66,7 +66,7 @@ float keplerianNoise(vec2 azimuthRadiusNorm, float shiftNorm, float radiusNorm, 
     float rRatio = u_DiskInnerRadius / max(1.0e-5, rPhysical);
     float vInflow = 0.060 * sqrt(rRatio);
     float rDrift = rn - vInflow * (tPhase / 24.0);
-    float spiralCoil = 2.2 * log(max(1.0, rPhysical / u_DiskInnerRadius));
+    float spiralCoil = 11.0 * log(max(1.0, rPhysical / u_DiskInnerRadius));
     float phiSheared = az + shiftNorm - spiralCoil / TAU;
 
     // Reduced max frequency from 128.0 (previously 32.0, 64.0, 128.0 octaves) to 54.0 to avoid
