@@ -49,6 +49,9 @@ float cosmosFbm(vec3 p) {
     return cosmosNoise3D(p) * 0.65 + cosmosNoise3D(p * 2.05) * 0.35;
 }
 
+// Deep-space backdrop gain compensating the display OETF applied in gargantua_composite.frag.
+const float GARGANTUA_SKY_BACKDROP_GAIN = 0.1;
+
 // Master Procedural Deep-Blue Cosmos (Darker inky midnight-blue + 20% more stars, refined radii)
 vec3 renderProceduralCosmos(vec3 skyDir) {
     // -------------------------------------------------------------
@@ -116,6 +119,11 @@ vec3 renderProceduralCosmos(vec3 skyDir) {
             }
         }
     }
+
+    // The composite now encodes the display OETF (gamma 1/2.2), which lifts this hand-tuned
+    // backdrop from ~1-5/255 to a visible navy haze. Scaling it restores its previous displayed
+    // black level; stars and the lensed disk are unaffected.
+    celestialBg *= GARGANTUA_SKY_BACKDROP_GAIN;
 
     return celestialBg + starAccum;
 }
