@@ -27,37 +27,34 @@ float sampleFluidFlow(vec2 normCoord, float tPhase, float rPhysical) {
     float rNorm = normCoord.x;
     float phiNorm = normCoord.y;
 
-    // 1. Keplerian differential angular velocity
     float sqrtMass = sqrt(max(u_Mass, 1.0e-6));
     float denomOmega = pow(max(rPhysical, 1.0e-6), 1.5) + u_Spin * sqrtMass;
     float omega = sqrtMass / max(1.0e-6, denomOmega);
 
-    // 2. Transonic inward accretion drift (matter visibly accelerates as it nears ISCO)
     float rRatio = u_DiskInnerRadius / max(1.0e-5, rPhysical);
     float vInflow = 0.060 * sqrt(rRatio);
     float rDrift = rNorm - vInflow * (tPhase / 24.0);
 
-    // 3. Logarithmic spiral advection (creates coiled matter streams)
     float spiralCoil = 2.2 * log(max(1.0, rPhysical / u_DiskInnerRadius));
     float phiSheared = phiNorm - (omega * u_TimeScale * tPhase) / TWO_PI - spiralCoil / TWO_PI;
 
-    // 4. Multi-Scale Periodic Texture Sampling (Fluid Eddies & Pockets)
-    vec2 uvMacro = vec2(fract(phiSheared * 3.0), fract(rDrift * 2.0));
-    vec2 uvMeso  = vec2(fract(phiSheared * 8.0), fract(rDrift * 5.0));
-    vec2 uvMicro = vec2(fract(phiSheared * 20.0), fract(rDrift * 12.0));
+    // Rebalanced to near-isotropic phi:r frequency ratio (previously ~1.5-1.7x mismatch
+    // caused thin aligned "guitar string" artifacts). Per-octave offsets decorrelate
+    // repeated sampling of the same 512x256 texture at different scales.
+    vec2 uvMacro = vec2(fract(phiSheared * 3.0), fract(rDrift * 3.0 + 0.11));
+    vec2 uvMeso  = vec2(fract(phiSheared * 7.0 + 0.37), fract(rDrift * 7.0 + 0.59));
+    vec2 uvMicro = vec2(fract(phiSheared * 13.0 + 0.71), fract(rDrift * 13.0 + 0.19));
 
     float nMacro = texture(u_NoiseTexture, uvMacro).r;
     float nMeso  = texture(u_NoiseTexture, uvMeso).r;
     float nMicro = texture(u_NoiseTexture, uvMicro).r;
 
-    // 5. High-Speed Luminous Plasma Streaks
-    float streakPattern = pow(texture(u_NoiseTexture, vec2(fract(phiSheared * 16.0), fract(rDrift * 3.0))).r, 2.2);
+    // Plasma streaks toned down so they accent rather than dominate the blobby cloud shape
+    float streakPattern = pow(texture(u_NoiseTexture, vec2(fract(phiSheared * 10.0 + 0.83), fract(rDrift * 4.0))).r, 2.2);
 
-    // 6. Deep Dark Interstellar Dust Lanes
-    float dustRift = smoothstep(0.25, 0.75, texture(u_NoiseTexture, vec2(fract(phiSheared * 2.0), fract(rDrift * 1.5))).r);
+    float dustRift = smoothstep(0.25, 0.75, texture(u_NoiseTexture, vec2(fract(phiSheared * 2.0), fract(rDrift * 2.0 + 0.47))).r);
 
-    // Combined high-contrast fluid mass
-    float fluidNoise = (nMacro * 0.40 + nMeso * 0.35 + nMicro * 0.25 + streakPattern * 0.85) * (0.25 + 0.75 * dustRift);
+    float fluidNoise = (nMacro * 0.35 + nMeso * 0.30 + nMicro * 0.20 + streakPattern * 0.40) * (0.25 + 0.75 * dustRift);
     return fluidNoise;
 }
 
@@ -72,14 +69,16 @@ float keplerianNoise(vec2 azimuthRadiusNorm, float shiftNorm, float radiusNorm, 
     float spiralCoil = 2.2 * log(max(1.0, rPhysical / u_DiskInnerRadius));
     float phiSheared = az + shiftNorm - spiralCoil / TAU;
 
-    // Multi-scale octaves: weights 0.55, 0.30, 0.15 for frequencies 32.0, 64.0, 128.0
-    vec2 uv1 = vec2(fract(phiSheared * 32.0), fract(rDrift * 4.0));
+    // Reduced max frequency from 128.0 (previously 32.0, 64.0, 128.0 octaves) to 54.0 to avoid
+    // sub-Nyquist aliasing against the 512px-wide noise texture (512/54 ≈ 9.5 texels/cycle, safe under GL_LINEAR).
+    // Also reduced phi:r frequency ratio for isotropic blob shapes instead of streaks.
+    vec2 uv1 = vec2(fract(phiSheared * 18.0), fract(rDrift * 8.0));
     float n1 = texture(u_NoiseTexture, uv1).r;
 
-    vec2 uv2 = vec2(fract(phiSheared * 64.0), fract(rDrift * 12.0));
+    vec2 uv2 = vec2(fract(phiSheared * 36.0 + 0.29), fract(rDrift * 16.0 + 0.61));
     float n2 = texture(u_NoiseTexture, uv2).r;
 
-    vec2 uv3 = vec2(fract(phiSheared * 128.0), fract(rDrift * 24.0));
+    vec2 uv3 = vec2(fract(phiSheared * 54.0 + 0.53), fract(rDrift * 24.0 + 0.17));
     float n3 = texture(u_NoiseTexture, uv3).r;
 
     float combined = n1 * 0.55 + n2 * 0.30 + n3 * 0.15;

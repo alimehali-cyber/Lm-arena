@@ -452,27 +452,44 @@ float evaluate3DVolumetricGasDensity(float r, float phi, float zeta, float fNorm
     // 1. Vertical Gaussian density profile: dense at midplane, tenuous at cloud boundaries
     float verticalFalloff = exp(-2.6 * zeta * zeta);
 
-    // 2. Local Keplerian sheared 3D coordinates
+    // 2. Local Keplerian sheared radial coordinate
     float logR = log(max(1.0, r / rIn));
-    vec3 p3D = vec3(logR * 7.0, phi * 3.5, zeta * 2.8);
+
+    // NOTE: `phi` comes from atan(y,x) and has a hard branch-cut discontinuity at +-PI.
+    // Feeding it linearly into gargantuaNoise3D (a non-periodic hash-based noise) creates
+    // a visible seam exactly at that branch cut. FIX: embed azimuth as a point on the unit
+    // circle at an INTEGER angular frequency N. Because cos(N*(phi+2*PI)) == cos(N*phi)
+    // exactly for integer N, this is perfectly continuous across the wrap for ANY noise
+    // function, periodic or not. All frequency multipliers below are integers for this reason.
 
     // 3. Billowing 3D Fluid Eddies (Swirling vertically and azimuthally)
+    vec2 circMid = vec2(cos(phi * 4.0), sin(phi * 4.0));
+    vec3 p3D = vec3(logR * 7.0, circMid.x * 3.2 + zeta * 2.8, circMid.y * 3.2);
     float baseCloud = gargantuaNoise3D(p3D);
     float fineWisps = gargantuaNoise3D(p3D * 2.4 + vec3(0.0, 0.0, 1.5));
     float clouds3D = baseCloud * 0.65 + fineWisps * 0.35;
 
     // 4. High-Speed Luminous Plasma Streaks (Elongated along prograde flow)
-    vec3 streakCoord = vec3(logR * 22.0, phi * 16.0, zeta * 4.0);
+    vec2 circStreak = vec2(cos(phi * 16.0), sin(phi * 16.0));
+    vec3 streakCoord = vec3(logR * 22.0, circStreak.x * 6.0 + zeta * 4.0, circStreak.y * 6.0);
     float lightStreaks = pow(gargantuaNoise3D(streakCoord), 2.2) * 1.4;
 
     // 5. Deep Interstellar Dust Absorption Rifts (Creates rich, dark shadows)
-    float dustRift = smoothstep(0.30, 0.75, gargantuaNoise3D(vec3(logR * 3.8, phi * 2.0, zeta * 1.5)));
+    vec2 circDust = vec2(cos(phi * 2.0), sin(phi * 2.0));
+    float dustRift = smoothstep(0.30, 0.75, gargantuaNoise3D(vec3(logR * 3.8, circDust.x * 2.6 + zeta * 1.5, circDust.y * 2.6)));
+
+    // 5b. NEW: Broad Interstellar-style dark rift band — large-scale, slow angular variation
+    // (N=1) that produces one or two sweeping dark streaks across the disk face, matching
+    // the iconic asymmetric dust lanes seen in the movie's black hole render.
+    vec2 circBand = vec2(cos(phi * 1.0 + 1.7), sin(phi * 1.0 + 1.7));
+    float bandNoise = gargantuaNoise3D(vec3(circBand.x * 1.4, logR * 1.6, circBand.y * 1.4));
+    float darkBand = smoothstep(0.35, 0.62, bandNoise);
 
     // 6. Smooth radial boundaries
     float radialEnvelope = smoothstep(rIn, rIn + 0.18, r) * smoothstep(rOut, rOut - 2.8, r);
 
-    // Combined 3D density: deep dark dust lanes carved into glowing, billowing plasma
-    float rawDensity = (0.28 + 0.85 * lightStreaks + 0.65 * clouds3D) * (0.20 + 0.80 * dustRift);
+    // Combined 3D density: deep dark dust lanes + broad rift band carved into glowing plasma
+    float rawDensity = (0.28 + 0.85 * lightStreaks + 0.65 * clouds3D) * (0.20 + 0.80 * dustRift) * (0.35 + 0.65 * darkBand);
     return clamp(rawDensity * verticalFalloff * (0.55 + 0.45 * fNorm) * radialEnvelope, 0.0, 4.0);
 }
 
@@ -482,34 +499,32 @@ vec3 evaluate4TierBlackbodySpectrum(float fNorm, float gShift) {
     float iPhys;
 
     if (u_EnableDoppler == 1) {
-        // --- 100% SCIENTIFICALLY ACCURATE GENERAL RELATIVITY (Strict g^4 Beaming) ---
         float gClamped = clamp(gShift, 0.10, 4.2);
         gFactor = gClamped;
-        iPhys = pow(gClamped, 4.0) * fNorm; // Pure Liouville bolometric beaming
+        iPhys = pow(gClamped, 4.0) * fNorm;
     } else {
-        // --- CHRISTOPHER NOLAN / KIP THORNE MOVIE MODE (Balanced Illumination) ---
-        // Subtle 12% asymmetry for 3D depth, but both limbs are fully visible and glorious
         float gMovie = mix(1.0, clamp(gShift, 0.65, 1.65), 0.12);
         gFactor = gMovie;
         iPhys = pow(fNorm, 0.65) * 1.85 + 0.30;
     }
 
-    float tEff = gFactor * pow(max(1.0e-5, fNorm), 0.25);
+    // Widened effective-temperature curve so the reachable ceiling in Movie Mode
+    // (gFactor maxes ~1.08) still comfortably drives the gold->cream transition to completion.
+    float tEff = gFactor * pow(max(1.0e-5, fNorm), 0.22);
 
     // High-Contrast Interstellar Cinematic Palette
-    // Low values in dust rifts -> rich copper in mid-gas -> hot cream at core
     vec3 cSmoke    = vec3(0.08, 0.015, 0.003); // Deep charcoal dust rift base
     vec3 cBronze   = vec3(0.95, 0.30, 0.04);   // Fiery burnt copper-bronze
-    vec3 cGold     = vec3(2.20, 1.10, 0.20);   // Radiant molten gold
-    vec3 cCreamHot = vec3(4.20, 3.80, 3.20);   // Incandescent pearlescent cream core
+    vec3 cGold     = vec3(2.60, 2.05, 1.35);   // Warm incandescent gold (desaturated vs. before)
+    vec3 cCreamHot = vec3(4.60, 4.35, 4.00);   // Incandescent pearlescent near-white core
 
     vec3 thermalColor;
-    if (tEff < 0.22) {
-        thermalColor = mix(cSmoke, cBronze, smoothstep(0.0, 0.22, tEff));
-    } else if (tEff < 0.65) {
-        thermalColor = mix(cBronze, cGold, smoothstep(0.22, 0.65, tEff));
+    if (tEff < 0.16) {
+        thermalColor = mix(cSmoke, cBronze, smoothstep(0.0, 0.16, tEff));
+    } else if (tEff < 0.50) {
+        thermalColor = mix(cBronze, cGold, smoothstep(0.16, 0.50, tEff));
     } else {
-        thermalColor = mix(cGold, cCreamHot, smoothstep(0.65, 1.15, tEff));
+        thermalColor = mix(cGold, cCreamHot, smoothstep(0.50, 0.88, tEff));
     }
 
     // Blueshift Core Whitening in Realistic Mode
