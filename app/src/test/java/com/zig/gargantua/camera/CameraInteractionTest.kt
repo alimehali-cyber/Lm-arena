@@ -247,7 +247,8 @@ class CameraInteractionTest {
                 assertEquals("Orbital velocity in Z must be strictly 0.0 (planar orbit)", 0.0, u[3], 1e-15)
 
                 // Verify angular momentum points along +Z axis: L_z = x * u_y - y * u_x > 0
-                val omega = diskModel.keplerianAngularVelocity(r)
+                // Omega is evaluated at the Kerr-Schild radius of (x, y, 0), sqrt(x^2 + y^2 - a^2), as in the shader.
+                val omega = diskModel.keplerianAngularVelocity(kotlin.math.sqrt(x * x + y * y - a * a))
                 assertEquals("u^x must match -Omega * Y", -omega * y * u[0], u[1], 1e-10)
                 assertEquals("u^y must match +Omega * X", omega * x * u[0], u[2], 1e-10)
             }

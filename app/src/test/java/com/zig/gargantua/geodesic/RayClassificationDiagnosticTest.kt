@@ -80,11 +80,6 @@ class RayClassificationDiagnosticTest {
         var unresolved = 0
         var ringUnresolved = 0
 
-        val rCapture = M + sqrt(max(0.0f, M * M - a * a)) + 0.05f
-        val rEscape = 50.0f
-        // Same near-critical continuation as gargantua_geodesic.frag: past the ordinary budget, rays
-        // with minR <= rPhotonShellOuter + 0.5 keep integrating up to MAX_INTEGRATION_STEPS = 1500.
-        val rPhotonShellOuter = 2.0f * M * (1.0f + cos((2.0f / 3.0f) * acos((abs(a) / M).coerceIn(0.0f, 1.0f))))
 
         val classifications = Array(samplesY) { Array(samplesX) { RayClassification.UNRESOLVED } }
 
@@ -100,102 +95,18 @@ class RayClassificationDiagnosticTest {
                 val rdLen = sqrt(rdx * rdx + rdy * rdy + rdz * rdz)
                 val rayDir = floatArrayOf(rdx / rdLen, rdy / rdLen, rdz / rdLen)
 
-                val rInit = GpuEquivalentIntegrator.compute_r_KS(a, camX, camY, camZ)
-                val g = GpuEquivalentIntegrator.compute_g_lower(M, a, camX, camY, camZ, rInit)
-
-                val Aw = g[0][0]
-                val Bw = g[1][0] * rayDir[0] + g[2][0] * rayDir[1] + g[3][0] * rayDir[2]
-                var Cw = 0.0f
-                for (i in 0 until 3) {
-                    for (j in 0 until 3) {
-                        Cw += g[i + 1][j + 1] * rayDir[i] * rayDir[j]
-                    }
-                }
-                val Dw = max(0.0f, Bw * Bw - Aw * Cw)
-                // Past-directed root (backward trace), identical to the shader / GpuEquivalentIntegrator.
-                val w = (-Bw + sqrt(Dw)) / Aw
-                val v = floatArrayOf(w, rayDir[0], rayDir[1], rayDir[2])
-
-                val vLower = FloatArray(4)
-                for (i in 0 until 4) {
-                    var sum = 0.0f
-                    for (j in 0 until 4) {
-                        sum += g[i][j] * v[j]
-                    }
-                    vLower[i] = sum
-                }
-                val scale = vLower[0] // p_0 = +1
-                var pSpatial = floatArrayOf(vLower[1] / scale, vLower[2] / scale, vLower[3] / scale)
-                var pos = floatArrayOf(camX, camY, camZ)
-
-                var outcome = RayClassification.UNRESOLVED
-                var prevR = rInit
-                var movingOutward = false
-                var minR = rInit
-
-                for (step in 0 until 1500) {
-                    if (step >= maxSteps && minR > rPhotonShellOuter + 0.5f) break
-                    val r = GpuEquivalentIntegrator.compute_r_KS(a, pos[0], pos[1], pos[2])
-                    if (r < minR) minR = r
-                    if (r > prevR) movingOutward = true
-                    prevR = r
-
-                    if (r <= rCapture) {
-                        outcome = RayClassification.CAPTURED
-                        break
-                    }
-
-                    if (movingOutward && (r >= rEscape || r >= diskOuterRadius)) {
-                        outcome = RayClassification.ESCAPED
-                        break
-                    }
-
-                    val prevPos = pos.clone()
-                    val prevP = pSpatial.clone()
-
-                    val baseStep = 0.08f * r
-                    var dlambda = if (r > 10.0f && (movingOutward || r > 20.0f)) {
-                        baseStep.coerceIn(0.02f, 0.75f)
-                    } else {
-                        baseStep.coerceIn(0.02f, 0.35f)
-                    }
-
-                    if (abs(pos[2]) < 0.60f && r >= diskInnerRadius - 0.5f && r <= diskOuterRadius + 1.0f) {
-                        val vz = abs(pSpatial[2])
-                        val stepToDisk = abs(pos[2]) / max(0.15f, vz)
-                        dlambda = min(dlambda, max(0.04f, stepToDisk * 0.80f + 0.02f))
-                    }
-                    // Capture-zone limiter, identical to gargantua_geodesic.frag (causticStep)
-                    if (r > rCapture && r < rCapture + 0.95f) {
-                        dlambda = min(dlambda, 0.032f + (0.075f - 0.032f) * ((r - rCapture) / 0.95f))
-                    }
-
-                    val nextState = GpuEquivalentIntegrator.rk4_step(
-                        M, a,
-                        floatArrayOf(pos[0], pos[1], pos[2], pSpatial[0], pSpatial[1], pSpatial[2]),
-                        dlambda
-                    )
-                    pos = floatArrayOf(nextState[0], nextState[1], nextState[2])
-                    pSpatial = floatArrayOf(nextState[3], nextState[4], nextState[5])
-
-                    if (prevPos[2] * pos[2] <= 0.0f && prevPos[2] != pos[2]) {
-                        val tau = (-prevPos[2] / (pos[2] - prevPos[2])).coerceIn(0.0f, 1.0f)
-                        val hitX = prevPos[0] + tau * (pos[0] - prevPos[0])
-                        val hitY = prevPos[1] + tau * (pos[1] - prevPos[1])
-                        val rHit = sqrt(hitX * hitX + hitY * hitY)
-                        if (rHit in diskInnerRadius..diskOuterRadius) {
-                            outcome = RayClassification.DISK_EMISSION
-                            break
-                        }
-                    }
-                }
-
-                if (outcome == RayClassification.UNRESOLVED) {
-                    if (movingOutward && prevR > 5.0f) {
-                        outcome = RayClassification.ESCAPED
-                    } else if (prevR <= rCapture + 0.3f) {
-                        outcome = RayClassification.CAPTURED
-                    }
+                // The shader algorithm (past-directed root, step policy, capture limiter, near-critical
+                // continuation, KS disk radius, safety rule) is GpuEquivalentIntegrator.traceRay; this test
+                // no longer keeps its own copy of the loop.
+                val result = GpuEquivalentIntegrator.traceRay(
+                    M, a, floatArrayOf(camX, camY, camZ), rayDir, maxSteps = maxSteps,
+                    enableDisk = true, diskInnerRadius = diskInnerRadius, diskOuterRadius = diskOuterRadius
+                )
+                val outcome = when {
+                    result.isDiskHit -> RayClassification.DISK_EMISSION
+                    result.isCaptured -> RayClassification.CAPTURED
+                    result.isEscaped -> RayClassification.ESCAPED
+                    else -> RayClassification.UNRESOLVED
                 }
 
                 classifications[row][col] = outcome

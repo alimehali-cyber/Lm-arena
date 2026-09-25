@@ -15,7 +15,7 @@ import kotlin.math.sqrt
  * 1. Equatorial intersection detection at Z = 0.
  * 2. Inner-radius rejection: photons passing through the gap r < r_ISCO are not hit.
  * 3. Outer-radius rejection: photons crossing Z = 0 at r > r_out are not hit.
- * 4. Exact radius reconstruction r_hit = √(X² + Y²).
+ * 4. Exact radius reconstruction r_hit = √(max(0, X² + Y² - a²)) (Kerr-Schild r at Z = 0, as in the shader).
  * 5. Optically thick first-intersection policy.
  */
 class AccretionDiskGeometryTest {
@@ -42,8 +42,8 @@ class AccretionDiskGeometryTest {
         assertTrue("Hit radius must be >= ISCO (6.0), got ${hit.rHit}", hit.rHit >= disk.innerRadius)
         assertTrue("Hit radius must be <= outerRadius (20.0), got ${hit.rHit}", hit.rHit <= disk.outerRadius)
         assertEquals(
-            "r_hit must equal √(X² + Y²)",
-            sqrt(hit.hitX * hit.hitX + hit.hitY * hit.hitY),
+            "r_hit must equal the shader's Kerr-Schild radius √(max(0, X² + Y² - a²))",
+            sqrt(maxOf(0.0, hit.hitX * hit.hitX + hit.hitY * hit.hitY - spacetime.a * spacetime.a)),
             hit.rHit,
             1e-12
         )

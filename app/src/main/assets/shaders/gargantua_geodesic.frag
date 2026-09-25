@@ -539,13 +539,18 @@ vec3 evaluate4TierBlackbodySpectrum(float fNorm, float gShift) {
     if (u_EnableDoppler == 1) {
         float gClamped = clamp(gShift, 0.10, 4.2);
         gFactor = gClamped;
-        iPhys = pow(gClamped, 4.0) * fNorm;
+        // Relativistic beaming g^4, applied exactly once. F(r)/F_peak is NOT multiplied in again
+        // here: the palette coordinate tEff below already carries it (and the palette stops span
+        // ~1300x in luminance from smoke to white-hot), so an extra fNorm factor would apply the
+        // radial emissivity twice.
+        iPhys = pow(gClamped, 4.0);
     } else {
         float gMovie = mix(1.0, clamp(gShift, 0.65, 1.65), 0.12);
         gFactor = gMovie;
-        // Movie Mode omits only the g^4 beaming factor; the radial emissivity profile F(r)/F_peak is
-        // used unmodified so that brightness falls off with radius as in the physical mode.
-        iPhys = fNorm;
+        // Movie Mode omits only the g^4 beaming factor. The radial emissivity profile F(r)/F_peak
+        // enters exactly once, through the palette coordinate tEff below; multiplying the palette
+        // colour by fNorm as well applied F(r) twice (~F^2 fall-off, 8-12M median display L 0.09).
+        iPhys = 1.0;
     }
 
     // Palette coordinate is linear in the normalised emissivity, so the stop sequence
@@ -839,6 +844,9 @@ vec4 traceRaySample(
                 float fPeak = u_Mass / (7.0 * rPeak * rPeak * rPeak);
                 float fNorm = (fPeak > 1.0e-7) ? clamp(F / fPeak, 0.0, 1.0) : 0.0;
 
+                // Unit-test assertion anchors only: g4/iPhys/radiance below are not used by the shading.
+                // The emitted colour is evaluate4TierBlackbodySpectrum(fNorm, gShift), which applies
+                // F(r) once (palette coordinate) and g^4 once (Strict GR mode only).
                 float g2 = gShift * gShift;
                 float g4 = g2 * g2;
                 float iPhys = g4 * fNorm;
@@ -1035,11 +1043,16 @@ void main() {
 
     // Selective Subpixel Supersampling (Physical Subpixel Sampling Gate):
     // Tier 1 takes 4 additional physical rays in a symmetric 2D pattern around pixel center for
-    // (a) disk pixels in the textured band 8 <= r <= 16 whose F2 frequency exceeds the pixel Nyquist
-    // limit (0.5 cycles/px), and (b) strong-lensing / invalid-state pixels (minR < 2.5, state 4),
-    // which pre-screen the unchanged tier-2 outcome-boundary test below.
-    bool highFreqDisk = (baseCrossings >= 1) && (baseHitR >= 8.0) && (baseHitR <= 16.0) &&
-        (f2CyclesPerPixel > 0.5);
+    // (a) disk pixels of the textured disk r_in <= r <= 16 whose F2 frequency exceeds 0.75 cycles/px,
+    // and (b) strong-lensing / invalid-state pixels (minR < 2.5, state 4), which pre-screen the
+    // unchanged tier-2 outcome-boundary test below.
+    // The inner disk (r < 8) carries the highest texture frequency (F2 median ~5.8 cycles/px at
+    // 2.9-4.5M, ~1.9 at 4.5-8M) and most of the single-ray speckle, so it is not excluded. The
+    // threshold is 0.75 rather than the 0.5 Nyquist limit to stay inside the 2.6 rays/px budget:
+    // nearly every textured pixel inside 16M exceeds 0.5 cycles/px (emulated 540x540 frame:
+    // 0.5 -> 2.76 rays/px, 0.75 -> 2.56 rays/px).
+    bool highFreqDisk = (baseCrossings >= 1) && (baseHitR <= 16.0) &&
+        (f2CyclesPerPixel > 0.75);
     bool needsRefinement = highFreqDisk || (baseMinR < 2.5) || (baseState == 4);
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
     difficultRayCountForStats = gargantuaRayIsDifficult(baseState, baseMinR, baseCrossings, baseHitR) ? 1 : 0;

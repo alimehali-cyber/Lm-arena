@@ -332,4 +332,54 @@ class M7AdaptiveRenderingTest {
             assertFalse("Shader must strictly not contain '$term'", shaderContent.contains(term))
         }
     }
+
+    // Phase 5: the tier-1 texture gate covers the inner disk. Two 2x2 quads of the 0.5x frame
+    // (540 px across) whose base rays have one disk crossing inside 8M and minR >= 2.5 were never
+    // refined by the previous 8 <= r <= 16 gate, although they carry the highest disk-texture
+    // frequency and most of the single-ray speckle. The F2 frequency is evaluated exactly as in
+    // main(): quad-pair derivatives of the primary hit radius and azimuth.
+    @Test
+    fun innerDiskTexturePixelsEnterTierOne() {
+        val shaderContent = readShader("gargantua_geodesic.frag")
+        assertTrue(
+            "Shader gate must cover the whole textured disk inside 16M at 0.75 cycles/px",
+            shaderContent.contains("bool highFreqDisk = (baseCrossings >= 1) && (baseHitR <= 16.0) &&\n        (f2CyclesPerPixel > 0.75);")
+        )
+        val (camPos, fwd, up) = setupCamera()
+        val right = floatArrayOf(0.0f, 1.0f, 0.0f)
+        val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
+        val dim05 = 540.0f
+        val rInF = com.zig.gargantua.disk.AccretionDiskModel(1.0, 0.8).innerRadius.toFloat()
+        for ((px0, py0) in listOf(170 to 262, 146 to 240)) {
+            val hitR = Array(2) { FloatArray(2) }
+            val hitPhi = Array(2) { FloatArray(2) }
+            for (j in 0..1) for (i in 0..1) {
+                val stX = (2.0f * (px0 + i) + 1.0f - dim05) / dim05
+                val stY = (2.0f * (py0 + j) + 1.0f - dim05) / dim05
+                val res = GpuEquivalentIntegrator.traceRay(
+                    M = 1.0f, a = 0.8f, camPos = camPos, rayDir = makeRayDir(stX, stY, fwd, right, up, fovScale),
+                    maxSteps = 180, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOut.toFloat()
+                )
+                assertEquals("quad ($px0,$py0) pixel ($i,$j) has one disk crossing", 1, res.diskCrossings)
+                assertTrue("quad ($px0,$py0) is not a strong-lensing pixel", res.minRadiusReached >= 2.5f)
+                hitR[j][i] = res.rHit
+                hitPhi[j][i] = res.primaryHitAzimuth
+            }
+            val r = hitR[0][0]
+            assertTrue("quad ($px0,$py0) lies inside 8M (outside the previous gate), r=$r", r < 8.0f)
+            val twoPi = 6.28318530718f
+            fun wrap(d: Float) = d - twoPi * floor(d / twoPi + 0.5f)
+            val drdx = hitR[0][1] - hitR[0][0]
+            val drdy = hitR[1][0] - hitR[0][0]
+            val dphx = wrap(hitPhi[0][1] - hitPhi[0][0])
+            val dphy = wrap(hitPhi[1][0] - hitPhi[0][0])
+            val rNorm = max(1.0f, r / rInF)
+            val shearPerR = 39.0f * rNorm.pow(-2.5f) / rInF - 10.0f / r
+            val cx = sqrt((108.0f * drdx / r).pow(2) + (13.5f * (dphx + shearPerR * drdx)).pow(2))
+            val cy = sqrt((108.0f * drdy / r).pow(2) + (13.5f * (dphy + shearPerR * drdy)).pow(2))
+            val f2 = max(cx, cy)
+            // Emulated frame: 4.97 cycles/px at (170,262), 1.81 at (146,240).
+            assertTrue("quad ($px0,$py0) F2 = $f2 cycles/px must exceed the 0.75 gate", f2 > 0.75f)
+        }
+    }
 }

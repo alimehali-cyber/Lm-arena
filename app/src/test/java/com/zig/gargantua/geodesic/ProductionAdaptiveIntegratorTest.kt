@@ -9,8 +9,10 @@ import kotlin.math.sqrt
 /**
  * Validates Requirement 2: Production adaptive integrator verification.
  *
- * Demonstrates the four essential properties of the production adaptive policy
- *   Δλ(r) = clamp(κ · r, Δλ_min, Δλ_max):
+ * Demonstrates the essential properties of the production adaptive policy of gargantua_geodesic.frag
+ * (KerrPhotonIntegrator defaults):
+ *   Δλ(r) = clamp(0.085 r, 0.035, 0.55) if r > 6 and (moving outward or r > 18), else clamp(0.085 r, 0.035, 0.32),
+ *   limited to mix(0.032, 0.075, (r - r_capture)/0.95) inside the capture zone:
  * 1. Step sizes scale with radius: smaller in strong-field / photon sphere, larger asymptotically.
  * 2. Strict numerical stability through high-curvature regions (|H| bounded, zero NaNs).
  * 3. Monotonic convergence under adaptive parameter refinement (κ -> κ/2 -> κ/4).
@@ -25,9 +27,6 @@ class ProductionAdaptiveIntegratorTest {
         val spacetime = KerrSchildSpacetime(M = M, a = 0.0)
         val integrator = KerrPhotonIntegrator(
             spacetime = spacetime,
-            baseStepFactor = 0.08,
-            minStepSize = 0.02,
-            maxStepSize = 0.50,
             escapeRadius = 45.0,
             maxSteps = 800
         )
@@ -56,14 +55,23 @@ class ProductionAdaptiveIntegratorTest {
         assertTrue("Step size in strong field must be strictly smaller than maximum step", minStep < maxStep)
         assertTrue("Initial weak-field step must be strictly larger than periastron step", initialStep > minStep)
 
-        // Verify that every recorded step strictly followed the adaptive policy
+        // Verify that every recorded step strictly followed the shader's adaptive policy
+        val rCapture = spacetime.rPlus + 0.05
+        var previousR = com.zig.gargantua.physics.KerrSchildCoordinates.computeR(spacetime.a, path[0].x, path[0].y, path[0].z)
+        var movingOutward = false
         for (i in 0 until steps.size) {
             val pt = path[i]
             val r = com.zig.gargantua.physics.KerrSchildCoordinates.computeR(spacetime.a, pt.x, pt.y, pt.z)
-            val expectedStep = (0.08 * r).coerceIn(0.02, 0.50)
+            if (r > previousR) movingOutward = true
+            previousR = r
+            var expectedStep = if (r > 6.0 && (movingOutward || r > 18.0)) (0.085 * r).coerceIn(0.035, 0.55)
+            else (0.085 * r).coerceIn(0.035, 0.32)
+            if (r > rCapture && r < rCapture + 0.95) {
+                expectedStep = kotlin.math.min(expectedStep, 0.032 + (0.075 - 0.032) * (r - rCapture) / 0.95)
+            }
             val actualStep = steps[i]
             assertEquals(
-                "Step at r=$r ($actualStep) must follow clamp(0.08*r)",
+                "Step at r=$r ($actualStep) must follow the shader step policy",
                 expectedStep,
                 actualStep,
                 1e-12
@@ -71,6 +79,16 @@ class ProductionAdaptiveIntegratorTest {
         }
     }
 
+    /**
+     * High-spin (a = -0.92) ray with b = 5.2 from X = -40M. A reference integration with a 17x smaller
+     * step factor (0.005, steps in [0.0005, 0.05]) captures this ray (minR 1.403, r_capture 1.442), so the
+     * physically correct classification is CAPTURED. The production policy captures it too (104 steps).
+     * The Hamiltonian is checked only before capture, as a scale-free residual (|p| diverges near r+):
+     * measured 1.09e-2, tolerance 2.5e-2 (the bound established in [KerrNullConstraintTest]).
+     * Note: the previous non-production policy (0.05 r clamped to [0.01, 0.35]) grazed r = 1.451 and
+     * bounced out numerically ("escaped", scale-free residual 0.98); that was a misclassification, not
+     * a physics result, and is why this test no longer uses it.
+     */
     @Test
     fun adaptiveIntegratorRemainsNumericallyStableThroughStrongCurvature() {
         val M = 1.0
@@ -78,9 +96,6 @@ class ProductionAdaptiveIntegratorTest {
         val spacetime = KerrSchildSpacetime(M = M, a = -0.92)
         val integrator = KerrPhotonIntegrator(
             spacetime = spacetime,
-            baseStepFactor = 0.05,
-            minStepSize = 0.01,
-            maxStepSize = 0.35,
             escapeRadius = 50.0,
             maxSteps = 800
         )
@@ -98,13 +113,16 @@ class ProductionAdaptiveIntegratorTest {
         // 1. Min radius reached deep in strong field (r < 5M)
         assertTrue("Ray must penetrate into strong field, got ${result.minRadiusReached}", result.minRadiusReached < 5.0)
 
-        // 2. Hamiltonian residual strictly bounded
+        // 2. Physical classification (reference integration: CAPTURED)
+        assertTrue("Ray must be CAPTURED, got ${result.terminationReason}", result.isCaptured)
+
+        // 3. Pre-capture Hamiltonian residual bounded (scale-free, see KerrNullConstraintTest)
         assertTrue(
-            "Max Hamiltonian residual in strong field must remain < 5e-5, got ${result.maxHamiltonianResidual}",
-            result.maxHamiltonianResidual < 5e-5
+            "Pre-capture scale-free Hamiltonian residual must remain < 2.5e-2, got ${result.maxRelativeHamiltonianResidual}",
+            result.maxRelativeHamiltonianResidual < 2.5e-2
         )
 
-        // 3. No NaNs or infinities anywhere in path
+        // 4. No NaNs or infinities anywhere in path
         result.path?.forEach { state ->
             assertFalse("x must be finite", state.x.isNaN() || state.x.isInfinite())
             assertFalse("y must be finite", state.y.isNaN() || state.y.isInfinite())
@@ -126,14 +144,11 @@ class ProductionAdaptiveIntegratorTest {
             dx = 1.0, dy = 0.0, dz = 0.0
         )
 
-        // Three adaptive policies with successively tightened factor: kappa = 0.08, 0.04, 0.02
-        val kappa1 = 0.08 // Production baseline
-        val kappa2 = 0.04 // Refined x2
-        val kappa3 = 0.02 // Refined x4
-
-        val int1 = KerrPhotonIntegrator(spacetime, baseStepFactor = kappa1, minStepSize = 0.005, maxStepSize = 0.40, escapeRadius = 40.0, maxSteps = 1500)
-        val int2 = KerrPhotonIntegrator(spacetime, baseStepFactor = kappa2, minStepSize = 0.0025, maxStepSize = 0.20, escapeRadius = 40.0, maxSteps = 3000)
-        val int3 = KerrPhotonIntegrator(spacetime, baseStepFactor = kappa3, minStepSize = 0.00125, maxStepSize = 0.10, escapeRadius = 40.0, maxSteps = 6000)
+        // Production policy and two successively halved copies (factor, min, inner max and outer max all
+        // halved). Measured: err12 = 0.287, err23 = 0.0298.
+        val int1 = KerrPhotonIntegrator(spacetime, escapeRadius = 40.0, maxSteps = 1500) // Production baseline
+        val int2 = KerrPhotonIntegrator(spacetime, baseStepFactor = 0.0425, minStepSize = 0.0175, maxStepSize = 0.16, maxOuterStepSize = 0.275, escapeRadius = 40.0, maxSteps = 3000)
+        val int3 = KerrPhotonIntegrator(spacetime, baseStepFactor = 0.02125, minStepSize = 0.00875, maxStepSize = 0.08, maxOuterStepSize = 0.1375, escapeRadius = 40.0, maxSteps = 6000)
 
         val res1 = int1.traceRay(initialPhoton)
         val res2 = int2.traceRay(initialPhoton)

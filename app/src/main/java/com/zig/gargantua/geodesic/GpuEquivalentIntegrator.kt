@@ -15,10 +15,25 @@ import kotlin.math.*
  * 3. Exact analytical spatial metric derivatives ∂_i g^μν.
  * 4. Pinhole camera ray null momentum solving: A_w w² + 2 B_w w + C_w = 0, past-directed root
  *    w = (-B_w + √D_w)/A_w (backward trace), covector normalised to p_0 = +1.
- * 5. 4th-order Runge-Kutta (RK4) integration with adaptive step Δλ(r) = clamp(0.08*r, 0.02, 0.35),
- *    limited to mix(0.032, 0.075, (r - r_capture)/0.95) inside the shader's capture zone.
- * 6. Horizon capture threshold r ≤ r_+ + 0.05 and escape threshold r ≥ 50.0; near-critical rays
- *    (minR ≤ r_photonShellOuter + 0.5) continue past maxSteps up to 1500 steps, as in the shader.
+ * 5. 4th-order Runge-Kutta (RK4) integration with the shader step policy: Δλ = clamp(0.085·r, 0.035, 0.32),
+ *    or clamp(0.085·r, 0.035, 0.55) when r > 6 and (moving outward or r > 18), limited to
+ *    mix(0.032, 0.075, (r - r_capture)/0.95) inside the capture zone. The right-hand side is the shader's
+ *    factored evaluate_rhs (not the matrix form), so the float operations follow the shader.
+ * 6. Horizon capture threshold r ≤ r_+ + 0.05; escape when moving outward and r ≥ max(50, r_cam + 15)
+ *    (or r ≥ diskOuterRadius with the disk enabled); ordinary budget clamp(maxSteps, 40, 180);
+ *    near-critical rays (minR ≤ r_photonShellOuter + 0.5) continue up to 1500 steps; the post-loop
+ *    safety rule classifies an unresolved ray moving outward beyond r_photonShellOuter as escaped.
+ * 7. Disk crossing: rHit = sqrt(max(0, X² + Y² - a²)), tau clamped to [0, 1], g clamped to [0.05, 5].
+ *    The disk is see-through, as in the shader: an accepted crossing (at most four) adds its emission
+ *    ([com.zig.gargantua.disk.ShaderDiskShading]) and attenuates the transmittance, and the same ray keeps
+ *    integrating; only a transmittance that falls to 0 ends the ray (rayState 3). [GpuRayResult.isDiskHit]
+ *    means "at least one accepted crossing" (the shader's primaryHitRadius / baseHitR), and
+ *    [GpuRayResult.rHit] / [GpuRayResult.frequencyShift] belong to that first accepted crossing.
+ * 8. Loop order per iteration, identical to traceRaySample: budget check -> r, minR, movingOutward, prevR
+ *    -> capture -> escape -> step size -> RK4 -> lastStepDir -> plane crossing / acceptance / emission /
+ *    opacity; after the loop the safety rule applies only to rayState 0; the sky is sampled along
+ *    normalize(lastStepDir) for a safety-rule escape and along normalize(p_spatial) otherwise.
+ *    Not emulated: the relativistic test object (u_EnableObject) and the sky colour itself.
  */
 object GpuEquivalentIntegrator {
 
@@ -33,8 +48,26 @@ object GpuEquivalentIntegrator {
         val maxHamiltonianResidual: Float,
         val intermediateStates: List<FloatArray>, // List of 6D states [X, Y, Z, pX, pY, pZ]
         val frequencyShift: Float = 1.0f,
-        val rHit: Float = 0.0f
-    )
+        val rHit: Float = 0.0f,
+        val escapedBySafetyRule: Boolean = false,
+        /** Shader rayState: 0 unresolved, 1 captured, 2 escaped, 3 opaque disk. */
+        val rayState: Int = 0,
+        /** Shader diskCrossings: accepted crossings (at most 4). */
+        val diskCrossings: Int = 0,
+        /** Every equatorial-plane crossing processed by the loop, in order. */
+        val crossings: List<GpuCrossing> = emptyList(),
+        /** Shader accumDiskRadiance. */
+        val accumulatedRadiance: FloatArray = FloatArray(3),
+        /** Shader diskTransmittance at the end of the ray. */
+        val transmittance: Float = 1.0f,
+        /** Direction the shader samples the sky with: normalize(lastStepDir) after the safety rule, else normalize(p_spatial). */
+        val skyDirection: FloatArray = FloatArray(3),
+        val finalRadius: Float = 0.0f,
+        val primaryHitAzimuth: Float = 0.0f
+    ) {
+        /** Shader rayState == 3: the see-through disk became fully opaque and ended the ray. */
+        val isOpaqueDiskHit: Boolean get() = rayState == 3
+    }
 
     fun compute_r_KS(a: Float, X: Float, Y: Float, Z: Float): Float {
         val R2 = X * X + Y * Y + Z * Z
@@ -169,48 +202,77 @@ object GpuEquivalentIntegrator {
         return Triple(assemble_dg(dH_dX, dl_dX), assemble_dg(dH_dY, dl_dY), assemble_dg(dH_dZ, dl_dZ))
     }
 
-    /** Evaluates right-hand side of Hamilton's equations for 6D state. */
+    /**
+     * Right-hand side of Hamilton's equations for the 6D state, written exactly as the shader's
+     * factored evaluate_rhs (p_0 = +1, Lp = -1 + l·p). [compute_dg_inv] keeps the matrix form for tests.
+     */
     fun evaluate_derivatives(M: Float, a: Float, state: FloatArray): FloatArray {
-        val X = state[0]
-        val Y = state[1]
-        val Z = state[2]
+        val x = state[0]
+        val y = state[1]
+        val z = state[2]
         val px = state[3]
         val py = state[4]
         val pz = state[5]
-        val p = floatArrayOf(1.0f, px, py, pz)
+        val r = compute_r_KS(a, x, y, z)
+        val a2 = a * a
+        val z2 = z * z
+        val r2 = r * r
+        val r3 = r2 * r
+        val r4 = r2 * r2
+        var denomSigma = r4 + a2 * z2
+        if (denomSigma < 1.0e-20f) denomSigma = 1.0e-20f
 
-        val r = compute_r_KS(a, X, Y, Z)
-        val gInv = compute_g_inv(M, a, X, Y, Z, r)
-        val (dg_dX, dg_dY, dg_dZ) = compute_dg_inv(M, a, X, Y, Z, r)
+        val drdX = (r3 * x) / denomSigma
+        val drdY = (r3 * y) / denomSigma
+        val drdZ = (z * r * (r2 + a2)) / denomSigma
 
-        var dX = 0.0f
-        var dY = 0.0f
-        var dZ = 0.0f
-        for (nu in 0 until 4) {
-            dX += gInv[1][nu] * p[nu]
-            dY += gInv[2][nu] * p[nu]
-            dZ += gInv[3][nu] * p[nu]
-        }
+        val h = (M * r3) / denomSigma
+        val denomSigma2 = denomSigma * denomSigma
+        val dHdr = M * r2 * (3.0f * a2 * z2 - r4) / denomSigma2
+        val dHdX = dHdr * drdX
+        val dHdY = dHdr * drdY
+        val dHdZ = dHdr * drdZ - (2.0f * M * a2 * r3 * z) / denomSigma2
 
-        var sumX = 0.0f
-        var sumY = 0.0f
-        var sumZ = 0.0f
-        for (i in 0 until 4) {
-            for (j in 0 until 4) {
-                val pTerm = p[i] * p[j]
-                sumX += dg_dX[i][j] * pTerm
-                sumY += dg_dY[i][j] * pTerm
-                sumZ += dg_dZ[i][j] * pTerm
-            }
-        }
+        val denomV = r2 + a2
+        val denomV2 = denomV * denomV
+        val lx = if (denomV > 1.0e-12f) (r * x + a * y) / denomV else 0.0f
+        val ly = if (denomV > 1.0e-12f) (r * y - a * x) / denomV else 0.0f
+        val lz = if (r > 1.0e-7f) z / r else 0.0f
+
+        val lp = -1.0f + (lx * px + ly * py + lz * pz)
+        val twoH = 2.0f * h
+
+        val dvX = 2.0f * r * drdX
+        val duXX = drdX * x + r
+        val dlXX = (duXX * denomV - (r * x + a * y) * dvX) / denomV2
+        val duYX = drdX * y - a
+        val dlYX = (duYX * denomV - (r * y - a * x) * dvX) / denomV2
+        val dlZX = if (r > 1.0e-7f) (-z * drdX) / r2 else 0.0f
+        val dlpX = dlXX * px + dlYX * py + dlZX * pz
+
+        val dvY = 2.0f * r * drdY
+        val duXY = drdY * x + a
+        val dlXY = (duXY * denomV - (r * x + a * y) * dvY) / denomV2
+        val duYY = drdY * y + r
+        val dlYY = (duYY * denomV - (r * y - a * x) * dvY) / denomV2
+        val dlZY = if (r > 1.0e-7f) (-z * drdY) / r2 else 0.0f
+        val dlpY = dlXY * px + dlYY * py + dlZY * pz
+
+        val dvZ = 2.0f * r * drdZ
+        val duXZ = drdZ * x
+        val dlXZ = (duXZ * denomV - (r * x + a * y) * dvZ) / denomV2
+        val duYZ = drdZ * y
+        val dlYZ = (duYZ * denomV - (r * y - a * x) * dvZ) / denomV2
+        val dlZZ = if (r > 1.0e-7f) (r - z * drdZ) / r2 else 0.0f
+        val dlpZ = dlXZ * px + dlYZ * py + dlZZ * pz
 
         return floatArrayOf(
-            dX,
-            dY,
-            dZ,
-            -0.5f * sumX,
-            -0.5f * sumY,
-            -0.5f * sumZ
+            px - (twoH * lp) * lx,
+            py - (twoH * lp) * ly,
+            pz - (twoH * lp) * lz,
+            lp * (dHdX * lp + twoH * dlpX),
+            lp * (dHdY * lp + twoH * dlpY),
+            lp * (dHdZ * lp + twoH * dlpZ)
         )
     }
 
@@ -289,6 +351,31 @@ object GpuEquivalentIntegrator {
         return 0.5f * H
     }
 
+    /**
+     * One equatorial-plane crossing seen by the shader loop (accepted or rejected).
+     * Rejected crossings (rHit outside [diskInnerRadius, diskOuterRadius], or skipped because the shader's
+     * diskCrossings < 4 guard is false) do not increment the crossing count and emit nothing.
+     */
+    data class GpuCrossing(
+        /** Loop index `step` of the RK4 step that crossed Z = 0. */
+        val step: Int,
+        /** Order of this plane crossing along the ray (0 = first time the ray crosses Z = 0). */
+        val planeIndex: Int,
+        val accepted: Boolean,
+        /** True when the shader skipped the crossing because four crossings were already accumulated. */
+        val skippedByCrossingLimit: Boolean,
+        val rHit: Float,
+        val phiHit: Float,
+        val gShift: Float,
+        val fNorm: Float,
+        val tEff: Float,
+        val paletteInterval: Int,
+        val crossingColor: FloatArray,
+        val contribution: FloatArray,
+        val transmittanceIn: Float,
+        val transmittanceOut: Float
+    )
+
     fun traceRay(
         M: Float,
         a: Float,
@@ -298,122 +385,218 @@ object GpuEquivalentIntegrator {
         enableDisk: Boolean = false,
         diskInnerRadius: Float = 6.0f,
         diskOuterRadius: Float = 22.0f,
-        minStep: Float = 0.02f,
-        maxStep: Float = 0.35f
+        minStep: Float = 0.035f,
+        maxStep: Float = 0.32f,
+        maxOuterStep: Float = 0.55f,
+        enableDoppler: Boolean = false
     ): GpuRayResult {
+        // --- state initialisation (traceRaySample, before the loop) ---
         var state = createInitialRay(M, a, camPos, rayDir)
+        val rInitCam = compute_r_KS(a, camPos[0], camPos[1], camPos[2])
         val rPlus = M + sqrt(max(0.0f, M * M - a * a))
         val rCapture = rPlus + 0.05f
-        // Near-critical continuation, identical to gargantua_geodesic.frag: once the ordinary budget
-        // (maxSteps) is spent, rays with minR <= rPhotonShellOuter + 0.5 keep integrating up to 1500 steps.
-        val rPhotonShellOuter = 2.0f * M * (1.0f + cos((2.0f / 3.0f) * acos((abs(a) / M).coerceIn(0.0f, 1.0f))))
-
-        val rInitCam = compute_r_KS(a, camPos[0], camPos[1], camPos[2])
         val rEscape = max(50.0f, rInitCam + 15.0f)
+        val rPhotonShellOuter = 2.0f * M * (1.0f + cos((2.0f / 3.0f) * acos((abs(a) / M).coerceIn(0.0f, 1.0f))))
+        // Shader: int maxSteps = clamp(u_MaxSteps, 40, BASE_INTEGRATION_STEPS).
+        val baseSteps = maxSteps.coerceIn(40, BASE_INTEGRATION_STEPS)
+
+        var rayState = STATE_UNRESOLVED
+        val accum = FloatArray(3)
+        var transmittance = 1.0f
+        var diskCrossings = 0
+        var planeCrossings = 0
+        var primaryHitRadius = 0.0f
+        var primaryHitAzimuth = 0.0f
+        var primaryG = 1.0f
+        val crossings = mutableListOf<GpuCrossing>()
 
         var minR = rInitCam
+        var prevR = rInitCam
+        var movingOutward = false
+        var lastStepDir = rayDir.clone()
+        var stepsTaken = 0
+
         var maxH = abs(computeHamiltonian(M, a, state))
         val intermediateList = mutableListOf(state.clone())
-
-        var prevR = minR
-        var movingOutward = false
-        var isEscaped = false
-        var isCaptured = false
-        var isDiskHit = false
-        var rHitResult = 0.0f
-        var gShiftResult = 1.0f
-        var stepCount = 0
-
         val gCam = compute_g_lower(M, a, camPos[0], camPos[1], camPos[2], rInitCam)
         val uObs0 = 1.0f / sqrt(max(1.0e-6f, -gCam[0][0]))
 
-        for (step in 0 until max(maxSteps, 1500)) {
-            if (step >= maxSteps && minR > rPhotonShellOuter + 0.5f) break
-            stepCount++
+        for (step in 0 until MAX_INTEGRATION_STEPS) {
+            // (1) ordinary budget exhausted: only near-critical rays continue
+            if (step >= baseSteps) {
+                if (minR > rPhotonShellOuter + 0.5f) break
+            }
+            stepsTaken = step + 1
+
+            // (2) radius bookkeeping of the current position
             val r = compute_r_KS(a, state[0], state[1], state[2])
             if (r < minR) minR = r
-            if (r > prevR) {
-                movingOutward = true
-            }
-
+            if (r > prevR) movingOutward = true
+            prevR = r
             val h = abs(computeHamiltonian(M, a, state))
             if (h > maxH) maxH = h
 
+            // (3) capture
             if (r <= rCapture) {
-                isCaptured = true
+                rayState = STATE_CAPTURED
                 break
             }
-            if (movingOutward && (r >= rEscape || (enableDisk && r >= diskOuterRadius))) {
-                isEscaped = true
+            // (4) escape: u_DiskOuterRadius is part of the shader test whether or not the disk is enabled
+            if (movingOutward && (r >= rEscape || r >= diskOuterRadius)) {
+                rayState = STATE_ESCAPED
                 break
             }
-            prevR = r
 
-            val baseStep = 0.08f * r
-            var dlambda = baseStep.coerceIn(minStep, maxStep)
-            // Capture-zone limiter, identical to gargantua_geodesic.frag (causticStep): backward-traced
-            // (p0 = +1) rays approach r+ with diverging covariant momentum in ingoing Kerr-Schild coordinates.
-            if (r > rCapture && r < rCapture + 0.95f) {
-                val proximity = (r - rCapture) / 0.95f
-                dlambda = min(dlambda, 0.032f + (0.075f - 0.032f) * proximity)
-            }
-            if (enableDisk && abs(state[2]) < 0.60f && r >= diskInnerRadius - 0.5f && r <= diskOuterRadius + 1.0f) {
-                val vz = abs(state[5])
-                val stepToDisk = abs(state[2]) / max(0.15f, vz)
-                dlambda = min(dlambda, max(minStep * 2.0f, stepToDisk * 0.80f + minStep))
-            }
+            // (5) step size, (6) RK4, (7) last-step direction
             val prevState = state.clone()
+            val dlambda = adaptiveStep(r, movingOutward, rCapture, minStep, maxStep, maxOuterStep)
             state = rk4_step(M, a, state, dlambda)
             intermediateList.add(state.clone())
+            lastStepDir = floatArrayOf(state[0] - prevState[0], state[1] - prevState[1], state[2] - prevState[2])
 
-            if (enableDisk && prevState[2] * state[2] <= 0.0f && prevState[2] != state[2]) {
-                val tau = -prevState[2] / (state[2] - prevState[2])
-                if (tau in 0.0f..1.0f) {
-                    val hitX = prevState[0] + tau * (state[0] - prevState[0])
-                    val hitY = prevState[1] + tau * (state[1] - prevState[1])
-                    val rHit = sqrt(hitX * hitX + hitY * hitY)
+            // (8) disk-plane crossing on this step
+            if (prevState[2] * state[2] <= 0.0f && prevState[2] != state[2]) {
+                val planeIndex = planeCrossings++
+                if (!enableDisk) continue
+                if (diskCrossings >= 4) {
+                    crossings.add(
+                        GpuCrossing(step, planeIndex, false, true, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1,
+                            FloatArray(3), FloatArray(3), transmittance, transmittance)
+                    )
+                    continue
+                }
+                val tau = (-prevState[2] / (state[2] - prevState[2])).coerceIn(0.0f, 1.0f)
+                val hitX = prevState[0] + tau * (state[0] - prevState[0])
+                val hitY = prevState[1] + tau * (state[1] - prevState[1])
+                val rHit = sqrt(max(0.0f, hitX * hitX + hitY * hitY - a * a))
+                val phiHit = atan2(hitY, hitX)
 
-                    if (rHit in diskInnerRadius..diskOuterRadius) {
-                        val hitPx = prevState[3] + tau * (state[3] - prevState[3])
-                        val hitPy = prevState[4] + tau * (state[4] - prevState[4])
+                if (rHit >= diskInnerRadius && rHit <= diskOuterRadius) {
+                    // (9) accepted: increment count, record primary hit
+                    diskCrossings++
+                    if (diskCrossings == 1) {
+                        primaryHitRadius = rHit
+                        primaryHitAzimuth = phiHit
+                    }
+                    // (10) frequency shift
+                    val hitPx = prevState[3] + tau * (state[3] - prevState[3])
+                    val hitPy = prevState[4] + tau * (state[4] - prevState[4])
+                    val omega = sqrt(M) / (rHit.pow(1.5f) + a * sqrt(M))
+                    val denomV = rHit * rHit + a * a
+                    val lxHit = (rHit * hitX + a * hitY) / denomV
+                    val lyHit = (rHit * hitY - a * hitX) / denomV
+                    val hMetric = M / max(1.0e-6f, rHit)
+                    val lDotU = 1.0f + omega * (lyHit * hitX - lxHit * hitY)
+                    val etaUU = -1.0f + (omega * omega) * (hitX * hitX + hitY * hitY)
+                    val denomContract = etaUU + 2.0f * hMetric * (lDotU * lDotU)
+                    val u0 = if (denomContract < 0.0f) 1.0f / sqrt(-denomContract) else 1.0f
+                    val lz = hitX * hitPy - hitY * hitPx
+                    val denomG = u0 * (1.0f + omega * lz)
+                    val gShift = if (abs(denomG) > 1.0e-6f) (uObs0 / denomG).coerceIn(0.05f, 5.0f) else 1.0f
+                    if (diskCrossings == 1) primaryG = gShift
 
-                        val omega = sqrt(M) / (rHit.pow(1.5f) + a * sqrt(M))
-                        val gHit = compute_g_lower(M, a, hitX, hitY, 0.0f, rHit)
-                        val vEmit = floatArrayOf(1.0f, -omega * hitY, omega * hitX, 0.0f)
-
-                        var denomContract = 0.0f
-                        for (i in 0 until 4) {
-                            for (j in 0 until 4) {
-                                denomContract += gHit[i][j] * vEmit[i] * vEmit[j]
-                            }
-                        }
-                        val u0 = if (denomContract < 0.0f) 1.0f / sqrt(-denomContract) else 1.0f
-
-                        val lz = hitX * hitPy - hitY * hitPx
-                        val denomG = u0 * (1.0f + omega * lz)
-                        val gShift = if (abs(denomG) > 1.0e-6f) uObs0 / denomG else 1.0f
-
-                        isDiskHit = true
-                        rHitResult = rHit
-                        gShiftResult = gShift
+                    // (11) emission and transmittance through the three strata
+                    val len = sqrt(lastStepDir[0] * lastStepDir[0] + lastStepDir[1] * lastStepDir[1] + lastStepDir[2] * lastStepDir[2])
+                    val shade = com.zig.gargantua.disk.ShaderDiskShading.shadeCrossing(
+                        M, rHit, phiHit, lastStepDir[2] / len, gShift, diskInnerRadius, diskOuterRadius,
+                        transmittance, enableDoppler
+                    )
+                    for (i in 0 until 3) accum[i] += shade.contribution[i]
+                    transmittance = shade.transmittanceOut
+                    crossings.add(
+                        GpuCrossing(step, planeIndex, true, false, rHit, phiHit, gShift, shade.fNorm, shade.tEff,
+                            shade.paletteInterval, shade.crossingColor, shade.contribution, shade.transmittanceIn,
+                            shade.transmittanceOut)
+                    )
+                    // (12) fully opaque: DISK state, ray ends
+                    if (transmittance == 0.0f) {
+                        rayState = STATE_DISK
                         break
                     }
+                } else {
+                    crossings.add(
+                        GpuCrossing(step, planeIndex, false, false, rHit, phiHit, 0.0f, 0.0f, 0.0f, -1,
+                            FloatArray(3), FloatArray(3), transmittance, transmittance)
+                    )
                 }
             }
         }
 
+        // (13) post-loop safety rule, only for a ray that is still unresolved
+        var escapedBySafetyRule = false
+        val rEnd = compute_r_KS(a, state[0], state[1], state[2])
+        if (rayState == STATE_UNRESOLVED) {
+            if (rEnd > prevR && rEnd > rPhotonShellOuter) {
+                rayState = STATE_ESCAPED
+                escapedBySafetyRule = true
+            }
+        }
+
+        // (14) sky direction of the shader's escaped branch
+        val skyDir = if (escapedBySafetyRule) lastStepDir else floatArrayOf(state[3], state[4], state[5])
+        val skyLen = sqrt(skyDir[0] * skyDir[0] + skyDir[1] * skyDir[1] + skyDir[2] * skyDir[2])
+        val skyDirection = floatArrayOf(skyDir[0] / skyLen, skyDir[1] / skyLen, skyDir[2] / skyLen)
+
         return GpuRayResult(
-            isCaptured = isCaptured,
-            isEscaped = isEscaped,
-            isDiskHit = isDiskHit,
-            stepsTaken = stepCount,
+            isCaptured = rayState == STATE_CAPTURED,
+            isEscaped = rayState == STATE_ESCAPED,
+            isDiskHit = diskCrossings >= 1,
+            stepsTaken = stepsTaken,
             finalPos = floatArrayOf(state[0], state[1], state[2]),
             finalMomentum = floatArrayOf(state[3], state[4], state[5]),
             minRadiusReached = minR,
             maxHamiltonianResidual = maxH,
             intermediateStates = intermediateList,
-            frequencyShift = gShiftResult,
-            rHit = rHitResult
+            frequencyShift = primaryG,
+            rHit = primaryHitRadius,
+            escapedBySafetyRule = escapedBySafetyRule,
+            rayState = rayState,
+            diskCrossings = diskCrossings,
+            crossings = crossings,
+            accumulatedRadiance = accum,
+            transmittance = transmittance,
+            skyDirection = skyDirection,
+            finalRadius = rEnd,
+            primaryHitAzimuth = primaryHitAzimuth
         )
     }
+
+    /** traceRaySample rayState codes. */
+    const val STATE_UNRESOLVED = 0
+    const val STATE_CAPTURED = 1
+    const val STATE_ESCAPED = 2
+    const val STATE_DISK = 3
+
+    /**
+     * Step size of gargantua_geodesic.frag: baseStep = 0.085·r, clamped to [minStep, maxOuterStep] when
+     * r > 6 && (movingOutward || r > 18) and to [minStep, maxStep] otherwise, then limited to
+     * mix(0.032, 0.075, (r - rCapture)/0.95) inside the capture zone (causticStep). Backward-traced
+     * (p0 = +1) rays approach r+ with diverging covariant momentum in ingoing Kerr-Schild coordinates.
+     */
+    fun adaptiveStep(
+        r: Float,
+        movingOutward: Boolean,
+        rCapture: Float,
+        minStep: Float = 0.035f,
+        maxStep: Float = 0.32f,
+        maxOuterStep: Float = 0.55f
+    ): Float {
+        val baseStep = 0.085f * r
+        var dlambda = if (r > 6.0f && (movingOutward || r > 18.0f)) {
+            baseStep.coerceIn(minStep, maxOuterStep)
+        } else {
+            baseStep.coerceIn(minStep, maxStep)
+        }
+        if (r > rCapture && r < rCapture + 0.95f) {
+            val proximity = (r - rCapture) / 0.95f
+            dlambda = min(dlambda, 0.032f + (0.075f - 0.032f) * proximity)
+        }
+        return dlambda
+    }
+
+    /** Shader BASE_INTEGRATION_STEPS (ordinary per-ray budget ceiling). */
+    const val BASE_INTEGRATION_STEPS = 180
+
+    /** Shader MAX_INTEGRATION_STEPS (near-critical continuation limit). */
+    const val MAX_INTEGRATION_STEPS = 1500
 }

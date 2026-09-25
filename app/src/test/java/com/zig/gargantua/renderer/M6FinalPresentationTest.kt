@@ -853,7 +853,8 @@ class M6FinalPresentationTest {
         val up = floatArrayOf(-cos(inclRad).toFloat(), 0.0f, sin(inclRad).toFloat())
 
         // 1. Tertiary filament ray (stX = -0.2800, stY = 0.0; corrected backward-traced ray, narrow-shadow side):
-        //    physically orbits and intersects disk
+        //    its first equatorial crossing is inside the ISCO gap (r = 2.79), the second hits the disk at r = 4.168
+        //    (g = 1.041, 139 steps; measured with the Kotlin GpuEquivalentIntegrator)
         val stX_tert = -0.2800f
         val stY_tert = 0.0f
         val rayTertX = fwd[0] + right[0] * (stX_tert * fovScale) + up[0] * (stY_tert * fovScale)
@@ -884,8 +885,11 @@ class M6FinalPresentationTest {
         val tertRad = diskRadianceNormalized(tertResult.rHit.toDouble(), tertResult.frequencyShift.toDouble())
         assertTrue("Tertiary filament emission must be strictly positive", tertRad > 0.0)
 
-        // 2. Plunge gap ray (stX = -0.2760, stY = 0.0): passes inside ISCO gap, escapes without hitting disk
-        val stX_gap = -0.2760f
+        // 2. Plunge gap ray (stX = -0.2660, stY = 0.0): both equatorial crossings fall inside the ISCO gap
+        //    (KS r = 2.63 and 2.59 < r_isco = 2.907), then the ray escapes without hitting the disk.
+        //    Pinned with the Kotlin GpuEquivalentIntegrator: rays from stX = -0.2880 to -0.2700 hit the disk on
+        //    their second crossing (r = 5.66 ... 2.95); from -0.2680 to -0.2600 they escape.
+        val stX_gap = -0.2660f
         val rayGapX = fwd[0] + right[0] * (stX_gap * fovScale)
         val rayGapY = fwd[1] + right[1] * (stX_gap * fovScale)
         val rayGapZ = fwd[2] + right[2] * (stX_gap * fovScale)
@@ -1131,7 +1135,13 @@ class M6FinalPresentationTest {
 
         // Case 5: High-order photon ring trajectory
         assertTrue("High-order photon ring trajectory penetrates ergosphere", resTert.minRadiusReached < 2.5f)
-        assertFalse("High-order disk ray must not be erroneously classified as escaped", resTert.isEscaped)
+        // The disk is see-through (shader L788-870): after its accepted crossing the ray keeps integrating
+        // and, like the shader, escapes with that crossing's emission in accumDiskRadiance and the
+        // transmittance reduced; it is neither captured nor unresolved.
+        assertEquals("High-order disk ray has exactly one accepted crossing", 1, resTert.diskCrossings)
+        assertEquals("High-order disk ray continues through the disk and escapes (rayState 2)", 2, resTert.rayState)
+        assertTrue("Escaped disk ray keeps its crossing emission", resTert.accumulatedRadiance.sum() > 0.005f)
+        assertTrue("Escaped disk ray sees the sky only through the reduced transmittance", resTert.transmittance < 1.0f)
         assertFalse("High-order disk ray must not be captured", resTert.isCaptured)
     }
 
@@ -1281,11 +1291,12 @@ class M6FinalPresentationTest {
             return floatArrayOf(d[0] / len, d[1] / len, d[2] / len)
         }
 
-        // 1. Horizontal subpixel crossing recovery (at px = 198)
-        val px198_stX = (2.0f * 198 + 1.0f - dim05) / dim05
+        // 1. Horizontal subpixel crossing recovery (at px = 199, stX = -0.26111; pinned with the Kotlin
+        //    GpuEquivalentIntegrator itself: centre escapes, (-off, 0) hits at r = 3.180, (-off, -off) at r = 3.108)
+        val px198_stX = (2.0f * 199 + 1.0f - dim05) / dim05
         val px198_stY = 0.0352f
         val baseH = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px198_stX, px198_stY), 220, true, rInF, rOutF)
-        assertFalse("Base ray at px=198 center must miss the disk", baseH.isDiskHit)
+        assertFalse("Base ray at px=199 center must miss the disk", baseH.isDiskHit)
         val subH = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px198_stX - off, px198_stY), 220, true, rInF, rOutF)
         assertTrue("Horizontal subpixel offset (-off, 0) must recover disk intersection", subH.isDiskHit)
         assertTrue("Recovered horizontal hit radius must be within physical disk bounds", subH.rHit in rInF..rOutF)
@@ -1367,32 +1378,32 @@ class M6FinalPresentationTest {
         val rInF = rIn.toFloat()
         val rOutF = rOut.toFloat()
 
-        // 1. Current policy: minStep = 0.02, maxStep = 0.35
+        // 1. Production policy (gargantua_geodesic.frag): minStep = 0.035, maxStep = 0.32
         val resCurrent = GpuEquivalentIntegrator.traceRay(
             M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normDir,
             maxSteps = 250, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF,
-            minStep = 0.02f, maxStep = 0.35f
+            minStep = 0.035f, maxStep = 0.32f
         )
 
-        // 2. Half max step: minStep = 0.02, maxStep = 0.175
+        // 2. Half max step: minStep = 0.035, maxStep = 0.16
         val resHalfMax = GpuEquivalentIntegrator.traceRay(
             M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normDir,
             maxSteps = 250, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF,
-            minStep = 0.02f, maxStep = 0.175f
+            minStep = 0.035f, maxStep = 0.16f
         )
 
-        // 3. Half min step: minStep = 0.01, maxStep = 0.35
+        // 3. Half min step: minStep = 0.0175, maxStep = 0.32
         val resHalfMin = GpuEquivalentIntegrator.traceRay(
             M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normDir,
             maxSteps = 250, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF,
-            minStep = 0.01f, maxStep = 0.35f
+            minStep = 0.0175f, maxStep = 0.32f
         )
 
-        // 4. Both halved: minStep = 0.01, maxStep = 0.175
+        // 4. Both halved: minStep = 0.0175, maxStep = 0.16
         val resBothHalved = GpuEquivalentIntegrator.traceRay(
             M = 1.0f, a = 0.8f, camPos = camPos, rayDir = normDir,
             maxSteps = 250, enableDisk = true, diskInnerRadius = rInF, diskOuterRadius = rOutF,
-            minStep = 0.01f, maxStep = 0.175f
+            minStep = 0.0175f, maxStep = 0.16f
         )
 
         // Verify physical properties across policies:
@@ -1402,8 +1413,11 @@ class M6FinalPresentationTest {
         assertTrue("Half min policy minR near photon orbit", resHalfMin.minRadiusReached < 2.5f)
         assertTrue("Both halved policy minR near photon orbit", resBothHalved.minRadiusReached < 2.5f)
 
-        // Policies with standard minStep reach the physical disk with closely matched hit radii
-        if (resCurrent.isDiskHit && resHalfMax.isDiskHit) {
+        // Production and half-max policies both reach the physical disk with closely matched hit radii
+        // (measured: r = 4.24053 vs 4.24071, g = 1.008798 vs 1.008768, 165 vs 225 steps)
+        assertTrue("Production policy must hit the disk", resCurrent.isDiskHit)
+        assertTrue("Half max policy must hit the disk", resHalfMax.isDiskHit)
+        run {
             val rHitDiff = abs(resCurrent.rHit - resHalfMax.rHit)
             assertTrue("Hit radius difference between Current and HalfMax is within 0.05M", rHitDiff < 0.05f)
             val gDiff = abs(resCurrent.frequencyShift - resHalfMax.frequencyShift)
@@ -1412,5 +1426,39 @@ class M6FinalPresentationTest {
 
         // Document sensitivity: Halving step sizes naturally increases step count for deep trajectories
         assertTrue("HalfMax step count must exceed Current step count", resHalfMax.stepsTaken > resCurrent.stepsTaken)
+    }
+
+    // Phase 4 item 4: the radial emissivity F(r)/F_peak and the relativistic weighting are each applied
+    // exactly once between the disk intersection and the HDR target.
+    @Test
+    fun radialEmissivityAndRelativisticWeightingAreAppliedExactlyOnce() {
+        val shader = readShader("gargantua_geodesic.frag")
+        val start = shader.indexOf("vec3 evaluate4TierBlackbodySpectrum(float fNorm, float gShift) {")
+        assertTrue("Palette function must exist", start >= 0)
+        val end = shader.indexOf("\nvec4 traceRaySample(", start)
+        val body = shader.substring(start, end)
+        val code = body.lines().filterNot { it.trim().startsWith("//") }.joinToString("\n")
+
+        // Strict GR mode: g^4 once, no second F(r) factor.
+        assertTrue(code.contains("iPhys = pow(gClamped, 4.0);"))
+        // Movie mode: no intensity multiplier (F(r) is carried by the palette coordinate only).
+        assertTrue(code.contains("iPhys = 1.0;"))
+        assertFalse("iPhys must not multiply fNorm again", Regex("iPhys\\s*=[^;]*fNorm").containsMatchIn(code))
+        // F(r) enters the colour exactly once, linearly, through the palette coordinate.
+        assertTrue(code.contains("float tEff = clamp(gFactor * fNorm, 0.0, 1.0);"))
+        assertEquals("fNorm must appear exactly once in the palette code (tEff)", 1, Regex("\\bfNorm\\b").findAll(code.substringAfter("{")).count())
+        assertEquals("pow(gClamped, 4.0) must appear exactly once", 1, Regex("pow\\(gClamped, 4\\.0\\)").findAll(code).count())
+        assertTrue(code.contains("return thermalColor * iPhys * 0.85;"))
+
+        // The crossing contribution uses the palette colour only; g4/iPhys/radiance at the intersection are anchors.
+        assertTrue(shader.contains("vec3 crossingColor = evaluate4TierBlackbodySpectrum(fNorm, gShift);"))
+        assertTrue(shader.contains("accumDiskRadiance += diskTransmittance * crossingColor * segAlpha;"))
+        val accumLines = shader.lines().filter { it.contains("accumDiskRadiance +=") || it.contains("accumDiskRadiance *=") }
+        for (line in accumLines) {
+            assertFalse("No g/g4/iPhys/fNorm factor on accumulation: $line", Regex("\\b(g4|g2|gShift|iPhys|fNorm|radiance)\\b").containsMatchIn(line))
+        }
+        // Composite: exposure and tone mapping only, no g or emissivity weighting.
+        val composite = readShader("gargantua_composite.frag")
+        assertFalse(Regex("\\b(gShift|fNorm|iPhys|g4)\\b").containsMatchIn(composite))
     }
 }

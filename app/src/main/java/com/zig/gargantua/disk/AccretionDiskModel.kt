@@ -113,13 +113,19 @@ data class AccretionDiskModel(
     }
 
     /**
+     * Kerr-Schild radius r of an equatorial point (X, Y, 0): r = sqrt(max(0, X² + Y² - a²)), the same
+     * expression as gargantua_geodesic.frag (rHit). For a != 0 this differs from sqrt(X² + Y²).
+     */
+    fun equatorialRadius(X: Double, Y: Double): Double = sqrt(max(0.0, X * X + Y * Y - a * a))
+
+    /**
      * Constructs the physical 4-velocity u^μ of the disk material at Cartesian equatorial coordinates (X, Y, 0).
      * u^μ = u^0 (1, -Ω Y, Ω X, 0) normalized such that g_μν u^μ u^ν = -1.
      *
      * @return 4-vector [u^0, u^X, u^Y, u^Z].
      */
     fun emitterFourVelocity(spacetime: KerrSchildSpacetime, X: Double, Y: Double): DoubleArray {
-        val r = sqrt(X * X + Y * Y)
+        val r = equatorialRadius(X, Y)
         val omega = keplerianAngularVelocity(r)
 
         val vx = -omega * Y
@@ -169,7 +175,7 @@ data class AccretionDiskModel(
         camY: Double,
         camZ: Double
     ): Double {
-        val rHit = sqrt(hitX * hitX + hitY * hitY)
+        val rHit = equatorialRadius(hitX, hitY)
         val omega = keplerianAngularVelocity(rHit)
         val uEmit = emitterFourVelocity(spacetime, hitX, hitY)
         val u0 = uEmit[0]
