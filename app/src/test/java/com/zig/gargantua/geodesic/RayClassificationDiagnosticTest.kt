@@ -82,6 +82,9 @@ class RayClassificationDiagnosticTest {
 
         val rCapture = M + sqrt(max(0.0f, M * M - a * a)) + 0.05f
         val rEscape = 50.0f
+        // Same near-critical continuation as gargantua_geodesic.frag: past the ordinary budget, rays
+        // with minR <= rPhotonShellOuter + 0.5 keep integrating up to MAX_INTEGRATION_STEPS = 1500.
+        val rPhotonShellOuter = 2.0f * M * (1.0f + cos((2.0f / 3.0f) * acos((abs(a) / M).coerceIn(0.0f, 1.0f))))
 
         val classifications = Array(samplesY) { Array(samplesX) { RayClassification.UNRESOLVED } }
 
@@ -109,7 +112,8 @@ class RayClassificationDiagnosticTest {
                     }
                 }
                 val Dw = max(0.0f, Bw * Bw - Aw * Cw)
-                val w = (-Bw - sqrt(Dw)) / Aw
+                // Past-directed root (backward trace), identical to the shader / GpuEquivalentIntegrator.
+                val w = (-Bw + sqrt(Dw)) / Aw
                 val v = floatArrayOf(w, rayDir[0], rayDir[1], rayDir[2])
 
                 val vLower = FloatArray(4)
@@ -120,16 +124,19 @@ class RayClassificationDiagnosticTest {
                     }
                     vLower[i] = sum
                 }
-                val scale = -vLower[0]
+                val scale = vLower[0] // p_0 = +1
                 var pSpatial = floatArrayOf(vLower[1] / scale, vLower[2] / scale, vLower[3] / scale)
                 var pos = floatArrayOf(camX, camY, camZ)
 
                 var outcome = RayClassification.UNRESOLVED
                 var prevR = rInit
                 var movingOutward = false
+                var minR = rInit
 
-                for (step in 0 until maxSteps) {
+                for (step in 0 until 1500) {
+                    if (step >= maxSteps && minR > rPhotonShellOuter + 0.5f) break
                     val r = GpuEquivalentIntegrator.compute_r_KS(a, pos[0], pos[1], pos[2])
+                    if (r < minR) minR = r
                     if (r > prevR) movingOutward = true
                     prevR = r
 
@@ -157,6 +164,10 @@ class RayClassificationDiagnosticTest {
                         val vz = abs(pSpatial[2])
                         val stepToDisk = abs(pos[2]) / max(0.15f, vz)
                         dlambda = min(dlambda, max(0.04f, stepToDisk * 0.80f + 0.02f))
+                    }
+                    // Capture-zone limiter, identical to gargantua_geodesic.frag (causticStep)
+                    if (r > rCapture && r < rCapture + 0.95f) {
+                        dlambda = min(dlambda, 0.032f + (0.075f - 0.032f) * ((r - rCapture) / 0.95f))
                     }
 
                     val nextState = GpuEquivalentIntegrator.rk4_step(

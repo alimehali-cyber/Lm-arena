@@ -11,10 +11,10 @@ import kotlin.math.*
  * Confirms that the null momentum construction in [CameraModel] simultaneously satisfies:
  * 1. The exact null constraint: H = 1/2 g^μν p_μ p_ν ≡ 0.
  * 2. The exact intended observer-frame ray direction: dx^i/dλ ∥ d^i with positive proportionality.
- * 3. The stationarity energy normalization: p_0 = -1.0 (E = 1).
+ * 3. The stationarity normalization of the backward-traced (past-directed) ray: p_0 = +1.0.
  *
- * Crucially, proves that p_0 = -1.0 emerges directly from the uniform scalar scaling
- * p_μ = v_μ / (-v_0) of the physical null 4-vector v_μ, without any independent forcing
+ * Crucially, proves that p_0 = +1.0 emerges directly from the uniform positive scalar scaling
+ * p_μ = v_μ / v_0 of the past-directed null 4-vector v_μ, without any independent forcing
  * or artificial projection that could distort the physical ray direction or nullity.
  */
 class CameraMomentumNormalizationTest {
@@ -54,10 +54,10 @@ class CameraMomentumNormalizationTest {
                         dx = dirX, dy = dirY, dz = dirZ
                     )
 
-                    // 1. Stationarity energy normalization: p_0 must be exactly -1.0
+                    // 1. Stationarity normalization of the backward trace: p_0 must be exactly +1.0
                     assertEquals(
-                        "p_0 must be identically -1.0 (E = 1)",
-                        -1.0,
+                        "p_0 must be identically +1.0 (past-directed backward trace)",
+                        1.0,
                         photon.p_t,
                         1e-15
                     )
@@ -112,8 +112,8 @@ class CameraMomentumNormalizationTest {
                         angleDeviation < 1e-14
                     )
 
-                    // Coordinate time velocity dt/dλ must be strictly positive (future directed)
-                    assertTrue("dt/dλ must be positive (future directed)", v[0] > 0.0)
+                    // Backward trace of the received photon: dt/dλ must be strictly negative (past directed)
+                    assertTrue("dt/dλ must be negative (past-directed backward trace)", v[0] < 0.0)
                 }
             }
         }
@@ -145,7 +145,7 @@ class CameraMomentumNormalizationTest {
             assertTrue("NDC ($ndcX, $ndcY) ray must be null, got H=$h", h < 1e-14)
 
             // Verify energy
-            assertEquals("NDC ($ndcX, $ndcY) p_0 must be -1.0", -1.0, photon.p_t, 1e-15)
+            assertEquals("NDC ($ndcX, $ndcY) p_0 must be +1.0", 1.0, photon.p_t, 1e-15)
 
             // Verify direction alignment
             val v = photon.velocity(spacetime)

@@ -96,8 +96,8 @@ class M7AdaptiveRenderingTest {
 
         // Test multiple subpixel ray directions in the adaptive tier
         val testCoords = listOf(
-            Pair(0.26722f, 0.03520f),
-            Pair(0.27593f, 0.03520f),
+            Pair(-0.26722f, 0.03520f),
+            Pair(-0.27593f, 0.03520f),
             Pair(0.0f, 0.0f),
             Pair(-0.30f, 0.0f)
         )
@@ -120,7 +120,7 @@ class M7AdaptiveRenderingTest {
         val right = floatArrayOf(0.0f, 1.0f, 0.0f)
         val fovScale = tan(Math.toRadians(45.0 * 0.5)).toFloat()
 
-        val dir = makeRayDir(0.26722f, 0.03520f, fwd, right, up, fovScale)
+        val dir = makeRayDir(-0.26722f, 0.03520f, fwd, right, up, fovScale)
         val res = GpuEquivalentIntegrator.traceRay(
             M = 1.0f, a = 0.8f, camPos = camPos, rayDir = dir,
             maxSteps = 220, enableDisk = true, diskInnerRadius = rIn.toFloat(), diskOuterRadius = rOut.toFloat()
@@ -144,7 +144,7 @@ class M7AdaptiveRenderingTest {
 
         val dim05 = 540.0f
         val pxScale = 2.0f / dim05
-        val off = 0.30f * pxScale
+        val off = 0.50f * pxScale
 
         // Sample center and all 8 adaptive subpixel sample offsets (diagonal + axial)
         val offsets = listOf(
@@ -174,7 +174,7 @@ class M7AdaptiveRenderingTest {
 
         val dim05 = 540.0f
         val pxScale = 2.0f / dim05
-        val off = 0.30f * pxScale
+        val off = 0.50f * pxScale
 
         val offsets = listOf(
             Pair(0.0f, 0.0f),
@@ -202,9 +202,9 @@ class M7AdaptiveRenderingTest {
 
         val dim05 = 540.0f
         val pxScale = 2.0f / dim05
-        val off = 0.30f * pxScale
+        val off = 0.50f * pxScale
 
-        val px = 344
+        val px = 193
         val stX = (2.0f * px + 1.0f - dim05) / dim05
         val stY = 0.0352f
 
@@ -228,7 +228,7 @@ class M7AdaptiveRenderingTest {
             }
         }
         val tier1AvgRad = tier1RadSum / 5.0
-        assertTrue("Tier 1 recovers disk intersection on gap pixel px=344", tier1Hits > 0)
+        assertTrue("Tier 1 recovers disk intersection on gap pixel px=193", tier1Hits > 0)
         assertTrue("Tier 1 radiance is strictly positive", tier1AvgRad > 0.0)
 
         // Tier 2 (9 samples: center + 4 diagonal + 4 axial)
@@ -282,12 +282,12 @@ class M7AdaptiveRenderingTest {
         val dim05 = 540.0f
         val stY = 0.0352f
 
-        // Scan columns px in 338..344 across the tertiary disk body
+        // Scan columns px in 193..198 across the tertiary disk body (corrected backward-traced rays)
         var continuousHits = 0
-        for (px in 338..344) {
+        for (px in 193..198) {
             val stX = (2.0f * px + 1.0f - dim05) / dim05
             val pxScale = 2.0f / dim05
-            val off = 0.30f * pxScale
+            val off = 0.50f * pxScale
 
             // Evaluate adaptive 9-sample grid
             val sampleOffsets = listOf(
@@ -310,8 +310,8 @@ class M7AdaptiveRenderingTest {
             if (anyHit) continuousHits++
         }
 
-        // Prove 100% continuity across the entire tertiary disk body (px=338 to px=344)
-        assertEquals("Tertiary disk body must have 0 black dropout pixels across px=338..344", 7, continuousHits)
+        // Prove 100% continuity across the entire tertiary disk body (px=193 to px=198)
+        assertEquals("Tertiary disk body must have 0 black dropout pixels across px=193..198", 6, continuousHits)
     }
 
     // 8. Physical generation verification: no screen-space ring or artificial ambient tricks

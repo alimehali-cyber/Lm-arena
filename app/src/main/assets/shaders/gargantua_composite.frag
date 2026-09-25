@@ -53,8 +53,13 @@ void main() {
     // Exposure adjustment
     vec3 exposed = color * u_Exposure;
 
-    // ACES filmic tonemapping
-    vec3 ldr = aces_filmic(exposed);
+    // Luminance-preserving ACES: the ACES curve is applied to Rec.709 luminance only and RGB is
+    // rescaled by mappedLuma / inputLuma, so the HDR chromaticity (e.g. orange G/R ~ 0.54) is kept
+    // instead of the per-channel shoulder pulling green up toward red.
+    float inputLuma = dot(exposed, vec3(0.2126, 0.7152, 0.0722));
+    float mappedLuma = aces_filmic(vec3(inputLuma)).r;
+    // The 1e-4 floor keeps the ratio finite at mediump precision; below it the output is < 1/255.
+    vec3 ldr = clamp(exposed * (mappedLuma / max(inputLuma, 1.0e-4)), 0.0, 1.0);
 
     // CRITICAL: Display OETF Gamma 2.2 correction
     // Narkowicz ACES outputs linear display space. Gamma expansion is mandatory.

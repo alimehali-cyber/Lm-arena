@@ -154,7 +154,7 @@ class CpuGpuCorrespondenceTest {
         // GPU final velocity from final momentum
         val gpuR = GpuEquivalentIntegrator.compute_r_KS(a, gpuResult.finalPos[0], gpuResult.finalPos[1], gpuResult.finalPos[2])
         val gpuGInv = GpuEquivalentIntegrator.compute_g_inv(M, a, gpuResult.finalPos[0], gpuResult.finalPos[1], gpuResult.finalPos[2], gpuR)
-        val gpuP = floatArrayOf(-1.0f, gpuResult.finalMomentum[0], gpuResult.finalMomentum[1], gpuResult.finalMomentum[2])
+        val gpuP = floatArrayOf(1.0f, gpuResult.finalMomentum[0], gpuResult.finalMomentum[1], gpuResult.finalMomentum[2])
         var gpuVx = 0.0f
         var gpuVy = 0.0f
         var gpuVz = 0.0f

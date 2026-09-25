@@ -34,7 +34,8 @@ class KerrConservedQuantitiesGeodesicTest {
         val lz0 = initialPhoton.conservedLz
         val e0 = initialPhoton.energy
 
-        assertEquals("Energy E must equal 1.0", 1.0, e0, 1e-15)
+        // Backward-traced (past-directed) photon: covector normalised to p_t = +1, so E = -p_t = -1
+        assertEquals("Energy E = -p_t must equal -1.0 for the backward-traced ray", -1.0, e0, 1e-15)
 
         // Compare two step sizes: coarse (h = 0.05) vs fine (h = 0.01)
         val stepSizes = listOf(0.05, 0.01)
@@ -53,7 +54,7 @@ class KerrConservedQuantitiesGeodesicTest {
 
             for (st in path) {
                 // 1. Energy E is strictly conserved
-                assertEquals("Energy E must remain 1.0", e0, st.energy, 1e-14)
+                assertEquals("Energy E = -p_t must remain constant", e0, st.energy, 1e-14)
 
                 // 2. L_z drift
                 val driftLz = abs(st.conservedLz - lz0)

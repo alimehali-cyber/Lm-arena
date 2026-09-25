@@ -13,9 +13,12 @@ import kotlin.math.*
  * 1. Single-precision 32-bit float arithmetic matching GLSL highp float precision.
  * 2. Kerr-Schild Cartesian metric inversion g^μν = η^μν - 2H l^μ l^ν.
  * 3. Exact analytical spatial metric derivatives ∂_i g^μν.
- * 4. Pinhole camera ray null momentum solving: A_w w² + 2 B_w w + C_w = 0.
- * 5. 4th-order Runge-Kutta (RK4) integration with adaptive step Δλ(r) = clamp(0.08*r, 0.02, 0.35).
- * 6. Horizon capture threshold r ≤ r_+ + 0.05 and escape threshold r ≥ 50.0.
+ * 4. Pinhole camera ray null momentum solving: A_w w² + 2 B_w w + C_w = 0, past-directed root
+ *    w = (-B_w + √D_w)/A_w (backward trace), covector normalised to p_0 = +1.
+ * 5. 4th-order Runge-Kutta (RK4) integration with adaptive step Δλ(r) = clamp(0.08*r, 0.02, 0.35),
+ *    limited to mix(0.032, 0.075, (r - r_capture)/0.95) inside the shader's capture zone.
+ * 6. Horizon capture threshold r ≤ r_+ + 0.05 and escape threshold r ≥ 50.0; near-critical rays
+ *    (minR ≤ r_photonShellOuter + 0.5) continue past maxSteps up to 1500 steps, as in the shader.
  */
 object GpuEquivalentIntegrator {
 
@@ -174,7 +177,7 @@ object GpuEquivalentIntegrator {
         val px = state[3]
         val py = state[4]
         val pz = state[5]
-        val p = floatArrayOf(-1.0f, px, py, pz)
+        val p = floatArrayOf(1.0f, px, py, pz)
 
         val r = compute_r_KS(a, X, Y, Z)
         val gInv = compute_g_inv(M, a, X, Y, Z, r)
@@ -250,7 +253,7 @@ object GpuEquivalentIntegrator {
         }
 
         val Dw = max(0.0f, Bw * Bw - Aw * Cw)
-        val w = (-Bw - sqrt(Dw)) / Aw
+        val w = (-Bw + sqrt(Dw)) / Aw
         val v = floatArrayOf(w, rayDir[0], rayDir[1], rayDir[2])
 
         val vLower = FloatArray(4)
@@ -262,7 +265,7 @@ object GpuEquivalentIntegrator {
             vLower[i] = sum
         }
 
-        val scale = -vLower[0]
+        val scale = vLower[0]
         return floatArrayOf(
             camPos[0],
             camPos[1],
@@ -276,7 +279,7 @@ object GpuEquivalentIntegrator {
     fun computeHamiltonian(M: Float, a: Float, state: FloatArray): Float {
         val r = compute_r_KS(a, state[0], state[1], state[2])
         val gInv = compute_g_inv(M, a, state[0], state[1], state[2], r)
-        val p = floatArrayOf(-1.0f, state[3], state[4], state[5])
+        val p = floatArrayOf(1.0f, state[3], state[4], state[5])
         var H = 0.0f
         for (i in 0 until 4) {
             for (j in 0 until 4) {
@@ -301,6 +304,9 @@ object GpuEquivalentIntegrator {
         var state = createInitialRay(M, a, camPos, rayDir)
         val rPlus = M + sqrt(max(0.0f, M * M - a * a))
         val rCapture = rPlus + 0.05f
+        // Near-critical continuation, identical to gargantua_geodesic.frag: once the ordinary budget
+        // (maxSteps) is spent, rays with minR <= rPhotonShellOuter + 0.5 keep integrating up to 1500 steps.
+        val rPhotonShellOuter = 2.0f * M * (1.0f + cos((2.0f / 3.0f) * acos((abs(a) / M).coerceIn(0.0f, 1.0f))))
 
         val rInitCam = compute_r_KS(a, camPos[0], camPos[1], camPos[2])
         val rEscape = max(50.0f, rInitCam + 15.0f)
@@ -321,7 +327,8 @@ object GpuEquivalentIntegrator {
         val gCam = compute_g_lower(M, a, camPos[0], camPos[1], camPos[2], rInitCam)
         val uObs0 = 1.0f / sqrt(max(1.0e-6f, -gCam[0][0]))
 
-        for (step in 0 until maxSteps) {
+        for (step in 0 until max(maxSteps, 1500)) {
+            if (step >= maxSteps && minR > rPhotonShellOuter + 0.5f) break
             stepCount++
             val r = compute_r_KS(a, state[0], state[1], state[2])
             if (r < minR) minR = r
@@ -344,6 +351,12 @@ object GpuEquivalentIntegrator {
 
             val baseStep = 0.08f * r
             var dlambda = baseStep.coerceIn(minStep, maxStep)
+            // Capture-zone limiter, identical to gargantua_geodesic.frag (causticStep): backward-traced
+            // (p0 = +1) rays approach r+ with diverging covariant momentum in ingoing Kerr-Schild coordinates.
+            if (r > rCapture && r < rCapture + 0.95f) {
+                val proximity = (r - rCapture) / 0.95f
+                dlambda = min(dlambda, 0.032f + (0.075f - 0.032f) * proximity)
+            }
             if (enableDisk && abs(state[2]) < 0.60f && r >= diskInnerRadius - 0.5f && r <= diskOuterRadius + 1.0f) {
                 val vz = abs(state[5])
                 val stepToDisk = abs(state[2]) / max(0.15f, vz)

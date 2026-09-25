@@ -33,7 +33,7 @@ class GargantuaRenderStateTest {
         assertEquals(0.0f, state.camTargetY, 0.001f)
         assertEquals(0.0f, state.camTargetZ, 0.001f)
         assertFalse(state.enableDoppler)
-        assertEquals(1.35f, state.exposure, 0.001f)
+        assertEquals(0.675f, state.exposure, 0.001f)
         assertTrue(state.enableBloom)
         assertEquals(0.22f, state.bloomIntensity, 0.001f)
         assertEquals(1.15f, state.bloomThreshold, 0.001f)

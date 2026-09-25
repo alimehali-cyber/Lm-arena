@@ -852,8 +852,9 @@ class M6FinalPresentationTest {
         // Up vector
         val up = floatArrayOf(-cos(inclRad).toFloat(), 0.0f, sin(inclRad).toFloat())
 
-        // 1. Tertiary filament ray (stX = 0.2480, stY = 0.0): physically orbits and intersects disk
-        val stX_tert = 0.2480f
+        // 1. Tertiary filament ray (stX = -0.2800, stY = 0.0; corrected backward-traced ray, narrow-shadow side):
+        //    physically orbits and intersects disk
+        val stX_tert = -0.2800f
         val stY_tert = 0.0f
         val rayTertX = fwd[0] + right[0] * (stX_tert * fovScale) + up[0] * (stY_tert * fovScale)
         val rayTertY = fwd[1] + right[1] * (stX_tert * fovScale) + up[1] * (stY_tert * fovScale)
@@ -883,8 +884,8 @@ class M6FinalPresentationTest {
         val tertRad = diskRadianceNormalized(tertResult.rHit.toDouble(), tertResult.frequencyShift.toDouble())
         assertTrue("Tertiary filament emission must be strictly positive", tertRad > 0.0)
 
-        // 2. Plunge gap ray (stX = 0.2520, stY = 0.0): passes inside ISCO gap, escapes without hitting disk
-        val stX_gap = 0.2520f
+        // 2. Plunge gap ray (stX = -0.2760, stY = 0.0): passes inside ISCO gap, escapes without hitting disk
+        val stX_gap = -0.2760f
         val rayGapX = fwd[0] + right[0] * (stX_gap * fovScale)
         val rayGapY = fwd[1] + right[1] * (stX_gap * fovScale)
         val rayGapZ = fwd[2] + right[2] * (stX_gap * fovScale)
@@ -1090,7 +1091,7 @@ class M6FinalPresentationTest {
         )
 
         // Case 1: Plunge crossing -> later valid disk crossing
-        val stX_tert = 0.2480f
+        val stX_tert = -0.2800f
         val rayTertDir = floatArrayOf(
             fwd[0] + right[0] * (stX_tert * fovScale),
             fwd[1] + right[1] * (stX_tert * fovScale),
@@ -1157,7 +1158,7 @@ class M6FinalPresentationTest {
         val dim05 = 540.0f
         val pxScale05 = 2.0f / dim05
 
-        // Check columns px in 330..360 across the tertiary filament
+        // Check columns px in 180..210 across the tertiary filament (gap pixel px=193)
         var singleSampleHitCount = 0
         var supersampledHitCount = 0
         var singleGapHits = 0
@@ -1165,7 +1166,7 @@ class M6FinalPresentationTest {
         var integratedSingleRadiance = 0.0
         var integratedSuperRadiance = 0.0
 
-        for (px in 330..360) {
+        for (px in 180..210) {
             val stX = (2.0f * px + 1.0f - dim05) / dim05
 
             // Base sample
@@ -1185,7 +1186,7 @@ class M6FinalPresentationTest {
             var pixelRad = 0.0
             if (baseRes.isDiskHit) {
                 singleSampleHitCount++
-                if (px == 344) singleGapHits++
+                if (px == 193) singleGapHits++
                 pixelRad = diskRadianceNormalized(baseRes.rHit.toDouble(), baseRes.frequencyShift.toDouble())
                 integratedSingleRadiance += pixelRad
             }
@@ -1193,7 +1194,7 @@ class M6FinalPresentationTest {
             // Selective supersampling (2D symmetric quarter-offset pattern):
             val needsRefine = (baseRes.stepsTaken > 100) || (baseRes.minRadiusReached < 2.5f) || (baseRes.isDiskHit && baseRes.rHit < 6.0f)
             if (needsRefine) {
-                val off = 0.30f * pxScale05
+                val off = 0.50f * pxScale05
 
                 val offsets = listOf(
                     Pair(-off, -off),
@@ -1225,19 +1226,19 @@ class M6FinalPresentationTest {
 
                 if (anyHit) {
                     supersampledHitCount++
-                    if (px == 344) superGapHits++
+                    if (px == 193) superGapHits++
                     integratedSuperRadiance += (rSum / 5.0)
                 }
             } else if (baseRes.isDiskHit) {
                 supersampledHitCount++
-                if (px == 344) superGapHits++
+                if (px == 193) superGapHits++
                 integratedSuperRadiance += pixelRad
             }
         }
 
         // Prove that selective supersampling restores continuity across gap pixels where single-sample had 0 hits
-        assertEquals("Single-sample has 0 hits on gap pixel px=344", 0, singleGapHits)
-        assertEquals("Selective supersampling recovers the hit on gap pixel px=344", 1, superGapHits)
+        assertEquals("Single-sample has 0 hits on gap pixel px=193", 0, singleGapHits)
+        assertEquals("Selective supersampling recovers the hit on gap pixel px=193", 1, superGapHits)
         assertTrue("Selective supersampling increases total hit count along filament", supersampledHitCount > singleSampleHitCount)
         assertTrue("Integrated supersampled radiance is strictly positive", integratedSuperRadiance > 0.0)
 
@@ -1268,7 +1269,7 @@ class M6FinalPresentationTest {
 
         val dim05 = 540.0f
         val pxScale05 = 2.0f / dim05
-        val off = 0.30f * pxScale05
+        val off = 0.50f * pxScale05
 
         fun makeDir(stX: Float, stY: Float): FloatArray {
             val d = floatArrayOf(
@@ -1280,26 +1281,26 @@ class M6FinalPresentationTest {
             return floatArrayOf(d[0] / len, d[1] / len, d[2] / len)
         }
 
-        // 1. Horizontal subpixel crossing recovery (at px = 344)
-        val px344_stX = (2.0f * 344 + 1.0f - dim05) / dim05
-        val px344_stY = 0.0352f
-        val baseH = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px344_stX, px344_stY), 220, true, rInF, rOutF)
-        assertFalse("Base ray at px=344 center must miss the disk", baseH.isDiskHit)
-        val subH = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px344_stX - off, px344_stY), 220, true, rInF, rOutF)
+        // 1. Horizontal subpixel crossing recovery (at px = 198)
+        val px198_stX = (2.0f * 198 + 1.0f - dim05) / dim05
+        val px198_stY = 0.0352f
+        val baseH = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px198_stX, px198_stY), 220, true, rInF, rOutF)
+        assertFalse("Base ray at px=198 center must miss the disk", baseH.isDiskHit)
+        val subH = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px198_stX - off, px198_stY), 220, true, rInF, rOutF)
         assertTrue("Horizontal subpixel offset (-off, 0) must recover disk intersection", subH.isDiskHit)
         assertTrue("Recovered horizontal hit radius must be within physical disk bounds", subH.rHit in rInF..rOutF)
 
         // 2. Vertical subpixel crossing recovery
-        val vert_stX = 0.275f
+        val vert_stX = -0.283f
         val vert_stY = 0.0352f
         val baseV = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(vert_stX, vert_stY), 220, true, rInF, rOutF)
-        assertFalse("Base ray at (0.275, 0.0352) must miss the disk", baseV.isDiskHit)
+        assertFalse("Base ray at (-0.283, 0.0352) must miss the disk", baseV.isDiskHit)
         val subV = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(vert_stX, vert_stY - off), 220, true, rInF, rOutF)
         assertTrue("Vertical-offset subpixel sample must intersect physical disk", subV.isDiskHit)
         assertTrue("Vertical subpixel hit radius must be physical", subV.rHit in rInF..rOutF)
 
         // 3. Diagonal/curved subpixel crossing recovery
-        val subDiag = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px344_stX - off, px344_stY - off), 220, true, rInF, rOutF)
+        val subDiag = GpuEquivalentIntegrator.traceRay(1.0f, 0.8f, camPos, makeDir(px198_stX - off, px198_stY - off), 220, true, rInF, rOutF)
         assertTrue("Diagonal quarter-offset (-off, -off) must recover curved tertiary arc", subDiag.isDiskHit)
         assertTrue("Diagonal subpixel hit radius must be physical", subDiag.rHit in rInF..rOutF)
 
@@ -1334,7 +1335,7 @@ class M6FinalPresentationTest {
         assertFalse("No screen-space red rings", shaderContent.contains("screenRing"))
         assertFalse("No brightness floor", shaderContent.contains("minBrightness"))
         assertFalse("No radial gradient ring overlay", shaderContent.contains("radialGradient"))
-        assertTrue("Symmetric 2D pattern off vector present", shaderContent.contains("vec2 off = vec2(0.30 * pxScale, 0.30 * pxScale);"))
+        assertTrue("Symmetric 2D pattern off vector present", shaderContent.contains("vec2 off = vec2(0.50 * pxScale, 0.50 * pxScale);"))
     }
 
     // D15. Representative tertiary ray numerical step-size policy comparison
@@ -1353,7 +1354,7 @@ class M6FinalPresentationTest {
         val right = floatArrayOf(0.0f, 1.0f, 0.0f)
         val up = floatArrayOf(-cos(inclRad).toFloat(), 0.0f, sin(inclRad).toFloat())
 
-        val stX_tert = 0.26722f
+        val stX_tert = -0.26722f
         val stY_tert = 0.03520f
         val rayDir = floatArrayOf(
             fwd[0] + right[0] * (stX_tert * fovScale) + up[0] * (stY_tert * fovScale),

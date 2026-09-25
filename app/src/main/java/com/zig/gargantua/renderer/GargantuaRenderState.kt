@@ -35,7 +35,7 @@ data class GargantuaRenderState(
     val objectPhi0: Float = 0.0f,
     val objectZ: Float = 0.0f,
     val enableDoppler: Boolean = false, // false = Movie Mode (Default, Balanced), true = Strict GR Beaming (g^4)
-    val exposure: Float = 1.35f,        // Calibrated exposure for deep contrast and dark dust rifts
+    val exposure: Float = 0.675f,       // Exposure for the luminance-preserving ACES composite
     val enableBloom: Boolean = true,
     val bloomIntensity: Float = 0.22f,  // Ethereal glow without washing out cloud details
     val bloomThreshold: Float = 1.15f,  // High threshold: only incandescent highlights bleed, preserving dark lanes

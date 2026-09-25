@@ -74,7 +74,9 @@ data class CameraModel(
     companion object {
         /**
          * Computes canonical 4-momentum p_μ for a photon at position (X, Y, Z) with
-         * spatial direction (dx, dy, dz) such that g_μν v^μ v^ν = 0 and p_0 = -1.0.
+         * spatial direction (dx, dy, dz) such that g_μν v^μ v^ν = 0 and p_0 = +1.0.
+         * The ray is a backward trace of the received photon (past-directed tangent), identical to
+         * the GPU shader ray initialisation in gargantua_geodesic.frag.
          */
         fun createNullStateFromDirection(
             spacetime: KerrSchildSpacetime,
@@ -109,8 +111,9 @@ data class CameraModel(
             require(Dw >= 0.0) { "Camera must be outside horizon / ergosphere where D_w >= 0" }
 
             val sqrtDw = sqrt(max(0.0, Dw))
-            // Physical root with dT/dλ > 0 (since Aw = g_00 < 0, (-Bw - √Dw)/Aw > 0)
-            val w = (-Bw - sqrtDw) / Aw
+            // Backward trace: past-directed root with dT/dλ < 0 (Aw = g_00 < 0, so (-Bw + √Dw)/Aw < 0).
+            // The future root (-Bw - √Dw)/Aw traces the time-reversed photon and mirrors frame dragging.
+            val w = (-Bw + sqrtDw) / Aw
             val v = doubleArrayOf(w, d[0], d[1], d[2])
 
             // Lower indices v_μ = g_μν v^ν
@@ -124,12 +127,12 @@ data class CameraModel(
             }
 
             // Normalize all 4 covariant momentum components by the identical physical scale factor
-            // s = 1 / (-vLower[0]), ensuring:
-            // 1. p_0 = vLower[0] * s = -1.0 (stationarity conserved energy E = 1)
+            // s = 1 / vLower[0] (vLower[0] > 0 for the past-directed tangent), ensuring:
+            // 1. p_0 = vLower[0] * s = +1.0 (conserved under stationarity)
             // 2. Hamiltonian H = 1/2 g^μν p_μ p_ν = s² * (1/2 g_μν v^μ v^ν) ≡ 0 (exact null preservation)
             // 3. dx^i/dλ = g^{iν} p_ν = s * v^i = s * d^i (exact spatial direction preservation)
-            val scale = -vLower[0]
-            val pt = vLower[0] / scale // Exactly -1.0
+            val scale = vLower[0]
+            val pt = vLower[0] / scale // Exactly +1.0
             val px = vLower[1] / scale
             val py = vLower[2] / scale
             val pz = vLower[3] / scale

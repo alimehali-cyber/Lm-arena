@@ -21,6 +21,8 @@ layout(location = 1) out vec4 animationSemanticCache;
 float gargantuaSemanticDiskHitAzimuth = 0.0;
 vec3 gargantuaSemanticDeflectedDir = vec3(0.0, 0.0, 1.0);
 #endif
+// Azimuth of the most recent traceRaySample() primary disk crossing; read by the M7 tier-1 gate.
+float gargantuaPrimaryHitAzimuth = 0.0;
 
 // Uniforms
 uniform vec2 u_Resolution;   // Screen or scaled FBO resolution (width, height)
@@ -88,8 +90,12 @@ float gargantuaAnimationPhaseAdvance(float factor) {
 // -10 ln(r/r_in) winding term, directly into evaluate3DVolumetricGasDensity().
 const float GARGANTUA_WIND_COEFF = 11.0;
 
-// Maximum fixed compile-time loop bound for mobile GLSL ES 3.0 compliance
-const int MAX_INTEGRATION_STEPS = 180;
+// Ordinary per-ray RK4 step budget (u_MaxSteps is clamped to this value).
+const int BASE_INTEGRATION_STEPS = 180;
+// Fixed compile-time loop bound for mobile GLSL ES 3.0 compliance. Only near-critical rays (rays that
+// entered the photon-shell envelope) may integrate beyond BASE_INTEGRATION_STEPS, up to this safety
+// limit, so that their real fate (capture, escape, further disk crossings) is resolved.
+const int MAX_INTEGRATION_STEPS = 1500;
 
 // Computes Kerr-Schild radial coordinate r >= 0 from Cartesian coordinates (X, Y, Z)
 float compute_r_KS(float a, float X, float Y, float Z) {
@@ -194,8 +200,9 @@ void evaluate_rhs(
     float lz = (r > 1.0e-7) ? pos.z / r : 0.0;
     vec3 l_spatial = vec3(lx, ly, lz);
 
-    // Contraction Lp = l^μ p_μ with l^0 = -1, p_0 = -1 (so l^0 * p_0 = 1.0)
-    float Lp = 1.0 + dot(l_spatial, p_spatial);
+    // Contraction Lp = l^μ p_μ with l^0 = -1, p_0 = +1 (so l^0 * p_0 = -1.0).
+    // p_0 = +1 is the normalisation of the past-directed backward-traced ray set in traceRaySample.
+    float Lp = -1.0 + dot(l_spatial, p_spatial);
     float twoH = 2.0 * H;
 
     // 4. dx^i / dλ = g^{iν} p_ν = p_i - 2.0 * H * Lp * l^i
@@ -536,10 +543,14 @@ vec3 evaluate4TierBlackbodySpectrum(float fNorm, float gShift) {
     } else {
         float gMovie = mix(1.0, clamp(gShift, 0.65, 1.65), 0.12);
         gFactor = gMovie;
-        iPhys = pow(fNorm, 0.82) * 1.50 + 0.05;
+        // Movie Mode omits only the g^4 beaming factor; the radial emissivity profile F(r)/F_peak is
+        // used unmodified so that brightness falls off with radius as in the physical mode.
+        iPhys = fNorm;
     }
 
-    float tEff = gFactor * pow(max(1.0e-5, fNorm), 0.19);
+    // Palette coordinate is linear in the normalised emissivity, so the stop sequence
+    // (smoke -> rust -> amber -> gold -> white-hot) tracks F(r)/F_peak directly.
+    float tEff = clamp(gFactor * fNorm, 0.0, 1.0);
 
     // High-Saturation Fiery Thermal Stops (Pure incandescent physics; no blue in midtones)
     vec3 cSmoke    = vec3(0.012, 0.003, 0.001); // Inky charcoal umber absorption
@@ -596,19 +607,29 @@ vec4 traceRaySample(
     }
 
     float Dw = max(0.0, Bw * Bw - Aw * Cw);
-    float w = (-Bw - sqrt(Dw)) / Aw;
+    // Backward ray tracing: the tangent v = (w, rayDir) follows the received photon back in time, so
+    // it must be PAST-directed (dt/dλ = w < 0). With A = g_tt < 0 outside the ergosphere that is the
+    // root (-B + sqrt(D)) / A. The future root (-B - sqrt(D)) / A traces the time-reversed photon,
+    // which reverses the sense of the Kerr frame dragging and mirrors the shadow and lensing.
+    float w = (-Bw + sqrt(Dw)) / Aw;
     vec4 v = vec4(w, rayDir);
 
     vec4 vLower = g * v;
-    float scale = -vLower[0];
+    // Normalise the covector to p_0 = +1 (p_0 > 0 for a past-directed null vector). The overall
+    // scale is positive, so the spatial direction of travel stays along rayDir.
+    float scale = vLower[0];
     vec3 p_spatial = vec3(vLower.y, vLower.z, vLower.w) / scale;
 
     // Numerical integration constants
     float rPlus = u_Mass + sqrt(max(0.0, u_Mass * u_Mass - u_Spin * u_Spin));
     float rCapture = rPlus + 0.05;
     float rEscape = max(50.0, rInit + 15.0);
+    // Outermost spherical photon orbit (retrograde equatorial circular photon orbit):
+    // r = 2M [1 + cos(2/3 arccos(|a|/M))]; 3.819M for a = 0.8M. Rays with minR inside this envelope
+    // (plus a 0.5M margin) are near-critical.
+    float rPhotonShellOuter = 2.0 * u_Mass * (1.0 + cos((2.0 / 3.0) * acos(clamp(abs(u_Spin) / u_Mass, 0.0, 1.0))));
 
-    int maxSteps = clamp(u_MaxSteps, 40, MAX_INTEGRATION_STEPS);
+    int maxSteps = clamp(u_MaxSteps, 40, BASE_INTEGRATION_STEPS);
     
     // Explicit Ray Termination Classification:
     // 0 = UNRESOLVED (budget exhausted without proving capture, escape, or disk intersection)
@@ -638,6 +659,7 @@ vec4 traceRaySample(
 
     float prevR = rInit;
     bool movingOutward = false;
+    vec3 lastStepDir = rayDir; // contravariant direction of travel over the last RK4 step
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
     int stepsTaken = 0;
 #endif
@@ -645,7 +667,11 @@ vec4 traceRaySample(
     // Primary null Hamiltonian geodesic integration loop
     for (int step = 0; step < MAX_INTEGRATION_STEPS; step++) {
         if (step >= maxSteps) {
-            break;
+            // Ordinary budget exhausted. A near-critical ray keeps integrating with the same RK4
+            // machinery (up to MAX_INTEGRATION_STEPS); every other ray stops here.
+            if (minR > rPhotonShellOuter + 0.5) {
+                break;
+            }
         }
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
         stepsTaken = step + 1;
@@ -692,8 +718,10 @@ vec4 traceRaySample(
         // Advance geodesic via 4th-order Runge-Kutta
         rk4_step(u_Mass, u_Spin, pos, p_spatial, dlambda);
 
-        // Coordinate time evolution along backward null ray:
-        // dT = -(1.0 + 2.0 * H * Lp) * dlambda
+        lastStepDir = pos - prevPos;
+
+        // Coordinate time evolution along the past-directed null ray (p_0 = +1):
+        // dt/dλ = g^{0ν} p_ν = -1 + 2 H Lp  (negative: coordinate time decreases along the ray)
         float rMid = compute_r_KS(u_Spin, pos.x, pos.y, pos.z);
         float a2_m = u_Spin * u_Spin;
         float denomSigma_m = rMid * rMid * rMid * rMid + a2_m * pos.z * pos.z;
@@ -702,9 +730,9 @@ vec4 traceRaySample(
         float lx_m = (denomV_m > 1.0e-12) ? (rMid * pos.x + u_Spin * pos.y) / denomV_m : 0.0;
         float ly_m = (denomV_m > 1.0e-12) ? (rMid * pos.y - u_Spin * pos.x) / denomV_m : 0.0;
         float lz_m = (rMid > 1.0e-7) ? pos.z / rMid : 0.0;
-        float Lp_m = 1.0 + (lx_m * p_spatial.x + ly_m * p_spatial.y + lz_m * p_spatial.z);
-        float dt_dlambda = 1.0 + 2.0 * H_m * Lp_m;
-        rayT -= dt_dlambda * dlambda;
+        float Lp_m = -1.0 + (lx_m * p_spatial.x + ly_m * p_spatial.y + lz_m * p_spatial.z);
+        float dt_dlambda = -1.0 + 2.0 * H_m * Lp_m;
+        rayT += dt_dlambda * dlambda;
 
         // Miller's Planet Relativistic Timelike World-Tube Intersection
         if (u_EnableObject == 1 && r > (rCapture + 0.35)) {
@@ -821,8 +849,9 @@ vec4 traceRaySample(
                 float phiHit = atan(hitPos.y, hitPos.x);
 
                 // 6. Multi-Stratum Volumetric Integration:
-                // High optical density multiplier (2.2) guarantees full midplane opacity.
-                // The equatorial ribbon solidly blocks the rear disk and shadow.
+                // Three strata with optical-depth multiplier 2.2. The slab is semi-transparent
+                // (transmittance after one crossing is typically ~0.5-0.8), so rear-disk and
+                // higher-order images remain visible through it.
                 float stratumZetas[3] = float[3](-0.55, 0.0, 0.55);
                 float stratumWeights[3] = float[3](0.28, 0.44, 0.28);
                 float slabStepTau = fullPathLength * 2.20;
@@ -846,22 +875,20 @@ vec4 traceRaySample(
         }
     }
 
-    // Asymptotic Relativistic Critical Curve Caustic Flux (Continuous Photon Ring)
-    if (rayState != 1 && minR > rCapture && minR < (rCapture + 0.45)) {
-        float proximity = 1.0 - smoothstep(rCapture, rCapture + 0.45, minR);
-        // Ultra-fine primary ring (power 22) + secondary caustic arc (power 5)
-        float primaryRing = pow(proximity, 22.0) * 9.5;
-        float secondaryArc = pow(proximity, 5.0) * 2.4;
-        vec3 causticFluxColor = vec3(16.0, 14.8, 12.5) * (primaryRing + secondaryArc);
-        accumDiskRadiance += diskTransmittance * causticFluxColor;
-    }
+    // The photon ring is not added here: it is the sum of the ray-traced higher-order disk
+    // crossings accumulated above by near-critical rays that were integrated to completion.
 
-    // Robust Horizon Resolution: eliminates jagged bitten teeth
+    // Safety classification for a ray that is still unresolved, i.e. a non-near-critical ray at the
+    // ordinary budget or a near-critical ray at MAX_INTEGRATION_STEPS. A ray that is moving outward
+    // outside the outermost spherical photon orbit has no radial turning point left and escapes; it
+    // samples the sky along its actual direction of travel. Any other ray stays UNRESOLVED (state 0):
+    // it is never shown as sky and never inferred to be captured from minR.
+    bool escapedBySafetyRule = false;
     if (rayState == 0) {
-        if (minR <= (rCapture + 0.25) || (prevR <= 3.2 && length(p_spatial) < 1.5)) {
-            rayState = 1; // Pure Horizon Shadow
-        } else {
-            rayState = 2; // Escaped Sky
+        float rEnd = compute_r_KS(u_Spin, pos.x, pos.y, pos.z);
+        if (rEnd > prevR && rEnd > rPhotonShellOuter) {
+            rayState = 2;
+            escapedBySafetyRule = true;
         }
     }
 
@@ -869,6 +896,7 @@ vec4 traceRaySample(
     outMinR = minR;
     outCrossings = diskCrossings;
     outHitR = primaryHitRadius;
+    gargantuaPrimaryHitAzimuth = primaryHitAzimuth;
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
     outStepsTaken = stepsTaken;
 #endif
@@ -883,7 +911,7 @@ vec4 traceRaySample(
             return vec4(0.0, 0.0, 0.0, 0.0);
         }
     } else if (rayState == 2) { // Escaped Sky
-        vec3 skyDir = normalize(p_spatial);
+        vec3 skyDir = escapedBySafetyRule ? normalize(lastStepDir) : normalize(p_spatial);
         if (dot(skyDir, skyDir) < 0.5) {
             skyDir = normalize(vec3(0.0, 0.0, 1.0));
         }
@@ -921,7 +949,7 @@ int adaptiveOutcomeClass(int state) {
 
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
 bool gargantuaRayIsDifficult(int state, float minR, int crossings, float hitR) {
-    return crossings >= 2 || minR < 2.5 || (state == 3 && hitR < 6.0) || state == 4;
+    return crossings >= 2 || minR < 2.5 || (crossings >= 1 && hitR < 6.0) || state == 4;
 }
 #endif
 
@@ -986,17 +1014,40 @@ void main() {
     int difficultRayCountForStats = 0;
 #endif
 
+    // Base-ray texture frequency of the finest disk noise field (filamentCoord2 * 1.5 in
+    // evaluate3DVolumetricGasDensity: 108 lattice units per unit log r radially, 13.5 lattice units
+    // per radian of sheared azimuth). F1 uses half these rates, so F2 bounds both fields. Measured in
+    // lattice cycles per pixel from the screen-space derivatives of the primary hit radius/azimuth;
+    // evaluated here in uniform control flow, before any branch.
+    float baseHitPhi = gargantuaPrimaryHitAzimuth;
+    float drdx = dFdx(baseHitR);
+    float drdy = dFdy(baseHitR);
+    float dphx = dFdx(baseHitPhi);
+    float dphy = dFdy(baseHitPhi);
+    dphx -= 6.28318530718 * floor(dphx / 6.28318530718 + 0.5);
+    dphy -= 6.28318530718 * floor(dphy / 6.28318530718 + 0.5);
+    float hitRSafe = max(baseHitR, 1.0e-3);
+    float rNormF2 = max(1.0, hitRSafe / u_DiskInnerRadius);
+    float shearPerR = 39.0 * pow(rNormF2, -2.5) / u_DiskInnerRadius - 10.0 / hitRSafe;
+    float f2CyclesX = length(vec2(108.0 * drdx / hitRSafe, 13.5 * (dphx + shearPerR * drdx)));
+    float f2CyclesY = length(vec2(108.0 * drdy / hitRSafe, 13.5 * (dphy + shearPerR * drdy)));
+    float f2CyclesPerPixel = max(f2CyclesX, f2CyclesY);
+
     // Selective Subpixel Supersampling (Physical Subpixel Sampling Gate):
-    // Only pixels near strong-lensing/shadow boundary or unresolved subpixel filaments
-    // take 4 additional physical rays in a symmetric 2D pattern around pixel center.
-    bool needsRefinement = (baseCrossings >= 2) || (baseMinR < 2.5) || (baseState == 3 && baseHitR < 6.0) || (baseState == 4);
+    // Tier 1 takes 4 additional physical rays in a symmetric 2D pattern around pixel center for
+    // (a) disk pixels in the textured band 8 <= r <= 16 whose F2 frequency exceeds the pixel Nyquist
+    // limit (0.5 cycles/px), and (b) strong-lensing / invalid-state pixels (minR < 2.5, state 4),
+    // which pre-screen the unchanged tier-2 outcome-boundary test below.
+    bool highFreqDisk = (baseCrossings >= 1) && (baseHitR >= 8.0) && (baseHitR <= 16.0) &&
+        (f2CyclesPerPixel > 0.5);
+    bool needsRefinement = highFreqDisk || (baseMinR < 2.5) || (baseState == 4);
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
     difficultRayCountForStats = gargantuaRayIsDifficult(baseState, baseMinR, baseCrossings, baseHitR) ? 1 : 0;
 #endif
 
     if (needsRefinement) {
         float pxScale = 2.0 / min(u_Resolution.x, u_Resolution.y);
-        vec2 off = vec2(0.30 * pxScale, 0.30 * pxScale);
+        vec2 off = vec2(0.50 * pxScale, 0.50 * pxScale);
 
         int s1State, s2State, s3State, s4State;
         float s1MinR, s2MinR, s3MinR, s4MinR;

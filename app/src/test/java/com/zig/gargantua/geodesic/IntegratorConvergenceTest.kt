@@ -29,7 +29,7 @@ class IntegratorConvergenceTest {
         )
 
         for (i in 0 until steps) {
-            st = integrator.rk4Step(st, h)
+            st = integrator.rk4Step(st, h, initialState.p_t)
         }
         return st
     }

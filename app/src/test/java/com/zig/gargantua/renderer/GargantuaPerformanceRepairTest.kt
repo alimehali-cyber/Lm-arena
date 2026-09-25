@@ -76,7 +76,7 @@ class GargantuaPerformanceRepairTest {
             val (dg_dX, dg_dY, dg_dZ) = GpuEquivalentIntegrator.compute_dg_inv(M, a, X, Y, Z, r)
 
             for (pSpatial in testMomenta) {
-                val p = floatArrayOf(-1.0f, pSpatial[0], pSpatial[1], pSpatial[2])
+                val p = floatArrayOf(1.0f, pSpatial[0], pSpatial[1], pSpatial[2]) // backward-trace covector, p_0 = +1
 
                 // Method 1: Matrix-vector evaluation
                 var dX_mat = 0.0f
@@ -129,7 +129,7 @@ class GargantuaPerformanceRepairTest {
                 val ly = if (denom_v > 1.0e-12f) (r * Y - a * X) / denom_v else 0.0f
                 val lz = if (r > 1.0e-7f) Z / r else 0.0f
 
-                val Lp = 1.0f + lx * pSpatial[0] + ly * pSpatial[1] + lz * pSpatial[2]
+                val Lp = -1.0f + lx * pSpatial[0] + ly * pSpatial[1] + lz * pSpatial[2] // l^0 p_0 = -p_0 = -1
                 val twoH = 2.0f * H
 
                 val dX_fact = pSpatial[0] - (twoH * Lp) * lx

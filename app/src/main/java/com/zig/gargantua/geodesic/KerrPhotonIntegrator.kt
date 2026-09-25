@@ -15,7 +15,9 @@ import kotlin.math.*
  * HAMILTONIAN GEODESIC EQUATIONS:
  *   dx^i / dλ = g^{iν} p_ν
  *   dp_i / dλ = -1/2 (∂_i g^{αβ}) p_α p_β
- * with p_0 = -1.0 (constant due to stationarity ∂_T g^{αβ} = 0).
+ * with p_0 constant due to stationarity (∂_T g^{αβ} = 0). traceRay() takes p_0 from the initial
+ * state: camera rays built by [CameraModel] are past-directed backward traces with p_0 = +1.0,
+ * matching the GPU shader; states constructed with p_0 = -1.0 keep that value.
  */
 class KerrPhotonIntegrator(
     val spacetime: KerrSchildSpacetime,
@@ -58,16 +60,15 @@ class KerrPhotonIntegrator(
 
     /**
      * Evaluates the right-hand side of Hamilton's equations for the 6D phase space:
-     *   state = [X, Y, Z, p_X, p_Y, p_Z]
+     *   state = [X, Y, Z, p_X, p_Y, p_Z], with the conserved p_0 supplied separately.
      */
-    fun evaluateDerivatives(state: DoubleArray): DoubleArray {
+    fun evaluateDerivatives(state: DoubleArray, p0: Double = -1.0): DoubleArray {
         val x = state[0]
         val y = state[1]
         val z = state[2]
         val px = state[3]
         val py = state[4]
         val pz = state[5]
-        val p0 = -1.0
 
         val p = doubleArrayOf(p0, px, py, pz)
 
@@ -119,17 +120,17 @@ class KerrPhotonIntegrator(
     /**
      * Executes a single 4th-order Runge-Kutta step.
      */
-    fun rk4Step(state: DoubleArray, dlambda: Double): DoubleArray {
-        val k1 = evaluateDerivatives(state)
+    fun rk4Step(state: DoubleArray, dlambda: Double, p0: Double = -1.0): DoubleArray {
+        val k1 = evaluateDerivatives(state, p0)
 
         val s2 = DoubleArray(6) { i -> state[i] + 0.5 * dlambda * k1[i] }
-        val k2 = evaluateDerivatives(s2)
+        val k2 = evaluateDerivatives(s2, p0)
 
         val s3 = DoubleArray(6) { i -> state[i] + 0.5 * dlambda * k2[i] }
-        val k3 = evaluateDerivatives(s3)
+        val k3 = evaluateDerivatives(s3, p0)
 
         val s4 = DoubleArray(6) { i -> state[i] + dlambda * k3[i] }
-        val k4 = evaluateDerivatives(s4)
+        val k4 = evaluateDerivatives(s4, p0)
 
         val next = DoubleArray(6)
         val sixth = dlambda / 6.0
@@ -167,6 +168,9 @@ class KerrPhotonIntegrator(
             initialState.p_z
         )
 
+        // Conserved covariant energy component of this ray (stationarity).
+        val p0 = initialState.p_t
+
         val a = spacetime.a
         val rPlus = spacetime.rPlus
         val rCaptureThreshold = rPlus + captureHorizonMargin
@@ -200,7 +204,7 @@ class KerrPhotonIntegrator(
                 x = state[0],
                 y = state[1],
                 z = state[2],
-                p_t = -1.0,
+                p_t = p0,
                 p_x = state[3],
                 p_y = state[4],
                 p_z = state[5],
@@ -255,12 +259,20 @@ class KerrPhotonIntegrator(
             }
 
             // Advance step
-            val dlambda = fixedStepSize ?: computeAdaptiveStep(r)
+            var dlambda = fixedStepSize ?: computeAdaptiveStep(r)
+            // Capture-zone limiter, identical to gargantua_geodesic.frag (causticStep): a backward-traced
+            // (past-directed, p_t = +1) ray in ingoing Kerr-Schild coordinates approaches r+ with a
+            // diverging covariant momentum, so without smaller steps it can bounce numerically out of the
+            // shadow instead of reaching the capture threshold.
+            if (fixedStepSize == null && r > rCaptureThreshold && r < rCaptureThreshold + 0.95) {
+                val proximity = (r - rCaptureThreshold) / 0.95
+                dlambda = min(dlambda, 0.032 + (0.075 - 0.032) * proximity)
+            }
             if (dlambda < minStepTaken) minStepTaken = dlambda
             if (dlambda > maxStepTaken) maxStepTaken = dlambda
             stepSizesList?.add(dlambda)
 
-            val nextState = rk4Step(state, dlambda)
+            val nextState = rk4Step(state, dlambda, p0)
 
             // Approximate dT
             val v = currentState.velocity(spacetime)
@@ -272,7 +284,7 @@ class KerrPhotonIntegrator(
                 x = nextState[0],
                 y = nextState[1],
                 z = nextState[2],
-                p_t = -1.0,
+                p_t = p0,
                 p_x = nextState[3],
                 p_y = nextState[4],
                 p_z = nextState[5],
@@ -344,7 +356,7 @@ class KerrPhotonIntegrator(
             x = state[0],
             y = state[1],
             z = state[2],
-            p_t = -1.0,
+            p_t = p0,
             p_x = state[3],
             p_y = state[4],
             p_z = state[5],
