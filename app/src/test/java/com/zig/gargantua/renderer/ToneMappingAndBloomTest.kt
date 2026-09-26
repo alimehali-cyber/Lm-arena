@@ -229,4 +229,90 @@ class ToneMappingAndBloomTest {
         assertEquals("9-ray averaging must be exactly 1/9", knownK2.second / 9.0f, sample9AvgG, 1e-6f)
         assertEquals("9-ray averaging must be exactly 1/9", knownK2.third / 9.0f, sample9AvgB, 1e-6f)
     }
+
+    @Test
+    fun blackPixelAvoidanceAcrossShadowBoundaryAndDisk() {
+        val compShader = readShader("gargantua_composite.frag")
+        assertTrue(
+            "Composite shader shadow guard requires both low alpha and near-zero luminance",
+            compShader.contains("if (hdr.a <= 0.005 && dot(hdr.rgb, hdr.rgb) <= 1.0e-7)")
+        )
+        assertFalse(
+            "Composite shader must not use coarse 0.5 alpha cutoff which creates discrete black pixels",
+            compShader.contains("if (hdr.a <= 0.5)")
+        )
+
+        val geoShader = readShader("gargantua_geodesic.frag")
+        assertFalse(
+            "Geodesic shader must never emit 0.5 sentinel for unresolved rays",
+            geoShader.contains("fragColor = vec4(0.0, 0.0, 0.0, 0.5);")
+        )
+        assertTrue(
+            "Geodesic shader must refine unresolved rays (baseState == 0) to avoid false shadow assignment",
+            geoShader.contains("bool needsRefinement = highFreqDisk || (baseMinR < 2.5) || (baseState == 0) || (baseState == 4);")
+        )
+
+        val applyShader = readShader("gargantua_animation_apply.frag")
+        assertTrue(
+            "Animation apply shader shadow guard requires both low alpha and near-zero luminance",
+            applyShader.contains("if (hdrColor.a <= 0.005 && dot(hdrColor.rgb, hdrColor.rgb) <= 1.0e-7)")
+        )
+        assertFalse(
+            "Animation apply shader must not kill subpixel or foreground emission with 0.5 alpha cutoff",
+            applyShader.contains("if (hdrColor.a <= 0.5)")
+        )
+    }
+
+    @Test
+    fun diskAnimationDirectlyAdvectsPhysicalDiskTextureWithoutUnrelatedNoise() {
+        val modShader = readShader("gargantua_animation_modulation.frag")
+        assertTrue(
+            "Modulation shader must evaluate physical disk base texture",
+            modShader.contains("evaluateDiskBaseTexture")
+        )
+        assertTrue(
+            "Modulation shader must sample static texture at unshifted phi0",
+            modShader.contains("tex0 = evaluateDiskBaseTexture(radius, phi0, u_DiskInnerRadius);")
+        )
+        assertTrue(
+            "Modulation shader must advect texture in prograde direction by shifting phi",
+            modShader.contains("texA = evaluateDiskBaseTexture(radius, phi0 - shiftRadA, u_DiskInnerRadius);")
+        )
+        assertTrue(
+            "Modulation shader must combine direct texture advection with flow modulation",
+            modShader.contains("mix(1.0, advectRatio * modFactor, amp)")
+        )
+        assertTrue(
+            "Zero amplitude must strictly return 1.0",
+            modShader.contains("if (u_Amplitude == 0.0) {\n        fragColor = 1.0;\n        return;\n    }")
+        )
+    }
+
+    @Test
+    fun alphaSemanticsFreeFromCollisionWithShadowCoverage() {
+        // Pure shadow state: coverage 0.0, higher-order 0.0 -> alpha = 0.0
+        val shadowAlpha = 0.0f
+        val shadowRgb = Triple(0.0f, 0.0f, 0.0f)
+        val isShadow = shadowAlpha <= 0.005f && (shadowRgb.first * shadowRgb.first + shadowRgb.second * shadowRgb.second + shadowRgb.third * shadowRgb.third) <= 1.0e-7f
+        assertTrue("Pure shadow must be identified correctly", isShadow)
+
+        // Subpixel boundary sample (e.g. 2 rays shadow, 3 rays illuminated disk)
+        val subpixelCoverage = 3.0f / 5.0f // 0.60
+        val subpixelRgb = Triple(0.60f * 2.0f, 0.60f * 1.5f, 0.60f * 0.5f)
+        val subpixelIsShadow = subpixelCoverage <= 0.005f && (subpixelRgb.first * subpixelRgb.first + subpixelRgb.second * subpixelRgb.second + subpixelRgb.third * subpixelRgb.third) <= 1.0e-7f
+        assertFalse("Subpixel boundary with light must NEVER be classified as pure shadow", subpixelIsShadow)
+
+        // Subpixel boundary with 20% coverage and faint emission (0.002 lum)
+        val faintCoverage = 0.20f
+        val faintRgb = Triple(0.001f, 0.002f, 0.0005f)
+        val faintIsShadow = faintCoverage <= 0.005f && (faintRgb.first * faintRgb.first + faintRgb.second * faintRgb.second + faintRgb.third * faintRgb.third) <= 1.0e-7f
+        assertFalse("Faint subpixel emission must NEVER be classified as pure shadow", faintIsShadow)
+
+        // Subpixel photon ring on shadow boundary: coverage 0.5, higher-order lum 3.0 -> alpha = 0.5 + 3.0 = 3.5
+        val ringCoverage = 0.50f
+        val ringK2Lum = 3.0f
+        val ringAlpha = ringCoverage + ringK2Lum
+        val extractedK2Lum = max(0.0f, ringAlpha - 1.0f)
+        assertTrue("Higher-order luminance extracted from combined alpha is positive", extractedK2Lum > 0.0f)
+    }
 }

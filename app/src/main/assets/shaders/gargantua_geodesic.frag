@@ -793,7 +793,7 @@ vec4 traceRaySample(
         }
 
         // Volumetric Multi-Crossing Flared 3D Disk Slab Traversal (Opaque Direction A)
-        if (u_EnableDisk == 1 && prevPos.z * pos.z <= 0.0 && prevPos.z != pos.z && diskCrossings < 4) {
+        if (prevPos.z * pos.z <= 0.0 && prevPos.z != pos.z) {
             float tau = clamp(-prevPos.z / (pos.z - prevPos.z), 0.0, 1.0);
             vec3 hitPos = mix(prevPos, pos, tau);
             float rho2 = hitPos.x * hitPos.x + hitPos.y * hitPos.y;
@@ -804,7 +804,7 @@ vec4 traceRaySample(
                 equatorialCrossings++;
             }
 
-            if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
+            if (u_EnableDisk == 1 && rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius && diskCrossings < 4) {
                 diskCrossings++;
                 if (diskCrossings == 1) {
                     primaryHitRadius = rHit;
@@ -951,7 +951,7 @@ vec4 traceRaySample(
         if (accumDiskRadiance.r + accumDiskRadiance.g + accumDiskRadiance.b > 0.005) {
             return vec4(accumDiskRadiance, 1.0 + k2Lum);
         } else {
-            return vec4(0.0, 0.0, 0.0, 0.5);
+            return vec4(0.0, 0.0, 0.0, 0.0);
         }
     }
 }
@@ -1001,13 +1001,7 @@ void main() {
 
     int rayState = baseState;
     if (rayState == 1) {
-        // BUGFIX: traceRaySample() already correctly encodes foreground disk gas
-        // radiance (alpha=1.0) vs. genuine unobstructed shadow (alpha=0.0) in
-        // baseSample. Previously this branch unconditionally discarded baseSample,
-        // clipping legitimate foreground emission and creating a false flat notch
-        // in the shadow's silhouette wherever the near disk edge crosses in front
-        // of the horizon. Respect the alpha baseSample already computed.
-        if (baseSample.a > 0.5) {
+        if (baseSample.a > 0.005 || dot(baseSample.rgb, baseSample.rgb) > 1.0e-7) {
             fragColor = baseSample;
         } else {
             fragColor = vec4(0.0, 0.0, 0.0, 0.0);
@@ -1020,8 +1014,12 @@ void main() {
     } else if (rayState == 4) {
         fragColor = baseSample;
     } else {
-        // Unresolved branch: baseSample contains vec4(0.0, 0.0, 0.0, 0.5);
-        fragColor = vec4(0.0, 0.0, 0.0, 0.5);
+        // Unresolved: if baseSample accumulated radiance, preserve it; otherwise pure shadow
+        if (baseSample.a > 0.005 || dot(baseSample.rgb, baseSample.rgb) > 1.0e-7) {
+            fragColor = baseSample;
+        } else {
+            fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        }
     }
 
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
@@ -1065,7 +1063,7 @@ void main() {
     // 0.5 -> 2.76 rays/px, 0.75 -> 2.56 rays/px).
     bool highFreqDisk = (baseCrossings >= 1) && (baseHitR <= 16.0) &&
         (f2CyclesPerPixel > 0.75);
-    bool needsRefinement = highFreqDisk || (baseMinR < 2.5) || (baseState == 4);
+    bool needsRefinement = highFreqDisk || (baseMinR < 2.5) || (baseState == 0) || (baseState == 4);
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
     difficultRayCountForStats = gargantuaRayIsDifficult(baseState, baseMinR, baseCrossings, baseHitR) ? 1 : 0;
 #endif
@@ -1167,7 +1165,7 @@ void main() {
 
 #if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
     vec4 semanticRecord;
-    if (baseState == 3 || baseCrossings > 0) {
+    if (baseState == 3 || baseCrossings > 0 || (baseSample.a > 0.005 && baseHitR >= u_DiskInnerRadius)) {
         float diskRadiusNormalized = clamp(
             (baseHitR - u_DiskInnerRadius) /
                 max(1.0e-6, u_DiskOuterRadius - u_DiskInnerRadius),

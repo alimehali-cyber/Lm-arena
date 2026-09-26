@@ -10,7 +10,7 @@ out vec4 fragColor;
 void main() {
     vec4 hdr = texture(u_HdrTexture, v_TexCoord);
     // Black hole shadow or unresolved rays — strictly exclude from bloom
-    if (hdr.a <= 0.5) {
+    if (hdr.a <= 0.005 && dot(hdr.rgb, hdr.rgb) <= 1.0e-7) {
         fragColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }

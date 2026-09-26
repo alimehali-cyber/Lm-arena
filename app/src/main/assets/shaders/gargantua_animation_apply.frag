@@ -182,7 +182,7 @@ void main() {
     if (state <= 1.5) {
         // Event Horizon Shadow or Unresolved: Preserve pure black & strict alpha
         // If HDR color has accumulated foreground disk radiance, preserve it; otherwise pure black
-        if (hdrColor.a <= 0.5) {
+        if (hdrColor.a <= 0.005 && dot(hdrColor.rgb, hdrColor.rgb) <= 1.0e-7) {
             fragColor = vec4(0.0, 0.0, 0.0, 0.0);
         } else {
             // Foreground gas in front of horizon: modulate radiance
@@ -199,8 +199,7 @@ void main() {
         return;
     }
 
-    if (abs(state - 2.0) < 0.1) {
-        // Escaped Sky Texel: dynamically rotate deflected ray around celestial axis
+    if (abs(state - 2.0) < 0.1) { // state == 2: Escaped Sky Texel
         vec3 deflectedRay = semantic.rgb;
         float len2 = dot(deflectedRay, deflectedRay);
         if (len2 < 0.5 || len2 > 1.5) {
@@ -224,10 +223,11 @@ void main() {
         }
         vec3 rotatedSky = rotateAxis(deflectedRay, celestialAxis, skyAngle);
         vec3 skyRadiance = renderProceduralCosmos(rotatedSky);
+        float skyScale = 0.85;
+        vec3 scaledSky = clamp(skyRadiance * skyScale, vec3(0.0), vec3(0.45));
 
-        // Blend with any translucent foreground disk radiance stored in hdrColor
-        vec3 finalSky = hdrColor.rgb + skyRadiance;
-        fragColor = vec4(finalSky, hdrColor.a);
+        // Output rotated sky with original alpha
+        fragColor = vec4(scaledSky, hdrColor.a);
         return;
     }
 
