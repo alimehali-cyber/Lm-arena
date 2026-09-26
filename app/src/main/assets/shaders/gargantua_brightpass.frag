@@ -18,7 +18,9 @@ void main() {
     vec3 c = hdr.rgb;
     // Standard perceptual luminance weights (Rec. 709 / sRGB)
     float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
-    float excess = max(0.0, lum - u_BloomThreshold);
+    float k2Lum = max(0.0, hdr.a - 1.0);
+    float ordLum = max(0.0, lum - k2Lum);
+    float excess = max(0.0, ordLum - u_BloomThreshold);
     float factor = (lum > 1.0e-5) ? excess / lum : 0.0;
     fragColor = vec4(c * factor, 1.0);
 }

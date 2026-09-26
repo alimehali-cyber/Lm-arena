@@ -649,6 +649,8 @@ vec4 traceRaySample(
     vec3 accumDiskRadiance = vec3(0.0);
     float diskTransmittance = 1.0;
     int diskCrossings = 0;
+    int equatorialCrossings = 0;
+    vec3 accumHigherOrderRadiance = vec3(0.0);
     float primaryHitRadius = 0.0;
     float primaryHitAzimuth = 0.0;
 
@@ -798,6 +800,10 @@ vec4 traceRaySample(
             float a2_kerr = u_Spin * u_Spin;
             float rHit = sqrt(max(0.0, rho2 - a2_kerr));
 
+            if (rHit > rCapture) {
+                equatorialCrossings++;
+            }
+
             if (rHit >= u_DiskInnerRadius && rHit <= u_DiskOuterRadius) {
                 diskCrossings++;
                 if (diskCrossings == 1) {
@@ -867,7 +873,11 @@ vec4 traceRaySample(
                 for (int s = 0; s < 3; s++) {
                     float optDensity = evaluate3DVolumetricGasDensity(rHit, phiHit, stratumZetas[s], fNorm, u_DiskInnerRadius, u_DiskOuterRadius);
                     float segAlpha = 1.0 - exp(-optDensity * slabStepTau * stratumWeights[s]);
+                    vec3 segRadiance = diskTransmittance * crossingColor * segAlpha;
                     accumDiskRadiance += diskTransmittance * crossingColor * segAlpha;
+                    if (equatorialCrossings >= 3 || diskCrossings >= 3) {
+                        accumHigherOrderRadiance += segRadiance;
+                    }
                     diskTransmittance *= (1.0 - segAlpha);
                     if (diskTransmittance < 0.008) {
                         diskTransmittance = 0.0;
@@ -910,10 +920,12 @@ vec4 traceRaySample(
 #endif
 
     // Final Radiance Composite
+    float k2Lum = dot(accumHigherOrderRadiance, vec3(0.2126, 0.7152, 0.0722));
+
     if (rayState == 1) { // Captured by Horizon
         if (accumDiskRadiance.r + accumDiskRadiance.g + accumDiskRadiance.b > 0.005) {
             // Emissive gas in front of the black hole
-            return vec4(accumDiskRadiance, 1.0);
+            return vec4(accumDiskRadiance, 1.0 + k2Lum);
         } else {
             // Pure un-occluded black hole shadow
             return vec4(0.0, 0.0, 0.0, 0.0);
@@ -930,14 +942,14 @@ vec4 traceRaySample(
         float skyScale = 0.85;
         vec3 scaledSky = clamp(sky * skyScale, vec3(0.0), vec3(0.45));
         vec3 compositeSky = accumDiskRadiance + diskTransmittance * scaledSky;
-        return vec4(compositeSky, 1.0);
+        return vec4(compositeSky, 1.0 + k2Lum);
     } else if (rayState == 3) { // Opaque Disk Hit
-        return vec4(accumDiskRadiance, 1.0);
+        return vec4(accumDiskRadiance, 1.0 + k2Lum);
     } else if (rayState == 4) { // Relativistic Object
         return vec4(objectColor, 1.0);
     } else { // Unresolved / Timeout
         if (accumDiskRadiance.r + accumDiskRadiance.g + accumDiskRadiance.b > 0.005) {
-            return vec4(accumDiskRadiance, 1.0);
+            return vec4(accumDiskRadiance, 1.0 + k2Lum);
         } else {
             return vec4(0.0, 0.0, 0.0, 0.5);
         }
@@ -1090,6 +1102,9 @@ void main() {
 #endif
 
         fragColor = (baseSample + sample1 + sample2 + sample3 + sample4) / 5.0;
+        if (fragColor.r + fragColor.g + fragColor.b > 0.001) {
+            fragColor.a = max(fragColor.a, 1.0);
+        }
 
         // Tier 2: refine only a genuine outcome boundary or deep winding. Disk/object share one
         // material class; captured and escaped remain distinct classes.
@@ -1129,6 +1144,9 @@ void main() {
 #endif
 
             fragColor = (baseSample + sample1 + sample2 + sample3 + sample4 + sample5 + sample6 + sample7 + sample8) / 9.0;
+            if (fragColor.r + fragColor.g + fragColor.b > 0.001) {
+                fragColor.a = max(fragColor.a, 1.0);
+            }
         }
     }
 

@@ -36,7 +36,7 @@ float sampleFluidFlow(vec2 normCoord, float tPhase, float rPhysical) {
     float rDrift = rNorm - vInflow * (tPhase / 24.0);
 
     float spiralCoil = 11.0 * log(max(1.0, rPhysical / u_DiskInnerRadius));
-    float phiSheared = phiNorm - (omega * u_TimeScale * tPhase) / TWO_PI - spiralCoil / TWO_PI;
+    float phiSheared = phiNorm + (omega * u_TimeScale * tPhase) / TWO_PI - spiralCoil / TWO_PI;
 
     // Rebalanced to near-isotropic phi:r frequency ratio (previously ~1.5-1.7x mismatch
     // caused thin aligned "guitar string" artifacts). Per-octave offsets decorrelate
@@ -130,7 +130,7 @@ void main() {
 
     // High dynamic range contrast curve: deep dark dust lanes (0.15) to blazing highlights (2.6)
     float centered = fluidSignal - u_NoiseMean;
-    float dynamicAmplitude = max(amp * 1.8, 0.45);
+    float dynamicAmplitude = amp * 1.8;
     float modFactor = clamp(1.0 + dynamicAmplitude * centered * 2.5, 0.15, 2.60);
     modFactor = modFactor * (brightFactor * absorbFactor);
 

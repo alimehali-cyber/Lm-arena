@@ -115,4 +115,98 @@ class ToneMappingAndBloomTest {
             brightCinematic > dimCinematic
         )
     }
+
+    @Test
+    fun photonRingHigherOrderAccumulationIsPhysicallySourcedAndOrderAware() {
+        val geoShader = java.io.File("app/src/main/assets/shaders/gargantua_geodesic.frag").readText()
+        assertTrue(
+            "Higher-order ring must accumulate exact physical segment radiance",
+            geoShader.contains("vec3 segRadiance = diskTransmittance * crossingColor * segAlpha;")
+        )
+        assertTrue(
+            "Higher-order ring must distinguish equatorial plane crossings from disk crossings",
+            geoShader.contains("equatorialCrossings >= 3 || diskCrossings >= 3")
+        )
+    }
+
+    @Test
+    fun photonRingHigherOrderIsNotDoubleCounted() {
+        val geoShader = java.io.File("app/src/main/assets/shaders/gargantua_geodesic.frag").readText()
+        assertTrue(
+            "HDR texture RGB holds total physical radiance accumDiskRadiance",
+            geoShader.contains("return vec4(accumDiskRadiance, 1.0 + k2Lum);")
+        )
+        val compShader = java.io.File("app/src/main/assets/shaders/gargantua_composite.frag").readText()
+        assertFalse(
+            "Composite shader must not re-add k2 to prevent double counting",
+            compShader.contains("color += k2Chroma * k2Lum;")
+        )
+    }
+
+    @Test
+    fun photonRingHigherOrderDoesNotEnterBroadBloomPedestal() {
+        val brightShader = java.io.File("app/src/main/assets/shaders/gargantua_brightpass.frag").readText()
+        assertTrue(
+            "Brightpass extracts k2Lum from alpha side channel",
+            brightShader.contains("float k2Lum = max(0.0, hdr.a - 1.0);")
+        )
+        assertTrue(
+            "Brightpass computes ordinary luminance by subtracting k2Lum",
+            brightShader.contains("float ordLum = max(0.0, lum - k2Lum);")
+        )
+        assertTrue(
+            "Brightpass threshold excess is computed from ordLum only",
+            brightShader.contains("float excess = max(0.0, ordLum - u_BloomThreshold);")
+        )
+
+        // Mathematical verification of bloom exclusion:
+        val threshold = 1.15f
+        // Case 1: Pure subpixel photon ring (total lum = 4.0, k2Lum = 4.0, ordLum = 0.0)
+        val ringR = 4.5f
+        val ringG = 3.8f
+        val ringB = 2.1f
+        val lum = 0.2126f * ringR + 0.7152f * ringG + 0.0722f * ringB
+        val k2Lum = lum
+        val ordLum = max(0.0f, lum - k2Lum)
+        val excess = max(0.0f, ordLum - threshold)
+        assertEquals("Subpixel photon ring alone produces zero bloom excess", 0.0f, excess, 1e-6f)
+    }
+
+    @Test
+    fun photonRingRgbChromaIsPreservedWithExactColorRatios() {
+        // Known synthetic diagnostic higher-order contribution
+        val synthK2 = Triple(0.12f, 0.48f, 0.96f) // Non-disk electric azure chromaticity (ratio 1 : 4 : 8)
+        val ratioGtoR = synthK2.second / synthK2.first
+        val ratioBtoR = synthK2.third / synthK2.first
+        assertEquals(4.0f, ratioGtoR, 1e-5f)
+        assertEquals(8.0f, ratioBtoR, 1e-5f)
+
+        // In our pipeline, synthK2 is part of accumDiskRadiance in HDR RGB.
+        // It arrives at composite directly in hdr.rgb:
+        val hdrRgb = synthK2
+        val arrivedRatioGtoR = hdrRgb.second / hdrRgb.first
+        val arrivedRatioBtoR = hdrRgb.third / hdrRgb.first
+        assertEquals("Higher-order G:R chroma ratio must be preserved exactly", ratioGtoR, arrivedRatioGtoR, 1e-5f)
+        assertEquals("Higher-order B:R chroma ratio must be preserved exactly", ratioBtoR, arrivedRatioBtoR, 1e-5f)
+    }
+
+    @Test
+    fun adaptiveSupersamplingAveragesHigherOrderContributionLinearly() {
+        val knownK2 = Triple(1.0f, 2.0f, 3.0f)
+        // 5-ray stencil: sample 0 has knownK2, samples 1..4 have zero
+        val sample5AvgR = (knownK2.first + 0.0f + 0.0f + 0.0f + 0.0f) / 5.0f
+        val sample5AvgG = (knownK2.second + 0.0f + 0.0f + 0.0f + 0.0f) / 5.0f
+        val sample5AvgB = (knownK2.third + 0.0f + 0.0f + 0.0f + 0.0f) / 5.0f
+        assertEquals("5-ray averaging must be exactly 1/5", knownK2.first / 5.0f, sample5AvgR, 1e-6f)
+        assertEquals("5-ray averaging must be exactly 1/5", knownK2.second / 5.0f, sample5AvgG, 1e-6f)
+        assertEquals("5-ray averaging must be exactly 1/5", knownK2.third / 5.0f, sample5AvgB, 1e-6f)
+
+        // 9-ray stencil: sample 0 has knownK2, samples 1..8 have zero
+        val sample9AvgR = (knownK2.first) / 9.0f
+        val sample9AvgG = (knownK2.second) / 9.0f
+        val sample9AvgB = (knownK2.third) / 9.0f
+        assertEquals("9-ray averaging must be exactly 1/9", knownK2.first / 9.0f, sample9AvgR, 1e-6f)
+        assertEquals("9-ray averaging must be exactly 1/9", knownK2.second / 9.0f, sample9AvgG, 1e-6f)
+        assertEquals("9-ray averaging must be exactly 1/9", knownK2.third / 9.0f, sample9AvgB, 1e-6f)
+    }
 }

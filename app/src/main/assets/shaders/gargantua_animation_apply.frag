@@ -187,7 +187,7 @@ void main() {
         } else {
             // Foreground gas in front of horizon: modulate radiance
             float modFactor = texelFetch(u_ModulationTexture, coord, 0).r;
-            fragColor = vec4(hdrColor.rgb * modFactor, 1.0);
+            fragColor = vec4(hdrColor.rgb * modFactor, hdrColor.a);
         }
         return;
     }
@@ -195,7 +195,7 @@ void main() {
     if (abs(state - 3.0) < 0.1) {
         // Accretion Disk Texel: multiply HDR radiance by the Keplerian flow factor
         float modFactor = texelFetch(u_ModulationTexture, coord, 0).r;
-        fragColor = vec4(hdrColor.rgb * modFactor, 1.0);
+        fragColor = vec4(hdrColor.rgb * modFactor, hdrColor.a);
         return;
     }
 
@@ -227,7 +227,7 @@ void main() {
 
         // Blend with any translucent foreground disk radiance stored in hdrColor
         vec3 finalSky = hdrColor.rgb + skyRadiance;
-        fragColor = vec4(finalSky, 1.0);
+        fragColor = vec4(finalSky, hdrColor.a);
         return;
     }
 
