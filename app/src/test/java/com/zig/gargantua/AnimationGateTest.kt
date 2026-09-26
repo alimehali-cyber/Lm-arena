@@ -170,9 +170,29 @@ class AnimationGateTest {
         assertRebuildThenModulate(gate)
     }
 
+    private fun readShader(fileName: String): String {
+        val candidates = listOf(
+            java.io.File("app/src/main/assets/shaders/$fileName"),
+            java.io.File("src/main/assets/shaders/$fileName"),
+            java.io.File("assets/shaders/$fileName")
+        )
+        for (c in candidates) {
+            if (c.exists()) return c.readText()
+        }
+        var dir: java.io.File? = java.io.File(".").absoluteFile
+        while (dir != null) {
+            val candidate = java.io.File(dir, "app/src/main/assets/shaders/$fileName")
+            if (candidate.exists()) return candidate.readText()
+            val candidate2 = java.io.File(dir, "src/main/assets/shaders/$fileName")
+            if (candidate2.exists()) return candidate2.readText()
+            dir = dir.parentFile
+        }
+        throw IllegalStateException("Shader $fileName not found")
+    }
+
     @Test
     fun animationSignMatchesKeplerianPositiveDirectionWithoutStandingWave() {
-        val modShader = java.io.File("app/src/main/assets/shaders/gargantua_animation_modulation.frag").readText()
+        val modShader = readShader("gargantua_animation_modulation.frag")
         assertTrue(
             "sampleFluidFlow must use matching positive sign for temporal translation",
             modShader.contains("phiNorm + (omega * u_TimeScale * tPhase) / TWO_PI")
@@ -185,7 +205,7 @@ class AnimationGateTest {
 
     @Test
     fun animationAmplitudeOrderingIsMonotonicWithoutArtificialFloor() {
-        val modShader = java.io.File("app/src/main/assets/shaders/gargantua_animation_modulation.frag").readText()
+        val modShader = readShader("gargantua_animation_modulation.frag")
         assertFalse(
             "Modulation shader must not clamp dynamicAmplitude to 0.45",
             modShader.contains("max(amp * 1.8, 0.45)")
@@ -226,7 +246,7 @@ class AnimationGateTest {
 
     @Test
     fun zeroAmplitudeStrictlyBypassesModulation() {
-        val modShader = java.io.File("app/src/main/assets/shaders/gargantua_animation_modulation.frag").readText()
+        val modShader = readShader("gargantua_animation_modulation.frag")
         assertTrue(
             "Shader must output 1.0 on zero amplitude",
             modShader.contains("if (u_Amplitude == 0.0) {\n        fragColor = 1.0;\n        return;\n    }")
@@ -264,13 +284,13 @@ class AnimationGateTest {
 
     @Test
     fun behavioralFrameRateIndependenceAcrossCadences() {
-        val elapsedTarget = 4.25 // seconds
+        val elapsedTarget = 6.0 // seconds (exact multiple of 30, 60, 90, 120)
         val cadences = listOf(30, 60, 90, 120) // FPS
 
         val results = cadences.map { fps ->
             var t = 0.0
             val dt = 1.0 / fps.toDouble()
-            val steps = (elapsedTarget * fps).toInt()
+            val steps = kotlin.math.round(elapsedTarget * fps).toInt()
             for (step in 0 until steps) {
                 t += dt
             }
@@ -280,9 +300,9 @@ class AnimationGateTest {
         val ref = results[0]
         for (i in 1 until results.size) {
             val curr = results[i]
-            assertEquals("timeA must match across cadences (ref=${ref.timeA}, curr=${curr.timeA})", ref.timeA, curr.timeA, 1e-4)
-            assertEquals("timeB must match across cadences", ref.timeB, curr.timeB, 1e-4)
-            assertEquals("blendA must match across cadences", ref.blendA, curr.blendA, 1e-4)
+            assertEquals("timeA must match across cadences (ref=${ref.timeA}, curr=${curr.timeA})", ref.timeA, curr.timeA, 1e-6)
+            assertEquals("timeB must match across cadences", ref.timeB, curr.timeB, 1e-6)
+            assertEquals("blendA must match across cadences", ref.blendA, curr.blendA, 1e-6)
         }
     }
 

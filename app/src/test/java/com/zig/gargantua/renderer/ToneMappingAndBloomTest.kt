@@ -116,9 +116,29 @@ class ToneMappingAndBloomTest {
         )
     }
 
+    private fun readShader(fileName: String): String {
+        val candidates = listOf(
+            java.io.File("app/src/main/assets/shaders/$fileName"),
+            java.io.File("src/main/assets/shaders/$fileName"),
+            java.io.File("assets/shaders/$fileName")
+        )
+        for (c in candidates) {
+            if (c.exists()) return c.readText()
+        }
+        var dir: java.io.File? = java.io.File(".").absoluteFile
+        while (dir != null) {
+            val candidate = java.io.File(dir, "app/src/main/assets/shaders/$fileName")
+            if (candidate.exists()) return candidate.readText()
+            val candidate2 = java.io.File(dir, "src/main/assets/shaders/$fileName")
+            if (candidate2.exists()) return candidate2.readText()
+            dir = dir.parentFile
+        }
+        throw IllegalStateException("Shader $fileName not found")
+    }
+
     @Test
     fun photonRingHigherOrderAccumulationIsPhysicallySourcedAndOrderAware() {
-        val geoShader = java.io.File("app/src/main/assets/shaders/gargantua_geodesic.frag").readText()
+        val geoShader = readShader("gargantua_geodesic.frag")
         assertTrue(
             "Higher-order ring must accumulate exact physical segment radiance",
             geoShader.contains("vec3 segRadiance = diskTransmittance * crossingColor * segAlpha;")
@@ -131,12 +151,12 @@ class ToneMappingAndBloomTest {
 
     @Test
     fun photonRingHigherOrderIsNotDoubleCounted() {
-        val geoShader = java.io.File("app/src/main/assets/shaders/gargantua_geodesic.frag").readText()
+        val geoShader = readShader("gargantua_geodesic.frag")
         assertTrue(
             "HDR texture RGB holds total physical radiance accumDiskRadiance",
             geoShader.contains("return vec4(accumDiskRadiance, 1.0 + k2Lum);")
         )
-        val compShader = java.io.File("app/src/main/assets/shaders/gargantua_composite.frag").readText()
+        val compShader = readShader("gargantua_composite.frag")
         assertFalse(
             "Composite shader must not re-add k2 to prevent double counting",
             compShader.contains("color += k2Chroma * k2Lum;")
@@ -145,7 +165,7 @@ class ToneMappingAndBloomTest {
 
     @Test
     fun photonRingHigherOrderDoesNotEnterBroadBloomPedestal() {
-        val brightShader = java.io.File("app/src/main/assets/shaders/gargantua_brightpass.frag").readText()
+        val brightShader = readShader("gargantua_brightpass.frag")
         assertTrue(
             "Brightpass extracts k2Lum from alpha side channel",
             brightShader.contains("float k2Lum = max(0.0, hdr.a - 1.0);")
