@@ -43,6 +43,7 @@ uniform float u_FovScale;    // tan(FOV/2)
 uniform int u_MaxSteps;      // Maximum RK4 steps per pixel ray (e.g. 150)
 uniform float u_DiskInnerRadius; // ISCO radius r_in
 uniform float u_DiskOuterRadius; // Outer boundary r_out
+uniform float u_AnimationAmplitude; // Accretion disk animation amplitude in [0, 1]
 uniform int u_EnableDisk;        // 1 to render relativistic accretion disk, 0 otherwise
 uniform int u_EnableDoppler;     // 0 = Movie Mode (Default), 1 = Strict GR Mode
 
@@ -526,7 +527,8 @@ float evaluate3DVolumetricGasDensity(float r, float phi, float zeta, float fNorm
     // edges because GLSL ES leaves smoothstep undefined when edge0 >= edge1.
     float outerWisps = 1.0 - smoothstep(frayedRadius - 3.2, frayedRadius + 1.2, r);
 
-    float rawDensity = (0.28 + 1.15 * spunFilaments) * (0.15 + 0.85 * totalDust);
+    float ampFactor = (u_AnimationAmplitude > 0.0) ? mix(0.70, 1.30, u_AnimationAmplitude) : 1.0;
+    float rawDensity = (0.28 + 1.15 * spunFilaments * ampFactor) * (0.15 + 0.85 * totalDust);
 
     return clamp(rawDensity * verticalFalloff * (0.45 + 0.55 * fNorm) * innerCutoff * outerWisps, 0.0, 5.5);
 }
@@ -712,14 +714,18 @@ vec4 traceRaySample(
         // Calibrated Adaptive Step Controller: Smooth Caustic Refinement at 30+ FPS
         // Avoid clamping step size inside empty ISCO plunge region: r >= u_DiskInnerRadius - 0.5
         float baseStep = 0.085 * r;
-        float dlambda = (r > 6.0 && (movingOutward || r > 18.0)) ? clamp(baseStep, 0.035, 0.55) : clamp(baseStep, 0.035, 0.32);
-
-        // Tight, efficient caustic refinement zone: only subdivide in the immediate photon sphere vicinity
-        float rCausticMax = rCapture + 0.95; // ~2.60M for a=0.8M
-        if (r > rCapture && r < rCausticMax) {
-            float proximity = (r - rCapture) / 0.95;
-            float causticStep = mix(0.032, 0.075, proximity);
-            dlambda = min(dlambda, causticStep);
+        float dlambda;
+        if (movingOutward) {
+            dlambda = clamp(baseStep, 0.065, 0.55);
+        } else {
+            dlambda = (r > 6.0) ? clamp(baseStep, 0.035, 0.55) : clamp(baseStep, 0.035, 0.32);
+            // Tight, efficient caustic refinement zone: only subdivide in the immediate photon sphere vicinity
+            float rCausticMax = rCapture + 0.95; // ~2.60M for a=0.8M
+            if (r > rCapture && r < rCausticMax) {
+                float proximity = (r - rCapture) / 0.95;
+                float causticStep = mix(0.032, 0.075, proximity);
+                dlambda = min(dlambda, causticStep);
+            }
         }
 
         // Advance geodesic via 4th-order Runge-Kutta
@@ -861,6 +867,12 @@ vec4 traceRaySample(
                 // 5. Direction A Thermal Shading
                 vec3 crossingColor = evaluate4TierBlackbodySpectrum(fNorm, gShift);
                 float phiHit = atan(hitPos.y, hitPos.x);
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+                float phaseAdvance = GARGANTUA_TAU * gargantuaAnimationPhaseAdvance(omega / GARGANTUA_TAU);
+#else
+                float phaseAdvance = omega * u_Time;
+#endif
+                float phiMaterial = phiHit - phaseAdvance;
 
                 // 6. Multi-Stratum Volumetric Integration:
                 // Three strata with optical-depth multiplier 2.2. The slab is semi-transparent
@@ -871,7 +883,7 @@ vec4 traceRaySample(
                 float slabStepTau = fullPathLength * 2.20;
 
                 for (int s = 0; s < 3; s++) {
-                    float optDensity = evaluate3DVolumetricGasDensity(rHit, phiHit, stratumZetas[s], fNorm, u_DiskInnerRadius, u_DiskOuterRadius);
+                    float optDensity = evaluate3DVolumetricGasDensity(rHit, phiMaterial, stratumZetas[s], fNorm, u_DiskInnerRadius, u_DiskOuterRadius);
                     float segAlpha = 1.0 - exp(-optDensity * slabStepTau * stratumWeights[s]);
                     vec3 segRadiance = diskTransmittance * crossingColor * segAlpha;
                     accumDiskRadiance += diskTransmittance * crossingColor * segAlpha;
@@ -904,7 +916,7 @@ vec4 traceRaySample(
     bool escapedBySafetyRule = false;
     if (rayState == 0) {
         float rEnd = compute_r_KS(u_Spin, pos.x, pos.y, pos.z);
-        if (rEnd > prevR && rEnd > rPhotonShellOuter) {
+        if (movingOutward && rEnd > prevR && (rEnd > minR + 0.05 || rEnd > rPhotonShellOuter)) {
             rayState = 2;
             escapedBySafetyRule = true;
         }
@@ -1063,7 +1075,7 @@ void main() {
     // 0.5 -> 2.76 rays/px, 0.75 -> 2.56 rays/px).
     bool highFreqDisk = (baseCrossings >= 1) && (baseHitR <= 16.0) &&
         (f2CyclesPerPixel > 0.75);
-    bool needsRefinement = highFreqDisk || (baseMinR < 2.5) || (baseState == 0) || (baseState == 4);
+    bool needsRefinement = highFreqDisk || (baseMinR < 4.2) || (baseState == 0) || (baseState == 4);
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
     difficultRayCountForStats = gargantuaRayIsDifficult(baseState, baseMinR, baseCrossings, baseHitR) ? 1 : 0;
 #endif

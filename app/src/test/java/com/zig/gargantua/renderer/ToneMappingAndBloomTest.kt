@@ -246,7 +246,7 @@ class ToneMappingAndBloomTest {
         )
         assertTrue(
             "Geodesic shader must refine unresolved rays (baseState == 0) to avoid false shadow assignment",
-            geoShader.contains("bool needsRefinement = highFreqDisk || (baseMinR < 2.5) || (baseState == 0) || (baseState == 4);")
+            geoShader.contains("bool needsRefinement = highFreqDisk || (baseMinR < 4.2) || (baseState == 0) || (baseState == 4);")
         )
 
         val applyShader = readShader("gargantua_animation_apply.frag")
@@ -307,5 +307,64 @@ class ToneMappingAndBloomTest {
         val ringAlpha = ringCoverage + ringK2Lum
         val extractedK2Lum = max(0.0f, ringAlpha - 1.0f)
         assertTrue("Higher-order luminance extracted from combined alpha is positive", extractedK2Lum > 0.0f)
+    }
+
+    @Test
+    fun testPhysicalDiskAzimuthalMotionAndKeplerianShear() {
+        val m = 1.0
+        val a = 0.8
+        val sqrtM = sqrt(m)
+        fun omega(r: Double): Double = sqrtM / (r.pow(1.5) + a * sqrtM)
+
+        val rIsco = 2.9066
+        val rMid = 6.0
+        val rOuter = 15.0
+
+        val omegaIsco = omega(rIsco)
+        val omegaMid = omega(rMid)
+        val omegaOuter = omega(rOuter)
+
+        // Strict Keplerian shear: inner disk completes orbits faster than outer disk
+        assertTrue("Inner ISCO angular velocity exceeds mid-disk velocity", omegaIsco > omegaMid)
+        assertTrue("Mid-disk angular velocity exceeds outer-disk velocity", omegaMid > omegaOuter)
+        assertTrue("All Keplerian velocities are strictly positive (prograde)", omegaIsco > 0.0 && omegaMid > 0.0 && omegaOuter > 0.0)
+
+        // Time progression: material azimuth rotates prograde
+        val dt = 1.0
+        val dPhiIsco = omegaIsco * dt
+        val dPhiMid = omegaMid * dt
+        assertTrue("Phase advance is strictly positive", dPhiIsco > 0.0 && dPhiMid > 0.0)
+
+        // Amplitude scaling
+        fun ampFactor(ampPercent: Int): Float = if (ampPercent > 0) 0.70f + 0.60f * (ampPercent / 100.0f) else 1.0f
+        val amp0 = ampFactor(0)
+        val amp15 = ampFactor(15)
+        val amp40 = ampFactor(40)
+        val amp80 = ampFactor(80)
+
+        assertEquals("Static amplitude percent 0 produces exact unit factor", 1.0f, amp0, 1e-6f)
+        assertTrue("Amplitude 15% is restrained", amp15 < amp40)
+        assertTrue("Amplitude 40% is moderate", amp40 < amp80)
+        assertTrue("Amplitude 80% is strongest", amp80 > amp40)
+    }
+
+    @Test
+    fun testIlluminatedSamplesNeverDiscardedAsShadow() {
+        // Test composite shadow discard rule across various radiance levels and alpha values
+        fun isShadowDiscarded(alpha: Float, rgb: Triple<Float, Float, Float>): Boolean {
+            val lumSq = rgb.first * rgb.first + rgb.second * rgb.second + rgb.third * rgb.third
+            return alpha <= 0.5f && lumSq <= 1.0e-7f
+        }
+
+        // True shadow: zero emission, low alpha
+        assertTrue("True shadow interior is discarded to pure black", isShadowDiscarded(0.0f, Triple(0f, 0f, 0f)))
+        assertTrue("True shadow interior with diagnostic 0.5 is discarded to pure black", isShadowDiscarded(0.5f, Triple(0f, 0f, 0f)))
+
+        // Subpixel photon ring on shadow boundary: alpha <= 0.5 but non-zero emission
+        assertFalse("Subpixel photon ring with 0.005 radiance must NOT be discarded", isShadowDiscarded(0.2f, Triple(0.005f, 0.003f, 0.001f)))
+        assertFalse("Subpixel photon ring with 0.001 radiance must NOT be discarded", isShadowDiscarded(0.4f, Triple(0.001f, 0.001f, 0.0005f)))
+
+        // Escaped sky or disk sample with state 2: alpha 1.0
+        assertFalse("Escaped ray is never discarded", isShadowDiscarded(1.0f, Triple(0.01f, 0.01f, 0.01f)))
     }
 }

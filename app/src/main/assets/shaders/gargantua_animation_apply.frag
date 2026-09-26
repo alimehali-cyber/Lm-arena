@@ -228,8 +228,9 @@ void main() {
         float skyScale = 0.85;
         vec3 scaledSky = clamp(skyRadiance * skyScale, vec3(0.0), vec3(0.45));
 
-        // Output rotated sky with original alpha
-        fragColor = vec4(scaledSky, hdrColor.a);
+        // Output rotated sky preserving accumulated disk/ring radiance
+        vec3 composite = hdrColor.rgb;
+        fragColor = vec4(composite, hdrColor.a);
         return;
     }
 

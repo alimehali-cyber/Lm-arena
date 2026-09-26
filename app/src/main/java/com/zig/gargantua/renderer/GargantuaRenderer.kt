@@ -707,7 +707,17 @@ class GargantuaRenderer(
         }
         val animationElapsedSecondsDouble =
             ((now - animOriginNanos).coerceAtLeast(0L)).toDouble() / 1_000_000_000.0
-        GargantuaAnimation.fillTimeDigits(animationElapsedSecondsDouble, scratchTimeDigits)
+        val iscoRadius = com.zig.gargantua.disk.KerrIsco.compute(
+            state.mass.toDouble(),
+            state.spin.toDouble() * state.mass.toDouble()
+        )
+        val massDouble = max(state.mass.toDouble(), 1.0e-6)
+        val spinDouble = (state.spin * state.mass).toDouble()
+        val sqrtMass = sqrt(massDouble)
+        val omegaIsco = sqrtMass / max(1.0e-6, iscoRadius.pow(1.5) + spinDouble * sqrtMass)
+        val timeScale = (2.0 * Math.PI / state.animationSpeed.periodSeconds) / omegaIsco
+        val animTime = if (animationRequested) animationElapsedSecondsDouble * timeScale else 0.0
+        GargantuaAnimation.fillTimeDigits(animTime, scratchTimeDigits)
         val flowMapTimes = GargantuaAnimation.flowMapTimes(animationElapsedSecondsDouble)
         animationLastNotReadyReason = "none"
         val animationReady = when {
@@ -830,7 +840,7 @@ class GargantuaRenderer(
             AnimationGate.Action.MODULATE,
             AnimationGate.Action.PLAIN -> false
         }
-        val renderedScene = sceneDirty || (animationRequested && animationReady && gateRequestsRebuild)
+        val renderedScene = sceneDirty || (animationRequested && animationReady)
         if (gateRequestsRebuild && animationRequested && animationReady) {
             animationRebuildCount++
         }
@@ -971,6 +981,7 @@ class GargantuaRenderer(
                 activeProg.setUniform1i("u_MaxSteps", state.maxSteps)
                 activeProg.setUniform1f("u_DiskInnerRadius", isco)
                 activeProg.setUniform1f("u_DiskOuterRadius", state.diskOuterRadius)
+                activeProg.setUniform1f("u_AnimationAmplitude", if (animationRequested) state.animationAmplitudePercent / 100.0f else 0.0f)
                 activeProg.setUniform1i("u_EnableDisk", if (state.enableDisk) 1 else 0)
                 activeProg.setUniform1i("u_EnableDoppler", if (state.enableDoppler) 1 else 0)
 
@@ -1033,7 +1044,7 @@ class GargantuaRenderer(
                     quad
                 )
         }
-        val activePresentationHdrTextureId = if (animationFrameActive) modulatedHdrTextureId else hdrTextureId
+        val activePresentationHdrTextureId = hdrTextureId
         val presentationModulated = animationFrameActive
         val presentationChanged = presentationModulated != lastPresentedModulated
         val shouldRunBloom =
