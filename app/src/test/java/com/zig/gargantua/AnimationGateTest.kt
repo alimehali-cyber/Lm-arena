@@ -3,6 +3,7 @@ package com.zig.gargantua
 import com.zig.gargantua.renderer.AnimationGate
 import com.zig.gargantua.renderer.GargantuaAnimation
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
