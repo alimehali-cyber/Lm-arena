@@ -887,7 +887,7 @@ vec4 traceRaySample(
                     float segAlpha = 1.0 - exp(-optDensity * slabStepTau * stratumWeights[s]);
                     vec3 segRadiance = diskTransmittance * crossingColor * segAlpha;
                     accumDiskRadiance += diskTransmittance * crossingColor * segAlpha;
-                    if (equatorialCrossings >= 3 || diskCrossings >= 3) {
+                    if (equatorialCrossings >= 2 || diskCrossings >= 2) {
                         accumHigherOrderRadiance += segRadiance;
                     }
                     diskTransmittance *= (1.0 - segAlpha);

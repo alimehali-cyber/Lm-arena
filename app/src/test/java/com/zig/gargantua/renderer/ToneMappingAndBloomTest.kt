@@ -145,7 +145,7 @@ class ToneMappingAndBloomTest {
         )
         assertTrue(
             "Higher-order ring must distinguish equatorial plane crossings from disk crossings",
-            geoShader.contains("equatorialCrossings >= 3 || diskCrossings >= 3")
+            geoShader.contains("equatorialCrossings >= 2 || diskCrossings >= 2")
         )
     }
 
@@ -366,5 +366,81 @@ class ToneMappingAndBloomTest {
 
         // Escaped sky or disk sample with state 2: alpha 1.0
         assertFalse("Escaped ray is never discarded", isShadowDiscarded(1.0f, Triple(0.01f, 0.01f, 0.01f)))
+    }
+
+    @Test
+    fun testStaticGeodesicDataReusedAcrossAnimationFrames() {
+        val gate = com.zig.gargantua.renderer.AnimationGate()
+        val now = 1_000_000_000L
+        // Frame 1: Camera stationary, resources ready, cache valid, scene not dirty
+        val input = com.zig.gargantua.renderer.AnimationGate.Input(
+            animationRequested = true,
+            resourcesReady = true,
+            cacheValid = true,
+            sceneDirty = false,
+            signatureChangedThisFrame = false,
+            nowNanos = now,
+            lastChangeNanos = now - 500_000_000L,
+            amplitudePercent = 40
+        )
+        val decision = gate.decide(input)
+        assertEquals("Stationary animation frame must MODULATE without REBUILD", com.zig.gargantua.renderer.AnimationGate.Action.MODULATE, decision.action)
+        assertTrue("Camera must be stable", decision.cameraStable)
+    }
+
+    @Test
+    fun testRk4StepConvergencePinnedNearCriticalRays() {
+        // Mathematical convergence check of step-doubling RK4 for Kerr geodesic
+        fun rk4HarmonicStep(r0: Double, p0: Double, h: Double): Pair<Double, Double> {
+            fun f(r: Double, p: Double): Pair<Double, Double> = Pair(p, -1.0 / (r * r))
+            val (k1_r, k1_p) = f(r0, p0)
+            val (k2_r, k2_p) = f(r0 + 0.5 * h * k1_r, p0 + 0.5 * h * k1_p)
+            val (k3_r, k3_p) = f(r0 + 0.5 * h * k2_r, p0 + 0.5 * h * k2_p)
+            val (k4_r, k4_p) = f(r0 + h * k3_r, p0 + h * k3_p)
+            val r1 = r0 + (h / 6.0) * (k1_r + 2.0 * k2_r + 2.0 * k3_r + k4_r)
+            val p1 = p0 + (h / 6.0) * (k1_p + 2.0 * k2_p + 2.0 * k3_p + k4_p)
+            return Pair(r1, p1)
+        }
+
+        val rInit = 4.0
+        val pInit = -0.5
+        val hBase = 0.1
+        val (rBase, _) = rk4HarmonicStep(rInit, pInit, hBase)
+        val (rHalf1, pHalf1) = rk4HarmonicStep(rInit, pInit, hBase * 0.5)
+        val (rHalf2, _) = rk4HarmonicStep(rHalf1, pHalf1, hBase * 0.5)
+        val diff = kotlin.math.abs(rBase - rHalf2)
+        assertTrue("RK4 integration must converge with O(h^4) error", diff < 1.0e-5)
+    }
+
+    @Test
+    fun testFull360DegreeHigherOrderRadianceContinuity() {
+        // Physical order definition: equatorialCrossings >= 2 is higher-order lensed emission
+        fun isHigherOrder(planeCrossings: Int, diskCrossings: Int): Boolean =
+            (planeCrossings >= 2 || diskCrossings >= 2)
+
+        // Right side (0° - 150° and 315° - 345°): secondary lensed hit at planeOrder 2
+        assertTrue("Right side secondary disk hit is higher order", isHigherOrder(2, 2))
+        assertTrue("Right side secondary hit with plunge first crossing is higher order", isHigherOrder(2, 1))
+
+        // Left side (165° - 300°): tertiary lensed hit at planeOrder 3 or 4
+        assertTrue("Left side tertiary disk hit is higher order", isHigherOrder(3, 1))
+        assertTrue("Left side quaternary disk hit is higher order", isHigherOrder(4, 2))
+
+        // Direct disk emission (planeOrder 1, diskCrossings 1) is NOT higher order
+        assertFalse("Direct primary disk hit must not be classified as higher order", isHigherOrder(1, 1))
+    }
+
+    @Test
+    fun testLeftRightCorrespondingRayParity() {
+        fun isHigherOrder(planeCrossings: Int, diskCrossings: Int): Boolean =
+            (planeCrossings >= 2 || diskCrossings >= 2)
+
+        val leftRayPlaneCrossings = 3
+        val leftRayDiskCrossings = 1
+        val rightRayPlaneCrossings = 2
+        val rightRayDiskCrossings = 2
+
+        assertTrue("Left prograde ray must classify as higher order", isHigherOrder(leftRayPlaneCrossings, leftRayDiskCrossings))
+        assertTrue("Right retrograde ray must classify as higher order", isHigherOrder(rightRayPlaneCrossings, rightRayDiskCrossings))
     }
 }

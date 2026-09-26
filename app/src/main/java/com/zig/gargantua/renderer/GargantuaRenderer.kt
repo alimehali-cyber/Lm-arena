@@ -840,7 +840,7 @@ class GargantuaRenderer(
             AnimationGate.Action.MODULATE,
             AnimationGate.Action.PLAIN -> false
         }
-        val renderedScene = sceneDirty || (animationRequested && animationReady)
+        val renderedScene = sceneDirty || (animationRequested && animationReady && gateRequestsRebuild)
         if (gateRequestsRebuild && animationRequested && animationReady) {
             animationRebuildCount++
         }
@@ -1044,7 +1044,7 @@ class GargantuaRenderer(
                     quad
                 )
         }
-        val activePresentationHdrTextureId = hdrTextureId
+        val activePresentationHdrTextureId = if (animationFrameActive) modulatedHdrTextureId else hdrTextureId
         val presentationModulated = animationFrameActive
         val presentationChanged = presentationModulated != lastPresentedModulated
         val shouldRunBloom =
