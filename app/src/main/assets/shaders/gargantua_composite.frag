@@ -25,9 +25,11 @@ void main() {
     vec4 hdr = texture(u_HdrTexture, v_TexCoord);
 
     // Guaranteed razor-sharp black hole shadow
-    if (hdr.a <= 0.005 && dot(hdr.rgb, hdr.rgb) <= 1.0e-7) {
-        fragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
+    if (hdr.a <= 0.5) {
+        if (dot(hdr.rgb, hdr.rgb) <= 1.0e-7) {
+            fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+            return;
+        }
     }
 
     vec3 color = hdr.rgb;

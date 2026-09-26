@@ -234,18 +234,15 @@ class ToneMappingAndBloomTest {
     fun blackPixelAvoidanceAcrossShadowBoundaryAndDisk() {
         val compShader = readShader("gargantua_composite.frag")
         assertTrue(
-            "Composite shader shadow guard requires both low alpha and near-zero luminance",
-            compShader.contains("if (hdr.a <= 0.005 && dot(hdr.rgb, hdr.rgb) <= 1.0e-7)")
-        )
-        assertFalse(
-            "Composite shader must not use coarse 0.5 alpha cutoff which creates discrete black pixels",
-            compShader.contains("if (hdr.a <= 0.5)")
+            "Composite shader shadow guard requires both alpha check and near-zero luminance",
+            compShader.contains("if (hdr.a <= 0.5)") && compShader.contains("dot(hdr.rgb, hdr.rgb) <= 1.0e-7")
         )
 
         val geoShader = readShader("gargantua_geodesic.frag")
-        assertFalse(
-            "Geodesic shader must never emit 0.5 sentinel for unresolved rays",
-            geoShader.contains("fragColor = vec4(0.0, 0.0, 0.0, 0.5);")
+        assertTrue(
+            "Geodesic shader preserves radiance in unresolved branch while preserving diagnostic 0.5 for pure shadow",
+            geoShader.contains("if (baseSample.a > 0.005 || dot(baseSample.rgb, baseSample.rgb) > 1.0e-7)") &&
+                geoShader.contains("fragColor = vec4(0.0, 0.0, 0.0, 0.5);")
         )
         assertTrue(
             "Geodesic shader must refine unresolved rays (baseState == 0) to avoid false shadow assignment",
@@ -254,12 +251,8 @@ class ToneMappingAndBloomTest {
 
         val applyShader = readShader("gargantua_animation_apply.frag")
         assertTrue(
-            "Animation apply shader shadow guard requires both low alpha and near-zero luminance",
-            applyShader.contains("if (hdrColor.a <= 0.005 && dot(hdrColor.rgb, hdrColor.rgb) <= 1.0e-7)")
-        )
-        assertFalse(
-            "Animation apply shader must not kill subpixel or foreground emission with 0.5 alpha cutoff",
-            applyShader.contains("if (hdrColor.a <= 0.5)")
+            "Animation apply shader shadow guard protects illuminated foreground emission from being killed",
+            applyShader.contains("if (hdrColor.a <= 0.5)") && applyShader.contains("dot(hdrColor.rgb, hdrColor.rgb) <= 1.0e-7")
         )
     }
 

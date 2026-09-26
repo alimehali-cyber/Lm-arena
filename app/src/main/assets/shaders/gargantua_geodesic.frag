@@ -951,7 +951,7 @@ vec4 traceRaySample(
         if (accumDiskRadiance.r + accumDiskRadiance.g + accumDiskRadiance.b > 0.005) {
             return vec4(accumDiskRadiance, 1.0 + k2Lum);
         } else {
-            return vec4(0.0, 0.0, 0.0, 0.0);
+            return vec4(0.0, 0.0, 0.0, 0.5);
         }
     }
 }
@@ -1014,11 +1014,11 @@ void main() {
     } else if (rayState == 4) {
         fragColor = baseSample;
     } else {
-        // Unresolved: if baseSample accumulated radiance, preserve it; otherwise pure shadow
+        // Unresolved: if baseSample accumulated radiance, preserve it; otherwise pure shadow with alpha 0.5
         if (baseSample.a > 0.005 || dot(baseSample.rgb, baseSample.rgb) > 1.0e-7) {
             fragColor = baseSample;
         } else {
-            fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+            fragColor = vec4(0.0, 0.0, 0.0, 0.5);
         }
     }
 

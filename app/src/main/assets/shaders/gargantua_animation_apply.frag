@@ -182,13 +182,15 @@ void main() {
     if (state <= 1.5) {
         // Event Horizon Shadow or Unresolved: Preserve pure black & strict alpha
         // If HDR color has accumulated foreground disk radiance, preserve it; otherwise pure black
-        if (hdrColor.a <= 0.005 && dot(hdrColor.rgb, hdrColor.rgb) <= 1.0e-7) {
-            fragColor = vec4(0.0, 0.0, 0.0, 0.0);
-        } else {
-            // Foreground gas in front of horizon: modulate radiance
-            float modFactor = texelFetch(u_ModulationTexture, coord, 0).r;
-            fragColor = vec4(hdrColor.rgb * modFactor, hdrColor.a);
+        if (hdrColor.a <= 0.5) {
+            if (dot(hdrColor.rgb, hdrColor.rgb) <= 1.0e-7) {
+                fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+                return;
+            }
         }
+        // Foreground gas in front of horizon: modulate radiance
+        float modFactor = texelFetch(u_ModulationTexture, coord, 0).r;
+        fragColor = vec4(hdrColor.rgb * modFactor, hdrColor.a);
         return;
     }
 
