@@ -1475,7 +1475,7 @@ class GargantuaRenderer(
     }
 
     /** UI thread, DIAG only: one processed touch event for the manual camera trace. */
-    fun noteDiagnosticInput(event: GargantuaLensAnalysis.InputEvent) {
+    internal fun noteDiagnosticInput(event: GargantuaLensAnalysis.InputEvent) {
         val userState = stateHolder.getState()
         if (userState.diagnosticView != 0) gpuDiagnostics.noteInput(event)
     }
