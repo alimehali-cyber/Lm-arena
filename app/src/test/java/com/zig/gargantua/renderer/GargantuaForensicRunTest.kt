@@ -26,22 +26,34 @@ class GargantuaForensicRunTest {
      * configuration costs one retrace frame (2 geodesic passes); the material pass is presented after
      * [activationFrames] further frames when animation is requested (never when [animationWorks] is false).
      */
-    private class FakeRenderer(val animationWorks: Boolean = true, val activationFrames: Int = 8) {
+    private class FakeRenderer(
+        val animationWorks: Boolean = true,
+        val activationFrames: Int = 8,
+        /** False models the reported bug: after a camera move the animation never presents again. */
+        val resumesAfterMove: Boolean = true
+    ) {
         private var lastKey: String? = null
+        private var lastCamera: String? = null
         private var framesSinceChange = 0
+        private var moved = false
         var rebuilds = 0
 
         fun frame(effective: GargantuaRenderState, now: Long): GargantuaForensicRun.FrameStatus {
             val requested = effective.enableAnimation && effective.animationAmplitudePercent > 0
             val key = "${effective.enableAnimation}/${effective.animationAmplitudePercent}/${effective.diagnosticRecordPrecision}/${effective.diagnosticRebuildGeneration}"
-            val changed = key != lastKey
+            val camera = "${effective.camAzimuthDeg}/${effective.camInclinationDeg}"
+            val cameraChanged = lastCamera != null && camera != lastCamera
+            if (cameraChanged) moved = true
+            lastCamera = camera
+            val changed = key != lastKey || cameraChanged
             if (changed) { lastKey = key; framesSinceChange = 0; if (requested) rebuilds++ } else framesSinceChange++
-            val active = requested && animationWorks && framesSinceChange >= activationFrames
+            val active = requested && animationWorks && framesSinceChange >= activationFrames && (resumesAfterMove || !moved)
             return GargantuaForensicRun.FrameStatus(
                 nowNanos = now, animationActive = active, animationRequested = requested,
                 geodesicPasses = if (changed) 2 else 0, materialRan = active, bloomRan = true, compositeRan = true,
-                rebuilds = rebuilds, gateAction = if (active) "MODULATE" else if (requested) "NONE" else "PLAIN",
-                animationStatus = if (requested && !animationWorks) "ANIM FAILED: test" else "none"
+                rebuilds = rebuilds, gateAction = if (active) "MODULATE" else if (changed && requested) "REBUILD" else "PLAIN",
+                animationStatus = if (requested && !animationWorks) "ANIM FAILED: test" else "none",
+                camAzDeg = effective.camAzimuthDeg, camInclDeg = effective.camInclinationDeg, signatureChanged = cameraChanged
             )
         }
     }
@@ -57,7 +69,8 @@ class GargantuaForensicRunTest {
         run.start(now)
         val end = now + maxSeconds * 1_000_000_000L
         while (now < end && run.state == GargantuaForensicRun.State.RUNNING) {
-            val effective = GargantuaForensicRun.effectiveState(user, run.activePhase(), run.rebuildGeneration)
+            run.snapshotOffsets()
+            val effective = GargantuaForensicRun.effectiveState(user, run.activePhase(), run.rebuildGeneration, run.cameraOffsetAz, run.cameraOffsetIncl)
             run.activePhase()?.let { trace.configs.add("${it.id}:${effective.enableAnimation}/${effective.animationAmplitudePercent}/${effective.diagnosticRecordPrecision}/${effective.diagnosticRebuildGeneration}") }
             val phaseId = run.activePhase()?.id
             val work = run.onFrame(renderer.frame(effective, now))
@@ -89,10 +102,10 @@ class GargantuaForensicRunTest {
         drive(run, FakeRenderer(), user, 300, trace)
 
         assertEquals(GargantuaForensicRun.State.COMPLETE, run.state)
-        assertEquals(listOf("A", "C", "D", "E", "RA", "RB"), run.records.map { it.phase.id })
-        assertTrue(run.records.all { it.finished && it.failures.isEmpty() })
-        // Every phase: t0 sample, three cache passes, ring, black pixels, pass graph.
-        for (id in run.records.map { it.phase.id }) {
+        assertEquals(listOf("A", "C", "D", "E", "M0", "M1", "M2", "M3", "M4", "M5", "RA", "RB"), run.records.map { it.phase.id })
+        assertTrue(run.records.filter { it.failures.isNotEmpty() }.joinToString { "${it.phase.id}: ${it.failures}" }, run.records.all { it.finished && it.failures.isEmpty() })
+        // Every static-camera phase: t0 sample, three cache passes, ring, black pixels, pass graph.
+        for (id in run.records.filter { it.phase.motion == null }.map { it.phase.id }) {
             val kinds = trace.works.filter { it.first == id }.map { it.second.toString() }
             for (expected in listOf("SAMPLE0", "CACHE0", "CACHE1", "CACHE2", "RING", "BLACK", "GRAPH")) {
                 assertTrue("$id missing $expected: $kinds", expected in kinds)
@@ -145,7 +158,7 @@ class GargantuaForensicRunTest {
         val user = GargantuaRenderState(diagnosticView = 7)
         run.start(0L)
         run.onFrame(renderer.frame(GargantuaForensicRun.effectiveState(user, run.activePhase(), 0), frameNanos))
-        assertTrue(run.progressText(frameNanos).contains("Phase 1/6"))
+        assertTrue(run.progressText(frameNanos).contains("Phase 1/12"))
         assertTrue(run.progressText(frameNanos).contains("DO NOT TOUCH"))
         // A single long frame (forced program rebuild + cache retrace) does not interrupt the run.
         run.onFrame(renderer.frame(GargantuaForensicRun.effectiveState(user, run.activePhase(), 0), frameNanos + 6_000_000_000L))
@@ -290,5 +303,77 @@ class GargantuaForensicRunTest {
         record.samples.clear()
         (0..2).forEach { record.samples.add(sample(it, 0, 0, 0)) }
         assertTrue(GargantuaForensicReport.analyse(run).animationStage.startsWith("MATERIAL PASS"))
+    }
+
+    @Test
+    fun motionPhasesMoveOnlyTheEffectiveCameraAndMeasureTheRestartAfterRelease() {
+        val run = GargantuaForensicRun()
+        val user = GargantuaRenderState(camAzimuthDeg = 10f, camInclinationDeg = 80f, diagnosticView = 7)
+        val trace = Trace()
+        drive(run, FakeRenderer(), user, 400, trace)
+        assertEquals(GargantuaForensicRun.State.COMPLETE, run.state)
+        val m1 = run.records.first { it.phase.id == "M1" }
+        // POP0, POP1 and POP2 in three consecutive frames (POP2 is the retrace caused by the nudge), POP3 at the restart.
+        val idx = trace.works.indices.filter { trace.works[it].first == "M1" && trace.works[it].second.kind == WorkKind.POP }
+        assertEquals(listOf("POP0", "POP1", "POP2", "POP3"), idx.map { trace.works[it].second.toString() })
+        assertEquals(frameNanos, trace.workTimes[idx[1]] - trace.workTimes[idx[0]])
+        assertEquals(frameNanos, trace.workTimes[idx[2]] - trace.workTimes[idx[1]])
+        val popFrame = m1.motionTrace.first { it.offsetAz == GargantuaForensicRun.POP_NUDGE_DEG }
+        assertEquals("REBUILD", popFrame.gate)
+        // The renderer's camera equals user + scripted offset in every traced frame; the script ends at 40 x 0.6 deg.
+        for (t in m1.motionTrace) assertEquals(10f + t.offsetAz, t.camAz, 1e-4f)
+        assertEquals(40 * 0.6f + GargantuaForensicRun.POP_NUDGE_DEG, m1.motionTrace.last().offsetAz, 1e-3f)
+        val restart = m1.restart!!
+        assertTrue(restart.restarted)
+        // FakeRenderer presents animation 8 frames after the last change.
+        assertEquals(8 * frameNanos / 1e6f, restart.firstModulateMs, 0.5f)
+        // Gaps: M3 waits >= 150 ms between bursts, M4 >= 450 ms.
+        for ((id, gap) in listOf("M3" to 150f, "M4" to 450f)) {
+            val r = run.records.first { it.phase.id == id }
+            val g = r.motionTrace.filter { it.stage == 'G' }
+            assertTrue(id, g.isNotEmpty())
+            val moves = r.motionTrace.map { it.offsetAz }.distinct()
+            assertEquals(id, 18 + 1, moves.size) // 6 bursts x 3 moves, plus the unmoved first frame
+            val runs = r.motionTrace.zipWithNext().filter { (a, b) -> a.stage == 'G' && b.stage == 'S' }.size
+            assertEquals(id, 5, runs)
+            assertTrue(id, g.last().tMs - g.first().tMs >= gap)
+        }
+        // Inclination phase moved the inclination only; ANIM OFF phase has no restart expectation.
+        val m2 = run.records.first { it.phase.id == "M2" }
+        assertEquals(-12f, m2.motionTrace.last().offsetIncl, 1e-3f)
+        assertEquals(0f, m2.motionTrace.last().offsetAz, 0f)
+        // Offsets are reset between phases and after the run: the user's camera is never written.
+        assertEquals(0f, run.cameraOffsetAz, 0f)
+        val report = GargantuaForensicReport.motion(run)
+        assertTrue(report.joinToString("\n"), report.last().startsWith("RESTART INVARIANT (animation resumes without toggling): PASS in 5 phases"))
+        assertTrue(report.any { it.contains("POP: last D2 -> retraced frame") })
+    }
+
+    @Test
+    fun animationThatDoesNotResumeAfterAMoveFailsTheRestartInvariant() {
+        val run = GargantuaForensicRun()
+        val trace = Trace()
+        drive(run, FakeRenderer(resumesAfterMove = false), GargantuaRenderState(diagnosticView = 7), 900, trace)
+        assertEquals(GargantuaForensicRun.State.COMPLETE, run.state)
+        val m1 = run.records.first { it.phase.id == "M1" }
+        assertEquals(false, m1.restart!!.restarted)
+        assertTrue(m1.failures.toString(), m1.failures.any { it.startsWith("ANIMATION DID NOT RESTART within 8000 ms after release") })
+        assertTrue(m1.restart!!.plainFrames > 0)
+        val verdict = GargantuaForensicReport.motion(run).last()
+        assertTrue(verdict, verdict.contains("FAIL in M1"))
+        // The ANIM OFF motion phase has no restart failure.
+        assertTrue(run.records.first { it.phase.id == "M0" }.failures.none { it.startsWith("ANIMATION DID NOT RESTART") })
+    }
+
+    @Test
+    fun effectiveStateAppliesCameraOffsetsWithWrapAndClamp() {
+        val phase = GargantuaForensicRun.PHASES.first { it.id == "M1" }
+        val user = GargantuaRenderState(camAzimuthDeg = 350f, camInclinationDeg = 170f)
+        val e = GargantuaForensicRun.effectiveState(user, phase, 0, 20f, 10f)
+        assertEquals(10f, e.camAzimuthDeg, 1e-4f)
+        assertEquals(175f, e.camInclinationDeg, 0f)
+        assertEquals(350f, user.camAzimuthDeg, 0f)
+        val same = GargantuaForensicRun.effectiveState(user, phase, 0)
+        assertEquals(user.camAzimuthDeg, same.camAzimuthDeg, 0f)
     }
 }

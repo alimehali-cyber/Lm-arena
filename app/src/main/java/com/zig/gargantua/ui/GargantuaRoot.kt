@@ -908,6 +908,25 @@ private fun GpuDiagnosticsOverlay(
                     )
                 }
             }
+            // Lensing views of the geodesic classification (available after the LENS capture of phase D).
+            val lensViews = listOf(
+                GargantuaGpuDiagnostics.View.L1_CAPTURE to "L1",
+                GargantuaGpuDiagnostics.View.L2_DISK_HIT to "L2",
+                GargantuaGpuDiagnostics.View.L3_R_HIT to "L3",
+                GargantuaGpuDiagnostics.View.L4_PHI_HIT to "L4",
+                GargantuaGpuDiagnostics.View.L5_HO_COUNT to "L5",
+                GargantuaGpuDiagnostics.View.L6_BOUNDARY to "L6"
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                for ((v, label) in lensViews) {
+                    PanelButton(
+                        label = label,
+                        selected = view == v.ordinal,
+                        onClick = { onSelectView(v.ordinal) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
             if (expanded) {
                 Box(modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(scroll)) {
                     Text(

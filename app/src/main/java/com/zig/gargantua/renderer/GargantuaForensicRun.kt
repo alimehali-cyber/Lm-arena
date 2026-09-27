@@ -30,14 +30,71 @@ internal class GargantuaForensicRun {
         val minSettleMs: Long,
         val timeoutMs: Long,
         /** Sample times relative to t0 (first sample). One sample for static phases, t0/t1/t2 for animation. */
-        val sampleOffsetsMs: List<Long>
+        val sampleOffsetsMs: List<Long>,
+        /** Scripted camera motion after the phase settled (null: static camera). */
+        val motion: Motion? = null,
+        /** Measure the geodesic classification (LENS work) once the phase is settled. */
+        val lens: Boolean = false
+    )
+
+    /**
+     * A scripted camera move applied through the effective state only (the user's camera is never
+     * written): [bursts] bursts of [framesPerBurst] frames, each frame adding (dAz, dIncl) degrees,
+     * separated by [gapMs]. With [pop] the script starts with the D2 pop probe (POP0..POP2).
+     */
+    class Motion(
+        val dAzDeg: Float,
+        val dInclDeg: Float,
+        val framesPerBurst: Int,
+        val bursts: Int = 1,
+        val gapMs: Long = 0L,
+        val pop: Boolean = false,
+        /** Maximum time from the release until the phase must present animation again. */
+        val restartTimeoutMs: Long = 8_000L
+    )
+
+    /** One frame of a scripted motion phase (stage P pre-move work, S move, G gap, R after release). */
+    class MotionFrame(
+        val tMs: Float,
+        val stage: Char,
+        val offsetAz: Float,
+        val offsetIncl: Float,
+        val camAz: Float,
+        val camIncl: Float,
+        val gate: String,
+        val geodesicPasses: Int,
+        val materialRan: Boolean,
+        val presentedModulated: Boolean,
+        val signatureChanged: Boolean,
+        val sceneDirty: Boolean,
+        val cacheValid: Boolean,
+        val cacheComplete: Boolean,
+        val cpuMs: Float,
+        val status: String
+    )
+
+    /** Restart measurement of one motion phase (times relative to the release frame). */
+    class Restart(
+        val releaseNanos: Long,
+        var firstCompleteCacheMs: Float = -1f,
+        var firstModulateMs: Float = -1f,
+        var plainFrames: Int = 0,
+        var rebuildFramesAfterRelease: Int = 0,
+        var framesToModulate: Int = 0,
+        var restarted: Boolean = false,
+        var statusAtTimeout: String = ""
     )
 
     /** GL work the executor performs in one frame. SAMPLE carries its index into [Phase.sampleOffsetsMs]. */
-    enum class WorkKind { NONE, SAMPLE, CACHE, RING, BLACK, GRAPH }
+    enum class WorkKind { NONE, SAMPLE, CACHE, RING, BLACK, GRAPH, POP, LENS }
 
     class Work(val kind: WorkKind, val index: Int = 0, val cachePass: Int = 0) {
-        override fun toString() = if (kind == WorkKind.SAMPLE) "SAMPLE$index" else if (kind == WorkKind.CACHE) "CACHE$cachePass" else kind.name
+        override fun toString() = when (kind) {
+            WorkKind.SAMPLE -> "SAMPLE$index"
+            WorkKind.CACHE -> "CACHE$cachePass"
+            WorkKind.POP -> "POP$index"
+            else -> kind.name
+        }
     }
 
     /** Measured renderer status of the frame that just finished (real renderer bookkeeping + GL results). */
@@ -51,7 +108,15 @@ internal class GargantuaForensicRun {
         val compositeRan: Boolean,
         val rebuilds: Int,
         val gateAction: String,
-        val animationStatus: String
+        val animationStatus: String,
+        val camAzDeg: Float = 0f,
+        val camInclDeg: Float = 0f,
+        val signatureChanged: Boolean = false,
+        val sceneDirty: Boolean = false,
+        val cacheValid: Boolean = false,
+        val cacheComplete: Boolean = false,
+        val presentedModulated: Boolean = false,
+        val cpuMs: Float = 0f
     )
 
     class Perf {
@@ -97,6 +162,25 @@ internal class GargantuaForensicRun {
         var animationActiveAtCapture = false
         val perf = Perf()
         var finished = false
+        /** Motion phases: 0 pre-settle, 1 script, 2 after release, 3 done. */
+        var motionStage = 0
+        var motionStartNanos = 0L
+        val motionTrace = ArrayList<MotionFrame>()
+        var restart: Restart? = null
+        /** POP probe: D2 frame-to-frame change (baseline) and D2(prev) vs the rebuilt trace. */
+        var popBaseline: GargantuaForensicData.DiffStat? = null
+        var popStep: GargantuaForensicData.DiffStat? = null
+        var popStepGate = ""
+        /** Restart pop: first material frame after the release vs its static cache. */
+        var restartPop: GargantuaForensicData.DiffStat? = null
+        var lensText: String? = null
+        var lensResult: GargantuaLensAnalysis.Result? = null
+    }
+
+    private sealed class Step {
+        class DoWork(val work: Work) : Step()
+        class Move(val dAz: Float, val dIncl: Float) : Step()
+        class Wait(val ms: Long) : Step()
     }
 
     var state = State.IDLE
@@ -114,6 +198,14 @@ internal class GargantuaForensicRun {
     private var stableFrames = 0
     private val pending = ArrayList<Work>()
     private var timedSamples = ArrayList<Int>()
+    private val script = ArrayList<Step>()
+    private var waitStartNanos = 0L
+
+    /** Camera offsets (degrees) the effective state adds for the next frame; 0 outside motion phases. */
+    var cameraOffsetAz = 0f
+        private set
+    var cameraOffsetIncl = 0f
+        private set
 
     val phases: List<Phase> get() = PHASES
     val currentRecord: PhaseRecord? get() = records.getOrNull(phaseIndex)?.takeIf { state == State.RUNNING }
@@ -134,6 +226,8 @@ internal class GargantuaForensicRun {
     fun cancel() {
         state = State.IDLE
         phaseIndex = -1
+        cameraOffsetAz = 0f
+        cameraOffsetIncl = 0f
         pending.clear()
         timedSamples.clear()
     }
@@ -142,6 +236,8 @@ internal class GargantuaForensicRun {
         if (state != State.RUNNING) return
         state = State.INTERRUPTED
         interruptReason = reason
+        cameraOffsetAz = 0f
+        cameraOffsetIncl = 0f
         pending.clear()
         timedSamples.clear()
     }
@@ -174,6 +270,12 @@ internal class GargantuaForensicRun {
         lastFrameHadWork = false
         accountPerf(record.perf, status)
 
+        if (phase.motion != null && record.motionStage < 3) {
+            val w = motionStep(record, phase, phase.motion, status)
+            if (w != null) return w
+            if (record.motionStage < 3) return NO_WORK
+        }
+
         if (record.settledNanos == 0L) {
             val stable = status.geodesicPasses == 0 && (!phase.expectsAnimation || (status.animationActive && status.materialRan))
             stableFrames = if (stable) stableFrames + 1 else 0
@@ -194,9 +296,12 @@ internal class GargantuaForensicRun {
             pending.clear()
             pending.add(Work(WorkKind.SAMPLE, 0))
             for (p in 0 until AnimationGate.CACHE_PASS_COUNT) pending.add(Work(WorkKind.CACHE, cachePass = p))
-            pending.add(Work(WorkKind.RING))
-            pending.add(Work(WorkKind.BLACK))
-            pending.add(Work(WorkKind.GRAPH))
+            if (phase.lens) pending.add(Work(WorkKind.LENS))
+            if (phase.motion == null) {
+                pending.add(Work(WorkKind.RING))
+                pending.add(Work(WorkKind.BLACK))
+                pending.add(Work(WorkKind.GRAPH))
+            }
         }
 
         // Timed samples (t1, t2) take priority once due; they are measured relative to t0.
@@ -211,6 +316,125 @@ internal class GargantuaForensicRun {
         if (timedSamples.isNotEmpty()) return NO_WORK
         finishPhase(record, now)
         return NO_WORK
+    }
+
+    private fun isStable(phase: Phase, s: FrameStatus) =
+        s.geodesicPasses == 0 && (!phase.enableAnimation || (s.animationActive && s.materialRan))
+
+    private fun trace(record: PhaseRecord, stage: Char, s: FrameStatus) {
+        if (record.motionTrace.size >= MAX_MOTION_FRAMES) return
+        record.motionTrace.add(
+            MotionFrame(
+                (s.nowNanos - record.motionStartNanos) / 1e6f, stage, frameOffsetAz, frameOffsetIncl, s.camAzDeg, s.camInclDeg,
+                s.gateAction, s.geodesicPasses, s.materialRan, s.presentedModulated, s.signatureChanged, s.sceneDirty,
+                s.cacheValid, s.cacheComplete, s.cpuMs, s.animationStatus
+            )
+        )
+    }
+
+    /** Offsets the effective state of the frame now ending actually used (snapshotted at frame start). */
+    private var frameOffsetAz = 0f
+    private var frameOffsetIncl = 0f
+
+    /** Called by the executor when it builds the effective state of a frame. */
+    fun snapshotOffsets() {
+        frameOffsetAz = cameraOffsetAz
+        frameOffsetIncl = cameraOffsetIncl
+    }
+
+    /**
+     * Motion phases: pre-settle (same criterion as sampling), the scripted camera move, the release and
+     * the restart measurement. Returns work for this frame, or null. Sets motionStage 3 when done.
+     */
+    private fun motionStep(record: PhaseRecord, phase: Phase, m: Motion, s: FrameStatus): Work? {
+        val now = s.nowNanos
+        when (record.motionStage) {
+            0 -> {
+                stableFrames = if (isStable(phase, s)) stableFrames + 1 else 0
+                val elapsedMs = (now - record.startNanos) / 1_000_000L
+                val settled = stableFrames >= phase.minStableFrames && elapsedMs >= phase.minSettleMs
+                if (!settled && elapsedMs < phase.timeoutMs) return null
+                if (!settled) record.failures.add("MOTION PRE-SETTLE timed out: gate=${s.gateAction} status=${s.animationStatus}")
+                record.motionStage = 1
+                record.motionStartNanos = now
+                script.clear()
+                if (m.pop && phase.enableAnimation) {
+                    script.add(Step.DoWork(Work(WorkKind.POP, 0)))
+                    script.add(Step.DoWork(Work(WorkKind.POP, 1)))
+                    script.add(Step.DoWork(Work(WorkKind.POP, 2)))
+                }
+                for (b in 0 until m.bursts) {
+                    if (b > 0 && m.gapMs > 0) script.add(Step.Wait(m.gapMs))
+                    repeat(m.framesPerBurst) { script.add(Step.Move(m.dAzDeg, m.dInclDeg)) }
+                }
+                trace(record, 'P', s)
+                return advanceScript(record, s)
+            }
+            1 -> {
+                trace(record, if (script.firstOrNull() is Step.Wait) 'G' else 'S', s)
+                return advanceScript(record, s)
+            }
+            2 -> {
+                val r = record.restart ?: return null
+                trace(record, 'R', s)
+                val tMs = (now - r.releaseNanos) / 1e6f
+                if (r.firstModulateMs < 0f) {
+                    r.framesToModulate++
+                    if (s.gateAction == "PLAIN") r.plainFrames++
+                    if (s.geodesicPasses > 0 && s.gateAction == "REBUILD") r.rebuildFramesAfterRelease++
+                    if (s.gateAction == "COMPLETE_CACHE" && r.firstCompleteCacheMs < 0f) r.firstCompleteCacheMs = tMs
+                    if (s.gateAction == "MODULATE" && s.materialRan) {
+                        r.firstModulateMs = tMs
+                        r.restarted = true
+                        if (phase.enableAnimation) return Work(WorkKind.POP, 3)
+                    }
+                }
+                val stable = isStable(phase, s)
+                stableFrames = if (stable) stableFrames + 1 else 0
+                val done = if (phase.enableAnimation) r.restarted && stableFrames >= phase.minStableFrames else stableFrames >= phase.minStableFrames
+                if (done) { record.motionStage = 3; return null }
+                if (tMs >= m.restartTimeoutMs) {
+                    r.statusAtTimeout = "gate=${s.gateAction} active=${s.animationActive} material=${s.materialRan} geodesic=${s.geodesicPasses} status=${s.animationStatus}"
+                    record.failures.add(
+                        if (phase.enableAnimation && !r.restarted) "ANIMATION DID NOT RESTART within ${m.restartTimeoutMs} ms after release: ${r.statusAtTimeout}"
+                        else "NOT STABLE ${m.restartTimeoutMs} ms after release: ${r.statusAtTimeout}"
+                    )
+                    record.motionStage = 3
+                }
+                return null
+            }
+        }
+        return null
+    }
+
+    private fun advanceScript(record: PhaseRecord, s: FrameStatus): Work? {
+        while (script.isNotEmpty()) {
+            when (val step = script.first()) {
+                is Step.DoWork -> {
+                    script.removeAt(0)
+                    // POP1 measures the D2 baseline in this frame; the nudge makes the next frame a rebuild (POP2).
+                    if (step.work.kind == WorkKind.POP && step.work.index == 1) cameraOffsetAz += POP_NUDGE_DEG
+                    return step.work
+                }
+                is Step.Move -> {
+                    script.removeAt(0)
+                    cameraOffsetAz += step.dAz
+                    cameraOffsetIncl += step.dIncl
+                    return null
+                }
+                is Step.Wait -> {
+                    if (waitStartNanos == 0L) waitStartNanos = s.nowNanos
+                    if (s.nowNanos - waitStartNanos < step.ms * 1_000_000L) return null
+                    waitStartNanos = 0L
+                    script.removeAt(0)
+                }
+            }
+        }
+        // Script finished: this frame rendered the last offset; the release is now.
+        record.motionStage = 2
+        record.restart = Restart(s.nowNanos)
+        stableFrames = 0
+        return null
     }
 
     /** The executor performed [work] in this frame (its cost falls into the next frame interval). */
@@ -243,6 +467,10 @@ internal class GargantuaForensicRun {
         stableFrames = 0
         pending.clear()
         timedSamples.clear()
+        script.clear()
+        waitStartNanos = 0L
+        cameraOffsetAz = 0f
+        cameraOffsetIncl = 0f
     }
 
     private fun finishPhase(record: PhaseRecord, nowNanos: Long) {
@@ -277,16 +505,29 @@ internal class GargantuaForensicRun {
          * The renderer's effective per-frame state during a run: the user's state with the phase overrides.
          * Without an active phase (no run, run complete or interrupted) the user's state is returned as is.
          */
-        fun effectiveState(user: GargantuaRenderState, phase: Phase?, rebuildGeneration: Int): GargantuaRenderState {
+        fun effectiveState(
+            user: GargantuaRenderState,
+            phase: Phase?,
+            rebuildGeneration: Int,
+            offsetAzDeg: Float = 0f,
+            offsetInclDeg: Float = 0f
+        ): GargantuaRenderState {
             if (phase == null) return user
+            var az = (user.camAzimuthDeg + offsetAzDeg) % 360f
+            if (az < 0f) az += 360f
             return user.copy(
                 enableAnimation = phase.enableAnimation,
                 animationAmplitudePercent = phase.amplitudePercent,
                 diagnosticRecordPrecision = phase.precision.ordinal,
-                diagnosticRebuildGeneration = rebuildGeneration
+                diagnosticRebuildGeneration = rebuildGeneration,
+                camAzimuthDeg = if (offsetAzDeg == 0f) user.camAzimuthDeg else az,
+                camInclinationDeg = if (offsetInclDeg == 0f) user.camInclinationDeg else (user.camInclinationDeg + offsetInclDeg).coerceIn(5f, 175f)
             )
         }
-        const val ESTIMATED_SECONDS = 100L
+        const val ESTIMATED_SECONDS = 190L
+        const val MAX_MOTION_FRAMES = 600
+        /** Camera nudge of the POP probe: changes the ray signature (forces the rebuild) but not the image. */
+        const val POP_NUDGE_DEG = 0.001f
         /**
          * A frame gap longer than this interrupts the run (app paused/backgrounded). It must exceed one
          * frame that compiles and links both animation programs and retraces the cache (REC phases force
@@ -300,8 +541,11 @@ internal class GargantuaForensicRun {
         private fun static(id: String, title: String, anim: Boolean, amp: Int) =
             Phase(id, title, anim, amp, P, false, false, 15, 1500L, 12_000L, SINGLE)
 
-        private fun animated(id: String, title: String, amp: Int, precision: GargantuaGpuDiagnostics.RecordPrecision, rebuild: Boolean) =
-            Phase(id, title, true, amp, precision, rebuild, true, 12, 2000L, 30_000L, SERIES)
+        private fun animated(id: String, title: String, amp: Int, precision: GargantuaGpuDiagnostics.RecordPrecision, rebuild: Boolean, lens: Boolean = false) =
+            Phase(id, title, true, amp, precision, rebuild, true, 12, 2000L, 30_000L, SERIES, lens = lens)
+
+        private fun moving(id: String, title: String, anim: Boolean, motion: Motion, lens: Boolean = false) =
+            Phase(id, title, anim, if (anim) 40 else 0, P, false, anim, 12, 1500L, 30_000L, if (anim) listOf(0L, 1500L, 3000L) else SINGLE, motion, lens)
 
         /**
          * The matrix, in execution order: the production phases first, the optional REC comparisons last so
@@ -311,8 +555,14 @@ internal class GargantuaForensicRun {
         val PHASES: List<Phase> = listOf(
             static("A", "baseline, ANIM OFF", false, 0),
             animated("C", "ANIM ON 15%", 15, P, false),
-            animated("D", "ANIM ON 40%", 40, P, false),
+            animated("D", "ANIM ON 40%", 40, P, false, lens = true),
             animated("E", "ANIM ON 80%", 80, P, false),
+            moving("M0", "ANIM OFF az drag 40x0.6deg", false, Motion(0.6f, 0f, 40)),
+            moving("M1", "ANIM ON az drag 40x0.6deg + pop", true, Motion(0.6f, 0f, 40, pop = true)),
+            moving("M2", "ANIM ON incl drag 30x-0.4deg", true, Motion(0f, -0.4f, 30), lens = true),
+            moving("M3", "ANIM ON small moves, 150ms gaps", true, Motion(0.15f, 0f, 3, bursts = 6, gapMs = 150L)),
+            moving("M4", "ANIM ON small moves, 450ms gaps", true, Motion(0.15f, 0f, 3, bursts = 6, gapMs = 450L)),
+            moving("M5", "ANIM ON large az move 30x3deg", true, Motion(3f, 0f, 30), lens = true),
             animated("RA", "REC production @40%", 40, GargantuaGpuDiagnostics.RecordPrecision.AS_SHIPPED, true),
             animated("RB", "REC +highp-int @40%", 40, GargantuaGpuDiagnostics.RecordPrecision.HIGHP_INT, true)
         )
@@ -392,6 +642,8 @@ internal object GargantuaForensicData {
         val invalidNonzeroCrossings: Long = 0,
         /** Crossings whose two words are both zero (no disk crossing recorded). */
         val zeroCrossings: Long = 0,
+        /** Crossings holding only a tier flag (x = 0, y = bit 15): no crossing recorded, not truncated. */
+        val flagOnlyCrossings: Long = 0,
         /** First nonzero crossing (x word, y word) and first valid crossing found by the GPU scan; 0 if none. */
         val sampleNonzero: LongArray = LongArray(2),
         val sampleValid: LongArray = LongArray(2)

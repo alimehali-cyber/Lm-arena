@@ -46,7 +46,13 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         D4_BLOOM("D4 bloom"),
         D5_PRE_TONEMAP("D5 composite before ACES"),
         D6_FINAL("D6 final (real composite)"),
-        D7_HIGHER_ORDER("D7 higher-order / total");
+        D7_HIGHER_ORDER("D7 higher-order / total"),
+        L1_CAPTURE("L1 capture/escape (black captured, blue escaped, yellow mixed)"),
+        L2_DISK_HIT("L2 disk hit (white 1 crossing, green 2)"),
+        L3_R_HIT("L3 r_hit of crossing 1"),
+        L4_PHI_HIT("L4 phi_hit of crossing 1"),
+        L5_HO_COUNT("L5 HO crossings (orange 1, red 2)"),
+        L6_BOUNDARY("L6 boundaries (white capture, green D0 dark, magenta D6 dark)");
 
         companion object {
             fun fromIndex(index: Int): View = values().getOrElse(index) { OFF }
@@ -107,7 +113,23 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         val animationStatus: String,
         val config: String,
         val fbos: List<Pair<String, Int>>,
-        val drawRealComposite: () -> Unit
+        val drawRealComposite: () -> Unit,
+        /** Camera actually used: dist, incl, az, targetX, targetY, targetZ. */
+        val camera: FloatArray = FloatArray(6),
+        val mass: Float = 1f,
+        val spinA: Float = 0f,
+        val maxSteps: Int = 0,
+        val enableDoppler: Boolean = false,
+        val signatureChanged: Boolean = false,
+        val sceneDirty: Boolean = false,
+        val cacheValid: Boolean = false,
+        val cacheComplete: Boolean = false,
+        val presentedModulated: Boolean = false,
+        /**
+         * Redraws the program of the last geodesic trace with u_EnableDisk = 0 into (fbo, w, h) and restores
+         * the uniform. Returns null on success or the reason it refused (scene changed since the trace, ...).
+         */
+        val redrawTraceWithoutDisk: (Int, Int, Int) -> String? = { _, _, _ -> "not provided" }
     )
 
     val run = GargantuaForensicRun()
@@ -149,6 +171,15 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
     private var timerOpen: String? = null
     private val samplerUniformCache = HashMap<Int, List<Pair<String, Int>>>()
 
+    private var lensProgram: ShaderProgram? = null
+    private var lensNoDiskFbo = 0
+    private var lensNoDiskTex = 0
+    private var lensFbo = 0
+    private var lensTex = 0
+    private var lensW = 0
+    private var lensH = 0
+    private var lensValid = false
+
     private var report = ""
     private var status = ""
     private var reportBuilt = false
@@ -160,8 +191,8 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
     private val probeBuffer: IntBuffer =
         ByteBuffer.allocateDirect(SCAN_SAMPLES * PROBE_ROWS * 16).order(ByteOrder.nativeOrder()).asIntBuffer()
 
-    /** Compact COPY REPORT text (complete once the run finished or was interrupted). */
-    val reportText: String get() = report
+    /** Compact COPY REPORT text (complete once the run finished or was interrupted) + the manual drag trace. */
+    val reportText: String get() = if (report.isEmpty()) report else report + manualTraceSection()
     /** Short progress / completion status for the overlay. */
     val statusText: String get() = status
 
@@ -178,7 +209,8 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             report = ""
             reportBuilt = false
         }
-        return GargantuaForensicRun.effectiveState(user, run.activePhase(), run.rebuildGeneration)
+        run.snapshotOffsets()
+        return GargantuaForensicRun.effectiveState(user, run.activePhase(), run.rebuildGeneration, run.cameraOffsetAz, run.cameraOffsetIncl)
     }
 
     fun interruptRun(reason: String) {
@@ -339,6 +371,8 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         if (capsText == null) capsText = collectCaps()
         pollTimers()
         ensureStageTargets(frame)
+        val cpuMs = (System.nanoTime() - frame.nowNanos) / 1e6f
+        if (run.state != GargantuaForensicRun.State.RUNNING) noteFrame(frame, cpuMs)
 
         val work = run.onFrame(
             GargantuaForensicRun.FrameStatus(
@@ -351,7 +385,15 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
                 compositeRan = frame.compositeRan,
                 rebuilds = frame.rebuilds,
                 gateAction = frame.gateAction,
-                animationStatus = frame.animationStatus
+                animationStatus = frame.animationStatus,
+                camAzDeg = frame.camera[2],
+                camInclDeg = frame.camera[1],
+                signatureChanged = frame.signatureChanged,
+                sceneDirty = frame.sceneDirty,
+                cacheValid = frame.cacheValid,
+                cacheComplete = frame.cacheComplete,
+                presentedModulated = frame.presentedModulated,
+                cpuMs = cpuMs
             )
         )
         val record = run.currentRecord
@@ -383,8 +425,8 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
     }
 
     fun release() {
-        listOf(viewProgram, statsProgram, probeProgram, preToneProgram).forEach { it?.release() }
-        viewProgram = null; statsProgram = null; probeProgram = null; preToneProgram = null
+        listOf(viewProgram, statsProgram, probeProgram, preToneProgram, lensProgram).forEach { it?.release() }
+        viewProgram = null; statsProgram = null; probeProgram = null; preToneProgram = null; lensProgram = null
         programsAttempted = false
         programFailure = null
         deleteTargets()
@@ -404,8 +446,9 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
     /** GL object names are invalid after an EGL context loss; forget them without deleting. */
     fun forgetContext() {
         run.interrupt("EGL context re-created (surface lost)")
-        viewProgram = null; statsProgram = null; probeProgram = null; preToneProgram = null
+        viewProgram = null; statsProgram = null; probeProgram = null; preToneProgram = null; lensProgram = null
         programsAttempted = false
+        lensNoDiskFbo = 0; lensNoDiskTex = 0; lensFbo = 0; lensTex = 0; lensW = 0; lensH = 0; lensValid = false
         statsFbo = 0; statsTex = 0; probeFbo = 0; probeTex = 0
         brightFbo = 0; brightTex = 0; brightW = 0; brightH = 0
         preFbo = 0; preTex = 0; finalFbo = 0; finalTex = 0; stageW = 0; stageH = 0
@@ -418,7 +461,7 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
     // ------------------------------------------------------------------ resources
 
     private fun ensurePrograms(): Boolean {
-        if (viewProgram != null && statsProgram != null && probeProgram != null && preToneProgram != null) return true
+        if (viewProgram != null && statsProgram != null && probeProgram != null && preToneProgram != null && lensProgram != null) return true
         if (programsAttempted) return false
         programsAttempted = true
         val vertex = ShaderSource.loadVertexShader(context)
@@ -428,7 +471,8 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         statsProgram = create("stats", ShaderSource.loadAsset(context, "shaders/gargantua_diag_stats.frag"))
         probeProgram = create("probe", ShaderSource.loadAsset(context, "shaders/gargantua_diag_probe.frag"))
         preToneProgram = create("preTone", preToneMappingCompositeSource(ShaderSource.loadCompositeFragmentShader(context)))
-        return viewProgram != null && statsProgram != null && probeProgram != null && preToneProgram != null
+        lensProgram = create("lens", ShaderSource.loadAsset(context, "shaders/gargantua_diag_lens.frag"))
+        return viewProgram != null && statsProgram != null && probeProgram != null && preToneProgram != null && lensProgram != null
     }
 
     private fun texture(internal: Int, w: Int, h: Int, format: Int, type: Int, filter: Int): Int {
@@ -503,6 +547,8 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         deleteFboTex(refMaterialFbo, refMaterialTex); refMaterialFbo = 0; refMaterialTex = 0
         deleteFboTex(refFinalFbo, refFinalTex); refFinalFbo = 0; refFinalTex = 0
         deleteFboTex(copyReadFbo, 0); copyReadFbo = 0
+        deleteFboTex(lensNoDiskFbo, lensNoDiskTex); lensNoDiskFbo = 0; lensNoDiskTex = 0
+        deleteFboTex(lensFbo, lensTex); lensFbo = 0; lensTex = 0; lensW = 0; lensH = 0; lensValid = false
         refMaterialValid = false
         stageW = 0; stageH = 0
     }
@@ -585,7 +631,15 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             View.D4_BLOOM -> { tex = frame.bloomTexture; size = intArrayOf(frame.bloomW, frame.bloomH) }
             View.D5_PRE_TONEMAP -> { renderStages(frame); tex = preTex }
             View.D7_HIGHER_ORDER -> { mode = 2; tex = frame.hdrTexture }
+            View.L1_CAPTURE, View.L2_DISK_HIT, View.L3_R_HIT, View.L4_PHI_HIT, View.L5_HO_COUNT, View.L6_BOUNDARY -> {
+                mode = 3; size = intArrayOf(lensW, lensH)
+            }
             else -> Unit
+        }
+        if (mode == 3 && !lensValid) {
+            // No LENS capture yet (it is taken in phases D, M2 and M5): show the normal presentation.
+            if (!frame.compositeRan) frame.drawRealComposite()
+            return
         }
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
         GLES30.glViewport(0, 0, frame.surfaceW, frame.surfaceH)
@@ -594,7 +648,8 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, if (mode == 1) 0 else tex)
         program.setUniform1i("u_A", 0)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, if (mode == 1) frame.recordTextures.getOrElse(0) { 0 } else 0)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, if (mode == 1) frame.recordTextures.getOrElse(0) { 0 } else if (mode == 3) lensTex else 0)
+        program.setUniform1i("u_LensMode", if (mode == 3) frame.view.ordinal - View.L1_CAPTURE.ordinal + 1 else 0)
         program.setUniform1i("u_R", 1)
         program.setUniform1i("u_Mode", mode)
         program.setUniform1f("u_Scale", 1.0f)
@@ -630,8 +685,144 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             GargantuaForensicRun.WorkKind.RING -> { renderStages(frame); record.ring = ringScan(frame) }
             GargantuaForensicRun.WorkKind.BLACK -> { renderStages(frame); record.black = blackPixels(frame) }
             GargantuaForensicRun.WorkKind.GRAPH -> graph(record, frame)
+            GargantuaForensicRun.WorkKind.POP -> pop(work.index, record, frame)
+            GargantuaForensicRun.WorkKind.LENS -> lens(record, frame)
             GargantuaForensicRun.WorkKind.NONE -> Unit
         }
+    }
+
+    /**
+     * POP0: copy D2. POP1: D2 vs the copy (one frame of animation: the baseline), then copy D2 again (the
+     * run nudges the camera so the next frame retraces). POP2: the retraced static frame vs the last
+     * material frame. POP3: the first material frame after a release vs its static cache.
+     */
+    private fun pop(index: Int, record: GargantuaForensicRun.PhaseRecord, frame: Frame) {
+        val w = frame.renderW; val h = frame.renderH
+        val d2 = if (frame.animationActive) frame.modulatedTexture else 0
+        when (index) {
+            0 -> refMaterialValid = d2 != 0 && copyTexture(d2, refMaterialFbo, w, h)
+            1 -> {
+                if (d2 != 0 && refMaterialValid) record.popBaseline = diff(d2, refMaterialTex, w, h)
+                else record.failures.add("POP1: D2 not presented (${frame.gateAction})")
+                refMaterialValid = d2 != 0 && copyTexture(d2, refMaterialFbo, w, h)
+            }
+            2 -> {
+                record.popStepGate = frame.gateAction
+                if (refMaterialValid) record.popStep = diff(frame.presentationTexture, refMaterialTex, w, h)
+                else record.failures.add("POP2: no previous D2")
+                refMaterialValid = false
+            }
+            3 -> if (d2 != 0) record.restartPop = diff(d2, frame.hdrTexture, w, h)
+        }
+    }
+
+    /**
+     * LENS: the production trace redrawn without the disk (classification), packed per ray pixel with the
+     * r0 records and the D0/D5/D6 dark masks, read back once; the CPU mirror runs on a worker thread.
+     */
+    private fun lens(record: GargantuaForensicRun.PhaseRecord, frame: Frame) {
+        val program = lensProgram
+        if (program == null) { record.failures.add("LENS: program unavailable ($programFailure)"); return }
+        val w = frame.rayW; val h = frame.rayH
+        if (lensW != w || lensH != h) {
+            deleteFboTex(lensNoDiskFbo, lensNoDiskTex)
+            deleteFboTex(lensFbo, lensTex)
+            lensNoDiskTex = texture(GLES30.GL_RGBA16F, w, h, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_NEAREST)
+            lensNoDiskFbo = fbo(lensNoDiskTex)
+            lensTex = texture(GLES30.GL_RGBA32UI, w, h, GLES30.GL_RGBA_INTEGER, GLES30.GL_UNSIGNED_INT, GLES30.GL_NEAREST)
+            lensFbo = fbo(lensTex)
+            lensW = w; lensH = h
+        }
+        lensValid = false
+        val refused = frame.redrawTraceWithoutDisk(lensNoDiskFbo, w, h)
+        if (refused != null) { record.failures.add("LENS: no-disk redraw refused: $refused"); return }
+        renderStages(frame)
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, lensFbo)
+        GLES30.glViewport(0, 0, w, h)
+        program.use()
+        val samplers = arrayOf("u_NoDisk" to lensNoDiskTex, "u_Hdr" to frame.hdrTexture, "u_Pre" to preTex, "u_Final" to finalTex)
+        for ((i, sp) in samplers.withIndex()) {
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE0 + i)
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, sp.second)
+            program.setUniform1i(sp.first, i)
+        }
+        val r0 = frame.recordTextures.getOrElse(0) { 0 }
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE4)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, r0)
+        program.setUniform1i("u_R0", 4)
+        program.setUniform1i("u_HasRecords", if (r0 != 0) 1 else 0)
+        GLES30.glUniform2i(program.getUniformLocation("u_Res"), w, h)
+        frame.quad.draw()
+        val buf = ByteBuffer.allocateDirect(w * h * 16).order(ByteOrder.nativeOrder()).asIntBuffer()
+        GLES30.glReadPixels(0, 0, w, h, GLES30.GL_RGBA_INTEGER, GLES30.GL_UNSIGNED_INT, buf)
+        for (i in 4 downTo 0) {
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE0 + i)
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+        }
+        val words = IntArray(w * h * 4)
+        buf.position(0)
+        buf.get(words)
+        lensValid = true
+        val c = frame.camera
+        val cam = GargantuaLensAnalysis.Camera(
+            c[0], c[1], c[2], floatArrayOf(c[3], c[4], c[5]), frame.mass, frame.spinA, frame.maxSteps,
+            frame.diskInnerRadius, frame.diskOuterRadius, frame.enableDoppler, w, h
+        )
+        val result = GargantuaLensAnalysis.analyze(cam, words)
+        if (r0 == 0) record.failures.add("LENS: r0 records unavailable (ANIM off): crossing statistics empty")
+        record.lensResult = result
+        result.cpuNote = "CPU mirror running"
+        // The CPU mirror (hundreds of full geodesics) must not run on the GL thread.
+        Thread({
+            val start = System.nanoTime()
+            try {
+                GargantuaLensAnalysis.cpuRows(result)
+                result.cpu = GargantuaLensAnalysis.cpuSamples(result, words, GargantuaLensAnalysis.samplePoints(result, words))
+                result.cpuNote = String.format(Locale.US, "CPU mirror done in %.0f ms", (System.nanoTime() - start) / 1e6)
+            } catch (e: RuntimeException) {
+                result.cpuNote = "CPU mirror failed: ${e.javaClass.simpleName} ${e.message}"
+            }
+        }, "gargantua-lens-cpu").start()
+    }
+
+    // ------------------------------------------------------------------ manual camera trace (after the run)
+
+    private val inputRing = ArrayDeque<GargantuaLensAnalysis.InputEvent>()
+    private val frameRing = ArrayDeque<GargantuaLensAnalysis.FrameEvent>()
+    private val failureEvents = ArrayList<String>()
+    private var manualCache = ""
+    private var manualCacheKey = -1L
+
+    /** UI thread: one processed touch event (only called while DIAG is on). */
+    fun noteInput(event: GargantuaLensAnalysis.InputEvent) = synchronized(inputRing) {
+        if (inputRing.size >= RING_SIZE) inputRing.removeFirst()
+        inputRing.addLast(event)
+    }
+
+    /** GL thread: an animation failure latch (label includes the GL error when there was one). */
+    fun noteAnimationFailure(label: String, nowNanos: Long) = synchronized(failureEvents) {
+        if (failureEvents.size < 16) failureEvents.add(String.format(Locale.US, "t=%.3f s %s", nowNanos / 1e9, label))
+    }
+
+    private fun noteFrame(frame: Frame, cpuMs: Float) = synchronized(inputRing) {
+        if (frameRing.size >= RING_SIZE) frameRing.removeFirst()
+        frameRing.addLast(
+            GargantuaLensAnalysis.FrameEvent(
+                frame.nowNanos, frame.camera[2], frame.camera[1], frame.camera[0], frame.gateAction, frame.geodesicPasses,
+                frame.materialRan, frame.presentedModulated, frame.signatureChanged, cpuMs, frame.animationStatus
+            )
+        )
+    }
+
+    private fun manualTraceSection(): String = synchronized(inputRing) {
+        val key = (inputRing.lastOrNull()?.tNanos ?: 0L) xor (frameRing.size.toLong() shl 48) xor (frameRing.lastOrNull()?.tNanos ?: 0L) / 250_000_000L
+        if (key != manualCacheKey) {
+            manualCacheKey = key
+            val failures = synchronized(failureEvents) { failureEvents.toList() }
+            manualCache = "\n" + GargantuaLensAnalysis.dragText(inputRing.toList(), frameRing.toList()) +
+                "ANIMATION FAILURE LATCH EVENTS: " + (if (failures.isEmpty()) "none" else failures.joinToString(" | ")) + "\n"
+        }
+        manualCache
     }
 
     private fun sample(index: Int, record: GargantuaForensicRun.PhaseRecord, frame: Frame) {
@@ -655,7 +846,7 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
                 var nz = 0L; var hi = 0L; var trunc = 0L
                 for (i in 0 until STATS_GRID * STATS_GRID) { nz += u(r[i * 4]); hi += u(r[i * 4 + 1]); trunc += u(r[i * 4 + 2]) }
                 validPixels = hi
-                stages.add(StageStat("D1", r0, frame.rayW, frame.rayH, 0f, 0f, 0f, nz, "r0 nonzeroPx=$nz validPx=$hi truncatedPx=$trunc"))
+                stages.add(StageStat("D1", r0, frame.rayW, frame.rayH, 0f, 0f, 0f, nz, "r0 nonzeroPx=$nz validPx=$hi truncatedPx=$trunc flagOnlyPx=${nz - hi - trunc}"))
             }
         }
         stages.add(if (material == 0) StageStat.unavailable("D2", "not presented (${frame.gateAction})") else stageStat("D2", material, frame.renderW, frame.renderH))
@@ -722,7 +913,7 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         val m8 = runStats(8, 0, 0, 0, tex, w, h) ?: return null
         val m9 = runStats(9, 0, 0, 0, tex, w, h) ?: return null
         val m10 = runStats(10, 0, 0, 0, tex, w, h) ?: return null
-        var invalidNz = 0L; var zeroX = 0L
+        var invalidNz = 0L; var zeroX = 0L; var flagOnlyX = 0L
         val sampleNonzero = LongArray(2)
         val sampleValid = LongArray(2)
         var nz = 0L; var valid = 0L; var trunc = 0L; var tier5 = 0L
@@ -744,7 +935,7 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             rawMin[1] = min(rawMin[1], u(m7[o + 2])); rawMax[1] = max(rawMax[1], u(m7[o + 3]))
             rawMin[2] = min(rawMin[2], u(m8[o])); rawMax[2] = max(rawMax[2], u(m8[o + 1]))
             rawMin[3] = min(rawMin[3], u(m8[o + 2])); rawMax[3] = max(rawMax[3], u(m8[o + 3]))
-            invalidNz += u(m9[o]); zeroX += u(m9[o + 1])
+            invalidNz += u(m9[o]); zeroX += u(m9[o + 1]); flagOnlyX += u(m9[o + 2])
             if (sampleNonzero[0] == 0L && sampleNonzero[1] == 0L) { sampleNonzero[0] = u(m10[o]); sampleNonzero[1] = u(m10[o + 1]) }
             if (sampleValid[0] == 0L && sampleValid[1] == 0L) { sampleValid[0] = u(m10[o + 2]); sampleValid[1] = u(m10[o + 3]) }
         }
@@ -760,7 +951,7 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             phiMax = if (none) Float.NaN else ((pMax - 0.5f) * TAU),
             gMin = if (none) Float.NaN else gMin, gMax = if (none) Float.NaN else gMax,
             rawMin = rawMin, rawMax = rawMax,
-            invalidNonzeroCrossings = invalidNz, zeroCrossings = zeroX,
+            invalidNonzeroCrossings = invalidNz, zeroCrossings = zeroX, flagOnlyCrossings = flagOnlyX,
             sampleNonzero = sampleNonzero, sampleValid = sampleValid
         )
     }
@@ -1118,6 +1309,8 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         const val SCAN_DIRECTIONS = 12
         const val PROBE_ROWS = SCAN_DIRECTIONS + 1
         const val MAX_POINTS = 48
+        /** Input events and post-run frames kept for the manual drag trace. */
+        const val RING_SIZE = 1024
         const val DISK_PROBES = 10
         private const val PEAK_WINDOW = 32
         private const val OUTER_OFFSET = 6

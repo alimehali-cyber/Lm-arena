@@ -59,9 +59,11 @@ void main() {
                 uvec4 r = texelFetch(u_R, p, 0);
                 bool nonzero = any(notEqual(r, uvec4(0u)));
                 bool hasHigh = ((r.y | r.w) & 0xFFFF0000u) != 0u;
+                // Tier flags only (bit 15 of y = tier-1, of w = tier-2; no crossing recorded): not truncated.
+                bool flagOnly = r.x == 0u && r.z == 0u && ((r.y | r.w) & 0xFFFF7FFFu) == 0u;
                 if (nonzero) c0++;
                 if (hasHigh) c1++;
-                if (nonzero && !hasHigh) c2++;
+                if (nonzero && !hasHigh && !flagOnly) c2++;
                 if ((r.y & 0x8000u) != 0u) c3++;
             } else if (u_Mode == 3) {
                 vec4 v = texelFetch(u_A, p, 0);
@@ -79,6 +81,7 @@ void main() {
                     bool valid = crossingValid(c);
                     if (nonzero && !valid) c0++;
                     if (!nonzero) c1++;
+                    if (c.x == 0u && (c.y & 0xFFFF7FFFu) == 0u && c.y != 0u) c2++;
                     if (nonzero && all(equal(firstNonzero, uvec2(0u)))) firstNonzero = c;
                     if (valid && all(equal(firstValid, uvec2(0u)))) firstValid = c;
                 }
@@ -138,7 +141,7 @@ void main() {
     } else if (u_Mode == 8) {
         o = uvec4(rawMin.z, rawMax.z, rawMin.w, rawMax.w);
     } else if (u_Mode == 9) {
-        o = uvec4(c0, c1, 0u, 0u);
+        o = uvec4(c0, c1, c2, 0u);
     } else if (u_Mode == 10) {
         o = uvec4(firstNonzero, firstValid);
     } else {

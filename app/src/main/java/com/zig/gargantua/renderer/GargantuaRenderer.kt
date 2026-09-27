@@ -70,6 +70,9 @@ class GargantuaRenderer(
     // crossings 1/2) per M7 ray, see gargantua_geodesic.frag GARGANTUA_ANIMATION_SEMANTIC_CACHE outputs.
     private val animationRayRecordTextureIds = IntArray(AnimationGate.CACHE_PASS_COUNT * AnimationGate.RECORDS_PER_CACHE_PASS)
     private var animationCacheComplete = false
+    /** DIAG only (lens capture): the program and ray signature of the last geodesic trace. */
+    private var lastTraceProgram: ShaderProgram? = null
+    private var lastTraceRaySignature: RaySceneSignature? = null
     // Coarse sampling modes: the material pass writes the ray grid here and the result is upscaled.
     private var animatedRayFboId = 0
     private var animatedRayTextureId = 0
@@ -1071,6 +1074,8 @@ class GargantuaRenderer(
 
             if (diagActiveThisFrame) gpuDiagnostics.beginTimer("geodesic")
             quad.draw()
+            lastTraceProgram = activeProg
+            lastTraceRaySignature = raySig
             if (diagActiveThisFrame) {
                 gpuDiagnostics.endTimer("geodesic")
                 gpuDiagnostics.passSnapshot(if (animationReady) "anim build pass0" else "geodesic", intArrayOf())
@@ -1270,6 +1275,40 @@ class GargantuaRenderer(
                             surfaceW, surfaceH, state, quad, activePresentationHdrTextureId,
                             if (animationFrameActive) modulatedHdrFboId else hdrFboId
                         )
+                    },
+                    camera = floatArrayOf(
+                        state.camDist, state.camInclinationDeg, state.camAzimuthDeg,
+                        state.camTargetX, state.camTargetY, state.camTargetZ
+                    ),
+                    mass = state.mass,
+                    spinA = state.spin * state.mass,
+                    maxSteps = state.maxSteps,
+                    enableDoppler = state.enableDoppler,
+                    signatureChanged = signatureChangedThisFrame,
+                    sceneDirty = sceneDirty,
+                    cacheValid = animationCacheValid,
+                    cacheComplete = animationCacheComplete,
+                    presentedModulated = lastPresentedModulated,
+                    redrawTraceWithoutDisk = { fbo, w, h ->
+                        val program = lastTraceProgram
+                        when {
+                            program == null -> "no geodesic trace yet"
+                            program !== geodesicProgram && program !== animationGeodesicProgram -> "trace program released or not a geodesic program"
+                            lastTraceRaySignature != raySig -> "scene changed since the last trace"
+                            w != rayGrid.rayWidth || h != rayGrid.rayHeight -> "ray size ${rayGrid.rayWidth}x${rayGrid.rayHeight} != ${w}x$h"
+                            else -> {
+                                // Same program, same uniforms and rays as the last trace; only the disk is disabled.
+                                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, fbo)
+                                GLES30.glDrawBuffers(1, scratchDrawBuffersSingle, 0)
+                                GLES30.glViewport(0, 0, w, h)
+                                GLES30.glClearBufferfv(GLES30.GL_COLOR, 0, scratchZeroColor, 0)
+                                program.use()
+                                program.setUniform1i("u_EnableDisk", 0)
+                                quad.draw()
+                                program.setUniform1i("u_EnableDisk", if (state.enableDisk) 1 else 0)
+                                null
+                            }
+                        }
                     }
                 )
             )
@@ -1435,6 +1474,12 @@ class GargantuaRenderer(
         return "ANIM FAILED: $label ${if (log.isEmpty()) "EMPTY" else log}".take(240)
     }
 
+    /** UI thread, DIAG only: one processed touch event for the manual camera trace. */
+    fun noteDiagnosticInput(event: GargantuaLensAnalysis.InputEvent) {
+        val userState = stateHolder.getState()
+        if (userState.diagnosticView != 0) gpuDiagnostics.noteInput(event)
+    }
+
     private fun drainAnimationGlErrors() {
         var drained = 0
         while (drained < 8 && GLES30.glGetError() != GLES30.GL_NO_ERROR) {
@@ -1448,6 +1493,8 @@ class GargantuaRenderer(
         animationFailureStatus = if (label.startsWith("ANIM FAILED:")) label else "ANIM FAILED: $label"
         animationResourcesReady = false
         animationCacheValid = false
+        val userState = stateHolder.getState()
+        if (userState.diagnosticView != 0) gpuDiagnostics.noteAnimationFailure(animationFailureStatus ?: label, System.nanoTime())
         stateHolder.updateState { it.copy(enableAnimation = false, animationAmplitudePercent = 0) }
     }
 

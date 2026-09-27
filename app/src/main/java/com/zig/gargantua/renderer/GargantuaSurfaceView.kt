@@ -154,6 +154,7 @@ class GargantuaSurfaceView(
                 lastTouchY = event.y
                 touchMoved = false
                 isDragging = true
+                traceInput(GargantuaLensAnalysis.ACTION_DOWN, 0f, 0f)
             }
 
             MotionEvent.ACTION_POINTER_DOWN -> {
@@ -185,6 +186,7 @@ class GargantuaSurfaceView(
                             camInclinationDeg = newInclination
                         )
                     }
+                    traceInput(GargantuaLensAnalysis.ACTION_MOVE, dx, dy)
                 } else if (event.pointerCount >= 2) {
                     val focusX = (event.getX(0) + event.getX(1)) * 0.5f
                     val focusY = (event.getY(0) + event.getY(1)) * 0.5f
@@ -238,9 +240,19 @@ class GargantuaSurfaceView(
                 }
                 isDragging = false
                 touchMoved = false
+                traceInput(GargantuaLensAnalysis.ACTION_UP, 0f, 0f)
             }
         }
         return true
+    }
+
+    /** DIAG only: records the processed event and the camera state it produced (no effect while DIAG is off). */
+    private fun traceInput(action: Int, dx: Float, dy: Float) {
+        val state = renderer.stateHolder.getState()
+        if (state.diagnosticView == 0) return
+        renderer.noteDiagnosticInput(
+            GargantuaLensAnalysis.InputEvent(System.nanoTime(), action, dx, dy, state.camAzimuthDeg, state.camInclinationDeg)
+        )
     }
 
     /**

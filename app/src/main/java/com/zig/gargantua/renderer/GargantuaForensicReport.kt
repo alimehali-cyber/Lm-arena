@@ -161,6 +161,14 @@ internal object GargantuaForensicReport {
         val capLines = caps.lines()
         section("CACHE FIX ACCEPTANCE (production phases C/D/E)")
         acceptance(run).forEach { line(it) }
+        section("CAMERA MOTION + ANIMATION RESTART (scripted, phases M0-M5)")
+        motion(run).forEach { line(it) }
+        section("LENSING / SHADOW / PHOTON RING (geodesic classification, phases D, M2, M5)")
+        for (r in run.records) {
+            val lens = r.lensResult ?: continue
+            line(GargantuaLensAnalysis.text(lens, "${r.phase.id} ${r.phase.title}").trimEnd())
+        }
+        if (run.records.none { it.lensResult != null }) line("no LENS capture recorded")
         section("DEVICE")
         capLines.take(1).forEach { line(it) }
         section("GL LIMITS")
@@ -231,7 +239,7 @@ internal object GargantuaForensicReport {
         for (r in run.records.filter { it.cache.isNotEmpty() && it.phase.enableAnimation }) {
             line("${r.phase.id} (${r.phase.precision.label}) total validX=${r.cache.sumOf { it.validCrossings }} validPx=${r.cache.sumOf { it.validPixels }} truncatedPx=${r.cache.sumOf { it.truncatedPixels }}")
             line("  crossings: rawNonzero=${r.cache.sumOf { it.rawNonzeroCrossings }} validCrossing=${r.cache.sumOf { it.validCrossings }} " +
-                "invalid/sentinel=${r.cache.sumOf { it.invalidNonzeroCrossings }} zero=${r.cache.sumOf { it.zeroCrossings }} " +
+                "invalid/sentinel=${r.cache.sumOf { it.invalidNonzeroCrossings }} (of which tier-flag-only=${r.cache.sumOf { it.flagOnlyCrossings }}) zero=${r.cache.sumOf { it.zeroCrossings }} " +
                 "decodedValid=${r.cache.sumOf { it.decodedValidCrossings }} decodedInvalid=${r.cache.sumOf { it.emissionInvalidCrossings }} " +
                 "higherOrder=${r.cache.sumOf { it.higherOrderCrossings }}")
             r.cache.firstOrNull()?.let { c -> line("  ${c.label} sample words: nonzero ${words(c.sampleNonzero)} valid ${words(c.sampleValid)}") }
@@ -336,6 +344,79 @@ internal object GargantuaForensicReport {
         return sb.toString()
     }
 
+    /**
+     * Per motion phase: the scripted camera, the state the renderer actually used, gates and passes per
+     * frame, frame pacing, the release -> restart sequence and the POP measurements.
+     */
+    fun motion(run: GargantuaForensicRun): List<String> {
+        val out = ArrayList<String>()
+        fun f1(v: Double) = String.format(Locale.US, "%.1f", v)
+        val baseline = run.records.firstOrNull { it.popBaseline != null }?.popBaseline
+        for (r in run.records.filter { it.phase.motion != null }) {
+            val m = r.phase.motion!!
+            val tr = r.motionTrace
+            val script = tr.filter { it.stage == 'S' || it.stage == 'G' }
+            val moving = tr.filter { it.stage == 'S' }
+            val dts = moving.zipWithNext { a, b -> (b.tMs - a.tMs).toDouble() }
+            val mean = dts.average().takeIf { !it.isNaN() } ?: 0.0
+            val cv = if (dts.size > 1 && mean > 0) kotlin.math.sqrt(dts.map { (it - mean) * (it - mean) }.average()) / mean else 0.0
+            val first = tr.firstOrNull()
+            // State stage: the renderer's camera must equal the user camera (first frame) + the offset in effect.
+            val baseAz = (first?.camAz ?: 0f) - (first?.offsetAz ?: 0f)
+            val baseIncl = (first?.camIncl ?: 0f) - (first?.offsetIncl ?: 0f)
+            var stateErr = 0f
+            for (t in tr) {
+                var d = t.camAz - (baseAz + t.offsetAz); while (d > 180f) d -= 360f; while (d < -180f) d += 360f
+                stateErr = maxOf(stateErr, kotlin.math.abs(d), kotlin.math.abs(t.camIncl - (baseIncl + t.offsetIncl).coerceIn(5f, 175f)))
+            }
+            val steps = moving.zipWithNext { a, b -> (b.camAz - a.camAz) + (b.camIncl - a.camIncl) }
+            val dir = if (m.dAzDeg + m.dInclDeg >= 0f) 1f else -1f
+            val back = steps.count { it * dir < -1e-4f }
+            val rebuildMs = moving.filter { it.geodesicPasses > 0 }.map { it.cpuMs.toDouble() }
+            out.add("${r.phase.id} ${r.phase.title}: frames script=${script.size} (move ${moving.size}) gates=" +
+                moving.groupingBy { it.gate }.eachCount() + " geodesicPasses=${moving.sumOf { it.geodesicPasses }} material=${moving.count { it.materialRan }}")
+            out.add("  pacing during move: interval mean=${f1(mean)} max=${f1(dts.maxOrNull() ?: 0.0)} ms CV=${String.format(Locale.US, "%.2f", cv)}; " +
+                "retrace frame CPU ms mean=${f1(rebuildMs.average().takeIf { !it.isNaN() } ?: 0.0)} max=${f1(rebuildMs.maxOrNull() ?: 0.0)}")
+            out.add("  camera: max |rendered - (user + scripted offset)| = ${String.format(Locale.US, "%.5f", stateErr)} deg; rendered steps backwards=$back; " +
+                "sigChanged frames=${moving.count { it.signatureChanged }}/${moving.size}")
+            val rs = r.restart
+            if (rs == null) out.add("  restart: release not reached") else out.add(
+                "  release->restart: firstCOMPLETE_CACHE=${if (rs.firstCompleteCacheMs < 0) "never" else f1(rs.firstCompleteCacheMs.toDouble()) + "ms"} " +
+                    "firstMODULATE=${if (rs.firstModulateMs < 0) "NEVER" else f1(rs.firstModulateMs.toDouble()) + "ms"} frames=${rs.framesToModulate} " +
+                    "PLAIN=${rs.plainFrames} REBUILD-after-release=${rs.rebuildFramesAfterRelease} restarted=${if (r.phase.enableAnimation) rs.restarted else "n/a (ANIM off)"}" +
+                    (if (rs.statusAtTimeout.isNotEmpty()) " timeout: ${rs.statusAtTimeout}" else ""))
+            if (r.phase.enableAnimation) {
+                val obs = r.samples.joinToString(" ") { "t${it.index}=${it.tMs}ms active=${it.materialVsStatic != null} D2(t)-D2(t0):${it.materialVsT0?.let { d -> "rms=${g(d.rms)} ch=${d.changed}" } ?: "-"}" }
+                out.add("  observation after restart: $obs")
+            }
+            if ((m.pop && r.phase.enableAnimation) || r.popStep != null || r.popBaseline != null) {
+                out.add("  POP: D2 frame-to-frame baseline ${diffText(r.popBaseline)}")
+                out.add("  POP: last D2 -> retraced frame (gate ${r.popStepGate}) ${diffText(r.popStep)}")
+            }
+            if (r.restartPop != null) out.add("  POP at restart: first D2 vs its static cache ${diffText(r.restartPop)}" +
+                (baseline?.let { b -> if (b.rms > 0f) " = ${String.format(Locale.US, "%.1f", r.restartPop!!.rms / b.rms)}x the frame-to-frame baseline" else "" } ?: ""))
+            val tail = tr.take(MOTION_TRACE_LINES)
+            if (r.phase.id == "M1" || r.phase.id == "M3") {
+                out.add("  per-frame trace (t ms, stage, offAz, offIncl, camAz, camIncl, gate, geo, mat, presentedMod, sig, dirty, valid, complete, cpuMs):")
+                for (t in tail) out.add(String.format(Locale.US, "   %7.1f %c %+.3f %+.3f %.3f %.3f %-14s %d %s %s %s %s %s %s %.1f",
+                    t.tMs, t.stage, t.offsetAz, t.offsetIncl, t.camAz, t.camIncl, t.gate, t.geodesicPasses, b(t.materialRan), b(t.presentedModulated),
+                    b(t.signatureChanged), b(t.sceneDirty), b(t.cacheValid), b(t.cacheComplete), t.cpuMs))
+                if (tr.size > tail.size) out.add("   ... ${tr.size - tail.size} more frames in the raw log")
+            }
+        }
+        val anim = run.records.filter { it.phase.motion != null && it.phase.enableAnimation }
+        val stuck = anim.filter { it.restart?.restarted == false }
+        out.add("RESTART INVARIANT (animation resumes without toggling): " + when {
+            anim.isEmpty() -> "NOT MEASURED"
+            stuck.isEmpty() && anim.all { it.restart != null } -> "PASS in ${anim.size} phases (" + anim.joinToString(" ") { "${it.phase.id}=${String.format(Locale.US, "%.0f", it.restart!!.firstModulateMs)}ms" } + ")"
+            else -> "FAIL in " + (stuck.map { it.phase.id } + anim.filter { it.restart == null }.map { it.phase.id + "(no release)" }).joinToString(",")
+        })
+        return out
+    }
+
+    private fun b(v: Boolean) = if (v) "1" else "0"
+    private const val MOTION_TRACE_LINES = 70
+
     /** Crossing words as hex plus the contract decode: x = unorm16 rUnit | phiUnit<<16, y = half g | half tau<<16. */
     fun words(w: LongArray): String {
         val x = w[0]; val y = w[1]
@@ -403,6 +484,11 @@ internal object GargantuaForensicReport {
                 sb.append(" sample t${s.index} ${s.tMs}ms validPx=${s.recordsValidPixels} vsStatic=${diffText(s.materialVsStatic)} vsT0=${diffText(s.materialVsT0)} finalVsT0=${diffText(s.finalVsT0)}\n")
                 s.stages.forEach { st -> sb.append("  ${st.stage} tex${st.texture} ${st.w}x${st.h} ${st.note ?: "min=${g(st.minL)} max=${g(st.maxL)} mean=${g(st.meanL)} nz=${st.nonzero}"}\n") }
                 sb.append("  probes static=${s.probeStatic?.joinToString(",") { g(it) }} material=${s.probeMaterial?.joinToString(",") { g(it) }} final=${s.probeFinal?.joinToString(",") { g(it) }}\n")
+            }
+            for (t in r.motionTrace) {
+                sb.append(String.format(Locale.US, " motion %.1f %c off=%+.3f,%+.3f cam=%.3f,%.3f %s geo=%d mat=%s mod=%s sig=%s dirty=%s valid=%s complete=%s cpu=%.1f %s\n",
+                    t.tMs, t.stage, t.offsetAz, t.offsetIncl, t.camAz, t.camIncl, t.gate, t.geodesicPasses, b(t.materialRan), b(t.presentedModulated),
+                    b(t.signatureChanged), b(t.sceneDirty), b(t.cacheValid), b(t.cacheComplete), t.cpuMs, t.status))
             }
             for (c in r.cache) {
                 sb.append(" cache ${c.label} tex${c.texture} ${c.internalFormat} nz=${c.nonzeroPixels} valid=${c.validPixels} trunc=${c.truncatedPixels} validX=${c.validCrossings} hoX=${c.higherOrderCrossings} " +
