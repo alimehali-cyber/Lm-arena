@@ -8,6 +8,7 @@ precision highp sampler2D;
 precision highp usampler2D;
 
 uniform int u_Mode;      // 0 stats(A)  1 diff(A,B)  2 records(R)  3 higher-order fraction(A)  4 black-pixel classes(A=final,B=HDR,C=pre-tonemap)
+                         // 5 record decode r/phi units(R)  6 record decode g/counts(R)  7 raw min/max x,y(R)  8 raw min/max z,w(R)
 uniform sampler2D u_A;
 uniform sampler2D u_B;
 uniform sampler2D u_C;
@@ -20,6 +21,10 @@ layout(location = 0) out uvec4 o;
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 bool isShadowTexel(vec4 v) { return v.a <= 0.5 && dot(v.rgb, v.rgb) <= 1.0e-7; }
 
+// Crossing decode identical to gargantuaUnpackCrossing (gargantua_geodesic.frag): the g half's sign bit
+// carries the tier flag; a crossing is present when the tau half is non-zero.
+bool crossingValid(uvec2 c) { return ((c.y & 0xFFFF7FFFu) & 0xFFFF0000u) != 0u; }
+
 void main() {
     ivec2 cell = ivec2(gl_FragCoord.xy);
     ivec2 lo = cell * u_Size / u_Grid;
@@ -29,6 +34,8 @@ void main() {
     float fSum = 0.0;
     uint c0 = 0u; uint c1 = 0u; uint c2 = 0u; uint c3 = 0u; uint c4 = 0u; uint c5 = 0u;
     uint lastPos = 0u;
+    float gMin = 1.0e30; float gMax = -1.0e30; float pMin = 1.0e30; float pMax = -1.0e30;
+    uvec4 rawMin = uvec4(0xFFFFFFFFu); uvec4 rawMax = uvec4(0u);
     for (int y = lo.y; y < hi.y; y++) {
         for (int x = lo.x; x < hi.x; x++) {
             ivec2 p = ivec2(x, y);
@@ -62,6 +69,22 @@ void main() {
                     fSum += f; fMax = max(fMax, f); c0++;
                     if (f > 0.5) c1++;
                 }
+            } else if (u_Mode >= 5) {
+                uvec4 r = texelFetch(u_R, p, 0);
+                rawMin = min(rawMin, r); rawMax = max(rawMax, r);
+                for (int k = 0; k < 2; k++) {
+                    uvec2 c = (k == 0) ? r.xy : r.zw;
+                    if (!crossingValid(c)) continue;
+                    vec2 rPhi = unpackUnorm2x16(c.x);
+                    vec2 gTau = unpackHalf2x16(c.y & 0xFFFF7FFFu);
+                    fMin = min(fMin, rPhi.x); fMax = max(fMax, rPhi.x);
+                    pMin = min(pMin, rPhi.y); pMax = max(pMax, rPhi.y);
+                    gMin = min(gMin, gTau.x); gMax = max(gMax, gTau.x);
+                    c0++;
+                    if (gTau.y < 0.0) c1++;
+                    if (!(gTau.x > 0.0) || gTau.x > 65000.0) c2++;
+                }
+                if ((r.w & 0x8000u) != 0u) c3++;
             } else {
                 vec4 fin = texelFetch(u_A, p, 0);
                 if (max(fin.r, max(fin.g, fin.b)) < 3.0 / 255.0) {
@@ -93,6 +116,14 @@ void main() {
         o = uvec4(floatBitsToUint(fSum), floatBitsToUint(fMax), c0 | (c1 << 16), c2 | (c3 << 16));
     } else if (u_Mode == 2) {
         o = uvec4(c0, c1, c2, c3);
+    } else if (u_Mode == 5) {
+        o = uvec4(floatBitsToUint(fMin), floatBitsToUint(fMax), floatBitsToUint(pMin), floatBitsToUint(pMax));
+    } else if (u_Mode == 6) {
+        o = uvec4(floatBitsToUint(gMin), floatBitsToUint(gMax), c0 | (c1 << 16), c2 | (c3 << 16));
+    } else if (u_Mode == 7) {
+        o = uvec4(rawMin.x, rawMax.x, rawMin.y, rawMax.y);
+    } else if (u_Mode == 8) {
+        o = uvec4(rawMin.z, rawMax.z, rawMin.w, rawMax.w);
     } else {
         o = uvec4(c0 | (c1 << 16), c2 | (c3 << 16), c4 | (c5 << 16), lastPos);
     }

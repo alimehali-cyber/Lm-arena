@@ -2,7 +2,20 @@ package com.zig.gargantua.renderer
 
 import android.content.Context
 import android.opengl.GLES30
+import android.opengl.GLES31
 import android.util.Log
+import com.zig.gargantua.renderer.GargantuaForensicData.BlackResult
+import com.zig.gargantua.renderer.GargantuaForensicData.DiffStat
+import com.zig.gargantua.renderer.GargantuaForensicData.FboRecord
+import com.zig.gargantua.renderer.GargantuaForensicData.PassRecord
+import com.zig.gargantua.renderer.GargantuaForensicData.ProgramInfo
+import com.zig.gargantua.renderer.GargantuaForensicData.RecordStat
+import com.zig.gargantua.renderer.GargantuaForensicData.RingResult
+import com.zig.gargantua.renderer.GargantuaForensicData.RingRow
+import com.zig.gargantua.renderer.GargantuaForensicData.Sample
+import com.zig.gargantua.renderer.GargantuaForensicData.SamplerBinding
+import com.zig.gargantua.renderer.GargantuaForensicData.StageStat
+import com.zig.gargantua.renderer.GargantuaForensicData.TextureRecord
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.IntBuffer
@@ -12,14 +25,15 @@ import kotlin.math.min
 import kotlin.math.sqrt
 
 /**
- * TEMPORARY physical-GPU pipeline diagnostics.
+ * TEMPORARY physical-GPU pipeline diagnostics: executor of the one-tap [GargantuaForensicRun].
  *
  * Active only while [GargantuaRenderState.diagnosticView] is not [View.OFF]; with the view OFF the
  * renderer never calls into this class (no programs, textures, FBOs, queries or readbacks exist) and
- * normal rendering is unchanged. Every number reported here is measured from the real GL textures of
- * the running renderer: GPU reductions/probes (texelFetch) write raw float bits or counts into an
- * RGBA32UI target, which is read back with GL_RGBA_INTEGER / GL_UNSIGNED_INT (a small readback of the
- * GPU result, not a CPU re-computation of the image).
+ * normal rendering is unchanged. Every number is measured from the real GL objects of the running
+ * renderer: GPU reductions/probes (texelFetch) write raw float bits or counts into an RGBA32UI target
+ * that is read back with GL_RGBA_INTEGER / GL_UNSIGNED_INT (a small readback of the GPU result, not a
+ * CPU re-computation of the image). Pass state (program, FBO, attachments, draw buffers, viewport,
+ * sampler uniforms and their bound textures) is queried from GL right after each production draw.
  */
 internal class GargantuaGpuDiagnostics(private val context: Context) {
 
@@ -65,7 +79,12 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         val hdrTexture: Int,
         val presentationTexture: Int,
         val modulatedTexture: Int,
-        val recordTexture0: Int,
+        val recordTextures: IntArray,
+        val rayCacheTexture: Int,
+        val builtEmissionTexture: Int,
+        val animatedRayTexture: Int,
+        val diskInnerRadius: Float,
+        val diskOuterRadius: Float,
         val bloomTexture: Int,
         val bloomW: Int,
         val bloomH: Int,
@@ -82,29 +101,16 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         val gateAction: String,
         val geodesicPasses: Int,
         val rebuilds: Int,
+        val materialRan: Boolean,
+        val bloomRan: Boolean,
+        val compositeRan: Boolean,
         val animationStatus: String,
-        val camera: String,
+        val config: String,
         val fbos: List<Pair<String, Int>>,
         val drawRealComposite: () -> Unit
     )
 
-    private class Series(val amplitude: Int, val startNanos: Long) {
-        val material = arrayOfNulls<FloatArray>(3)
-        val static = arrayOfNulls<FloatArray>(3)
-        val times = LongArray(3)
-    }
-
-    private class AmpResult(
-        val rmsVsStatic: Float,
-        val changedPixels: Int,
-        val diskPixels: Int,
-        val diskChanged: Int,
-        val shadowChanged: Int,
-        val probeRms01: Float,
-        val probeRms12: Float,
-        val skyDelta: Float,
-        val shadowDelta: Float
-    )
+    val run = GargantuaForensicRun()
 
     private var viewProgram: ShaderProgram? = null
     private var statsProgram: ShaderProgram? = null
@@ -125,52 +131,117 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
     private var preTex = 0
     private var finalFbo = 0
     private var finalTex = 0
+    private var refMaterialFbo = 0
+    private var refMaterialTex = 0
+    private var refFinalFbo = 0
+    private var refFinalTex = 0
+    private var copyReadFbo = 0
+    private var refMaterialValid = false
     private var stageW = 0
     private var stageH = 0
 
     private var capsText: String? = null
+    private var es31 = false
     private var hasTimer = false
     private val timerQueries = HashMap<String, Int>()
     private val timerPending = HashMap<String, Boolean>()
     private val timerMs = LinkedHashMap<String, Float>()
     private var timerOpen: String? = null
+    private val samplerUniformCache = HashMap<Int, List<Pair<String, Int>>>()
 
-    private val passLog = LinkedHashMap<String, String>()
-    private var passLogArmed = false
-    private var lastMeasureNanos = 0L
-    private var lastView = View.OFF
-    private var series: Series? = null
-    private val ampResults = sortedMapOf<Int, AmpResult>()
     private var report = ""
-    private var lastLogNanos = 0L
+    private var status = ""
+    private var reportBuilt = false
+    private var lastFrameQuad: QuadGeometry? = null
+    private var lastRingPeaks: List<IntArray> = emptyList()
 
     private val statsBuffer: IntBuffer =
         ByteBuffer.allocateDirect(STATS_GRID * STATS_GRID * 16).order(ByteOrder.nativeOrder()).asIntBuffer()
     private val probeBuffer: IntBuffer =
         ByteBuffer.allocateDirect(SCAN_SAMPLES * PROBE_ROWS * 16).order(ByteOrder.nativeOrder()).asIntBuffer()
 
+    /** Compact COPY REPORT text (complete once the run finished or was interrupted). */
     val reportText: String get() = report
+    /** Short progress / completion status for the overlay. */
+    val statusText: String get() = status
+
+    // ------------------------------------------------------------------ run control
+
+    /**
+     * The renderer's effective state for this frame: the user's state with the overrides of the current
+     * forensic phase (animation, amplitude, record precision, rebuild generation). Starts a run on the
+     * first frame with DIAG on. The user's own state in the holder is never modified.
+     */
+    fun forensicState(user: GargantuaRenderState, nowNanos: Long): GargantuaRenderState {
+        if (run.state == GargantuaForensicRun.State.IDLE) {
+            run.start(nowNanos)
+            report = ""
+            reportBuilt = false
+        }
+        return GargantuaForensicRun.effectiveState(user, run.activePhase(), run.rebuildGeneration)
+    }
+
+    fun interruptRun(reason: String) {
+        run.interrupt(reason)
+    }
+
+    /** The renderer (re)built the animation programs while a run is active: record exact variant + status. */
+    fun noteAnimationPrograms(
+        precision: RecordPrecision,
+        buildSource: String,
+        materialSource: String,
+        build: ShaderProgram?,
+        material: ShaderProgram?,
+        failure: String?
+    ) {
+        samplerUniformCache.clear()
+        val record = run.currentRecord ?: return
+        val (intP, samplerP, usamplerP) = ProgramInfo.describe(materialSource)
+        record.programs = ProgramInfo(
+            precision = precision.label,
+            buildVariant = "GARGANTUA_ANIMATION_SEMANTIC_CACHE",
+            materialVariant = "GARGANTUA_ANIMATION_SEMANTIC_CACHE+GARGANTUA_ANIMATION_MATERIAL_PASS",
+            buildOk = build != null,
+            materialOk = material != null,
+            failure = failure,
+            buildProgramId = build?.programId ?: 0,
+            materialProgramId = material?.programId ?: 0,
+            intPrecision = intP,
+            sampler2DPrecision = samplerP,
+            usamplerPrecision = usamplerP,
+            declarations = "build: " + ProgramInfo.declarations(buildSource) + " | material: " + ProgramInfo.declarations(materialSource)
+        )
+    }
 
     // ------------------------------------------------------------------ renderer hooks
 
-    /** Call right after a draw while its state is still bound. Pure GL state queries, no GL errors. */
+    /** Call right after a production draw while its state is still bound. Pure GL state queries. */
     fun passSnapshot(name: String, inputUnits: IntArray) {
-        // Rare passes (cache build/completion) are captured whenever they run; frequent ones when armed.
-        if (!passLogArmed && passLog.containsKey(name)) return
+        val record = run.currentRecord ?: return
+        if (!run.passCaptureArmed && record.passes.containsKey(name)) return
+        record.passes[name] = readPassState(name, inputUnits)
+    }
+
+    private fun readPassState(name: String, inputUnits: IntArray): PassRecord {
         val v = IntArray(4)
+        GLES30.glGetIntegerv(GLES30.GL_CURRENT_PROGRAM, v, 0)
+        val program = v[0]
+        var linked = false
+        if (program != 0) {
+            GLES30.glGetProgramiv(program, GLES30.GL_LINK_STATUS, v, 0)
+            linked = v[0] != 0
+        }
         GLES30.glGetIntegerv(GLES30.GL_FRAMEBUFFER_BINDING, v, 0)
         val fbo = v[0]
         val attachments = IntArray(4)
         if (fbo != 0) {
             for (i in 0 until 4) {
                 GLES30.glGetFramebufferAttachmentParameteriv(
-                    GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0 + i,
-                    GLES30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, v, 0
+                    GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0 + i, GLES30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, v, 0
                 )
                 if (v[0] == GLES30.GL_TEXTURE) {
                     GLES30.glGetFramebufferAttachmentParameteriv(
-                        GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0 + i,
-                        GLES30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, v, 0
+                        GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0 + i, GLES30.GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, v, 0
                     )
                     attachments[i] = v[0]
                 }
@@ -181,25 +252,46 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             GLES30.glGetIntegerv(GLES30.GL_DRAW_BUFFER0 + i, v, 0)
             drawBuffers[i] = v[0]
         }
-        GLES30.glGetIntegerv(GLES30.GL_VIEWPORT, v, 0)
-        val viewport = "${v[0]},${v[1]},${v[2]}x${v[3]}"
+        val viewport = IntArray(4)
+        GLES30.glGetIntegerv(GLES30.GL_VIEWPORT, viewport, 0)
         GLES30.glGetIntegerv(GLES30.GL_ACTIVE_TEXTURE, v, 0)
         val activeUnit = v[0]
-        val inputs = StringBuilder()
-        var hazard = false
-        for (unit in inputUnits) {
+        fun boundTexture(unit: Int): Int {
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0 + unit)
             GLES30.glGetIntegerv(GLES30.GL_TEXTURE_BINDING_2D, v, 0)
-            inputs.append(" u").append(unit).append('=').append(v[0])
-            if (v[0] != 0 && attachments.contains(v[0])) hazard = true
+            return v[0]
+        }
+        val samplers = ArrayList<SamplerBinding>()
+        if (program != 0 && linked) {
+            for ((uniform, location) in samplerUniforms(program)) {
+                GLES30.glGetUniformiv(program, location, v, 0)
+                val unit = v[0]
+                samplers.add(SamplerBinding(uniform, unit, boundTexture(unit)))
+            }
+        }
+        val bound = ArrayList<IntArray>()
+        for (unit in (0 until BOUND_UNIT_SCAN).union(inputUnits.toList())) {
+            val tex = boundTexture(unit)
+            if (tex != 0) bound.add(intArrayOf(unit, tex))
         }
         GLES30.glActiveTexture(activeUnit)
-        val db = drawBuffers.joinToString(",") { drawBufferName(it) }
-        passLog[name] = String.format(
-            Locale.US, "%s: fbo=%d att=[%s] draw=[%s] vp=%s in:%s%s",
-            name, fbo, attachments.joinToString(","), db, viewport, inputs.toString(),
-            if (hazard) "  ** READ/WRITE FEEDBACK HAZARD **" else " (no feedback)"
-        )
+        return PassRecord(name, program, linked, fbo, attachments, drawBuffers, viewport, samplers, bound)
+    }
+
+    /** Active sampler uniforms (name, location) of a linked program, enumerated from GL. */
+    private fun samplerUniforms(program: Int): List<Pair<String, Int>> = samplerUniformCache.getOrPut(program) {
+        val v = IntArray(1)
+        GLES30.glGetProgramiv(program, GLES30.GL_ACTIVE_UNIFORMS, v, 0)
+        val out = ArrayList<Pair<String, Int>>()
+        val size = IntArray(1)
+        val type = IntArray(1)
+        for (i in 0 until v[0]) {
+            val name = GLES30.glGetActiveUniform(program, i, size, 0, type, 0) ?: continue
+            if (type[0] != GLES30.GL_SAMPLER_2D && type[0] != GLES30.GL_UNSIGNED_INT_SAMPLER_2D && type[0] != GLES30.GL_INT_SAMPLER_2D) continue
+            val location = GLES30.glGetUniformLocation(program, name)
+            if (location >= 0) out.add(name to location)
+        }
+        out
     }
 
     fun beginTimer(name: String) {
@@ -235,35 +327,59 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         }
     }
 
-    /** Runs after the normal frame. Draws the selected view to the default framebuffer. */
-    fun afterFrame(frame: Frame): String {
-        if (!ensurePrograms()) {
-            report = "DIAG: programs failed: $programFailure"
-            return report
-        }
+    /** Runs after the normal frame: advances the forensic run by one work item and draws the view. */
+    fun afterFrame(frame: Frame) {
         lastFrameQuad = frame.quad
+        if (!ensurePrograms()) {
+            run.interrupt("diagnostic programs failed: $programFailure")
+            finishReport(frame)
+            status = run.progressText(frame.nowNanos)
+            return
+        }
         if (capsText == null) capsText = collectCaps()
         pollTimers()
         ensureStageTargets(frame)
-        renderStages(frame)
 
-        val viewChanged = frame.view != lastView
-        lastView = frame.view
-        val measure = viewChanged || frame.nowNanos - lastMeasureNanos >= MEASURE_INTERVAL_NANOS
-        val seriesCaptured = updateSeries(frame)
-        if (measure || seriesCaptured) {
-            lastMeasureNanos = frame.nowNanos
-            report = buildReport(frame)
-            passLogArmed = true // capture the pass state of the next frame
-            if (frame.nowNanos - lastLogNanos >= LOG_INTERVAL_NANOS) {
-                lastLogNanos = frame.nowNanos
-                report.lineSequence().forEach { Log.i(TAG, it) }
+        val work = run.onFrame(
+            GargantuaForensicRun.FrameStatus(
+                nowNanos = frame.nowNanos,
+                animationActive = frame.animationActive,
+                animationRequested = frame.animationRequested,
+                geodesicPasses = frame.geodesicPasses,
+                materialRan = frame.materialRan,
+                bloomRan = frame.bloomRan,
+                compositeRan = frame.compositeRan,
+                rebuilds = frame.rebuilds,
+                gateAction = frame.gateAction,
+                animationStatus = frame.animationStatus
+            )
+        )
+        val record = run.currentRecord
+        if (record != null) {
+            record.perf.gpuMs.putAll(timerMs)
+            if (work.kind != GargantuaForensicRun.WorkKind.NONE) {
+                try {
+                    execute(work, record, frame)
+                } catch (e: RuntimeException) {
+                    record.failures.add("$work failed: ${e.javaClass.simpleName} ${e.message}")
+                }
+                val error = GLES30.glGetError()
+                if (error != GLES30.GL_NO_ERROR) record.failures.add("$work GL error 0x${Integer.toHexString(error)}")
+                GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+                run.workDone(work, frame.nowNanos)
             }
-        } else {
-            passLogArmed = false
         }
+        finishReport(frame)
+        status = run.progressText(frame.nowNanos)
         drawView(frame)
-        return report
+    }
+
+    private fun finishReport(frame: Frame) {
+        val done = run.state == GargantuaForensicRun.State.COMPLETE || run.state == GargantuaForensicRun.State.INTERRUPTED
+        if (!done || reportBuilt) return
+        reportBuilt = true
+        report = GargantuaForensicReport.build(run, capsText ?: "caps unavailable", frame.config, frame.nowNanos)
+        (report + "\n" + GargantuaForensicReport.raw(run)).lineSequence().forEach { Log.i(TAG, it) }
     }
 
     fun release() {
@@ -277,20 +393,25 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             GLES30.glDeleteQueries(ids.size, ids, 0)
         }
         timerQueries.clear(); timerPending.clear(); timerMs.clear(); timerOpen = null
+        samplerUniformCache.clear()
         capsText = null
-        series = null
-        passLog.clear()
+        run.cancel()
         report = ""
+        status = ""
+        reportBuilt = false
     }
 
     /** GL object names are invalid after an EGL context loss; forget them without deleting. */
     fun forgetContext() {
+        run.interrupt("EGL context re-created (surface lost)")
         viewProgram = null; statsProgram = null; probeProgram = null; preToneProgram = null
         programsAttempted = false
         statsFbo = 0; statsTex = 0; probeFbo = 0; probeTex = 0
         brightFbo = 0; brightTex = 0; brightW = 0; brightH = 0
         preFbo = 0; preTex = 0; finalFbo = 0; finalTex = 0; stageW = 0; stageH = 0
+        refMaterialFbo = 0; refMaterialTex = 0; refFinalFbo = 0; refFinalTex = 0; copyReadFbo = 0; refMaterialValid = false
         timerQueries.clear(); timerPending.clear(); timerOpen = null
+        samplerUniformCache.clear()
         capsText = null
     }
 
@@ -338,6 +459,9 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             statsFbo = fbo(statsTex)
             probeTex = texture(GLES30.GL_RGBA32UI, SCAN_SAMPLES, PROBE_ROWS, GLES30.GL_RGBA_INTEGER, GLES30.GL_UNSIGNED_INT, GLES30.GL_NEAREST)
             probeFbo = fbo(probeTex)
+            val f = IntArray(1)
+            GLES30.glGenFramebuffers(1, f, 0)
+            copyReadFbo = f[0]
         }
         val bw = max(1, frame.bloomW)
         val bh = max(1, frame.bloomH)
@@ -350,10 +474,17 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         if (stageW != frame.renderW || stageH != frame.renderH) {
             deleteFboTex(preFbo, preTex)
             deleteFboTex(finalFbo, finalTex)
+            deleteFboTex(refMaterialFbo, refMaterialTex)
+            deleteFboTex(refFinalFbo, refFinalTex)
             preTex = texture(GLES30.GL_RGBA16F, frame.renderW, frame.renderH, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_LINEAR)
             preFbo = fbo(preTex)
             finalTex = texture(GLES30.GL_RGBA8, frame.renderW, frame.renderH, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, GLES30.GL_LINEAR)
             finalFbo = fbo(finalTex)
+            refMaterialTex = texture(GLES30.GL_RGBA16F, frame.renderW, frame.renderH, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_NEAREST)
+            refMaterialFbo = fbo(refMaterialTex)
+            refFinalTex = texture(GLES30.GL_RGBA8, frame.renderW, frame.renderH, GLES30.GL_RGBA, GLES30.GL_UNSIGNED_BYTE, GLES30.GL_NEAREST)
+            refFinalFbo = fbo(refFinalTex)
+            refMaterialValid = false
             stageW = frame.renderW; stageH = frame.renderH
         }
     }
@@ -368,7 +499,25 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         deleteFboTex(probeFbo, probeTex); probeFbo = 0; probeTex = 0
         deleteFboTex(brightFbo, brightTex); brightFbo = 0; brightTex = 0; brightW = 0; brightH = 0
         deleteFboTex(preFbo, preTex); preFbo = 0; preTex = 0
-        deleteFboTex(finalFbo, finalTex); finalFbo = 0; finalTex = 0; stageW = 0; stageH = 0
+        deleteFboTex(finalFbo, finalTex); finalFbo = 0; finalTex = 0
+        deleteFboTex(refMaterialFbo, refMaterialTex); refMaterialFbo = 0; refMaterialTex = 0
+        deleteFboTex(refFinalFbo, refFinalTex); refFinalFbo = 0; refFinalTex = 0
+        deleteFboTex(copyReadFbo, 0); copyReadFbo = 0
+        refMaterialValid = false
+        stageW = 0; stageH = 0
+    }
+
+    /** Exact copy (NEAREST blit, same format and size) of a renderer texture into a diagnostics reference. */
+    private fun copyTexture(src: Int, dstFbo: Int, w: Int, h: Int): Boolean {
+        if (src == 0 || dstFbo == 0) return false
+        GLES30.glBindFramebuffer(GLES30.GL_READ_FRAMEBUFFER, copyReadFbo)
+        GLES30.glFramebufferTexture2D(GLES30.GL_READ_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, src, 0)
+        GLES30.glBindFramebuffer(GLES30.GL_DRAW_FRAMEBUFFER, dstFbo)
+        GLES30.glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GLES30.GL_COLOR_BUFFER_BIT, GLES30.GL_NEAREST)
+        GLES30.glFramebufferTexture2D(GLES30.GL_READ_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, 0, 0)
+        GLES30.glBindFramebuffer(GLES30.GL_READ_FRAMEBUFFER, 0)
+        GLES30.glBindFramebuffer(GLES30.GL_DRAW_FRAMEBUFFER, 0)
+        return true
     }
 
     // ------------------------------------------------------------------ stage capture
@@ -416,8 +565,9 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
     }
 
     private fun drawView(frame: Frame) {
-        if (frame.view == View.D6_FINAL) {
-            frame.drawRealComposite()
+        if (frame.view == View.D6_FINAL || frame.view == View.OFF) {
+            // The normal presentation; only re-drawn when this frame's composite did not run.
+            if (!frame.compositeRan) frame.drawRealComposite()
             return
         }
         val program = viewProgram ?: return
@@ -431,17 +581,20 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             View.D0_STATIC_HDR -> tex = frame.hdrTexture
             View.D1_RAY_RECORDS -> { mode = 1; size = intArrayOf(frame.rayW, frame.rayH) }
             View.D2_MATERIAL -> tex = frame.modulatedTexture
-            View.D3_BRIGHTPASS -> tex = brightTex
-            View.D4_BLOOM -> tex = frame.bloomTexture
-            View.D5_PRE_TONEMAP -> tex = preTex
+            View.D3_BRIGHTPASS -> { renderStages(frame); tex = brightTex; size = intArrayOf(brightW, brightH) }
+            View.D4_BLOOM -> { tex = frame.bloomTexture; size = intArrayOf(frame.bloomW, frame.bloomH) }
+            View.D5_PRE_TONEMAP -> { renderStages(frame); tex = preTex }
             View.D7_HIGHER_ORDER -> { mode = 2; tex = frame.hdrTexture }
             else -> Unit
         }
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+        GLES30.glViewport(0, 0, frame.surfaceW, frame.surfaceH)
+        program.use()
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, if (mode == 1) 0 else tex)
         program.setUniform1i("u_A", 0)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, if (mode == 1) frame.recordTexture0 else 0)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, if (mode == 1) frame.recordTextures.getOrElse(0) { 0 } else 0)
         program.setUniform1i("u_R", 1)
         program.setUniform1i("u_Mode", mode)
         program.setUniform1f("u_Scale", 1.0f)
@@ -466,6 +619,162 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             out.add((p[0] + 0.5f) / frame.renderW); out.add((p[1] + 0.5f) / frame.renderH)
         }
         return out.toFloatArray()
+    }
+
+    // ------------------------------------------------------------------ work items
+
+    private fun execute(work: GargantuaForensicRun.Work, record: GargantuaForensicRun.PhaseRecord, frame: Frame) {
+        when (work.kind) {
+            GargantuaForensicRun.WorkKind.SAMPLE -> sample(work.index, record, frame)
+            GargantuaForensicRun.WorkKind.CACHE -> cacheContent(work.cachePass, record, frame)
+            GargantuaForensicRun.WorkKind.RING -> { renderStages(frame); record.ring = ringScan(frame) }
+            GargantuaForensicRun.WorkKind.BLACK -> { renderStages(frame); record.black = blackPixels(frame) }
+            GargantuaForensicRun.WorkKind.GRAPH -> graph(record, frame)
+            GargantuaForensicRun.WorkKind.NONE -> Unit
+        }
+    }
+
+    private fun sample(index: Int, record: GargantuaForensicRun.PhaseRecord, frame: Frame) {
+        renderStages(frame)
+        val tMs = if (index == 0) 0L else (frame.nowNanos - record.t0Nanos) / 1_000_000L
+        if (index == 0) {
+            record.animationActiveAtCapture = frame.animationActive
+            record.animationStatusAtCapture = frame.animationStatus
+            record.gateActionAtCapture = frame.gateAction
+        }
+        val material = if (frame.animationActive) frame.modulatedTexture else 0
+        val stages = ArrayList<StageStat>()
+        stages.add(stageStat("D0", frame.hdrTexture, frame.renderW, frame.renderH))
+        val r0 = frame.recordTextures.getOrElse(0) { 0 }
+        var validPixels = -1L
+        if (r0 == 0) {
+            stages.add(StageStat.unavailable("D1", "records not allocated"))
+        } else {
+            val r = runStats(2, 0, 0, 0, r0, frame.rayW, frame.rayH)
+            if (r == null) stages.add(StageStat.unavailable("D1", "readback failed")) else {
+                var nz = 0L; var hi = 0L; var trunc = 0L
+                for (i in 0 until STATS_GRID * STATS_GRID) { nz += u(r[i * 4]); hi += u(r[i * 4 + 1]); trunc += u(r[i * 4 + 2]) }
+                validPixels = hi
+                stages.add(StageStat("D1", r0, frame.rayW, frame.rayH, 0f, 0f, 0f, nz, "r0 nonzeroPx=$nz validPx=$hi truncatedPx=$trunc"))
+            }
+        }
+        stages.add(if (material == 0) StageStat.unavailable("D2", "not presented (${frame.gateAction})") else stageStat("D2", material, frame.renderW, frame.renderH))
+        stages.add(stageStat("D3", brightTex, brightW, brightH))
+        stages.add(if (frame.bloomTexture == 0) StageStat.unavailable("D4", "bloom off") else stageStat("D4", frame.bloomTexture, frame.bloomW, frame.bloomH))
+        stages.add(stageStat("D5", preTex, stageW, stageH))
+        stages.add(stageStat("D6", finalTex, stageW, stageH))
+
+        var hoMean = 0f; var hoMax = 0f; var hoPx = 0L; var hoHalf = 0L
+        runStats(3, frame.hdrTexture, 0, 0, 0, frame.renderW, frame.renderH)?.let { s ->
+            var sum = 0.0
+            for (i in 0 until STATS_GRID * STATS_GRID) { sum += f(s[i * 4 + 2]); hoMax = max(hoMax, f(s[i * 4 + 1])); hoPx += s[i * 4 + 3] and 0xFFFF; hoHalf += s[i * 4 + 3] ushr 16 }
+            hoMean = if (hoPx > 0) (sum / hoPx).toFloat() else 0f
+        }
+
+        val vsStatic = if (material != 0) diff(material, frame.hdrTexture, frame.renderW, frame.renderH) else null
+        var vsT0: DiffStat? = null
+        var finalVsT0: DiffStat? = null
+        if (index == 0) {
+            refMaterialValid = material != 0 && copyTexture(material, refMaterialFbo, frame.renderW, frame.renderH)
+            copyTexture(finalTex, refFinalFbo, stageW, stageH)
+        } else {
+            if (material != 0 && refMaterialValid) vsT0 = diff(material, refMaterialTex, frame.renderW, frame.renderH)
+            finalVsT0 = diff(finalTex, refFinalTex, stageW, stageH)
+        }
+        val pts = animationProbeTexels(frame)
+        fun lums(tex: Int, w: Int, h: Int) = probeStage(tex, w, h, pts, frame)?.map { lum(it[0], it[1], it[2]) }?.toFloatArray()
+        record.samples.add(
+            Sample(
+                index = index, tMs = tMs, stages = stages, recordsValidPixels = validPixels,
+                hoMean = hoMean, hoMax = hoMax, hoPixels = hoPx, hoAboveHalf = hoHalf,
+                materialVsStatic = vsStatic, materialVsT0 = vsT0, finalVsT0 = finalVsT0,
+                probeStatic = lums(frame.hdrTexture, frame.renderW, frame.renderH),
+                probeMaterial = if (material != 0) lums(material, frame.renderW, frame.renderH) else null,
+                probeFinal = lums(finalTex, stageW, stageH)
+            )
+        )
+    }
+
+    private fun cacheContent(pass: Int, record: GargantuaForensicRun.PhaseRecord, frame: Frame) {
+        for (slot in 0 until AnimationGate.RECORDS_PER_CACHE_PASS) {
+            val index = pass * AnimationGate.RECORDS_PER_CACHE_PASS + slot
+            val tex = frame.recordTextures.getOrElse(index) { 0 }
+            if (tex == 0) continue
+            recordStat("r$index(p$pass c${slot + 1})", tex, frame)?.let { record.cache.add(it) }
+        }
+        if (pass == 0) {
+            fun float(name: String, tex: Int, w: Int, h: Int) {
+                record.cacheFloat.add(if (tex == 0) StageStat.unavailable(name, "not allocated") else stageStat(name, tex, w, h))
+            }
+            float("rayHDR(p0 c0)", frame.rayCacheTexture, frame.rayW, frame.rayH)
+            float("builtEmission", frame.builtEmissionTexture, frame.rayW, frame.rayH)
+            if (frame.blockSize > 1) float("animatedRay", frame.animatedRayTexture, frame.rayW, frame.rayH)
+        }
+    }
+
+    private fun recordStat(label: String, tex: Int, frame: Frame): RecordStat? {
+        val w = frame.rayW
+        val h = frame.rayH
+        val m2 = runStats(2, 0, 0, 0, tex, w, h) ?: return null
+        val m5 = runStats(5, 0, 0, 0, tex, w, h) ?: return null
+        val m6 = runStats(6, 0, 0, 0, tex, w, h) ?: return null
+        val m7 = runStats(7, 0, 0, 0, tex, w, h) ?: return null
+        val m8 = runStats(8, 0, 0, 0, tex, w, h) ?: return null
+        var nz = 0L; var valid = 0L; var trunc = 0L; var tier5 = 0L
+        var validX = 0L; var hoX = 0L; var invalidX = 0L; var tier9 = 0L
+        var rMin = Float.MAX_VALUE; var rMax = -Float.MAX_VALUE; var pMin = Float.MAX_VALUE; var pMax = -Float.MAX_VALUE
+        var gMin = Float.MAX_VALUE; var gMax = -Float.MAX_VALUE
+        val rawMin = LongArray(4) { 0xFFFFFFFFL }
+        val rawMax = LongArray(4)
+        for (i in 0 until STATS_GRID * STATS_GRID) {
+            val o = i * 4
+            nz += u(m2[o]); valid += u(m2[o + 1]); trunc += u(m2[o + 2]); tier5 += u(m2[o + 3])
+            val cells = (m6[o + 2] and 0xFFFF).toLong()
+            validX += cells; hoX += (m6[o + 2] ushr 16); invalidX += (m6[o + 3] and 0xFFFF); tier9 += (m6[o + 3] ushr 16)
+            if (cells > 0) {
+                rMin = min(rMin, f(m5[o])); rMax = max(rMax, f(m5[o + 1])); pMin = min(pMin, f(m5[o + 2])); pMax = max(pMax, f(m5[o + 3]))
+                gMin = min(gMin, f(m6[o])); gMax = max(gMax, f(m6[o + 1]))
+            }
+            rawMin[0] = min(rawMin[0], u(m7[o])); rawMax[0] = max(rawMax[0], u(m7[o + 1]))
+            rawMin[1] = min(rawMin[1], u(m7[o + 2])); rawMax[1] = max(rawMax[1], u(m7[o + 3]))
+            rawMin[2] = min(rawMin[2], u(m8[o])); rawMax[2] = max(rawMax[2], u(m8[o + 1]))
+            rawMin[3] = min(rawMin[3], u(m8[o + 2])); rawMax[3] = max(rawMax[3], u(m8[o + 3]))
+        }
+        val span = frame.diskOuterRadius - frame.diskInnerRadius
+        val none = validX == 0L
+        return RecordStat(
+            label = label, texture = tex, internalFormat = textureInfo(tex).first, w = w, h = h,
+            nonzeroPixels = nz, validPixels = valid, truncatedPixels = trunc, tier5Flags = tier5, tier9Flags = tier9,
+            validCrossings = validX, higherOrderCrossings = hoX, emissionInvalidCrossings = invalidX,
+            rMin = if (none) Float.NaN else frame.diskInnerRadius + rMin * span,
+            rMax = if (none) Float.NaN else frame.diskInnerRadius + rMax * span,
+            phiMin = if (none) Float.NaN else ((pMin - 0.5f) * TAU),
+            phiMax = if (none) Float.NaN else ((pMax - 0.5f) * TAU),
+            gMin = if (none) Float.NaN else gMin, gMax = if (none) Float.NaN else gMax,
+            rawMin = rawMin, rawMax = rawMax
+        )
+    }
+
+    private fun graph(record: GargantuaForensicRun.PhaseRecord, frame: Frame) {
+        record.fbos.clear()
+        record.fbos.addAll(fboRecords(frame.fbos))
+        record.textures.clear()
+        fun add(role: String, tex: Int) {
+            if (tex == 0) return
+            val (format, size) = textureInfo(tex)
+            record.textures.add(TextureRecord(role, tex, format, size[0], size[1]))
+        }
+        add("D0 static HDR", frame.hdrTexture)
+        if (frame.presentationTexture != frame.hdrTexture) add("presented HDR", frame.presentationTexture)
+        add("D2 material out", frame.modulatedTexture)
+        add("ray HDR cache", frame.rayCacheTexture)
+        add("builtEmission", frame.builtEmissionTexture)
+        if (frame.blockSize > 1) add("animatedRay", frame.animatedRayTexture)
+        frame.recordTextures.forEachIndexed { i, t -> add("record r$i", t) }
+        add("D4 bloom", frame.bloomTexture)
+        add("diag D3 bright", brightTex)
+        add("diag D5 preACES", preTex)
+        add("diag D6 final", finalTex)
     }
 
     // ------------------------------------------------------------------ GPU reductions / probes
@@ -500,6 +809,26 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         statsBuffer.position(0)
         statsBuffer.get(out)
         return out
+    }
+
+    private fun stageStat(stage: String, tex: Int, w: Int, h: Int): StageStat {
+        if (tex == 0) return StageStat.unavailable(stage, "no texture")
+        val s = runStats(0, tex, 0, 0, 0, w, h) ?: return StageStat.unavailable(stage, "readback failed")
+        var mn = Float.MAX_VALUE; var mx = 0f; var sum = 0.0; var nz = 0L
+        for (i in 0 until STATS_GRID * STATS_GRID) {
+            mn = min(mn, f(s[i * 4])); mx = max(mx, f(s[i * 4 + 1])); sum += f(s[i * 4 + 2]); nz += u(s[i * 4 + 3])
+        }
+        return StageStat(stage, tex, w, h, mn, mx, (sum / (w.toDouble() * h)).toFloat(), nz)
+    }
+
+    private fun diff(a: Int, b: Int, w: Int, h: Int): DiffStat? {
+        val d = runStats(1, a, b, 0, 0, w, h) ?: return null
+        var sum = 0.0; var mx = 0f; var ch = 0L; var sh = 0L; var disk = 0L; var dch = 0L
+        for (i in 0 until STATS_GRID * STATS_GRID) {
+            sum += f(d[i * 4]); mx = max(mx, f(d[i * 4 + 1]))
+            ch += d[i * 4 + 2] and 0xFFFF; sh += d[i * 4 + 2] ushr 16; disk += d[i * 4 + 3] and 0xFFFF; dch += d[i * 4 + 3] ushr 16
+        }
+        return DiffStat(sqrt(sum / (w.toDouble() * h)).toFloat(), mx, ch, disk, dch, sh)
     }
 
     /** Point probes (row 0) and, when [scan] is set, the 12 fixed radial scan lines. Raw uint bits. */
@@ -537,10 +866,8 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         return out
     }
 
-    private var lastFrameQuad: QuadGeometry? = null
-    private var lastRingPeaks: List<IntArray> = emptyList()
-
     private fun f(bits: Int): Float = java.lang.Float.intBitsToFloat(bits)
+    private fun u(v: Int): Long = v.toLong() and 0xFFFFFFFFL
     private fun lum(r: Float, g: Float, b: Float) = 0.2126f * r + 0.7152f * g + 0.0722f * b
 
     /** Samples a float stage at render-resolution texel points (scaled to the stage size). */
@@ -569,198 +896,78 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
     private fun animationProbeTexels(frame: Frame): List<IntArray> =
         ANIMATION_PROBES_ST.map { stToTexel(it[0], it[1], frame.renderW, frame.renderH) }
 
-    private fun updateSeries(frame: Frame): Boolean {
-        lastFrameQuad = frame.quad
-        if (!frame.animationActive || frame.modulatedTexture == 0) {
-            series = null
-            return false
-        }
-        val s = series?.takeIf { it.amplitude == frame.amplitudePercent } ?: Series(frame.amplitudePercent, frame.nowNanos).also { series = it }
-        val elapsed = frame.nowNanos - s.startNanos
-        var captured = false
-        for (k in 0 until 3) {
-            if (s.material[k] == null && elapsed >= k * 1_000_000_000L) {
-                val pts = animationProbeTexels(frame)
-                val m = probeStage(frame.modulatedTexture, frame.renderW, frame.renderH, pts, frame) ?: return false
-                val st = probeStage(frame.hdrTexture, frame.renderW, frame.renderH, pts, frame) ?: return false
-                s.material[k] = m.flatMap { it.toList() }.toFloatArray()
-                s.static[k] = st.flatMap { it.toList() }.toFloatArray()
-                s.times[k] = frame.nowNanos
-                captured = true
-                if (k == 2) finishAmplitude(frame, s)
-                break
-            }
-        }
-        return captured
-    }
+    // ------------------------------------------------------------------ ring / black pixels
 
-    private fun finishAmplitude(frame: Frame, s: Series) {
-        val diff = runStats(1, frame.modulatedTexture, frame.hdrTexture, 0, 0, frame.renderW, frame.renderH) ?: return
-        var sum = 0.0; var changed = 0; var shadowChanged = 0; var disk = 0; var diskChanged = 0
-        for (i in 0 until STATS_GRID * STATS_GRID) {
-            sum += f(diff[i * 4])
-            changed += diff[i * 4 + 2] and 0xFFFF; shadowChanged += diff[i * 4 + 2] ushr 16
-            disk += diff[i * 4 + 3] and 0xFFFF; diskChanged += diff[i * 4 + 3] ushr 16
-        }
-        val n = frame.renderW.toDouble() * frame.renderH
-        fun probeLum(arr: FloatArray, i: Int) = lum(arr[i * 4], arr[i * 4 + 1], arr[i * 4 + 2])
-        var s01 = 0.0; var s12 = 0.0
-        for (i in 0 until DISK_PROBES) {
-            val d01 = probeLum(s.material[1]!!, i) - probeLum(s.material[0]!!, i)
-            val d12 = probeLum(s.material[2]!!, i) - probeLum(s.material[1]!!, i)
-            s01 += d01 * d01; s12 += d12 * d12
-        }
-        val sky = ANIMATION_PROBES_ST.size - 1
-        val shadow = ANIMATION_PROBES_ST.size - 2
-        ampResults[s.amplitude] = AmpResult(
-            rmsVsStatic = sqrt(sum / n).toFloat(),
-            changedPixels = changed, diskPixels = disk, diskChanged = diskChanged, shadowChanged = shadowChanged,
-            probeRms01 = sqrt(s01 / DISK_PROBES).toFloat(), probeRms12 = sqrt(s12 / DISK_PROBES).toFloat(),
-            skyDelta = kotlin.math.abs(probeLum(s.material[2]!!, sky) - probeLum(s.material[0]!!, sky)),
-            shadowDelta = kotlin.math.abs(probeLum(s.material[2]!!, shadow) - probeLum(s.material[0]!!, shadow))
-        )
-    }
-
-    // ------------------------------------------------------------------ report
-
-    private fun buildReport(frame: Frame): String {
-        val sb = StringBuilder()
-        fun line(s: String) { sb.append(s).append('\n') }
-        fun g(v: Float) = String.format(Locale.US, "%.4g", v)
-        fun rgb(v: FloatArray?) = if (v == null) "n/a" else String.format(Locale.US, "(%.4g %.4g %.4g a%.4g)", v[0], v[1], v[2], v[3])
-
-        line("DIAG ${frame.view.label} · records=${frame.precision.label} · t=${String.format(Locale.US, "%.1f", frame.nowNanos / 1e9)}s")
-        line(capsText ?: "")
-        line("render ${frame.renderW}x${frame.renderH} ray ${frame.rayW}x${frame.rayH} block ${frame.blockSize} bloom ${frame.bloomW}x${frame.bloomH} surface ${frame.surfaceW}x${frame.surfaceH}")
-        line("camera ${frame.camera}")
-        line("anim: ${frame.animationStatus} · action=${frame.gateAction} · geodesicPassesThisFrame=${frame.geodesicPasses} · rebuilds=${frame.rebuilds} · materialOutput=${if (frame.animationActive) "presented" else "not presented"}")
-        line("FBOs: " + fboReport(frame.fbos))
-
-        // Records (cache generation/storage).
-        runStats(2, 0, 0, 0, frame.recordTexture0, frame.rayW, frame.rayH)?.let { r ->
-            var nz = 0L; var hi = 0L; var trunc = 0L; var tier = 0L
-            for (i in 0 until STATS_GRID * STATS_GRID) { nz += r[i * 4]; hi += r[i * 4 + 1]; trunc += r[i * 4 + 2]; tier += r[i * 4 + 3] }
-            line("D1 records[0] ${frame.rayW}x${frame.rayH}: nonzero=$nz validCrossing(high16 set)=$hi truncatedSignature=$trunc M7>=5=$tier")
-        } ?: line("D1 records: not allocated (animation not ready)")
-
-        // Per-stage stats.
-        fun stats(name: String, tex: Int, w: Int, h: Int) {
-            if (tex == 0) { line("$name: n/a"); return }
-            val s = runStats(0, tex, 0, 0, 0, w, h) ?: return
-            var mn = Float.MAX_VALUE; var mx = 0f; var sum = 0.0; var nz = 0L
-            for (i in 0 until STATS_GRID * STATS_GRID) {
-                mn = min(mn, f(s[i * 4])); mx = max(mx, f(s[i * 4 + 1])); sum += f(s[i * 4 + 2]); nz += s[i * 4 + 3]
-            }
-            line("$name ${w}x$h: minL=${g(mn)} maxL=${g(mx)} meanL=${g((sum / (w.toDouble() * h)).toFloat())} nonzero=$nz")
-        }
-        stats("D0 static HDR", frame.hdrTexture, frame.renderW, frame.renderH)
-        stats("D2 material", frame.modulatedTexture, frame.renderW, frame.renderH)
-        stats("D3 brightpass", brightTex, brightW, brightH)
-        stats("D4 bloom", frame.bloomTexture, frame.bloomW, frame.bloomH)
-        stats("D5 pre-ACES", preTex, stageW, stageH)
-        stats("D6 final", finalTex, stageW, stageH)
-        runStats(3, frame.hdrTexture, 0, 0, 0, frame.renderW, frame.renderH)?.let { s ->
-            var sum = 0.0; var mx = 0f; var cnt = 0L; var half = 0L
-            for (i in 0 until STATS_GRID * STATS_GRID) { sum += f(s[i * 4 + 2]); mx = max(mx, f(s[i * 4 + 1])); cnt += s[i * 4 + 3] and 0xFFFF; half += s[i * 4 + 3] ushr 16 }
-            line("D7 HO/total on D0: mean=${g(if (cnt > 0) (sum / cnt).toFloat() else 0f)} max=${g(mx)} px=$cnt px(HO>50%)=$half")
-        }
-
-        // Animation: material vs static now, and per-amplitude results (t=0,1,2 s after activation).
-        if (frame.animationActive && frame.modulatedTexture != 0) {
-            runStats(1, frame.modulatedTexture, frame.hdrTexture, 0, 0, frame.renderW, frame.renderH)?.let { d ->
-                var sum = 0.0; var mx = 0f; var ch = 0L; var sh = 0L; var disk = 0L; var dch = 0L
-                for (i in 0 until STATS_GRID * STATS_GRID) {
-                    sum += f(d[i * 4]); mx = max(mx, f(d[i * 4 + 1]))
-                    ch += d[i * 4 + 2] and 0xFFFF; sh += d[i * 4 + 2] ushr 16; disk += d[i * 4 + 3] and 0xFFFF; dch += d[i * 4 + 3] ushr 16
-                }
-                line("D2-D0 now: RMS(L)=${g(sqrt(sum / (frame.renderW.toDouble() * frame.renderH)).toFloat())} max|dL|=${g(mx)} changed=$ch diskPx=$disk diskChanged=$dch shadowChanged=$sh")
-            }
-        }
-        line("amp | RMS(D2-D0) | changed | disk changed/disk | shadowChanged | probe RMS dL 0-1s | 1-2s | |dL| sky | |dL| shadow")
-        for ((amp, r) in ampResults) {
-            line("$amp% | ${g(r.rmsVsStatic)} | ${r.changedPixels} | ${r.diskChanged}/${r.diskPixels} | ${r.shadowChanged} | ${g(r.probeRms01)} | ${g(r.probeRms12)} | ${g(r.skyDelta)} | ${g(r.shadowDelta)}")
-        }
-        series?.let { s ->
-            line("probes (render texel; static | material t0 | t1 | t2), amp ${s.amplitude}%:")
-            val pts = animationProbeTexels(frame)
-            for (i in pts.indices) {
-                val name = if (i < DISK_PROBES) "P$i" else if (i == DISK_PROBES) "S(shadow)" else "K(sky)"
-                fun lumAt(arr: FloatArray?) = if (arr == null) "-" else g(lum(arr[i * 4], arr[i * 4 + 1], arr[i * 4 + 2]))
-                line(" $name ${pts[i][0]},${pts[i][1]}: ${lumAt(s.static[0])} | ${lumAt(s.material[0])} | ${lumAt(s.material[1])} | ${lumAt(s.material[2])}")
-            }
-        }
-
-        ringReport(frame, ::line, ::g, ::rgb)
-        blackReport(frame, ::line, ::rgb)
-
-        line("passes (last armed frame):")
-        passLog.values.forEach { line(" $it") }
-        line("GPU ms (EXT_disjoint_timer_query): " + if (!hasTimer) "unavailable" else timerMs.entries.joinToString(" ") { "${it.key}=${g(it.value)}" })
-        return sb.toString()
-    }
-
-    private fun ringReport(frame: Frame, line: (String) -> Unit, g: (Float) -> String, rgb: (FloatArray?) -> String) {
-        val raw = runProbe(false, frame.hdrTexture, frame.renderW, frame.renderH, FloatArray(0), true, frame) ?: return
+    private fun ringScan(frame: Frame): RingResult? {
+        val raw = runProbe(false, frame.hdrTexture, frame.renderW, frame.renderH, FloatArray(0), true, frame) ?: return null
         val px = SCAN_DR * min(frame.renderW, frame.renderH) * 0.5f
+        val rows = ArrayList<RingRow>()
         val peaks = ArrayList<IntArray>()
         val outers = ArrayList<IntArray>()
-        val rows = ArrayList<String>()
-        val hoByDir = FloatArray(SCAN_DIRECTIONS)
+        val okAngles = ArrayList<Int>()
+        fun isShadow(v: FloatArray) = v[3] <= 0.5f && v[0] * v[0] + v[1] * v[1] + v[2] * v[2] <= 1e-7f
         for (d in 0 until SCAN_DIRECTIONS) {
             fun at(i: Int) = FloatArray(4) { c -> f(raw[((d + 1) * SCAN_SAMPLES + i) * 4 + c]) }
+            val angle = 15 + 30 * d
             var boundary = -1
+            var hoMax = 0f
+            var hoMaxAt = -1
             for (i in 0 until SCAN_SAMPLES) {
                 val v = at(i)
-                if (v[3] <= 0.5f && v[0] * v[0] + v[1] * v[1] + v[2] * v[2] <= 1e-7f) boundary = i
+                if (isShadow(v)) boundary = i
+                val ho = max(0f, v[3] - 1f)
+                if (ho > hoMax) { hoMax = ho; hoMaxAt = i }
             }
-            val angle = 15 + 30 * d
-            if (boundary < 0 || boundary >= SCAN_SAMPLES - 2) { rows.add(" ${angle}deg: no shadow on scan line"); continue }
+            val first = at(0)
+            val startClass = when { isShadow(first) -> "shadow"; first[3] >= 1f -> "disk-lit"; else -> "sky" }
+            val hoAt = if (hoMaxAt >= 0) scanTexel(d, hoMaxAt, frame) else null
+            if (boundary < 0) {
+                rows.add(RingRow(angle, "NO_SHADOW_BOUNDARY", startClass, null, null, null, 0f, 0f, 0f, hoMax, hoAt)); continue
+            }
+            if (boundary >= SCAN_SAMPLES - 2) {
+                rows.add(RingRow(angle, "SHADOW_TO_SCAN_END", startClass, scanTexel(d, boundary, frame), null, null, 0f, 0f, 0f, hoMax, hoAt)); continue
+            }
             var best = boundary + 1
-            var bestHo = -1f
+            var bestHo = 0f
             for (i in boundary + 1 until min(SCAN_SAMPLES, boundary + 1 + PEAK_WINDOW)) {
                 val ho = max(0f, at(i)[3] - 1f)
                 if (ho > bestHo) { bestHo = ho; best = i }
             }
-            val outer = min(SCAN_SAMPLES - 1, best + OUTER_OFFSET)
             val pk = at(best)
-            val tl = lum(pk[0], pk[1], pk[2])
-            hoByDir[d] = bestHo
+            val total = lum(pk[0], pk[1], pk[2])
+            val status = when { bestHo <= 0f -> "NO_RING_PEAK"; total <= 0f -> "ZERO_RADIANCE"; else -> "OK" }
+            val outer = min(SCAN_SAMPLES - 1, best + OUTER_OFFSET)
             val peakTexel = scanTexel(d, best, frame)
-            peaks.add(peakTexel); outers.add(scanTexel(d, outer, frame))
-            rows.add(String.format(Locale.US, " %3ddeg boundary@%s peak@%d,%d dR=%.2fpx HO(a-1)=%s total=%s HO/total=%s",
-                angle, scanTexel(d, boundary, frame).joinToString(","), peakTexel[0], peakTexel[1], (best - boundary) * px,
-                g(bestHo), g(tl), g(if (tl > 1e-4f) bestHo / tl else 0f)))
+            val outerTexel = scanTexel(d, outer, frame)
+            rows.add(RingRow(angle, status, startClass, scanTexel(d, boundary, frame), peakTexel, outerTexel, (best - boundary) * px, bestHo, total, hoMax, hoAt))
+            if (status == "OK") { peaks.add(peakTexel); outers.add(outerTexel); okAngles.add(angle) }
         }
         lastRingPeaks = peaks
-        line("RING scan on D0 (centre st ${RING_CENTER_ST[0]},${RING_CENTER_ST[1]}, 12 lines at 15+30k deg, GL angles, y up):")
-        rows.forEach(line)
-        val right = listOf(0, 11).map { hoByDir[it] }.average()
-        val left = listOf(5, 6).map { hoByDir[it] }.average()
-        line(String.format(Locale.US, " HO(a-1) right(15,345deg)=%.4g left(165,195deg)=%.4g right/left=%.3g", right, left, if (left > 0) right / left else 0.0))
-        if (peaks.isEmpty()) return
-        // Same physical pixels through every stage: peak and outer (+%d samples) luminance.
-        val stages = listOf(
-            "D0" to Triple(frame.hdrTexture, frame.renderW, frame.renderH),
-            "D2" to Triple(frame.modulatedTexture, frame.renderW, frame.renderH),
-            "D3" to Triple(brightTex, brightW, brightH),
-            "D4" to Triple(frame.bloomTexture, frame.bloomW, frame.bloomH),
-            "D5" to Triple(preTex, stageW, stageH),
-            "D6" to Triple(finalTex, stageW, stageH)
-        )
-        line(" per stage L(peak)/L(outer) for each found line:")
-        for ((name, t) in stages) {
-            val pk = probeStage(t.first, t.second, t.third, peaks, frame)
-            val ou = probeStage(t.first, t.second, t.third, outers, frame)
-            if (pk == null || ou == null) { line("  $name: n/a"); continue }
-            line("  $name: " + pk.indices.joinToString(" ") { i ->
-                val a = lum(pk[i][0], pk[i][1], pk[i][2]); val b = lum(ou[i][0], ou[i][1], ou[i][2])
-                "${g(a)}/${g(b)}"
-            })
+        val right = rows.filter { it.angleDeg in setOf(15, 45, 315, 345) }.map { it.hoMaxOnLine }.average().toFloat()
+        val left = rows.filter { it.angleDeg in setOf(135, 165, 195, 225) }.map { it.hoMaxOnLine }.average().toFloat()
+        val perStage = LinkedHashMap<String, List<FloatArray>?>()
+        if (peaks.isNotEmpty()) {
+            val stages = listOf(
+                "D0" to Triple(frame.hdrTexture, frame.renderW, frame.renderH),
+                "D2" to Triple(if (frame.animationActive) frame.modulatedTexture else 0, frame.renderW, frame.renderH),
+                "D3" to Triple(brightTex, brightW, brightH),
+                "D4" to Triple(frame.bloomTexture, frame.bloomW, frame.bloomH),
+                "D5" to Triple(preTex, stageW, stageH),
+                "D6" to Triple(finalTex, stageW, stageH)
+            )
+            for ((name, t) in stages) {
+                val pk = probeStage(t.first, t.second, t.third, peaks, frame)
+                val ou = probeStage(t.first, t.second, t.third, outers, frame)
+                perStage[name] = if (pk == null || ou == null) null else pk.indices.map { i ->
+                    floatArrayOf(lum(pk[i][0], pk[i][1], pk[i][2]), lum(ou[i][0], ou[i][1], ou[i][2]))
+                }
+            }
         }
+        return RingResult(rows, right, left, perStage, okAngles)
     }
 
-    private fun blackReport(frame: Frame, line: (String) -> Unit, rgb: (FloatArray?) -> String) {
-        val s = runStats(4, finalTex, frame.hdrTexture, preTex, 0, stageW, stageH) ?: return
+    private fun blackPixels(frame: Frame): BlackResult? {
+        val s = runStats(4, finalTex, frame.hdrTexture, preTex, 0, stageW, stageH) ?: return null
         var a = 0L; var b = 0L; var c = 0L; var d = 0L; var e = 0L; var ez = 0L
         val examples = ArrayList<IntArray>()
         for (i in 0 until STATS_GRID * STATS_GRID) {
@@ -769,23 +976,26 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             val pos = s[i * 4 + 3]
             if (pos != 0 && examples.size < 3) examples.add(intArrayOf(pos and 0xFFFF, pos ushr 16))
         }
-        line("BLACK final px (max<3/255) by D0 provenance: A captured=$a B unresolved=$b C empty-space=$c D sampling-hole=$d E post-processing=$e (zeroed before ACES=$ez)")
-        if (examples.isEmpty()) return
-        val d0 = probeStage(frame.hdrTexture, frame.renderW, frame.renderH, examples, frame)
-        val rec = probeRecords(frame.recordTexture0, frame, examples)
-        val d3 = probeStage(brightTex, brightW, brightH, examples, frame)
-        val d4 = probeStage(frame.bloomTexture, frame.bloomW, frame.bloomH, examples, frame)
-        val d5 = probeStage(preTex, stageW, stageH, examples, frame)
-        val d6 = probeStage(finalTex, stageW, stageH, examples, frame)
-        examples.forEachIndexed { i, p ->
-            val r = rec?.get(i)
-            val recText = if (r == null) "records n/a" else String.format(
-                Locale.US, "M7=%d crossing0=%s crossing1=%s",
-                if ((r[3] and 0x8000) != 0) 9 else if ((r[1] and 0x8000) != 0) 5 else 1,
-                if ((r[1] ushr 16) != 0) "yes" else "no", if ((r[3] ushr 16) != 0) "yes" else "no"
-            )
-            line(" px ${p[0]},${p[1]}: HDR${rgb(d0?.get(i))} $recText bright${rgb(d3?.get(i))} bloom${rgb(d4?.get(i))} preACES(post-sharpen)${rgb(d5?.get(i))} final${rgb(d6?.get(i))}")
+        val lines = ArrayList<String>()
+        if (examples.isNotEmpty()) {
+            fun rgb(v: FloatArray?) = if (v == null) "n/a" else String.format(Locale.US, "(%.4g %.4g %.4g a%.4g)", v[0], v[1], v[2], v[3])
+            val d0 = probeStage(frame.hdrTexture, frame.renderW, frame.renderH, examples, frame)
+            val rec = probeRecords(frame.recordTextures.getOrElse(0) { 0 }, frame, examples)
+            val d3 = probeStage(brightTex, brightW, brightH, examples, frame)
+            val d4 = probeStage(frame.bloomTexture, frame.bloomW, frame.bloomH, examples, frame)
+            val d5 = probeStage(preTex, stageW, stageH, examples, frame)
+            val d6 = probeStage(finalTex, stageW, stageH, examples, frame)
+            examples.forEachIndexed { i, p ->
+                val r = rec?.get(i)
+                val recText = if (r == null) "records n/a" else String.format(
+                    Locale.US, "M7=%d crossing0=%s crossing1=%s",
+                    if ((r[3] and 0x8000) != 0) 9 else if ((r[1] and 0x8000) != 0) 5 else 1,
+                    if ((r[1] ushr 16) != 0) "yes" else "no", if ((r[3] ushr 16) != 0) "yes" else "no"
+                )
+                lines.add("px ${p[0]},${p[1]}: HDR${rgb(d0?.get(i))} $recText bright${rgb(d3?.get(i))} bloom${rgb(d4?.get(i))} preACES${rgb(d5?.get(i))} final${rgb(d6?.get(i))}")
+            }
         }
+        return BlackResult(a, b, c, d, e, ez, lines)
     }
 
     private fun scanTexel(direction: Int, sample: Int, frame: Frame): IntArray {
@@ -798,11 +1008,41 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         )
     }
 
-    private fun fboReport(fbos: List<Pair<String, Int>>): String {
+    // ------------------------------------------------------------------ GL object state
+
+    /** Internal format and size of a texture from GL (ES 3.1 texture level queries), else "n/a". */
+    private fun textureInfo(tex: Int): Pair<String, IntArray> {
+        if (!es31 || tex == 0) return "n/a(ES3.0)" to intArrayOf(0, 0)
         val v = IntArray(1)
-        val parts = ArrayList<String>()
+        GLES30.glGetIntegerv(GLES30.GL_ACTIVE_TEXTURE, v, 0)
+        val active = v[0]
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE0 + DIAG_QUERY_UNIT)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, tex)
+        val w = IntArray(1)
+        val h = IntArray(1)
+        GLES31.glGetTexLevelParameteriv(GLES30.GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, v, 0)
+        GLES31.glGetTexLevelParameteriv(GLES30.GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, w, 0)
+        GLES31.glGetTexLevelParameteriv(GLES30.GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h, 0)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+        GLES30.glActiveTexture(active)
+        return formatName(v[0]) to intArrayOf(w[0], h[0])
+    }
+
+    private fun formatName(format: Int): String = when (format) {
+        GLES30.GL_RGBA16F -> "RGBA16F"
+        GLES30.GL_RGBA32UI -> "RGBA32UI"
+        GLES30.GL_RGBA8 -> "RGBA8"
+        GLES30.GL_RGBA32F -> "RGBA32F"
+        GLES30.GL_R11F_G11F_B10F -> "R11G11B10F"
+        GLES30.GL_RGBA -> "RGBA"
+        else -> "0x" + Integer.toHexString(format)
+    }
+
+    private fun fboRecords(fbos: List<Pair<String, Int>>): List<FboRecord> {
+        val v = IntArray(1)
+        val out = ArrayList<FboRecord>()
         for ((name, id) in fbos) {
-            if (id == 0) { parts.add("$name=none"); continue }
+            if (id == 0) { out.add(FboRecord(name, 0, "none", emptyList())); continue }
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, id)
             val status = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
             val atts = ArrayList<String>()
@@ -814,12 +1054,14 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
                 GLES30.glGetFramebufferAttachmentParameteriv(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0 + i, GLES30.GL_FRAMEBUFFER_ATTACHMENT_COMPONENT_TYPE, v, 0)
                 val type = when (v[0]) { GLES30.GL_FLOAT -> "F"; GLES30.GL_UNSIGNED_INT -> "UI"; GLES30.GL_INT -> "I"; GLES30.GL_UNSIGNED_NORMALIZED -> "UN"; else -> "0x" + Integer.toHexString(v[0]) }
                 GLES30.glGetFramebufferAttachmentParameteriv(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0 + i, GLES30.GL_FRAMEBUFFER_ATTACHMENT_RED_SIZE, v, 0)
-                atts.add("c$i:tex$tex/$type${v[0]}")
+                val bits = v[0]
+                val (format, size) = textureInfo(tex)
+                atts.add("C$i:tex$tex/$type$bits/$format/${size[0]}x${size[1]}")
             }
-            parts.add("$name(id$id)=${if (status == GLES30.GL_FRAMEBUFFER_COMPLETE) "COMPLETE" else "0x" + Integer.toHexString(status)}[${atts.joinToString(" ")}]")
+            out.add(FboRecord(name, id, if (status == GLES30.GL_FRAMEBUFFER_COMPLETE) "COMPLETE" else "INCOMPLETE 0x" + Integer.toHexString(status), atts))
         }
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
-        return parts.joinToString("; ")
+        return out
     }
 
     private fun collectCaps(): String {
@@ -827,6 +1069,11 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         GLES30.glGetIntegerv(GLES30.GL_MAX_DRAW_BUFFERS, v, 0)
         GLES30.glGetIntegerv(GLES30.GL_MAX_COLOR_ATTACHMENTS, v, 1)
         val ext = GLES30.glGetString(GLES30.GL_EXTENSIONS) ?: ""
+        val version = GLES30.glGetString(GLES30.GL_VERSION) ?: ""
+        es31 = Regex("OpenGL ES (\\d+)\\.(\\d+)").find(version)?.let { m ->
+            val major = m.groupValues[1].toInt(); val minor = m.groupValues[2].toInt()
+            major > 3 || (major == 3 && minor >= 1)
+        } ?: false
         hasTimer = ext.contains("GL_EXT_disjoint_timer_query")
         fun precision(type: Int, name: String): String {
             val range = IntArray(2)
@@ -834,21 +1081,15 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             GLES30.glGetShaderPrecisionFormat(GLES30.GL_FRAGMENT_SHADER, type, range, 0, prec, 0)
             return "$name[${range[0]},${range[1]};p${prec[0]}]"
         }
-        return "GL ${GLES30.glGetString(GLES30.GL_VERSION)} | ${GLES30.glGetString(GLES30.GL_RENDERER)} | ${GLES30.glGetString(GLES30.GL_VENDOR)} | " +
+        return "GL $version | ${GLES30.glGetString(GLES30.GL_RENDERER)} | ${GLES30.glGetString(GLES30.GL_VENDOR)} | " +
             "GLSL ${GLES30.glGetString(GLES30.GL_SHADING_LANGUAGE_VERSION)}\n" +
-            "MAX_DRAW_BUFFERS=${v[0]} MAX_COLOR_ATTACHMENTS=${v[1]} (animation cache uses 4) " +
-            "ext color_buffer_float=${ext.contains("GL_EXT_color_buffer_float")} color_buffer_half_float=${ext.contains("GL_EXT_color_buffer_half_float")} timer=$hasTimer\n" +
+            "MAX_DRAW_BUFFERS=${v[0]} MAX_COLOR_ATTACHMENTS=${v[1]} (animation cache pass uses 4 draw buffers / 4 attachments)\n" +
+            "ext color_buffer_float=${ext.contains("GL_EXT_color_buffer_float")} color_buffer_half_float=${ext.contains("GL_EXT_color_buffer_half_float")} " +
+            "timer=$hasTimer es31TextureQueries=$es31\n" +
             "fragment precision: " + listOf(
                 precision(GLES30.GL_LOW_INT, "lowInt"), precision(GLES30.GL_MEDIUM_INT, "mediumInt"), precision(GLES30.GL_HIGH_INT, "highInt"),
                 precision(GLES30.GL_LOW_FLOAT, "lowFloat"), precision(GLES30.GL_MEDIUM_FLOAT, "mediumFloat"), precision(GLES30.GL_HIGH_FLOAT, "highFloat")
             ).joinToString(" ")
-    }
-
-    private fun drawBufferName(v: Int): String = when (v) {
-        GLES30.GL_NONE -> "NONE"
-        GLES30.GL_BACK -> "BACK"
-        in GLES30.GL_COLOR_ATTACHMENT0..(GLES30.GL_COLOR_ATTACHMENT0 + 15) -> "C${v - GLES30.GL_COLOR_ATTACHMENT0}"
-        else -> "0x" + Integer.toHexString(v)
     }
 
     companion object {
@@ -856,8 +1097,12 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         private const val VERSION_LINE = "#version 300 es"
         private const val GL_TIME_ELAPSED_EXT = 0x88BF
         private const val GL_GPU_DISJOINT_EXT = 0x8FBB
-        private const val MEASURE_INTERVAL_NANOS = 500_000_000L
-        private const val LOG_INTERVAL_NANOS = 2_000_000_000L
+        private const val GL_TEXTURE_WIDTH = 0x1000
+        private const val GL_TEXTURE_HEIGHT = 0x1001
+        private const val GL_TEXTURE_INTERNAL_FORMAT = 0x1003
+        private const val DIAG_QUERY_UNIT = 15
+        private const val BOUND_UNIT_SCAN = 12
+        private const val TAU = 6.2831855f
         const val STATS_GRID = 32
         const val SCAN_SAMPLES = 256
         const val SCAN_DIRECTIONS = 12

@@ -83,16 +83,22 @@ class GargantuaGpuDiagnosticsTest {
         val calls = lines.withIndex().filter { (_, line) ->
             line.contains("gpuDiagnostics.") &&
                 !line.contains("gpuDiagnostics.forgetContext()") &&
-                !line.contains("gpuDiagnostics.release()") &&
-                !line.contains("gpuDiagnostics.reportText")
+                !line.contains("gpuDiagnostics.release()")
         }
-        assertTrue(calls.size >= 12)
+        assertTrue(calls.size >= 15)
         for ((index, line) in calls) {
-            val guarded = (maxOf(0, index - 3)..index).any { lines[it].contains("if (diagActiveThisFrame") }
+            val guarded = (maxOf(0, index - 3)..index).any {
+                lines[it].contains("if (diagActiveThisFrame") || lines[it].contains("if (userState.diagnosticView != 0)")
+            }
             assertTrue("unguarded diagnostics call at line ${index + 1}: $line", guarded)
         }
         assertTrue(lines.any { it.contains("diagActiveThisFrame = state.diagnosticView != 0") })
         assertTrue(lines.any { it.contains("gpuDiagnosticsReport = if (diagActiveThisFrame) gpuDiagnostics.reportText else \"\"") })
+        // With DIAG OFF the frame renders the user's state object itself (no forensic overrides).
+        assertTrue(lines.any {
+            it.contains("val state = if (userState.diagnosticView != 0) gpuDiagnostics.forensicState(userState, frameStartNanos) else userState")
+        })
+        assertTrue(lines.none { it.contains("stateHolder.updateState") && it.contains("diagnostic") })
     }
 
     @Test

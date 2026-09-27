@@ -288,7 +288,14 @@ private fun GargantuaRendererScreen(
 
         if (renderState.diagnosticView != 0) {
             GpuDiagnosticsOverlay(
+                status = telemetry.gpuDiagnosticsStatus,
                 report = telemetry.gpuDiagnosticsReport,
+                view = renderState.diagnosticView,
+                onSelectView = { index ->
+                    surfaceViewRef?.renderer?.stateHolder?.updateState { current ->
+                        if (current.diagnosticView == 0) current else current.copy(diagnosticView = index)
+                    }
+                },
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .statusBarsPadding()
@@ -735,37 +742,19 @@ private fun InfoPanel(
             )
         }
 
-        // TEMPORARY physical-GPU pipeline diagnostics controls.
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val views = GargantuaGpuDiagnostics.View.values()
-            PanelButton(
-                label = "DIAG: " + views[state.diagnosticView.coerceIn(0, views.size - 1)].label.substringBefore(' ').let {
-                    if (state.diagnosticView == 0) "OFF" else it
-                },
-                selected = state.diagnosticView != 0,
-                onClick = {
-                    surfaceView?.renderer?.stateHolder?.updateState { current ->
-                        current.copy(diagnosticView = (current.diagnosticView + 1) % views.size)
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            )
-            val precisions = GargantuaGpuDiagnostics.RecordPrecision.values()
-            PanelButton(
-                label = "REC: " + precisions[state.diagnosticRecordPrecision.coerceIn(0, precisions.size - 1)].label,
-                selected = state.diagnosticRecordPrecision != 0,
-                onClick = {
-                    surfaceView?.renderer?.stateHolder?.updateState { current ->
-                        current.copy(diagnosticRecordPrecision = (current.diagnosticRecordPrecision + 1) % precisions.size)
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            )
-        }
+        // TEMPORARY physical-GPU forensic run: one tap starts the fully automated diagnostic matrix.
+        PanelButton(
+            label = if (state.diagnosticView == 0) "DIAG: OFF (tap to run forensic diagnostics)" else "DIAG: ON (tap to turn off)",
+            selected = state.diagnosticView != 0,
+            onClick = {
+                surfaceView?.renderer?.stateHolder?.updateState { current ->
+                    current.copy(
+                        diagnosticView = if (current.diagnosticView == 0) GargantuaGpuDiagnostics.View.D6_FINAL.ordinal else 0
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Text(
             text = telemetry.animationDiagnostics,
@@ -860,42 +849,75 @@ private fun statusLine(telemetry: GargantuaTelemetry, isPersian: Boolean): Strin
     }
 }
 
-/** TEMPORARY physical-GPU diagnostics report overlay (shown only while a DIAG view is active). */
+/** TEMPORARY forensic run overlay: progress while running; COPY REPORT and view buttons afterwards. */
 @Composable
-private fun GpuDiagnosticsOverlay(report: String, modifier: Modifier = Modifier) {
+private fun GpuDiagnosticsOverlay(
+    status: String,
+    report: String,
+    view: Int,
+    onSelectView: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
-    var expanded by remember { mutableStateOf(true) }
+    var expanded by remember { mutableStateOf(false) }
     val scroll = rememberScrollState()
+    val finished = report.isNotEmpty()
     Column(
-        modifier = modifier.background(Color(0xB0000000), RoundedCornerShape(6.dp)).padding(6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        modifier = modifier.background(Color(0xC0000000), RoundedCornerShape(6.dp)).padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            PanelButton(
-                label = "COPY REPORT",
-                selected = false,
-                onClick = {
-                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("gargantua-gpu-diagnostics", report))
-                },
-                modifier = Modifier.weight(1f)
-            )
-            PanelButton(
-                label = if (expanded) "HIDE TEXT" else "SHOW TEXT",
-                selected = !expanded,
-                onClick = { expanded = !expanded },
-                modifier = Modifier.weight(1f)
-            )
-        }
-        if (expanded) {
-            Box(modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp).verticalScroll(scroll)) {
-                Text(
-                    text = report.ifEmpty { "DIAG: waiting for the first measured frame" },
-                    color = Color(0xFFE0F2F1),
-                    fontSize = 8.sp,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    softWrap = true
+        Text(
+            text = status.ifEmpty { "FORENSIC RUN\nstarting..." },
+            color = if (finished) Color(0xFFA5D6A7) else Color(0xFFFFE082),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
+        if (finished) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                PanelButton(
+                    label = "COPY REPORT",
+                    selected = false,
+                    onClick = {
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("gargantua-forensic-report", report))
+                    },
+                    modifier = Modifier.weight(1f)
                 )
+                PanelButton(
+                    label = if (expanded) "HIDE TEXT" else "SHOW TEXT",
+                    selected = expanded,
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            val views = listOf(
+                GargantuaGpuDiagnostics.View.D0_STATIC_HDR to "D0",
+                GargantuaGpuDiagnostics.View.D1_RAY_RECORDS to "D1",
+                GargantuaGpuDiagnostics.View.D2_MATERIAL to "D2",
+                GargantuaGpuDiagnostics.View.D5_PRE_TONEMAP to "D5",
+                GargantuaGpuDiagnostics.View.D7_HIGHER_ORDER to "D7",
+                GargantuaGpuDiagnostics.View.D6_FINAL to "FINAL"
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                for ((v, label) in views) {
+                    PanelButton(
+                        label = label,
+                        selected = view == v.ordinal,
+                        onClick = { onSelectView(v.ordinal) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            if (expanded) {
+                Box(modifier = Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(scroll)) {
+                    Text(
+                        text = report,
+                        color = Color(0xFFE0F2F1),
+                        fontSize = 8.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        softWrap = true
+                    )
+                }
             }
         }
     }

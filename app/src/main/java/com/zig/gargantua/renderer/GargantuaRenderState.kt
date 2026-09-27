@@ -50,8 +50,11 @@ data class GargantuaRenderState(
     // TEMPORARY physical-GPU pipeline diagnostics (GargantuaGpuDiagnostics). 0 = OFF: no diagnostics
     // code, resource or readback runs and rendering is unchanged.
     val diagnosticView: Int = 0,
-    // TEMPORARY A/B of the animation programs' integer/sampler precision (0 = as shipped).
-    val diagnosticRecordPrecision: Int = 0
+    // TEMPORARY A/B of the animation programs' integer/sampler precision (0 = as shipped); set only by
+    // the forensic run on the renderer's per-frame effective state.
+    val diagnosticRecordPrecision: Int = 0,
+    // TEMPORARY forensic run: a change rebuilds the animation programs and retraces the cache.
+    val diagnosticRebuildGeneration: Int = 0
 )
 
 /**
@@ -146,6 +149,7 @@ data class GargantuaTelemetry(
     val animationFrameTimeMs: Float = 0f,
     val animationStatus: String = "ANIM OFF",
     val gpuDiagnosticsReport: String = "",
+    val gpuDiagnosticsStatus: String = "",
     val animationDiagnostics: String = "ANIM DIAGNOSTICS: state=PLAIN cache=false since=0ms field=none rebuilds=0 notReady=none block=1 render=0x0",
     val timerQueryAvailable: Boolean = false
 )

@@ -108,6 +108,7 @@ class GargantuaRenderer(
     private var diagActiveThisFrame = false
     private var lastDiagnosticView = 0
     private var animationRecordPrecision = GargantuaGpuDiagnostics.RecordPrecision.AS_SHIPPED
+    private var animationRebuildGeneration = 0
 
     // Zero-allocation reusable scratch buffers
     private val scratchDrawBuffersSingle = intArrayOf(GLES30.GL_COLOR_ATTACHMENT0)
@@ -624,8 +625,11 @@ class GargantuaRenderer(
 
     override fun onDrawFrame(gl: GL10?) {
         val frameStartNanos = System.nanoTime()
-        val state = stateHolder.getState()
+        val userState = stateHolder.getState()
+        // TEMPORARY forensic run: phase overrides apply to this frame's effective state only (never to the holder).
+        val state = if (userState.diagnosticView != 0) gpuDiagnostics.forensicState(userState, frameStartNanos) else userState
         if (state.isPaused) {
+            if (userState.diagnosticView != 0) gpuDiagnostics.interruptRun("renderer paused")
             if (state.enableWorkloadTelemetry) {
                 workloadDiagnosticStatus = "TEL ON · GL PAUSED"
                 stateHolder.updateTelemetry { it.copy(adaptiveWorkload = workloadDiagnosticStatus) }
@@ -674,9 +678,10 @@ class GargantuaRenderer(
             if (state.diagnosticView == 0) gpuDiagnostics.release()
         }
         val requestedRecordPrecision = GargantuaGpuDiagnostics.RecordPrecision.fromIndex(state.diagnosticRecordPrecision)
-        if (requestedRecordPrecision != animationRecordPrecision) {
+        if (requestedRecordPrecision != animationRecordPrecision || state.diagnosticRebuildGeneration != animationRebuildGeneration) {
             // Diagnostics A/B: rebuild the animation programs with the requested precision and retrace.
             animationRecordPrecision = requestedRecordPrecision
+            animationRebuildGeneration = state.diagnosticRebuildGeneration
             animationGeodesicProgram?.release()
             animationGeodesicProgram = null
             animationMaterialProgram?.release()
@@ -1218,7 +1223,12 @@ class GargantuaRenderer(
                     hdrTexture = hdrTextureId,
                     presentationTexture = activePresentationHdrTextureId,
                     modulatedTexture = if (animationFrameActive) modulatedHdrTextureId else 0,
-                    recordTexture0 = if (animationResourcesReady) animationRayRecordTextureIds[0] else 0,
+                    recordTextures = if (animationResourcesReady) animationRayRecordTextureIds.copyOf() else IntArray(0),
+                    rayCacheTexture = if (animationResourcesReady) animationRayTextureId else 0,
+                    builtEmissionTexture = if (animationResourcesReady) builtEmissionTextureId else 0,
+                    animatedRayTexture = if (animationResourcesReady) animatedRayTextureId else 0,
+                    diskInnerRadius = lastIscoRadius,
+                    diskOuterRadius = state.diskOuterRadius,
                     bloomTexture = if (state.enableBloom) bloomTexA else 0,
                     bloomW = bloomWidth,
                     bloomH = bloomHeight,
@@ -1235,11 +1245,19 @@ class GargantuaRenderer(
                     gateAction = gateDecision.action.name,
                     geodesicPasses = geodesicPassesThisFrame,
                     rebuilds = animationRebuildCount,
+                    materialRan = animationFrameActive,
+                    bloomRan = shouldRunBloom,
+                    compositeRan = shouldRunComposite,
                     animationStatus = animationFailureStatus ?: animationLastNotReadyReason,
-                    camera = String.format(
-                        Locale.US, "dist=%.2f incl=%.2f az=%.2f target=%.2f,%.2f,%.2f scale=%.2f",
-                        state.camDist, state.camInclinationDeg, state.camAzimuthDeg,
-                        state.camTargetX, state.camTargetY, state.camTargetZ, state.renderScale
+                    config = String.format(
+                        Locale.US,
+                        "camera dist=%.2f incl=%.2f az=%.2f target=%.2f,%.2f,%.2f | renderScale=%.2f render=%dx%d ray=%dx%d block=%d surface=%dx%d | " +
+                            "mass=%.2f spin=%.2f rOut=%.1f maxSteps=%d | exposure=%.3f bloom=%s(th=%.2f int=%.2f) doppler=%s disk=%s tel=%s speed=%s | user ANIM=%s amp=%d%%",
+                        state.camDist, state.camInclinationDeg, state.camAzimuthDeg, state.camTargetX, state.camTargetY, state.camTargetZ,
+                        state.renderScale, renderW, renderH, rayGrid.rayWidth, rayGrid.rayHeight, rayGrid.blockSize, surfaceW, surfaceH,
+                        state.mass, state.spin, state.diskOuterRadius, state.maxSteps, state.exposure, state.enableBloom,
+                        state.bloomThreshold, state.bloomIntensity, state.enableDoppler, state.enableDisk, state.enableWorkloadTelemetry,
+                        state.animationSpeed, userState.enableAnimation, userState.animationAmplitudePercent
                     ),
                     fbos = listOf(
                         "hdr" to hdrFboId, "bloomA" to bloomFboA, "bloomB" to bloomFboB, "coarseRay" to coarseRayFboId,
@@ -1344,6 +1362,7 @@ class GargantuaRenderer(
                     animationStatus = animationStatus,
                     animationDiagnostics = animationDiagnostics,
                     gpuDiagnosticsReport = if (diagActiveThisFrame) gpuDiagnostics.reportText else "",
+                    gpuDiagnosticsStatus = if (diagActiveThisFrame) gpuDiagnostics.statusText else "",
                     frameTimeMs = ((System.nanoTime() - frameStartNanos) / 1_000_000.0f),
                     spin = state.spin,
                     isDiskActive = state.enableDisk,
@@ -1448,15 +1467,22 @@ class GargantuaRenderer(
             val vertex = ShaderSource.loadVertexShader(context)
             fun create(fragment: String): ShaderProgram? = ShaderProgram.create(vertex, fragment) { failure = it }
             drainAnimationGlErrors()
-            val geodesic = create(
-                GargantuaGpuDiagnostics.applyRecordPrecision(ShaderSource.loadAnimationGeodesicFragmentShader(context), animationRecordPrecision)
-            )
+            val buildSource = GargantuaGpuDiagnostics.applyRecordPrecision(ShaderSource.loadAnimationGeodesicFragmentShader(context), animationRecordPrecision)
+            val materialSource = GargantuaGpuDiagnostics.applyRecordPrecision(ShaderSource.loadAnimationMaterialFragmentShader(context), animationRecordPrecision)
+            val geodesic = create(buildSource)
             val material = if (geodesic != null) {
-                create(GargantuaGpuDiagnostics.applyRecordPrecision(ShaderSource.loadAnimationMaterialFragmentShader(context), animationRecordPrecision))
+                create(materialSource)
             } else {
                 null
             }
             val programError = GLES30.glGetError()
+            if (diagActiveThisFrame) {
+                gpuDiagnostics.noteAnimationPrograms(
+                    animationRecordPrecision, buildSource, materialSource, geodesic, material,
+                    failure?.let { "${it.label}: ${it.log.replace(Regex("\\s+"), " ").take(300)}" }
+                        ?: if (programError != GLES30.GL_NO_ERROR) "GLERR=0x${programError.toString(16)}" else null
+                )
+            }
             if (geodesic == null || material == null || programError != GLES30.GL_NO_ERROR) {
                 geodesic?.release()
                 material?.release()
