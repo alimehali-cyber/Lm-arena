@@ -9,6 +9,7 @@ precision highp usampler2D;
 
 uniform int u_Mode;      // 0 stats(A)  1 diff(A,B)  2 records(R)  3 higher-order fraction(A)  4 black-pixel classes(A=final,B=HDR,C=pre-tonemap)
                          // 5 record decode r/phi units(R)  6 record decode g/counts(R)  7 raw min/max x,y(R)  8 raw min/max z,w(R)
+                         // 9 crossing classes(R): nonzero-but-invalid, all-zero  10 first nonzero / first valid raw crossing words(R)
 uniform sampler2D u_A;
 uniform sampler2D u_B;
 uniform sampler2D u_C;
@@ -36,6 +37,7 @@ void main() {
     uint lastPos = 0u;
     float gMin = 1.0e30; float gMax = -1.0e30; float pMin = 1.0e30; float pMax = -1.0e30;
     uvec4 rawMin = uvec4(0xFFFFFFFFu); uvec4 rawMax = uvec4(0u);
+    uvec2 firstNonzero = uvec2(0u); uvec2 firstValid = uvec2(0u);
     for (int y = lo.y; y < hi.y; y++) {
         for (int x = lo.x; x < hi.x; x++) {
             ivec2 p = ivec2(x, y);
@@ -68,6 +70,17 @@ void main() {
                     float f = clamp((v.a - 1.0) / l, 0.0, 1.0);
                     fSum += f; fMax = max(fMax, f); c0++;
                     if (f > 0.5) c1++;
+                }
+            } else if (u_Mode == 9 || u_Mode == 10) {
+                uvec4 r = texelFetch(u_R, p, 0);
+                for (int k = 0; k < 2; k++) {
+                    uvec2 c = (k == 0) ? r.xy : r.zw;
+                    bool nonzero = (c.x | c.y) != 0u;
+                    bool valid = crossingValid(c);
+                    if (nonzero && !valid) c0++;
+                    if (!nonzero) c1++;
+                    if (nonzero && all(equal(firstNonzero, uvec2(0u)))) firstNonzero = c;
+                    if (valid && all(equal(firstValid, uvec2(0u)))) firstValid = c;
                 }
             } else if (u_Mode >= 5) {
                 uvec4 r = texelFetch(u_R, p, 0);
@@ -124,6 +137,10 @@ void main() {
         o = uvec4(rawMin.x, rawMax.x, rawMin.y, rawMax.y);
     } else if (u_Mode == 8) {
         o = uvec4(rawMin.z, rawMax.z, rawMin.w, rawMax.w);
+    } else if (u_Mode == 9) {
+        o = uvec4(c0, c1, 0u, 0u);
+    } else if (u_Mode == 10) {
+        o = uvec4(firstNonzero, firstValid);
     } else {
         o = uvec4(c0 | (c1 << 16), c2 | (c3 << 16), c4 | (c5 << 16), lastPos);
     }

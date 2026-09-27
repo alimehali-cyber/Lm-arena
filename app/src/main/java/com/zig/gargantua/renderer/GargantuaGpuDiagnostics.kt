@@ -720,6 +720,11 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
         val m6 = runStats(6, 0, 0, 0, tex, w, h) ?: return null
         val m7 = runStats(7, 0, 0, 0, tex, w, h) ?: return null
         val m8 = runStats(8, 0, 0, 0, tex, w, h) ?: return null
+        val m9 = runStats(9, 0, 0, 0, tex, w, h) ?: return null
+        val m10 = runStats(10, 0, 0, 0, tex, w, h) ?: return null
+        var invalidNz = 0L; var zeroX = 0L
+        val sampleNonzero = LongArray(2)
+        val sampleValid = LongArray(2)
         var nz = 0L; var valid = 0L; var trunc = 0L; var tier5 = 0L
         var validX = 0L; var hoX = 0L; var invalidX = 0L; var tier9 = 0L
         var rMin = Float.MAX_VALUE; var rMax = -Float.MAX_VALUE; var pMin = Float.MAX_VALUE; var pMax = -Float.MAX_VALUE
@@ -739,6 +744,9 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             rawMin[1] = min(rawMin[1], u(m7[o + 2])); rawMax[1] = max(rawMax[1], u(m7[o + 3]))
             rawMin[2] = min(rawMin[2], u(m8[o])); rawMax[2] = max(rawMax[2], u(m8[o + 1]))
             rawMin[3] = min(rawMin[3], u(m8[o + 2])); rawMax[3] = max(rawMax[3], u(m8[o + 3]))
+            invalidNz += u(m9[o]); zeroX += u(m9[o + 1])
+            if (sampleNonzero[0] == 0L && sampleNonzero[1] == 0L) { sampleNonzero[0] = u(m10[o]); sampleNonzero[1] = u(m10[o + 1]) }
+            if (sampleValid[0] == 0L && sampleValid[1] == 0L) { sampleValid[0] = u(m10[o + 2]); sampleValid[1] = u(m10[o + 3]) }
         }
         val span = frame.diskOuterRadius - frame.diskInnerRadius
         val none = validX == 0L
@@ -751,7 +759,9 @@ internal class GargantuaGpuDiagnostics(private val context: Context) {
             phiMin = if (none) Float.NaN else ((pMin - 0.5f) * TAU),
             phiMax = if (none) Float.NaN else ((pMax - 0.5f) * TAU),
             gMin = if (none) Float.NaN else gMin, gMax = if (none) Float.NaN else gMax,
-            rawMin = rawMin, rawMax = rawMax
+            rawMin = rawMin, rawMax = rawMax,
+            invalidNonzeroCrossings = invalidNz, zeroCrossings = zeroX,
+            sampleNonzero = sampleNonzero, sampleValid = sampleValid
         )
     }
 

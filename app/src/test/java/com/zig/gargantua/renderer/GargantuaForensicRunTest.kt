@@ -89,7 +89,7 @@ class GargantuaForensicRunTest {
         drive(run, FakeRenderer(), user, 300, trace)
 
         assertEquals(GargantuaForensicRun.State.COMPLETE, run.state)
-        assertEquals(listOf("A", "B", "C", "D", "E", "RA", "RB", "RC"), run.records.map { it.phase.id })
+        assertEquals(listOf("A", "C", "D", "E", "RA", "RB"), run.records.map { it.phase.id })
         assertTrue(run.records.all { it.finished && it.failures.isEmpty() })
         // Every phase: t0 sample, three cache passes, ring, black pixels, pass graph.
         for (id in run.records.map { it.phase.id }) {
@@ -100,15 +100,17 @@ class GargantuaForensicRunTest {
             val animated = run.records.first { it.phase.id == id }.phase.expectsAnimation
             assertEquals("$id t1/t2", animated, "SAMPLE1" in kinds && "SAMPLE2" in kinds)
         }
-        // Amplitudes 0/15/40/80 and all three record precisions were actually applied to the renderer state,
+        // Amplitudes 0/15/40/80 and both REC record precisions were actually applied to the renderer state,
         // and each REC phase used its own rebuild generation.
         val amps = trace.configs.map { it.substringAfter(':').split('/')[1].toInt() }.toSet()
         assertEquals(setOf(0, 15, 40, 80), amps)
         val rec = trace.configs.filter { it.startsWith("R") }.map { it.substringAfter(':').split('/') }
-        assertEquals(setOf(0, 1, 2), rec.map { it[2].toInt() }.toSet())
-        assertEquals(3, rec.map { it[3] }.toSet().size)
+        assertEquals(setOf(0, 1), rec.map { it[2].toInt() }.toSet())
+        assertEquals(2, rec.map { it[3] }.toSet().size)
+        // Production phases run before the optional REC comparisons.
+        assertEquals(listOf("RA", "RB"), run.records.map { it.phase.id }.takeLast(2))
         // Wall-clock time series: t1 >= t0 + 1 s and t2 >= t0 + 2 s, measured from frame timestamps.
-        for (id in listOf("C", "D", "E", "RA", "RB", "RC")) {
+        for (id in listOf("C", "D", "E", "RA", "RB")) {
             val idx = trace.works.indices.filter { trace.works[it].first == id }
             fun t(name: String) = trace.workTimes[idx.first { trace.works[it].second.toString() == name }]
             assertTrue(t("SAMPLE1") - t("SAMPLE0") >= 1_000_000_000L)
@@ -127,7 +129,7 @@ class GargantuaForensicRunTest {
         val trace = Trace()
         drive(run, FakeRenderer(animationWorks = false), GargantuaRenderState(diagnosticView = 7), 600, trace)
         assertEquals(GargantuaForensicRun.State.COMPLETE, run.state)
-        for (id in listOf("C", "D", "E", "RA", "RB", "RC")) {
+        for (id in listOf("C", "D", "E", "RA", "RB")) {
             val record = run.records.first { it.phase.id == id }
             assertTrue(id, record.failures.single().startsWith("PHASE NOT SETTLED"))
             val kinds = trace.works.filter { it.first == id }.map { it.second.toString() }
@@ -143,9 +145,12 @@ class GargantuaForensicRunTest {
         val user = GargantuaRenderState(diagnosticView = 7)
         run.start(0L)
         run.onFrame(renderer.frame(GargantuaForensicRun.effectiveState(user, run.activePhase(), 0), frameNanos))
-        assertTrue(run.progressText(frameNanos).contains("Phase 1/8"))
+        assertTrue(run.progressText(frameNanos).contains("Phase 1/6"))
         assertTrue(run.progressText(frameNanos).contains("DO NOT TOUCH"))
-        run.onFrame(renderer.frame(user, frameNanos + 6_000_000_000L))
+        // A single long frame (forced program rebuild + cache retrace) does not interrupt the run.
+        run.onFrame(renderer.frame(GargantuaForensicRun.effectiveState(user, run.activePhase(), 0), frameNanos + 6_000_000_000L))
+        assertEquals(GargantuaForensicRun.State.RUNNING, run.state)
+        run.onFrame(renderer.frame(user, frameNanos + 37_000_000_000L))
         assertEquals(GargantuaForensicRun.State.INTERRUPTED, run.state)
         assertNull(run.activePhase())
         assertTrue(run.progressText(0L).startsWith("FORENSIC RUN INTERRUPTED"))
@@ -184,7 +189,7 @@ class GargantuaForensicRunTest {
             listOf("GARGANTUA_ANIMATION_SEMANTIC_CACHE", "GARGANTUA_ANIMATION_MATERIAL_PASS")
         )
         val shipped = GargantuaForensicData.ProgramInfo.describe(material)
-        assertEquals("mediump (fragment default)", shipped.first)
+        assertEquals("highp", shipped.first)
         assertEquals("lowp (fragment default)", shipped.second)
         assertEquals("highp", shipped.third)
         val high = GargantuaForensicData.ProgramInfo.describe(
@@ -222,7 +227,6 @@ class GargantuaForensicRunTest {
         add("D", 0, false)
         add("RA", 0, false)
         add("RB", 250, true)
-        add("RC", 240, true)
         val analysis = GargantuaForensicReport.analyse(run)
         assertTrue(analysis.animationStage, analysis.animationStage.startsWith("CACHE GENERATION"))
         assertEquals(true, analysis.cacheDivergence)
@@ -237,6 +241,41 @@ class GargantuaForensicRunTest {
         }
         assertTrue(report.contains("ROOT CAUSE NOT YET PROVEN"))
         assertTrue(report.contains("FIRST FAILING STAGE (animation) = CACHE GENERATION"))
+        assertTrue(report.contains("== CACHE FIX ACCEPTANCE (production phases C/D/E) =="))
+        assertTrue(report.contains("A production validCrossing>0: FAIL D=0"))
+        assertTrue(report.contains("H M6 reddish feature: VISUAL CONFIRMATION REQUIRED"))
+    }
+
+    @Test
+    fun acceptancePassesOnlyWithValidRecordsTemporalChangeVaryingProbesAndHigherOrderRecords() {
+        val run = GargantuaForensicRun()
+        for (id in listOf("C", "D", "E")) {
+            val record = GargantuaForensicRun.PhaseRecord(GargantuaForensicRun.PHASES.first { it.id == id }, run.records.size)
+            record.animationActiveAtCapture = true
+            record.cache.add(RecordStat("r0", 11, "RGBA32UI", 10, 10, 50, 45, 5, 0, 0, 90, 12, 1, 3f, 20f, -3f, 3f, 0.5f, 1.5f,
+                LongArray(4), LongArray(4), invalidNonzeroCrossings = 4, zeroCrossings = 106,
+                sampleNonzero = longArrayOf(0x1234L, 0x3C00L), sampleValid = longArrayOf(0x80004000L, 0x36663E00L)))
+            (0..2).forEach { k ->
+                val probes = FloatArray(12) { 0.2f + 0.01f * k * (it % 3) }
+                record.samples.add(Sample(k, k * 1000L, emptyList(), 0, 0f, 0f, 0, 0,
+                    DiffStat(0.1f, 1f, 40, 100, 30, 0),
+                    if (k == 0) null else DiffStat(0.1f, 1f, 20, 100, 20, 0),
+                    if (k == 0) null else DiffStat(0.1f, 1f, 20, 100, 20, 0),
+                    probes, probes, probes))
+            }
+            run.records.add(record)
+        }
+        val lines = GargantuaForensicReport.acceptance(run)
+        assertTrue(lines.joinToString("\n"), lines.filter { !it.startsWith("H ") }.all { it.contains(": PASS") })
+        val c = run.records[0].cache[0]
+        assertEquals(94L, c.rawNonzeroCrossings)
+        assertEquals(89L, c.decodedValidCrossings)
+        assertTrue(GargantuaForensicReport.words(c.sampleNonzero).contains("INVALID: tau half is 0"))
+        assertTrue(GargantuaForensicReport.words(c.sampleValid).endsWith("valid)"))
+        // Static probes (zero delta) fail E even when everything else passes.
+        run.records.forEach { r -> r.samples.replaceAll { s -> Sample(s.index, s.tMs, emptyList(), 0, 0f, 0f, 0, 0, s.materialVsStatic, s.materialVsT0,
+            s.finalVsT0, FloatArray(12) { 0.2f }, FloatArray(12) { 0.2f }, FloatArray(12) { 0.2f }) } }
+        assertTrue(GargantuaForensicReport.acceptance(run).filter { it.startsWith("E ") }.all { it.contains(": FAIL") })
     }
 
     @Test

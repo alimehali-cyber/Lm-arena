@@ -286,8 +286,13 @@ internal class GargantuaForensicRun {
                 diagnosticRebuildGeneration = rebuildGeneration
             )
         }
-        const val ESTIMATED_SECONDS = 120L
-        const val INTERRUPT_GAP_NANOS = 5_000_000_000L
+        const val ESTIMATED_SECONDS = 100L
+        /**
+         * A frame gap longer than this interrupts the run (app paused/backgrounded). It must exceed one
+         * frame that compiles and links both animation programs and retraces the cache (REC phases force
+         * that rebuild); the previous 5 s limit stopped a physical run during REC RB.
+         */
+        const val INTERRUPT_GAP_NANOS = 30_000_000_000L
         private val SERIES = listOf(0L, 1000L, 2000L)
         private val SINGLE = listOf(0L)
         private val P = GargantuaGpuDiagnostics.RecordPrecision.AS_SHIPPED
@@ -298,16 +303,18 @@ internal class GargantuaForensicRun {
         private fun animated(id: String, title: String, amp: Int, precision: GargantuaGpuDiagnostics.RecordPrecision, rebuild: Boolean) =
             Phase(id, title, true, amp, precision, rebuild, true, 12, 2000L, 30_000L, SERIES)
 
-        /** The matrix, in execution order. REC phases rebuild the animation programs even when unchanged. */
+        /**
+         * The matrix, in execution order: the production phases first, the optional REC comparisons last so
+         * an interrupted REC phase cannot hide the production result. REC phases rebuild the animation
+         * programs even when unchanged.
+         */
         val PHASES: List<Phase> = listOf(
             static("A", "baseline, ANIM OFF", false, 0),
-            static("B", "ANIM ON 0%", true, 0),
             animated("C", "ANIM ON 15%", 15, P, false),
             animated("D", "ANIM ON 40%", 40, P, false),
             animated("E", "ANIM ON 80%", 80, P, false),
-            animated("RA", "REC as-shipped @40%", 40, GargantuaGpuDiagnostics.RecordPrecision.AS_SHIPPED, true),
-            animated("RB", "REC highp-int @40%", 40, GargantuaGpuDiagnostics.RecordPrecision.HIGHP_INT, true),
-            animated("RC", "REC highp-int+sampler @40%", 40, GargantuaGpuDiagnostics.RecordPrecision.HIGHP_INT_SAMPLER, true)
+            animated("RA", "REC production @40%", 40, GargantuaGpuDiagnostics.RecordPrecision.AS_SHIPPED, true),
+            animated("RB", "REC +highp-int @40%", 40, GargantuaGpuDiagnostics.RecordPrecision.HIGHP_INT, true)
         )
     }
 }
@@ -380,9 +387,18 @@ internal object GargantuaForensicData {
         val phiMin: Float, val phiMax: Float,
         val gMin: Float, val gMax: Float,
         val rawMin: LongArray,
-        val rawMax: LongArray
+        val rawMax: LongArray,
+        /** Crossings (2 per texel) whose words are nonzero but fail the tau-half validity test. */
+        val invalidNonzeroCrossings: Long = 0,
+        /** Crossings whose two words are both zero (no disk crossing recorded). */
+        val zeroCrossings: Long = 0,
+        /** First nonzero crossing (x word, y word) and first valid crossing found by the GPU scan; 0 if none. */
+        val sampleNonzero: LongArray = LongArray(2),
+        val sampleValid: LongArray = LongArray(2)
     ) {
         val zeroPixels: Long get() = w.toLong() * h - nonzeroPixels
+        val rawNonzeroCrossings: Long get() = validCrossings + invalidNonzeroCrossings
+        val decodedValidCrossings: Long get() = validCrossings - emissionInvalidCrossings
     }
 
     class RingRow(

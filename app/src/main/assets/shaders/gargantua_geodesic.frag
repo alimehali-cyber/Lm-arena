@@ -1,5 +1,13 @@
 #version 300 es
 precision highp float;
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+// The animation ray records are 32-bit words (packUnorm2x16 / packHalf2x16, RGBA32UI, see
+// gargantuaPackCrossing): the upper 16 bits carry phiHit and the slab-step tau that marks a crossing as
+// present. Every uint/uvec of the record path (locals, function parameters/returns, the uvec4 MRT outputs
+// and the material pass's texelFetch results) takes the default int precision, which is mediump (16-bit
+// on Mali: [15,14]) unless declared, and would drop those upper halves.
+precision highp int;
+#endif
 
 in vec2 v_TexCoord;
 out vec4 fragColor;

@@ -61,7 +61,6 @@ internal object GargantuaForensicReport {
         val production = record(run, "D")?.takeIf { it.samples.isNotEmpty() } ?: record(run, "RA")
         val a = record(run, "RA")
         val b = record(run, "RB")
-        val c = record(run, "RC")
 
         // Animation: walk the production pipeline in order and stop at the first stage that fails.
         val animationStage = if (production == null) {
@@ -81,7 +80,7 @@ internal object GargantuaForensicReport {
                 else -> "UNDETERMINED (material=$material final=$final)"
             }
         }
-        for ((name, r) in listOf("A as-shipped" to a, "B highp-int" to b, "C highp-int+sampler" to c)) {
+        for ((name, r) in listOf("RA production" to a, "RB +highp-int" to b)) {
             if (r == null) continue
             evidence.add("$name: programs=${r.programs?.let { "build=${it.buildOk} material=${it.materialOk}" } ?: "n/a"} validCrossings=${totalValidCrossings(r)} " +
                 "materialAnimated=${materialAnimated(r)} finalAnimated=${finalAnimated(r)} animActive=${r.animationActiveAtCapture}")
@@ -160,6 +159,8 @@ internal object GargantuaForensicReport {
 
         line("GARGANTUA FORENSIC REPORT (TEMPORARY DIAGNOSTICS) state=${run.state}${if (run.interruptReason.isNotEmpty()) " (${run.interruptReason})" else ""} elapsed=${run.elapsedMs(nowNanos) / 1000}s")
         val capLines = caps.lines()
+        section("CACHE FIX ACCEPTANCE (production phases C/D/E)")
+        acceptance(run).forEach { line(it) }
         section("DEVICE")
         capLines.take(1).forEach { line(it) }
         section("GL LIMITS")
@@ -202,8 +203,8 @@ internal object GargantuaForensicReport {
                 line("${r.phase.id} ${r.phase.amplitudePercent}% ${r.phase.precision.label} | t${s.index}=${s.tMs}ms | ${diffText(s.materialVsStatic)} | ${diffText(s.materialVsT0)} | ${diffText(s.finalVsT0)}")
             }
         }
-        val ordering = listOf("B", "C", "D", "E").map { id -> record(run, id)?.samples?.firstOrNull()?.materialVsStatic?.rms ?: 0f }
-        line("RMS(D2-D0) t0 amp 0/15/40/80 = ${ordering.joinToString("/") { g(it) }} ordering 80>40>15>0: ${ordering[3] > ordering[2] && ordering[2] > ordering[1] && ordering[1] > ordering[0]}")
+        val ordering = listOf("C", "D", "E").map { id -> record(run, id)?.samples?.firstOrNull()?.materialVsStatic?.rms ?: 0f }
+        line("RMS(D2-D0) t0 amp 15/40/80 = ${ordering.joinToString("/") { g(it) }} ordering 80>40>15: ${ordering[2] > ordering[1] && ordering[1] > ordering[0]}")
         for (id in listOf("C", "D", "E", "RB")) {
             val r = record(run, id) ?: continue
             if (r.samples.size < 3) continue
@@ -227,8 +228,13 @@ internal object GargantuaForensicReport {
 
         section("CACHE CONTENT")
         line("record textures (RGBA32UI, 2 crossings/texel): nonzeroPx zeroPx validPx truncatedPx | validX higherOrderX emissionInvalidX tier5 tier9")
-        for (r in run.records.filter { it.cache.isNotEmpty() && (it.phase.id.startsWith("R") || it.phase.id == "D") }) {
+        for (r in run.records.filter { it.cache.isNotEmpty() && it.phase.enableAnimation }) {
             line("${r.phase.id} (${r.phase.precision.label}) total validX=${r.cache.sumOf { it.validCrossings }} validPx=${r.cache.sumOf { it.validPixels }} truncatedPx=${r.cache.sumOf { it.truncatedPixels }}")
+            line("  crossings: rawNonzero=${r.cache.sumOf { it.rawNonzeroCrossings }} validCrossing=${r.cache.sumOf { it.validCrossings }} " +
+                "invalid/sentinel=${r.cache.sumOf { it.invalidNonzeroCrossings }} zero=${r.cache.sumOf { it.zeroCrossings }} " +
+                "decodedValid=${r.cache.sumOf { it.decodedValidCrossings }} decodedInvalid=${r.cache.sumOf { it.emissionInvalidCrossings }} " +
+                "higherOrder=${r.cache.sumOf { it.higherOrderCrossings }}")
+            r.cache.firstOrNull()?.let { c -> line("  ${c.label} sample words: nonzero ${words(c.sampleNonzero)} valid ${words(c.sampleValid)}") }
             for (c in r.cache) {
                 line("  ${c.label} tex${c.texture} ${c.internalFormat} ${c.w}x${c.h}: ${c.nonzeroPixels} ${c.zeroPixels} ${c.validPixels} ${c.truncatedPixels} | ${c.validCrossings} ${c.higherOrderCrossings} ${c.emissionInvalidCrossings} ${c.tier5Flags} ${c.tier9Flags}")
             }
@@ -330,6 +336,55 @@ internal object GargantuaForensicReport {
         return sb.toString()
     }
 
+    /** Crossing words as hex plus the contract decode: x = unorm16 rUnit | phiUnit<<16, y = half g | half tau<<16. */
+    fun words(w: LongArray): String {
+        val x = w[0]; val y = w[1]
+        if (x == 0L && y == 0L) return "none"
+        return String.format(Locale.US, "x=0x%08X y=0x%08X (rUnit=%.4f phiUnit=%.4f gHalf=0x%04X tauHalf=0x%04X %s)",
+            x, y, (x and 0xFFFF) / 65535.0, (x ushr 16) / 65535.0, y and 0xFFFF, y ushr 16,
+            if (((y and 0xFFFF7FFFL) and 0xFFFF0000L) != 0L) "valid" else "INVALID: tau half is 0")
+    }
+
+    /**
+     * Device acceptance of the cache fix, evaluated only from recorded GPU measurements. PASS/FAIL
+     * lines per criterion; M6 (reddish feature) has no automated measure and needs visual confirmation.
+     */
+    fun acceptance(run: GargantuaForensicRun): List<String> {
+        val out = ArrayList<String>()
+        fun verdict(ok: Boolean?) = when (ok) { true -> "PASS"; false -> "FAIL"; null -> "NOT MEASURED" }
+        val prod = listOf("C", "D", "E").mapNotNull { record(run, it) }
+        val valid = prod.mapNotNull { totalValidCrossings(it) }
+        out.add("A production validCrossing>0: ${verdict(if (valid.isEmpty()) null else valid.all { it > 0 })} " +
+            prod.joinToString(" ") { "${it.phase.id}=${totalValidCrossings(it)}" })
+        for ((label, id) in listOf("B" to "C", "C" to "D", "D" to "E")) {
+            val s = record(run, id)?.samples?.firstOrNull()?.materialVsStatic
+            out.add("$label $id D2-D0 at t0: ${verdict(s?.let { it.changed > 0 && it.diskChanged > 0 })} ${diffText(s)}")
+        }
+        for (r in prod) {
+            val m = r.samples.map { it.probeMaterial }
+            val ok: Boolean? = if (m.size < 3 || m.any { it == null }) null else {
+                val d = (0 until GargantuaGpuDiagnostics.DISK_PROBES).map { i ->
+                    maxOf(kotlin.math.abs(m[1]!![i] - m[0]!![i]), kotlin.math.abs(m[2]!![i] - m[1]!![i]))
+                }
+                d.count { it > 0f } > 0
+            }
+            val deltas = if (m.size < 3 || m.any { it == null }) "n/a" else (0 until GargantuaGpuDiagnostics.DISK_PROBES).joinToString(",") { i ->
+                g(kotlin.math.abs(m[1]!![i] - m[0]!![i])) + "/" + g(kotlin.math.abs(m[2]!![i] - m[1]!![i]))
+            }
+            out.add("E ${r.phase.id} disk probes vary t0->t1->t2: ${verdict(ok)} |L1-L0|/|L2-L1| $deltas")
+        }
+        for (r in prod) {
+            val t = r.samples.mapNotNull { it.materialVsT0 }
+            out.add("F ${r.phase.id} material changes with time: ${verdict(if (t.isEmpty()) null else t.any { it.diskChanged > 0 })} " +
+                r.samples.joinToString(" ") { "t${it.index}:${diffText(it.materialVsT0)}" })
+        }
+        val ho = prod.map { r -> r.cache.sumOf { it.higherOrderCrossings } }
+        out.add("G higher-order records present: ${verdict(if (prod.all { it.cache.isEmpty() }) null else ho.any { it > 0 })} " +
+            prod.joinToString(" ") { r -> "${r.phase.id}=${r.cache.sumOf { it.higherOrderCrossings }}" })
+        out.add("H M6 reddish feature: VISUAL CONFIRMATION REQUIRED (no automated measure)")
+        return out
+    }
+
     private fun yn(v: Boolean?) = when (v) { true -> "YES"; false -> "NO"; null -> "UNKNOWN" }
 
     private fun drawName(v: Int): String = when {
@@ -351,7 +406,8 @@ internal object GargantuaForensicReport {
             }
             for (c in r.cache) {
                 sb.append(" cache ${c.label} tex${c.texture} ${c.internalFormat} nz=${c.nonzeroPixels} valid=${c.validPixels} trunc=${c.truncatedPixels} validX=${c.validCrossings} hoX=${c.higherOrderCrossings} " +
-                    "emisInvalidX=${c.emissionInvalidCrossings} r[${g(c.rMin)},${g(c.rMax)}] phi[${g(c.phiMin)},${g(c.phiMax)}] g[${g(c.gMin)},${g(c.gMax)}] rawMin=${c.rawMin.toList()} rawMax=${c.rawMax.toList()}\n")
+                    "emisInvalidX=${c.emissionInvalidCrossings} invalidNzX=${c.invalidNonzeroCrossings} zeroX=${c.zeroCrossings} " +
+                    "sampleNz=${words(c.sampleNonzero)} sampleValid=${words(c.sampleValid)} r[${g(c.rMin)},${g(c.rMax)}] phi[${g(c.phiMin)},${g(c.phiMax)}] g[${g(c.gMin)},${g(c.gMax)}] rawMin=${c.rawMin.toList()} rawMax=${c.rawMax.toList()}\n")
             }
             r.cacheFloat.forEach { sb.append(" cacheF ${it.stage} tex${it.texture} ${it.note ?: "min=${g(it.minL)} max=${g(it.maxL)} mean=${g(it.meanL)} nz=${it.nonzero}"}\n") }
             r.ring?.rows?.forEach { sb.append(" ring ${it.angleDeg} ${it.status} start=${it.startClass} b=${it.boundary?.toList()} p=${it.peak?.toList()} ho=${g(it.ho)} tot=${g(it.total)} hoMax=${g(it.hoMaxOnLine)}@${it.hoMaxAt?.toList()}\n") }
