@@ -291,8 +291,7 @@ class GargantuaSurfaceView(
             windowVisibility == VISIBLE &&
             !state.isPaused &&
             !state.enableWorkloadTelemetry &&
-            state.enableAnimation &&
-            state.animationAmplitudePercent > 0
+            ((state.enableAnimation && state.animationAmplitudePercent > 0) || state.diagnosticView != 0)
     }
 
     private fun syncAnimationTicker() {

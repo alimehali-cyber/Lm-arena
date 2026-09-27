@@ -122,6 +122,9 @@ object ShaderSource {
         return readAsset(context, COMPOSITE_FRAGMENT_SHADER_ASSET_PATH)
     }
 
+    /** TEMPORARY GPU diagnostics shaders (gargantua_diag_*.frag); loaded only when a DIAG view is active. */
+    fun loadAsset(context: Context, path: String): String = readAsset(context, path)
+
     private fun readAsset(context: Context, path: String): String {
         return try {
             context.assets.open(path).use { stream ->

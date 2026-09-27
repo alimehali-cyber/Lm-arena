@@ -103,6 +103,11 @@ class GargantuaRenderer(
     private var lastAnimationRequested = false
     private var lastAnimationAmplitudePercent = -1
     private val animationGate = AnimationGate()
+    // TEMPORARY physical-GPU diagnostics; only used while state.diagnosticView != 0.
+    private val gpuDiagnostics = GargantuaGpuDiagnostics(context)
+    private var diagActiveThisFrame = false
+    private var lastDiagnosticView = 0
+    private var animationRecordPrecision = GargantuaGpuDiagnostics.RecordPrecision.AS_SHIPPED
 
     // Zero-allocation reusable scratch buffers
     private val scratchDrawBuffersSingle = intArrayOf(GLES30.GL_COLOR_ATTACHMENT0)
@@ -308,6 +313,7 @@ class GargantuaRenderer(
         // requires a fresh post-resource request for this context generation.
         renderReadyGate.reset()
         resetGpuResourceHandlesForNewContext()
+        gpuDiagnostics.forgetContext()
 
         val vertSource = ShaderSource.loadVertexShader(context)
 
@@ -661,6 +667,28 @@ class GargantuaRenderer(
             return
         }
 
+        diagActiveThisFrame = state.diagnosticView != 0
+        if (state.diagnosticView != lastDiagnosticView) {
+            lastDiagnosticView = state.diagnosticView
+            presentationInvalidationPending = true
+            if (state.diagnosticView == 0) gpuDiagnostics.release()
+        }
+        val requestedRecordPrecision = GargantuaGpuDiagnostics.RecordPrecision.fromIndex(state.diagnosticRecordPrecision)
+        if (requestedRecordPrecision != animationRecordPrecision) {
+            // Diagnostics A/B: rebuild the animation programs with the requested precision and retrace.
+            animationRecordPrecision = requestedRecordPrecision
+            animationGeodesicProgram?.release()
+            animationGeodesicProgram = null
+            animationMaterialProgram?.release()
+            animationMaterialProgram = null
+            animationProgramAttempted = false
+            animationFailureLatched = false
+            animationFailureStatus = null
+            animationCacheValid = false
+            animationCacheSignature = null
+            sceneDirty = true
+            presentationInvalidationPending = true
+        }
         val forcePresentation = presentationInvalidationPending
         presentationInvalidationPending = false
 
@@ -1036,7 +1064,12 @@ class GargantuaRenderer(
                 activeProg.setUniform1i("u_AnimationCachePass", 0)
             }
 
+            if (diagActiveThisFrame) gpuDiagnostics.beginTimer("geodesic")
             quad.draw()
+            if (diagActiveThisFrame) {
+                gpuDiagnostics.endTimer("geodesic")
+                gpuDiagnostics.passSnapshot(if (animationReady) "anim build pass0" else "geodesic", intArrayOf())
+            }
             geodesicPassesThisFrame++
             geodesicCpuSubmitMs = elapsedMilliseconds(geodesicStart)
 
@@ -1079,16 +1112,21 @@ class GargantuaRenderer(
                 if (animationReady) completeAnimationCache(quad)
                 false
             }
-            AnimationGate.Action.MODULATE -> animationReady &&
-                runAnimationPass(
-                    state,
-                    renderW,
-                    renderH,
-                    rayGrid.rayWidth,
-                    rayGrid.rayHeight,
-                    rayGrid.blockSize,
-                    quad
-                )
+            AnimationGate.Action.MODULATE -> {
+                if (diagActiveThisFrame && animationReady) gpuDiagnostics.beginTimer("material")
+                val ran = animationReady &&
+                    runAnimationPass(
+                        state,
+                        renderW,
+                        renderH,
+                        rayGrid.rayWidth,
+                        rayGrid.rayHeight,
+                        rayGrid.blockSize,
+                        quad
+                    )
+                if (diagActiveThisFrame) gpuDiagnostics.endTimer("material")
+                ran
+            }
         }
         lastFrameGeodesicPasses = geodesicPassesThisFrame
         if (gateDecision.action == AnimationGate.Action.MODULATE && geodesicPassesThisFrame != 0) {
@@ -1108,6 +1146,7 @@ class GargantuaRenderer(
         if (shouldRunBloom) {
             // Bright-pass extraction and downsampling.
             val brightStart = System.nanoTime()
+            if (diagActiveThisFrame) gpuDiagnostics.beginTimer("bloom")
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, bloomFboA)
             GLES30.glViewport(0, 0, bloomWidth, bloomHeight)
             GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
@@ -1118,6 +1157,7 @@ class GargantuaRenderer(
                 bp.setUniform1i("u_HdrTexture", 0)
                 bp.setUniform1f("u_BloomThreshold", state.bloomThreshold)
                 quad.draw()
+                if (diagActiveThisFrame) gpuDiagnostics.passSnapshot("brightpass", intArrayOf(0))
             }
             brightPassCpuSubmitMs = elapsedMilliseconds(brightStart)
 
@@ -1132,6 +1172,7 @@ class GargantuaRenderer(
                 blur.setUniform1i("u_Texture", 0)
                 blur.setUniform2f("u_Direction", 1.0f / bloomWidth, 0.0f)
                 quad.draw()
+                if (diagActiveThisFrame) gpuDiagnostics.passSnapshot("blur H", intArrayOf(0))
             }
             horizontalBlurCpuSubmitMs = elapsedMilliseconds(horizontalStart)
 
@@ -1146,16 +1187,74 @@ class GargantuaRenderer(
                 blur.setUniform1i("u_Texture", 0)
                 blur.setUniform2f("u_Direction", 0.0f, 1.0f / bloomHeight)
                 quad.draw()
+                if (diagActiveThisFrame) gpuDiagnostics.passSnapshot("blur V", intArrayOf(0))
             }
+            if (diagActiveThisFrame) gpuDiagnostics.endTimer("bloom")
             verticalBlurCpuSubmitMs = elapsedMilliseconds(verticalStart)
         }
 
         val shouldRunComposite = renderedScene || bloomChanged || compositeChanged || forcePresentation || animationFrameActive || presentationChanged
         if (shouldRunComposite) {
             val compositeStart = System.nanoTime()
+            if (diagActiveThisFrame) gpuDiagnostics.beginTimer("composite")
             renderCompositeToDisplay(surfaceW, surfaceH, state, quad, activePresentationHdrTextureId, if (animationFrameActive) modulatedHdrFboId else hdrFboId)
+            if (diagActiveThisFrame) gpuDiagnostics.endTimer("composite")
             compositeCpuSubmitMs = elapsedMilliseconds(compositeStart)
             lastPresentedModulated = presentationModulated
+        }
+        if (diagActiveThisFrame) {
+            gpuDiagnostics.afterFrame(
+                GargantuaGpuDiagnostics.Frame(
+                    nowNanos = now,
+                    view = GargantuaGpuDiagnostics.View.fromIndex(state.diagnosticView),
+                    precision = animationRecordPrecision,
+                    surfaceW = surfaceW,
+                    surfaceH = surfaceH,
+                    renderW = renderW,
+                    renderH = renderH,
+                    rayW = rayGrid.rayWidth,
+                    rayH = rayGrid.rayHeight,
+                    blockSize = rayGrid.blockSize,
+                    hdrTexture = hdrTextureId,
+                    presentationTexture = activePresentationHdrTextureId,
+                    modulatedTexture = if (animationFrameActive) modulatedHdrTextureId else 0,
+                    recordTexture0 = if (animationResourcesReady) animationRayRecordTextureIds[0] else 0,
+                    bloomTexture = if (state.enableBloom) bloomTexA else 0,
+                    bloomW = bloomWidth,
+                    bloomH = bloomHeight,
+                    bloomEnabled = state.enableBloom && bloomFboA != 0,
+                    bloomThreshold = state.bloomThreshold,
+                    bloomIntensity = state.bloomIntensity,
+                    exposure = state.exposure,
+                    brightPass = brightPassProgram,
+                    composite = compositeProgram,
+                    quad = quad,
+                    animationActive = animationFrameActive,
+                    animationRequested = animationRequested,
+                    amplitudePercent = state.animationAmplitudePercent,
+                    gateAction = gateDecision.action.name,
+                    geodesicPasses = geodesicPassesThisFrame,
+                    rebuilds = animationRebuildCount,
+                    animationStatus = animationFailureStatus ?: animationLastNotReadyReason,
+                    camera = String.format(
+                        Locale.US, "dist=%.2f incl=%.2f az=%.2f target=%.2f,%.2f,%.2f scale=%.2f",
+                        state.camDist, state.camInclinationDeg, state.camAzimuthDeg,
+                        state.camTargetX, state.camTargetY, state.camTargetZ, state.renderScale
+                    ),
+                    fbos = listOf(
+                        "hdr" to hdrFboId, "bloomA" to bloomFboA, "bloomB" to bloomFboB, "coarseRay" to coarseRayFboId,
+                        "animCache0" to animationCacheFboIds[0], "animCache1" to animationCacheFboIds[1],
+                        "animCache2" to animationCacheFboIds[2], "builtEmission" to builtEmissionFboId,
+                        "modulatedHdr" to modulatedHdrFboId, "animatedRay" to animatedRayFboId
+                    ),
+                    drawRealComposite = {
+                        renderCompositeToDisplay(
+                            surfaceW, surfaceH, state, quad, activePresentationHdrTextureId,
+                            if (animationFrameActive) modulatedHdrFboId else hdrFboId
+                        )
+                    }
+                )
+            )
         }
         if (ENABLE_SEMANTIC_CACHE_DEBUG && workloadRequested && renderedScene) {
             renderSemanticCacheDebugToDisplay(surfaceW, surfaceH, quad)
@@ -1244,6 +1343,7 @@ class GargantuaRenderer(
                     animationFrameTimeMs = if (animationFrameActive) ((System.nanoTime() - frameStartNanos) / 1_000_000.0f) else 0f,
                     animationStatus = animationStatus,
                     animationDiagnostics = animationDiagnostics,
+                    gpuDiagnosticsReport = if (diagActiveThisFrame) gpuDiagnostics.reportText else "",
                     frameTimeMs = ((System.nanoTime() - frameStartNanos) / 1_000_000.0f),
                     spin = state.spin,
                     isDiskActive = state.enableDisk,
@@ -1348,8 +1448,14 @@ class GargantuaRenderer(
             val vertex = ShaderSource.loadVertexShader(context)
             fun create(fragment: String): ShaderProgram? = ShaderProgram.create(vertex, fragment) { failure = it }
             drainAnimationGlErrors()
-            val geodesic = create(ShaderSource.loadAnimationGeodesicFragmentShader(context))
-            val material = if (geodesic != null) create(ShaderSource.loadAnimationMaterialFragmentShader(context)) else null
+            val geodesic = create(
+                GargantuaGpuDiagnostics.applyRecordPrecision(ShaderSource.loadAnimationGeodesicFragmentShader(context), animationRecordPrecision)
+            )
+            val material = if (geodesic != null) {
+                create(GargantuaGpuDiagnostics.applyRecordPrecision(ShaderSource.loadAnimationMaterialFragmentShader(context), animationRecordPrecision))
+            } else {
+                null
+            }
             val programError = GLES30.glGetError()
             if (geodesic == null || material == null || programError != GLES30.GL_NO_ERROR) {
                 geodesic?.release()
@@ -1521,6 +1627,7 @@ class GargantuaRenderer(
             GLES30.glDrawBuffers(scratchDrawBuffersAnimationRecords.size, scratchDrawBuffersAnimationRecords, 0)
             geodesic.setUniform1i("u_AnimationCachePass", pass)
             quad.draw()
+            if (diagActiveThisFrame) gpuDiagnostics.passSnapshot("anim cache pass$pass", intArrayOf())
             geodesicPassesThisFrame++
         }
         geodesic.setUniform1i("u_AnimationCachePass", 0)
@@ -1581,6 +1688,7 @@ class GargantuaRenderer(
             material.setUniform1i("u_MaterialPassMode", 1)
             setTimeDigits(animationBuildTimeDigits)
             quad.draw()
+            if (diagActiveThisFrame) gpuDiagnostics.passSnapshot("material built-emission", DIAG_MATERIAL_UNITS)
             builtEmissionValid = true
         }
 
@@ -1592,12 +1700,14 @@ class GargantuaRenderer(
         material.setUniform1i("u_MaterialPassMode", 0)
         setTimeDigits(scratchTimeDigits)
         quad.draw()
+        if (diagActiveThisFrame) gpuDiagnostics.passSnapshot("material", DIAG_MATERIAL_UNITS)
         for (unit in 2 + animationRayRecordTextureIds.size - 1 downTo 0) {
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0 + unit)
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
         }
         if (coarse) {
             upscaleCoarseRayTexture(animatedRayTextureId, renderWidth, renderHeight, quad, modulatedHdrFboId, animatedRayFboId)
+            if (diagActiveThisFrame) gpuDiagnostics.passSnapshot("material upscale", intArrayOf(0))
         }
         val error = GLES30.glGetError()
         if (error != GLES30.GL_NO_ERROR) {
@@ -1665,6 +1775,7 @@ class GargantuaRenderer(
                 1.0f / max(1, hdrHeight).toFloat()
             )
             quad.draw()
+            if (diagActiveThisFrame) gpuDiagnostics.passSnapshot("composite", intArrayOf(0, 1))
 
             GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
@@ -2445,6 +2556,7 @@ class GargantuaRenderer(
     }
 
     fun release() {
+        gpuDiagnostics.release()
         deleteWorkloadFbos()
         deleteAnimationFbos()
         deleteCoarseRayFbo()
@@ -2499,6 +2611,7 @@ class GargantuaRenderer(
         private const val FPS_IDLE_RESET_NANOS = 750_000_000L
         private const val TELEMETRY_DISPATCH_INTERVAL_MS = 250L // 4 Hz throttle
         // Material-pass samplers of the nine M7 ray records (0 base, 1-4 corners, 5-8 edges).
+        private val DIAG_MATERIAL_UNITS = IntArray(11) { it }
         private val RAY_RECORD_UNIFORMS = Array(AnimationGate.CACHE_PASS_COUNT * AnimationGate.RECORDS_PER_CACHE_PASS) {
             "u_RayRecord$it"
         }
