@@ -19,8 +19,6 @@ object ShaderSource {
     const val COMPOSITE_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_composite.frag"
     const val REDUCE_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_reduce.frag"
     const val SEMANTIC_CACHE_FALSE_COLOR_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_semantic_false_color.frag"
-    const val ANIMATION_MODULATION_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_animation_modulation.frag"
-    const val ANIMATION_APPLY_FRAGMENT_SHADER_ASSET_PATH = "shaders/gargantua_animation_apply.frag"
 
     fun loadVertexShader(context: Context): String {
         return readAsset(context, VERTEX_SHADER_ASSET_PATH)
@@ -49,6 +47,15 @@ object ShaderSource {
     fun loadAnimationGeodesicFragmentShader(context: Context): String {
         val source = readAsset(context, GEODESIC_FRAGMENT_SHADER_ASSET_PATH)
         return buildGeodesicVariant(source, listOf("GARGANTUA_ANIMATION_SEMANTIC_CACHE"))
+    }
+
+    /** Per-frame animation pass: re-shades the cached disk hits of the animation build (no ray tracing). */
+    fun loadAnimationMaterialFragmentShader(context: Context): String {
+        val source = readAsset(context, GEODESIC_FRAGMENT_SHADER_ASSET_PATH)
+        return buildGeodesicVariant(
+            source,
+            listOf("GARGANTUA_ANIMATION_SEMANTIC_CACHE", "GARGANTUA_ANIMATION_MATERIAL_PASS")
+        )
     }
 
     internal fun buildWorkloadTelemetryGeodesicFragmentShader(
@@ -89,14 +96,6 @@ object ShaderSource {
         )
         val defineBlock = defines.joinToString("\n") { "#define $it 1" }
         return variantSource.replaceFirst(versionLine, "$versionLine\n$defineBlock")
-    }
-
-    fun loadAnimationModulationFragmentShader(context: Context): String {
-        return readAsset(context, ANIMATION_MODULATION_FRAGMENT_SHADER_ASSET_PATH)
-    }
-
-    fun loadAnimationApplyFragmentShader(context: Context): String {
-        return readAsset(context, ANIMATION_APPLY_FRAGMENT_SHADER_ASSET_PATH)
     }
 
     fun loadReduceFragmentShader(context: Context): String {

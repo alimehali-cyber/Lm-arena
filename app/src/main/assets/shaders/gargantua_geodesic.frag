@@ -15,11 +15,27 @@ layout(location = 2) out vec4 workloadCostStats;
 #if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
 #if defined(GARGANTUA_WORKLOAD_TELEMETRY) && defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE)
 layout(location = 3) out vec4 workloadSemanticCache;
-#elif defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
-layout(location = 1) out vec4 animationSemanticCache;
+#elif defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE) && !defined(GARGANTUA_ANIMATION_MATERIAL_PASS)
+// Static hit cache of every ray the M7 pixel averaged (base, 4 tier-1 corners, 4 tier-2 edges), one
+// packed record per ray: the ray's emitting disk crossings 1 and 2 (see gargantuaPackRayRecord).
+// Crossings 3-4 carry <1% of the frame's disk light and stay in the cached HDR.
+// The same program writes three records per pass (GLES 3.0 guarantees four draw buffers):
+//   u_AnimationCachePass 0: fragColor = HDR, records of rays 0 (base, + tier flags), 1, 2
+//   u_AnimationCachePass 1: records of rays 3, 4, 5 (fragColor is not attached)
+//   u_AnimationCachePass 2: records of rays 6, 7, 8 (fragColor is not attached)
+// Every pass executes the identical main(), so each record belongs to exactly the ray whose radiance
+// entered the cached HDR; only the record selection depends on the pass.
+layout(location = 1) out uvec4 animationRayRecordA;
+layout(location = 2) out uvec4 animationRayRecordB;
+layout(location = 3) out uvec4 animationRayRecordC;
+uniform int u_AnimationCachePass;
 #endif
 float gargantuaSemanticDiskHitAzimuth = 0.0;
 vec3 gargantuaSemanticDeflectedDir = vec3(0.0, 0.0, 1.0);
+#endif
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+vec4 gargantuaCrossingRecord0 = vec4(0.0);
+vec4 gargantuaCrossingRecord1 = vec4(0.0);
 #endif
 // Azimuth of the most recent traceRaySample() primary disk crossing; read by the M7 tier-1 gate.
 float gargantuaPrimaryHitAzimuth = 0.0;
@@ -32,6 +48,23 @@ uniform float u_TimeDigit1;
 uniform vec2 u_TimeDigits23;
 uniform vec2 u_TimeDigits45;
 uniform vec2 u_TimeDigits67;
+#endif
+#if defined(GARGANTUA_ANIMATION_MATERIAL_PASS)
+// Material pass (no ray tracing): u_Time/u_TimeDigit* hold the time the material is evaluated at.
+uniform int u_MaterialPassMode;
+uniform sampler2D u_BuiltEmissionTexture;
+uniform sampler2D u_HdrTexture;
+// Ray records of the cache build, indexed like the M7 rays: 0 base, 1-4 tier-1 corners
+// (-,-) (+,-) (-,+) (+,+), 5-8 tier-2 edges (-,0) (+,0) (0,-) (0,+).
+uniform highp usampler2D u_RayRecord0;
+uniform highp usampler2D u_RayRecord1;
+uniform highp usampler2D u_RayRecord2;
+uniform highp usampler2D u_RayRecord3;
+uniform highp usampler2D u_RayRecord4;
+uniform highp usampler2D u_RayRecord5;
+uniform highp usampler2D u_RayRecord6;
+uniform highp usampler2D u_RayRecord7;
+uniform highp usampler2D u_RayRecord8;
 #endif
 uniform float u_Mass;        // Black hole mass M (geometrized, G=c=1)
 uniform float u_Spin;        // Kerr spin parameter a (|a| <= M)
@@ -61,24 +94,28 @@ uniform float u_ObjectRadiance;     // Base surface radiance
 const float GARGANTUA_TIME_BASE = 16.0;
 const float GARGANTUA_TAU = 6.28318530718;
 
-float gargantuaAnimationPhaseAdvance(float factor) {
+float gargantuaPhaseAdvanceFromDigits(float factor, float d0, float d1, vec2 d23, vec2 d45, vec2 d67) {
     float coefficient = fract(factor);
-    float advance = u_Time * coefficient;
+    float advance = d0 * coefficient;
     coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
-    advance += u_TimeDigit1 * coefficient;
+    advance += d1 * coefficient;
     coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
-    advance += u_TimeDigits23.x * coefficient;
+    advance += d23.x * coefficient;
     coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
-    advance += u_TimeDigits23.y * coefficient;
+    advance += d23.y * coefficient;
     coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
-    advance += u_TimeDigits45.x * coefficient;
+    advance += d45.x * coefficient;
     coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
-    advance += u_TimeDigits45.y * coefficient;
+    advance += d45.y * coefficient;
     coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
-    advance += u_TimeDigits67.x * coefficient;
+    advance += d67.x * coefficient;
     coefficient = fract(coefficient * GARGANTUA_TIME_BASE);
-    advance += u_TimeDigits67.y * coefficient;
+    advance += d67.y * coefficient;
     return fract(advance);
+}
+
+float gargantuaAnimationPhaseAdvance(float factor) {
+    return gargantuaPhaseAdvanceFromDigits(factor, u_Time, u_TimeDigit1, u_TimeDigits23, u_TimeDigits45, u_TimeDigits67);
 }
 
 #define GARGANTUA_OBJECT_PHASE(t) (GARGANTUA_TAU * gargantuaAnimationPhaseAdvance(u_ObjectOmega / GARGANTUA_TAU) + u_ObjectOmega * (t) + u_ObjectPhi0)
@@ -479,6 +516,25 @@ vec3 gargantuaDomainWarp(vec3 p, float warpStrength) {
     return p + warp * warpStrength;
 }
 
+// Animated material perturbation of the current disk crossing, in [-1, 1] (set by
+// gargantuaAccumulateDiskCrossing before the strata are evaluated). It scales the gas density by
+// (1 + u_AnimationAmplitude * perturbation); amplitude 0 leaves the density bit-for-bit unchanged.
+float gargantuaMaterialPerturbation = 0.0;
+
+// Co-moving material perturbation: two independent lattice fields in the sheared, orbiting disk
+// coordinates of the hit (phiMaterial = phiHit - OmegaK t), exchanged once per local orbit through
+// the Kepler phase OmegaK t. The pattern therefore evolves in the frame of the orbiting gas; its
+// lab-frame motion is the prograde Keplerian advection of phiMaterial alone.
+float gargantuaMaterialPerturbationField(float rHit, float phiMaterial, float keplerPhase) {
+    float rNorm = max(1.0, rHit / u_DiskInnerRadius);
+    float logR = log(rNorm);
+    float phiSheared = phiMaterial - 26.0 * pow(rNorm, -1.5) - 10.0 * logR;
+    vec3 coord = vec3(logR * 18.0, cos(phiSheared) * 3.0, sin(phiSheared) * 3.0);
+    float fieldA = gargantuaNoise3D(coord + vec3(17.0, 5.0, 29.0)) * 2.0 - 1.0;
+    float fieldB = gargantuaNoise3D(coord + vec3(43.0, 71.0, 13.0)) * 2.0 - 1.0;
+    return clamp(fieldA * cos(keplerPhase) + fieldB * sin(keplerPhase), -1.0, 1.0);
+}
+
 // Master Direction A: Sheared Spun-Silk Accretion Disk with Shredded Outer Rim
 float evaluate3DVolumetricGasDensity(float r, float phi, float zeta, float fNorm, float rIn, float rOut) {
     // 1. Vertical Gaussian compression for a crisp flared slab
@@ -527,8 +583,10 @@ float evaluate3DVolumetricGasDensity(float r, float phi, float zeta, float fNorm
     // edges because GLSL ES leaves smoothstep undefined when edge0 >= edge1.
     float outerWisps = 1.0 - smoothstep(frayedRadius - 3.2, frayedRadius + 1.2, r);
 
-    float ampFactor = (u_AnimationAmplitude > 0.0) ? mix(0.70, 1.30, u_AnimationAmplitude) : 1.0;
-    float rawDensity = (0.28 + 1.15 * spunFilaments * ampFactor) * (0.15 + 0.85 * totalDust);
+    float rawDensity = (0.28 + 1.15 * spunFilaments) * (0.15 + 0.85 * totalDust);
+    if (u_AnimationAmplitude > 0.0) {
+        rawDensity *= 1.0 + u_AnimationAmplitude * gargantuaMaterialPerturbation;
+    }
 
     return clamp(rawDensity * verticalFalloff * (0.45 + 0.55 * fNorm) * innerCutoff * outerWisps, 0.0, 5.5);
 }
@@ -585,6 +643,35 @@ vec3 evaluate4TierBlackbodySpectrum(float fNorm, float gShift) {
     return thermalColor * iPhys * 0.85;
 }
 
+
+// 6. Multi-Stratum Volumetric Integration of one disk crossing:
+// Three strata with optical-depth multiplier 2.2. The slab is semi-transparent
+// (transmittance after one crossing is typically ~0.5-0.8), so rear-disk and
+// higher-order images remain visible through it. Shared by the geodesic pass and the animation
+// material pass so both evaluate the identical emission for a given hit and material azimuth.
+void gargantuaAccumulateDiskCrossing(float rHit, float phiMaterial, float keplerPhase, float fNorm, vec3 crossingColor,
+    float slabStepTau, bool higherOrderCrossing, inout vec3 accumDiskRadiance, inout vec3 accumHigherOrderRadiance,
+    inout float diskTransmittance) {
+    gargantuaMaterialPerturbation = (u_AnimationAmplitude > 0.0)
+        ? gargantuaMaterialPerturbationField(rHit, phiMaterial, keplerPhase) : 0.0;
+    float stratumZetas[3] = float[3](-0.55, 0.0, 0.55);
+    float stratumWeights[3] = float[3](0.28, 0.44, 0.28);
+
+    for (int s = 0; s < 3; s++) {
+        float optDensity = evaluate3DVolumetricGasDensity(rHit, phiMaterial, stratumZetas[s], fNorm, u_DiskInnerRadius, u_DiskOuterRadius);
+        float segAlpha = 1.0 - exp(-optDensity * slabStepTau * stratumWeights[s]);
+        vec3 segRadiance = diskTransmittance * crossingColor * segAlpha;
+        accumDiskRadiance += diskTransmittance * crossingColor * segAlpha;
+        if (higherOrderCrossing) {
+            accumHigherOrderRadiance += segRadiance;
+        }
+        diskTransmittance *= (1.0 - segAlpha);
+        if (diskTransmittance < 0.008) {
+            diskTransmittance = 0.0;
+            break;
+        }
+    }
+}
 
 vec4 traceRaySample(
     vec2 stCoord,
@@ -658,6 +745,10 @@ vec4 traceRaySample(
 
 #if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
     gargantuaSemanticDiskHitAzimuth = 0.0;
+#endif
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+    gargantuaCrossingRecord0 = vec4(0.0);
+    gargantuaCrossingRecord1 = vec4(0.0);
 #endif
 #if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
     float rayT = 0.0;
@@ -874,28 +965,18 @@ vec4 traceRaySample(
 #endif
                 float phiMaterial = phiHit - phaseAdvance;
 
-                // 6. Multi-Stratum Volumetric Integration:
-                // Three strata with optical-depth multiplier 2.2. The slab is semi-transparent
-                // (transmittance after one crossing is typically ~0.5-0.8), so rear-disk and
-                // higher-order images remain visible through it.
-                float stratumZetas[3] = float[3](-0.55, 0.0, 0.55);
-                float stratumWeights[3] = float[3](0.28, 0.44, 0.28);
+                // 6. Multi-Stratum Volumetric Integration (gargantuaAccumulateDiskCrossing)
                 float slabStepTau = fullPathLength * 2.20;
-
-                for (int s = 0; s < 3; s++) {
-                    float optDensity = evaluate3DVolumetricGasDensity(rHit, phiMaterial, stratumZetas[s], fNorm, u_DiskInnerRadius, u_DiskOuterRadius);
-                    float segAlpha = 1.0 - exp(-optDensity * slabStepTau * stratumWeights[s]);
-                    vec3 segRadiance = diskTransmittance * crossingColor * segAlpha;
-                    accumDiskRadiance += diskTransmittance * crossingColor * segAlpha;
-                    if (equatorialCrossings >= 2 || diskCrossings >= 2) {
-                        accumHigherOrderRadiance += segRadiance;
-                    }
-                    diskTransmittance *= (1.0 - segAlpha);
-                    if (diskTransmittance < 0.008) {
-                        diskTransmittance = 0.0;
-                        break;
-                    }
-                }
+                bool higherOrderCrossing = equatorialCrossings >= 2 || diskCrossings >= 2;
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+                // Emitting-hit record for the animation material pass: the pass re-evaluates exactly
+                // this crossing with phiMaterial = phiHit - OmegaK(rHit) t on the static path.
+                vec4 crossingRecord = vec4(rHit, phiHit, gShift, higherOrderCrossing ? -slabStepTau : slabStepTau);
+                if (diskCrossings == 1) gargantuaCrossingRecord0 = crossingRecord;
+                if (diskCrossings == 2) gargantuaCrossingRecord1 = crossingRecord;
+#endif
+                gargantuaAccumulateDiskCrossing(rHit, phiMaterial, phaseAdvance, fNorm, crossingColor, slabStepTau,
+                    higherOrderCrossing, accumDiskRadiance, accumHigherOrderRadiance, diskTransmittance);
 
                 if (diskTransmittance == 0.0) {
                     rayState = 3; // Fully opaque disk hit
@@ -968,6 +1049,34 @@ vec4 traceRaySample(
     }
 }
 
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+// Packed emitting-hit record of one ray: its disk crossings 1 and 2, each as
+//   (rHit - r_in) / (r_out - r_in) and phiHit / 2pi + 0.5 as unorm16 (hits satisfy r_in <= rHit <= r_out),
+//   gShift and +/-slabStepTau as half floats (negative tau marks a higher-order crossing).
+// An absent crossing packs to zero (tau > 0 for every hit). Unorm16 keeps rHit to 3e-4 M and phiHit
+// to 1e-4 rad, finer than the 1/108 radial and 1/13.5 azimuthal lattice spacing of the disk texture.
+uvec2 gargantuaPackCrossing(vec4 crossing) {
+    if (crossing.w == 0.0) return uvec2(0u);
+    float rUnit = clamp((crossing.x - u_DiskInnerRadius) / max(1.0e-6, u_DiskOuterRadius - u_DiskInnerRadius), 0.0, 1.0);
+    float phiUnit = clamp(crossing.y / GARGANTUA_TAU + 0.5, 0.0, 1.0);
+    return uvec2(packUnorm2x16(vec2(rUnit, phiUnit)), packHalf2x16(crossing.zw));
+}
+
+vec4 gargantuaUnpackCrossing(uvec2 packedCrossing) {
+    // The g half's sign bit may carry a tier flag (base record); g itself is always positive.
+    uint gTau = packedCrossing.y & 0xFFFF7FFFu;
+    if ((gTau & 0xFFFF0000u) == 0u) return vec4(0.0);
+    vec2 rPhi = unpackUnorm2x16(packedCrossing.x);
+    vec2 gAndTau = unpackHalf2x16(gTau);
+    return vec4(u_DiskInnerRadius + rPhi.x * (u_DiskOuterRadius - u_DiskInnerRadius),
+        (rPhi.y - 0.5) * GARGANTUA_TAU, gAndTau.x, gAndTau.y);
+}
+
+uvec4 gargantuaPackRayRecord(vec4 crossing0, vec4 crossing1) {
+    return uvec4(gargantuaPackCrossing(crossing0), gargantuaPackCrossing(crossing1));
+}
+#endif
+
 // M7 outcome classes: disk/object share the material class, while captured and escaped remain
 // distinct topological outcomes. This prevents uniform disk/object samples from escalating while
 // still refining captured/escaped boundaries.
@@ -993,6 +1102,7 @@ bool gargantuaRayIsDifficult(int state, float minR, int crossings, float hitR) {
     traceRaySample(coord, state, minR, crossings, hitR)
 #endif
 
+#if !defined(GARGANTUA_ANIMATION_MATERIAL_PASS)
 void main() {
     // Aspect-ratio-corrected normalized device coordinates in [-1, 1]
     vec2 st = (gl_FragCoord.xy * 2.0 - u_Resolution.xy) / min(u_Resolution.x, u_Resolution.y);
@@ -1009,6 +1119,18 @@ void main() {
     );
 #if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
     float baseDiskHitAzimuth = gargantuaSemanticDiskHitAzimuth;
+#endif
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+    // Packed hit record of every ray this pixel executes, in M7 ray order (see u_AnimationCachePass).
+    uvec4 animationRayRecords[9];
+    for (int k = 0; k < 9; k++) {
+        animationRayRecords[k] = uvec4(0u);
+    }
+    animationRayRecords[0] = gargantuaPackRayRecord(gargantuaCrossingRecord0, gargantuaCrossingRecord1);
+    int animationRayCount = 1;
+#define GARGANTUA_CAPTURE_RAY_RECORD(k) animationRayRecords[k] = gargantuaPackRayRecord(gargantuaCrossingRecord0, gargantuaCrossingRecord1)
+#else
+#define GARGANTUA_CAPTURE_RAY_RECORD(k)
 #endif
 
     int rayState = baseState;
@@ -1093,9 +1215,13 @@ void main() {
 #endif
 
         vec4 sample1 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2(-off.x, -off.y), s1State, s1MinR, s1Crossings, s1HitR, s1Steps);
+        GARGANTUA_CAPTURE_RAY_RECORD(1);
         vec4 sample2 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2( off.x, -off.y), s2State, s2MinR, s2Crossings, s2HitR, s2Steps);
+        GARGANTUA_CAPTURE_RAY_RECORD(2);
         vec4 sample3 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2(-off.x,  off.y), s3State, s3MinR, s3Crossings, s3HitR, s3Steps);
+        GARGANTUA_CAPTURE_RAY_RECORD(3);
         vec4 sample4 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2( off.x,  off.y), s4State, s4MinR, s4Crossings, s4HitR, s4Steps);
+        GARGANTUA_CAPTURE_RAY_RECORD(4);
 
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
         tierForStats = 1;
@@ -1115,6 +1241,9 @@ void main() {
         if (fragColor.r + fragColor.g + fragColor.b > 0.001) {
             fragColor.a = max(fragColor.a, 1.0);
         }
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+        animationRayCount = 5;
+#endif
 
         // Tier 2: refine only a genuine outcome boundary or deep winding. Disk/object share one
         // material class; captured and escaped remain distinct classes.
@@ -1135,9 +1264,13 @@ void main() {
 #endif
 
             vec4 sample5 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2(-off.x, 0.0), s5State, s5MinR, s5Crossings, s5HitR, s5Steps);
+            GARGANTUA_CAPTURE_RAY_RECORD(5);
             vec4 sample6 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2( off.x, 0.0), s6State, s6MinR, s6Crossings, s6HitR, s6Steps);
+            GARGANTUA_CAPTURE_RAY_RECORD(6);
             vec4 sample7 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2(0.0, -off.y), s7State, s7MinR, s7Crossings, s7HitR, s7Steps);
+            GARGANTUA_CAPTURE_RAY_RECORD(7);
             vec4 sample8 = GARGANTUA_TRACE_RAY_SAMPLE(st + vec2(0.0,  off.y), s8State, s8MinR, s8Crossings, s8HitR, s8Steps);
+            GARGANTUA_CAPTURE_RAY_RECORD(8);
 
 #ifdef GARGANTUA_WORKLOAD_TELEMETRY
             tierForStats = 2;
@@ -1157,6 +1290,9 @@ void main() {
             if (fragColor.r + fragColor.g + fragColor.b > 0.001) {
                 fragColor.a = max(fragColor.a, 1.0);
             }
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+            animationRayCount = 9;
+#endif
         }
     }
 
@@ -1208,7 +1344,128 @@ void main() {
 #if defined(GARGANTUA_WORKLOAD_TELEMETRY) && defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE)
     workloadSemanticCache = semanticRecord;
 #elif defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
-    animationSemanticCache = semanticRecord;
+    // Tier flags ride in the sign bits of the base record's two g halves (g > 0 for every hit).
+    uvec4 baseRayRecord = animationRayRecords[0];
+    if (animationRayCount >= 5) baseRayRecord.y |= 0x8000u;
+    if (animationRayCount >= 9) baseRayRecord.w |= 0x8000u;
+    if (u_AnimationCachePass == 0) {
+        animationRayRecordA = baseRayRecord;
+        animationRayRecordB = animationRayRecords[1];
+        animationRayRecordC = animationRayRecords[2];
+    } else if (u_AnimationCachePass == 1) {
+        animationRayRecordA = animationRayRecords[3];
+        animationRayRecordB = animationRayRecords[4];
+        animationRayRecordC = animationRayRecords[5];
+    } else {
+        animationRayRecordA = animationRayRecords[6];
+        animationRayRecordB = animationRayRecords[7];
+        animationRayRecordC = animationRayRecords[8];
+    }
 #endif
 #endif
 }
+// End of the geodesic (non-material-pass) main.
+#endif
+
+#if defined(GARGANTUA_ANIMATION_MATERIAL_PASS)
+// Disk radiance of the cached base-ray crossings with the material azimuth at the given time
+// digits. Same emissivity, palette and strata as traceRaySample(); only phiMaterial changes.
+vec4 gargantuaCachedCrossingRadiance(vec4 c0, vec4 c1, float d0, float d1, vec2 d23, vec2 d45, vec2 d67) {
+    vec3 accumDiskRadiance = vec3(0.0);
+    vec3 accumHigherOrderRadiance = vec3(0.0);
+    float diskTransmittance = 1.0;
+    for (int k = 0; k < 2; k++) {
+        vec4 c = (k == 0) ? c0 : c1;
+        if (c.x <= 0.0 || diskTransmittance == 0.0) break;
+        float rHit = c.x;
+        float rRatio = u_DiskInnerRadius / rHit;
+        float F = (u_Mass / (rHit * rHit * rHit)) * max(0.0, 1.0 - sqrt(rRatio));
+        float rPeak = 1.361111 * u_DiskInnerRadius;
+        float fPeak = u_Mass / (7.0 * rPeak * rPeak * rPeak);
+        float fNorm = (fPeak > 1.0e-7) ? clamp(F / fPeak, 0.0, 1.0) : 0.0;
+        vec3 crossingColor = evaluate4TierBlackbodySpectrum(fNorm, c.z);
+        float omega = sqrt(u_Mass) / (pow(rHit, 1.5) + u_Spin * sqrt(u_Mass));
+        float phaseAdvance = GARGANTUA_TAU * gargantuaPhaseAdvanceFromDigits(omega / GARGANTUA_TAU, d0, d1, d23, d45, d67);
+        gargantuaAccumulateDiskCrossing(rHit, c.y - phaseAdvance, phaseAdvance, fNorm, crossingColor, abs(c.w), c.w < 0.0,
+            accumDiskRadiance, accumHigherOrderRadiance, diskTransmittance);
+    }
+    return vec4(accumDiskRadiance, dot(accumHigherOrderRadiance, vec3(0.2126, 0.7152, 0.0722)));
+}
+
+// Re-shaded disk emission of one cached ray at the time held in u_Time/u_TimeDigit*.
+vec4 gargantuaRayRecordEmission(uvec4 record) {
+    return gargantuaCachedCrossingRadiance(gargantuaUnpackCrossing(record.xy), gargantuaUnpackCrossing(record.zw),
+        u_Time, u_TimeDigit1, u_TimeDigits23, u_TimeDigits45, u_TimeDigits67);
+}
+
+bool gargantuaRayRecordHasCrossing(uvec4 record) {
+    return ((record.y & 0xFFFF0000u) | (record.w & 0xFFFF0000u)) != 0u;
+}
+
+// Emission of every ray the cache-build pixel averaged, each re-shaded from its own cached hits and
+// combined with the M7 weights of the geodesic pass: 1 (single ray), 1/5 (base + 4 tier-1 corners),
+// 1/9 (base + corners + 4 tier-2 edges). hasCrossing reports whether any of those rays hit the disk.
+vec4 gargantuaCachedPixelEmission(ivec2 coord, out bool hasCrossing) {
+    uvec4 base = texelFetch(u_RayRecord0, coord, 0);
+    bool tier1 = (base.y & 0x8000u) != 0u;
+    bool tier2 = (base.w & 0x8000u) != 0u;
+    vec4 emission = gargantuaRayRecordEmission(base);
+    hasCrossing = gargantuaRayRecordHasCrossing(base);
+    float weight = 1.0;
+    if (tier1) {
+        uvec4 r1 = texelFetch(u_RayRecord1, coord, 0);
+        uvec4 r2 = texelFetch(u_RayRecord2, coord, 0);
+        uvec4 r3 = texelFetch(u_RayRecord3, coord, 0);
+        uvec4 r4 = texelFetch(u_RayRecord4, coord, 0);
+        emission += gargantuaRayRecordEmission(r1) + gargantuaRayRecordEmission(r2) +
+            gargantuaRayRecordEmission(r3) + gargantuaRayRecordEmission(r4);
+        hasCrossing = hasCrossing || gargantuaRayRecordHasCrossing(r1) || gargantuaRayRecordHasCrossing(r2) ||
+            gargantuaRayRecordHasCrossing(r3) || gargantuaRayRecordHasCrossing(r4);
+        weight = 1.0 / 5.0;
+        if (tier2) {
+            uvec4 r5 = texelFetch(u_RayRecord5, coord, 0);
+            uvec4 r6 = texelFetch(u_RayRecord6, coord, 0);
+            uvec4 r7 = texelFetch(u_RayRecord7, coord, 0);
+            uvec4 r8 = texelFetch(u_RayRecord8, coord, 0);
+            emission += gargantuaRayRecordEmission(r5) + gargantuaRayRecordEmission(r6) +
+                gargantuaRayRecordEmission(r7) + gargantuaRayRecordEmission(r8);
+            hasCrossing = hasCrossing || gargantuaRayRecordHasCrossing(r5) || gargantuaRayRecordHasCrossing(r6) ||
+                gargantuaRayRecordHasCrossing(r7) || gargantuaRayRecordHasCrossing(r8);
+            weight = 1.0 / 9.0;
+        }
+    }
+    return emission * weight;
+}
+
+// Animation material pass: no geodesic integration; runs on the ray grid of the cache build.
+// u_MaterialPassMode 1 (once per cache build, time uniforms = build time): writes the emission of the
+// cached disk hits at the build time. u_MaterialPassMode 0 (every presented frame): the cached HDR is
+// advanced by the change of that emission between the build time and the presented time, so the
+// displayed disk RGB is the advected material (phiMaterial = phiHit - OmegaK(rHit) t) while shadow,
+// sky and stars (pixels none of whose rays hit the disk) are passed through bit-for-bit.
+void main() {
+    ivec2 coord = ivec2(gl_FragCoord.xy);
+    bool hasCrossing;
+    vec4 now = gargantuaCachedPixelEmission(coord, hasCrossing);
+    if (u_MaterialPassMode == 1) {
+        fragColor = hasCrossing ? now : vec4(0.0);
+        return;
+    }
+    vec4 hdr = texelFetch(u_HdrTexture, coord, 0);
+    if (!hasCrossing) {
+        fragColor = hdr;
+        return;
+    }
+    vec4 built = texelFetch(u_BuiltEmissionTexture, coord, 0);
+    vec3 rgb = max(hdr.rgb + (now.rgb - built.rgb), vec3(0.0));
+    // Alpha keeps the geodesic encoding 1 + k2Lum; a pixel that was dark at build time only becomes
+    // emitting (alpha >= 1) once it carries the same 0.005 radiance the geodesic pass requires.
+    float alpha = hdr.a;
+    if (hdr.a >= 1.0) {
+        alpha = max(hdr.a + (now.a - built.a), 1.0);
+    } else if (rgb.r + rgb.g + rgb.b > 0.005) {
+        alpha = 1.0 + now.a;
+    }
+    fragColor = vec4(rgb, alpha);
+}
+#endif

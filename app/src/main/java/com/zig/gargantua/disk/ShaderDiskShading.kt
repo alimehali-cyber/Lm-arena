@@ -96,8 +96,44 @@ object ShaderDiskShading {
         return floatArrayOf(px + wx * strength, py + wy * strength, pz + wz * strength)
     }
 
-    /** evaluate3DVolumetricGasDensity(r, phi, zeta, fNorm, rIn, rOut). */
-    fun gasDensity(r: Float, phi: Float, zeta: Float, fNorm: Float, rIn: Float, rOut: Float): Float {
+    /**
+     * gargantuaMaterialPerturbationField(rHit, phiMaterial, keplerPhase): co-moving perturbation in [-1, 1]
+     * of the orbiting gas, evaluated at the material azimuth phiMaterial = phiHit - OmegaK(rHit) t.
+     */
+    fun materialPerturbationField(rHit: Float, phiMaterial: Float, keplerPhase: Float, rIn: Float): Float {
+        val rNorm = max(1.0f, rHit / rIn)
+        val logR = ln(rNorm)
+        val phiSheared = phiMaterial - 26.0f * rNorm.pow(-1.5f) - 10.0f * logR
+        val x = logR * 18.0f
+        val y = cos(phiSheared) * 3.0f
+        val z = sin(phiSheared) * 3.0f
+        val fieldA = noise3D(x + 17.0f, y + 5.0f, z + 29.0f) * 2.0f - 1.0f
+        val fieldB = noise3D(x + 43.0f, y + 71.0f, z + 13.0f) * 2.0f - 1.0f
+        return (fieldA * cos(keplerPhase) + fieldB * sin(keplerPhase)).coerceIn(-1.0f, 1.0f)
+    }
+
+    /**
+     * Kepler phase OmegaK(rHit) t of the shader (omega = sqrt(M) / (r^1.5 + a sqrt(M))). It depends on the
+     * hit radius and the animation time only; the amplitude is not an argument.
+     */
+    fun keplerPhase(m: Float, a: Float, rHit: Float, t: Float): Float =
+        sqrt(m) / (rHit.pow(1.5f) + a * sqrt(m)) * t
+
+    /**
+     * evaluate3DVolumetricGasDensity(r, phi, zeta, fNorm, rIn, rOut) with the animated material
+     * perturbation of the crossing (gargantuaMaterialPerturbation) and u_AnimationAmplitude; amplitude 0
+     * returns the unperturbed density.
+     */
+    fun gasDensity(
+        r: Float,
+        phi: Float,
+        zeta: Float,
+        fNorm: Float,
+        rIn: Float,
+        rOut: Float,
+        perturbation: Float = 0.0f,
+        amplitude: Float = 0.0f
+    ): Float {
         val verticalFalloff = exp(-5.0f * zeta * zeta)
         val rNorm = max(1.0f, r / rIn)
         val logR = ln(rNorm)
@@ -136,7 +172,10 @@ object ShaderDiskShading {
         val frayedRadius = rOut - 4.2f * outerTrailingWarp
         val outerWisps = 1.0f - smoothstep(frayedRadius - 3.2f, frayedRadius + 1.2f, r)
 
-        val rawDensity = (0.28f + 1.15f * spunFilaments) * (0.15f + 0.85f * totalDust)
+        var rawDensity = (0.28f + 1.15f * spunFilaments) * (0.15f + 0.85f * totalDust)
+        if (amplitude > 0.0f) {
+            rawDensity *= 1.0f + amplitude * perturbation
+        }
         return (rawDensity * verticalFalloff * (0.45f + 0.55f * fNorm) * innerCutoff * outerWisps).coerceIn(0.0f, 5.5f)
     }
 
@@ -194,6 +233,8 @@ object ShaderDiskShading {
      * transmittance < 0.008 -> 0 cut-off.
      *
      * @param stepDirZ z component of normalize(pos - prevPos) of the RK4 step that crossed the plane.
+     * @param keplerPhase OmegaK(rHit) t; the material azimuth is phiHit - keplerPhase (0: the static disk).
+     * @param amplitude u_AnimationAmplitude in [0, 1] (0: no perturbation).
      */
     fun shadeCrossing(
         m: Float,
@@ -204,7 +245,9 @@ object ShaderDiskShading {
         rIn: Float,
         rOut: Float,
         transmittanceIn: Float,
-        enableDoppler: Boolean = false
+        enableDoppler: Boolean = false,
+        keplerPhase: Float = 0.0f,
+        amplitude: Float = 0.0f
     ): CrossingShade {
         val h0 = 0.075f * m
         val rNormScale = rHit / max(1.0e-5f, rIn)
@@ -218,10 +261,13 @@ object ShaderDiskShading {
         val zetas = floatArrayOf(-0.55f, 0.0f, 0.55f)
         val weights = floatArrayOf(0.28f, 0.44f, 0.28f)
         val slabStepTau = fullPathLength * 2.20f
+        // gargantuaAccumulateDiskCrossing(rHit, phiHit - phaseAdvance, phaseAdvance, ...)
+        val phiMaterial = phiHit - keplerPhase
+        val perturbation = if (amplitude > 0.0f) materialPerturbationField(rHit, phiMaterial, keplerPhase, rIn) else 0.0f
         val contribution = FloatArray(3)
         var transmittance = transmittanceIn
         for (s in 0 until 3) {
-            val optDensity = gasDensity(rHit, phiHit, zetas[s], fNorm, rIn, rOut)
+            val optDensity = gasDensity(rHit, phiMaterial, zetas[s], fNorm, rIn, rOut, perturbation, amplitude)
             val segAlpha = 1.0f - exp(-optDensity * slabStepTau * weights[s])
             for (i in 0 until 3) contribution[i] += transmittance * crossingColor[i] * segAlpha
             transmittance *= (1.0f - segAlpha)

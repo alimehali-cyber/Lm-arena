@@ -30,8 +30,7 @@ class GargantuaRenderer(
     private var geodesicProgram: ShaderProgram? = null
     private var workloadGeodesicProgram: ShaderProgram? = null
     private var animationGeodesicProgram: ShaderProgram? = null
-    private var animationModulationProgram: ShaderProgram? = null
-    private var animationApplyProgram: ShaderProgram? = null
+    private var animationMaterialProgram: ShaderProgram? = null
     private var testProgram: ShaderProgram? = null
     private var blitProgram: ShaderProgram? = null
     private var semanticCacheDebugProgram: ShaderProgram? = null
@@ -64,21 +63,31 @@ class GargantuaRenderer(
     private var coarseRayHeight = 0
     private var coarseRayTargetAvailable = false
 
-    private var animationRayFboId = 0
-    private var animationSemanticTextureId = 0
+    // Animation cache pass FBOs: [0] HDR + ray records 0-2, [1] records 3-5, [2] records 6-8.
+    private val animationCacheFboIds = IntArray(AnimationGate.CACHE_PASS_COUNT)
+    private val animationRayFboId get() = animationCacheFboIds[0]
+    // Static hit cache written by the animation geodesic build: one packed record (emitting disk
+    // crossings 1/2) per M7 ray, see gargantua_geodesic.frag GARGANTUA_ANIMATION_SEMANTIC_CACHE outputs.
+    private val animationRayRecordTextureIds = IntArray(AnimationGate.CACHE_PASS_COUNT * AnimationGate.RECORDS_PER_CACHE_PASS)
+    private var animationCacheComplete = false
+    // Coarse sampling modes: the material pass writes the ray grid here and the result is upscaled.
+    private var animatedRayFboId = 0
+    private var animatedRayTextureId = 0
+    // Geodesic (RK4) passes issued this frame; a MODULATE frame must issue none.
+    private var geodesicPassesThisFrame = 0
+    private var lastFrameGeodesicPasses = 0
     private var animationRayWidth = 0
     private var animationRayHeight = 0
     private var animationRayTextureId = 0
-    private var modulationFboId = 0
-    private var modulationTextureId = 0
-    private var modulationWidth = 0
-    private var modulationHeight = 0
+    // Emission of the cached hits at the build time, written once per build by the material pass.
+    private var builtEmissionFboId = 0
+    private var builtEmissionTextureId = 0
+    private var builtEmissionValid = false
+    private val animationBuildTimeDigits = FloatArray(GargantuaAnimation.TIME_DIGIT_COUNT)
     private var modulatedHdrFboId = 0
     private var modulatedHdrTextureId = 0
     private var modulatedHdrWidth = 0
     private var modulatedHdrHeight = 0
-    private var noiseTextureId = 0
-    private var noiseMean = 0.5f
     private var animationResourcesReady = false
     private var animationProgramAttempted = false
     private var animationFailureStatus: String? = null
@@ -97,7 +106,20 @@ class GargantuaRenderer(
 
     // Zero-allocation reusable scratch buffers
     private val scratchDrawBuffersSingle = intArrayOf(GLES30.GL_COLOR_ATTACHMENT0)
-    private val scratchDrawBuffersDual = intArrayOf(GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_COLOR_ATTACHMENT1)
+    private val scratchDrawBuffersAnimation = intArrayOf(
+        GLES30.GL_COLOR_ATTACHMENT0,
+        GLES30.GL_COLOR_ATTACHMENT1,
+        GLES30.GL_COLOR_ATTACHMENT2,
+        GLES30.GL_COLOR_ATTACHMENT3
+    )
+    // Cache passes 1 and 2 only write ray records; the HDR output (location 0) is not attached.
+    private val scratchDrawBuffersAnimationRecords = intArrayOf(
+        GLES30.GL_NONE,
+        GLES30.GL_COLOR_ATTACHMENT1,
+        GLES30.GL_COLOR_ATTACHMENT2,
+        GLES30.GL_COLOR_ATTACHMENT3
+    )
+    private val scratchZeroColor = floatArrayOf(0f, 0f, 0f, 0f)
     private val scratchTimeDigits = FloatArray(8)
     private var lastTelemetryDispatchUptimeMs = 0L
 
@@ -321,10 +343,8 @@ class GargantuaRenderer(
         semanticCacheDiagnosticStatus = null
         animationGeodesicProgram?.release()
         animationGeodesicProgram = null
-        animationModulationProgram?.release()
-        animationModulationProgram = null
-        animationApplyProgram?.release()
-        animationApplyProgram = null
+        animationMaterialProgram?.release()
+        animationMaterialProgram = null
         animationProgramAttempted = false
         animationResourcesReady = false
         animationFailureStatus = null
@@ -700,6 +720,12 @@ class GargantuaRenderer(
                 animationCacheValid = false
                 animationCacheSignature = null
                 sceneDirty = true
+            } else if (animationRequested && currentAmplitudePercent != lastAnimationAmplitudePercent) {
+                // The amplitude enters the disk density the cache was traced with; the material pass
+                // can only advance a cache built with the amplitude it presents.
+                animationCacheValid = false
+                animationCacheSignature = null
+                sceneDirty = true
             }
             lastAnimationRequested = animationRequested
             lastAnimationAmplitudePercent = currentAmplitudePercent
@@ -718,7 +744,6 @@ class GargantuaRenderer(
         val timeScale = (2.0 * Math.PI / state.animationSpeed.periodSeconds) / omegaIsco
         val animTime = if (animationRequested) animationElapsedSecondsDouble * timeScale else 0.0
         GargantuaAnimation.fillTimeDigits(animTime, scratchTimeDigits)
-        val flowMapTimes = GargantuaAnimation.flowMapTimes(animationElapsedSecondsDouble)
         animationLastNotReadyReason = "none"
         val animationReady = when {
             !animationRequested -> false
@@ -782,7 +807,8 @@ class GargantuaRenderer(
                 signatureChangedThisFrame = signatureChangedThisFrame,
                 nowNanos = now,
                 lastChangeNanos = lastRaySignatureChangeNanos,
-                amplitudePercent = state.animationAmplitudePercent
+                amplitudePercent = state.animationAmplitudePercent,
+                cacheComplete = animationCacheComplete
             )
         )
         val cameraStable = gateDecision.cameraStable
@@ -835,8 +861,10 @@ class GargantuaRenderer(
         var verticalBlurCpuSubmitMs = 0f
         var compositeCpuSubmitMs = 0f
 
+        geodesicPassesThisFrame = 0
         val gateRequestsRebuild = when (gateDecision.action) {
             AnimationGate.Action.REBUILD -> true
+            AnimationGate.Action.COMPLETE_CACHE,
             AnimationGate.Action.MODULATE,
             AnimationGate.Action.PLAIN -> false
         }
@@ -856,7 +884,11 @@ class GargantuaRenderer(
         if (renderedScene) {
             if (animationReady) {
                 GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, animationRayFboId)
-                GLES30.glDrawBuffers(2, scratchDrawBuffersDual, 0)
+                GLES30.glDrawBuffers(scratchDrawBuffersAnimation.size, scratchDrawBuffersAnimation, 0)
+                // The material pass advances the cache from exactly the time digits it was traced with.
+                scratchTimeDigits.copyInto(animationBuildTimeDigits)
+                builtEmissionValid = false
+                animationCacheComplete = false
             } else if (workloadRequested) {
                 GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, workloadFboId)
                 val workloadDrawBuffers = if (
@@ -881,7 +913,13 @@ class GargantuaRenderer(
                 GLES30.glDrawBuffers(1, scratchDrawBuffersSingle, 0)
             }
             GLES30.glViewport(0, 0, rayGrid.rayWidth, rayGrid.rayHeight)
-            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+            if (animationReady) {
+                // Only the float HDR target is cleared: glClear is undefined for the unsigned-integer
+                // record targets, which the full-screen pass overwrites completely.
+                GLES30.glClearBufferfv(GLES30.GL_COLOR, 0, scratchZeroColor, 0)
+            } else {
+                GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+            }
 
             val activeProg = when {
                 animationReady -> animationGeodesicProgram!!
@@ -994,8 +1032,12 @@ class GargantuaRenderer(
                 activeProg.setUniform3f("u_ObjectBaseColor", 0.15f, 0.85f, 1.0f)
                 activeProg.setUniform1f("u_ObjectRadiance", 35.0f)
             }
+            if (animationGeodesicActive) {
+                activeProg.setUniform1i("u_AnimationCachePass", 0)
+            }
 
             quad.draw()
+            geodesicPassesThisFrame++
             geodesicCpuSubmitMs = elapsedMilliseconds(geodesicStart)
 
             lastWorkloadStats = if (workloadRequested) {
@@ -1032,17 +1074,26 @@ class GargantuaRenderer(
         val animationFrameActive = when (gateDecision.action) {
             AnimationGate.Action.REBUILD,
             AnimationGate.Action.PLAIN -> false
+            AnimationGate.Action.COMPLETE_CACHE -> {
+                // Presents the cached frame unchanged; the next frame starts the material animation.
+                if (animationReady) completeAnimationCache(quad)
+                false
+            }
             AnimationGate.Action.MODULATE -> animationReady &&
                 runAnimationPass(
                     state,
-                    flowMapTimes,
-                    animationElapsedSecondsDouble,
                     renderW,
                     renderH,
                     rayGrid.rayWidth,
                     rayGrid.rayHeight,
+                    rayGrid.blockSize,
                     quad
                 )
+        }
+        lastFrameGeodesicPasses = geodesicPassesThisFrame
+        if (gateDecision.action == AnimationGate.Action.MODULATE && geodesicPassesThisFrame != 0) {
+            // Instrumentation assertion: an animation frame re-shades cached hits only.
+            failAnimation("ANIM FAILED: $geodesicPassesThisFrame GEODESIC PASSES IN AN ANIMATION FRAME")
         }
         val activePresentationHdrTextureId = if (animationFrameActive) modulatedHdrTextureId else hdrTextureId
         val presentationModulated = animationFrameActive
@@ -1171,9 +1222,12 @@ class GargantuaRenderer(
             lastTelemetryDispatchUptimeMs = currentUptime
             val animationDiagnostics = String.format(
                 Locale.US,
-                "ANIM DIAGNOSTICS: state=%s cache=%s since=%dms field=%s rebuilds=%d notReady=%s block=%d render=%dx%d",
+                "ANIM DIAGNOSTICS: state=%s action=%s geodesicPasses=%d cache=%s complete=%s since=%dms field=%s rebuilds=%d notReady=%s block=%d render=%dx%d",
                 gateDecision.state.name,
+                gateDecision.action.name,
+                lastFrameGeodesicPasses,
                 animationCacheValid,
+                animationCacheComplete,
                 gateDecision.elapsedSinceChangeNanos / 1_000_000L,
                 lastRaySignatureField,
                 animationRebuildCount,
@@ -1284,7 +1338,7 @@ class GargantuaRenderer(
             failAnimation("ANIM FAILED: HDR16F REQUIRED")
             return false
         }
-        if (animationGeodesicProgram != null && animationModulationProgram != null && animationApplyProgram != null) {
+        if (animationGeodesicProgram != null && animationMaterialProgram != null) {
             return true
         }
         if (animationProgramAttempted) return false
@@ -1295,13 +1349,11 @@ class GargantuaRenderer(
             fun create(fragment: String): ShaderProgram? = ShaderProgram.create(vertex, fragment) { failure = it }
             drainAnimationGlErrors()
             val geodesic = create(ShaderSource.loadAnimationGeodesicFragmentShader(context))
-            val modulation = if (geodesic != null) create(ShaderSource.loadAnimationModulationFragmentShader(context)) else null
-            val apply = if (modulation != null) create(ShaderSource.loadAnimationApplyFragmentShader(context)) else null
+            val material = if (geodesic != null) create(ShaderSource.loadAnimationMaterialFragmentShader(context)) else null
             val programError = GLES30.glGetError()
-            if (geodesic == null || modulation == null || apply == null || programError != GLES30.GL_NO_ERROR) {
+            if (geodesic == null || material == null || programError != GLES30.GL_NO_ERROR) {
                 geodesic?.release()
-                modulation?.release()
-                apply?.release()
+                material?.release()
                 val status = if (programError != GLES30.GL_NO_ERROR) {
                     "ANIM FAILED: PROGRAM GLERR=0x${programError.toString(16)}"
                 } else {
@@ -1311,8 +1363,7 @@ class GargantuaRenderer(
                 false
             } else {
                 animationGeodesicProgram = geodesic
-                animationModulationProgram = modulation
-                animationApplyProgram = apply
+                animationMaterialProgram = material
                 animationFailureStatus = null
                 true
             }
@@ -1345,29 +1396,34 @@ class GargantuaRenderer(
             return AnimationResourceResult.READY
         }
         deleteAnimationFbos()
-        when (ensureNoiseTexture()) {
-            AnimationResourceResult.NOT_READY -> return AnimationResourceResult.NOT_READY
-            AnimationResourceResult.FAILED -> return AnimationResourceResult.FAILED
-            AnimationResourceResult.READY -> Unit
-        }
         drainAnimationGlErrors()
+        // Each cache pass writes the HDR (pass 0 only) plus three unsigned-integer ray records.
+        val limits = IntArray(2)
+        GLES30.glGetIntegerv(GLES30.GL_MAX_DRAW_BUFFERS, limits, 0)
+        GLES30.glGetIntegerv(GLES30.GL_MAX_COLOR_ATTACHMENTS, limits, 1)
+        if (limits[0] < scratchDrawBuffersAnimation.size || limits[1] < scratchDrawBuffersAnimation.size) {
+            failAnimation("ANIM FAILED: ${scratchDrawBuffersAnimation.size} MRT REQUIRED (draw=${limits[0]} attach=${limits[1]})")
+            return AnimationResourceResult.FAILED
+        }
+        GLES30.glGenFramebuffers(animationCacheFboIds.size, animationCacheFboIds, 0)
+        GLES30.glGenTextures(animationRayRecordTextureIds.size, animationRayRecordTextureIds, 0)
         val fbos = IntArray(3)
         val textures = IntArray(3)
         GLES30.glGenFramebuffers(3, fbos, 0)
         GLES30.glGenTextures(3, textures, 0)
-        animationRayFboId = fbos[0]
-        modulationFboId = fbos[1]
-        modulatedHdrFboId = fbos[2]
-        animationSemanticTextureId = textures[0]
-        modulationTextureId = textures[1]
-        modulatedHdrTextureId = textures[2]
+        builtEmissionFboId = fbos[0]
+        modulatedHdrFboId = fbos[1]
+        animatedRayFboId = fbos[2]
+        builtEmissionTextureId = textures[0]
+        modulatedHdrTextureId = textures[1]
+        animatedRayTextureId = textures[2]
         animationRayWidth = rayWidth
         animationRayHeight = rayHeight
         animationRayTextureId = rayTextureId
-        modulationWidth = rayWidth
-        modulationHeight = rayHeight
         modulatedHdrWidth = renderWidth
         modulatedHdrHeight = renderHeight
+        builtEmissionValid = false
+        animationCacheComplete = false
 
         fun texture(id: Int, internal: Int, width: Int, height: Int, format: Int, type: Int, filter: Int) {
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, id)
@@ -1377,36 +1433,48 @@ class GargantuaRenderer(
             GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
             GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
         }
-        texture(animationSemanticTextureId, GLES30.GL_RGBA16F, rayWidth, rayHeight, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_NEAREST)
-        texture(modulationTextureId, GLES30.GL_R16F, rayWidth, rayHeight, GLES30.GL_RED, GLES30.GL_HALF_FLOAT, GLES30.GL_LINEAR)
+        for (recordTexture in animationRayRecordTextureIds) {
+            // Integer textures are only complete with NEAREST filtering.
+            texture(recordTexture, GLES30.GL_RGBA32UI, rayWidth, rayHeight, GLES30.GL_RGBA_INTEGER, GLES30.GL_UNSIGNED_INT, GLES30.GL_NEAREST)
+        }
+        texture(builtEmissionTextureId, GLES30.GL_RGBA16F, rayWidth, rayHeight, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_NEAREST)
+        texture(animatedRayTextureId, GLES30.GL_RGBA16F, rayWidth, rayHeight, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_LINEAR)
         texture(modulatedHdrTextureId, GLES30.GL_RGBA16F, renderWidth, renderHeight, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_LINEAR)
 
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, animationRayFboId)
-        GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, rayTextureId, 0)
-        GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT1, GLES30.GL_TEXTURE_2D, animationSemanticTextureId, 0)
-        GLES30.glDrawBuffers(2, intArrayOf(GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_COLOR_ATTACHMENT1), 0)
-        val rayStatus = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, modulationFboId)
-        GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, modulationTextureId, 0)
-        GLES30.glDrawBuffers(1, intArrayOf(GLES30.GL_COLOR_ATTACHMENT0), 0)
-        val modulationStatus = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, modulatedHdrFboId)
-        GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, modulatedHdrTextureId, 0)
-        GLES30.glDrawBuffers(1, intArrayOf(GLES30.GL_COLOR_ATTACHMENT0), 0)
-        val applyStatus = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+        val statuses = IntArray(animationCacheFboIds.size + 3)
+        for (pass in animationCacheFboIds.indices) {
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, animationCacheFboIds[pass])
+            if (pass == 0) {
+                GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, rayTextureId, 0)
+            }
+            for (slot in 0 until AnimationGate.RECORDS_PER_CACHE_PASS) {
+                GLES30.glFramebufferTexture2D(
+                    GLES30.GL_FRAMEBUFFER,
+                    GLES30.GL_COLOR_ATTACHMENT1 + slot,
+                    GLES30.GL_TEXTURE_2D,
+                    animationRayRecordTextureIds[pass * AnimationGate.RECORDS_PER_CACHE_PASS + slot],
+                    0
+                )
+            }
+            val drawBuffers = if (pass == 0) scratchDrawBuffersAnimation else scratchDrawBuffersAnimationRecords
+            GLES30.glDrawBuffers(drawBuffers.size, drawBuffers, 0)
+            statuses[pass] = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+        }
+        val singleTargets = intArrayOf(builtEmissionFboId, modulatedHdrFboId, animatedRayFboId)
+        val singleTextures = intArrayOf(builtEmissionTextureId, modulatedHdrTextureId, animatedRayTextureId)
+        for (index in singleTargets.indices) {
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, singleTargets[index])
+            GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, singleTextures[index], 0)
+            GLES30.glDrawBuffers(1, scratchDrawBuffersSingle, 0)
+            statuses[animationCacheFboIds.size + index] = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
+        }
         val fboError = GLES30.glGetError()
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
-        if (
-            fboError != GLES30.GL_NO_ERROR ||
-            rayStatus != GLES30.GL_FRAMEBUFFER_COMPLETE ||
-            modulationStatus != GLES30.GL_FRAMEBUFFER_COMPLETE ||
-            applyStatus != GLES30.GL_FRAMEBUFFER_COMPLETE
-        ) {
+        if (fboError != GLES30.GL_NO_ERROR || statuses.any { it != GLES30.GL_FRAMEBUFFER_COMPLETE }) {
             failAnimation(
-                "ANIM FAILED: FBO gl=0x${fboError.toString(16)} " +
-                    "ray=0x${rayStatus.toString(16)} mod=0x${modulationStatus.toString(16)} " +
-                    "apply=0x${applyStatus.toString(16)}"
+                "ANIM FAILED: FBO gl=0x${fboError.toString(16)} status=" +
+                    statuses.joinToString(",") { "0x" + it.toString(16) }
             )
             deleteAnimationFbos()
             return AnimationResourceResult.FAILED
@@ -1415,47 +1483,21 @@ class GargantuaRenderer(
         return AnimationResourceResult.READY
     }
 
-    private fun ensureNoiseTexture(): AnimationResourceResult {
-        if (animationFailureLatched) return AnimationResourceResult.FAILED
-        if (noiseTextureId != 0) return AnimationResourceResult.READY
-        val bytes = GargantuaAnimation.deterministicNoise()
-        noiseMean = GargantuaAnimation.normalizedMean(bytes)
-        drainAnimationGlErrors()
-        val ids = IntArray(1)
-        GLES30.glGenTextures(1, ids, 0)
-        noiseTextureId = ids[0]
-        if (noiseTextureId == 0) {
-            failAnimation("ANIM FAILED: NOISE TEXTURE ALLOCATION")
-            return AnimationResourceResult.FAILED
-        }
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, noiseTextureId)
-        val buffer = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder())
-        buffer.put(bytes).position(0)
-        GLES30.glTexImage2D(GLES30.GL_TEXTURE_2D, 0, GLES30.GL_R8, GargantuaAnimation.NOISE_WIDTH, GargantuaAnimation.NOISE_HEIGHT, 0, GLES30.GL_RED, GLES30.GL_UNSIGNED_BYTE, buffer)
-        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR)
-        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR)
-        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_REPEAT)
-        GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_REPEAT)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
-        val error = GLES30.glGetError()
-        if (error != GLES30.GL_NO_ERROR) {
-            GLES30.glDeleteTextures(1, intArrayOf(noiseTextureId), 0)
-            noiseTextureId = 0
-            failAnimation("ANIM FAILED: NOISE GLERR=0x${error.toString(16)}")
-            return AnimationResourceResult.FAILED
-        }
-        return AnimationResourceResult.READY
-    }
-
     private fun deleteAnimationFbos() {
-        if (animationRayFboId != 0 || modulationFboId != 0 || modulatedHdrFboId != 0) {
-            GLES30.glDeleteFramebuffers(3, intArrayOf(animationRayFboId, modulationFboId, modulatedHdrFboId), 0)
+        val framebuffers = animationCacheFboIds + intArrayOf(builtEmissionFboId, modulatedHdrFboId, animatedRayFboId)
+        if (framebuffers.any { it != 0 }) {
+            GLES30.glDeleteFramebuffers(framebuffers.size, framebuffers, 0)
         }
-        if (animationSemanticTextureId != 0 || modulationTextureId != 0 || modulatedHdrTextureId != 0) {
-            GLES30.glDeleteTextures(3, intArrayOf(animationSemanticTextureId, modulationTextureId, modulatedHdrTextureId), 0)
+        val animationTextures = animationRayRecordTextureIds +
+            intArrayOf(builtEmissionTextureId, modulatedHdrTextureId, animatedRayTextureId)
+        if (animationTextures.any { it != 0 }) {
+            GLES30.glDeleteTextures(animationTextures.size, animationTextures, 0)
         }
-        animationRayFboId = 0; animationSemanticTextureId = 0; animationRayWidth = 0; animationRayHeight = 0; animationRayTextureId = 0
-        modulationFboId = 0; modulationTextureId = 0; modulationWidth = 0; modulationHeight = 0
+        animationCacheFboIds.fill(0)
+        animationRayRecordTextureIds.fill(0)
+        animationRayWidth = 0; animationRayHeight = 0; animationRayTextureId = 0
+        builtEmissionFboId = 0; builtEmissionTextureId = 0; builtEmissionValid = false
+        animatedRayFboId = 0; animatedRayTextureId = 0; animationCacheComplete = false
         modulatedHdrFboId = 0; modulatedHdrTextureId = 0; modulatedHdrWidth = 0; modulatedHdrHeight = 0
         animationResourcesReady = false
         animationCacheValid = false
@@ -1464,79 +1506,99 @@ class GargantuaRenderer(
         presentationInvalidationPending = true
     }
 
+    /**
+     * COMPLETE_CACHE: writes ray records 3-8 with cache passes 1 and 2 of the animation build program.
+     * The program still holds every uniform of the pass-0 build (program state), so each pass executes
+     * the identical main() on the identical rays; only u_AnimationCachePass selects the records.
+     */
+    private fun completeAnimationCache(quad: QuadGeometry) {
+        val geodesic = animationGeodesicProgram ?: return
+        drainAnimationGlErrors()
+        geodesic.use()
+        GLES30.glViewport(0, 0, animationRayWidth, animationRayHeight)
+        for (pass in 1 until AnimationGate.CACHE_PASS_COUNT) {
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, animationCacheFboIds[pass])
+            GLES30.glDrawBuffers(scratchDrawBuffersAnimationRecords.size, scratchDrawBuffersAnimationRecords, 0)
+            geodesic.setUniform1i("u_AnimationCachePass", pass)
+            quad.draw()
+            geodesicPassesThisFrame++
+        }
+        geodesic.setUniform1i("u_AnimationCachePass", 0)
+        val error = GLES30.glGetError()
+        if (error != GLES30.GL_NO_ERROR) {
+            failAnimation("ANIM FAILED: CACHE PASS GLERR=0x${error.toString(16)}")
+            return
+        }
+        animationCacheComplete = true
+    }
+
     private fun runAnimationPass(
         state: GargantuaRenderState,
-        flowMapTimes: GargantuaAnimation.FlowMapTimes,
-        animationElapsedSeconds: Double,
         renderWidth: Int,
         renderHeight: Int,
         rayWidth: Int,
         rayHeight: Int,
+        blockSize: Int,
         quad: QuadGeometry
     ): Boolean {
-        val modulation = animationModulationProgram ?: return false
-        val apply = animationApplyProgram ?: return false
+        val material = animationMaterialProgram ?: return false
         drainAnimationGlErrors()
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, modulationFboId)
-        GLES30.glViewport(0, 0, rayWidth, rayHeight)
-        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
-        modulation.use()
+        material.use()
+        // The cached HDR of the build lives on the ray grid (the HDR texture itself when blockSize == 1).
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, animationSemanticTextureId)
-        modulation.setUniform1i("u_SemanticTexture", 0)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, animationRayTextureId)
+        material.setUniform1i("u_HdrTexture", 0)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, noiseTextureId)
-        modulation.setUniform1i("u_NoiseTexture", 1)
-        val mass = state.mass
-        val spin = state.spin * mass
-        val massDouble = mass.toDouble()
-        val spinDouble = spin.toDouble()
-        val sqrtMass = sqrt(max(massDouble, 1.0e-6))
-        val omega = sqrtMass / max(
-            1.0e-6,
-            lastIscoRadius.toDouble().pow(1.5) + spinDouble * sqrtMass
-        )
-        val scale = ((2.0 * PI / state.animationSpeed.periodSeconds) / omega).toFloat()
-        modulation.setUniform1f("u_TimeA", flowMapTimes.timeA.toFloat())
-        modulation.setUniform1f("u_TimeB", flowMapTimes.timeB.toFloat())
-        modulation.setUniform1f("u_BlendA", flowMapTimes.blendA.toFloat())
-        modulation.setUniform1f("u_TimeScale", scale)
-        modulation.setUniform1f("u_Amplitude", state.animationAmplitudePercent / 100.0f)
-        modulation.setUniform1f("u_NoiseMean", noiseMean)
-        modulation.setUniform1f("u_Mass", mass)
-        modulation.setUniform1f("u_Spin", spin)
-        modulation.setUniform1f("u_DiskInnerRadius", lastIscoRadius)
-        modulation.setUniform1f("u_DiskOuterRadius", state.diskOuterRadius)
-        quad.draw()
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, builtEmissionTextureId)
+        material.setUniform1i("u_BuiltEmissionTexture", 1)
+        for (ray in animationRayRecordTextureIds.indices) {
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE2 + ray)
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, animationRayRecordTextureIds[ray])
+            material.setUniform1i(RAY_RECORD_UNIFORMS[ray], 2 + ray)
+        }
+        // Same disk/material uniforms as the animation geodesic build. Every one of them is part of the
+        // ray-scene signature or invalidates the cache on change (amplitude), so they equal the build's.
+        material.setUniform1f("u_Mass", state.mass)
+        material.setUniform1f("u_Spin", state.spin * state.mass)
+        material.setUniform1f("u_DiskInnerRadius", lastIscoRadius)
+        material.setUniform1f("u_DiskOuterRadius", state.diskOuterRadius)
+        material.setUniform1f("u_AnimationAmplitude", state.animationAmplitudePercent / 100.0f)
+        material.setUniform1i("u_EnableDoppler", if (state.enableDoppler) 1 else 0)
 
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, modulatedHdrFboId)
-        GLES30.glViewport(0, 0, renderWidth, renderHeight)
-        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
-        apply.use()
-        GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, hdrTextureId)
-        apply.setUniform1i("u_HdrTexture", 0)
-        GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, modulationTextureId)
-        apply.setUniform1i("u_ModulationTexture", 1)
-        // Dynamic lensed sky: semantic cache carries exact deflected vector for state==2
-        // Fix frozen sky: use integer rounding on half-float, inclined axis, 0.045 rad/s ~2.6 deg/sec
-        GLES30.glActiveTexture(GLES30.GL_TEXTURE2)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, animationSemanticTextureId)
-        apply.setUniform1i("u_SemanticTexture", 2)
-        val skySpeedRadPerSec = 0.045f
-        val skyAngle = (animationElapsedSeconds * skySpeedRadPerSec).toFloat() % (2.0f * PI.toFloat())
-        apply.setUniform3f("u_SkyAxis", 0.28f, 0.86f, 0.42f)
-        apply.setUniform1f("u_SkyAngle", skyAngle)
-        apply.setUniform1f("u_Time", animationElapsedSeconds.toFloat())
-        apply.setUniform1f("u_SkyRotationSpeed", skySpeedRadPerSec)
+        fun setTimeDigits(digits: FloatArray) {
+            material.setUniform1f("u_Time", digits[0])
+            material.setUniform1f("u_TimeDigit1", digits[1])
+            material.setUniform2f("u_TimeDigits23", digits[2], digits[3])
+            material.setUniform2f("u_TimeDigits45", digits[4], digits[5])
+            material.setUniform2f("u_TimeDigits67", digits[6], digits[7])
+        }
+
+        if (!builtEmissionValid) {
+            // Once per cache build (normally in the COMPLETE_CACHE frame's successor): emission of the
+            // cached hits at the build time.
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, builtEmissionFboId)
+            GLES30.glViewport(0, 0, rayWidth, rayHeight)
+            material.setUniform1i("u_MaterialPassMode", 1)
+            setTimeDigits(animationBuildTimeDigits)
+            quad.draw()
+            builtEmissionValid = true
+        }
+
+        // The material pass runs on the ray grid, so every cached ray of every M7 pixel is re-shaded
+        // exactly once; coarse sampling modes then take the same upscale path as the geodesic frame.
+        val coarse = blockSize > GargantuaCoarseSampling.BASELINE_BLOCK_SIZE
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, if (coarse) animatedRayFboId else modulatedHdrFboId)
+        GLES30.glViewport(0, 0, rayWidth, rayHeight)
+        material.setUniform1i("u_MaterialPassMode", 0)
+        setTimeDigits(scratchTimeDigits)
         quad.draw()
-        GLES30.glActiveTexture(GLES30.GL_TEXTURE2)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
-        GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
-        GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
-        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+        for (unit in 2 + animationRayRecordTextureIds.size - 1 downTo 0) {
+            GLES30.glActiveTexture(GLES30.GL_TEXTURE0 + unit)
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+        }
+        if (coarse) {
+            upscaleCoarseRayTexture(animatedRayTextureId, renderWidth, renderHeight, quad, modulatedHdrFboId, animatedRayFboId)
+        }
         val error = GLES30.glGetError()
         if (error != GLES30.GL_NO_ERROR) {
             failAnimation("ANIM FAILED: PASS GLERR=0x${error.toString(16)}")
@@ -1640,9 +1702,11 @@ class GargantuaRenderer(
         rayTextureId: Int,
         targetWidth: Int,
         targetHeight: Int,
-        quad: QuadGeometry
+        quad: QuadGeometry,
+        targetFboId: Int = hdrFboId,
+        sourceFboId: Int = coarseRayFboId
     ) {
-        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, hdrFboId)
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, targetFboId)
         GLES30.glViewport(0, 0, targetWidth, targetHeight)
         val blit = blitProgram
         if (blit != null) {
@@ -1653,15 +1717,15 @@ class GargantuaRenderer(
             quad.draw()
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
         } else {
-            GLES30.glBindFramebuffer(GLES30.GL_READ_FRAMEBUFFER, coarseRayFboId)
-            GLES30.glBindFramebuffer(GLES30.GL_DRAW_FRAMEBUFFER, hdrFboId)
+            GLES30.glBindFramebuffer(GLES30.GL_READ_FRAMEBUFFER, sourceFboId)
+            GLES30.glBindFramebuffer(GLES30.GL_DRAW_FRAMEBUFFER, targetFboId)
             GLES30.glBlitFramebuffer(
                 0, 0, coarseRayWidth, coarseRayHeight,
                 0, 0, targetWidth, targetHeight,
                 GLES30.GL_COLOR_BUFFER_BIT,
                 GLES30.GL_LINEAR
             )
-            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, hdrFboId)
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, targetFboId)
         }
     }
 
@@ -2133,20 +2197,21 @@ class GargantuaRenderer(
         coarseRayWidth = 0
         coarseRayHeight = 0
         coarseRayTargetAvailable = false
-        animationRayFboId = 0
-        animationSemanticTextureId = 0
+        animationCacheFboIds.fill(0)
+        animationRayRecordTextureIds.fill(0)
+        animationCacheComplete = false
+        animatedRayFboId = 0
+        animatedRayTextureId = 0
         animationRayWidth = 0
         animationRayHeight = 0
         animationRayTextureId = 0
-        modulationFboId = 0
-        modulationTextureId = 0
-        modulationWidth = 0
-        modulationHeight = 0
+        builtEmissionFboId = 0
+        builtEmissionTextureId = 0
+        builtEmissionValid = false
         modulatedHdrFboId = 0
         modulatedHdrTextureId = 0
         modulatedHdrWidth = 0
         modulatedHdrHeight = 0
-        noiseTextureId = 0
         animationResourcesReady = false
         animationFailureLatched = false
         animationCacheValid = false
@@ -2382,10 +2447,6 @@ class GargantuaRenderer(
     fun release() {
         deleteWorkloadFbos()
         deleteAnimationFbos()
-        if (noiseTextureId != 0) {
-            GLES30.glDeleteTextures(1, intArrayOf(noiseTextureId), 0)
-            noiseTextureId = 0
-        }
         deleteCoarseRayFbo()
         deleteHdrFbo()
         deleteBloomFbos()
@@ -2395,10 +2456,8 @@ class GargantuaRenderer(
         workloadGeodesicProgram = null
         animationGeodesicProgram?.release()
         animationGeodesicProgram = null
-        animationModulationProgram?.release()
-        animationModulationProgram = null
-        animationApplyProgram?.release()
-        animationApplyProgram = null
+        animationMaterialProgram?.release()
+        animationMaterialProgram = null
         animationProgramAttempted = false
         animationResourcesReady = false
         animationFailureStatus = null
@@ -2439,5 +2498,9 @@ class GargantuaRenderer(
         private const val FPS_WINDOW_NANOS = 500_000_000L
         private const val FPS_IDLE_RESET_NANOS = 750_000_000L
         private const val TELEMETRY_DISPATCH_INTERVAL_MS = 250L // 4 Hz throttle
+        // Material-pass samplers of the nine M7 ray records (0 base, 1-4 corners, 5-8 edges).
+        private val RAY_RECORD_UNIFORMS = Array(AnimationGate.CACHE_PASS_COUNT * AnimationGate.RECORDS_PER_CACHE_PASS) {
+            "u_RayRecord$it"
+        }
     }
 }

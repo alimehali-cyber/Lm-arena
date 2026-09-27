@@ -1435,7 +1435,8 @@ class M6FinalPresentationTest {
         val shader = readShader("gargantua_geodesic.frag")
         val start = shader.indexOf("vec3 evaluate4TierBlackbodySpectrum(float fNorm, float gShift) {")
         assertTrue("Palette function must exist", start >= 0)
-        val end = shader.indexOf("\nvec4 traceRaySample(", start)
+        // The palette function ends at the first closing brace in column 0.
+        val end = shader.indexOf("\n}\n", start)
         val body = shader.substring(start, end)
         val code = body.lines().filterNot { it.trim().startsWith("//") }.joinToString("\n")
 

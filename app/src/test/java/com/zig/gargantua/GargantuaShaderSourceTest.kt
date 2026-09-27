@@ -24,8 +24,6 @@ class GargantuaShaderSourceTest {
         assertEquals("shaders/gargantua_blur.frag", ShaderSource.BLUR_FRAGMENT_SHADER_ASSET_PATH)
         assertEquals("shaders/gargantua_composite.frag", ShaderSource.COMPOSITE_FRAGMENT_SHADER_ASSET_PATH)
         assertEquals("shaders/gargantua_reduce.frag", ShaderSource.REDUCE_FRAGMENT_SHADER_ASSET_PATH)
-        assertEquals("shaders/gargantua_animation_modulation.frag", ShaderSource.ANIMATION_MODULATION_FRAGMENT_SHADER_ASSET_PATH)
-        assertEquals("shaders/gargantua_animation_apply.frag", ShaderSource.ANIMATION_APPLY_FRAGMENT_SHADER_ASSET_PATH)
     }
 
     @Test
@@ -117,6 +115,10 @@ class GargantuaShaderSourceTest {
             "animation" to ShaderSource.buildGeodesicVariant(
                 asset,
                 listOf("GARGANTUA_ANIMATION_SEMANTIC_CACHE")
+            ),
+            "animation-material" to ShaderSource.buildGeodesicVariant(
+                asset,
+                listOf("GARGANTUA_ANIMATION_SEMANTIC_CACHE", "GARGANTUA_ANIMATION_MATERIAL_PASS")
             )
         )
         val expected = mapOf(
@@ -125,7 +127,10 @@ class GargantuaShaderSourceTest {
             "telemetry+semantic" to listOf(
                 0 to "fragColor", 1 to "workloadTierStats", 2 to "workloadCostStats", 3 to "workloadSemanticCache"
             ),
-            "animation" to listOf(0 to "fragColor", 1 to "animationSemanticCache")
+            "animation" to listOf(
+                0 to "fragColor", 1 to "animationRayRecordA", 2 to "animationRayRecordB", 3 to "animationRayRecordC"
+            ),
+            "animation-material" to listOf(0 to "fragColor")
         )
         variants.forEach { (name, source) ->
             assertEquals("$name output list", expected[name], outputDeclarations(preprocess(source)))
@@ -138,9 +143,7 @@ class GargantuaShaderSourceTest {
     @Test
     fun animationMotionUsesExpectedConventionAndNoiseInputs() {
         val geodesic = findAssetFile(ShaderSource.GEODESIC_FRAGMENT_SHADER_ASSET_PATH).readText()
-        val modulation = findAssetFile(ShaderSource.ANIMATION_MODULATION_FRAGMENT_SHADER_ASSET_PATH).readText()
         val animation = findSourceFile("app/src/main/java/com/zig/gargantua/renderer/GargantuaAnimation.kt").readText()
-        val renderer = findSourceFile("app/src/main/java/com/zig/gargantua/renderer/GargantuaRenderer.kt").readText()
         assertTrue(geodesic.contains("#define GARGANTUA_OBJECT_PHASE(t)"))
         assertTrue(geodesic.contains("u_TimeDigit1"))
         assertTrue(geodesic.contains("u_TimeDigits23"))
@@ -148,40 +151,13 @@ class GargantuaShaderSourceTest {
         assertTrue(geodesic.contains("u_TimeDigits67"))
         assertTrue(geodesic.contains("float omega = sqrt(u_Mass) / (pow(rHit, 1.5) + u_Spin * sqrt(u_Mass));"))
         assertTrue(geodesic.contains("float denomG = u0 * (1.0 + omega * lz);"))
-        assertTrue(modulation.contains("uniform sampler2D u_NoiseTexture;"))
-        assertTrue(modulation.contains("u_TimeA"))
-        assertTrue(modulation.contains("u_TimeB"))
-        assertTrue(modulation.contains("u_BlendA"))
-        assertTrue(modulation.contains("u_NoiseMean"))
-        // New Interstellar-grade multi-scale sheared turbulence - all prograde, no counter-shear
-        assertTrue(modulation.contains("keplerianNoise") || modulation.contains("valueNoisePeriodicX"))
-        assertTrue(modulation.contains("smoothstep(0.20, 0.80") || modulation.contains("smoothstep(0.15, 0.85"))
-        assertTrue(modulation.contains("brightFactor") || modulation.contains("bright =") || modulation.contains("float bright") || modulation.contains("brightStream"))
-        assertTrue(modulation.contains("absorbFactor") || modulation.contains("absorb =") || modulation.contains("float absorb") || modulation.contains("absorption"))
-        assertTrue(modulation.contains("exp(-amp * 1.10 * dust)") || modulation.contains("exp(-effectiveAmp * 1.6 * dust)") || modulation.contains("exp(-u_Amplitude * 2.5 * dust)"))
-        assertTrue(modulation.contains("32.0"))
-        assertTrue(modulation.contains("0.55"))
-        assertTrue(modulation.contains("0.30"))
-        assertTrue(modulation.contains("0.15"))
-        assertTrue(modulation.contains("64.0"))
-        assertTrue(modulation.contains("128.0"))
-        // Ensure no counter-shear (negative rn multiplier)
-        assertFalse(modulation.contains("- rn *") || modulation.contains("-rn *"))
+        assertTrue(geodesic.contains("float phiMaterial = phiHit - phaseAdvance;"))
         assertTrue(animation.contains("NoiseOctave(32, 8, 0.50f)") || animation.contains("NoiseOctave(32, 8, 0.5f)"))
         assertTrue(animation.contains("NoiseOctave(64, 16, 0.35f)"))
         assertTrue(animation.contains("NoiseOctave(128, 32, 0.15f)"))
         assertTrue(
             GargantuaAnimation.NOISE_OCTAVE_SPECS.all { it.latticeWidth >= it.latticeHeight }
         )
-        assertFalse(modulation.contains("semantic.g * TAU"))
-        assertTrue(modulation.contains("omega * u_TimeScale * u_TimeA / TAU"))
-        assertTrue(modulation.contains("omega * u_TimeScale * u_TimeB / TAU"))
-        assertTrue(modulation.contains("0.37"))
-        assertTrue(modulation.contains("0.29"))
-        assertTrue(modulation.contains("if (u_Amplitude == 0.0)"))
-        assertTrue(modulation.contains("if (state != 3)") || modulation.contains("int(sem"))
-        assertTrue(renderer.contains("GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_REPEAT"))
-        assertTrue(renderer.contains("GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_REPEAT"))
         assertEquals(6.0, GargantuaAnimation.AnimationSpeed.NORMAL.periodSeconds, 0.0)
         assertEquals(
             listOf(false to 0, true to 15, true to 40, true to 80),
@@ -198,34 +174,32 @@ class GargantuaShaderSourceTest {
     }
 
     @Test
-    fun animationShadersDeclareExpectedInputsAndOutputs() {
-        val modulation = findAssetFile(ShaderSource.ANIMATION_MODULATION_FRAGMENT_SHADER_ASSET_PATH).readText()
-        val apply = findAssetFile(ShaderSource.ANIMATION_APPLY_FRAGMENT_SHADER_ASSET_PATH).readText()
-        assertTrue(modulation.contains("texelFetch(u_SemanticTexture"))
-        assertTrue(modulation.contains("out float fragColor;"))
-        assertTrue(apply.contains("uniform sampler2D u_HdrTexture;"))
-        assertTrue(apply.contains("uniform sampler2D u_ModulationTexture;"))
-        assertTrue(apply.contains("uniform sampler2D u_SemanticTexture;"))
-        assertTrue(apply.contains("uniform float u_Time;") || apply.contains("u_SkyAngle"))
-        assertTrue(apply.contains("u_SkyAxis") || apply.contains("u_SkyRotationSpeed"))
-        assertTrue(apply.contains("rotateAxis") || apply.contains("rotateVector") || apply.contains("rotateAroundAxis") || apply.contains("Rodrigues"))
-        assertTrue(apply.contains("renderProceduralCosmos") || apply.contains("proceduralCosmos") || apply.contains("sample_procedural_sky") || apply.contains("hash33") || apply.contains("cosmosHash33"))
-        assertTrue(apply.contains("state == 2") || apply.contains("int(sem") || apply.contains("state <= 1"))
-        // Deep-blue cosmos: band or celestialBg/sapphire/darkDust/baseSpace/midnight, 0.070 sparsity, 80.0 frequency, tiny optical PSF
-        assertTrue(
-            apply.contains("band") || apply.contains("galacticDisk") || apply.contains("Galactic") ||
-            apply.contains("exp(-b * b") || apply.contains("exp(-abs(b)") ||
-            apply.contains("celestialBg") || apply.contains("sapphire") || apply.contains("baseSpace") ||
-            apply.contains("darkDust") || apply.contains("midnight") || apply.contains("sapphireCloud")
+    fun animationMaterialPassReShadesCachedHitsWithoutRayTracing() {
+        val asset = findAssetFile(ShaderSource.GEODESIC_FRAGMENT_SHADER_ASSET_PATH).readText()
+        val material = preprocess(
+            ShaderSource.buildGeodesicVariant(
+                asset,
+                listOf("GARGANTUA_ANIMATION_SEMANTIC_CACHE", "GARGANTUA_ANIMATION_MATERIAL_PASS")
+            )
         )
-        assertTrue(apply.contains("0.070") || apply.contains("0.045") || apply.contains("0.091") || apply.contains("0.109"))
-        assertTrue(apply.contains("80.0") || apply.contains("140.0") || apply.contains("85.0"))
-        assertTrue(apply.contains("coreRadius") || apply.contains("starProfile") || apply.contains("exp(-(dist"))
-        assertTrue(apply.contains("0.12") || apply.contains("0.075") || apply.contains("0.10") || apply.contains("0.065") || apply.contains("0.040"))
-        assertTrue(apply.contains("0.007") || apply.contains("0.008") || apply.contains("0.0010") || apply.contains("0.0022") || apply.contains("baseSpace") || apply.contains("midnight") || apply.contains("0.0045"))
-        // Drift calibrated to 1.5 deg/s = 0.02618 rad/s and refined radii
-        assertTrue(apply.contains("0.02618") || apply.contains("0.045") || apply.contains("u_SkyAngle") || apply.contains("u_SkyRotationSpeed"))
-        assertTrue(apply.contains("out vec4 fragColor;"))
+        val main = material.substring(material.indexOf("void main()"))
+        (listOf(
+            "uniform sampler2D u_HdrTexture;", "uniform sampler2D u_BuiltEmissionTexture;",
+            "uniform int u_MaterialPassMode;"
+        ) + (0..8).map { "uniform highp usampler2D u_RayRecord$it;" }).forEach { assertTrue(it, material.contains(it)) }
+        assertFalse(material.contains("u_CrossingTexture0") || material.contains("u_FootprintTexture"))
+        assertEquals("material pass has exactly one main", 1, Regex("void main\\(\\)").findAll(material).count())
+        assertFalse("material pass must not integrate geodesics", main.contains("traceRaySample"))
+        assertFalse("material pass must not use screen-space derivatives", material.contains("dFdx") || material.contains("dFdy"))
+        // Pixels without a cached crossing (shadow, sky, stars) pass through untouched.
+        assertTrue(main.contains("if (!hasCrossing) {\n        fragColor = hdr;\n        return;\n    }"))
+        // The cached-hit emission uses the same strata accumulation as the geodesic pass.
+        assertTrue(material.contains("gargantuaAccumulateDiskCrossing(rHit, c.y - phaseAdvance,"))
+        val renderer = findSourceFile("app/src/main/java/com/zig/gargantua/renderer/GargantuaRenderer.kt").readText()
+        assertTrue(renderer.contains("GLES30.GL_MAX_DRAW_BUFFERS"))
+        assertTrue(renderer.contains("GLES30.GL_RGBA32UI"))
+        assertTrue(renderer.contains("scratchTimeDigits.copyInto(animationBuildTimeDigits)"))
+        assertTrue(renderer.contains("ShaderSource.loadAnimationMaterialFragmentShader(context)"))
     }
 
     @Test
@@ -262,6 +236,7 @@ class GargantuaShaderSourceTest {
             return when {
                 normalized.contains("||") -> normalized.split("||").any { expression(it) }
                 normalized.contains("&&") -> normalized.split("&&").all { expression(it) }
+                normalized.startsWith("!") -> !expression(normalized.removePrefix("!"))
                 normalized == "true" -> true
                 normalized == "false" -> false
                 else -> false

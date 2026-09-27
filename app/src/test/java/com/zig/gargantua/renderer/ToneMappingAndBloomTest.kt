@@ -249,35 +249,26 @@ class ToneMappingAndBloomTest {
             geoShader.contains("bool needsRefinement = highFreqDisk || (baseMinR < 4.2) || (baseState == 0) || (baseState == 4);")
         )
 
-        val applyShader = readShader("gargantua_animation_apply.frag")
         assertTrue(
-            "Animation apply shader shadow guard protects illuminated foreground emission from being killed",
-            applyShader.contains("if (hdrColor.a <= 0.5)") && applyShader.contains("dot(hdrColor.rgb, hdrColor.rgb) <= 1.0e-7")
+            "Animation material pass passes pixels without a cached disk crossing (shadow, sky) through untouched",
+            geoShader.contains("if (!hasCrossing) {\n        fragColor = hdr;\n        return;\n    }")
         )
     }
 
     @Test
     fun diskAnimationDirectlyAdvectsPhysicalDiskTextureWithoutUnrelatedNoise() {
-        val modShader = readShader("gargantua_animation_modulation.frag")
+        val geoShader = readShader("gargantua_geodesic.frag")
         assertTrue(
-            "Modulation shader must evaluate physical disk base texture",
-            modShader.contains("evaluateDiskBaseTexture")
+            "Material pass must re-shade the cached disk hit at phiHit - OmegaK(rHit) t",
+            geoShader.contains("gargantuaAccumulateDiskCrossing(rHit, c.y - phaseAdvance,")
         )
         assertTrue(
-            "Modulation shader must sample static texture at unshifted phi0",
-            modShader.contains("tex0 = evaluateDiskBaseTexture(radius, phi0, u_DiskInnerRadius);")
+            "Material pass must advance the cached HDR by the change of the hit emission since the build",
+            geoShader.contains("vec3 rgb = max(hdr.rgb + (now.rgb - built.rgb), vec3(0.0));")
         )
-        assertTrue(
-            "Modulation shader must advect texture in prograde direction by shifting phi",
-            modShader.contains("texA = evaluateDiskBaseTexture(radius, phi0 - shiftRadA, u_DiskInnerRadius);")
-        )
-        assertTrue(
-            "Modulation shader must combine direct texture advection with flow modulation",
-            modShader.contains("mix(1.0, advectRatio * modFactor, amp)")
-        )
-        assertTrue(
-            "Zero amplitude must strictly return 1.0",
-            modShader.contains("if (u_Amplitude == 0.0) {\n        fragColor = 1.0;\n        return;\n    }")
+        assertFalse(
+            "Material pass must not modulate with an unrelated noise texture",
+            geoShader.contains("u_NoiseTexture")
         )
     }
 
