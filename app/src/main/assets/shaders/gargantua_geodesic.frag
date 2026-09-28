@@ -36,10 +36,16 @@ layout(location = 3) out vec4 workloadSemanticCache;
 layout(location = 1) out uvec4 animationRayRecordA;
 layout(location = 2) out uvec4 animationRayRecordB;
 layout(location = 3) out uvec4 animationRayRecordC;
+layout(location = 4) out vec4 animationSkyDirection;
+layout(location = 5) out vec4 animationSkyOriginal;
 uniform int u_AnimationCachePass;
 #endif
 float gargantuaSemanticDiskHitAzimuth = 0.0;
 vec3 gargantuaSemanticDeflectedDir = vec3(0.0, 0.0, 1.0);
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE) && !defined(GARGANTUA_ANIMATION_MATERIAL_PASS)
+vec4 gargantuaSkyDirection = vec4(0.0); // escaped source direction, sky transmission
+vec3 gargantuaSkyOriginal = vec3(0.0); // original sky contribution, before disk blending
+#endif
 #endif
 #if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
 vec4 gargantuaCrossingRecord0 = vec4(0.0);
@@ -52,6 +58,7 @@ float gargantuaPrimaryHitAzimuth = 0.0;
 uniform vec2 u_Resolution;   // Screen or scaled FBO resolution (width, height)
 uniform float u_Time;        // Elapsed time, or base-16 digit zero for animation variants
 #if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+uniform float u_SkyRotation; // source-sky phase; lens map itself remains fixed
 uniform float u_TimeDigit1;
 uniform vec2 u_TimeDigits23;
 uniform vec2 u_TimeDigits45;
@@ -61,6 +68,8 @@ uniform vec2 u_TimeDigits67;
 // Material pass (no ray tracing): u_Time/u_TimeDigit* hold the time the material is evaluated at.
 uniform int u_MaterialPassMode;
 uniform sampler2D u_BuiltEmissionTexture;
+uniform sampler2D u_SkyDirectionTexture;
+uniform sampler2D u_SkyOriginalTexture;
 uniform sampler2D u_HdrTexture;
 // Ray records of the cache build, indexed like the M7 rays: 0 base, 1-4 tier-1 corners
 // (-,-) (+,-) (-,+) (+,+), 5-8 tier-2 edges (-,0) (+,0) (0,-) (0,+).
@@ -388,8 +397,8 @@ vec3 renderProceduralCosmos(vec3 skyDir) {
                 vec3 cellId = ip + neighbor;
                 vec3 h = cosmosHash33(cellId);
 
-                // +20% star quantity gate (0.109)
-                if (h.x > 0.109) continue;
+                // 50% more candidate stars than the original 0.109 gate (0.1635).
+                if (h.x > 0.1635) continue;
 
                 vec3 starPos = neighbor + h.yzx - 0.5;
                 float dist = length(fp - starPos);
@@ -412,7 +421,7 @@ vec3 renderProceduralCosmos(vec3 skyDir) {
                 vec3 starColor = mix(
                     vec3(1.0, 0.88, 0.72),
                     mix(vec3(0.95, 0.98, 1.0), vec3(0.75, 0.88, 1.0), h.z),
-                    h.x / 0.109
+                    fract(h.x / 0.109)
                 );
 
                 starAccum += starColor * starProfile * intensity;
@@ -691,6 +700,10 @@ vec4 traceRaySample(
     , out int outStepsTaken
 #endif
 ) {
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE) && !defined(GARGANTUA_ANIMATION_MATERIAL_PASS)
+    gargantuaSkyDirection = vec4(0.0);
+    gargantuaSkyOriginal = vec3(0.0);
+#endif
     // Initial ray direction in camera frame
     vec3 rayDir = normalize(u_CamForward + u_CamRight * (stCoord.x * u_FovScale) + u_CamUp * (stCoord.y * u_FovScale));
 
@@ -1039,10 +1052,20 @@ vec4 traceRaySample(
 #if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
         gargantuaSemanticDeflectedDir = skyDir;
 #endif
-        vec3 sky = sample_procedural_sky(skyDir);
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE) && !defined(GARGANTUA_ANIMATION_MATERIAL_PASS)
+        float sc = cos(u_SkyRotation), ss = sin(u_SkyRotation);
+        vec3 skySource = vec3(sc * skyDir.x - ss * skyDir.y, ss * skyDir.x + sc * skyDir.y, skyDir.z);
+#else
+        vec3 skySource = skyDir;
+#endif
+        vec3 sky = sample_procedural_sky(skySource);
         float skyScale = 0.85;
         vec3 scaledSky = clamp(sky * skyScale, vec3(0.0), vec3(0.45));
         vec3 compositeSky = accumDiskRadiance + diskTransmittance * scaledSky;
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE) && !defined(GARGANTUA_ANIMATION_MATERIAL_PASS)
+        gargantuaSkyDirection = vec4(skyDir, diskTransmittance);
+        gargantuaSkyOriginal = diskTransmittance * scaledSky;
+#endif
         return vec4(compositeSky, 1.0 + k2Lum);
     } else if (rayState == 3) { // Opaque Disk Hit
         return vec4(accumDiskRadiance, 1.0 + k2Lum);
@@ -1125,6 +1148,10 @@ void main() {
     vec4 baseSample = GARGANTUA_TRACE_RAY_SAMPLE(
         st, baseState, baseMinR, baseCrossings, baseHitR, baseSteps
     );
+#if defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
+    vec4 baseSkyDirection = gargantuaSkyDirection;
+    vec3 baseSkyOriginal = gargantuaSkyOriginal;
+#endif
 #if defined(GARGANTUA_WORKLOAD_SEMANTIC_CACHE) || defined(GARGANTUA_ANIMATION_SEMANTIC_CACHE)
     float baseDiskHitAzimuth = gargantuaSemanticDiskHitAzimuth;
 #endif
@@ -1357,6 +1384,9 @@ void main() {
     if (animationRayCount >= 5) baseRayRecord.y |= 0x8000u;
     if (animationRayCount >= 9) baseRayRecord.w |= 0x8000u;
     if (u_AnimationCachePass == 0) {
+        // Only single-ray pixels can be updated without losing the M7 subpixel sky average.
+        animationSkyDirection = animationRayCount == 1 ? baseSkyDirection : vec4(0.0);
+        animationSkyOriginal = animationRayCount == 1 ? vec4(baseSkyOriginal, 0.0) : vec4(0.0);
         animationRayRecordA = baseRayRecord;
         animationRayRecordB = animationRayRecords[1];
         animationRayRecordC = animationRayRecords[2];
@@ -1460,12 +1490,23 @@ void main() {
         return;
     }
     vec4 hdr = texelFetch(u_HdrTexture, coord, 0);
+    vec3 skyDelta = vec3(0.0);
+    vec4 skyData = texelFetch(u_SkyDirectionTexture, coord, 0);
+    if (skyData.w > 0.0) {
+        // Rotate the *source sky*, not the cached geodesic. Each pixel continues to sample its
+        // Kerr-deflected direction; no screen-space fake lens or extra RK4 pass is introduced.
+        float c = cos(u_SkyRotation), s = sin(u_SkyRotation);
+        vec3 d = skyData.xyz;
+        vec3 rotated = vec3(c * d.x - s * d.y, s * d.x + c * d.y, d.z);
+        skyDelta = skyData.w * clamp(sample_procedural_sky(rotated) * 0.85, vec3(0.0), vec3(0.45))
+            - texelFetch(u_SkyOriginalTexture, coord, 0).rgb;
+    }
     if (!hasCrossing) {
-        fragColor = hdr;
+        fragColor = vec4(max(hdr.rgb + skyDelta, vec3(0.0)), hdr.a);
         return;
     }
     vec4 built = texelFetch(u_BuiltEmissionTexture, coord, 0);
-    vec3 rgb = max(hdr.rgb + (now.rgb - built.rgb), vec3(0.0));
+    vec3 rgb = max(hdr.rgb + (now.rgb - built.rgb) + skyDelta, vec3(0.0));
     // Alpha keeps the geodesic encoding 1 + k2Lum; a pixel that was dark at build time only becomes
     // emitting (alpha >= 1) once it carries the same 0.005 radiance the geodesic pass requires.
     float alpha = hdr.a;

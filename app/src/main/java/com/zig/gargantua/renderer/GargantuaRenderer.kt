@@ -85,6 +85,8 @@ class GargantuaRenderer(
     // Emission of the cached hits at the build time, written once per build by the material pass.
     private var builtEmissionFboId = 0
     private var builtEmissionTextureId = 0
+    private var animationSkyDirectionTextureId = 0
+    private var animationSkyOriginalTextureId = 0
     private var builtEmissionValid = false
     private val animationBuildTimeDigits = FloatArray(GargantuaAnimation.TIME_DIGIT_COUNT)
     private var modulatedHdrFboId = 0
@@ -119,7 +121,9 @@ class GargantuaRenderer(
         GLES30.GL_COLOR_ATTACHMENT0,
         GLES30.GL_COLOR_ATTACHMENT1,
         GLES30.GL_COLOR_ATTACHMENT2,
-        GLES30.GL_COLOR_ATTACHMENT3
+        GLES30.GL_COLOR_ATTACHMENT3,
+        GLES30.GL_COLOR_ATTACHMENT4,
+        GLES30.GL_COLOR_ATTACHMENT5
     )
     // Cache passes 1 and 2 only write ray records; the HDR output (location 0) is not attached.
     private val scratchDrawBuffersAnimationRecords = intArrayOf(
@@ -968,6 +972,7 @@ class GargantuaRenderer(
             val animationGeodesicActive = activeProg == animationGeodesicProgram
             activeProg.setUniform1f("u_Time", if (animationGeodesicActive) scratchTimeDigits[0] else elapsedSeconds)
             if (animationGeodesicActive) {
+                activeProg.setUniform1f("u_SkyRotation", (animationElapsedSecondsDouble * SKY_DRIFT_RADIANS_PER_SECOND).toFloat())
                 activeProg.setUniform1f("u_TimeDigit1", scratchTimeDigits[1])
                 activeProg.setUniform2f("u_TimeDigits23", scratchTimeDigits[2], scratchTimeDigits[3])
                 activeProg.setUniform2f("u_TimeDigits45", scratchTimeDigits[4], scratchTimeDigits[5])
@@ -1586,6 +1591,10 @@ class GargantuaRenderer(
         }
         GLES30.glGenFramebuffers(animationCacheFboIds.size, animationCacheFboIds, 0)
         GLES30.glGenTextures(animationRayRecordTextureIds.size, animationRayRecordTextureIds, 0)
+        val skyTextures = IntArray(2)
+        GLES30.glGenTextures(2, skyTextures, 0)
+        animationSkyDirectionTextureId = skyTextures[0]
+        animationSkyOriginalTextureId = skyTextures[1]
         val fbos = IntArray(3)
         val textures = IntArray(3)
         GLES30.glGenFramebuffers(3, fbos, 0)
@@ -1616,6 +1625,8 @@ class GargantuaRenderer(
             // Integer textures are only complete with NEAREST filtering.
             texture(recordTexture, GLES30.GL_RGBA32UI, rayWidth, rayHeight, GLES30.GL_RGBA_INTEGER, GLES30.GL_UNSIGNED_INT, GLES30.GL_NEAREST)
         }
+        texture(animationSkyDirectionTextureId, GLES30.GL_RGBA16F, rayWidth, rayHeight, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_NEAREST)
+        texture(animationSkyOriginalTextureId, GLES30.GL_RGBA16F, rayWidth, rayHeight, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_NEAREST)
         texture(builtEmissionTextureId, GLES30.GL_RGBA16F, rayWidth, rayHeight, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_NEAREST)
         texture(animatedRayTextureId, GLES30.GL_RGBA16F, rayWidth, rayHeight, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_LINEAR)
         texture(modulatedHdrTextureId, GLES30.GL_RGBA16F, renderWidth, renderHeight, GLES30.GL_RGBA, GLES30.GL_HALF_FLOAT, GLES30.GL_LINEAR)
@@ -1625,6 +1636,8 @@ class GargantuaRenderer(
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, animationCacheFboIds[pass])
             if (pass == 0) {
                 GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, rayTextureId, 0)
+                GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT4, GLES30.GL_TEXTURE_2D, animationSkyDirectionTextureId, 0)
+                GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT5, GLES30.GL_TEXTURE_2D, animationSkyOriginalTextureId, 0)
             }
             for (slot in 0 until AnimationGate.RECORDS_PER_CACHE_PASS) {
                 GLES30.glFramebufferTexture2D(
@@ -1640,7 +1653,8 @@ class GargantuaRenderer(
             statuses[pass] = GLES30.glCheckFramebufferStatus(GLES30.GL_FRAMEBUFFER)
         }
         val singleTargets = intArrayOf(builtEmissionFboId, modulatedHdrFboId, animatedRayFboId)
-        val singleTextures = intArrayOf(builtEmissionTextureId, modulatedHdrTextureId, animatedRayTextureId)
+        val singleTextures = intArrayOf(builtEmissionTextureId, modulatedHdrTextureId, animatedRayTextureId,
+                animationSkyDirectionTextureId, animationSkyOriginalTextureId)
         for (index in singleTargets.indices) {
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, singleTargets[index])
             GLES30.glFramebufferTexture2D(GLES30.GL_FRAMEBUFFER, GLES30.GL_COLOR_ATTACHMENT0, GLES30.GL_TEXTURE_2D, singleTextures[index], 0)
@@ -1668,7 +1682,8 @@ class GargantuaRenderer(
             GLES30.glDeleteFramebuffers(framebuffers.size, framebuffers, 0)
         }
         val animationTextures = animationRayRecordTextureIds +
-            intArrayOf(builtEmissionTextureId, modulatedHdrTextureId, animatedRayTextureId)
+            intArrayOf(builtEmissionTextureId, modulatedHdrTextureId, animatedRayTextureId,
+                animationSkyDirectionTextureId, animationSkyOriginalTextureId)
         if (animationTextures.any { it != 0 }) {
             GLES30.glDeleteTextures(animationTextures.size, animationTextures, 0)
         }
@@ -1676,6 +1691,7 @@ class GargantuaRenderer(
         animationRayRecordTextureIds.fill(0)
         animationRayWidth = 0; animationRayHeight = 0; animationRayTextureId = 0
         builtEmissionFboId = 0; builtEmissionTextureId = 0; builtEmissionValid = false
+        animationSkyDirectionTextureId = 0; animationSkyOriginalTextureId = 0
         animatedRayFboId = 0; animatedRayTextureId = 0; animationCacheComplete = false
         modulatedHdrFboId = 0; modulatedHdrTextureId = 0; modulatedHdrWidth = 0; modulatedHdrHeight = 0
         animationResourcesReady = false
@@ -1728,6 +1744,15 @@ class GargantuaRenderer(
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, animationRayTextureId)
         material.setUniform1i("u_HdrTexture", 0)
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE11)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, animationSkyDirectionTextureId)
+        material.setUniform1i("u_SkyDirectionTexture", 11)
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE12)
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, animationSkyOriginalTextureId)
+        material.setUniform1i("u_SkyOriginalTexture", 12)
+        // A slowly drifting celestial environment makes lensing visible at a stationary camera.
+        // The deflection map is fixed: no fictitious change in black-hole mass or spin.
+        material.setUniform1f("u_SkyRotation", ((System.nanoTime() - animOriginNanos).coerceAtLeast(0L) * 1.0e-9 * SKY_DRIFT_RADIANS_PER_SECOND).toFloat())
         GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, builtEmissionTextureId)
         material.setUniform1i("u_BuiltEmissionTexture", 1)
@@ -1774,7 +1799,7 @@ class GargantuaRenderer(
         setTimeDigits(scratchTimeDigits)
         quad.draw()
         if (diagActiveThisFrame) gpuDiagnostics.passSnapshot("material", DIAG_MATERIAL_UNITS)
-        for (unit in 2 + animationRayRecordTextureIds.size - 1 downTo 0) {
+        for (unit in 12 downTo 0) {
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0 + unit)
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
         }
@@ -2383,6 +2408,8 @@ class GargantuaRenderer(
         coarseRayTargetAvailable = false
         animationCacheFboIds.fill(0)
         animationRayRecordTextureIds.fill(0)
+        animationSkyDirectionTextureId = 0
+        animationSkyOriginalTextureId = 0
         animationCacheComplete = false
         animatedRayFboId = 0
         animatedRayTextureId = 0
@@ -2684,7 +2711,8 @@ class GargantuaRenderer(
         private const val FPS_IDLE_RESET_NANOS = 750_000_000L
         private const val TELEMETRY_DISPATCH_INTERVAL_MS = 250L // 4 Hz throttle
         // Material-pass samplers of the nine M7 ray records (0 base, 1-4 corners, 5-8 edges).
-        private val DIAG_MATERIAL_UNITS = IntArray(11) { it }
+        private const val SKY_DRIFT_RADIANS_PER_SECOND = 0.012
+        private val DIAG_MATERIAL_UNITS = IntArray(13) { it }
         private val RAY_RECORD_UNIFORMS = Array(AnimationGate.CACHE_PASS_COUNT * AnimationGate.RECORDS_PER_CACHE_PASS) {
             "u_RayRecord$it"
         }
