@@ -362,7 +362,7 @@ float cosmosFbm(vec3 p) {
 const float GARGANTUA_SKY_BACKDROP_GAIN = 0.1;
 
 // Master Procedural Deep-Blue Cosmos (Darker inky midnight-blue + 20% more stars, refined radii)
-vec3 renderProceduralCosmos(vec3 skyDir) {
+vec3 renderProceduralCosmos(vec3 skyDir, bool includeStars) {
     // -------------------------------------------------------------
     // 1. Inky Midnight-Blue Backdrop with Moody Sapphire Clouds
     // -------------------------------------------------------------
@@ -390,7 +390,7 @@ vec3 renderProceduralCosmos(vec3 skyDir) {
     vec3 fp = fract(p);
     vec3 starAccum = vec3(0.0);
 
-    for (int z = -1; z <= 1; z++) {
+    if (includeStars) for (int z = -1; z <= 1; z++) {
         for (int y = -1; y <= 1; y++) {
             for (int x = -1; x <= 1; x++) {
                 vec3 neighbor = vec3(float(x), float(y), float(z));
@@ -437,8 +437,8 @@ vec3 renderProceduralCosmos(vec3 skyDir) {
     return celestialBg + starAccum;
 }
 
-vec3 sample_procedural_sky(vec3 dir) {
-    return renderProceduralCosmos(normalize(dir));
+vec3 sample_procedural_sky(vec3 dir, bool includeStars) {
+    return renderProceduralCosmos(normalize(dir), includeStars);
 }
 
 
@@ -1058,7 +1058,7 @@ vec4 traceRaySample(
 #else
         vec3 skySource = skyDir;
 #endif
-        vec3 sky = sample_procedural_sky(skySource);
+        vec3 sky = sample_procedural_sky(skySource, diskCrossings == 0);
         float skyScale = 0.85;
         vec3 scaledSky = clamp(sky * skyScale, vec3(0.0), vec3(0.45));
         vec3 compositeSky = accumDiskRadiance + diskTransmittance * scaledSky;
@@ -1480,7 +1480,7 @@ vec4 gargantuaCachedPixelEmission(ivec2 coord, out bool hasCrossing) {
 // cached disk hits at the build time. u_MaterialPassMode 0 (every presented frame): the cached HDR is
 // advanced by the change of that emission between the build time and the presented time, so the
 // displayed disk RGB is the advected material (phiMaterial = phiHit - OmegaK(rHit) t) while shadow,
-// sky and stars (pixels none of whose rays hit the disk) are passed through bit-for-bit.
+// sky is updated only on rays with no disk crossing; disk-hit rays cannot reveal background stars.
 void main() {
     ivec2 coord = ivec2(gl_FragCoord.xy);
     bool hasCrossing;
@@ -1492,13 +1492,13 @@ void main() {
     vec4 hdr = texelFetch(u_HdrTexture, coord, 0);
     vec3 skyDelta = vec3(0.0);
     vec4 skyData = texelFetch(u_SkyDirectionTexture, coord, 0);
-    if (skyData.w > 0.0) {
+    if (skyData.w > 0.0 && !hasCrossing) {
         // Rotate the *source sky*, not the cached geodesic. Each pixel continues to sample its
         // Kerr-deflected direction; no screen-space fake lens or extra RK4 pass is introduced.
         float c = cos(u_SkyRotation), s = sin(u_SkyRotation);
         vec3 d = skyData.xyz;
         vec3 rotated = vec3(c * d.x - s * d.y, s * d.x + c * d.y, d.z);
-        skyDelta = skyData.w * clamp(sample_procedural_sky(rotated) * 0.85, vec3(0.0), vec3(0.45))
+        skyDelta = skyData.w * clamp(sample_procedural_sky(rotated, true) * 0.85, vec3(0.0), vec3(0.45))
             - texelFetch(u_SkyOriginalTexture, coord, 0).rgb;
     }
     if (!hasCrossing) {
@@ -1506,7 +1506,7 @@ void main() {
         return;
     }
     vec4 built = texelFetch(u_BuiltEmissionTexture, coord, 0);
-    vec3 rgb = max(hdr.rgb + (now.rgb - built.rgb) + skyDelta, vec3(0.0));
+    vec3 rgb = max(hdr.rgb + (now.rgb - built.rgb), vec3(0.0));
     // Alpha keeps the geodesic encoding 1 + k2Lum; a pixel that was dark at build time only becomes
     // emitting (alpha >= 1) once it carries the same 0.005 radiance the geodesic pass requires.
     float alpha = hdr.a;
