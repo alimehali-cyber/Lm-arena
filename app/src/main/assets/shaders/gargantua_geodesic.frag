@@ -397,8 +397,8 @@ vec3 renderProceduralCosmos(vec3 skyDir) {
                 vec3 cellId = ip + neighbor;
                 vec3 h = cosmosHash33(cellId);
 
-                // 50% more candidate stars than the original 0.109 gate (0.1635).
-                if (h.x > 0.1635) continue;
+                // 20% more candidate stars than the previous 0.1635 gate (0.1962).
+                if (h.x > 0.1962) continue;
 
                 vec3 starPos = neighbor + h.yzx - 0.5;
                 float dist = length(fp - starPos);
