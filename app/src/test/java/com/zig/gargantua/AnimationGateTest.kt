@@ -438,9 +438,10 @@ class AnimationGateTest {
         val material = materialPassSource()
         assertTrue(codeOnly(functionBody(material, "float evaluate3DVolumetricGasDensity(")).contains("if (u_AnimationAmplitude > 0.0) {"))
         assertTrue(material.contains("? gargantuaMaterialPerturbationField(rHit, phiMaterial, keplerPhase) : 0.0;"))
-        // Pixels none of whose rays hit the disk (shadow, sky, stars) keep the cached HDR bit-for-bit.
+        // With amplitude zero the gate never runs the material pass; shadow stays unchanged.
         val main = codeOnly(material.substring(material.lastIndexOf("void main()")))
-        assertTrue(main.contains("if (!hasCrossing) {\n        fragColor = hdr;\n        return;\n    }"))
+        assertTrue(main.contains("if (!hasCrossing) {\n        fragColor = vec4(max(hdr.rgb + skyDelta, vec3(0.0)), hdr.a);\n        return;\n    }"))
+        assertTrue(main.contains("if (skyData.w > 0.0)"))
         // Behaviour (CPU port): amplitude 0 is bit-identical to the unanimated shading at every hit.
         for (ri in 0 until 10) for (pi in 0 until 40) {
             val r = rIn * 1.02f + ri * 1.9f

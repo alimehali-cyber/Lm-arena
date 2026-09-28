@@ -250,8 +250,9 @@ class ToneMappingAndBloomTest {
         )
 
         assertTrue(
-            "Animation material pass passes pixels without a cached disk crossing (shadow, sky) through untouched",
-            geoShader.contains("if (!hasCrossing) {\n        fragColor = hdr;\n        return;\n    }")
+            "Material pass changes only sky RGB, keeping shadow and alpha untouched without a disk crossing",
+            geoShader.contains("if (!hasCrossing) {\n        fragColor = vec4(max(hdr.rgb + skyDelta, vec3(0.0)), hdr.a);\n        return;\n    }") &&
+                geoShader.contains("if (skyData.w > 0.0)")
         )
     }
 
@@ -264,7 +265,7 @@ class ToneMappingAndBloomTest {
         )
         assertTrue(
             "Material pass must advance the cached HDR by the change of the hit emission since the build",
-            geoShader.contains("vec3 rgb = max(hdr.rgb + (now.rgb - built.rgb), vec3(0.0));")
+            geoShader.contains("vec3 rgb = max(hdr.rgb + (now.rgb - built.rgb) + skyDelta, vec3(0.0));")
         )
         assertFalse(
             "Material pass must not modulate with an unrelated noise texture",

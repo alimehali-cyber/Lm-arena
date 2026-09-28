@@ -128,7 +128,8 @@ class GargantuaShaderSourceTest {
                 0 to "fragColor", 1 to "workloadTierStats", 2 to "workloadCostStats", 3 to "workloadSemanticCache"
             ),
             "animation" to listOf(
-                0 to "fragColor", 1 to "animationRayRecordA", 2 to "animationRayRecordB", 3 to "animationRayRecordC"
+                0 to "fragColor", 1 to "animationRayRecordA", 2 to "animationRayRecordB", 3 to "animationRayRecordC",
+                4 to "animationSkyDirection", 5 to "animationSkyOriginal"
             ),
             "animation-material" to listOf(0 to "fragColor")
         )
@@ -191,8 +192,9 @@ class GargantuaShaderSourceTest {
         assertEquals("material pass has exactly one main", 1, Regex("void main\\(\\)").findAll(material).count())
         assertFalse("material pass must not integrate geodesics", main.contains("traceRaySample"))
         assertFalse("material pass must not use screen-space derivatives", material.contains("dFdx") || material.contains("dFdy"))
-        // Pixels without a cached crossing (shadow, sky, stars) pass through untouched.
-        assertTrue(main.contains("if (!hasCrossing) {\n        fragColor = hdr;\n        return;\n    }"))
+        // No disk crossing: only escaped sky pixels receive a cached-direction sky update.
+        assertTrue(main.contains("if (!hasCrossing) {\n        fragColor = vec4(max(hdr.rgb + skyDelta, vec3(0.0)), hdr.a);\n        return;\n    }"))
+        assertTrue(main.contains("if (skyData.w > 0.0)"))
         // The cached-hit emission uses the same strata accumulation as the geodesic pass.
         assertTrue(material.contains("gargantuaAccumulateDiskCrossing(rHit, c.y - phaseAdvance,"))
         val renderer = findSourceFile("app/src/main/java/com/zig/gargantua/renderer/GargantuaRenderer.kt").readText()
