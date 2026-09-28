@@ -441,7 +441,7 @@ class AnimationGateTest {
         // With amplitude zero the gate never runs the material pass; shadow stays unchanged.
         val main = codeOnly(material.substring(material.lastIndexOf("void main()")))
         assertTrue(main.contains("if (!hasCrossing) {\n        fragColor = vec4(max(hdr.rgb + skyDelta, vec3(0.0)), hdr.a);\n        return;\n    }"))
-        assertTrue(main.contains("if (skyData.w > 0.0 && !hasCrossing)"))
+        assertTrue(main.contains("if (skyData.w > 0.0)"))
         // Behaviour (CPU port): amplitude 0 is bit-identical to the unanimated shading at every hit.
         for (ri in 0 until 10) for (pi in 0 until 40) {
             val r = rIn * 1.02f + ri * 1.9f

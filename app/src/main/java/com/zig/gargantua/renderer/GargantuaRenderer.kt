@@ -2711,8 +2711,7 @@ class GargantuaRenderer(
         private const val FPS_IDLE_RESET_NANOS = 750_000_000L
         private const val TELEMETRY_DISPATCH_INTERVAL_MS = 250L // 4 Hz throttle
         // Material-pass samplers of the nine M7 ray records (0 base, 1-4 corners, 5-8 edges).
-        // Sidereal-rate source rotation, not an artificial change to Kerr's lens map.
-        private const val SKY_DRIFT_RADIANS_PER_SECOND = 7.2921159e-5
+        private const val SKY_DRIFT_RADIANS_PER_SECOND = 0.012
         private val DIAG_MATERIAL_UNITS = IntArray(13) { it }
         private val RAY_RECORD_UNIFORMS = Array(AnimationGate.CACHE_PASS_COUNT * AnimationGate.RECORDS_PER_CACHE_PASS) {
             "u_RayRecord$it"
