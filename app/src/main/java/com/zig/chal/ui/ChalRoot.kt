@@ -233,6 +233,15 @@ fun ChalRoot(
                                     )
                                 )
                             },
+                            onStartBenchmark = { surfaceView.startBenchmark() },
+                            onCancelBenchmark = { surfaceView.cancelBenchmark() },
+                            isBenchmarkRunning = snapshot.benchmarkState == com.zig.chal.render.ChalBenchmark.State.RUNNING,
+                            benchmarkPreset = snapshot.benchmarkPreset?.let { preset ->
+                                if (isPersian) preset.label else preset.id
+                            },
+                            benchmarkProgress = snapshot.benchmarkProgress,
+                            benchmarkResults = snapshot.benchmarkResults,
+                            benchmarkRecommendation = snapshot.benchmarkRecommendation,
                             onStartCinematic = { tool ->
                                 when (tool) {
                                     ChalCinematicTool.ORBIT -> surfaceView.startCinematic(

@@ -22,6 +22,13 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
         val renderResolution: Double = 1.0
     )
 
+    /** Severity-tagged performance warnings (`PerformanceWarning`). */
+    data class PerformanceWarning(
+        val severity: String,
+        val message: String,
+        val suggestions: List<String>
+    )
+
     /** Fixed-size ring buffer for frame times. */
     private class RingBuffer(private val capacity: Int) {
         private val data = DoubleArray(capacity)
@@ -38,6 +45,12 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
 
         fun last(): Double = if (count == 0) 0.0 else data[(index - 1 + capacity) % capacity]
 
+        fun clear() {
+            index = 0
+            count = 0
+            for (i in data.indices) data[i] = 0.0
+        }
+
         fun average(): Double {
             if (count == 0) return 0.0
             var sum = 0.0
@@ -46,7 +59,8 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
         }
     }
 
-    private val window = 60
+    /** `WINDOW = 90` -- 90 frames (~1.5 s at 60 fps) for a stable rolling average. */
+    private val window = 90
     private val frameTimes = RingBuffer(window)
 
     private var cachedAvgTime = 0.0
@@ -56,6 +70,16 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
     private var currentQuality: ChalRayTracingQuality = ChalRayTracingQuality.HIGH
     private var renderResolution: Double = 1.0
 
+    /*
+     * Hardware awareness. The reference sniffs the user agent for
+     * android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini; every Chal deployment target
+     * is a phone or tablet, so the mobile branch of that test is the one that always applies.
+     */
+    private val isMobile: Boolean = true
+    private var isCalibrating: Boolean = true
+    private var calibrationStartTime: Double = nowMillis()
+    private var maxAllowedQuality: ChalRayTracingQuality = ChalRayTracingQuality.ULTRA
+
     // PID Controller State (Phase 4.1: Stabilization)
     private var errorIntegral = 0.0
     private var prevError = 0.0
@@ -64,6 +88,20 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
 
     private val metrics = PerformanceMetrics()
 
+    init {
+        // Mobile devices skip the stress-test and start at the hard quality cap.
+        if (isMobile) {
+            maxAllowedQuality = mobileHardCap()
+            currentQuality = maxAllowedQuality
+            isCalibrating = false
+        }
+    }
+
+    /** `PERFORMANCE_CONFIG.calibration.mobileHardCap` resolved to a quality enum. */
+    private fun mobileHardCap(): ChalRayTracingQuality =
+        ChalRayTracingQuality.fromId(ChalPerformanceConfig.Calibration.MOBILE_HARD_CAP)
+            ?: ChalRayTracingQuality.MEDIUM
+
     /**
      * Feed one frame's delta time (ms) and return the updated metrics.
      */
@@ -71,11 +109,110 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
         frameTimes.push(deltaTime)
         cacheValid = false
 
-        if (ChalPerformanceConfig.Resolution.ENABLE_DYNAMIC_SCALING) {
+        val now = nowMillis()
+
+        // Calibration Phase logic
+        if (isCalibrating) {
+            if (now - calibrationStartTime > ChalPerformanceConfig.Calibration.DURATION_MS) {
+                isCalibrating = false
+                finalizeCalibration()
+            }
+        } else if (ChalPerformanceConfig.Resolution.ENABLE_DYNAMIC_SCALING) {
+            // Phase 4.1: PID-Based Adaptive Scaling
             applyPidScaling(deltaTime)
         }
 
         return getMetrics(deltaTime)
+    }
+
+    /** Settle the calibration phase early (`endCalibration`). */
+    fun endCalibration() {
+        isCalibrating = false
+        finalizeCalibration()
+    }
+
+    /**
+     * Post-calibration quality decision: if the device could not sustain 30 FPS over the stress
+     * window, step the tier down once and remember the new ceiling.
+     */
+    private fun finalizeCalibration() {
+        if (frameTimes.size() == 0) return
+        ensureCache()
+        val avgFps = cachedAvgFPS
+
+        if (avgFps < ChalPerformanceConfig.Calibration.MIN_STABLE_FPS) {
+            if (currentQuality == ChalRayTracingQuality.ULTRA) {
+                setQuality(ChalRayTracingQuality.HIGH)
+            } else if (currentQuality == ChalRayTracingQuality.HIGH) {
+                setQuality(ChalRayTracingQuality.MEDIUM)
+            }
+            maxAllowedQuality = currentQuality
+        }
+    }
+
+    /** True when the rolling average has fallen under the adaptive threshold. */
+    fun shouldReduceQuality(): Boolean {
+        if (isCalibrating) return false
+        ensureCache()
+        return frameTimes.size() >= window &&
+            cachedAvgFPS < ChalPerformanceConfig.Resolution.ADAPTIVE_THRESHOLD
+    }
+
+    /** True when there is headroom to step back up (never past the hardware cap). */
+    fun shouldIncreaseQuality(): Boolean {
+        if (isCalibrating) return false
+        ensureCache()
+        if (currentQuality == ChalRayTracingQuality.ULTRA ||
+            (currentQuality == ChalRayTracingQuality.HIGH && maxAllowedQuality == ChalRayTracingQuality.HIGH) ||
+            (currentQuality == ChalRayTracingQuality.MEDIUM && maxAllowedQuality == ChalRayTracingQuality.MEDIUM)
+        ) {
+            return false
+        }
+        return frameTimes.size() >= window &&
+            cachedAvgFPS > ChalPerformanceConfig.Resolution.RECOVERY_THRESHOLD
+    }
+
+    /** Operator-facing warnings (`getWarnings`). */
+    fun getWarnings(): List<PerformanceWarning> {
+        val currentMetrics = getMetrics()
+        val budgetUsage = getFrameTimeBudgetUsage()
+        val warnings = mutableListOf<PerformanceWarning>()
+
+        if (currentMetrics.rollingAverageFPS < 30) {
+            warnings += PerformanceWarning(
+                severity = "critical",
+                message = "Critical performance issue detected",
+                suggestions = listOf("Disable Gravitational Lensing", "Set Quality to Low")
+            )
+        } else if (currentMetrics.rollingAverageFPS < 60) {
+            warnings += PerformanceWarning(
+                severity = "warning",
+                message = "Performance warning: FPS below 60",
+                suggestions = listOf("Reduce Ray Tracing Quality", "Disable Bloom")
+            )
+        }
+
+        if (budgetUsage > 100.0) {
+            warnings += PerformanceWarning(
+                severity = "info",
+                message = "Frame time budget exceeded (>${
+                    String.format(
+                        java.util.Locale.US,
+                        "%.1f",
+                        1000.0 / ChalPerformanceConfig.Scheduler.TARGET_FPS
+                    )
+                }ms)",
+                suggestions = listOf("Enable Adaptive Resolution")
+            )
+        }
+
+        return warnings
+    }
+
+    /** Clear the rolling statistics (`reset`). */
+    fun reset() {
+        frameTimes.clear()
+        cacheValid = false
     }
 
     /** PID-Based Adaptive Scaling (Phase 4.1). */
@@ -164,6 +301,9 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
     fun setQuality(quality: ChalRayTracingQuality) {
         currentQuality = quality
     }
+
+    /** The adaptive tier ceiling (mobile hard cap, or the post-calibration ceiling). */
+    fun getMaxAllowedQuality(): ChalRayTracingQuality = maxAllowedQuality
 
     /**
      * Seed the resolution scale from the user-facing `renderScale` parameter.

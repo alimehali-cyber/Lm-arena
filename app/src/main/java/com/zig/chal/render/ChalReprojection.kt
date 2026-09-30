@@ -160,16 +160,22 @@ class ChalReprojection(private val hdrCapable: Boolean) {
      * Resolve the current frame against the history buffer.
      *
      * @param sceneTexture texture holding this frame's ray-marched scene.
-     * @param blendFactor accumulation weight (the reference uses 0.75).
+     * @param blendFactor base accumulation weight (0.0 to 1.0; 0.9 for static scenes). The renderer
+     *   passes 0.75 explicitly, exactly like the reference does.
      * @param cameraMoving forces a full reset of accumulation when the camera moves.
-     * @param renderScale virtual-viewport scale.
+     * @param renderScale virtual-viewport scale (0.5 = half resolution).
+     * @param cameraVelocityMagnitude scalar camera velocity. When above 0.001 it overrides
+     *   [blendFactor] with the velocity-aware formula
+     *   `blend = clamp(0.9 - velocity * 6.0, 0.05, 0.9)`, which eliminates ghosting during fast pans
+     *   while maximising noise suppression at rest.
      * @return the resolved texture id, or 0 when the pipeline is unavailable.
      */
     fun resolve(
         sceneTexture: Int,
-        blendFactor: Double = 0.75,
+        blendFactor: Double = 0.9,
         cameraMoving: Boolean = false,
-        renderScale: Double = 1.0
+        renderScale: Double = 1.0,
+        cameraVelocityMagnitude: Double = 0.0
     ): Int {
         if (program == 0 || currentFramebuffer == 0 || historyFramebuffer == 0) return 0
 
@@ -177,8 +183,13 @@ class ChalReprojection(private val hdrCapable: Boolean) {
         val targetTexture = if (pingPong == 0) currentTexture else historyTexture
         val sourceHistoryTexture = if (pingPong == 0) historyTexture else currentTexture
 
+        // Virtual viewport scaling: the resolve pass writes the scaled sub-region of the full-size
+        // history target, so the viewport and u_resolution must both follow renderScale.
+        val scaledWidth = maxOf(1, kotlin.math.floor(width * renderScale).toInt())
+        val scaledHeight = maxOf(1, kotlin.math.floor(height * renderScale).toInt())
+
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, targetFramebuffer)
-        GLES30.glViewport(0, 0, width, height)
+        GLES30.glViewport(0, 0, scaledWidth, scaledHeight)
 
         GLES30.glUseProgram(program)
 
@@ -199,12 +210,19 @@ class ChalReprojection(private val hdrCapable: Boolean) {
 
         GLES30.glUniform2f(
             GLES30.glGetUniformLocation(program, "u_resolution"),
-            width.toFloat(),
-            height.toFloat()
+            scaledWidth.toFloat(),
+            scaledHeight.toFloat()
         )
+
+        // Phase 3.4: Velocity-aware blend factor.
+        val effectiveBlend = if (cameraVelocityMagnitude > 0.001) {
+            maxOf(0.05, minOf(0.9, 0.9 - cameraVelocityMagnitude * 6.0))
+        } else {
+            blendFactor
+        }
         GLES30.glUniform1f(
             GLES30.glGetUniformLocation(program, "u_blendFactor"),
-            blendFactor.toFloat()
+            effectiveBlend.toFloat()
         )
         GLES30.glUniform1i(
             GLES30.glGetUniformLocation(program, "u_cameraMoving"),

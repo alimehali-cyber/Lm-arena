@@ -154,6 +154,16 @@ class ChalSurfaceView(
         queueEvent { renderer.stopCinematic() }
     }
 
+    /** Start the performance suite from the UI thread. */
+    fun startBenchmark() {
+        queueEvent { renderer.startBenchmark() }
+    }
+
+    /** Abort the performance suite from the UI thread. */
+    fun cancelBenchmark() {
+        queueEvent { renderer.cancelBenchmark() }
+    }
+
     /** Release GL resources on the GL thread when the host screen goes away. */
     fun releaseGl() {
         queueEvent { renderer.release() }

@@ -61,9 +61,16 @@ fun ChalControlPanel(
     onPresetSelected: (ChalPresetName) -> Unit,
     onQualitySelected: (ChalRayTracingQuality) -> Unit,
     onStartCinematic: (ChalCinematicTool) -> Unit,
+    onStartBenchmark: () -> Unit,
+    onCancelBenchmark: () -> Unit,
+    isBenchmarkRunning: Boolean,
+    benchmarkPreset: String?,
+    benchmarkProgress: Double,
+    benchmarkResults: List<com.zig.chal.render.ChalBenchmark.BenchmarkResult>,
+    benchmarkRecommendation: com.zig.chal.config.ChalPresetName?,
     modifier: Modifier = Modifier
 ) {
-    var tab by remember { mutableStateOf(ChalPanelTab.PARAMETERS) }
+    var tab by remember { mutableStateOf(ChalPanelTab.PHYSICS) }
 
     Column(
         modifier = modifier
@@ -93,12 +100,12 @@ fun ChalControlPanel(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (tab == ChalPanelTab.PARAMETERS) 268.dp else 232.dp)
+                .height(if (tab == ChalPanelTab.PHYSICS) 268.dp else 232.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
         ) {
             when (tab) {
-                ChalPanelTab.PARAMETERS -> {
+                ChalPanelTab.PHYSICS -> {
                     ChalPanelSection(if (isPersian) "پارامترهای سیاه‌چاله" else "Black Hole Parameters") {
                         ChalSlider(
                             config = ChalSimulationConfig.MASS,
@@ -163,7 +170,7 @@ fun ChalControlPanel(
                     }
                 }
 
-                ChalPanelTab.PERFORMANCE -> {
+                ChalPanelTab.SYSTEM -> {
                     ChalPanelSection(if (isPersian) "پیش‌تنظیم‌های کارایی" else "Performance Presets") {
                         Row(horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
                             ChalPresetName.entries.filter { it != ChalPresetName.CUSTOM }.forEach { preset ->
@@ -196,6 +203,95 @@ fun ChalControlPanel(
                         }
                     }
 
+                    ChalPanelSection(if (isPersian) "اعتبارسنجی سامانه" else "System Validation") {
+                        ChalChoiceButton(
+                            label = if (isBenchmarkRunning) {
+                                if (isPersian) "توقف سنجش" else "Abort Benchmark"
+                            } else {
+                                if (isPersian) "اجرای سنجش کارایی" else "Run Performance Suite"
+                            },
+                            selected = isBenchmarkRunning,
+                            onClick = { if (isBenchmarkRunning) onCancelBenchmark() else onStartBenchmark() },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (isBenchmarkRunning) {
+                            Text(
+                                text = "${benchmarkPreset ?: ""} ${
+                                    Math.round(benchmarkProgress * 100.0)
+                                }%",
+                                color = Color.White.copy(alpha = 0.70f),
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(RedCornerRadius.full))
+                                    .background(Color.White.copy(alpha = 0.08f))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(benchmarkProgress.coerceIn(0.0, 1.0).toFloat())
+                                        .height(4.dp)
+                                        .clip(RoundedCornerShape(RedCornerRadius.full))
+                                        .background(RedTheme.colors.accentRed.copy(alpha = 0.8f))
+                                )
+                            }
+                        }
+                        benchmarkResults.forEach { result ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = result.presetName.label.uppercase(Locale.US),
+                                    color = Color.White.copy(alpha = 0.65f),
+                                    fontSize = 8.sp
+                                )
+                                Text(
+                                    text = String.format(Locale.US, "%.1f fps", result.averageFPS),
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 8.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                        benchmarkRecommendation?.let { preset ->
+                            Text(
+                                text = if (isPersian) "پیشنهاد: ${preset.label}" else "Recommended: ${preset.label}",
+                                color = RedTheme.colors.accentRed.copy(alpha = 0.9f),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+
+                    ChalPanelSection(if (isPersian) "دقت نمایش" else "Display Precision") {
+                        Text(
+                            text = if (isPersian) {
+                                "دقت طیفی و حد چگالی پراکندگی حجمی."
+                            } else {
+                                "Spectral precision and volumetric scattering density limit."
+                            },
+                            color = Color.White.copy(alpha = 0.30f),
+                            fontSize = 8.sp
+                        )
+                    }
+
+                }
+
+                ChalPanelTab.MODULES -> {
+                    ChalPanelSection(if (isPersian) "ماژول‌های فیزیک" else "Physics Modules") {
+                        ChalFeatureToggle.entries.forEach { toggle ->
+                            ChalToggleRow(
+                                label = toggle.label(isPersian),
+                                checked = toggle.read(params.features),
+                                onToggle = { onParamsChange(params.copy(features = toggle.write(params.features, it))) }
+                            )
+                        }
+                    }
+
                     ChalPanelSection(if (isPersian) "ابزارهای سینمایی" else "Cinematic Tools") {
                         Row(horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
                             ChalChoiceButton(
@@ -224,31 +320,22 @@ fun ChalControlPanel(
                         )
                     }
                 }
-
-                ChalPanelTab.MODULES -> {
-                    ChalPanelSection(if (isPersian) "ماژول‌های فیزیک" else "Physics Modules") {
-                        ChalFeatureToggle.entries.forEach { toggle ->
-                            ChalToggleRow(
-                                label = toggle.label(isPersian),
-                                checked = toggle.read(params.features),
-                                onToggle = { onParamsChange(params.copy(features = toggle.write(params.features, it))) }
-                            )
-                        }
-                    }
-                }
             }
         }
     }
 }
 
-/** Panel tabs, mirroring the reference's `params | performance | features` tab set. */
+/**
+ * Panel tabs: `simulation | features | performance` in the reference's own order, labelled with the
+ * reference's own captions ("Physics", "Modules", "System").
+ */
 enum class ChalPanelTab {
-    PARAMETERS, PERFORMANCE, MODULES;
+    PHYSICS, MODULES, SYSTEM;
 
     fun label(isPersian: Boolean): String = when (this) {
-        PARAMETERS -> if (isPersian) "پارامترها" else "Parameters"
-        PERFORMANCE -> if (isPersian) "کارایی" else "Performance"
+        PHYSICS -> if (isPersian) "فیزیک" else "Physics"
         MODULES -> if (isPersian) "ماژول‌ها" else "Modules"
+        SYSTEM -> if (isPersian) "سامانه" else "System"
     }
 }
 
@@ -256,8 +343,11 @@ enum class ChalPanelTab {
 enum class ChalCinematicTool { ORBIT, DIVE }
 
 /**
- * The ten physics modules of `FeatureToggles`. `spacetimeVisualization` is schema-only in this port
- * (the reference drives a separate 3D analytics canvas with it), so it is not rendered as a toggle.
+ * The ten physics modules of `FeatureToggles`, in the reference panel's order.
+ *
+ * `spacetimeVisualization` is carried for schema and control-surface parity: in the reference it
+ * drives a separate analytics canvas rather than the ray-marcher, so toggling it here records the
+ * operator's intent without changing the geodesic pass.
  */
 enum class ChalFeatureToggle {
     GRAVITATIONAL_LENSING,
@@ -268,7 +358,8 @@ enum class ChalFeatureToggle {
     VOLUMETRIC_BLOOM,
     RELATIVISTIC_JETS,
     GRAVITATIONAL_REDSHIFT,
-    KERR_SHADOW_GUIDE;
+    KERR_SHADOW_GUIDE,
+    SPACETIME_VISUALIZATION;
 
     fun label(isPersian: Boolean): String = when (this) {
         GRAVITATIONAL_LENSING -> if (isPersian) "همگرایی گرانشی" else "Gravitational Lensing"
@@ -280,6 +371,7 @@ enum class ChalFeatureToggle {
         RELATIVISTIC_JETS -> if (isPersian) "فواره‌های نسبیتی" else "Relativistic Jets"
         GRAVITATIONAL_REDSHIFT -> if (isPersian) "انتقال به سرخ گرانشی" else "Gravitational Redshift"
         KERR_SHADOW_GUIDE -> if (isPersian) "راهنمای سایه کر" else "Kerr Shadow Guide"
+        SPACETIME_VISUALIZATION -> if (isPersian) "تجسم فضازمان" else "Spacetime Visualization"
     }
 
     fun read(features: ChalFeatureToggles): Boolean = when (this) {
@@ -292,6 +384,7 @@ enum class ChalFeatureToggle {
         RELATIVISTIC_JETS -> features.relativisticJets
         GRAVITATIONAL_REDSHIFT -> features.gravitationalRedshift
         KERR_SHADOW_GUIDE -> features.kerrShadow
+        SPACETIME_VISUALIZATION -> features.spacetimeVisualization
     }
 
     fun write(features: ChalFeatureToggles, value: Boolean): ChalFeatureToggles = when (this) {
@@ -304,6 +397,7 @@ enum class ChalFeatureToggle {
         RELATIVISTIC_JETS -> features.copy(relativisticJets = value)
         GRAVITATIONAL_REDSHIFT -> features.copy(gravitationalRedshift = value)
         KERR_SHADOW_GUIDE -> features.copy(kerrShadow = value)
+        SPACETIME_VISUALIZATION -> features.copy(spacetimeVisualization = value)
     }
 }
 

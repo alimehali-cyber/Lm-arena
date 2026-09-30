@@ -5,6 +5,7 @@ import android.opengl.GLSurfaceView
 import android.util.Log
 import com.zig.chal.config.ChalFeatureToggles
 import com.zig.chal.config.ChalFeatures
+import com.zig.chal.config.ChalPresetName
 import com.zig.chal.config.ChalPerformanceConfig
 import com.zig.chal.config.ChalRayTracingQuality
 import com.zig.chal.config.ChalSimulationParams
@@ -49,10 +50,16 @@ class ChalRenderer : GLSurfaceView.Renderer {
         val redshift: Double,
         val isCinematic: Boolean,
         val cinematicMode: ChalCamera.CinematicMode?,
-        val targetFps: Int
+        val targetFps: Int,
+        val benchmarkState: ChalBenchmark.State = ChalBenchmark.State.IDLE,
+        val benchmarkPreset: ChalPresetName? = null,
+        val benchmarkProgress: Double = 0.0,
+        val benchmarkResults: List<ChalBenchmark.BenchmarkResult> = emptyList(),
+        val benchmarkRecommendation: ChalPresetName? = null
     )
 
     private val shaderManager = ChalShaderManager()
+    private val benchmark = ChalBenchmark()
     private val camera = ChalCamera()
     private val monitor = ChalPerformanceMonitor()
 
@@ -86,6 +93,22 @@ class ChalRenderer : GLSurfaceView.Renderer {
     private var cameraMoving = false
     private var cameraMoveTimeout = 0.0
 
+    /**
+     * Heavy EMA smoothing: 0.93/0.07, so a single spike needs ~15 consecutive bad frames to move
+     * the average. This is what the PID resolution scaler reacts to (`smoothedDeltaTime`).
+     */
+    private var smoothedDeltaTime = 16.67
+
+    /** `targetFrameTime`: the frame-budget gate value, lowered to the idle throttle when idle. */
+    private var targetFrameTime = ChalPerformanceConfig.Scheduler.FRAME_BUDGET_MS
+
+    /** `IdleDetector(PERFORMANCE_CONFIG.scheduler.idleTimeoutMs)`; stamped on every activity. */
+    private var lastActivityTime = -1.0
+
+    /** Set by UI-side parameter pushes so a paused-but-interactive frame still renders. */
+    @Volatile
+    private var paramsDirty = true
+
     /** True when EXT_color_buffer_float is available (`hasFloatFramebuffer`). */
     var hdrCapable = false
         private set
@@ -96,6 +119,9 @@ class ChalRenderer : GLSurfaceView.Renderer {
         private set
 
     private val shadowCurve = FloatArray(128) // 64 points * 2
+
+    @Volatile
+    private var lastBenchmarkReport: ChalBenchmark.BenchmarkReport? = null
 
     private var lastSnapshot = ChalSnapshot(
         params = ChalSimulationParams.DEFAULT_PARAMS,
@@ -124,7 +150,7 @@ class ChalRenderer : GLSurfaceView.Renderer {
     fun updateParams(newParams: ChalSimulationParams) {
         if (newParams.renderScale != params.renderScale) monitor.seedRenderScale(newParams.renderScale)
         params = newParams
-        monitor.setQuality(newParams.features.rayTracingQuality)
+        paramsDirty = true
     }
 
     /** Mutating variant used by the camera loop (`setParams` equivalent). */
@@ -146,17 +172,53 @@ class ChalRenderer : GLSurfaceView.Renderer {
     fun stopCinematic() = camera.stopCinematic()
 
     /** Camera input, called on the GL thread through `GLSurfaceView.queueEvent`. */
-    fun onPointerDown(x: Double, y: Double) = camera.onPointerDown(x, y)
-    fun onPointerMove(x: Double, y: Double) = camera.onPointerMove(x, y)
+    fun onPointerDown(x: Double, y: Double) {
+        lastActivityTime = now()
+        camera.onPointerDown(x, y)
+    }
+    fun onPointerMove(x: Double, y: Double) {
+        lastActivityTime = now()
+        camera.onPointerMove(x, y)
+    }
     fun onPointerUp() = camera.onPointerUp()
-    fun onPan(dx: Double, dy: Double) = camera.onPan(dx, dy)
-    fun onPinchStart(distance: Double) = camera.onPinchStart(distance)
+    fun onPan(dx: Double, dy: Double) {
+        lastActivityTime = now()
+        camera.onPan(dx, dy)
+    }
+    fun onPinchStart(distance: Double) {
+        lastActivityTime = now()
+        camera.onPinchStart(distance)
+    }
     fun onPinch(distance: Double) = mutateParams { copy(zoom = camera.onPinch(distance, zoom)) }
     fun onScrollZoom(delta: Double) = mutateParams { copy(zoom = camera.onScrollZoom(delta, zoom)) }
-    fun nudge(dTheta: Double, dPhi: Double) = camera.nudge(dTheta, dPhi)
+    fun nudge(dTheta: Double, dPhi: Double) {
+        lastActivityTime = now()
+        camera.nudge(dTheta, dPhi)
+    }
 
     /** True while a cinematic owns the camera (drives the ABORT SEQ affordance). */
     fun isCinematic(): Boolean = camera.isCinematic
+
+    /**
+     * Start the performance suite (`startBenchmark`).
+     *
+     * GL thread only: it mutates the simulation parameters as it walks the presets.
+     */
+    fun startBenchmark() {
+        benchmark.start(params.features)
+        mutateParams { copy(features = benchmark.featuresFor(ChalBenchmark.PRESETS_TO_TEST.first()),
+                             performancePreset = ChalBenchmark.PRESETS_TO_TEST.first()) }
+    }
+
+    /** Abort the suite and restore the pre-benchmark feature matrix (`cancelBenchmark`). */
+    fun cancelBenchmark() {
+        val restore = benchmark.cancel()
+        if (restore != null) {
+            mutateParams { copy(features = restore, performancePreset = ChalFeatures.matchesPreset(restore)) }
+        }
+    }
+
+    fun isBenchmarkRunning(): Boolean = benchmark.state == ChalBenchmark.State.RUNNING
 
     // ---------------------------------------------------------------------------------------
     // GLSurfaceView.Renderer
@@ -227,26 +289,69 @@ class ChalRenderer : GLSurfaceView.Renderer {
 
         // Filter out huge spikes from app backgrounding
         val cappedDelta = min(deltaTime, 100.0)
+
+        // Heavy EMA smoothing: a single spike needs ~15 consecutive bad frames to move the average.
+        smoothedDeltaTime = smoothedDeltaTime * 0.93 + cappedDelta * 0.07
+        val deltaTimeMs = smoothedDeltaTime
+
+        // Idle throttling: 30 FPS once the user has been quiet for idleTimeoutMs.
+        if (lastActivityTime < 0.0) lastActivityTime = frameStart
+        targetFrameTime = if (frameStart - lastActivityTime > ChalPerformanceConfig.Scheduler.IDLE_TIMEOUT_MS) {
+            1000.0 / ChalPerformanceConfig.Scheduler.IDLE_THROTTLE_FPS
+        } else {
+            ChalPerformanceConfig.Scheduler.FRAME_BUDGET_MS
+        }
+
+        // Frame-skip gate: uses the RAW delta, never the EMA, so a past spike cannot make us skip
+        // a perfectly good frame.
+        if (cappedDelta < targetFrameTime) return
+
         val dtSeconds = min(cappedDelta * 0.001, 0.1)
 
         // 1. Camera physics (the reference's requestAnimationFrame loop)
         camera.update(frameStart, dtSeconds, params) { transform -> mutateParams(transform) }
 
-        // 2. Detect camera motion for TAA
+        // 2. Detect camera motion for TAA (mouse delta > 1e-4, debounced by 300 ms)
         val mouse = camera.mouseState()
         if (abs(mouse.x - lastMouseX) > 0.0001 || abs(mouse.y - lastMouseY) > 0.0001) {
             cameraMoving = true
             cameraMoveTimeout = frameStart + 300.0
+            lastActivityTime = frameStart
         } else if (frameStart > cameraMoveTimeout) {
             cameraMoving = false
         }
         lastMouseX = mouse.x
         lastMouseY = mouse.y
 
-        // 3. Metrics + adaptive resolution
-        val metrics = monitor.updateMetrics(cappedDelta)
+        // 3. Metrics + adaptive resolution (driven by the smoothed delta time)
+        val metrics = monitor.updateMetrics(deltaTimeMs)
 
-        if (frameStart - lastMetricsUpdate > 200.0) { // Throttle UI updates (5 Hz)
+        // Performance suite: walk the presets, sampling the live FPS of each.
+        if (benchmark.state == ChalBenchmark.State.RUNNING) {
+            val nextPreset = benchmark.tick(metrics.currentFPS.toDouble()) { report -> lastBenchmarkReport = report }
+            if (nextPreset != null) {
+                mutateParams {
+                    copy(
+                        features = benchmark.featuresFor(nextPreset),
+                        performancePreset = nextPreset
+                    )
+                }
+            }
+        }
+
+        // PAUSE LOGIC: a paused simulation still renders while the user is interacting with it.
+        val isInteractionActive = cameraMoving || paramsDirty
+        if (params.paused && !isInteractionActive) {
+            if (frameStart - lastMetricsUpdate > 200.0) {
+                lastMetricsUpdate = frameStart
+                publishSnapshot(metrics)
+            }
+            return
+        }
+        paramsDirty = false
+
+        // Throttle UI updates (5 Hz)
+        if (frameStart - lastMetricsUpdate > 200.0) {
             lastMetricsUpdate = frameStart
             publishSnapshot(metrics)
         }
@@ -330,7 +435,7 @@ class ChalRenderer : GLSurfaceView.Renderer {
         set1f("u_zoom", params.zoom * 2.0) // Decoupled from mass so it grows visibly
         set1f("u_disk_size", params.diskSize)
         set1f("u_disk_scale_height", params.diskScaleHeight)
-        set1i("u_maxRaySteps", ChalFeatures.getMaxRaySteps(features.rayTracingQuality, isMobile = true))
+        set1i("u_maxRaySteps", ChalFeatures.getMaxRaySteps(features.rayTracingQuality))
         set1f("u_show_redshift", if (features.gravitationalRedshift) 1.0 else 0.0)
         set1f("u_show_kerr_shadow", if (features.kerrShadow) 1.0 else 0.0)
         set1f("u_lensing_strength", params.lensing)
@@ -433,7 +538,12 @@ class ChalRenderer : GLSurfaceView.Renderer {
             redshift = redshift,
             isCinematic = camera.isCinematic,
             cinematicMode = camera.cinematicMode,
-            targetFps = ChalPerformanceConfig.Scheduler.TARGET_FPS
+            targetFps = ChalPerformanceConfig.Scheduler.TARGET_FPS,
+            benchmarkState = benchmark.state,
+            benchmarkPreset = benchmark.currentPreset(),
+            benchmarkProgress = benchmark.currentProgress(),
+            benchmarkResults = benchmark.results.toList(),
+            benchmarkRecommendation = lastBenchmarkReport?.recommendedPreset
         )
     }
 
