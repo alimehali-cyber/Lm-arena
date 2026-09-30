@@ -169,6 +169,87 @@ class ChalIntegrationGuardTest {
         )
     }
 
+    @Test
+    fun theMobilePerformanceContractIsPinned() {
+        val renderer = readMain("java/com/zig/chal/render/ChalRenderer.kt")
+        val monitor = readMain("java/com/zig/chal/render/ChalPerformanceMonitor.kt")
+        val config = readMain("java/com/zig/chal/config/ChalPerformanceConfig.kt")
+        val params = readMain("java/com/zig/chal/config/ChalSimulationParams.kt")
+        val shader = readMain("java/com/zig/chal/shader/ChalShaderSource.kt")
+
+        // 1. The ray-step budget must go through the mobile cap.
+        assertTrue(
+            "the renderer must request the mobile ray-step budget",
+            renderer.contains("isMobile = ChalPerformanceConfig.Mobile.IS_MOBILE_HARDWARE")
+        )
+        assertTrue(
+            "every Chal target is mobile hardware",
+            config.contains("const val IS_MOBILE_HARDWARE: Boolean = true")
+        )
+
+        // 2. The adaptive controller owns the render scale; the reference's PID must keep running
+        //    alongside the direct rescale (it is the part that trims the scale afterwards).
+        assertTrue(
+            "the reference's PID controller must still drive the resolution",
+            monitor.contains("applyPidScaling(deltaTime)")
+        )
+        assertTrue(
+            "the direct rescale must not replace the PID",
+            monitor.indexOf("applyFastRecalibration()") < monitor.indexOf("applyPidScaling(deltaTime)")
+        )
+        assertTrue(
+            "resolution changes must be clamped to the mobile cap",
+            monitor.contains("ChalPerformanceConfig.Resolution.MOBILE_CAP")
+        )
+        assertTrue(
+            "the direct (non-PID) rescale must exist",
+            monitor.contains("fun proportionalScale(") && monitor.contains("fun requestFastRecalibration()")
+        )
+
+        // 3. Mobile sessions must start light, not at native resolution.
+        assertTrue("the mobile start scale must be configured", config.contains("const val START_SCALE"))
+        assertTrue(
+            "the mobile entry state must exist and use the balanced preset",
+            params.contains("val MOBILE_PARAMS") && params.contains("ChalPresetName.BALANCED")
+        )
+
+        // 4. The far-field termination is the single largest GPU saving; the block markers make
+        //    the extension auditable against the reference source.
+        assertTrue(
+            "the marcher must terminate escaped rays",
+            shader.contains("if (r > escapeRadius && dot(p, v) > 0.0) break;")
+        )
+        assertTrue(
+            "the far-field termination must be marked as a Chal extension",
+            shader.contains("CHAL-LOD-BEGIN") && shader.contains("CHAL-LOD-END")
+        )
+        assertTrue(
+            "the escape radius must track the disc extent",
+            shader.contains("float escapeRadius = max(60.0, M * u_disk_size * 1.25);")
+        )
+
+        // 5. The background nebula must use the reference's cheap adaptiveFbm path.
+        assertTrue(
+            "the 4-octave nebula costs 16 redundant texture fetches per pixel",
+            shader.contains("adaptiveFbm(dir * 2.0 + u_time * 0.01, 2)")
+        )
+
+        // 6. Post-processing must not re-query the driver every frame.
+        val bloom = readMain("java/com/zig/chal/render/ChalBloom.kt")
+        val reprojection = readMain("java/com/zig/chal/render/ChalReprojection.kt")
+        for ((name, source) in listOf("ChalBloom.kt" to bloom, "ChalReprojection.kt" to reprojection)) {
+            assertTrue("$name must cache uniform locations", source.contains("LocationCache"))
+            assertFalse(
+                "$name must not query uniform locations per frame",
+                source.contains("GLES30.glGetUniformLocation(")
+            )
+            assertFalse(
+                "$name must not query attribute locations per frame",
+                source.contains("GLES30.glGetAttribLocation(")
+            )
+        }
+    }
+
     // ---------------------------------------------------------------------------------------
 
     /** Removes line and block comments so the independence guard only ever sees code. */

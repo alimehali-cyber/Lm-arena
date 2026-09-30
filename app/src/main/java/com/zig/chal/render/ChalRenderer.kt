@@ -65,7 +65,7 @@ class ChalRenderer : GLSurfaceView.Renderer {
 
     // Multi-threaded hand-off: the UI thread writes params, the GL thread renders them.
     @Volatile
-    var params: ChalSimulationParams = ChalSimulationParams.DEFAULT_PARAMS
+    var params: ChalSimulationParams = ChalSimulationParams.MOBILE_PARAMS
         private set
 
     @Volatile
@@ -109,6 +109,13 @@ class ChalRenderer : GLSurfaceView.Renderer {
     @Volatile
     private var paramsDirty = true
 
+    /**
+     * Display refresh rate in Hz, supplied by the surface view. Drives both the adaptive target and
+     * the frame gate so a 90/120 Hz panel is paced instead of being chased.
+     */
+    @Volatile
+    private var displayRefreshRateHz = 60.0
+
     /** True when EXT_color_buffer_float is available (`hasFloatFramebuffer`). */
     var hdrCapable = false
         private set
@@ -119,12 +126,13 @@ class ChalRenderer : GLSurfaceView.Renderer {
         private set
 
     private val shadowCurve = FloatArray(128) // 64 points * 2
+    private var shadowCurveMass = Double.NaN
 
     @Volatile
     private var lastBenchmarkReport: ChalBenchmark.BenchmarkReport? = null
 
     private var lastSnapshot = ChalSnapshot(
-        params = ChalSimulationParams.DEFAULT_PARAMS,
+        params = ChalSimulationParams.MOBILE_PARAMS,
         currentFps = 0,
         frameTimeMs = 0.0,
         quality = ChalRayTracingQuality.HIGH,
@@ -142,6 +150,12 @@ class ChalRenderer : GLSurfaceView.Renderer {
     /** Snapshot for the UI thread. */
     fun snapshot(): ChalSnapshot = lastSnapshot
 
+    /** Called once by the surface view with the panel's refresh rate. */
+    fun setDisplayRefreshRate(refreshRateHz: Double) {
+        displayRefreshRateHz = refreshRateHz
+        monitor.setTargetFrameTime(ChalPerformanceConfig.Mobile.targetFrameTimeMs(refreshRateHz))
+    }
+
     // ---------------------------------------------------------------------------------------
     // UI-thread API
     // ---------------------------------------------------------------------------------------
@@ -149,6 +163,11 @@ class ChalRenderer : GLSurfaceView.Renderer {
     /** Replace the simulation parameters (feature changes force a shader recompilation). */
     fun updateParams(newParams: ChalSimulationParams) {
         if (newParams.renderScale != params.renderScale) monitor.seedRenderScale(newParams.renderScale)
+        // A quality change moves the cost of a frame by a large factor; let the resolution settle
+        // directly instead of creeping there through the PID.
+        if (newParams.features.rayTracingQuality != params.features.rayTracingQuality) {
+            monitor.requestFastRecalibration()
+        }
         params = newParams
         paramsDirty = true
     }
@@ -260,6 +279,11 @@ class ChalRenderer : GLSurfaceView.Renderer {
             Log.w(ChalGlShaders.TAG, "Post-processing unavailable; rendering directly to the surface")
         }
 
+        // Seed the adaptive controller with the phone start scale and the panel's refresh rate.
+        monitor.setTargetFrameTime(ChalPerformanceConfig.Mobile.targetFrameTimeMs(displayRefreshRateHz))
+        monitor.seedRenderScale(monitor.initialResolutionScale())
+        monitor.requestFastRecalibration()
+
         compileProgram(force = true)
 
         if (quadBuffer == 0 || noiseTexture == 0 || blueNoiseTexture == 0 || program == 0) {
@@ -299,12 +323,13 @@ class ChalRenderer : GLSurfaceView.Renderer {
         targetFrameTime = if (frameStart - lastActivityTime > ChalPerformanceConfig.Scheduler.IDLE_TIMEOUT_MS) {
             1000.0 / ChalPerformanceConfig.Scheduler.IDLE_THROTTLE_FPS
         } else {
-            ChalPerformanceConfig.Scheduler.FRAME_BUDGET_MS
+            ChalPerformanceConfig.Mobile.targetFrameTimeMs(displayRefreshRateHz)
         }
 
         // Frame-skip gate: uses the RAW delta, never the EMA, so a past spike cannot make us skip
-        // a perfectly good frame.
-        if (cappedDelta < targetFrameTime) return
+        // a perfectly good frame. The 5% slack absorbs vsync jitter (without it a 16.6 ms delta on
+        // a 60 Hz panel would occasionally be skipped, halving the frame rate).
+        if (cappedDelta < targetFrameTime * 0.95) return
 
         val dtSeconds = min(cappedDelta * 0.001, 0.1)
 
@@ -407,16 +432,19 @@ class ChalRenderer : GLSurfaceView.Renderer {
 
         // Shadow guide uniforms: Schwarzschild fallback (b_crit = 3*sqrt(3)*M), exactly the
         // reference's fallback path when the Rust telemetry stream is unavailable.
-        val shadowShiftMin = -(params.mass * 2.0) * 2.6
-        val shadowShiftMax = params.mass * 2.0 * 2.6
-        val bCrit = 3.0 * sqrt(3.0) * params.mass
-        for (i in 0 until 64) {
-            val phi = (i / 64.0) * PI * 2.0
-            shadowCurve[i * 2] = (kotlin.math.cos(phi) * bCrit).toFloat()
-            shadowCurve[i * 2 + 1] = (kotlin.math.sin(phi) * bCrit).toFloat()
+        // The 64-point circle only depends on the mass, so it is rebuilt when the mass changes
+        // instead of 64 sin/cos + a sqrt every single frame.
+        if (params.mass != shadowCurveMass) {
+            val bCrit = 3.0 * sqrt(3.0) * params.mass
+            for (i in 0 until 64) {
+                val phi = (i / 64.0) * PI * 2.0
+                shadowCurve[i * 2] = (kotlin.math.cos(phi) * bCrit).toFloat()
+                shadowCurve[i * 2 + 1] = (kotlin.math.sin(phi) * bCrit).toFloat()
+            }
+            shadowCurveMass = params.mass
         }
         set1f("u_shadowCount", 64.0)
-        set2f("u_shadowShift", shadowShiftMin, shadowShiftMax)
+        set2f("u_shadowShift", -(params.mass * 2.0) * 2.6, params.mass * 2.0 * 2.6)
         val curveLocation = loc("u_shadowCurve")
         if (curveLocation != -1) {
             GLES30.glUniform2fv(curveLocation, 64, shadowCurve, 0)
@@ -435,7 +463,16 @@ class ChalRenderer : GLSurfaceView.Renderer {
         set1f("u_zoom", params.zoom * 2.0) // Decoupled from mass so it grows visibly
         set1f("u_disk_size", params.diskSize)
         set1f("u_disk_scale_height", params.diskScaleHeight)
-        set1i("u_maxRaySteps", ChalFeatures.getMaxRaySteps(features.rayTracingQuality))
+        // `maxStepsMobile` (80) is the reference's own mobile budget. Without it the ultra preset
+        // asks for 256 steps per ray on a phone GPU, where a single step costs ~60 ALU ops plus a
+        // divide-bound Kerr acceleration evaluation.
+        set1i(
+            "u_maxRaySteps",
+            ChalFeatures.getMaxRaySteps(
+                features.rayTracingQuality,
+                isMobile = ChalPerformanceConfig.Mobile.IS_MOBILE_HARDWARE
+            )
+        )
         set1f("u_show_redshift", if (features.gravitationalRedshift) 1.0 else 0.0)
         set1f("u_show_kerr_shadow", if (features.kerrShadow) 1.0 else 0.0)
         set1f("u_lensing_strength", params.lensing)
@@ -589,6 +626,7 @@ class ChalRenderer : GLSurfaceView.Renderer {
         quadBuffer = 0
         program = 0
         compiledFeatures = null
+        shadowCurveMass = Double.NaN
         uniformLocations.clear()
     }
 }

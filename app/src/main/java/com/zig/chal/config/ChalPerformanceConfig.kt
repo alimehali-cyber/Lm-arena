@@ -101,6 +101,91 @@ object ChalPerformanceConfig {
         const val IDLE_TIMEOUT_MS: Int = 30000
     }
 
+    /**
+     * ---------------------------------------------------------------------------------------------
+     * Chal mobile tuning.
+     *
+     * These values are an EXTENSION of the ported `performance.config.ts`; the reference tunes for a
+     * desktop web canvas where a full-resolution, 128-step march of empty space is affordable. On a
+     * phone the same numbers leave the GPU permanently saturated, which is what makes the screen
+     * feel slow and the device hot.
+     *
+     * Everything here is a *starting point* or an *acceleration of convergence*, never a hard
+     * ceiling: the reference PID still owns the steady state.
+     * ---------------------------------------------------------------------------------------------
+     */
+    object Mobile {
+
+        /** Every Chal deployment target is a phone or tablet (mirrors the reference UA sniff). */
+        const val IS_MOBILE_HARDWARE: Boolean = true
+
+        /**
+         * Initial virtual-viewport scale on mobile.
+         *
+         * The reference starts at `renderScale.default = 1.0` (native pixels) and lets the PID walk
+         * down at `0.01 * correction` per 500 ms cooldown -- roughly half a pixel-scale per second.
+         * On a phone that means a laggy first minute. Starting at 0.75 costs almost nothing visually
+         * (the TAA resolve upsamples, and the scene is a smooth ray-marched image) while cutting the
+         * fragment count to 56%, and the PID can still raise it back to [Resolution.MOBILE_CAP]
+         * whenever the device has headroom.
+         */
+        const val START_SCALE: Double = 0.75
+
+        /**
+         * Frames of measurement before the first direct (non-PID) rescale.
+         *
+         * One second at 60 fps is enough to know whether the device can hold the frame budget.
+         */
+        const val FAST_RECALIBRATION_FRAMES: Int = 60
+
+        /**
+         * Consecutive frames above [overBudgetFactor] x the frame budget that re-trigger a direct
+         * rescale. This is the thermal guard: a phone that sustained 60 fps in a cold room will drop
+         * clocks after a few minutes, and the PID alone is too damped to react in useful time.
+         */
+        const val FAST_RECALIBRATION_TRIGGER_FRAMES: Int = 45
+
+        /** Frame-time multiple that counts as "over budget" for the thermal guard. */
+        const val OVER_BUDGET_FACTOR: Double = 1.6
+
+        /**
+         * Lower bound on the frame time used for the direct rescale, so a single hitch cannot
+         * collapse the resolution.
+         */
+        const val MIN_MEASURED_FRAME_MS: Double = 8.0
+
+        /** Refresh rates at or above this render every other vsync to hold 60 fps. */
+        const val HIGH_REFRESH_CUTOFF_HZ: Double = 118.0
+
+        /** Refresh rates at or above this (but below [HIGH_REFRESH_CUTOFF_HZ]) pace to half the panel. */
+        const val MID_REFRESH_CUTOFF_HZ: Double = 85.0
+
+        /** Slowest frame time the adaptive controller will chase (30 fps). */
+        const val MAX_TARGET_FRAME_MS: Double = 33.34
+
+        /** Fastest frame time the adaptive controller will chase (120 fps). */
+        const val MIN_TARGET_FRAME_MS: Double = 8.33
+
+        /**
+         * Frame time the adaptive controller and the render gate should aim for on a display with
+         * the given refresh rate.
+         *
+         * Vsync quantises the achievable rates: a 60 Hz panel can hold 60, a 120 Hz panel holds 60
+         * by rendering every other refresh, but a 90 Hz panel can only hold 90 or 45 -- chasing 60
+         * there makes the PID drain the resolution toward `MIN_SCALE` for a frame time it can never
+         * reach. Pacing to half the panel keeps the picture sharp and the motion even.
+         */
+        fun targetFrameTimeMs(refreshRateHz: Double): Double {
+            val fps = when {
+                !refreshRateHz.isFinite() || refreshRateHz <= 0.0 -> Scheduler.TARGET_FPS.toDouble()
+                refreshRateHz >= HIGH_REFRESH_CUTOFF_HZ -> Scheduler.TARGET_FPS.toDouble()
+                refreshRateHz >= MID_REFRESH_CUTOFF_HZ -> refreshRateHz / 2.0
+                else -> minOf(Scheduler.TARGET_FPS.toDouble(), refreshRateHz)
+            }
+            return (1000.0 / fps).coerceIn(MIN_TARGET_FRAME_MS, MAX_TARGET_FRAME_MS)
+        }
+    }
+
     /** WebGL Context Attributes (Power Management) -> GLSurfaceView / EGL attributes on Android. */
     object Context {
         /** Depth buffer disabled if 2D quad render (saves bandwidth). */

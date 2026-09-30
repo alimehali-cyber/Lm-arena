@@ -54,6 +54,9 @@ class ChalBloom(private val hdrCapable: Boolean) {
     private var width = 0
     private var height = 0
 
+    /** Driver-round-trip-free uniform/attribute lookups (see [ChalGlShaders.LocationCache]). */
+    private val locations = ChalGlShaders.LocationCache()
+
     val sceneTextureId: Int get() = sceneTexture
 
     /** Internal format used for every intermediate target (RGBA16F when HDR is available). */
@@ -173,6 +176,7 @@ class ChalBloom(private val hdrCapable: Boolean) {
     }
 
     private fun createProgram(vertexSource: String, fragmentSource: String): Int {
+        locations.clear()
         val vertexShader = ChalGlShaders.createShader(GLES30.GL_VERTEX_SHADER, vertexSource) ?: return 0
         val fragmentShader = ChalGlShaders.createShader(GLES30.GL_FRAGMENT_SHADER, fragmentSource) ?: run {
             GLES30.glDeleteShader(vertexShader)
@@ -234,16 +238,16 @@ class ChalBloom(private val hdrCapable: Boolean) {
         GLES30.glViewport(0, 0, halfWidth, halfHeight)
 
         GLES30.glUseProgram(brightPassProgram)
-        val bpPosition = GLES30.glGetAttribLocation(brightPassProgram, "position")
+        val bpPosition = locations.attribute(brightPassProgram, "position")
         if (bpPosition != -1) {
             GLES30.glEnableVertexAttribArray(bpPosition)
             GLES30.glVertexAttribPointer(bpPosition, 2, GLES30.GL_FLOAT, false, 0, 0)
         }
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, inputTexture)
-        GLES30.glUniform1i(GLES30.glGetUniformLocation(brightPassProgram, "u_texture"), 0)
+        GLES30.glUniform1i(locations.uniform(brightPassProgram, "u_texture"), 0)
         GLES30.glUniform1f(
-            GLES30.glGetUniformLocation(brightPassProgram, "u_threshold"),
+            locations.uniform(brightPassProgram, "u_threshold"),
             config.threshold.toFloat()
         )
         setTextureScale(brightPassProgram, renderScale)
@@ -251,7 +255,7 @@ class ChalBloom(private val hdrCapable: Boolean) {
 
         // === PASS 2: Blur passes ===
         GLES30.glUseProgram(blurProgram)
-        val blurPosition = GLES30.glGetAttribLocation(blurProgram, "position")
+        val blurPosition = locations.attribute(blurProgram, "position")
         if (blurPosition != -1) {
             GLES30.glEnableVertexAttribArray(blurPosition)
             GLES30.glVertexAttribPointer(blurPosition, 2, GLES30.GL_FLOAT, false, 0, 0)
@@ -261,7 +265,7 @@ class ChalBloom(private val hdrCapable: Boolean) {
         val blurHeight = maxOf(1, ((height * renderScale) / 4).toInt())
         GLES30.glViewport(0, 0, blurWidth, blurHeight)
         GLES30.glUniform2f(
-            GLES30.glGetUniformLocation(blurProgram, "u_resolution"),
+            locations.uniform(blurProgram, "u_resolution"),
             blurWidth.toFloat(),
             blurHeight.toFloat()
         )
@@ -273,8 +277,8 @@ class ChalBloom(private val hdrCapable: Boolean) {
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, blurFramebuffer1)
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, currentSourceTexture)
-            GLES30.glUniform1i(GLES30.glGetUniformLocation(blurProgram, "u_texture"), 0)
-            GLES30.glUniform2f(GLES30.glGetUniformLocation(blurProgram, "u_direction"), 1.0f, 0.0f)
+            GLES30.glUniform1i(locations.uniform(blurProgram, "u_texture"), 0)
+            GLES30.glUniform2f(locations.uniform(blurProgram, "u_direction"), 1.0f, 0.0f)
             GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
             GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 6)
 
@@ -282,8 +286,8 @@ class ChalBloom(private val hdrCapable: Boolean) {
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, blurFramebuffer2)
             GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, blurTexture1)
-            GLES30.glUniform1i(GLES30.glGetUniformLocation(blurProgram, "u_texture"), 0)
-            GLES30.glUniform2f(GLES30.glGetUniformLocation(blurProgram, "u_direction"), 0.0f, 1.0f)
+            GLES30.glUniform1i(locations.uniform(blurProgram, "u_texture"), 0)
+            GLES30.glUniform2f(locations.uniform(blurProgram, "u_direction"), 0.0f, 1.0f)
             GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
             GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 6)
 
@@ -296,7 +300,7 @@ class ChalBloom(private val hdrCapable: Boolean) {
         GLES30.glViewport(0, 0, width, height)
 
         GLES30.glUseProgram(combineProgram)
-        val combinePosition = GLES30.glGetAttribLocation(combineProgram, "position")
+        val combinePosition = locations.attribute(combineProgram, "position")
         if (combinePosition != -1) {
             GLES30.glEnableVertexAttribArray(combinePosition)
             GLES30.glVertexAttribPointer(combinePosition, 2, GLES30.GL_FLOAT, false, 0, 0)
@@ -305,15 +309,15 @@ class ChalBloom(private val hdrCapable: Boolean) {
         // Bind scene texture (Original Input)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, inputTexture)
-        GLES30.glUniform1i(GLES30.glGetUniformLocation(combineProgram, "u_sceneTexture"), 0)
+        GLES30.glUniform1i(locations.uniform(combineProgram, "u_sceneTexture"), 0)
 
         // Bind bloom texture (Blurred Result)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, currentSourceTexture)
-        GLES30.glUniform1i(GLES30.glGetUniformLocation(combineProgram, "u_bloomTexture"), 1)
+        GLES30.glUniform1i(locations.uniform(combineProgram, "u_bloomTexture"), 1)
 
         GLES30.glUniform1f(
-            GLES30.glGetUniformLocation(combineProgram, "u_bloomIntensity"),
+            locations.uniform(combineProgram, "u_bloomIntensity"),
             config.intensity.toFloat()
         )
         setTextureScale(combineProgram, renderScale)
@@ -330,7 +334,7 @@ class ChalBloom(private val hdrCapable: Boolean) {
         GLES30.glUseProgram(combineProgram)
 
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, quadBuffer)
-        val combinePosition = GLES30.glGetAttribLocation(combineProgram, "position")
+        val combinePosition = locations.attribute(combineProgram, "position")
         if (combinePosition != -1) {
             GLES30.glEnableVertexAttribArray(combinePosition)
             GLES30.glVertexAttribPointer(combinePosition, 2, GLES30.GL_FLOAT, false, 0, 0)
@@ -340,19 +344,19 @@ class ChalBloom(private val hdrCapable: Boolean) {
 
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, texture)
-        GLES30.glUniform1i(GLES30.glGetUniformLocation(combineProgram, "u_sceneTexture"), 0)
+        GLES30.glUniform1i(locations.uniform(combineProgram, "u_sceneTexture"), 0)
 
         GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, if (brightTexture != 0) brightTexture else texture) // safe dummy
-        GLES30.glUniform1i(GLES30.glGetUniformLocation(combineProgram, "u_bloomTexture"), 1)
+        GLES30.glUniform1i(locations.uniform(combineProgram, "u_bloomTexture"), 1)
 
-        GLES30.glUniform1f(GLES30.glGetUniformLocation(combineProgram, "u_bloomIntensity"), 0.0f)
+        GLES30.glUniform1f(locations.uniform(combineProgram, "u_bloomIntensity"), 0.0f)
 
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 6)
     }
 
     private fun setTextureScale(program: Int, renderScale: Double) {
-        val location = GLES30.glGetUniformLocation(program, "u_textureScale")
+        val location = locations.uniform(program, "u_textureScale")
         if (location != -1) {
             GLES30.glUniform2f(location, renderScale.toFloat(), renderScale.toFloat())
         }

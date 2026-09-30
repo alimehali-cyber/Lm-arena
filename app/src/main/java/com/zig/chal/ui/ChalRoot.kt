@@ -91,14 +91,18 @@ fun ChalRoot(
         onDispose { ImmersiveScreenState.exit() }
     }
 
+    // Phones start from the reference's mobile entry state (balanced preset, sub-native render
+    // scale); every preset, toggle and LOD is still one tap away in the control panel.
+    val initialParams = remember { ChalSimulationParams.MOBILE_PARAMS }
+
     val surfaceView = remember {
         ChalSurfaceView(context).apply {
-            renderer.updateParams(ChalSimulationParams.DEFAULT_PARAMS)
+            renderer.updateParams(initialParams)
         }
     }
     val renderer: ChalRenderer = surfaceView.renderer
 
-    var params by remember { mutableStateOf(ChalSimulationParams.DEFAULT_PARAMS) }
+    var params by remember { mutableStateOf(initialParams) }
     var snapshot by remember { mutableStateOf(renderer.snapshot()) }
     var showUi by remember { mutableStateOf(true) }
 

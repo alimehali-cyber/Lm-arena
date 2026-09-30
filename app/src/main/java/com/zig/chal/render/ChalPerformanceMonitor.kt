@@ -3,7 +3,9 @@ package com.zig.chal.render
 import com.zig.chal.config.ChalPerformanceConfig
 import com.zig.chal.config.ChalRayTracingQuality
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 /**
  * Performance Monitor with PID-based adaptive resolution.
@@ -75,7 +77,7 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
      * android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini; every Chal deployment target
      * is a phone or tablet, so the mobile branch of that test is the one that always applies.
      */
-    private val isMobile: Boolean = true
+    private val isMobile: Boolean = ChalPerformanceConfig.Mobile.IS_MOBILE_HARDWARE
     private var isCalibrating: Boolean = true
     private var calibrationStartTime: Double = nowMillis()
     private var maxAllowedQuality: ChalRayTracingQuality = ChalRayTracingQuality.ULTRA
@@ -85,6 +87,13 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
     private var prevError = 0.0
     private var isStabilized = false
     private var lastResolutionChangeTime = 0.0
+
+    // Chal mobile extension: direct (non-PID) convergence. See ChalPerformanceConfig.Mobile.
+    private var fastRecalibrationPending = true
+    private var overBudgetFrames = 0
+
+    /** Frame time the controller aims for; follows the display's refresh rate. */
+    private var targetFrameTimeMs: Double = ChalPerformanceConfig.Scheduler.FRAME_BUDGET_MS
 
     private val metrics = PerformanceMetrics()
 
@@ -118,8 +127,14 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
                 finalizeCalibration()
             }
         } else if (ChalPerformanceConfig.Resolution.ENABLE_DYNAMIC_SCALING) {
-            // Phase 4.1: PID-Based Adaptive Scaling
+            // Chal mobile extension: settle the render scale from the measured frame time first,
+            // then let the reference's PID trim it. The PID's own step size is deliberately tiny
+            // (0.01 * correction, one change per 500 ms cooldown) and takes about a minute to walk
+            // the scale down from native resolution on a phone; after the direct rescale the PID is
+            // inside its cooldown, so the two never fight over the same frame.
+            applyFastRecalibration()
             applyPidScaling(deltaTime)
+            trackOverBudget(deltaTime)
         }
 
         return getMetrics(deltaTime)
@@ -215,9 +230,25 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
         cacheValid = false
     }
 
+    /**
+     * Point the controller at a display refresh rate (`ChalPerformanceConfig.Mobile.targetFrameTimeMs`).
+     * Called once by the renderer with the panel's rate.
+     */
+    fun setTargetFrameTime(frameTimeMs: Double) {
+        if (!frameTimeMs.isFinite() || frameTimeMs <= 0.0) return
+        targetFrameTimeMs = frameTimeMs.coerceIn(
+            ChalPerformanceConfig.Mobile.MIN_TARGET_FRAME_MS,
+            ChalPerformanceConfig.Mobile.MAX_TARGET_FRAME_MS
+        )
+        fastRecalibrationPending = true
+    }
+
+    /** Current adaptive target (tests / telemetry). */
+    fun getTargetFrameTime(): Double = targetFrameTimeMs
+
     /** PID-Based Adaptive Scaling (Phase 4.1). */
     private fun applyPidScaling(dt: Double) {
-        val target = ChalPerformanceConfig.Scheduler.FRAME_BUDGET_MS * 0.95 // 95% headroom
+        val target = targetFrameTimeMs * 0.95 // 95% headroom
         val error = target - dt
         val now = nowMillis()
 
@@ -275,6 +306,50 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
         isStabilized = absError < target * 0.03
     }
 
+    /**
+     * Chal mobile extension -- direct convergence of the render scale.
+     *
+     * Fragment cost is proportional to the number of pixels, so `scale ~ sqrt(target / measured)`.
+     * One measurement replaces the PID's ~1 %-of-scale-per-second crawl, which is what makes a
+     * phone stop feeling slow in the first second instead of the first minute.
+     */
+    private fun applyFastRecalibration() {
+        if (!fastRecalibrationPending) return
+        if (frameTimes.size() < ChalPerformanceConfig.Mobile.FAST_RECALIBRATION_FRAMES) return
+
+        ensureCache()
+        val measured = max(cachedAvgTime, ChalPerformanceConfig.Mobile.MIN_MEASURED_FRAME_MS)
+        val target = targetFrameTimeMs
+        setRenderResolution(proportionalScale(renderResolution, measured, target))
+
+        fastRecalibrationPending = false
+        overBudgetFrames = 0
+        errorIntegral = 0.0
+        prevError = 0.0
+        lastResolutionChangeTime = nowMillis()
+    }
+
+    /**
+     * Chal mobile extension -- thermal guard. A sustained over-budget stretch (clocks dropping as
+     * the device heats up) asks for another direct rescale instead of waiting for the PID.
+     */
+    private fun trackOverBudget(deltaTime: Double) {
+        val limit = targetFrameTimeMs * ChalPerformanceConfig.Mobile.OVER_BUDGET_FACTOR
+        overBudgetFrames = if (deltaTime > limit) overBudgetFrames + 1 else 0
+        if (overBudgetFrames >= ChalPerformanceConfig.Mobile.FAST_RECALIBRATION_TRIGGER_FRAMES) {
+            fastRecalibrationPending = true
+            overBudgetFrames = 0
+        }
+    }
+
+    /** Ask for another direct rescale (used when the quality tier or the parameters change). */
+    fun requestFastRecalibration() {
+        fastRecalibrationPending = true
+    }
+
+    /** True while the direct rescale is still pending (telemetry / tests). */
+    fun isFastRecalibrationPending(): Boolean = fastRecalibrationPending
+
     private fun ensureCache() {
         if (!cacheValid) {
             cachedAvgTime = frameTimes.average()
@@ -316,10 +391,40 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
     }
 
     private fun setRenderResolution(res: Double) {
+        // `mobileCap` is documented as a hard cap, but the reference never actually reads it; on a
+        // phone supersampling above native resolution is pure heat.
+        val ceiling = if (isMobile) {
+            min(ChalPerformanceConfig.Resolution.MAX_SCALE, ChalPerformanceConfig.Resolution.MOBILE_CAP)
+        } else {
+            ChalPerformanceConfig.Resolution.MAX_SCALE
+        }
         renderResolution = min(
             maxOf(res, ChalPerformanceConfig.Resolution.MIN_SCALE),
-            ChalPerformanceConfig.Resolution.MAX_SCALE
+            ceiling
         )
+    }
+
+    /** The resolution scale a mobile session should start from (`Mobile.START_SCALE`). */
+    fun initialResolutionScale(): Double =
+        if (isMobile) {
+            min(ChalPerformanceConfig.Mobile.START_SCALE, ChalPerformanceConfig.Resolution.MOBILE_CAP)
+        } else {
+            ChalPerformanceConfig.Resolution.BASE_SCALE
+        }
+
+    companion object {
+        /**
+         * Pixel-proportional rescale: fragment cost scales with the pixel count, i.e. with the
+         * square of the resolution scale, so the corrected scale is
+         * `current * sqrt(target / measured)`. Pure function so it can be unit tested.
+         */
+        fun proportionalScale(current: Double, measuredFrameTimeMs: Double, targetFrameTimeMs: Double): Double {
+            if (!current.isFinite() || current <= 0.0) return current
+            if (!measuredFrameTimeMs.isFinite() || measuredFrameTimeMs <= 0.0) return current
+            if (!targetFrameTimeMs.isFinite() || targetFrameTimeMs <= 0.0) return current
+            val ratio = (targetFrameTimeMs / measuredFrameTimeMs).coerceIn(0.04, 4.0)
+            return current * sqrt(ratio)
+        }
     }
 
     /** Frame budget usage as a percentage of one 60 FPS frame. */

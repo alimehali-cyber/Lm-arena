@@ -54,6 +54,19 @@ class ChalSurfaceView(
         preserveEGLContextOnPause = true
         setRenderer(renderer)
         renderMode = RENDERMODE_CONTINUOUSLY
+        // The adaptive controller and the frame gate pace to the panel, not to a hard-coded 60 Hz:
+        // 90 Hz panels can only hold 90 or 45, and chasing 60 there just drains the resolution.
+        renderer.setDisplayRefreshRate(displayRefreshRateHz())
+    }
+
+    /** Panel refresh rate in Hz, falling back to 60 when the window is not attached yet. */
+    private fun displayRefreshRateHz(): Double {
+        return try {
+            val rate = display?.refreshRate?.toDouble() ?: 60.0
+            if (rate.isFinite() && rate > 0.0) rate else 60.0
+        } catch (t: Throwable) {
+            60.0
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

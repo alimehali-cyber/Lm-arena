@@ -22,6 +22,9 @@ class ChalReprojection(private val hdrCapable: Boolean) {
     private var program = 0
     private var quadBuffer = 0
 
+    /** Driver-round-trip-free uniform/attribute lookups (see [ChalGlShaders.LocationCache]). */
+    private val locations = ChalGlShaders.LocationCache()
+
     private var width = 0
     private var height = 0
 
@@ -60,6 +63,7 @@ class ChalReprojection(private val hdrCapable: Boolean) {
             GLES30.glDeleteShader(vertexShader)
             GLES30.glDeleteShader(fragmentShader)
             if (program == 0) throw IllegalStateException("Reprojection program failed to link")
+            locations.clear()
 
             createTargets()
             true
@@ -194,7 +198,7 @@ class ChalReprojection(private val hdrCapable: Boolean) {
         GLES30.glUseProgram(program)
 
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, quadBuffer)
-        val position = GLES30.glGetAttribLocation(program, "position")
+        val position = locations.attribute(program, "position")
         if (position != -1) {
             GLES30.glEnableVertexAttribArray(position)
             GLES30.glVertexAttribPointer(position, 2, GLES30.GL_FLOAT, false, 0, 0)
@@ -202,14 +206,14 @@ class ChalReprojection(private val hdrCapable: Boolean) {
 
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, sceneTexture)
-        GLES30.glUniform1i(GLES30.glGetUniformLocation(program, "u_currentFrame"), 0)
+        GLES30.glUniform1i(locations.uniform(program, "u_currentFrame"), 0)
 
         GLES30.glActiveTexture(GLES30.GL_TEXTURE1)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, sourceHistoryTexture)
-        GLES30.glUniform1i(GLES30.glGetUniformLocation(program, "u_historyFrame"), 1)
+        GLES30.glUniform1i(locations.uniform(program, "u_historyFrame"), 1)
 
         GLES30.glUniform2f(
-            GLES30.glGetUniformLocation(program, "u_resolution"),
+            locations.uniform(program, "u_resolution"),
             scaledWidth.toFloat(),
             scaledHeight.toFloat()
         )
@@ -221,15 +225,15 @@ class ChalReprojection(private val hdrCapable: Boolean) {
             blendFactor
         }
         GLES30.glUniform1f(
-            GLES30.glGetUniformLocation(program, "u_blendFactor"),
+            locations.uniform(program, "u_blendFactor"),
             effectiveBlend.toFloat()
         )
         GLES30.glUniform1i(
-            GLES30.glGetUniformLocation(program, "u_cameraMoving"),
+            locations.uniform(program, "u_cameraMoving"),
             if (cameraMoving) 1 else 0
         )
         GLES30.glUniform2f(
-            GLES30.glGetUniformLocation(program, "u_textureScale"),
+            locations.uniform(program, "u_textureScale"),
             renderScale.toFloat(),
             renderScale.toFloat()
         )

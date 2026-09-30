@@ -28,7 +28,23 @@ data class ChalSimulationParams(
     val verticalAngle: Double = ChalSimulationConfig.VERTICAL_ANGLE.default
 ) {
     companion object {
+        /** Reference default (desktop web canvas). */
         val DEFAULT_PARAMS = ChalSimulationParams()
+
+        /**
+         * Start state for a phone.
+         *
+         * `page.tsx` pins the mobile start onto the balanced preset (`initialPreset = "balanced"`
+         * plus `getMobileFeatures()`), and every Chal deployment target is mobile, so this is the
+         * reference's own mobile entry state. The render scale starts below native (see
+         * [ChalPerformanceConfig.Mobile.START_SCALE]) and the panel still exposes all four presets,
+         * every toggle and the ray-tracing LODs, so nothing is lost -- it is just not the default.
+         */
+        val MOBILE_PARAMS = ChalSimulationParams(
+            renderScale = ChalPerformanceConfig.Mobile.START_SCALE,
+            features = ChalFeatures.getPreset(ChalPresetName.BALANCED),
+            performancePreset = ChalPresetName.BALANCED
+        )
     }
 }
 

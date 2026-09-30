@@ -19,6 +19,38 @@ import java.util.Random
  */
 object ChalGlShaders {
 
+    /**
+     * Uniform/attribute location cache.
+     *
+     * `glGetUniformLocation` / `glGetAttribLocation` are driver round-trips: on a tiler they can
+     * cost microseconds each, and the post-processing chain asked for 25 of them per frame even
+     * though the programs never change. Locations belong to a program, so the cache is keyed by
+     * the program id and invalidated by [clear] whenever a program is (re)created.
+     */
+    class LocationCache {
+        private val entries = HashMap<Long, Int>()
+
+        fun uniform(program: Int, name: String): Int = lookup(program, name) {
+            GLES30.glGetUniformLocation(program, name)
+        }
+
+        fun attribute(program: Int, name: String): Int = lookup(program, name) {
+            GLES30.glGetAttribLocation(program, name)
+        }
+
+        fun clear() = entries.clear()
+
+        private inline fun lookup(program: Int, name: String, query: () -> Int): Int {
+            if (program == 0) return -1
+            val key = (program.toLong() shl 32) or (name.hashCode().toLong() and 0xFFFFFFFFL)
+            val cached = entries[key]
+            if (cached != null) return cached
+            val location = query()
+            entries[key] = location
+            return location
+        }
+    }
+
     const val TAG = "ChalGl"
 
     /** Full-screen quad, two triangles, matching `getSharedQuadBuffer`'s vertex data. */
