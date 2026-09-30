@@ -68,6 +68,16 @@ enum class LabFeatureType(
         descriptionFa = "آزمایشگاه تعاملی سیاه‌چاله چرخان کر: ردیابی پرتو در فضازمان خمیده، درخشش نسبیتی قرص برافزایشی، انتقال به سرخ گرانشی و مدار فوتون‌ها.",
         icon = Icons.Default.FilterTiltShift,
         isAvailable = true
+    ),
+    CHAL(
+        titleEn = "Chal",
+        titleFa = "چال",
+        subtitleEn = "Real-Time Kerr Ray-Marching Engine",
+        subtitleFa = "موتور ردیابی پرتوی زمان-واقعی کر",
+        descriptionEn = "Scientifically accurate, real-time relativistic ray-marching of a rotating Kerr black hole: geodesic gravitational lensing, Novikov-Thorne accretion disk, relativistic Doppler beaming, photon-ring glow and a spectral starfield.",
+        descriptionFa = "ردیابی پرتوی نسبیتی و دقیق به‌صورت زمان-واقعی برای سیاه‌چاله چرخان کر: همگرایی گرانشی ژئودزیکی، قرص برافزایشی نوویکوف-تورن، درخشش دوپلری نسبیتی، درخشش حلقه فوتونی و میدان ستارگان طیفی.",
+        icon = Icons.Default.BlurCircular,
+        isAvailable = true
     )
 }
 
@@ -99,6 +109,12 @@ fun LabScreen(
             modifier = modifier,
             startInPersian = isFa,
             startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
+        )
+    } else if (selectedFeature == LabFeatureType.CHAL) {
+        com.zig.chal.ui.ChalRoot(
+            onBack = { selectedFeature = null },
+            modifier = modifier,
+            startInPersian = isFa
         )
     } else {
         LazyColumn(

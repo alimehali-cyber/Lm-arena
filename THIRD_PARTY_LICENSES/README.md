@@ -24,3 +24,15 @@ Files in this directory are reproduced verbatim from the upstream projects they 
 
 They are applied in `ui/theme/Type.kt` (`VazirmatnFontFamily`) and switched on per locale in
 `ui/theme/Theme.kt` (`REDTheme(isPersian = ...)`).
+
+## blackhole-simulation (Kerr ray-marching reference)
+
+* Project: blackhole-simulation by Mayank / steeltroops-ai and contributors —
+  `https://github.com/steeltroops-ai/blackhole-simulation`
+* Commit studied: the default branch as cloned (shallow, `--depth 1`); the GLSL ES 3.00 shader source,
+  the Kerr metric closed forms, the accretion-disk model, the camera choreography and the
+  bloom/TAA post-processing chain were ported into `app/src/main/java/com/zig/chal/**`.
+* Licence: MIT — see `blackhole-simulation-MIT.txt` (verbatim copy of upstream `LICENSE`).
+
+The port is confined to the `com.zig.chal` package (the Lab screen's "Chal" feature) and shares no
+code with any other renderer in this application.
