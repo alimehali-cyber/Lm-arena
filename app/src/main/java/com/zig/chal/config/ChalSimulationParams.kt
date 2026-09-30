@@ -56,10 +56,10 @@ object ChalCameraConfig {
     const val ACCRETION_DISK_OUTER_RADIUS_MULTIPLIER: Double = 12.0
 
     /** Default auto-spin if not provided. */
-    const val DEFAULT_AUTO_SPIN: Double = ChalSimulationConfig.AUTO_SPIN.default
+    val DEFAULT_AUTO_SPIN: Double = ChalSimulationConfig.AUTO_SPIN.default
 
     /** `(SIMULATION_CONFIG.verticalAngle.default * PI) / 180`. */
-    const val DEFAULT_VERTICAL_ANGLE: Double = ChalSimulationConfig.VERTICAL_ANGLE.default * Math.PI / 180.0
+    val DEFAULT_VERTICAL_ANGLE: Double = ChalSimulationConfig.VERTICAL_ANGLE.default * Math.PI / 180.0
 
     /** Momentum decay applied per camera tick. */
     const val DAMPING: Double = 0.92

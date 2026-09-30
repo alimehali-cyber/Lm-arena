@@ -61,10 +61,14 @@ class ChalPhysicsTest {
     }
 
     @Test
-    fun progradeIscoMatchesBardeenValues() {
-        // Exact BP T-1972 values for a* = 0.5: prograde 4.233 M, retrograde 7.682 M.
-        assertEquals(4.233, ChalKerrMetric.calculateIsco(1.0, 0.5, prograde = true), 5e-3)
-        assertEquals(7.682, ChalKerrMetric.calculateIsco(1.0, 0.5, prograde = false), 1e-2)
+    fun iscoMatchesBardeenPressTeukolskyValues() {
+        // Exact Bardeen-Press-Teukolsky (1972) values: a* = 0.5 -> 4.2330 M prograde / 7.5546 M retrograde,
+        // a* = 0.9 -> 2.3209 M prograde / 8.7174 M retrograde (cross-checked against the reference
+        // engine's `calculateISCO` in `src/physics/kerr-metric.ts`).
+        assertEquals(4.2330, ChalKerrMetric.calculateIsco(1.0, 0.5, prograde = true), 5e-3)
+        assertEquals(7.5546, ChalKerrMetric.calculateIsco(1.0, 0.5, prograde = false), 5e-3)
+        assertEquals(2.3209, ChalKerrMetric.calculateIsco(1.0, 0.9, prograde = true), 5e-3)
+        assertEquals(8.7174, ChalKerrMetric.calculateIsco(1.0, 0.9, prograde = false), 5e-3)
     }
 
     @Test

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -111,7 +112,7 @@ fun ChalTelemetry(
                         .clip(RoundedCornerShape(RedCornerRadius.full))
                         .background(Color.White.copy(alpha = 0.08f))
                 ) {
-                    Box(
+                    Spacer(
                         modifier = Modifier
                             .fillMaxWidth((snapshot.budgetUsage / 100.0).coerceIn(0.0, 1.0).toFloat())
                             .height(4.dp)

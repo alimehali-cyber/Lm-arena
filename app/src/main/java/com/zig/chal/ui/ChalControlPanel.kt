@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -230,7 +231,7 @@ fun ChalControlPanel(
                                     .clip(RoundedCornerShape(RedCornerRadius.full))
                                     .background(Color.White.copy(alpha = 0.08f))
                             ) {
-                                Box(
+                                Spacer(
                                     modifier = Modifier
                                         .fillMaxWidth(benchmarkProgress.coerceIn(0.0, 1.0).toFloat())
                                         .height(4.dp)
@@ -417,7 +418,7 @@ private fun ChalPanelSection(label: String, content: @Composable () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
-            Box(
+            Spacer(
                 modifier = Modifier
                     .size(6.dp)
                     .clip(CircleShape)
@@ -440,7 +441,7 @@ private fun ChalPanelSection(label: String, content: @Composable () -> Unit) {
  */
 @Composable
 private fun ChalSlider(
-    config: ChalConfig,
+    config: ChalParameterConfig,
     value: Double,
     isPersian: Boolean,
     onChange: (Double) -> Unit,
@@ -570,7 +571,7 @@ private fun ChalToggleRow(label: String, checked: Boolean, onToggle: (Boolean) -
                 .background(if (checked) RedTheme.colors.accentRed.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.12f))
                 .padding(2.dp)
         ) {
-            Box(
+            Spacer(
                 modifier = Modifier
                     .size(14.dp)
                     .align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)

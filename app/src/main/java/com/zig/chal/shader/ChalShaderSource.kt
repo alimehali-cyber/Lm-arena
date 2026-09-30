@@ -6,7 +6,7 @@ import java.util.Locale
 /**
  * Realistic Black Hole Shaders (GLSL ES 3.00 / OpenGL ES 3.0).
  *
- * Verbatim port of the reference engine's `src/shaders/blackhole/*` chunk set. The reference
+ * Verbatim port of the reference engine's `src/shaders/blackhole` chunk set. The reference
  * targets WebGL 2.0, whose shading language *is* GLSL ES 3.00, so the sources below are the
  * upstream GLSL with only the interpolation points resolved -- exactly as the TypeScript build
  * step interpolates `PHYSICS_CONSTANTS` into its template literals.
