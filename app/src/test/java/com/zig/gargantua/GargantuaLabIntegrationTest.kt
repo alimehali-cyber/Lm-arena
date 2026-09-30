@@ -22,7 +22,9 @@ class GargantuaLabIntegrationTest {
 
         val start = labScreenText.indexOf("    GARGANTUA(")
         assertTrue("GARGANTUA block must be present", start > 0)
-        val end = labScreenText.indexOf("\n    ),", start)
+        // Terminator tolerates both ")," and the bare ")" that closes the last enum entry: the
+        // removed placeholder cards used to follow GARGANTUA, so it no longer ends with a comma.
+        val end = labScreenText.indexOf("\n    )", start)
         assertTrue(end > start)
         val block = labScreenText.substring(start, end)
 
@@ -43,17 +45,19 @@ class GargantuaLabIntegrationTest {
         val timeDilation = text.indexOf("    TIME_DILATION(")
         val gravity = text.indexOf("    GRAVITY_SANDBOX(")
         val gargantua = text.indexOf("    GARGANTUA(")
-        val resonance = text.indexOf("    ORBITAL_RESONANCE(")
-        val stellar = text.indexOf("    STELLAR_EVOLUTION(")
 
-        assertTrue("All five features must be declared", minOf(timeDilation, gravity, gargantua, resonance, stellar) > 0)
+        assertTrue("All three features must be declared", minOf(timeDilation, gravity, gargantua) > 0)
         assertTrue(
             "Original relative ordering must remain strictly preserved for LabFeatureTitleTest",
-            timeDilation < gravity && gravity < resonance && resonance < stellar
+            timeDilation < gravity && gravity < gargantua
         )
         assertTrue(
             "Gargantua must be positioned immediately after Gravity Sandbox",
-            gravity < gargantua && gargantua < resonance
+            gravity < gargantua
+        )
+        assertTrue(
+            "The removed placeholder cards must not come back",
+            !text.contains("ORBITAL_RESONANCE") && !text.contains("STELLAR_EVOLUTION")
         )
     }
 

@@ -68,26 +68,6 @@ enum class LabFeatureType(
         descriptionFa = "آزمایشگاه تعاملی سیاه‌چاله چرخان کر: ردیابی پرتو در فضازمان خمیده، درخشش نسبیتی قرص برافزایشی، انتقال به سرخ گرانشی و مدار فوتون‌ها.",
         icon = Icons.Default.FilterTiltShift,
         isAvailable = true
-    ),
-    ORBITAL_RESONANCE(
-        titleEn = "Orbital Resonance & Keplerian Elements",
-        titleFa = "رزونانس مداری و عناصر کپلری",
-        subtitleEn = "Celestial Mechanics Tool",
-        subtitleFa = "مکانیک سماوی و شبیه‌ساز مدارها",
-        descriptionEn = "Analyze gravitational orbital harmonics, Hill spheres, Lagrange points, and orbital resonances.",
-        descriptionFa = "تحلیل رزونانس‌های گرانشی، نقاط لاگرانژی و دامنه‌های هیل در اجرام منظومه شمسی.",
-        icon = Icons.Default.AllInclusive,
-        isAvailable = false
-    ),
-    STELLAR_EVOLUTION(
-        titleEn = "HR Diagram & Stellar Lifetime",
-        titleFa = "نمودار هرتسپرونگ-راسل و تکامل ستارگان",
-        subtitleEn = "Astrophysical Classifier",
-        subtitleFa = "اخترفیزیک و حیات ستاره‌ای",
-        descriptionEn = "Plot main sequence stars, red giants, white dwarfs, and compute nuclear fusion lifetimes.",
-        descriptionFa = "رسم و تحلیل نمودار H-R، جایگاه تکاملی ستارگان و طول عمر همجوشی هسته‌ای.",
-        icon = Icons.Default.AutoAwesome,
-        isAvailable = false
     )
 }
 
@@ -190,7 +170,7 @@ fun LabScreen(
             // Section Title
             item {
                 RedSectionHeader(
-                    title = if (isFa) "ابزارهای فعال و در حال توسعه" else "Available Scientific Tools",
+                    title = if (isFa) "ابزارهای علمی در دسترس" else "Available Scientific Tools",
                     subtitle = if (isFa) "شبیه‌سازها و ماشین‌حساب‌های اخترفیزیک" else "Astrophysics calculators & simulators"
                 )
             }
