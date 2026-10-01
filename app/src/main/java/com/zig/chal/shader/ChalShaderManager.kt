@@ -150,11 +150,19 @@ class ChalShaderManager {
         return variant
     }
 
-    /** Delete every cached program and clear the cache. */
+    /** Delete every cached program and clear the cache while its GL context is still current. */
     fun clearCache() {
         for (variant in variantCache.values) {
             GLES30.glDeleteProgram(variant.program)
         }
+        variantCache.clear()
+    }
+
+    /**
+     * Forget object names after EGL context loss without issuing deletes into the new context.
+     * The old context already released its resources, and numeric GL names may have been reused.
+     */
+    fun invalidateContext() {
         variantCache.clear()
     }
 }

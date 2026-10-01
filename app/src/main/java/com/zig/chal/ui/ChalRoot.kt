@@ -59,18 +59,20 @@ import com.zig.chal.config.ChalFeatures
 import com.zig.chal.config.ChalPresetName
 import com.zig.chal.config.ChalRayTracingQuality
 import com.zig.chal.config.ChalSimulationParams
+import com.zig.chal.config.ChalXapkScenario
+import com.zig.chal.config.XapkSimulationSettingsStore
+import com.zig.chal.config.XapkRendererContract
 import com.zig.chal.render.ChalCamera
-import com.zig.chal.render.ChalRenderer
-import com.zig.chal.render.ChalSurfaceView
+import com.zig.chal.render.ChalSurfaceHost
 import com.zig.gravity.ui.ImmersiveScreenState
 import kotlinx.coroutines.delay
 
 /**
  * Root screen for the Chal Kerr black-hole laboratory.
  *
- * The reference engine's page composition is reproduced here: the ray-marched canvas fills the
- * viewport, the telemetry HUD sits over it, and the control panel docks below with the
- * Reset/Pause command rail.
+ * Hosts the XAPK's native Vulkan SurfaceView on capable ARM64 devices and retains the Chal GLES
+ * renderer as a capability-gated fallback. The Lab UI maps the XAPK's physical presets, parameter
+ * block, camera gestures, and telemetry while preserving the app's bilingual chrome.
  */
 @Composable
 fun ChalRoot(
@@ -91,16 +93,16 @@ fun ChalRoot(
         onDispose { ImmersiveScreenState.exit() }
     }
 
-    // Phones start from the reference's mobile entry state (balanced preset, sub-native render
-    // scale); every preset, toggle and LOD is still one tap away in the control panel.
-    val initialParams = remember { ChalSimulationParams.MOBILE_PARAMS }
-
-    val surfaceView = remember {
-        ChalSurfaceView(context).apply {
-            renderer.updateParams(initialParams)
-        }
+    // Start from the XAPK's persisted `bh.params` state and hardware-based quality default.
+    val settingsStore = remember(context.applicationContext) {
+        XapkSimulationSettingsStore(context.applicationContext)
     }
-    val renderer: ChalRenderer = surfaceView.renderer
+    val initialParams = remember(settingsStore) { settingsStore.load() }
+
+    val surfaceView = remember(context.applicationContext, initialParams) {
+        ChalSurfaceHost(context, initialParams)
+    }
+    val renderer = surfaceView.renderer
 
     var params by remember { mutableStateOf(initialParams) }
     var snapshot by remember { mutableStateOf(renderer.snapshot()) }
@@ -110,9 +112,10 @@ fun ChalRoot(
     fun applyParams(updated: ChalSimulationParams) {
         params = updated
         renderer.updateParams(updated)
+        settingsStore.save(updated)
     }
 
-    // GLSurfaceView follows the host lifecycle.
+    // Both the XAPK SurfaceView and the GLES fallback follow the host lifecycle.
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _: LifecycleOwner, event: Lifecycle.Event ->
             when (event) {
@@ -126,7 +129,7 @@ fun ChalRoot(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             surfaceView.onPause()
-            surfaceView.releaseGl()
+            surfaceView.release()
         }
     }
 
@@ -189,7 +192,13 @@ fun ChalRoot(
                                     fontWeight = FontWeight.Black
                                 )
                                 Text(
-                                    text = if (isPersian) "آزمایشگاه نسبیتی سیاه‌چاله کر" else "Kerr Black Hole Ray-Marcher",
+                                    text = if (isPersian) {
+                                        "آزمایشگاه نسبیتی سیاه‌چاله کر"
+                                    } else if (surfaceView.isUsingXapkRenderer) {
+                                        "Native Vulkan · Black Hole Simulator"
+                                    } else {
+                                        "Approximate Chal GLES fallback"
+                                    },
                                     color = Color.White.copy(alpha = 0.60f),
                                     fontSize = 8.sp
                                 )
@@ -208,6 +217,7 @@ fun ChalRoot(
                         ChalTelemetry(
                             snapshot = snapshot,
                             isPersian = isPersian,
+                            isXapkRenderer = surfaceView.isUsingXapkRenderer,
                             modifier = Modifier.align(Alignment.End)
                         )
                     }
@@ -218,6 +228,11 @@ fun ChalRoot(
                             params = params,
                             isPersian = isPersian,
                             isCinematic = snapshot.isCinematic,
+                            isXapkRenderer = surfaceView.isUsingXapkRenderer,
+                            onScenarioSelected = { scenario ->
+                                applyParams(scenario.applyTo(params))
+                                surfaceView.resetScenarioPitch()
+                            },
                             onParamsChange = { updated ->
                                 applyParams(derivePreset(updated))
                             },
@@ -231,9 +246,15 @@ fun ChalRoot(
                             },
                             onQualitySelected = { quality ->
                                 val features = params.features.copy(rayTracingQuality = quality)
+                                val renderScale = if (surfaceView.isUsingXapkRenderer) {
+                                    XapkRendererContract.qualityFor(quality).renderScale.toDouble()
+                                } else {
+                                    params.renderScale
+                                }
                                 applyParams(
                                     params.copy(
                                         features = features,
+                                        renderScale = renderScale,
                                         performancePreset = ChalFeatures.matchesPreset(features)
                                     )
                                 )
@@ -269,6 +290,7 @@ fun ChalRoot(
                             isPersian = isPersian,
                             isCinematic = snapshot.isCinematic,
                             isPaused = params.paused,
+                            isXapkRenderer = surfaceView.isUsingXapkRenderer,
                             onReset = {
                                 applyParams(
                                     params.copy(
@@ -300,7 +322,7 @@ fun ChalRoot(
                 }
             }
 
-            renderer.errorMessage?.let { message ->
+            surfaceView.errorMessage?.let { message ->
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -349,6 +371,7 @@ private fun ChalCommandRail(
     isPersian: Boolean,
     isCinematic: Boolean,
     isPaused: Boolean,
+    isXapkRenderer: Boolean,
     onReset: () -> Unit,
     onTogglePause: () -> Unit
 ) {
@@ -376,7 +399,7 @@ private fun ChalCommandRail(
             )
         }
 
-        ChalRailButton(
+        if (!isXapkRenderer) ChalRailButton(
             label = if (isPaused) {
                 if (isPersian) "ادامه" else "Resume"
             } else {

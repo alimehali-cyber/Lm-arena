@@ -42,6 +42,7 @@ import com.zig.chal.config.ChalPresetName
 import com.zig.chal.config.ChalRayTracingQuality
 import com.zig.chal.config.ChalSimulationConfig
 import com.zig.chal.config.ChalSimulationParams
+import com.zig.chal.config.ChalXapkScenario
 import kotlin.math.exp
 import kotlin.math.ln
 import java.util.Locale
@@ -49,15 +50,17 @@ import java.util.Locale
 /**
  * Scientific real-time interface.
  *
- * Provides centralized control over simulation parameters, feature toggles, and performance
- * settings. Direct port of the reference engine's `src/components/ui/ControlPanel.tsx` (layout,
- * control inventory, ranges, units and decimals all come from `ChalSimulationConfig`).
+ * Provides the XAPK physical scenarios, numeric controls, feature mask, and quality choices when
+ * the native backend is active. Chal-only benchmark/cinematic controls remain available only in the
+ * GLES compatibility mode.
  */
 @Composable
 fun ChalControlPanel(
     params: ChalSimulationParams,
     isPersian: Boolean,
     isCinematic: Boolean,
+    isXapkRenderer: Boolean,
+    onScenarioSelected: (ChalXapkScenario) -> Unit,
     onParamsChange: (ChalSimulationParams) -> Unit,
     onPresetSelected: (ChalPresetName) -> Unit,
     onQualitySelected: (ChalRayTracingQuality) -> Unit,
@@ -107,6 +110,22 @@ fun ChalControlPanel(
         ) {
             when (tab) {
                 ChalPanelTab.PHYSICS -> {
+                    ChalPanelSection(if (isPersian) "سناریوها" else "Scenarios") {
+                        val selectedScenario = ChalXapkScenario.matching(params)
+                        ChalXapkScenario.entries.chunked(2).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
+                                row.forEach { scenario ->
+                                    ChalChoiceButton(
+                                        label = if (isPersian) scenario.persianLabel else scenario.label,
+                                        selected = selectedScenario == scenario,
+                                        onClick = { onScenarioSelected(scenario) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     ChalPanelSection(if (isPersian) "پارامترهای سیاه‌چاله" else "Black Hole Parameters") {
                         ChalSlider(
                             config = ChalSimulationConfig.MASS,
@@ -114,12 +133,14 @@ fun ChalControlPanel(
                             isPersian = isPersian,
                             onChange = { onParamsChange(params.copy(mass = it)) }
                         )
-                        ChalSlider(
-                            config = ChalSimulationConfig.ZOOM,
-                            value = params.zoom,
-                            isPersian = isPersian,
-                            onChange = { onParamsChange(params.copy(zoom = it)) }
-                        )
+                        if (!isXapkRenderer) {
+                            ChalSlider(
+                                config = ChalSimulationConfig.ZOOM,
+                                value = params.zoom,
+                                isPersian = isPersian,
+                                onChange = { onParamsChange(params.copy(zoom = it)) }
+                            )
+                        }
                         ChalSlider(
                             config = ChalSimulationConfig.SPIN,
                             value = params.spin,
@@ -131,6 +152,12 @@ fun ChalControlPanel(
                             value = params.lensing,
                             isPersian = isPersian,
                             onChange = { onParamsChange(params.copy(lensing = it)) }
+                        )
+                        ChalSlider(
+                            config = ChalSimulationConfig.FRAME_DRAGGING,
+                            value = params.frameDraggingStrength,
+                            isPersian = isPersian,
+                            onChange = { onParamsChange(params.copy(frameDraggingStrength = it)) }
                         )
                     }
 
@@ -169,10 +196,27 @@ fun ChalControlPanel(
                             onChange = { onParamsChange(params.copy(diskDensity = it)) }
                         )
                     }
+
+                    if (isXapkRenderer) {
+                        ChalPanelSection(if (isPersian) "درخشش" else "Bloom") {
+                            ChalSlider(
+                                config = ChalSimulationConfig.BLOOM_THRESHOLD,
+                                value = params.bloomThreshold,
+                                isPersian = isPersian,
+                                onChange = { onParamsChange(params.copy(bloomThreshold = it)) }
+                            )
+                            ChalSlider(
+                                config = ChalSimulationConfig.BLOOM_INTENSITY,
+                                value = params.bloomIntensity,
+                                isPersian = isPersian,
+                                onChange = { onParamsChange(params.copy(bloomIntensity = it)) }
+                            )
+                        }
+                    }
                 }
 
                 ChalPanelTab.SYSTEM -> {
-                    ChalPanelSection(if (isPersian) "پیش‌تنظیم‌های کارایی" else "Performance Presets") {
+                    if (!isXapkRenderer) ChalPanelSection(if (isPersian) "پیش‌تنظیم‌های کارایی" else "Performance Presets") {
                         Row(horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
                             ChalPresetName.entries.filter { it != ChalPresetName.CUSTOM }.forEach { preset ->
                                 ChalChoiceButton(
@@ -193,107 +237,116 @@ fun ChalControlPanel(
 
                     ChalPanelSection(if (isPersian) "دقت ردیابی پرتو" else "Ray Tracing Fidelity") {
                         Row(horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
-                            ChalRayTracingQuality.entries.forEach { quality ->
-                                ChalChoiceButton(
-                                    label = quality.label,
-                                    selected = params.features.rayTracingQuality == quality,
-                                    onClick = { onQualitySelected(quality) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                            ChalRayTracingQuality.entries
+                                .filter { !isXapkRenderer || it != ChalRayTracingQuality.OFF }
+                                .forEach { quality ->
+                                    ChalChoiceButton(
+                                        label = quality.label,
+                                        selected = params.features.rayTracingQuality == quality,
+                                        onClick = { onQualitySelected(quality) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                         }
                     }
 
-                    ChalPanelSection(if (isPersian) "اعتبارسنجی سامانه" else "System Validation") {
-                        ChalChoiceButton(
-                            label = if (isBenchmarkRunning) {
-                                if (isPersian) "توقف سنجش" else "Abort Benchmark"
-                            } else {
-                                if (isPersian) "اجرای سنجش کارایی" else "Run Performance Suite"
-                            },
-                            selected = isBenchmarkRunning,
-                            onClick = { if (isBenchmarkRunning) onCancelBenchmark() else onStartBenchmark() },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        if (isBenchmarkRunning) {
-                            Text(
-                                text = "${benchmarkPreset ?: ""} ${
-                                    Math.round(benchmarkProgress * 100.0)
-                                }%",
-                                color = Color.White.copy(alpha = 0.70f),
-                                fontSize = 9.sp,
-                                fontFamily = FontFamily.Monospace
+                    if (!isXapkRenderer) {
+                        ChalPanelSection(if (isPersian) "اعتبارسنجی سامانه" else "System Validation") {
+                            ChalChoiceButton(
+                                label = if (isBenchmarkRunning) {
+                                    if (isPersian) "توقف سنجش" else "Abort Benchmark"
+                                } else {
+                                    if (isPersian) "اجرای سنجش کارایی" else "Run Performance Suite"
+                                },
+                                selected = isBenchmarkRunning,
+                                onClick = { if (isBenchmarkRunning) onCancelBenchmark() else onStartBenchmark() },
+                                modifier = Modifier.fillMaxWidth()
                             )
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(4.dp)
-                                    .clip(RoundedCornerShape(RedCornerRadius.full))
-                                    .background(Color.White.copy(alpha = 0.08f))
-                            ) {
-                                Spacer(
-                                    modifier = Modifier
-                                        .fillMaxWidth(benchmarkProgress.coerceIn(0.0, 1.0).toFloat())
-                                        .height(4.dp)
-                                        .clip(RoundedCornerShape(RedCornerRadius.full))
-                                        .background(RedTheme.colors.accentRed.copy(alpha = 0.8f))
-                                )
-                            }
-                        }
-                        benchmarkResults.forEach { result ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
+                            if (isBenchmarkRunning) {
                                 Text(
-                                    text = result.presetName.label.uppercase(Locale.US),
-                                    color = Color.White.copy(alpha = 0.65f),
-                                    fontSize = 8.sp
-                                )
-                                Text(
-                                    text = String.format(Locale.US, "%.1f fps", result.averageFPS),
-                                    color = Color.White.copy(alpha = 0.85f),
-                                    fontSize = 8.sp,
+                                    text = "${benchmarkPreset ?: ""} ${Math.round(benchmarkProgress * 100.0)}%",
+                                    color = Color.White.copy(alpha = 0.70f),
+                                    fontSize = 9.sp,
                                     fontFamily = FontFamily.Monospace
                                 )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(4.dp)
+                                        .clip(RoundedCornerShape(RedCornerRadius.full))
+                                        .background(Color.White.copy(alpha = 0.08f))
+                                ) {
+                                    Spacer(
+                                        modifier = Modifier
+                                            .fillMaxWidth(benchmarkProgress.coerceIn(0.0, 1.0).toFloat())
+                                            .height(4.dp)
+                                            .clip(RoundedCornerShape(RedCornerRadius.full))
+                                            .background(RedTheme.colors.accentRed.copy(alpha = 0.8f))
+                                    )
+                                }
+                            }
+                            benchmarkResults.forEach { result ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = result.presetName.label.uppercase(Locale.US),
+                                        color = Color.White.copy(alpha = 0.65f),
+                                        fontSize = 8.sp
+                                    )
+                                    Text(
+                                        text = String.format(Locale.US, "%.1f fps", result.averageFPS),
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        fontSize = 8.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                            benchmarkRecommendation?.let { preset ->
+                                Text(
+                                    text = if (isPersian) "پیشنهاد: ${preset.label}" else "Recommended: ${preset.label}",
+                                    color = RedTheme.colors.accentRed.copy(alpha = 0.9f),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black
+                                )
                             }
                         }
-                        benchmarkRecommendation?.let { preset ->
+
+                        ChalPanelSection(if (isPersian) "دقت نمایش" else "Display Precision") {
                             Text(
-                                text = if (isPersian) "پیشنهاد: ${preset.label}" else "Recommended: ${preset.label}",
-                                color = RedTheme.colors.accentRed.copy(alpha = 0.9f),
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black
+                                text = if (isPersian) {
+                                    "دقت طیفی و حد چگالی پراکندگی حجمی."
+                                } else {
+                                    "Spectral precision and volumetric scattering density limit."
+                                },
+                                color = Color.White.copy(alpha = 0.30f),
+                                fontSize = 8.sp
                             )
                         }
                     }
-
-                    ChalPanelSection(if (isPersian) "دقت نمایش" else "Display Precision") {
-                        Text(
-                            text = if (isPersian) {
-                                "دقت طیفی و حد چگالی پراکندگی حجمی."
-                            } else {
-                                "Spectral precision and volumetric scattering density limit."
-                            },
-                            color = Color.White.copy(alpha = 0.30f),
-                            fontSize = 8.sp
-                        )
-                    }
-
                 }
 
                 ChalPanelTab.MODULES -> {
                     ChalPanelSection(if (isPersian) "ماژول‌های فیزیک" else "Physics Modules") {
-                        ChalFeatureToggle.entries.forEach { toggle ->
-                            ChalToggleRow(
-                                label = toggle.label(isPersian),
-                                checked = toggle.read(params.features),
-                                onToggle = { onParamsChange(params.copy(features = toggle.write(params.features, it))) }
-                            )
-                        }
+                        ChalFeatureToggle.entries
+                            .filter {
+                                !isXapkRenderer || it !in setOf(
+                                    ChalFeatureToggle.VOLUMETRIC_BLOOM,
+                                    ChalFeatureToggle.KERR_SHADOW_GUIDE,
+                                    ChalFeatureToggle.SPACETIME_VISUALIZATION
+                                )
+                            }
+                            .forEach { toggle ->
+                                ChalToggleRow(
+                                    label = toggle.label(isPersian),
+                                    checked = toggle.read(params.features),
+                                    onToggle = { onParamsChange(params.copy(features = toggle.write(params.features, it))) }
+                                )
+                            }
                     }
 
-                    ChalPanelSection(if (isPersian) "ابزارهای سینمایی" else "Cinematic Tools") {
+                    if (!isXapkRenderer) ChalPanelSection(if (isPersian) "ابزارهای سینمایی" else "Cinematic Tools") {
                         Row(horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
                             ChalChoiceButton(
                                 label = if (isPersian) "تور مداری" else "Orbit Tour",
@@ -327,8 +380,7 @@ fun ChalControlPanel(
 }
 
 /**
- * Panel tabs: `simulation | features | performance` in the reference's own order, labelled with the
- * reference's own captions ("Physics", "Modules", "System").
+ * Chal panel tabs retain the pre-existing Chal UI order and captions ("Physics", "Modules", "System").
  */
 enum class ChalPanelTab {
     PHYSICS, MODULES, SYSTEM;
@@ -593,6 +645,9 @@ private fun persianLabel(label: String): String = when (label) {
     ChalSimulationConfig.DISK_SCALE_HEIGHT.label -> "ضخامت قرص"
     ChalSimulationConfig.DISK_TEMP.label -> "دمای قرص"
     ChalSimulationConfig.DISK_DENSITY.label -> "چگالی نوری"
+    ChalSimulationConfig.FRAME_DRAGGING.label -> "کشش چارچوب"
+    ChalSimulationConfig.BLOOM_THRESHOLD.label -> "آستانهٔ درخشش"
+    ChalSimulationConfig.BLOOM_INTENSITY.label -> "شدت درخشش"
     ChalSimulationConfig.RENDER_SCALE.label -> "مقیاس رندر"
     else -> label
 }

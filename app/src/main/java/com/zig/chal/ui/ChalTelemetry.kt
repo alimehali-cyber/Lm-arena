@@ -27,15 +27,17 @@ import com.zig.chal.render.ChalRenderer
 import java.util.Locale
 
 /**
- * Real-time physics + performance readout.
+ * Real-time renderer telemetry.
  *
- * Verbatim port of the reference engine's `src/components/ui/Telemetry.tsx`: FPS (with opacity
- * thresholds), Quality level, Horizon radius, Redshift, Dilation, and a frame-budget bar.
+ * The XAPK backend uses its native FPS/render-scale data with Kerr helper readouts; the GLES
+ * compatibility renderer retains Chal's quality, Schwarzschild-redshift approximation, dilation,
+ * and frame-budget telemetry.
  */
 @Composable
 fun ChalTelemetry(
     snapshot: ChalRenderer.ChalSnapshot,
     isPersian: Boolean,
+    isXapkRenderer: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val fpsOpacity = when {
@@ -44,13 +46,26 @@ fun ChalTelemetry(
         else -> 0.50f
     }
 
-    val items = listOf(
-        Triple(if (isPersian) "فریم" else "FPS", snapshot.currentFps.toString(), "hz"),
-        Triple(if (isPersian) "کیفیت" else "Quality", snapshot.quality.label, "lvl"),
-        Triple(if (isPersian) "افق" else "Horizon", fixedWidth(snapshot.eventHorizonRadius, 6, 2), "Rs"),
-        Triple(if (isPersian) "سرخ‌گرایی" else "Redshift", "z=${fixedWidth(snapshot.redshift, 6, 2)}", ""),
-        Triple(if (isPersian) "کشش زمان" else "Dilation", fixedWidth(snapshot.timeDilation, 7, 3), "x")
-    )
+    val items = if (isXapkRenderer) {
+        buildList {
+            add(Triple("FPS", snapshot.currentFps.toString(), ""))
+            add(Triple("Scale", "${Math.round(snapshot.params.renderScale * 100.0)}%", ""))
+            add(Triple("r₊", fixedWidth(snapshot.eventHorizonRadius, 6, 2), ""))
+            add(Triple("Photon", fixedWidth(snapshot.photonSphereRadius, 6, 2), ""))
+            add(Triple("ISCO", fixedWidth(snapshot.iscoRadius, 6, 2), ""))
+            if (kotlin.math.abs(snapshot.params.spin) > 1e-4) {
+                add(Triple("a*", fixedWidth(snapshot.params.spin, 5, 2), ""))
+            }
+        }
+    } else {
+        listOf(
+            Triple(if (isPersian) "فریم" else "FPS", snapshot.currentFps.toString(), "hz"),
+            Triple(if (isPersian) "کیفیت" else "Quality", snapshot.quality.label, "lvl"),
+            Triple(if (isPersian) "افق" else "Horizon", fixedWidth(snapshot.eventHorizonRadius, 6, 2), "Rs"),
+            Triple(if (isPersian) "سرخ‌گرایی" else "Redshift", "z=${fixedWidth(snapshot.redshift, 6, 2)}", ""),
+            Triple(if (isPersian) "کشش زمان" else "Dilation", fixedWidth(snapshot.timeDilation, 7, 3), "x")
+        )
+    }
 
     Column(
         modifier = modifier.testTag("chal_telemetry"),
@@ -87,7 +102,7 @@ fun ChalTelemetry(
             }
         }
 
-        if (snapshot.budgetUsage > 0.0) {
+        if (!isXapkRenderer && snapshot.budgetUsage > 0.0) {
             Column(modifier = Modifier.width(180.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

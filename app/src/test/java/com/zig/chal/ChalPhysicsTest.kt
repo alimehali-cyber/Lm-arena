@@ -122,11 +122,11 @@ class ChalPhysicsTest {
     @Test
     fun simulationParameterRangesMatchTheReferenceSchema() {
         assertEquals(1.0, ChalSimulationConfig.MASS.default, 0.0)
-        assertEquals(10.0, ChalSimulationConfig.MASS.max, 0.0)
+        assertEquals(20.0, ChalSimulationConfig.MASS.max, 0.0)
         assertEquals(0.5, ChalSimulationConfig.SPIN.default, 0.0)
-        assertEquals(-0.99, ChalSimulationConfig.SPIN.min, 0.0)
+        assertEquals(0.0, ChalSimulationConfig.SPIN.min, 0.0)
         assertEquals(0.99, ChalSimulationConfig.SPIN.max, 0.0)
-        assertEquals(30.0, ChalSimulationConfig.ZOOM.default, 0.0)
+        assertEquals(100.0, ChalSimulationConfig.ZOOM.default, 0.0)
         assertEquals(9500.0, ChalSimulationConfig.DISK_TEMP.default, 0.0)
         assertEquals(0.7, ChalSimulationConfig.LENSING.default, 0.0)
         assertEquals(0.2, ChalSimulationConfig.DISK_SCALE_HEIGHT.default, 0.0)
@@ -146,6 +146,6 @@ class ChalPhysicsTest {
 
     @Test
     fun defaultVerticalAngleIsTheConfiguredTilt() {
-        assertEquals(97.0 * Math.PI / 180.0, ChalCameraConfig.DEFAULT_VERTICAL_ANGLE, 1e-12)
+        assertEquals(97.02 * Math.PI / 180.0, ChalCameraConfig.DEFAULT_VERTICAL_ANGLE, 1e-12)
     }
 }

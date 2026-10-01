@@ -4,25 +4,12 @@ import com.zig.chal.physics.ChalPhysicsConstants
 import java.util.Locale
 
 /**
- * Realistic Black Hole Shaders (GLSL ES 3.00 / OpenGL ES 3.0).
+ * Legacy Chal OpenGL ES 3 fallback shader source.
  *
- * Verbatim port of the reference engine's `src/shaders/blackhole` chunk set. The reference
- * targets WebGL 2.0, whose shading language *is* GLSL ES 3.00, so the sources below are the
- * upstream GLSL with only the interpolation points resolved -- exactly as the TypeScript build
- * step interpolates `PHYSICS_CONSTANTS` into its template literals.
- *
- * Kerr Geodesic Integration (Corrected Effective Potential):
- *   Uses the Darwin potential with Kerr spin-orbit coupling and the gravito-magnetic
- *   frame-dragging force. Produces the correct D-shaped shadow asymmetry (Bardeen 1973).
- *
- * Key physics:
- *   - Oblate-spheroidal Kerr r (not Euclidean distance)
- *   - L_eff^2 = (Lz - a)^2 + Q with spin-orbit coupling
- *   - Frame-dragging: velocity rotation via ZAMO omega
- *   - Gravito-magnetic force: cross(spin_axis, v) * 2Ma/r^3
- *
- * References:
- *   Bardeen (1973), Dexter & Agol (2009), James et al. (2015)
+ * This renderer is used only when the XAPK's ARM64/Vulkan backend is unavailable. It is retained
+ * for device compatibility, not as a pixel- or physics-equivalent reimplementation: its ray force,
+ * coordinate handling, disk transfer, and redshift remain effective visual approximations. The
+ * XAPK's compiled SPIR-V is separate and is executed by the native backend instead.
  */
 object ChalShaderSource {
 
@@ -178,32 +165,10 @@ object ChalShaderSource {
         return sqrt(max(1e-8, r2));
     }
 
-    // --- Kerr Geodesic Acceleration ---
-    //
-    // Computes the gravitational acceleration on a null ray in the Kerr field.
-    // Uses the effective potential approach (Darwin + Kerr corrections):
-    //
-    //   F = -(M/r^2 + 3M * L_eff^2 / r^4) * r_hat   [radial force]
-    //       + omega * (spin x v)                        [frame-dragging]
-    //
-    // Key improvements over pseudo-Newtonian:
-    //   1. r = Kerr oblate-spheroidal coordinate (not Euclidean)
-    //   2. L_eff^2 includes spin-orbit coupling: (Lz - a)^2 + Q
-    //   3. Frame-dragging: gravito-magnetic force from the Kerr metric
-    //      produces the D-shape shadow asymmetry (Bardeen 1973)
-    //   4. ZAMO velocity rotation applied to velocity only (not position)
-
-    // --- Kerr-Schild Hamiltonian Geodesics ---
-    //
-    // This is a much more robust implementation than the pseudo-Newtonian approach.
-    // In Kerr-Schild coordinates, the metric is g_uv = n_uv + 2H * l_u * l_v.
-    // The null geodesic equations are solved exactly via Hamiltonian derivatives.
-    //
-    // H = (r^3 * M) / (r^4 + a^2 * y^2)
-    // l = (1, (rx + az)/(r^2+a2), (ry - ax)/(r^2+a2), z/r)  [Kerr-Schild null vector]
-    // 
-    // This naturally produces the Bardeen asymmetry without external "fictitious" forces.
-
+    // --- Chal GLES compatibility approximation ---
+    // The native Vulkan backend uses the XAPK renderer. This fallback integrates an effective
+    // radial/angular-momentum force plus a frame-drag term; it is not a full Kerr-Schild null-
+    // Hamiltonian solver and must not be described as one.
     struct KerrAccelResult {
         vec3 accel;
         float r_k;          // Kerr radial coordinate
@@ -222,23 +187,8 @@ object ChalShaderSource {
         float r_k = sqrt(max(1e-8, r2));
         res.r_k = r_k;
 
-        // 2. Kerr-Schild Null Vector (modified for Y-up spin axis)
-        // For spin along Y:
-        // l = (1, (r*x + a*z)/(r2 + a2), y/r, (r*z - a*x)/(r2 + a2))
-        float over_r = 1.0 / r_k;
-        float over_r2a2 = 1.0 / (r2 + a2);
-        
-        vec3 l_vec = vec3(
-            (r_k * p.x + a * p.z) * over_r2a2,
-            p.y * over_r,
-            (r_k * p.z - a * p.x) * over_r2a2
-        );
-        
-        // 3. Scalar function H
         float sigma = r2 + a2 * (p.y * p.y / max(1e-8, r2));
-        float H_val = (r_k * M) / max(1e-8, sigma);
-
-        // 4. Force calculation (Analytic Hamiltonian Derivs)
+        // 2. Effective angular-momentum correction used by this visual approximation.
         vec3 L_vec = cross(p, v);
         float Ly = L_vec.y; // Component along spin axis (Y)
         
@@ -254,13 +204,13 @@ object ChalShaderSource {
         
         res.accel = r_hat * (M * r2_inv * sigma_ratio + 3.0 * M * max(0.0, L2_eff) * r4_inv * sigma_ratio);
 
-        // 5. Frame Dragging
+        // 4. Approximate frame-drag acceleration.
         float r3_p_a2r = r_k * r2 + a2 * r_k;
-        float drag_coeff = 2.0 * M * a / max(1e-8, r3_p_a2r);
+        float drag_coeff = u_frame_dragging_strength * M * a / max(1e-8, r3_p_a2r);
         res.accel += cross(vec3(0.0, 1.0, 0.0), v) * drag_coeff;
 
-        // 6. ZAMO frame dragging 
-        res.omega = 2.0 * M * a / max(1e-8, r3_p_a2r);
+        // 5. Approximate angular frame-drag rate.
+        res.omega = u_frame_dragging_strength * M * a / max(1e-8, r3_p_a2r);
 
         return res;
     }
@@ -408,9 +358,8 @@ object ChalShaderSource {
     }
     
     // Nebula-like background glow
-    // CHAL-LOD-BEGIN: the nebula is a 3%-amplitude tint over black; the reference's own
-    // adaptiveFbm() at 2 octaves instead of the 4-octave fbm() drops 16 dependent texture
-    // fetches per escaping pixel for a change that is invisible at that amplitude.
+    // CHAL-LOD-BEGIN: a 2-octave adaptive FBM approximation reduces texture fetches for this
+    // low-amplitude background tint. This is a Chal fallback optimization, not an XAPK comparison.
     float nebula = adaptiveFbm(dir * 2.0 + u_time * 0.01, 2) * 0.03;
     // CHAL-LOD-END
     stars += vec3(nebula * 0.2, nebula * 0.3, nebula * 0.5) + vec3(0.05, 0.02, 0.05) * length(nebula);
@@ -462,7 +411,7 @@ object ChalShaderSource {
 
           if((abs(sampleP.y) < diskHeight || crossedEquator) && sampleR > diskInner && sampleR < diskOuter) {
 
-              // Exact Kerr orbital rotation for turbulence map
+              // Approximate equatorial orbital phase used to animate turbulence.
               float sqrt_M_phase = sqrt(M);
               float signSpinPhase = sign(u_spin + 1e-8);
               float OmegaPhase = (signSpinPhase * sqrt_M_phase) / (sampleR * sqrt(sampleR) + a * sqrt_M_phase);
@@ -479,14 +428,14 @@ object ChalShaderSource {
 
               float samplesDiskHeight = sampleR * effectiveScaleHeight;
               float heightFalloff = exp(-abs(sampleP.y) / max(0.001, samplesDiskHeight * ${ChalPhysicsConstants.Accretion.DENSITY_FALLOFF.fixed(2)}));
-              float radialFalloff = smoothstep(diskOuter, diskInner, sampleR);
+              float radialFalloff = 1.0 - smoothstep(diskInner, diskOuter, sampleR);
 
               float baseDensity = turbulence * heightFalloff * radialFalloff;
 
               if (baseDensity > 0.001) {
-                  // ==========================================================
-                  // PhD-GRADE EXACT KERR KINEMATICS (Page & Thorne 1974)
-                  // ==========================================================
+                  // Effective disk-emission approximation. Although these expressions borrow
+                  // equatorial Kerr circular-orbit terms, the full ray/observer transfer is not
+                  // integrated here and must not be presented as exact Kerr radiative transfer.
                   float r2 = sampleR * sampleR;
                   
                   // 1. Exact Keplerian Angular Velocity (Omega = dphi/dt)
@@ -646,17 +595,17 @@ void main() {
 #if defined(RAY_QUALITY_LOW) || defined(RAY_QUALITY_OFF)
     vec3 bg = starfield(rd);
     float d = length(cross(ro, rd));
-    float shadow = smoothstep(rh * 1.2, rh * 0.9, d);
+    float shadow = 1.0 - smoothstep(rh * 0.9, rh * 1.2, d);
     float photonGlowIndicator = exp(-abs(d - rph) * 12.0) * 0.8;
     vec3 glowCol = vec3(0.3, 0.6, 1.0) * photonGlowIndicator;
-    float diskMask = smoothstep(isco * 2.0, isco * 1.0, d) * (1.0 - smoothstep(isco * 1.0, isco * 0.8, d));
+    float diskMask = smoothstep(isco * 0.8, isco, d) * (1.0 - smoothstep(isco, isco * 2.0, d));
     vec3 diskColIndicator = vec3(1.0, 0.7, 0.3) * diskMask * 0.6;
     vec3 col = bg * (1.0 - shadow) + glowCol + diskColIndicator;
     fragColor = vec4(pow(col, vec3(0.4545)), 1.0);
     return;
 #endif
 
-    // === KERR GEODESIC RAYMARCHING ===
+    // === CHAL GLES COMPATIBILITY RAYMARCHER ===
     vec3 p = ro;
     vec3 v = rd;
 
@@ -686,27 +635,11 @@ void main() {
     vec3 p_prev = p;
 
     // --- CHAL-LOD-BEGIN (far-field termination) -------------------------------------------
-    // The reference loop marches every ray until r > MAX_DIST (10000 M) or the step budget runs
-    // out. With dt clamped to MAX_STEP * 2.5 = 3 M a ray leaving the camera at r = 60 M can
-    // travel at most ~380 M in 128 steps, so *no* background ray ever reaches MAX_DIST: it
-    // simply burns the whole budget integrating empty space (measured on the ported kernel:
-    // 31.7% of all rays exhaust the budget and they account for ~72% of the fragment work).
+    // This fallback stops outward-moving rays beyond the disk/jet influence region rather than
+    // spending the remaining GLES budget integrating empty space. It is a performance heuristic
+    // for Chal's approximate marcher; it does not establish parity with the XAPK renderer.
     //
-    // A ray beyond the influence radius that is moving outward can no longer be bent back, so the
-    // remaining steps only integrate empty space. Stopping there and sampling the background with
-    // the direction the ray has already reached is what the reference does implicitly when it runs
-    // out of steps -- it just spends the remaining steps first.
-    //
-    // Measured against an 8000-step integration of these same equations (64x64 rays, both framings
-    // the app ships): the disk coverage (alpha) is bit-identical to the reference at every framing
-    // tested -- not one ray changes what it accumulates -- and the far-field direction differs from
-    // the reference's own 128-step result by 0.29 deg mean / 0.40 deg p99 in the worst case (camera
-    // sitting exactly on the escape radius), i.e. a few pixels of star-field shift, while fragment
-    // cost drops to 41% of the reference at the default framing and 37% at zoom 60.
-    //
-    // The radius tracks the accretion disk (and the jet cone) so nothing that can still emit into
-    // the ray is skipped: diskOuter = M * u_disk_size with a 25% margin, and the jet's own
-    // exp(-|y| * 0.05) falloff is already 7.5 e-foldings down by r = 150 M.
+    // Radius tracks the configured disk and approximate jet cone with a conservative margin.
     float escapeRadius = max(60.0, M * u_disk_size * 1.25);
 #ifdef ENABLE_JETS
     escapeRadius = max(escapeRadius, 150.0);
@@ -759,7 +692,7 @@ void main() {
         float sphereProx = abs(r - rph);
         dt = min(dt, MIN_STEP + sphereProx * 0.15);
 
-        float hRefinement = smoothstep(0.2, 0.0, abs(p.y));
+        float hRefinement = 1.0 - smoothstep(0.0, 0.2, abs(p.y));
         float currentDt = dt * (1.0 - hRefinement * 0.7);
 
         vec3 accel = vec3(0.0);
@@ -920,7 +853,7 @@ void main() {
         // Visibility: smooth line with thickness proportional to Mass
         float thickness = M * 0.045; // Slightly thinner for precision
         if (minDist < thickness) {
-            float edge = smoothstep(thickness, thickness * 0.5, minDist);
+            float edge = 1.0 - smoothstep(thickness * 0.5, thickness, minDist);
             finalColor = mix(finalColor, vec3(0.0, 1.0, 0.0), 1.0 * edge);
         }
     }

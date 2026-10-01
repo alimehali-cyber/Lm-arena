@@ -157,6 +157,16 @@ class ChalIntegrationGuardTest {
     }
 
     @Test
+    fun theGlesFallbackUsesDimensionlessSpinAtTheRendererBoundary() {
+        val renderer = readMain("java/com/zig/chal/render/ChalRenderer.kt")
+        val shader = readMain("java/com/zig/chal/shader/ChalShaderSource.kt")
+
+        assertTrue(renderer.contains("set1f(\"u_spin\", params.spin)"))
+        assertFalse(renderer.contains("set1f(\"u_spin\", params.spin * params.mass)"))
+        assertTrue(shader.contains("float a = u_spin * M;"))
+    }
+
+    @Test
     fun theRendererBindsTheSamplerUniformsAsIntegers() {
         val renderer = readMain("java/com/zig/chal/render/ChalRenderer.kt")
         // Sampler uniforms set with uniform1f silently sample texture unit 0 on some drivers; the

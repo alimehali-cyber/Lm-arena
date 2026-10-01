@@ -6,12 +6,12 @@ import kotlin.math.tan
 /**
  * Core simulation types.
  *
- * Verbatim port of the reference engine's `src/types/simulation.ts` plus the camera constants and
- * initial-framing solve from `src/hooks/useCamera.ts`.
+ * Shared value model for the XAPK-backed renderer and Chal's explicitly approximate GLES fallback.
+ * XAPK-facing defaults/ranges are mirrored here so persisted controls can move between backends.
  */
 data class ChalSimulationParams(
     val mass: Double = ChalSimulationConfig.MASS.default,
-    /** Spin is in direct physics units a* / M, bounded [-0.99, 0.99]. */
+    /** Spin is the dimensionless Kerr parameter chi; the XAPK UI range is [0, 0.99]. */
     val spin: Double = ChalSimulationConfig.SPIN.default,
     val diskDensity: Double = ChalSimulationConfig.DISK_DENSITY.default,
     val diskTemp: Double = ChalSimulationConfig.DISK_TEMP.default,
@@ -21,6 +21,9 @@ data class ChalSimulationParams(
     val autoSpin: Double = ChalSimulationConfig.AUTO_SPIN.default,
     val diskSize: Double = ChalSimulationConfig.DISK_SIZE.default,
     val diskScaleHeight: Double = ChalSimulationConfig.DISK_SCALE_HEIGHT.default,
+    val frameDraggingStrength: Double = ChalSimulationConfig.FRAME_DRAGGING.default,
+    val bloomThreshold: Double = ChalSimulationConfig.BLOOM_THRESHOLD.default,
+    val bloomIntensity: Double = ChalSimulationConfig.BLOOM_INTENSITY.default,
     val adaptiveResolution: Boolean = false,
     val renderScale: Double = ChalSimulationConfig.RENDER_SCALE.default,
     val features: ChalFeatureToggles = ChalSimulationConfig.FEATURES,
@@ -31,15 +34,7 @@ data class ChalSimulationParams(
         /** Reference default (desktop web canvas). */
         val DEFAULT_PARAMS = ChalSimulationParams()
 
-        /**
-         * Start state for a phone.
-         *
-         * `page.tsx` pins the mobile start onto the balanced preset (`initialPreset = "balanced"`
-         * plus `getMobileFeatures()`), and every Chal deployment target is mobile, so this is the
-         * reference's own mobile entry state. The render scale starts below native (see
-         * [ChalPerformanceConfig.Mobile.START_SCALE]) and the panel still exposes all four presets,
-         * every toggle and the ray-tracing LODs, so nothing is lost -- it is just not the default.
-         */
+        /** Legacy Chal-only startup profile used while constructing the GLES fallback. */
         val MOBILE_PARAMS = ChalSimulationParams(
             renderScale = ChalPerformanceConfig.Mobile.START_SCALE,
             features = ChalFeatures.getPreset(ChalPresetName.BALANCED),
@@ -60,9 +55,9 @@ data class ChalMouseState(val x: Double, val y: Double)
 object ChalCameraConfig {
 
     /** `DEFAULT_ZOOM = SIMULATION_CONFIG.zoom.default`. */
-    const val DEFAULT_ZOOM: Double = 30.0
-    const val MIN_ZOOM: Double = 2.5
-    const val MAX_ZOOM: Double = 50.0
+    const val DEFAULT_ZOOM: Double = 100.0
+    const val MIN_ZOOM: Double = 1.5
+    const val MAX_ZOOM: Double = 100.0
     const val FOV_DEGREES: Double = 45.0
 
     /** 70% of viewport (60-80% range). */

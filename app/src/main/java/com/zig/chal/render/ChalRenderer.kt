@@ -8,9 +8,9 @@ import com.zig.chal.config.ChalFeatures
 import com.zig.chal.config.ChalPresetName
 import com.zig.chal.config.ChalPerformanceConfig
 import com.zig.chal.config.ChalRayTracingQuality
+import com.zig.chal.config.ChalRendererBackend
 import com.zig.chal.config.ChalSimulationParams
 import com.zig.chal.physics.ChalKerrMetric
-import com.zig.chal.physics.ChalPhysicsConstants
 import com.zig.chal.shader.ChalGlShaders
 import com.zig.chal.shader.ChalShaderManager
 import com.zig.chal.shader.ChalShaderSource
@@ -24,17 +24,13 @@ import kotlin.math.pow
 import kotlin.math.sqrt
 
 /**
- * Kerr geodesic ray-marching renderer.
+ * Chal's GLES compatibility renderer.
  *
- * Verbatim port of the reference engine's `src/rendering/webgl/renderer.ts` onto Android's GLES 3.0
- * (`GLSurfaceView.Renderer`). The uniform contract, the feature-driven shader recompilation, the
- * blue-noise dither, the bloom/TAA post chain, and the observer-distance parameter mapping are
- * identical to the reference implementation.
- *
- * IMPORTANT: This class is intentionally standalone. It shares nothing with any other renderer in
- * the application.
+ * This shader-based renderer is retained only for devices that cannot load the XAPK's ARM64/Vulkan
+ * renderer. It is an approximate visual fallback, not pixel-identical to the native backend. The
+ * Lab screen prefers [XapkChalRenderer] whenever Vulkan 1.1 and arm64-v8a are available.
  */
-class ChalRenderer : GLSurfaceView.Renderer {
+class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
 
     /** Live runtime snapshot consumed by the Compose HUD (all fields written on the GL thread). */
     data class ChalSnapshot(
@@ -65,7 +61,7 @@ class ChalRenderer : GLSurfaceView.Renderer {
 
     // Multi-threaded hand-off: the UI thread writes params, the GL thread renders them.
     @Volatile
-    var params: ChalSimulationParams = ChalSimulationParams.MOBILE_PARAMS
+    override var params: ChalSimulationParams = ChalSimulationParams.MOBILE_PARAMS
         private set
 
     @Volatile
@@ -83,6 +79,8 @@ class ChalRenderer : GLSurfaceView.Renderer {
     private var program = 0
     private var compiledFeatures: ChalFeatureToggles? = null
     private var compiledHasPost = false
+    private var failedFeatures: ChalFeatureToggles? = null
+    private var failedHasPost = false
     private val uniformLocations = HashMap<String, Int>()
 
     private var time = 0.0
@@ -122,7 +120,7 @@ class ChalRenderer : GLSurfaceView.Renderer {
 
     /** Set when the GL objects could not be built; the UI surfaces this instead of a blank screen. */
     @Volatile
-    var errorMessage: String? = null
+    override var errorMessage: String? = null
         private set
 
     private val shadowCurve = FloatArray(128) // 64 points * 2
@@ -148,10 +146,10 @@ class ChalRenderer : GLSurfaceView.Renderer {
     )
 
     /** Snapshot for the UI thread. */
-    fun snapshot(): ChalSnapshot = lastSnapshot
+    override fun snapshot(): ChalSnapshot = lastSnapshot
 
     /** Called once by the surface view with the panel's refresh rate. */
-    fun setDisplayRefreshRate(refreshRateHz: Double) {
+    override fun setDisplayRefreshRate(refreshRateHz: Double) {
         displayRefreshRateHz = refreshRateHz
         monitor.setTargetFrameTime(ChalPerformanceConfig.Mobile.targetFrameTimeMs(refreshRateHz))
     }
@@ -161,7 +159,7 @@ class ChalRenderer : GLSurfaceView.Renderer {
     // ---------------------------------------------------------------------------------------
 
     /** Replace the simulation parameters (feature changes force a shader recompilation). */
-    fun updateParams(newParams: ChalSimulationParams) {
+    override fun updateParams(newParams: ChalSimulationParams) {
         if (newParams.renderScale != params.renderScale) monitor.seedRenderScale(newParams.renderScale)
         // A quality change moves the cost of a frame by a large factor; let the resolution settle
         // directly instead of creeping there through the PID.
@@ -244,6 +242,15 @@ class ChalRenderer : GLSurfaceView.Renderer {
     // ---------------------------------------------------------------------------------------
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+        // EGL may recreate the context; program IDs from the previous context are invalid.
+        shaderManager.invalidateContext()
+        uniformLocations.clear()
+        program = 0
+        compiledFeatures = null
+        compiledHasPost = false
+        failedFeatures = null
+        failedHasPost = false
+
         // FIX: Set explicit clear color so TAA history starts from a defined state
         // instead of GPU-dependent garbage.
         GLES30.glClearColor(0.0f, 0.0f, 0.0f, 1.0f)
@@ -459,11 +466,12 @@ class ChalRenderer : GLSurfaceView.Renderer {
         set2f("u_resolution", surfaceWidth * renderScale, surfaceHeight * renderScale)
         set1f("u_time", time)
         set1f("u_mass", params.mass)
-        set1f("u_spin", params.spin * params.mass)
+        // The shader converts dimensionless chi to a = M * chi exactly once.
+        set1f("u_spin", params.spin)
         set1f("u_zoom", params.zoom * 2.0) // Decoupled from mass so it grows visibly
         set1f("u_disk_size", params.diskSize)
         set1f("u_disk_scale_height", params.diskScaleHeight)
-        // `maxStepsMobile` (80) is the reference's own mobile budget. Without it the ultra preset
+        // `maxStepsMobile` (80) is Chal's legacy GLES mobile budget. Without it the ultra preset
         // asks for 256 steps per ray on a phone GPU, where a single step costs ~60 ALU ops plus a
         // divide-bound Kerr acceleration evaluation.
         set1i(
@@ -476,7 +484,7 @@ class ChalRenderer : GLSurfaceView.Renderer {
         set1f("u_show_redshift", if (features.gravitationalRedshift) 1.0 else 0.0)
         set1f("u_show_kerr_shadow", if (features.kerrShadow) 1.0 else 0.0)
         set1f("u_lensing_strength", params.lensing)
-        set1f("u_frame_dragging_strength", ChalPhysicsConstants.Gravity.FRAME_DRAGGING_STRENGTH)
+        set1f("u_frame_dragging_strength", params.frameDraggingStrength)
         set2f("u_mouse", mouse.x, mouse.y)
         set1f("u_disk_density", params.diskDensity)
 
@@ -531,6 +539,7 @@ class ChalRenderer : GLSurfaceView.Renderer {
         val hasPost = bloom != null && reprojection != null
 
         if (!force && compiledFeatures == features && compiledHasPost == hasPost) return
+        if (!force && failedFeatures == features && failedHasPost == hasPost) return
 
         val variant = shaderManager.compileShaderVariant(
             ChalShaderSource.VERTEX_SHADER,
@@ -543,10 +552,18 @@ class ChalRenderer : GLSurfaceView.Renderer {
             program = variant.program
             compiledFeatures = features
             compiledHasPost = hasPost
+            failedFeatures = null
             uniformLocations.clear()
-        } else if (force) {
-            program = 0
-            errorMessage = "Chal shader compilation failed."
+            errorMessage = null
+        } else {
+            failedFeatures = features.copy()
+            failedHasPost = hasPost
+            errorMessage = if (force || program == 0) {
+                "Chal shader compilation failed."
+            } else {
+                "Chal shader variant failed; the previous working variant remains active."
+            }
+            if (force) program = 0
         }
     }
 
@@ -560,7 +577,8 @@ class ChalRenderer : GLSurfaceView.Renderer {
         val absoluteZoom = params.zoom * 2.0 * params.mass
         val r = max(absoluteZoom, eventHorizonRadius * 1.01)
         val timeDilation = ChalKerrMetric.calculateTimeDilation(r, params.mass)
-        val redshift = timeDilation - 1.0
+        // Standard gravitational redshift to infinity: z = 1/g - 1. Guard the horizon limit.
+        val redshift = if (timeDilation > 0.0) (1.0 / timeDilation) - 1.0 else Double.POSITIVE_INFINITY
 
         lastSnapshot = ChalSnapshot(
             params = params,
