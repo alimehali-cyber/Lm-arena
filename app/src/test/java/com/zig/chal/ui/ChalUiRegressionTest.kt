@@ -108,11 +108,10 @@ class ChalUiRegressionTest {
         rule.mainClock.autoAdvance = false
         rule.onNodeWithTag("chal_value_black_hole_mass").performClick()
         rule.mainClock.advanceTimeBy(500)
-        // Compose's clock does not itself flush an Android Dialog window's measure/draw pass.
         rule.waitForIdle()
-        rule.onNodeWithTag("chal_numeric_input").assertIsDisplayed().performTextReplacement("۱۲٫۳")
+        rule.onNodeWithTag("chal_numeric_input").performScrollTo().assertIsDisplayed().performTextReplacement("۱۲٫۳")
         rule.mainClock.advanceTimeBy(100)
-        rule.onNodeWithTag("chal_apply_number").assertIsEnabled().performClick()
+        rule.onNodeWithTag("chal_apply_number").performScrollTo().assertIsDisplayed().assertIsEnabled().performClick()
         rule.mainClock.advanceTimeBy(500)
         rule.mainClock.autoAdvance = true
         rule.runOnIdle {

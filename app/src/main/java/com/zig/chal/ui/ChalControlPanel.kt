@@ -418,19 +418,27 @@ private fun ChalSlider(config: ChalParameterConfig, value: Double, isPersian: Bo
         val entered = ChalSliderMath.parseNumber(input)?.div(displayFactor)
         val valid = entered != null && entered in config.min..config.max
         val range = "${config.min * displayFactor} – ${config.max * displayFactor} ${config.unit}"
-        AlertDialog(onDismissRequest = { editing = false }, title = { Text(label) }, text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Numbers/signs keep their natural reading direction inside an otherwise RTL dialog.
-                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                    OutlinedTextField(value = input, onValueChange = { input = it }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), isError = !valid,
-                        modifier = Modifier.fillMaxWidth().testTag("chal_numeric_input"), label = { Text(if (isPersian) "مقدار" else "Value") })
-                }
-                Text((if (isPersian) "بازه: " else "Range: ") + range)
+        // Edit in the scrollable panel/sheet itself. Avoid a second nested popup, keep the scene
+        // visible, and let large text/IME users scroll the field and its actions into view.
+        Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                OutlinedTextField(value = input, onValueChange = { input = it }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), isError = !valid,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("chal_numeric_input"),
+                    label = { Text(if (isPersian) "مقدار" else "Value") })
             }
-        }, confirmButton = { TextButton(enabled = valid, onClick = { entered?.let { onChange(ChalSliderMath.quantize(it, config)) }; editing = false },
-            modifier = Modifier.testTag("chal_apply_number")) { Text(if (isPersian) "اعمال" else "Apply") } },
-            dismissButton = { TextButton(onClick = { editing = false }) { Text(if (isPersian) "لغو" else "Cancel") } })
+            ChalCaption((if (isPersian) "بازه: " else "Range: ") + range)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(enabled = valid && enabled,
+                    onClick = { entered?.let { onChange(ChalSliderMath.quantize(it, config)) }; editing = false },
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("chal_apply_number")) {
+                    Text(if (isPersian) "اعمال" else "Apply")
+                }
+                TextButton(onClick = { editing = false }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    Text(if (isPersian) "لغو" else "Cancel")
+                }
+            }
+        }
     }
 }
 
