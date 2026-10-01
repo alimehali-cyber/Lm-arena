@@ -69,4 +69,19 @@ class ChalBenchmarkRegressionTest {
         benchmark.start(original.copy(mass = 10.0))
         assertEquals(original, benchmark.originalParams)
     }
+    @Test fun coldCompilationIsExcludedUntilAPresetHasActuallyBeenPresented() {
+        var now = 0.0
+        val benchmark = ChalBenchmark { now }
+        benchmark.start(ChalSimulationParams(), waitForFirstPresentation = true)
+        now = 20_000.0
+        assertNull(benchmark.tick(1.0) { fail("Compilation must not finish a test") })
+        assertTrue(benchmark.markPresetPresented())
+        assertFalse(benchmark.markPresetPresented())
+        now = 21_000.0
+        benchmark.tick(60.0) {}
+        now = 25_000.0
+        benchmark.tick(60.0) {}
+        assertEquals(60.0, benchmark.results.single().averageFPS, 0.0)
+    }
+
 }

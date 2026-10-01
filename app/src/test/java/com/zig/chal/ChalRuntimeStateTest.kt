@@ -44,4 +44,13 @@ class ChalRuntimeStateTest {
         assertTrue(normalized.features.kerrShadow)
         assertFalse(normalized.features.spacetimeVisualization)
     }
+    @Test fun reducedMotionRestoreDoesNotLoseTheAutoPanPreferenceOfATemporaryDive() {
+        val initial = ChalSimulationParams(autoSpin = 0.012)
+        val camera = ChalCamera().apply { restore(initial); startCinematic(ChalCamera.CinematicMode.DIVE, initial, false) }
+        val runtime = ChalRuntimeState(initial.copy(autoSpin = 0.0, reducedMotion = true), camera.saveSession())
+        val restored = ChalRenderer(runtime.params, runtime)
+        assertEquals(0.012, restored.paramsForPersistence().autoSpin, 0.0)
+        assertFalse(restored.saveRuntimeState().cameraSession!!.cinematic.active)
+    }
+
 }

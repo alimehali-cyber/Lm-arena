@@ -88,6 +88,11 @@ jobs:
           for path in files:
               root = ET.parse(path).getroot()
               for testcase in root.iter("testcase"):
+                  classname = testcase.attrib.get("classname", "")
+                  if classname.startswith("com.zig.chal"):
+                      for failure_node in list(testcase.findall("failure")) + list(testcase.findall("error")):
+                          detail = (failure_node.text or "")[:7000].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                          print(f"::error title=Chal failure traceback::{detail}")
                   tests += 1
                   failure = testcase.find("failure")
                   error = testcase.find("error")

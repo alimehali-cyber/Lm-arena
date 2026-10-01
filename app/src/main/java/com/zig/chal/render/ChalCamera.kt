@@ -87,8 +87,9 @@ class ChalCamera {
         restore(params)
         if (session == null) return
         val pose = session.pose
-        if (listOf(pose.theta, pose.phi, pose.thetaVelocity, pose.phiVelocity, pose.zoomVelocity).all { it.isFinite() }) {
+        if (listOf(pose.theta, pose.phi, pose.thetaVelocity, pose.phiVelocity, pose.zoomVelocity, pose.damping).all { it.isFinite() }) {
             state = pose.copyState()
+            state.damping = state.damping.coerceIn(0.0, 1.0)
             if (!session.cinematic.active && !session.cinematic.recovering) state.theta = ChalRenderPolicy.normalizeYaw(state.theta / (2.0 * PI)) * 2.0 * PI
             state.phi = state.phi.coerceIn(0.001, PI - 0.001)
         }

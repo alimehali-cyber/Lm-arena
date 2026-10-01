@@ -170,6 +170,11 @@ class ChalRenderer(initialParams: ChalSimulationParams = ChalSimulationParams.MO
 
     init {
         camera.restoreSession(initialRuntime?.cameraSession, params)
+        initialRuntime?.cameraSession?.cinematic?.let { saved ->
+            if (params.reducedMotion && (saved.active || saved.recovering)) {
+                params = params.copy(autoSpin = saved.startAutoSpin)
+            }
+        }
         if (camera.isCinematic) cinematicOriginalAutoSpin = initialRuntime?.cameraSession?.cinematic?.startAutoSpin
         initialRuntime?.benchmarkReport?.let { benchmark.restoreReport(it) }
         publishRuntimeState()
