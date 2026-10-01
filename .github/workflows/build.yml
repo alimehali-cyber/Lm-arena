@@ -14,7 +14,8 @@ on:
         default: false
 
 # Automatic builds retain their existing unit-test/release flow. The macOS device check is
-# opt-in through workflow_dispatch; it does not reintroduce an automatic emulator gate.
+# opt-in through workflow_dispatch or an explicit [chal-device-check] commit marker; ordinary
+# pushes do not reintroduce an automatic emulator gate.
 jobs:
   build:
     # ubuntu-22.04 keeps the Android SDK image this project's AGP/Kotlin toolchain is built against.
@@ -277,7 +278,7 @@ jobs:
           rm -f "$RUNNER_TEMP/keystore.jks"
 
   chal-device-checks:
-    if: github.event_name == 'workflow_dispatch' && inputs.chal_device_checks
+    if: (github.event_name == 'workflow_dispatch' && inputs.chal_device_checks) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[chal-device-check]'))
     runs-on: macos-15-intel
     timeout-minutes: 35
     steps:
