@@ -28,6 +28,10 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
     override var errorMessage: String? = null
         private set
 
+    /** The host uses this callback to switch to GLES if the native render path becomes unhealthy. */
+    @Volatile
+    var onFatalFailure: ((String) -> Unit)? = null
+
     @Volatile
     private var surfaceReady = false
 
@@ -71,8 +75,11 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
             // The reference only pauses on lifecycle; this port exposes a pause control, so a user
             // pause has to reach the native scheduler too.
             if (newParams.paused != previous.paused && surfaceReady && NativeBridge.ensureLoaded()) {
-                runCatching { NativeBridge.nativeOnPause(newParams.paused) }
-                    .onFailure { errorMessage = "XAPK Vulkan pause failed: ${it.message ?: it.javaClass.simpleName}" }
+                try {
+                    NativeBridge.nativeOnPause(newParams.paused)
+                } catch (failure: Throwable) {
+                    reportFatalFailure("XAPK Vulkan pause failed: ${failure.message ?: failure.javaClass.simpleName}")
+                }
             }
             if (surfaceConfigured && NativeBridge.ensureLoaded()) pushState()
         }
@@ -86,7 +93,7 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
     fun onSurfaceCreated(surface: Surface) {
         synchronized(lock) {
             if (!NativeBridge.ensureLoaded()) {
-                errorMessage = "Could not load the XAPK Vulkan renderer: ${NativeBridge.loadFailure.orEmpty()}"
+                reportFatalFailure("Could not load the XAPK Vulkan renderer: ${NativeBridge.loadFailure.orEmpty()}")
                 return
             }
             try {
@@ -96,7 +103,7 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
                 errorMessage = null
             } catch (failure: Throwable) {
                 surfaceReady = false
-                errorMessage = "XAPK Vulkan surface initialization failed: ${failure.message ?: failure.javaClass.simpleName}"
+                reportFatalFailure("XAPK Vulkan surface initialization failed: ${failure.message ?: failure.javaClass.simpleName}")
             }
         }
     }
@@ -111,7 +118,7 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
                 // The reference calls its parameter and camera setters after every size change.
                 pushState()
             } catch (failure: Throwable) {
-                errorMessage = "XAPK Vulkan surface resize failed: ${failure.message ?: failure.javaClass.simpleName}"
+                reportFatalFailure("XAPK Vulkan surface resize failed: ${failure.message ?: failure.javaClass.simpleName}")
             }
         }
     }
@@ -137,7 +144,7 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
                 // Resume the engine only if the user had not parked the simulation on purpose.
                 NativeBridge.nativeOnPause(params.paused)
             } catch (failure: Throwable) {
-                errorMessage = "XAPK Vulkan resume failed: ${failure.message ?: failure.javaClass.simpleName}"
+                reportFatalFailure("XAPK Vulkan resume failed: ${failure.message ?: failure.javaClass.simpleName}")
             }
         }
     }
@@ -148,7 +155,7 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
             try {
                 NativeBridge.nativeOnPause(true)
             } catch (failure: Throwable) {
-                errorMessage = "XAPK Vulkan pause failed: ${failure.message ?: failure.javaClass.simpleName}"
+                reportFatalFailure("XAPK Vulkan pause failed: ${failure.message ?: failure.javaClass.simpleName}")
             }
         }
     }
@@ -193,7 +200,9 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
     }
 
     /** Live camera framing, in the XAPK's own normalized coordinate system. */
-    fun cameraState(): XapkCameraState = XapkCameraState(cameraYaw, cameraPitch, cameraDistance)
+    fun cameraState(): XapkCameraState = synchronized(lock) {
+        XapkCameraState(cameraYaw, cameraPitch, cameraDistance)
+    }
 
     /** The persisted params carry the live camera so a session restore resumes the same framing. */
     private fun mirrorCameraIntoParams() {
@@ -289,7 +298,7 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
             NativeBridge.nativeSetParams(block.floats, block.integers)
             sendCamera()
         } catch (failure: Throwable) {
-            errorMessage = "XAPK Vulkan parameter update failed: ${failure.message ?: failure.javaClass.simpleName}"
+            reportFatalFailure("XAPK Vulkan parameter update failed: ${failure.message ?: failure.javaClass.simpleName}")
         }
     }
 
@@ -298,8 +307,13 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
         try {
             NativeBridge.nativeSetCamera(cameraYaw, cameraPitch, cameraDistance)
         } catch (failure: Throwable) {
-            errorMessage = "XAPK Vulkan camera update failed: ${failure.message ?: failure.javaClass.simpleName}"
+            reportFatalFailure("XAPK Vulkan camera update failed: ${failure.message ?: failure.javaClass.simpleName}")
         }
+    }
+
+    private fun reportFatalFailure(message: String) {
+        errorMessage = message
+        onFatalFailure?.invoke(message)
     }
 
     private inline fun nativeMetricOrFallback(block: () -> Double): Double? {

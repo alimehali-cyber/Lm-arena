@@ -162,6 +162,11 @@ class ChalSurfaceView(
         queueEvent { renderer.applyCameraState(theta, phi) }
     }
 
+    /** Reset scenario framing on the GL thread while preserving the current yaw and zoom. */
+    fun resetScenarioPitch() {
+        queueEvent { renderer.resetScenarioPitch() }
+    }
+
     /** Start a cinematic from the UI thread. */
     fun startCinematic(mode: ChalCamera.CinematicMode, reducedMotion: Boolean) {
         queueEvent { renderer.startCinematic(mode, reducedMotion) }

@@ -1,7 +1,9 @@
 package com.zig.chal.ui
 
+import android.content.Context
 import android.content.res.Configuration
 import android.os.SystemClock
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -52,6 +54,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
@@ -105,6 +108,7 @@ fun ChalRoot(
     val isPersian = startInPersian
     val isLandscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var reducedMotionEnabled by remember(context) { mutableStateOf(isSystemMotionReduced(context)) }
 
     BackHandler(enabled = true, onBack = onBack)
 
@@ -146,23 +150,46 @@ fun ChalRoot(
         lastInteractionAt = SystemClock.elapsedRealtime()
     }
 
-    // Push UI-side parameter edits to the render thread. Persisting happens on the debounced effect
-    // below, not here: a slider drag used to rewrite the preferences file on every frame.
-    fun applyParams(updated: ChalSimulationParams) {
+    // Push UI-side parameter edits to the render thread. Keep the live orientation when a physical
+    // slider/preset changes so a slightly stale 5 Hz HUD snapshot cannot snap the camera backwards.
+    fun applyParams(updated: ChalSimulationParams, preserveCamera: Boolean = true) {
         noteInteraction()
-        params = updated
-        renderer.updateParams(updated)
+        val applied = if (preserveCamera) {
+            val camera = surfaceView.captureCamera()
+            val distance = if (updated.zoom != params.zoom) updated.zoom else camera.distance.toDouble()
+            updated.withCamera(camera.yaw.toDouble(), camera.pitch.toDouble(), distance)
+        } else {
+            updated
+        }
+        params = applied
+        renderer.updateParams(applied)
+    }
+
+    fun startCinematic(mode: ChalCamera.CinematicMode) {
+        val systemReducedMotion = isSystemMotionReduced(context)
+        reducedMotionEnabled = systemReducedMotion
+        surfaceView.startCinematic(mode, reducedMotion = systemReducedMotion)
     }
 
     val latestParams = rememberUpdatedState(params)
 
-    // One write per interaction burst, and one more when the screen goes away.
-    LaunchedEffect(params) {
+    fun capturedSessionParams(): ChalSimulationParams {
+        val camera = surfaceView.captureCamera()
+        return latestParams.value.withCamera(
+            camera.yaw.toDouble(),
+            camera.pitch.toDouble(),
+            camera.distance.toDouble()
+        )
+    }
+
+    // One write per physical-control interaction burst; camera yaw/pitch are captured on pause/exit
+    // and are intentionally excluded from this debounce key because auto-spin can change them forever.
+    LaunchedEffect(params.copy(cameraYaw = 0.0, cameraPitch = 0.0)) {
         delay(750)
-        settingsStore.save(params)
+        settingsStore.save(latestParams.value)
     }
     DisposableEffect(Unit) {
-        onDispose { settingsStore.save(latestParams.value) }
+        onDispose { settingsStore.save(capturedSessionParams()) }
     }
 
     // Both the XAPK SurfaceView and the GLES fallback follow the host lifecycle. The Lifecycle
@@ -179,11 +206,16 @@ fun ChalRoot(
 
         val observer = LifecycleEventObserver { _: LifecycleOwner, event: Lifecycle.Event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> resumeSurface()
+                Lifecycle.Event.ON_RESUME -> {
+                    val systemReducedMotion = isSystemMotionReduced(context)
+                    reducedMotionEnabled = systemReducedMotion
+                    resumeSurface()
+                    if (systemReducedMotion) surfaceView.stopCinematic()
+                }
                 Lifecycle.Event.ON_PAUSE -> {
                     surfaceResumed = false
+                    settingsStore.save(capturedSessionParams())
                     surfaceView.onPause()
-                    settingsStore.save(latestParams.value)
                 }
 
                 else -> Unit
@@ -208,7 +240,13 @@ fun ChalRoot(
             val rendererOwnsParameters = live.benchmarkState == ChalBenchmark.State.RUNNING || live.isCinematic
             if (!rendererOwnsParameters) {
                 val engineParams = renderer.params
-                if (engineParams != params) params = engineParams
+                val camera = surfaceView.captureCamera()
+                val liveParams = engineParams.withCamera(
+                    camera.yaw.toDouble(),
+                    camera.pitch.toDouble(),
+                    camera.distance.toDouble()
+                )
+                if (liveParams != params) params = liveParams
             }
             delay(200)
         }
@@ -220,6 +258,13 @@ fun ChalRoot(
             hintVisible = false
             showUi = !showUi
             if (showUi) noteInteraction()
+        }
+        surfaceView.onBackendChanged = {
+            renderer = surfaceView.renderer
+            usingNative = surfaceView.isUsingXapkRenderer
+            fallbackReason = surfaceView.fallbackReason
+            fallbackDetail = surfaceView.fallbackDetail
+            snapshot = surfaceView.renderer.snapshot()
         }
     }
 
@@ -359,8 +404,10 @@ fun ChalRoot(
                             isPersian = isPersian,
                             isCinematic = snapshot.isCinematic,
                             isXapkRenderer = usingNative,
+                            reducedMotionEnabled = reducedMotionEnabled,
                             onScenarioSelected = { scenario ->
-                                applyParams(scenario.applyTo(params))
+                                surfaceView.stopCinematic()
+                                applyParams(scenario.applyTo(params), preserveCamera = false)
                                 surfaceView.resetScenarioPitch()
                             },
                             onParamsChange = { updated ->
@@ -404,15 +451,8 @@ fun ChalRoot(
                             onStartCinematic = { tool ->
                                 noteInteraction()
                                 when (tool) {
-                                    ChalCinematicTool.ORBIT -> surfaceView.startCinematic(
-                                        ChalCamera.CinematicMode.ORBIT,
-                                        reducedMotion = false
-                                    )
-
-                                    ChalCinematicTool.DIVE -> surfaceView.startCinematic(
-                                        ChalCamera.CinematicMode.DIVE,
-                                        reducedMotion = false
-                                    )
+                                    ChalCinematicTool.ORBIT -> startCinematic(ChalCamera.CinematicMode.ORBIT)
+                                    ChalCinematicTool.DIVE -> startCinematic(ChalCamera.CinematicMode.DIVE)
                                 }
                             },
                             modifier = Modifier.widthIn(max = 460.dp)
@@ -537,6 +577,17 @@ fun ChalRoot(
     }
 }
 
+private fun isSystemMotionReduced(context: Context): Boolean = try {
+    val resolver = context.contentResolver
+    listOf(
+        Settings.Global.ANIMATOR_DURATION_SCALE,
+        Settings.Global.TRANSITION_ANIMATION_SCALE,
+        Settings.Global.WINDOW_ANIMATION_SCALE
+    ).any { key -> Settings.Global.getFloat(resolver, key, 1f) <= 0f }
+} catch (_: Exception) {
+    false
+}
+
 /**
  * Recompute `performancePreset` from the feature matrix after a parameter edit, mirroring the
  * reference's `matchesPreset` badge behaviour.
@@ -569,6 +620,12 @@ private fun ChalFallbackReason.explanation(isPersian: Boolean): String = when (t
         "بارگذاری کتابخانهٔ بومی ناموفق بود؛ نسخهٔ تقریبی GLES فعال است."
     } else {
         "The native library could not be loaded, so the approximate GLES renderer is active."
+    }
+
+    ChalFallbackReason.RUNTIME_FAILURE -> if (isPersian) {
+        "موتور بومی هنگام اجرا با خطا روبه‌رو شد؛ نسخهٔ تقریبی GLES جایگزین شد."
+    } else {
+        "The native renderer failed at runtime; the approximate GLES fallback took over."
     }
 }
 
@@ -616,7 +673,7 @@ private fun ChalNoticeCard(
                 modifier = Modifier
                     .size(RedControlHeight.compact)
                     .clip(CircleShape)
-                    .clickable(onClick = onDismiss)
+                    .clickable(role = Role.Button, onClick = onDismiss)
                     .testTag("chal_notice_dismiss"),
                 contentAlignment = Alignment.Center
             ) {
@@ -647,7 +704,7 @@ private fun ChalNoticeCard(
                     .clip(RoundedCornerShape(RedCornerRadius.sm))
                     .background(RedTheme.colors.accentRed.copy(alpha = 0.22f))
                     .border(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.55f), RoundedCornerShape(RedCornerRadius.sm))
-                    .clickable(onClick = onRetry)
+                    .clickable(role = Role.Button, onClick = onRetry)
                     .padding(horizontal = RedSpacing.md),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -680,7 +737,7 @@ private fun ChalChromeButton(
             .clip(CircleShape)
             .background(Color.Black.copy(alpha = 0.55f))
             .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         content()
@@ -787,7 +844,7 @@ private fun ChalRailButton(
                 if (highlight) RedTheme.colors.accentRed.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.12f),
                 RoundedCornerShape(RedCornerRadius.md)
             )
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(vertical = RedSpacing.sm),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically

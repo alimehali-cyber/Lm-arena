@@ -61,6 +61,8 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
     private val shaderManager = ChalShaderManager()
     private val benchmark = ChalBenchmark()
     private val camera = ChalCamera()
+    @Volatile
+    private var cameraSnapshotForUi = camera.snapshot()
     private val monitor = ChalPerformanceMonitor()
 
     // Multi-threaded hand-off: the UI thread writes params, the GL thread renders them.
@@ -193,8 +195,8 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         paramsDirty = true
     }
 
-    /** Camera orientation for session persistence (GL thread owns the live values). */
-    fun cameraSnapshot(): ChalCamera.CameraState = camera.snapshot()
+    /** Snapshot published by the GL thread; callers never read mutable camera state off-thread. */
+    fun cameraSnapshot(): ChalCamera.CameraState = cameraSnapshotForUi.copyState()
 
     /** Queue a persisted orientation; it is applied on the GL thread at the next frame. */
     fun applyCameraState(theta: Double, phi: Double) {
@@ -203,18 +205,35 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
 
     /** Mutating variant used by the camera loop (`setParams` equivalent). */
     private fun mutateParams(transform: ChalSimulationParams.() -> ChalSimulationParams) {
-        params = params.transform()
+        val current = params
+        val updated = current.transform()
+        if (updated != current) {
+            params = updated
+            paramsDirty = true
+        }
     }
 
     fun resetCamera() {
         camera.reset { transform -> mutateParams(transform) }
+        val state = camera.snapshot()
+        cameraSnapshotForUi = state
+        mutateParams {
+            withCamera(state.theta / (2.0 * PI), state.phi / PI, zoom)
+        }
+    }
+
+    fun resetScenarioPitch() {
+        camera.resetPitchForScenario()
+        val state = camera.snapshot()
+        cameraSnapshotForUi = state
+        mutateParams {
+            withCamera(state.theta / (2.0 * PI), state.phi / PI, zoom)
+        }
+        paramsDirty = true
     }
 
     fun startCinematic(mode: ChalCamera.CinematicMode, reducedMotion: Boolean) {
         camera.startCinematic(mode, params, now(), reducedMotion)
-        if (mode == ChalCamera.CinematicMode.DIVE) {
-            mutateParams { copy(autoSpin = 0.0) } // Disable artificial spin
-        }
     }
 
     fun stopCinematic() = camera.stopCinematic()
@@ -346,15 +365,12 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
 
     override fun onDrawFrame(gl: GL10?) {
         val frameStart = now()
+        // Measure from the previous rendered frame. Keeping the timestamp on skipped callbacks
+        // would make throttled motion run at half speed because its dt would never accumulate.
         val deltaTime = frameStart - lastFrameTime
-        lastFrameTime = frameStart
 
         // Filter out huge spikes from app backgrounding
         val cappedDelta = min(deltaTime, 100.0)
-
-        // Heavy EMA smoothing: a single spike needs ~15 consecutive bad frames to move the average.
-        smoothedDeltaTime = smoothedDeltaTime * 0.93 + cappedDelta * 0.07
-        val deltaTimeMs = smoothedDeltaTime
 
         // Idle throttling: 30 FPS once the user has been quiet for idleTimeoutMs.
         if (lastActivityTime < 0.0) lastActivityTime = frameStart
@@ -369,6 +385,10 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         // a 60 Hz panel would occasionally be skipped, halving the frame rate).
         if (cappedDelta < targetFrameTime * 0.95) return
 
+        lastFrameTime = frameStart
+        // Heavy EMA smoothing: update only for rendered frames; skipped callbacks are not samples.
+        smoothedDeltaTime = smoothedDeltaTime * 0.93 + cappedDelta * 0.07
+        val deltaTimeMs = smoothedDeltaTime
         val dtSeconds = min(cappedDelta * 0.001, 0.1)
 
         // 1. Camera physics (the reference's requestAnimationFrame loop)
@@ -377,6 +397,7 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
             camera.applyState(theta, phi)
         }
         camera.update(frameStart, dtSeconds, params) { transform -> mutateParams(transform) }
+        cameraSnapshotForUi = camera.snapshot()
 
         // 2. Detect camera motion for TAA (mouse delta > 1e-4, debounced by 300 ms)
         val mouse = camera.mouseState()
@@ -445,7 +466,9 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
             params.renderScale
         }
 
-        if (!params.paused) time += 0.01
+        // The former 0.01-per-frame step was implicitly tuned for 60 Hz. Keep that visual rate
+        // while advancing from elapsed time so the disk animation is refresh-rate independent.
+        if (!params.paused) time += dtSeconds * 0.6
 
         val bloomPipeline = bloom
         val reprojectionPipeline = reprojection

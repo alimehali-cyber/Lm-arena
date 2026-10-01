@@ -8,6 +8,7 @@ import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sin
 
 /**
@@ -146,6 +147,12 @@ class ChalCamera {
         isDragging = false
     }
 
+    /** Reset only the polar angle when a physical scenario is selected; preserve yaw and zoom. */
+    fun resetPitchForScenario() {
+        state.phi = ChalCameraConfig.DEFAULT_VERTICAL_ANGLE
+        state.phiVelocity = 0.0
+    }
+
     /** Two-finger pan (the reference applies the same sensitivity to the touch centre delta). */
     fun onPan(deltaX: Double, deltaY: Double) {
         val sensitivity = 0.003
@@ -193,11 +200,14 @@ class ChalCamera {
     /**
      * Start a director-mode cinematic.
      *
-     * @param reducedMotion honored like the reference's `prefers-reduced-motion` guard: cinematic
-     *   auto-orbit is decorative, so the caller's motion preference silently no-ops here.
+     * @param reducedMotion honors the system's reduced-motion setting: decorative camera tours are
+     *   not started, and any previous tour/recovery is stopped.
      */
     fun startCinematic(mode: CinematicMode, params: ChalSimulationParams, now: Double, reducedMotion: Boolean) {
-        if (reducedMotion) return
+        if (reducedMotion) {
+            stopCinematic()
+            return
+        }
 
         // 1. Clean up existing state (Force Stop any previous cinematic)
         stopCinematic()
@@ -250,6 +260,7 @@ class ChalCamera {
         cinematic.mode = null
         cinematic.velocity = 0.0
         cinematic.angularMomentum = 0.0
+        cinematic.recovering = false
     }
 
     // ---------------------------------------------------------------------------------------
@@ -273,6 +284,7 @@ class ChalCamera {
     ) {
         // PAUSE GUARD: Skip all physics when simulation is paused
         if (params.paused) return
+        val frameScale = (dtSeconds.coerceIn(0.0, 0.1) * 60.0)
 
         // --- RECOVERY PHASE: Smooth emergence back to pre-cinematic position ---
         // Like waking from a dream -- initially fast pullback, then gentle settling.
@@ -288,8 +300,9 @@ class ChalCamera {
             val targetPhi = cinematic.startPhi
             val targetZoom = cinematic.startZoom
 
-            // Accelerating convergence rate
-            val lerpRate = 0.05 + ease * 0.06
+            // Preserve the 60 Hz tuning while making convergence independent of refresh rate.
+            val perFrameLerpRate = 0.05 + ease * 0.06
+            val lerpRate = 1.0 - (1.0 - perFrameLerpRate).pow(frameScale)
             state.theta += (targetTheta - state.theta) * lerpRate
             state.phi += (targetPhi - state.phi) * lerpRate
 
@@ -310,10 +323,7 @@ class ChalCamera {
                 state.phi = targetPhi
                 cinematic.recovering = false
                 applyParams {
-                    copy(
-                        zoom = targetZoom,
-                        autoSpin = ChalCameraConfig.DEFAULT_AUTO_SPIN
-                    )
+                    copy(zoom = targetZoom)
                 }
             }
 
@@ -328,30 +338,34 @@ class ChalCamera {
                 updateDive(now, dtSeconds, params, applyParams)
             }
 
-            // Apply Damping for user input during cinematic
-            state.thetaVelocity *= 0.95
-            state.phiVelocity *= 0.95
-
-            state.theta += state.thetaVelocity
-            state.phi += state.phiVelocity
+            // Apply damping and inertia at the same effective 60 Hz rate on every display.
+            val (thetaVelocity, thetaDelta) = dampedStep(state.thetaVelocity, 0.95, frameScale)
+            val (phiVelocity, phiDelta) = dampedStep(state.phiVelocity, 0.95, frameScale)
+            state.thetaVelocity = thetaVelocity
+            state.phiVelocity = phiVelocity
+            state.theta += thetaDelta
+            state.phi += phiDelta
 
             state.phi = max(0.001, min(PI - 0.001, state.phi))
             return
         }
 
         // --- INTERACTIVE MODE: USER CONTROL ---
-        // Apply Drag Inertia / Momentum
-        state.thetaVelocity *= state.damping
-        state.phiVelocity *= state.damping
-        state.zoomVelocity *= state.damping
+        // Integrate drag inertia at an equivalent 60 Hz rate without tying it to display FPS.
+        val (thetaVelocity, thetaDelta) = dampedStep(state.thetaVelocity, state.damping, frameScale)
+        val (phiVelocity, phiDelta) = dampedStep(state.phiVelocity, state.damping, frameScale)
+        val (zoomVelocity, zoomDelta) = dampedStep(state.zoomVelocity, state.damping, frameScale)
+        state.thetaVelocity = thetaVelocity
+        state.phiVelocity = phiVelocity
+        state.zoomVelocity = zoomVelocity
 
-        state.theta += state.thetaVelocity
-        state.phi += state.phiVelocity
+        state.theta += thetaDelta
+        state.phi += phiDelta
 
         // Auto-Spin
         val spinSpeed = params.autoSpin
         if (!isDragging && touchCount == 0 && abs(state.thetaVelocity) < 0.0001) {
-            state.theta += spinSpeed
+            state.theta += spinSpeed * dtSeconds
         }
 
         // Constraints
@@ -365,10 +379,23 @@ class ChalCamera {
         if (abs(state.zoomVelocity) < 0.00001) state.zoomVelocity = 0.0
 
         // Zoom momentum is applied to the params (interactive mode only)
-        if (abs(state.zoomVelocity) > 0.0001) {
-            val delta = state.zoomVelocity
-            applyParams { copy(zoom = clampZoom(zoom + delta, zoom)) }
+        if (abs(zoomDelta) > 0.0001) {
+            applyParams { copy(zoom = clampZoom(zoom + zoomDelta, zoom)) }
         }
+    }
+
+    /** Integrate a 60 Hz tuned, damped per-frame velocity over an arbitrary frame duration. */
+    private fun dampedStep(velocity: Double, damping: Double, frameScale: Double): Pair<Double, Double> {
+        if (frameScale <= 0.0 || velocity == 0.0) return velocity to 0.0
+        val safeDamping = damping.coerceIn(0.0, 1.0)
+        val remainingVelocity = velocity * safeDamping.pow(frameScale)
+        val displacement = when {
+            safeDamping >= 1.0 -> velocity * frameScale
+            safeDamping <= 0.0 -> 0.0
+            else -> velocity * safeDamping *
+                (1.0 - safeDamping.pow(frameScale)) / (1.0 - safeDamping)
+        }
+        return remainingVelocity to displacement
     }
 
     /**
@@ -470,30 +497,26 @@ class ChalCamera {
             orbitSpeed = 0.55 - ease * 0.35 // 0.55 -> 0.20 rad/s
         }
 
-        // --- Apply with smooth interpolation (no pops) ---
+        // Subtle "breathing" -- a time-based offset around the current cinematic distance.
+        val breathe = sin(t * 0.7) * 0.3
+        val zoomTarget = max(minSafe, targetDist + breathe)
         val currentZoom = params.zoom
-        val zoomLerp = currentZoom + (targetDist - currentZoom) * 0.025
+        val zoomLerp = currentZoom + (zoomTarget - currentZoom) * (1.0 - 0.975.pow(dtSeconds * 60.0))
         if (abs(zoomLerp - currentZoom) > 0.001) {
             applyParams { copy(zoom = zoomLerp) }
         }
-
-        // Subtle "breathing" -- micro zoom oscillation for organic feel
-        val breathe = sin(t * 0.7) * 0.3
 
         // "Handheld" micro-wobble (2-axis) for realism
         val wobbleX = sin(t * 0.31) * 0.008 + cos(t * 0.17) * 0.005
         val wobbleY = cos(t * 0.23) * 0.006 + sin(t * 0.41) * 0.004
 
         if (!isDragging && touchCount == 0) {
-            // Smooth phi tracking with wobble
-            state.phi += (targetPhi + wobbleY - state.phi) * 0.018
-            // Orbit rotation with Keplerian speed variation
-            state.theta += dtSeconds * orbitSpeed + wobbleX
-        }
-
-        // Apply breathing to zoom
-        if (abs(breathe) > 0.01) {
-            applyParams { copy(zoom = max(minSafe, zoom + breathe * 0.01)) }
+            // Smooth phi tracking with time-scaled interpolation; wobble amplitude remains tuned
+            // to the prior 60 Hz appearance.
+            val phiLerp = 1.0 - 0.982.pow(dtSeconds * 60.0)
+            state.phi += (targetPhi + wobbleY - state.phi) * phiLerp
+            // Orbit rotation is expressed in rad/s; wobble is an angular increment per 60 Hz frame.
+            state.theta += dtSeconds * orbitSpeed + wobbleX * dtSeconds * 60.0
         }
     }
 
@@ -564,7 +587,7 @@ class ChalCamera {
         // --- Angular Physics (Conservation of Momentum: L = r^2 * omega) ---
         val l = cinematic.angularMomentum
         val omegaProp = l / (newR * newR + 0.1)
-        state.theta += omegaProp * dtSeconds + thetaWobble
+        state.theta += omegaProp * dtSeconds + thetaWobble * dtSeconds * 60.0
 
         // --- Inclination: Drift toward equatorial plane ---
         val distToEquator = PI * 0.5 - state.phi
@@ -573,7 +596,7 @@ class ChalCamera {
         // Subtle phi wobble for "tumbling through spacetime" feel
         if (t > act2End) {
             val phiWobble = sin(t * 1.7) * 0.004 + cos(t * 2.9) * 0.003
-            state.phi += phiWobble
+            state.phi += phiWobble * dtSeconds * 60.0
         }
 
         // --- HORIZON CROSSING LOGIC ---
@@ -591,10 +614,9 @@ class ChalCamera {
             state.phiVelocity = 0.0
             state.zoomVelocity = 0.0
 
-            // Restore autoSpin and unpause
+            // Ensure the simulation resumes after the recovery sequence.
             applyParams {
                 copy(
-                    autoSpin = ChalCameraConfig.DEFAULT_AUTO_SPIN,
                     paused = false
                 )
             }

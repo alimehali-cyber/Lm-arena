@@ -100,12 +100,13 @@ object ChalSimulationConfig {
         label = "Cam Auto-Pan"
     )
 
+    /** Accretion outer radius is multiplied by M directly in the shader/native contract. */
     val DISK_SIZE = ChalParameterConfig(
         default = 50.0,
         min = 10.0,
         max = 120.0,
         step = 0.5,
-        unit = "Rs",
+        unit = "M",
         decimals = 1,
         label = "Accretion Max Radius"
     )

@@ -27,14 +27,15 @@ import com.alijafari.red.astronomy.ui.theme.RedTheme
 import com.zig.chal.config.ChalFormatting
 import com.zig.chal.render.ChalRenderer
 import java.util.Locale
+import kotlin.math.abs
 
 /**
  * Real-time renderer telemetry.
  *
  * One contract for both backends: frame rate and frame time come from whichever engine is
- * presenting, the ray budget and render scale are the values that engine is *actually* using (not
- * the values the picker asked for), and the Kerr readouts come from the same metric helper on both
- * paths. Nothing here is decorative: a number that cannot be measured is not shown.
+ * presenting, the ray budget and render scale are the values that engine is *actually* using, and
+ * Kerr radii are normalized to geometric mass units (M). Redshift/time are explicitly marked as
+ * Schwarzschild approximations because this HUD helper does not evaluate spin-dependent Kerr time.
  */
 @Composable
 fun ChalTelemetry(
@@ -68,13 +69,44 @@ fun ChalTelemetry(
         }
         add(TelemetryValue(if (isPersian) "گام پرتو" else "Ray steps", ChalFormatting.integer(snapshot.raySteps, isPersian), ""))
         add(TelemetryValue(if (isPersian) "مقیاس" else "Scale", ChalFormatting.percent(snapshot.effectiveRenderScale, isPersian), ""))
-        add(TelemetryValue(if (isPersian) "افق" else "r₊", ChalFormatting.fixed(snapshot.eventHorizonRadius, 2, isPersian), ""))
-        add(TelemetryValue(if (isPersian) "فوتون" else "Photon", ChalFormatting.fixed(snapshot.photonSphereRadius, 2, isPersian), ""))
-        add(TelemetryValue("ISCO", ChalFormatting.fixed(snapshot.iscoRadius, 2, isPersian), ""))
-        if (kotlin.math.abs(snapshot.params.spin) > 1e-4) {
+        add(
+            TelemetryValue(
+                if (isPersian) "افق" else "r₊",
+                ChalFormatting.fixed(radiusInMassUnits(snapshot.eventHorizonRadius, snapshot.params.mass), 2, isPersian),
+                "M"
+            )
+        )
+        add(
+            TelemetryValue(
+                if (isPersian) "فوتون" else "Photon",
+                ChalFormatting.fixed(radiusInMassUnits(snapshot.photonSphereRadius, snapshot.params.mass), 2, isPersian),
+                "M"
+            )
+        )
+        add(
+            TelemetryValue(
+                "ISCO",
+                ChalFormatting.fixed(radiusInMassUnits(snapshot.iscoRadius, snapshot.params.mass), 2, isPersian),
+                "M"
+            )
+        )
+        if (abs(snapshot.params.spin) > 1e-4) {
             add(TelemetryValue("a*", ChalFormatting.fixed(snapshot.params.spin, 2, isPersian), ""))
         }
-        add(TelemetryValue(if (isPersian) "سرخ‌گرایی" else "Redshift", redshiftText(snapshot.redshift, isPersian), ""))
+        add(
+            TelemetryValue(
+                "z*",
+                redshiftText(snapshot.redshift, isPersian),
+                ""
+            )
+        )
+        add(
+            TelemetryValue(
+                if (isPersian) "زمان*" else "Time*",
+                ChalFormatting.fixed(snapshot.timeDilation, 3, isPersian),
+                "×"
+            )
+        )
     }
 
     Column(
@@ -113,6 +145,17 @@ fun ChalTelemetry(
                 }
             }
         }
+
+        Text(
+            text = if (isPersian) {
+                "شعاع‌ها برحسب M هستند؛ z و زمان با تقریب شوارتزشیلد محاسبه می‌شوند."
+            } else {
+                "Radii are in M; z and time use a Schwarzschild approximation."
+            },
+            color = Color.White.copy(alpha = 0.58f),
+            fontSize = 8.sp,
+            maxLines = 2
+        )
 
         if (snapshot.budgetUsage > 0.0) {
             Column(modifier = Modifier.width(180.dp)) {
@@ -175,3 +218,6 @@ private fun redshiftText(redshift: Double, isPersian: Boolean): String = when {
     redshift > 99.99 -> ">${ChalFormatting.integer(99, isPersian)}"
     else -> ChalFormatting.fixed(redshift, 2, isPersian)
 }
+
+private fun radiusInMassUnits(radius: Double, mass: Double): Double =
+    if (radius.isFinite() && mass.isFinite() && mass > 0.0) radius / mass else 0.0

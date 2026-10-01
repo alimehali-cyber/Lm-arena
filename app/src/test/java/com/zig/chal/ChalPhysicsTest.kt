@@ -130,6 +130,8 @@ class ChalPhysicsTest {
         assertEquals(9500.0, ChalSimulationConfig.DISK_TEMP.default, 0.0)
         assertEquals(0.7, ChalSimulationConfig.LENSING.default, 0.0)
         assertEquals(0.2, ChalSimulationConfig.DISK_SCALE_HEIGHT.default, 0.0)
+        assertEquals("M☉", ChalSimulationConfig.MASS.unit)
+        assertEquals("M", ChalSimulationConfig.DISK_SIZE.unit)
     }
 
     @Test

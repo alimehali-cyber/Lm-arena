@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -89,6 +90,7 @@ fun ChalControlPanel(
     benchmarkProgress: Double,
     benchmarkResults: List<com.zig.chal.render.ChalBenchmark.BenchmarkResult>,
     benchmarkRecommendation: com.zig.chal.config.ChalPresetName?,
+    reducedMotionEnabled: Boolean = false,
     maxContentHeight: Dp = 268.dp,
     modifier: Modifier = Modifier
 ) {
@@ -149,6 +151,7 @@ fun ChalControlPanel(
                                 }
                             }
                         }
+                        selectedScenario?.let { ChalPanelHint(scenarioDescription(it, isPersian)) }
                     }
 
                     ChalPanelSection(if (isPersian) "پارامترهای سیاه‌چاله" else "Black Hole Parameters") {
@@ -341,7 +344,8 @@ fun ChalControlPanel(
                                 },
                                 selected = isBenchmarkRunning,
                                 onClick = { if (isBenchmarkRunning) onCancelBenchmark() else onStartBenchmark() },
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                isSelection = false
                             )
                             if (isBenchmarkRunning) {
                                 Text(
@@ -418,31 +422,45 @@ fun ChalControlPanel(
                     }
 
                     if (!isXapkRenderer) ChalPanelSection(if (isPersian) "ابزارهای سینمایی" else "Cinematic Tools") {
-                        Row(horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
-                            ChalChoiceButton(
-                                label = if (isPersian) "تور مداری" else "Orbit Tour",
-                                selected = false,
-                                onClick = { onStartCinematic(ChalCinematicTool.ORBIT) },
-                                modifier = Modifier.weight(1f)
+                        if (reducedMotionEnabled) {
+                            ChalPanelHint(
+                                if (isPersian) {
+                                    "گشت‌وگذارهای سینمایی هنگام غیرفعال بودن پویانمایی‌های سیستم در دسترس نیستند."
+                                } else {
+                                    "Cinematic tours are unavailable while system animations are disabled."
+                                }
                             )
-                            ChalChoiceButton(
-                                label = if (isPersian) "سقوط آزاد" else "Infall Dive",
-                                selected = false,
-                                onClick = { onStartCinematic(ChalCinematicTool.DIVE) },
-                                modifier = Modifier.weight(1f)
+                        } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
+                                ChalChoiceButton(
+                                    label = if (isPersian) "تور مداری" else "Orbit Tour",
+                                    selected = false,
+                                    enabled = editable,
+                                    onClick = { onStartCinematic(ChalCinematicTool.ORBIT) },
+                                    modifier = Modifier.weight(1f),
+                                    isSelection = false
+                                )
+                                ChalChoiceButton(
+                                    label = if (isPersian) "سقوط آزاد" else "Infall Dive",
+                                    selected = false,
+                                    enabled = editable,
+                                    onClick = { onStartCinematic(ChalCinematicTool.DIVE) },
+                                    modifier = Modifier.weight(1f),
+                                    isSelection = false
+                                )
+                            }
+                            Text(
+                                text = if (isCinematic) {
+                                    if (isPersian) "دوربین در حالت کارگردانی است — برای توقف «بازنشانی نما» را بزنید."
+                                    else "Director mode is running — press Reset view to abort."
+                                } else {
+                                    if (isPersian) "دوربین خودکار برای گشت‌وگذار سینمایی در اطراف افق رویداد."
+                                    else "Automatic camera choreography around the event horizon."
+                                },
+                                color = Color.White.copy(alpha = 0.55f),
+                                fontSize = 9.sp
                             )
                         }
-                        Text(
-                            text = if (isCinematic) {
-                                if (isPersian) "دوربین در حالت کارگردانی است — برای توقف «بازنشانی نما» را بزنید."
-                                else "Director mode is running — press Reset view to abort."
-                            } else {
-                                if (isPersian) "دوربین خودکار برای گشت‌وگذار سینمایی در اطراف افق رویداد."
-                                else "Automatic camera choreography around the event horizon."
-                            },
-                            color = Color.White.copy(alpha = 0.55f),
-                            fontSize = 9.sp
-                        )
                     }
                 }
             }
@@ -619,7 +637,7 @@ private fun ChalSlider(
             )
             Row(
                 verticalAlignment = Alignment.Bottom,
-                modifier = Modifier.clickable(enabled = enabled) { editing = true }
+                modifier = Modifier.clickable(enabled = enabled, role = Role.Button) { editing = true }
             ) {
                 Text(
                     text = ChalFormatting.digits(config.format(value), isPersian),
@@ -726,8 +744,19 @@ private fun ChalChoiceButton(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    isSelection: Boolean = true
 ) {
+    val interactionModifier = if (isSelection) {
+        Modifier.selectable(
+            selected = selected,
+            enabled = enabled,
+            role = Role.RadioButton,
+            onClick = onClick
+        )
+    } else {
+        Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+    }
     Box(
         modifier = modifier
             .heightIn(min = RedControlHeight.regular)
@@ -748,7 +777,7 @@ private fun ChalChoiceButton(
                 },
                 RoundedCornerShape(RedCornerRadius.sm)
             )
-            .clickable(enabled = enabled, onClick = onClick)
+            .then(interactionModifier)
             .padding(vertical = RedSpacing.sm, horizontal = RedSpacing.xs),
         contentAlignment = Alignment.Center
     ) {
@@ -772,7 +801,7 @@ private fun ChalTabButton(label: String, selected: Boolean, onClick: () -> Unit,
             .heightIn(min = RedControlHeight.regular)
             .clip(RoundedCornerShape(RedCornerRadius.sm))
             .background(if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent)
-            .clickable(onClick = onClick)
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             .padding(vertical = RedSpacing.sm),
         contentAlignment = Alignment.Center
     ) {
@@ -850,4 +879,11 @@ private fun persianLabel(label: String): String = when (label) {
     ChalSimulationConfig.BLOOM_INTENSITY.label -> "شدت درخشش"
     ChalSimulationConfig.RENDER_SCALE.label -> "مقیاس رندر"
     else -> label
+}
+
+private fun scenarioDescription(scenario: ChalXapkScenario, isPersian: Boolean): String = when (scenario) {
+    ChalXapkScenario.STELLAR -> if (isPersian) "نمونه‌ای از سیاه‌چالهٔ ستاره‌ای با قرص برافزایشی." else "A stellar-mass black-hole example with an accretion disk."
+    ChalXapkScenario.SGR_A_PROXY -> if (isPersian) "نمایه‌ای مقیاس‌شده؛ جرم و محیط نمایشی، مقادیر واقعی کمان ای* نیستند." else "A scaled proxy; its displayed mass and environment are not Sgr A*'s physical values."
+    ChalXapkScenario.MAXIMAL_SPIN -> if (isPersian) "چرخش نزدیک به بیشینه و قرص داغ‌تر." else "Near-maximum spin with a hotter disk."
+    ChalXapkScenario.SCHWARZSCHILD -> if (isPersian) "حالت مرجعِ بدون چرخش." else "The non-rotating reference case."
 }
