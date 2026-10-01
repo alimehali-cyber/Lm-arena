@@ -169,7 +169,10 @@ class MainActivity : ComponentActivity() {
                             containerColor = Color.Transparent,
                             contentWindowInsets = WindowInsets(0, 0, 0, 0),
                             topBar = {
-                                if (uiState.selectedTab != 4 && uiState.selectedTab != 3) {
+                                // Immersive simulators (Gravity Sandbox, Gargantua, Chal) draw their own
+                                // header with their own status-bar padding; keeping the shell header on top
+                                // produced two stacked headers and a doubled inset.
+                                if (!com.zig.gravity.ui.ImmersiveScreenState.active && uiState.selectedTab != 4 && uiState.selectedTab != 3) {
                                     val isFa = uiState.language == com.alijafari.red.astronomy.domain.AppLanguage.PERSIAN
                                     Row(
                                         modifier = Modifier

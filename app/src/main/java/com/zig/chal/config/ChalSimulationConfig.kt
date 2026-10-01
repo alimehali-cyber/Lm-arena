@@ -15,7 +15,25 @@ data class ChalParameterConfig(
     val unit: String,
     val decimals: Int,
     val label: String
-)
+) {
+    /**
+     * Snap a raw control value onto the configured step grid, clamped to the range.
+     *
+     * Sliders used to send unrounded values while the readout showed a rounded one, so the number on
+     * screen and the number handed to the GPU could disagree. Every control now snaps through here,
+     * which is also what makes scenario presets (all of which sit on the grid) match exactly.
+     */
+    fun snap(value: Double): Double {
+        if (!value.isFinite()) return default
+        if (step <= 0.0 || !step.isFinite()) return value.coerceIn(min, max)
+        val steps = Math.round(value / step)
+        return (steps * step).coerceIn(min, max)
+    }
+
+    /** Canonical readout text: the same rounding the renderer receives. */
+    fun format(value: Double): String =
+        String.format(java.util.Locale.US, "%.${decimals}f", snap(value))
+}
 
 object ChalSimulationConfig {
 

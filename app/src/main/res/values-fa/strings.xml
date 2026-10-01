@@ -114,9 +114,4 @@
     <string name="gargantua_title">گارگانتوا</string>
     <string name="gargantua_subtitle">آزمایشگاه نسبیتی سیاه‌چاله</string>
     <string name="gargantua_description">آزمایشگاه تعاملی سیاه‌چاله چرخان کر: ردیابی پرتو در فضازمان خمیده، درخشش نسبیتی قرص برافزایشی، انتقال به سرخ گرانشی و مدار فوتون‌ها.</string>
-
-    <!-- Chal Kerr Ray-Marching Engine -->
-    <string name="chal_title">چال</string>
-    <string name="chal_subtitle">موتور ردیابی پرتوی زمان-واقعی کر</string>
-    <string name="chal_description">ردیابی پرتوی نسبیتی و دقیق به‌صورت زمان-واقعی برای سیاه‌چاله چرخان کر: همگرایی گرانشی ژئودزیکی، قرص برافزایشی نوویکوف-تورن، درخشش دوپلری نسبیتی، درخشش حلقه فوتونی و میدان ستارگان طیفی.</string>
 </resources>

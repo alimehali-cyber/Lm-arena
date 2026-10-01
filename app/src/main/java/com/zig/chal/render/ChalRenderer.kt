@@ -39,6 +39,10 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         val frameTimeMs: Double,
         val quality: ChalRayTracingQuality,
         val budgetUsage: Double,
+        /** Ray steps the active tier actually requests after the mobile cap. */
+        val raySteps: Int = 0,
+        /** Render scale the adaptive controller is really using (not the seeded parameter). */
+        val effectiveRenderScale: Double = 1.0,
         val eventHorizonRadius: Double,
         val photonSphereRadius: Double,
         val iscoRadius: Double,
@@ -101,7 +105,12 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
     private var targetFrameTime = ChalPerformanceConfig.Scheduler.FRAME_BUDGET_MS
 
     /** `IdleDetector(PERFORMANCE_CONFIG.scheduler.idleTimeoutMs)`; stamped on every activity. */
+    @Volatile
     private var lastActivityTime = -1.0
+
+    /** Pending orientation restore requested from the UI thread (camera is GL-thread owned). */
+    @Volatile
+    private var pendingCameraApply: Pair<Double, Double>? = null
 
     /** Set by UI-side parameter pushes so a paused-but-interactive frame still renders. */
     @Volatile
@@ -129,12 +138,18 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
     @Volatile
     private var lastBenchmarkReport: ChalBenchmark.BenchmarkReport? = null
 
+    // The pre-first-frame snapshot is derived from the live parameters, so the HUD can never open on
+    // a quality/tier readout that disagrees with what the shader is about to run.
     private var lastSnapshot = ChalSnapshot(
-        params = ChalSimulationParams.MOBILE_PARAMS,
+        params = params,
         currentFps = 0,
         frameTimeMs = 0.0,
-        quality = ChalRayTracingQuality.HIGH,
+        quality = params.features.rayTracingQuality,
         budgetUsage = 0.0,
+        raySteps = ChalFeatures.getMaxRaySteps(
+            params.features.rayTracingQuality,
+            isMobile = ChalPerformanceConfig.Mobile.IS_MOBILE_HARDWARE
+        ),
         eventHorizonRadius = 0.0,
         photonSphereRadius = 0.0,
         iscoRadius = 0.0,
@@ -166,8 +181,24 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         if (newParams.features.rayTracingQuality != params.features.rayTracingQuality) {
             monitor.requestFastRecalibration()
         }
+        // An external camera edit (session restore, switching backends) drives the camera too. The
+        // camera is GL-thread owned, so the request is queued and consumed at the top of the frame.
+        if (newParams.cameraYaw != params.cameraYaw || newParams.cameraPitch != params.cameraPitch) {
+            pendingCameraApply = newParams.cameraYaw * 2.0 * PI to newParams.cameraPitch * PI
+        }
+        // A UI-side parameter push is user activity: without this the idle throttle would drop the
+        // simulator to 30 fps while the operator is dragging a slider.
+        lastActivityTime = now()
         params = newParams
         paramsDirty = true
+    }
+
+    /** Camera orientation for session persistence (GL thread owns the live values). */
+    fun cameraSnapshot(): ChalCamera.CameraState = camera.snapshot()
+
+    /** Queue a persisted orientation; it is applied on the GL thread at the next frame. */
+    fun applyCameraState(theta: Double, phi: Double) {
+        pendingCameraApply = theta to phi
     }
 
     /** Mutating variant used by the camera loop (`setParams` equivalent). */
@@ -341,6 +372,10 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         val dtSeconds = min(cappedDelta * 0.001, 0.1)
 
         // 1. Camera physics (the reference's requestAnimationFrame loop)
+        pendingCameraApply?.let { (theta, phi) ->
+            pendingCameraApply = null
+            camera.applyState(theta, phi)
+        }
         camera.update(frameStart, dtSeconds, params) { transform -> mutateParams(transform) }
 
         // 2. Detect camera motion for TAA (mouse delta > 1e-4, debounced by 300 ms)
@@ -368,6 +403,12 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
                         performancePreset = nextPreset
                     )
                 }
+            }
+        }
+        // The suite mutates the live matrix to walk the presets; put the user's own back afterwards.
+        benchmark.consumeCompletedRestore()?.let { restore ->
+            mutateParams {
+                copy(features = restore, performancePreset = ChalFeatures.matchesPreset(restore))
             }
         }
 
@@ -580,12 +621,21 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         // Standard gravitational redshift to infinity: z = 1/g - 1. Guard the horizon limit.
         val redshift = if (timeDilation > 0.0) (1.0 / timeDilation) - 1.0 else Double.POSITIVE_INFINITY
 
+        // The HUD reports the tier the shader was actually compiled and uploaded with, not the
+        // monitor's internal PID target: `metrics.quality` starts at High and only moves during
+        // calibration, so reading it here used to print a quality the GPU was not running.
+        val renderedQuality = params.features.rayTracingQuality
         lastSnapshot = ChalSnapshot(
             params = params,
             currentFps = metrics.currentFPS,
             frameTimeMs = metrics.frameTimeMs,
-            quality = metrics.quality,
+            quality = renderedQuality,
             budgetUsage = monitor.getFrameTimeBudgetUsage(),
+            raySteps = ChalFeatures.getMaxRaySteps(
+                renderedQuality,
+                isMobile = ChalPerformanceConfig.Mobile.IS_MOBILE_HARDWARE
+            ),
+            effectiveRenderScale = metrics.renderResolution,
             eventHorizonRadius = eventHorizonRadius,
             photonSphereRadius = photonSphereRadius,
             iscoRadius = iscoRadius,

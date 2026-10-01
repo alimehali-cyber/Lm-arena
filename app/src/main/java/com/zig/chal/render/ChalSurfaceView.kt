@@ -157,6 +157,11 @@ class ChalSurfaceView(
         queueEvent { renderer.resetCamera() }
     }
 
+    /** Restore a persisted orientation (theta/phi in radians) on the GL thread. */
+    fun applyCamera(theta: Double, phi: Double) {
+        queueEvent { renderer.applyCameraState(theta, phi) }
+    }
+
     /** Start a cinematic from the UI thread. */
     fun startCinematic(mode: ChalCamera.CinematicMode, reducedMotion: Boolean) {
         queueEvent { renderer.startCinematic(mode, reducedMotion) }

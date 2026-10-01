@@ -44,11 +44,13 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
     private var telemetryScale = XapkRendererContract.qualityFor(initialParams.features.rayTracingQuality).renderScale.toDouble()
 
     init {
+        cameraYaw = initialParams.cameraYaw.toFloat().let { if (it.isFinite()) it.mod(1.0f) else XapkCameraState.DEFAULT_YAW }
+        cameraPitch = initialParams.cameraPitch.toFloat()
+            .coerceIn(XapkCameraState.MIN_PITCH, XapkCameraState.MAX_PITCH)
+        cameraDistance = initialParams.zoom.toFloat()
+            .coerceIn(XapkCameraState.MIN_DISTANCE, XapkCameraState.MAX_DISTANCE)
         if (!NativeBridge.ensureLoaded()) {
             errorMessage = "Could not load the XAPK Vulkan renderer: ${NativeBridge.loadFailure.orEmpty()}"
-        } else {
-            cameraPitch = (initialParams.verticalAngle / 180.0).toFloat()
-                .coerceIn(XapkCameraState.MIN_PITCH, XapkCameraState.MAX_PITCH)
         }
     }
 
@@ -56,13 +58,21 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
         synchronized(lock) {
             val previous = params
             params = newParams
-            if (newParams.verticalAngle != previous.verticalAngle) {
-                cameraPitch = (newParams.verticalAngle / 180.0).toFloat()
+            if (newParams.cameraYaw != previous.cameraYaw || newParams.cameraPitch != previous.cameraPitch) {
+                cameraYaw = newParams.cameraYaw.toFloat()
+                    .let { if (it.isFinite()) it.mod(1.0f) else XapkCameraState.DEFAULT_YAW }
+                cameraPitch = newParams.cameraPitch.toFloat()
                     .coerceIn(XapkCameraState.MIN_PITCH, XapkCameraState.MAX_PITCH)
             }
             if (newParams.zoom != previous.zoom) {
                 cameraDistance = newParams.zoom.toFloat()
                     .coerceIn(XapkCameraState.MIN_DISTANCE, XapkCameraState.MAX_DISTANCE)
+            }
+            // The reference only pauses on lifecycle; this port exposes a pause control, so a user
+            // pause has to reach the native scheduler too.
+            if (newParams.paused != previous.paused && surfaceReady && NativeBridge.ensureLoaded()) {
+                runCatching { NativeBridge.nativeOnPause(newParams.paused) }
+                    .onFailure { errorMessage = "XAPK Vulkan pause failed: ${it.message ?: it.javaClass.simpleName}" }
             }
             if (surfaceConfigured && NativeBridge.ensureLoaded()) pushState()
         }
@@ -124,7 +134,8 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
         if (!NativeBridge.ensureLoaded()) return
         synchronized(lock) {
             try {
-                NativeBridge.nativeOnPause(false)
+                // Resume the engine only if the user had not parked the simulation on purpose.
+                NativeBridge.nativeOnPause(params.paused)
             } catch (failure: Throwable) {
                 errorMessage = "XAPK Vulkan resume failed: ${failure.message ?: failure.javaClass.simpleName}"
             }
@@ -149,6 +160,7 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
             cameraYaw = wrapYaw(cameraYaw - distanceX / minimumDimension)
             cameraPitch = (cameraPitch - distanceY / minimumDimension * XapkCameraState.DRAG_PITCH_SENSITIVITY)
                 .coerceIn(XapkCameraState.MIN_PITCH, XapkCameraState.MAX_PITCH)
+            mirrorCameraIntoParams()
             sendCamera()
         }
     }
@@ -159,25 +171,44 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
             val safeScale = cumulativeScale.coerceAtLeast(0.1f)
             cameraDistance = (baseDistance / safeScale)
                 .coerceIn(XapkCameraState.MIN_DISTANCE, XapkCameraState.MAX_DISTANCE)
-            params = params.copy(zoom = cameraDistance.toDouble())
+            mirrorCameraIntoParams()
             sendCamera()
         }
     }
 
+    /** Full framing reset (orientation, distance, pause), matching `ChalCamera.reset`. */
     fun resetCamera() {
         synchronized(lock) {
             cameraYaw = XapkCameraState.DEFAULT_YAW
             cameraPitch = XapkCameraState.DEFAULT_PITCH
-            cameraDistance = params.zoom.toFloat()
+            cameraDistance = XapkCameraState.DEFAULT_DISTANCE
                 .coerceIn(XapkCameraState.MIN_DISTANCE, XapkCameraState.MAX_DISTANCE)
-            sendCamera()
+            params = params.withCamera(
+                cameraYaw.toDouble(),
+                cameraPitch.toDouble(),
+                cameraDistance.toDouble()
+            ).copy(paused = false)
+            if (surfaceConfigured && NativeBridge.ensureLoaded()) pushState()
         }
+    }
+
+    /** Live camera framing, in the XAPK's own normalized coordinate system. */
+    fun cameraState(): XapkCameraState = XapkCameraState(cameraYaw, cameraPitch, cameraDistance)
+
+    /** The persisted params carry the live camera so a session restore resumes the same framing. */
+    private fun mirrorCameraIntoParams() {
+        params = params.withCamera(
+            cameraYaw.toDouble(),
+            cameraPitch.toDouble(),
+            cameraDistance.toDouble()
+        )
     }
 
     /** A scenario selection in the XAPK resets pitch and distance but leaves yaw untouched. */
     fun resetPitchForScenario() {
         synchronized(lock) {
             cameraPitch = XapkCameraState.DEFAULT_PITCH
+            mirrorCameraIntoParams()
             if (surfaceConfigured) pushState()
         }
     }
@@ -188,7 +219,13 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
             try {
                 NativeBridge.nativeGetTelemetry(telemetry)
                 telemetryFps = if (telemetry[0].isFinite()) telemetry[0].roundToInt().coerceAtLeast(0) else 0
-                telemetryFrameTimeMs = if (telemetryFps > 0) 1_000.0 / telemetryFps else 0.0
+                // The native block is [fps, frameTimeMs, renderScale]; prefer its own frame time and
+                // only derive one when the engine reports nothing usable.
+                telemetryFrameTimeMs = when {
+                    telemetry[1].isFinite() && telemetry[1] > 0.0f -> telemetry[1].toDouble()
+                    telemetryFps > 0 -> 1_000.0 / telemetryFps
+                    else -> 0.0
+                }
                 if (telemetry[2].isFinite() && telemetry[2] > 0.0f) telemetryScale = telemetry[2].toDouble()
             } catch (failure: Throwable) {
                 errorMessage = "XAPK Vulkan telemetry failed: ${failure.message ?: failure.javaClass.simpleName}"
@@ -215,9 +252,8 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
         } else {
             0.0
         }
-        val quality = params.features.rayTracingQuality.let {
-            if (it == ChalRayTracingQuality.OFF) ChalRayTracingQuality.LOW else it
-        }
+        val quality = params.features.rayTracingQuality
+        val nativeQuality = XapkRendererContract.qualityFor(quality)
 
         ChalRenderer.ChalSnapshot(
             params = params.copy(renderScale = telemetryScale),
@@ -225,6 +261,8 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
             frameTimeMs = telemetryFrameTimeMs,
             quality = quality,
             budgetUsage = frameBudget,
+            raySteps = nativeQuality.steps,
+            effectiveRenderScale = telemetryScale,
             eventHorizonRadius = horizon,
             photonSphereRadius = photonSphere,
             iscoRadius = isco,

@@ -10,15 +10,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.toggleable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,15 +34,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.RedControlHeight
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTheme
 import com.zig.chal.config.ChalFeatureToggles
+import com.zig.chal.config.ChalFormatting
 import com.zig.chal.config.ChalParameterConfig
+import com.zig.chal.config.ChalPerformanceConfig
 import com.zig.chal.config.ChalPresetName
 import com.zig.chal.config.ChalRayTracingQuality
 import com.zig.chal.config.ChalSimulationConfig
@@ -50,9 +60,15 @@ import java.util.Locale
 /**
  * Scientific real-time interface.
  *
- * Provides the XAPK physical scenarios, numeric controls, feature mask, and quality choices when
- * the native backend is active. Chal-only benchmark/cinematic controls remain available only in the
- * GLES compatibility mode.
+ * Provides the XAPK physical scenarios, numeric controls, feature mask, and quality choices for both
+ * renderer backends. Everything shown here changes something the active backend honours: controls
+ * that a backend cannot implement (the benchmark suite and the cinematic director, which exist only
+ * in the GLES fallback) are not rendered at all rather than left inert.
+ *
+ * @param onCommit invoked when an edit gesture finishes, so the session is persisted once per
+ *   interaction instead of once per slider frame.
+ * @param maxContentHeight height of the scrolling body; the host shrinks it in landscape so the
+ *   panel never pushes the top chrome off screen.
  */
 @Composable
 fun ChalControlPanel(
@@ -67,14 +83,19 @@ fun ChalControlPanel(
     onStartCinematic: (ChalCinematicTool) -> Unit,
     onStartBenchmark: () -> Unit,
     onCancelBenchmark: () -> Unit,
+    onCommit: () -> Unit,
     isBenchmarkRunning: Boolean,
     benchmarkPreset: String?,
     benchmarkProgress: Double,
     benchmarkResults: List<com.zig.chal.render.ChalBenchmark.BenchmarkResult>,
     benchmarkRecommendation: com.zig.chal.config.ChalPresetName?,
+    maxContentHeight: Dp = 268.dp,
     modifier: Modifier = Modifier
 ) {
     var tab by remember { mutableStateOf(ChalPanelTab.PHYSICS) }
+    // Controls that would fight the running measurement are disabled, not hidden, so the panel keeps
+    // its shape while the benchmark owns the renderer.
+    val editable = !isBenchmarkRunning
 
     Column(
         modifier = modifier
@@ -104,7 +125,7 @@ fun ChalControlPanel(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (tab == ChalPanelTab.PHYSICS) 268.dp else 232.dp)
+                .height(maxContentHeight)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
         ) {
@@ -118,7 +139,11 @@ fun ChalControlPanel(
                                     ChalChoiceButton(
                                         label = if (isPersian) scenario.persianLabel else scenario.label,
                                         selected = selectedScenario == scenario,
-                                        onClick = { onScenarioSelected(scenario) },
+                                        enabled = editable,
+                                        onClick = {
+                                            onScenarioSelected(scenario)
+                                            onCommit()
+                                        },
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
@@ -131,53 +156,70 @@ fun ChalControlPanel(
                             config = ChalSimulationConfig.MASS,
                             value = params.mass,
                             isPersian = isPersian,
+                            enabled = editable,
+                            onCommit = onCommit,
                             onChange = { onParamsChange(params.copy(mass = it)) }
                         )
-                        if (!isXapkRenderer) {
-                            ChalSlider(
-                                config = ChalSimulationConfig.ZOOM,
-                                value = params.zoom,
-                                isPersian = isPersian,
-                                onChange = { onParamsChange(params.copy(zoom = it)) }
-                            )
-                        }
                         ChalSlider(
                             config = ChalSimulationConfig.SPIN,
                             value = params.spin,
                             isPersian = isPersian,
+                            enabled = editable,
+                            onCommit = onCommit,
                             onChange = { onParamsChange(params.copy(spin = it)) }
                         )
                         ChalSlider(
                             config = ChalSimulationConfig.LENSING,
                             value = params.lensing,
                             isPersian = isPersian,
+                            enabled = editable,
+                            onCommit = onCommit,
                             onChange = { onParamsChange(params.copy(lensing = it)) }
                         )
                         ChalSlider(
                             config = ChalSimulationConfig.FRAME_DRAGGING,
                             value = params.frameDraggingStrength,
                             isPersian = isPersian,
+                            enabled = editable,
+                            onCommit = onCommit,
                             onChange = { onParamsChange(params.copy(frameDraggingStrength = it)) }
                         )
+                        if (!isXapkRenderer) {
+                            ChalSlider(
+                                config = ChalSimulationConfig.ZOOM,
+                                value = params.zoom,
+                                isPersian = isPersian,
+                                enabled = editable,
+                                onCommit = onCommit,
+                                onChange = { onParamsChange(params.copy(zoom = it)) }
+                            )
+                        }
                     }
 
+                    val diskEnabled = editable && params.features.accretionDisk
                     ChalPanelSection(if (isPersian) "دینامیک قرص برافزایشی" else "Accretion Dynamics") {
                         ChalSlider(
                             config = ChalSimulationConfig.AUTO_SPIN,
                             value = params.autoSpin,
                             isPersian = isPersian,
+                            enabled = editable,
+                            onCommit = onCommit,
                             onChange = { onParamsChange(params.copy(autoSpin = it)) }
                         )
                         ChalSlider(
                             config = ChalSimulationConfig.DISK_SIZE,
                             value = params.diskSize,
                             isPersian = isPersian,
+                            enabled = diskEnabled,
+                            onCommit = onCommit,
                             onChange = { onParamsChange(params.copy(diskSize = it)) }
                         )
                         ChalSlider(
                             config = ChalSimulationConfig.DISK_SCALE_HEIGHT,
                             value = params.diskScaleHeight,
                             isPersian = isPersian,
+                            enabled = diskEnabled,
+                            onCommit = onCommit,
                             onChange = { onParamsChange(params.copy(diskScaleHeight = it)) }
                         )
                         ChalSlider(
@@ -185,69 +227,108 @@ fun ChalControlPanel(
                             value = params.diskTemp,
                             isPersian = isPersian,
                             logarithmic = true,
-                            enabled = params.features.accretionDisk,
+                            enabled = diskEnabled,
+                            onCommit = onCommit,
                             onChange = { onParamsChange(params.copy(diskTemp = it)) }
                         )
                         ChalSlider(
                             config = ChalSimulationConfig.DISK_DENSITY,
                             value = params.diskDensity,
                             isPersian = isPersian,
-                            enabled = params.features.accretionDisk,
+                            enabled = diskEnabled,
+                            onCommit = onCommit,
                             onChange = { onParamsChange(params.copy(diskDensity = it)) }
                         )
+                        if (!params.features.accretionDisk) {
+                            ChalPanelHint(if (isPersian) "برای فعال شدن این کنترل‌ها ماژول «قرص برافزایشی» را روشن کنید." else "Enable the Accretion Disk module to unlock these controls.")
+                        }
                     }
 
-                    if (isXapkRenderer) {
-                        ChalPanelSection(if (isPersian) "درخشش" else "Bloom") {
-                            ChalSlider(
-                                config = ChalSimulationConfig.BLOOM_THRESHOLD,
-                                value = params.bloomThreshold,
-                                isPersian = isPersian,
-                                onChange = { onParamsChange(params.copy(bloomThreshold = it)) }
-                            )
-                            ChalSlider(
-                                config = ChalSimulationConfig.BLOOM_INTENSITY,
-                                value = params.bloomIntensity,
-                                isPersian = isPersian,
-                                onChange = { onParamsChange(params.copy(bloomIntensity = it)) }
-                            )
+                    ChalPanelSection(if (isPersian) "درخشش" else "Bloom") {
+                        // The native backend has no bloom feature bit: its post stack always runs and
+                        // only these two floats shape it, so the module gate does not apply there.
+                        val bloomEnabled = editable && (isXapkRenderer || params.features.bloom)
+                        ChalSlider(
+                            config = ChalSimulationConfig.BLOOM_THRESHOLD,
+                            value = params.bloomThreshold,
+                            isPersian = isPersian,
+                            enabled = bloomEnabled,
+                            onCommit = onCommit,
+                            onChange = { onParamsChange(params.copy(bloomThreshold = it)) }
+                        )
+                        ChalSlider(
+                            config = ChalSimulationConfig.BLOOM_INTENSITY,
+                            value = params.bloomIntensity,
+                            isPersian = isPersian,
+                            enabled = bloomEnabled,
+                            onCommit = onCommit,
+                            onChange = { onParamsChange(params.copy(bloomIntensity = it)) }
+                        )
+                        if (!isXapkRenderer && !params.features.bloom) {
+                            ChalPanelHint(if (isPersian) "برای فعال شدن این کنترل‌ها ماژول «درخشش حجمی» را روشن کنید." else "Enable the Volumetric Bloom module to unlock these controls.")
                         }
                     }
                 }
 
                 ChalPanelTab.SYSTEM -> {
-                    if (!isXapkRenderer) ChalPanelSection(if (isPersian) "پیش‌تنظیم‌های کارایی" else "Performance Presets") {
+                    ChalPanelSection(if (isPersian) "پیش‌تنظیم‌های کارایی" else "Performance presets") {
                         Row(horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
                             ChalPresetName.entries.filter { it != ChalPresetName.CUSTOM }.forEach { preset ->
                                 ChalChoiceButton(
-                                    label = preset.label,
+                                    label = preset.label(isPersian),
                                     selected = params.performancePreset == preset,
-                                    onClick = { onPresetSelected(preset) },
+                                    enabled = editable,
+                                    onClick = {
+                                        onPresetSelected(preset)
+                                        onCommit()
+                                    },
                                     modifier = Modifier.weight(1f)
                                 )
                             }
                         }
-                        ChalSlider(
-                            config = ChalSimulationConfig.RENDER_SCALE,
-                            value = params.renderScale,
-                            isPersian = isPersian,
-                            onChange = { onParamsChange(params.copy(renderScale = it)) }
-                        )
+                        if (!isXapkRenderer) {
+                            ChalSlider(
+                                config = ChalSimulationConfig.RENDER_SCALE,
+                                value = params.renderScale,
+                                isPersian = isPersian,
+                                enabled = editable,
+                                onCommit = onCommit,
+                                onChange = { onParamsChange(params.copy(renderScale = it)) }
+                            )
+                        } else {
+                            ChalPanelHint(if (isPersian) "مقیاس رندر را موتور بومی خودش تنظیم می‌کند." else "Render scale is owned by the native engine.")
+                        }
                     }
 
-                    ChalPanelSection(if (isPersian) "دقت ردیابی پرتو" else "Ray Tracing Fidelity") {
+                    ChalPanelSection(if (isPersian) "دقت ردیابی پرتو" else "Ray tracing fidelity") {
+                        val visibleTiers = ChalRayTracingQuality.entries
+                            .filter { !isXapkRenderer || it != ChalRayTracingQuality.OFF }
                         Row(horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
-                            ChalRayTracingQuality.entries
-                                .filter { !isXapkRenderer || it != ChalRayTracingQuality.OFF }
-                                .forEach { quality ->
-                                    ChalChoiceButton(
-                                        label = quality.label,
-                                        selected = params.features.rayTracingQuality == quality,
-                                        onClick = { onQualitySelected(quality) },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
+                            visibleTiers.forEach { quality ->
+                                ChalChoiceButton(
+                                    label = quality.label(isPersian),
+                                    selected = params.features.rayTracingQuality == quality,
+                                    enabled = editable,
+                                    onClick = {
+                                        onQualitySelected(quality)
+                                        onCommit()
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
+                        Text(
+                            text = ChalFormatting.rayBudget(
+                                quality = params.features.rayTracingQuality,
+                                isPersian = isPersian,
+                                isMobile = ChalPerformanceConfig.Mobile.IS_MOBILE_HARDWARE
+                            ),
+                            color = Color.White.copy(alpha = 0.70f),
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        val tierNote = ChalFormatting.duplicateTierNote(visibleTiers, isPersian)
+                        if (tierNote != null) ChalPanelHint(tierNote)
                     }
 
                     if (!isXapkRenderer) {
@@ -264,7 +345,7 @@ fun ChalControlPanel(
                             )
                             if (isBenchmarkRunning) {
                                 Text(
-                                    text = "${benchmarkPreset ?: ""} ${Math.round(benchmarkProgress * 100.0)}%",
+                                    text = "${benchmarkPreset ?: ""} ${ChalFormatting.percent(benchmarkProgress, isPersian)}",
                                     color = Color.White.copy(alpha = 0.70f),
                                     fontSize = 9.sp,
                                     fontFamily = FontFamily.Monospace
@@ -291,12 +372,12 @@ fun ChalControlPanel(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        text = result.presetName.label.uppercase(Locale.US),
+                                        text = result.presetName.label(isPersian).uppercase(Locale.US),
                                         color = Color.White.copy(alpha = 0.65f),
                                         fontSize = 8.sp
                                     )
                                     Text(
-                                        text = String.format(Locale.US, "%.1f fps", result.averageFPS),
+                                        text = "${ChalFormatting.fixed(result.averageFPS, 1, isPersian)} ${if (isPersian) "فریم/ثانیه" else "fps"}",
                                         color = Color.White.copy(alpha = 0.85f),
                                         fontSize = 8.sp,
                                         fontFamily = FontFamily.Monospace
@@ -305,24 +386,16 @@ fun ChalControlPanel(
                             }
                             benchmarkRecommendation?.let { preset ->
                                 Text(
-                                    text = if (isPersian) "پیشنهاد: ${preset.label}" else "Recommended: ${preset.label}",
+                                    text = if (isPersian) {
+                                        "پیشنهاد: ${preset.label(true)}"
+                                    } else {
+                                        "Recommended: ${preset.label(false)}"
+                                    },
                                     color = RedTheme.colors.accentRed.copy(alpha = 0.9f),
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black
                                 )
                             }
-                        }
-
-                        ChalPanelSection(if (isPersian) "دقت نمایش" else "Display Precision") {
-                            Text(
-                                text = if (isPersian) {
-                                    "دقت طیفی و حد چگالی پراکندگی حجمی."
-                                } else {
-                                    "Spectral precision and volumetric scattering density limit."
-                                },
-                                color = Color.White.copy(alpha = 0.30f),
-                                fontSize = 8.sp
-                            )
                         }
                     }
                 }
@@ -330,18 +403,16 @@ fun ChalControlPanel(
                 ChalPanelTab.MODULES -> {
                     ChalPanelSection(if (isPersian) "ماژول‌های فیزیک" else "Physics Modules") {
                         ChalFeatureToggle.entries
-                            .filter {
-                                !isXapkRenderer || it !in setOf(
-                                    ChalFeatureToggle.VOLUMETRIC_BLOOM,
-                                    ChalFeatureToggle.KERR_SHADOW_GUIDE,
-                                    ChalFeatureToggle.SPACETIME_VISUALIZATION
-                                )
-                            }
+                            .filter { !isXapkRenderer || it !in NATIVE_UNSUPPORTED_MODULES }
                             .forEach { toggle ->
                                 ChalToggleRow(
                                     label = toggle.label(isPersian),
                                     checked = toggle.read(params.features),
-                                    onToggle = { onParamsChange(params.copy(features = toggle.write(params.features, it))) }
+                                    enabled = editable,
+                                    onToggle = {
+                                        onParamsChange(params.copy(features = toggle.write(params.features, it)))
+                                        onCommit()
+                                    }
                                 )
                             }
                     }
@@ -363,8 +434,8 @@ fun ChalControlPanel(
                         }
                         Text(
                             text = if (isCinematic) {
-                                if (isPersian) "دوربین در حالت کارگردانی است — برای توقف «ریست» را بزنید."
-                                else "Director mode is running — press Reset to abort."
+                                if (isPersian) "دوربین در حالت کارگردانی است — برای توقف «بازنشانی نما» را بزنید."
+                                else "Director mode is running — press Reset view to abort."
                             } else {
                                 if (isPersian) "دوربین خودکار برای گشت‌وگذار سینمایی در اطراف افق رویداد."
                                 else "Automatic camera choreography around the event horizon."
@@ -392,15 +463,28 @@ enum class ChalPanelTab {
     }
 }
 
-/** Cinematic director modes exposed by the panel. */
+/** Cinematic director modes exposed by the panel (GLES backend only). */
 enum class ChalCinematicTool { ORBIT, DIVE }
+
+/**
+ * Modules the native parameter block has no input for.
+ *
+ * The 16-float/4-int contract carries no bloom *bit* (bloom is always on there, shaped by its
+ * threshold and intensity floats), nor any Kerr-shadow-guide or spacetime-visualisation input, so
+ * those switches are hidden on the native backend instead of being left to do nothing.
+ */
+private val NATIVE_UNSUPPORTED_MODULES = setOf(
+    ChalFeatureToggle.VOLUMETRIC_BLOOM,
+    ChalFeatureToggle.KERR_SHADOW_GUIDE,
+    ChalFeatureToggle.SPACETIME_VISUALIZATION
+)
 
 /**
  * The ten physics modules of `FeatureToggles`, in the reference panel's order.
  *
- * `spacetimeVisualization` is carried for schema and control-surface parity: in the reference it
- * drives a separate analytics canvas rather than the ray-marcher, so toggling it here records the
- * operator's intent without changing the geodesic pass.
+ * The native backend does not branch on the Kerr-shadow guide or the spacetime visualisation, so
+ * those two rows are hidden while it is active; every other module maps onto a native feature flag
+ * or shader define and therefore changes the image.
  */
 enum class ChalFeatureToggle {
     GRAVITATIONAL_LENSING,
@@ -455,7 +539,7 @@ enum class ChalFeatureToggle {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Building blocks (`ControlSlider`, `SectionHeader`, preset/quality buttons, toggle rows)
+// Building blocks (section header, sliders, choice/toggle rows)
 // ---------------------------------------------------------------------------------------------
 
 @Composable
@@ -469,27 +553,33 @@ private fun ChalPanelSection(label: String, content: @Composable () -> Unit) {
             .padding(RedSpacing.md),
         verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
-            Spacer(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(RedTheme.colors.statusSuccess)
-            )
-            Text(
-                text = label.uppercase(Locale.US),
-                color = Color.White,
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Black
-            )
-        }
+        Text(
+            text = label.uppercase(Locale.US),
+            color = Color.White,
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Black
+        )
         content()
     }
+}
+
+/** Secondary explanatory line. Only ever used for text that states a real constraint. */
+@Composable
+private fun ChalPanelHint(text: String) {
+    Text(
+        text = text,
+        color = Color.White.copy(alpha = 0.45f),
+        fontSize = 8.sp
+    )
 }
 
 /**
  * Logarithmic-aware slider matching `ControlSlider` from the reference (log-scale for the wide
  * disk-temperature range, value readout with unit and fixed decimals).
+ *
+ * The readout is tappable so an exact value can be typed — a slider alone cannot reach a precise
+ * number, and the reference's numeric fields allow it. The value leaves this control through
+ * [ChalParameterConfig.snap], so the number on screen is the number the renderer receives.
  */
 @Composable
 private fun ChalSlider(
@@ -497,6 +587,7 @@ private fun ChalSlider(
     value: Double,
     isPersian: Boolean,
     onChange: (Double) -> Unit,
+    onCommit: () -> Unit,
     enabled: Boolean = true,
     logarithmic: Boolean = false
 ) {
@@ -508,8 +599,13 @@ private fun ChalSlider(
     val valuePos = if (logarithmic) ln(safeValue) else safeValue
 
     val label = if (isPersian) persianLabel(config.label) else config.label
+    var editing by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxWidth().testTag("chal_slider_${config.label.replace(" ", "_").lowercase(Locale.US)}")) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("chal_slider_${config.label.replace(" ", "_").lowercase(Locale.US)}")
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -521,9 +617,12 @@ private fun ChalSlider(
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Black
             )
-            Row(verticalAlignment = Alignment.Bottom) {
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier.clickable(enabled = enabled) { editing = true }
+            ) {
                 Text(
-                    text = String.format(Locale.US, "%.${config.decimals}f", value),
+                    text = ChalFormatting.digits(config.format(value), isPersian),
                     color = Color.White.copy(alpha = if (enabled) 1.0f else 0.35f),
                     fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
@@ -541,18 +640,84 @@ private fun ChalSlider(
             value = valuePos.toFloat(),
             onValueChange = { raw ->
                 val converted = if (logarithmic) exp(raw.toDouble()) else raw.toDouble()
-                onChange(converted.coerceIn(config.min, config.max))
+                onChange(config.snap(converted))
             },
             valueRange = minPos.toFloat()..maxPos.toFloat(),
             enabled = enabled,
+            onValueChangeFinished = onCommit,
             colors = SliderDefaults.colors(
                 thumbColor = Color.White,
                 activeTrackColor = Color.White.copy(alpha = 0.90f),
                 inactiveTrackColor = Color.White.copy(alpha = 0.10f)
             ),
-            modifier = Modifier.fillMaxWidth().height(20.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("chal_slider_track_${config.label.replace(" ", "_").lowercase(Locale.US)}")
         )
     }
+
+    if (editing) {
+        ChalNumberEntryDialog(
+            config = config,
+            value = value,
+            label = label,
+            isPersian = isPersian,
+            onDismiss = { editing = false },
+            onConfirm = { typed ->
+                onChange(config.snap(typed))
+                editing = false
+                onCommit()
+            }
+        )
+    }
+}
+
+/** Exact numeric entry for a control, mirroring the reference's numeric fields. */
+@Composable
+private fun ChalNumberEntryDialog(
+    config: ChalParameterConfig,
+    value: Double,
+    label: String,
+    isPersian: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (Double) -> Unit
+) {
+    var text by remember { mutableStateOf(String.format(Locale.US, "%.${config.decimals}f", config.snap(value))) }
+    val parsed = text.replace(',', '.').toDoubleOrNull()
+    val valid = parsed != null && parsed.isFinite() && parsed in config.min..config.max
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = label, fontSize = 14.sp, fontWeight = FontWeight.Black) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true
+                )
+                Text(
+                    text = "${ChalFormatting.fixed(config.min, config.decimals, isPersian)} – " +
+                        "${ChalFormatting.fixed(config.max, config.decimals, isPersian)} ${config.unit}",
+                    color = Color.White.copy(alpha = 0.55f),
+                    fontSize = 9.sp
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { parsed?.let(onConfirm) },
+                enabled = valid
+            ) {
+                Text(text = if (isPersian) "تأیید" else "Apply")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = if (isPersian) "لغو" else "Cancel")
+            }
+        }
+    )
 }
 
 @Composable
@@ -560,24 +725,40 @@ private fun ChalChoiceButton(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     Box(
         modifier = modifier
+            .heightIn(min = RedControlHeight.regular)
             .clip(RoundedCornerShape(RedCornerRadius.sm))
-            .background(if (selected) RedTheme.colors.accentRed.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.05f))
+            .background(
+                when {
+                    !enabled -> Color.White.copy(alpha = 0.02f)
+                    selected -> RedTheme.colors.accentRed.copy(alpha = 0.22f)
+                    else -> Color.White.copy(alpha = 0.05f)
+                }
+            )
             .border(
                 1.dp,
-                if (selected) RedTheme.colors.accentRed.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.10f),
+                when {
+                    !enabled -> Color.White.copy(alpha = 0.06f)
+                    selected -> RedTheme.colors.accentRed.copy(alpha = 0.55f)
+                    else -> Color.White.copy(alpha = 0.10f)
+                },
                 RoundedCornerShape(RedCornerRadius.sm)
             )
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = RedSpacing.sm, horizontal = RedSpacing.xs),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label.uppercase(Locale.US),
-            color = if (selected) Color.White else Color.White.copy(alpha = 0.70f),
+            color = if (enabled) {
+                if (selected) Color.White else Color.White.copy(alpha = 0.70f)
+            } else {
+                Color.White.copy(alpha = 0.35f)
+            },
             fontSize = 8.sp,
             fontWeight = FontWeight.Black
         )
@@ -588,6 +769,7 @@ private fun ChalChoiceButton(
 private fun ChalTabButton(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
+            .heightIn(min = RedControlHeight.regular)
             .clip(RoundedCornerShape(RedCornerRadius.sm))
             .background(if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent)
             .clickable(onClick = onClick)
@@ -604,23 +786,41 @@ private fun ChalTabButton(label: String, selected: Boolean, onClick: () -> Unit,
 }
 
 @Composable
-private fun ChalToggleRow(label: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
+private fun ChalToggleRow(
+    label: String,
+    checked: Boolean,
+    onToggle: (Boolean) -> Unit,
+    enabled: Boolean = true
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = RedControlHeight.regular)
             .clip(RoundedCornerShape(RedCornerRadius.sm))
             .background(Color.White.copy(alpha = 0.02f))
-            .clickable { onToggle(!checked) }
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = onToggle
+            )
             .padding(horizontal = RedSpacing.sm, vertical = RedSpacing.sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp)
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = if (enabled) 0.85f else 0.40f),
+            fontSize = 11.sp
+        )
         Box(
             modifier = Modifier
                 .size(width = 34.dp, height = 18.dp)
                 .clip(RoundedCornerShape(RedCornerRadius.full))
-                .background(if (checked) RedTheme.colors.accentRed.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.12f))
+                .background(
+                    if (checked) RedTheme.colors.accentRed.copy(alpha = if (enabled) 0.65f else 0.30f)
+                    else Color.White.copy(alpha = 0.12f)
+                )
                 .padding(2.dp)
         ) {
             Spacer(
@@ -628,7 +828,7 @@ private fun ChalToggleRow(label: String, checked: Boolean, onToggle: (Boolean) -
                     .size(14.dp)
                     .align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
                     .clip(CircleShape)
-                    .background(Color.White)
+                    .background(Color.White.copy(alpha = if (enabled) 1.0f else 0.5f))
             )
         }
     }

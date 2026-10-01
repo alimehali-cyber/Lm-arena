@@ -114,9 +114,4 @@
     <string name="gargantua_title">Gargantua</string>
     <string name="gargantua_subtitle">Relativistic Black Hole Laboratory</string>
     <string name="gargantua_description">Interactive Kerr metric black hole laboratory: curved spacetime ray-marching, accretion disk relativistic beaming, gravitational redshift, and photon orbits.</string>
-
-    <!-- Chal Kerr Ray-Marching Engine -->
-    <string name="chal_title">Chal</string>
-    <string name="chal_subtitle">Real-Time Kerr Ray-Marching Engine</string>
-    <string name="chal_description">Scientifically accurate, real-time relativistic ray-marching of a rotating Kerr black hole: geodesic gravitational lensing, Novikov-Thorne accretion disk, relativistic Doppler beaming, photon-ring glow and a spectral starfield.</string>
 </resources>

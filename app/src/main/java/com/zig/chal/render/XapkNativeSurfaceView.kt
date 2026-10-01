@@ -7,6 +7,7 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import kotlin.math.hypot
 
 /** Android SurfaceView with the same surface and touch callback contract as the XAPK. */
 class XapkNativeSurfaceView(
@@ -15,6 +16,13 @@ class XapkNativeSurfaceView(
 ) : SurfaceView(context), SurfaceHolder.Callback {
     private var pinchBaseDistance = 100.0f
     private var cumulativePinchScale = 1.0f
+
+    /** Fired on the UI thread when a tap (not a drag) lands, used to toggle the overlay chrome. */
+    var onTap: (() -> Unit)? = null
+
+    private var downX = 0f
+    private var downY = 0f
+    private var touchMoved = false
 
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(event: MotionEvent): Boolean = true
@@ -25,6 +33,7 @@ class XapkNativeSurfaceView(
             distanceX: Float,
             distanceY: Float
         ): Boolean {
+            if (hypot(distanceX, distanceY) > TAP_SLOP_PX) touchMoved = true
             xapkRenderer.onDrag(distanceX, distanceY, width, height)
             return true
         }
@@ -41,6 +50,7 @@ class XapkNativeSurfaceView(
 
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 cumulativePinchScale *= detector.scaleFactor
+                touchMoved = true
                 xapkRenderer.onPinch(pinchBaseDistance, cumulativePinchScale)
                 return true
             }
@@ -55,10 +65,22 @@ class XapkNativeSurfaceView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                touchMoved = false
+            }
+            MotionEvent.ACTION_UP -> {
+                if (!touchMoved && hypot(event.x - downX, event.y - downY) <= TAP_SLOP_PX) {
+                    onTap?.invoke()
+                }
+            }
+        }
         scaleGestureDetector.onTouchEvent(event)
         if (!scaleGestureDetector.isInProgress) gestureDetector.onTouchEvent(event)
-        // Like the XAPK, taps do not toggle an overlay; one-finger scroll and two-finger scale are
-        // the only scene gestures handled by the SurfaceView.
+        // One-finger scroll, two-finger scale, and a tap to toggle the chrome: the same gesture set
+        // the GLES surface accepts, so both backends feel identical to the user.
         return true
     }
 
@@ -72,5 +94,10 @@ class XapkNativeSurfaceView(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         xapkRenderer.onSurfaceDestroyed()
+    }
+
+    private companion object {
+        /** Movement beyond this many pixels is a drag, not a tap (matches ViewConfiguration). */
+        const val TAP_SLOP_PX = 12f
     }
 }

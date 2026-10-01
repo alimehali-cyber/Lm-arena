@@ -129,10 +129,25 @@ class ChalBenchmark(private val nowMillis: () -> Double = { android.os.SystemClo
         return null
     }
 
+    /**
+     * Features the renderer must restore once the suite finishes.
+     *
+     * Handed out exactly once, then cleared. The suite walks the presets by mutating the live
+     * parameters, so without this the session would be left on whatever preset ran last (Ultra) while
+     * the persisted settings still held the user's own toggles.
+     */
+    fun consumeCompletedRestore(): ChalFeatureToggles? {
+        if (state != State.COMPLETED) return null
+        val restore = restoreFeatures ?: return null
+        restoreFeatures = null
+        return restore
+    }
+
     /** Build the report: `completeBenchmark()` + `findRecommendedPreset()`. */
     private fun completeBenchmark(onComplete: (BenchmarkReport) -> Unit) {
         state = State.COMPLETED
-        restoreFeatures = null
+        // `restoreFeatures` stays set so the renderer can put the pre-run matrix back; it is cleared
+        // by `consumeCompletedRestore()` (or by the next `start()`/`cancel()`).
         onComplete(
             BenchmarkReport(
                 results = results.toList(),

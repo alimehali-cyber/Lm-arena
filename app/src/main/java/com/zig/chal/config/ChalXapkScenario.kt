@@ -79,11 +79,14 @@ enum class ChalXapkScenario(
             diskTemp = diskTemp,
             diskDensity = diskDensity,
             diskScaleHeight = diskScaleHeight,
-            zoom = cameraDistance,
-            verticalAngle = XapkCameraState.DEFAULT_POLAR_ANGLE_DEGREES,
             renderScale = XapkRendererContract.qualityFor(quality).renderScale.toDouble(),
             features = features,
             performancePreset = ChalFeatures.matchesPreset(features)
+        ).withCamera(
+            // The reference's scenario buttons reset pitch and distance but leave the azimuth alone.
+            yaw = params.cameraYaw,
+            pitch = XapkCameraState.DEFAULT_PITCH_DOUBLE,
+            distance = cameraDistance
         )
     }
 

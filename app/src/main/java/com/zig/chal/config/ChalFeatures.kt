@@ -10,12 +10,19 @@ package com.zig.chal.config
  * - low/medium: Geometric Approximation (LOD 1, limited steps)
  * - high/ultra: Relativistic Simulation (LOD 2, full GR)
  */
-enum class ChalRayTracingQuality(val id: String, val label: String, val shaderDefine: String) {
-    OFF("off", "Off", "RAY_QUALITY_OFF"),
-    LOW("low", "Low", "RAY_QUALITY_LOW"),
-    MEDIUM("medium", "Med", "RAY_QUALITY_MEDIUM"),
-    HIGH("high", "High", "RAY_QUALITY_HIGH"),
-    ULTRA("ultra", "Ultra", "RAY_QUALITY_ULTRA");
+enum class ChalRayTracingQuality(
+    val id: String,
+    val label: String,
+    val shaderDefine: String,
+    private val persianLabel: String
+) {
+    OFF("off", "Off", "RAY_QUALITY_OFF", "خاموش"),
+    LOW("low", "Low", "RAY_QUALITY_LOW", "کم"),
+    MEDIUM("medium", "Medium", "RAY_QUALITY_MEDIUM", "متوسط"),
+    HIGH("high", "High", "RAY_QUALITY_HIGH", "زیاد"),
+    ULTRA("ultra", "Ultra", "RAY_QUALITY_ULTRA", "بیشینه");
+
+    fun label(isPersian: Boolean): String = if (isPersian) persianLabel else label
 
     companion object {
         val VALID: List<String> = entries.map { it.id }
@@ -25,12 +32,14 @@ enum class ChalRayTracingQuality(val id: String, val label: String, val shaderDe
 }
 
 /** Performance preset identity. */
-enum class ChalPresetName(val id: String, val label: String) {
-    MAXIMUM_PERFORMANCE("maximum-performance", "Max Perf"),
-    BALANCED("balanced", "Balanced"),
-    HIGH_QUALITY("high-quality", "High Qual"),
-    ULTRA_QUALITY("ultra-quality", "Ultra"),
-    CUSTOM("custom", "Custom")
+enum class ChalPresetName(val id: String, val label: String, private val persianLabel: String) {
+    MAXIMUM_PERFORMANCE("maximum-performance", "Performance", "کارایی بیشینه"),
+    BALANCED("balanced", "Balanced", "متعادل"),
+    HIGH_QUALITY("high-quality", "High", "کیفیت بالا"),
+    ULTRA_QUALITY("ultra-quality", "Ultra", "بیشینه"),
+    CUSTOM("custom", "Custom", "سفارشی");
+
+    fun label(isPersian: Boolean): String = if (isPersian) persianLabel else label
 }
 
 /**
@@ -158,6 +167,29 @@ object ChalFeatures {
         }
         return if (isMobile) minOf(steps, ChalPerformanceConfig.Compute.MAX_STEPS_MOBILE) else steps
     }
+
+    /**
+     * True when the mobile budget is the binding constraint for a tier.
+     *
+     * High and Ultra both clamp to [ChalPerformanceConfig.Compute.MAX_STEPS_MOBILE] on this build, so
+     * a picker that offers both is offering two identical buttons; the UI uses this to say so instead
+     * of pretending they differ.
+     */
+    fun isCappedForMobile(quality: ChalRayTracingQuality): Boolean =
+        getMaxRaySteps(quality, isMobile = false) > getMaxRaySteps(quality, isMobile = true)
+
+    /** Two tiers are interchangeable when they request the same budget and the same LOD. */
+    fun rendersIdentically(a: ChalRayTracingQuality, b: ChalRayTracingQuality): Boolean =
+        getMaxRaySteps(a, isMobile = true) == getMaxRaySteps(b, isMobile = true) &&
+            isLowLod(a) == isLowLod(b) && isLowLodOnly(a) == isLowLodOnly(b)
+
+    /** `RAY_QUALITY_LOW`/`RAY_QUALITY_OFF` share the shader's analytic (non-marching) path. */
+    private fun isLowLod(quality: ChalRayTracingQuality): Boolean =
+        quality == ChalRayTracingQuality.LOW || quality == ChalRayTracingQuality.OFF
+
+    /** The shader only branches on the low-LOD macro; every other tier runs the same code path. */
+    private fun isLowLodOnly(quality: ChalRayTracingQuality): Boolean =
+        quality == ChalRayTracingQuality.OFF
 
     /** Get preset by name (defensive copy, exactly like `getPreset`). */
     fun getPreset(name: ChalPresetName): ChalFeatureToggles =

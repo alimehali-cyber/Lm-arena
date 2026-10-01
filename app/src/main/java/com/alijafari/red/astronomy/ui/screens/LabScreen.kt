@@ -74,8 +74,8 @@ enum class LabFeatureType(
         titleFa = "چال",
         subtitleEn = "Real-Time Kerr Ray-Marching Engine",
         subtitleFa = "موتور ردیابی پرتوی زمان-واقعی کر",
-        descriptionEn = "Scientifically accurate, real-time relativistic ray-marching of a rotating Kerr black hole: geodesic gravitational lensing, Novikov-Thorne accretion disk, relativistic Doppler beaming, photon-ring glow and a spectral starfield.",
-        descriptionFa = "ردیابی پرتوی نسبیتی و دقیق به‌صورت زمان-واقعی برای سیاه‌چاله چرخان کر: همگرایی گرانشی ژئودزیکی، قرص برافزایشی نوویکوف-تورن، درخشش دوپلری نسبیتی، درخشش حلقه فوتونی و میدان ستارگان طیفی.",
+        descriptionEn = "Real-time Kerr black-hole ray-marching on the device's native Vulkan engine, with an approximate GLES fallback on hardware that cannot run it.",
+        descriptionFa = "ردیابی پرتوی زمان-واقعی سیاه‌چالهٔ کر روی موتور بومی ولکان؛ روی سخت‌افزاری که آن را اجرا نمی‌کند، نسخهٔ تقریبی GLES فعال می‌شود.",
         icon = Icons.Default.BlurCircular,
         isAvailable = true
     )

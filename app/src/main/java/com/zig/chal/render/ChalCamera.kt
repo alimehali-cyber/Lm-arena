@@ -86,6 +86,21 @@ class ChalCamera {
     /** Snapshot for the UI thread. */
     fun snapshot(): CameraState = state.copyState()
 
+    /**
+     * Restore an externally supplied orientation (session restore, backend switch).
+     *
+     * Velocities are cleared: a restored camera should sit still, not inherit momentum from whatever
+     * the previous session was doing.
+     */
+    fun applyState(theta: Double, phi: Double) {
+        if (theta.isFinite()) state.theta = theta.mod(2.0 * PI)
+        if (phi.isFinite()) state.phi = min(PI - 0.001, max(0.001, phi))
+        state.thetaVelocity = 0.0
+        state.phiVelocity = 0.0
+        state.zoomVelocity = 0.0
+        isDragging = false
+    }
+
     /** `mouse = { x: theta / (2*PI), y: phi / PI }`. */
     fun mouseState(): ChalMouseState = ChalMouseState(
         x = state.theta / (2.0 * PI),

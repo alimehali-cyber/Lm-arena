@@ -28,8 +28,43 @@ data class ChalSimulationParams(
     val renderScale: Double = ChalSimulationConfig.RENDER_SCALE.default,
     val features: ChalFeatureToggles = ChalSimulationConfig.FEATURES,
     val performancePreset: ChalPresetName = ChalSimulationConfig.DEFAULT_PRESET_MODE,
-    val verticalAngle: Double = ChalSimulationConfig.VERTICAL_ANGLE.default
+    val verticalAngle: Double = ChalSimulationConfig.VERTICAL_ANGLE.default,
+    /**
+     * Observer azimuth in the XAPK's normalized space (0..1), i.e. `ChalCamera.theta / (2*PI)`.
+     * The camera is part of the persisted session so leaving and re-entering Chal keeps the framing.
+     */
+    val cameraYaw: Double = XapkCameraState.DEFAULT_YAW_DOUBLE,
+    /**
+     * Observer polar angle in the XAPK's normalized space (`MIN_PITCH`..`MAX_PITCH`), i.e.
+     * `ChalCamera.phi / PI`. Kept consistent with the legacy [verticalAngle] by [withCamera].
+     */
+    val cameraPitch: Double = XapkCameraState.DEFAULT_PITCH_DOUBLE
 ) {
+    /**
+     * Single setter for the three camera numbers, keeping [verticalAngle] (degrees, legacy) and
+     * [cameraPitch] (normalized, XAPK) in agreement so a state saved by one backend restores on the
+     * other.
+     */
+    fun withCamera(yaw: Double, pitch: Double, distance: Double = zoom): ChalSimulationParams {
+        val clampedPitch = pitch.coerceIn(
+            XapkCameraState.MIN_PITCH.toDouble(),
+            XapkCameraState.MAX_PITCH.toDouble()
+        )
+        return copy(
+            cameraYaw = if (yaw.isFinite()) yaw.mod(1.0) else XapkCameraState.DEFAULT_YAW_DOUBLE,
+            cameraPitch = clampedPitch,
+            verticalAngle = clampedPitch * 180.0,
+            zoom = if (distance.isFinite()) distance.coerceIn(ChalCameraConfig.MIN_ZOOM, ChalCameraConfig.MAX_ZOOM) else zoom
+        )
+    }
+
+    /** Normalized camera state as the renderer contracts consume it. */
+    fun cameraState(): XapkCameraState = XapkCameraState(
+        yaw = cameraYaw.toFloat(),
+        pitch = cameraPitch.toFloat(),
+        distance = zoom.toFloat()
+    )
+
     companion object {
         /** Reference default (desktop web canvas). */
         val DEFAULT_PARAMS = ChalSimulationParams()

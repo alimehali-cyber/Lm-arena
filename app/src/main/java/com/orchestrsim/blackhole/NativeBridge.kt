@@ -54,6 +54,19 @@ object NativeBridge {
     /** Fast status check for renderer callbacks after the context-aware load attempt. */
     fun ensureLoaded(): Boolean = loaded
 
+    /**
+     * Clear a failed load attempt so the extraction/`System.load` path can be retried.
+     *
+     * Without this, one transient extraction or loader failure was sticky for the whole process: the
+     * app stayed on the GLES fallback until the user force-stopped it.
+     */
+    @Synchronized
+    fun resetForRetry() {
+        if (loaded) return
+        loadAttempted = false
+        loadFailure = null
+    }
+
     private fun extractAsset(context: Context, fileName: String, destination: File): File {
         val target = File(destination, fileName)
         context.assets.open("$ASSET_DIRECTORY/$fileName").use { input ->

@@ -18,6 +18,16 @@ data class XapkCameraState(
 
         /** XAPK normalized polar pitch maps to an angle in [0, 180] degrees for Chal. */
         const val DEFAULT_POLAR_ANGLE_DEGREES = 97.02
+
+        /**
+         * Double-precision camera defaults.
+         *
+         * The binary forms of the float constants above are a few 1e-6 off the degree values, which is
+         * enough to make a round trip through `verticalAngle` drift. The persisted model uses these
+         * instead; the floats stay for the JNI contract, where they are exact.
+         */
+        val DEFAULT_YAW_DOUBLE: Double = 0.5
+        val DEFAULT_PITCH_DOUBLE: Double = DEFAULT_POLAR_ANGLE_DEGREES / 180.0
     }
 }
 
@@ -74,7 +84,7 @@ object XapkRendererContract {
 
     fun build(
         params: ChalSimulationParams,
-        camera: XapkCameraState = XapkCameraState()
+        camera: XapkCameraState = params.cameraState()
     ): XapkParameterBlock {
         val quality = qualityFor(params.features.rayTracingQuality)
         var featureMask = 0
