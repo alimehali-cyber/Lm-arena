@@ -6,6 +6,11 @@ on:
     tags: [ "**" ]
   pull_request:
   workflow_dispatch:
+    inputs:
+      record_apk:
+        description: "Also commit the built APK into build-outputs/ (rolls a verifiable copy into the branch)"
+        type: boolean
+        default: false
 
 # Single real-app build job: unit tests -> signed release APK -> artifact upload.
 #
@@ -17,6 +22,9 @@ jobs:
   build:
     # ubuntu-22.04 keeps the Android SDK image this project's AGP/Kotlin toolchain is built against.
     runs-on: ubuntu-22.04
+    # Publishing the rolling release asset (and the optional build-outputs/ commit) needs write access.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -232,6 +240,55 @@ jobs:
           name: ZIG-real-app-apk
           path: ${{ runner.temp }}/real-app-apk/ZIG-release.apk
           if-no-files-found: error
+
+      - name: Publish the signed APK to the rolling pre-release
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          apk="$RUNNER_TEMP/real-app-apk/ZIG-release.apk"
+          test -f "$apk"
+          digest="$(sha256sum "$apk" | cut -d' ' -f1)"
+          size="$(stat -c%s "$apk")"
+          echo "::notice title=Signed release APK::sha256=$digest size=${size}B branch=${GITHUB_REF_NAME} commit=${GITHUB_SHA:0:12}"
+
+          tag="ci-debug-apk"
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --prerelease \
+              --title "CI APK (rolling)" \
+              --notes "Automatically replaced with the signed APK built from the newest push."
+          fi
+          gh release upload "$tag" "$apk" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | "\(.name) \(.size) bytes \(.url)"'
+
+      - name: Record the signed APK in build-outputs (workflow_dispatch only)
+        if: success() && github.event_name == 'workflow_dispatch' && inputs.record_apk == true
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          apk="$RUNNER_TEMP/real-app-apk/ZIG-release.apk"
+          test -f "$apk"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p build-outputs
+          cp "$apk" build-outputs/ZIG-release.apk
+          git add build-outputs/ZIG-release.apk
+          if git diff --cached --quiet; then
+            echo "the recorded APK is already identical; nothing to commit"
+            exit 0
+          fi
+          git commit -m "Record signed release APK build [skip ci]"
+          # GITHUB_TOKEN pushes do not start new workflow runs, so this cannot loop.
+          git fetch --quiet origin "$BRANCH"
+          if ! git rebase "origin/$BRANCH"; then
+            echo "::warning title=Recorded APK not pushed::the branch moved while the build ran"
+            git rebase --abort || true
+            exit 0
+          fi
+          git push origin "HEAD:refs/heads/$BRANCH"
 
       - name: Clean up keystore
         if: always()
