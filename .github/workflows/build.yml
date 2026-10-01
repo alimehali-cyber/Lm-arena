@@ -293,8 +293,6 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v3
-      - name: Build debug app for local device verification
-        run: ./gradlew assembleDebug -Pgravity.ci.tests=false --no-daemon
       - name: Install sim-use and the learned skill bundle
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'
