@@ -86,7 +86,7 @@ object XapkRendererContract {
         if (params.features.relativisticJets) featureMask = featureMask or FEATURE_JETS
         if (params.features.gravitationalRedshift) featureMask = featureMask or FEATURE_REDSHIFT
 
-        val zoom = params.zoom.toFloat().coerceIn(XapkCameraState.MIN_DISTANCE, XapkCameraState.MAX_DISTANCE)
+        val zoom = camera.distance.coerceIn(XapkCameraState.MIN_DISTANCE, XapkCameraState.MAX_DISTANCE)
         val normalizedYaw = normalizeYaw(camera.yaw)
         val normalizedPitch = camera.pitch.coerceIn(XapkCameraState.MIN_PITCH, XapkCameraState.MAX_PITCH)
         val bloomIntensity = params.bloomIntensity

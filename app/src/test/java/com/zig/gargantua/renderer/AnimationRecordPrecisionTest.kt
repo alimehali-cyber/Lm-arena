@@ -244,19 +244,44 @@ class AnimationRecordPrecisionTest {
     }
 
     @Test
-    fun appStaysOnOpenGlesThreeWithoutVulkanNdkOrGles2() {
+    fun legacyRenderersStayOnGles3AndOnlyChalUsesTheXapkVulkanBridge() {
         val root = mainFile("AndroidManifest.xml").parentFile
-        val kotlin = root.resolve("java").walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "java") }.toList()
+        val kotlin = root.resolve("java").walkTopDown()
+            .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
+            .toList()
         assertTrue(kotlin.isNotEmpty())
-        for (f in kotlin) {
-            val text = f.readText()
-            for (forbidden in listOf("GLES20", "GLES10", "GLES11", "vulkan", "Vulkan", "System.loadLibrary", "external fun")) {
-                assertFalse("${f.name} uses $forbidden", text.contains(forbidden))
+
+        val xapkBackendPaths = listOf(
+            "/com/zig/chal/",
+            "/com/orchestrsim/blackhole/"
+        )
+        for (file in kotlin) {
+            val text = file.readText()
+            for (legacyGl in listOf("GLES20", "GLES10", "GLES11")) {
+                assertFalse("${file.name} uses unsupported legacy API $legacyGl", text.contains(legacyGl))
+            }
+            val path = file.absolutePath.replace('\\', '/')
+            if (xapkBackendPaths.none { path.contains(it) }) {
+                for (nativeBackend in listOf("vulkan", "Vulkan", "System.loadLibrary", "external fun")) {
+                    assertFalse("${file.name} unexpectedly uses $nativeBackend", text.contains(nativeBackend))
+                }
             }
         }
+
         assertFalse(root.resolve("cpp").exists() || root.resolve("jni").exists() || root.resolve("jniLibs").exists())
         val gradle = root.parentFile.parentFile.resolve("build.gradle.kts").readText()
         assertFalse(gradle.contains("externalNativeBuild") || gradle.contains("ndkVersion"))
-        assertTrue(mainFile("AndroidManifest.xml").readText().contains("android:glEsVersion=\"0x00030000\""))
+
+        val manifest = mainFile("AndroidManifest.xml").readText()
+        assertTrue(manifest.contains("android:glEsVersion=\"0x00030000\""))
+        assertTrue(manifest.contains("android:name=\"android.hardware.vulkan.version\""))
+        assertTrue(manifest.contains("android:required=\"false\""))
+
+        val bridge = mainFile("java/com/orchestrsim/blackhole/NativeBridge.kt").readText()
+        assertTrue(bridge.contains("System.load(cxxLibrary.absolutePath)"))
+        assertTrue(bridge.contains("System.load(rendererLibrary.absolutePath)"))
+        assertTrue(bridge.contains("external fun nativeSetParams"))
+        assertTrue(mainFile("assets/xapk-native/arm64-v8a/libblackhole.so").isFile)
+        assertTrue(mainFile("assets/xapk-native/arm64-v8a/libc++_shared.so").isFile)
     }
 }
