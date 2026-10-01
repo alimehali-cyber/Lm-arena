@@ -4,8 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +18,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.constrainHeight
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -34,7 +36,6 @@ import com.zig.chal.render.ChalRenderer
 import java.util.Locale
 
 /** Wrapping, readable HUD. Rendering scale and quality describe the actual backend, not a request. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ChalTelemetry(snapshot: ChalRenderer.ChalSnapshot, isPersian: Boolean, isXapkRenderer: Boolean = false,
     modifier: Modifier = Modifier, compact: Boolean = true) {
@@ -58,9 +59,8 @@ fun ChalTelemetry(snapshot: ChalRenderer.ChalSnapshot, isPersian: Boolean, isXap
         }
     }
     Column(modifier.testTag("chal_telemetry"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FlowRow(Modifier.fillMaxWidth().clip(RoundedCornerShape(RedCornerRadius.sm))
-            .background(Color.Black.copy(alpha = 0.76f)).padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ChalWrappingRow(Modifier.fillMaxWidth().clip(RoundedCornerShape(RedCornerRadius.sm))
+            .background(Color.Black.copy(alpha = 0.76f)).padding(8.dp)) {
             items.forEach { (label, value, unit) ->
                 Column(Modifier.widthIn(min = 72.dp).semantics(mergeDescendants = true) { contentDescription = "$label: $value $unit" },
                     verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -90,4 +90,29 @@ internal fun fixedWidth(value: Double, totalWidth: Int, decimals: Int): String {
     if (value.isNaN()) return "—"
     if (value.isInfinite()) return if (value > 0) "∞" else "−∞"
     return String.format(Locale.US, "%.${decimals}f", value).padStart(totalWidth, ' ')
+}
+
+/** Stable Layout API avoids the FlowRow ABI mismatch between this app's and test runner's BOMs. */
+@Composable
+private fun ChalWrappingRow(modifier: Modifier, content: @Composable () -> Unit) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        val horizontalGap = 16.dp.roundToPx()
+        val verticalGap = 8.dp.roundToPx()
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth
+            else placeables.sumOf { it.width } + horizontalGap * (placeables.size - 1).coerceAtLeast(0)
+        val positions = ArrayList<IntOffset>(placeables.size)
+        var x = 0
+        var y = 0
+        var rowHeight = 0
+        for (item in placeables) {
+            if (x > 0 && x + item.width > width) { x = 0; y += rowHeight + verticalGap; rowHeight = 0 }
+            positions += IntOffset(x, y)
+            rowHeight = maxOf(rowHeight, item.height)
+            x += item.width + horizontalGap
+        }
+        layout(constraints.constrainWidth(width), constraints.constrainHeight(y + rowHeight)) {
+            placeables.forEachIndexed { i, item -> item.placeRelative(positions[i].x, positions[i].y) }
+        }
+    }
 }

@@ -75,8 +75,8 @@ enum class LabFeatureType(
         titleFa = "چال",
         subtitleEn = "Interactive Black Hole Visualizer",
         subtitleFa = "نمایشگر تعاملی سیاه‌چاله",
-        descriptionEn = "Explore a rotating black hole, accretion disk and lensing effects. Uses native Vulkan where supported, with an explicitly approximate OpenGL compatibility mode. Rendered physics are not independently validated.",
-        descriptionFa = "کاوش تعاملی سیاه‌چالهٔ چرخان، قرص برافزایشی و همگرایی نور. رندر بومی Vulkan در دستگاه‌های سازگار و حالت تخمینی OpenGL در سایر دستگاه‌ها فعال است. دقت فیزیکی تصویر به‌طور مستقل تأیید نشده است.",
+        descriptionEn = "Explore a rotating black hole, accretion disk and lensing effects. Uses native rendering where supported, with an explicitly approximate OpenGL compatibility mode. Rendered physics are not independently validated.",
+        descriptionFa = "کاوش تعاملی سیاه‌چالهٔ چرخان، قرص برافزایشی و همگرایی نور. رندر بومی در دستگاه‌های سازگار و حالت تخمینی OpenGL در سایر دستگاه‌ها فعال است. دقت فیزیکی تصویر به‌طور مستقل تأیید نشده است.",
         icon = Icons.Default.BlurCircular,
         isAvailable = true
     )
