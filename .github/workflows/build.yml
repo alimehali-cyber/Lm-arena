@@ -263,8 +263,11 @@ jobs:
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets \
             --jq '.assets[] | "\(.name) \(.size) bytes \(.url)"'
 
-      - name: Record the signed APK in build-outputs (workflow_dispatch only)
-        if: success() && github.event_name == 'workflow_dispatch' && inputs.record_apk == true
+      - name: Record the signed APK in build-outputs
+        if: >-
+          success() &&
+          (inputs.record_apk == true ||
+           (github.event_name == 'push' && contains(github.event.head_commit.message, '[record-apk]')))
         env:
           BRANCH: ${{ github.ref_name }}
         run: |
