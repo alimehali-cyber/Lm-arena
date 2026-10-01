@@ -407,7 +407,7 @@ fun ChalRoot(
                             reducedMotionEnabled = reducedMotionEnabled,
                             onScenarioSelected = { scenario ->
                                 surfaceView.stopCinematic()
-                                applyParams(scenario.applyTo(params), preserveCamera = false)
+                                applyParams(scenario.applyTo(params))
                                 surfaceView.resetScenarioPitch()
                             },
                             onParamsChange = { updated ->

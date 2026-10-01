@@ -214,6 +214,9 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
     }
 
     fun resetCamera() {
+        // Reset is authoritative; do not let an older UI-side restore overwrite the default framing
+        // on the next rendered frame.
+        pendingCameraApply = null
         camera.reset { transform -> mutateParams(transform) }
         val state = camera.snapshot()
         cameraSnapshotForUi = state
@@ -223,6 +226,10 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
     }
 
     fun resetScenarioPitch() {
+        // A scenario change may queue a fresh, live camera snapshot immediately before this GL event.
+        // Apply that yaw first, then reset only pitch, rather than letting the snapshot win next frame.
+        pendingCameraApply?.let { (theta, phi) -> camera.applyState(theta, phi) }
+        pendingCameraApply = null
         camera.resetPitchForScenario()
         val state = camera.snapshot()
         cameraSnapshotForUi = state
