@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,10 +73,10 @@ enum class LabFeatureType(
     CHAL(
         titleEn = "Chal",
         titleFa = "چال",
-        subtitleEn = "Real-Time Kerr Ray-Marching Engine",
-        subtitleFa = "موتور ردیابی پرتوی زمان-واقعی کر",
-        descriptionEn = "Scientifically accurate, real-time relativistic ray-marching of a rotating Kerr black hole: geodesic gravitational lensing, Novikov-Thorne accretion disk, relativistic Doppler beaming, photon-ring glow and a spectral starfield.",
-        descriptionFa = "ردیابی پرتوی نسبیتی و دقیق به‌صورت زمان-واقعی برای سیاه‌چاله چرخان کر: همگرایی گرانشی ژئودزیکی، قرص برافزایشی نوویکوف-تورن، درخشش دوپلری نسبیتی، درخشش حلقه فوتونی و میدان ستارگان طیفی.",
+        subtitleEn = "Interactive Black Hole Visualizer",
+        subtitleFa = "نمایشگر تعاملی سیاه‌چاله",
+        descriptionEn = "Explore a rotating black hole, accretion disk and lensing effects. Uses native Vulkan where supported, with an explicitly approximate OpenGL compatibility mode. Rendered physics are not independently validated.",
+        descriptionFa = "کاوش تعاملی سیاه‌چالهٔ چرخان، قرص برافزایشی و همگرایی نور. رندر بومی Vulkan در دستگاه‌های سازگار و حالت تخمینی OpenGL در سایر دستگاه‌ها فعال است. دقت فیزیکی تصویر به‌طور مستقل تأیید نشده است.",
         icon = Icons.Default.BlurCircular,
         isAvailable = true
     )
@@ -88,7 +89,7 @@ fun LabScreen(
     modifier: Modifier = Modifier
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
-    var selectedFeature by remember { mutableStateOf<LabFeatureType?>(null) }
+    var selectedFeature by rememberSaveable { mutableStateOf<LabFeatureType?>(null) }
 
     if (selectedFeature == LabFeatureType.TIME_DILATION) {
         TimeDilationCalculatorScreen(

@@ -67,9 +67,9 @@ object ChalSimulationConfig {
         min = 1.5,
         max = 100.0,
         step = 0.5,
-        unit = "Rs",
+        unit = "rₛ☉",
         decimals = 1,
-        label = "Observer Dist"
+        label = "View Distance"
     )
 
     val AUTO_SPIN = ChalParameterConfig(
@@ -87,7 +87,7 @@ object ChalSimulationConfig {
         min = 10.0,
         max = 120.0,
         step = 0.5,
-        unit = "Rs",
+        unit = "r_g",
         decimals = 1,
         label = "Accretion Max Radius"
     )
@@ -165,9 +165,9 @@ object ChalSimulationConfig {
     /** GLES-only render scale. XAPK uses the corresponding scale selected by quality tier. */
     val RENDER_SCALE = ChalParameterConfig(
         default = 1.0,
-        min = 0.25,
-        max = 2.0,
-        step = 0.25,
+        min = 0.5,
+        max = 1.0,
+        step = 0.05,
         unit = "x",
         decimals = 2,
         label = "Render Scale"

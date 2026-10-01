@@ -13,11 +13,18 @@ class XapkNativeSurfaceView(
     context: Context,
     private val xapkRenderer: XapkChalRenderer
 ) : SurfaceView(context), SurfaceHolder.Callback {
+    var onTap: (() -> Unit)? = null
+    private var hadMultiplePointers = false
     private var pinchBaseDistance = 100.0f
     private var cumulativePinchScale = 1.0f
 
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(event: MotionEvent): Boolean = true
+
+        override fun onSingleTapConfirmed(event: MotionEvent): Boolean {
+            if (!hadMultiplePointers) performClick()
+            return true
+        }
 
         override fun onScroll(
             first: MotionEvent?,
@@ -55,10 +62,22 @@ class XapkNativeSurfaceView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            hadMultiplePointers = false
+            parent?.requestDisallowInterceptTouchEvent(true)
+        }
+        if (event.pointerCount > 1) hadMultiplePointers = true
         scaleGestureDetector.onTouchEvent(event)
         if (!scaleGestureDetector.isInProgress) gestureDetector.onTouchEvent(event)
-        // Like the XAPK, taps do not toggle an overlay; one-finger scroll and two-finger scale are
-        // the only scene gestures handled by the SurfaceView.
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            parent?.requestDisallowInterceptTouchEvent(false)
+        }
+        return true
+    }
+
+    override fun performClick(): Boolean {
+        super.performClick()
+        onTap?.invoke()
         return true
     }
 

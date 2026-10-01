@@ -3,20 +3,12 @@ package com.zig.chal.render
 import com.zig.chal.config.ChalFeatureToggles
 import com.zig.chal.config.ChalFeatures
 import com.zig.chal.config.ChalPresetName
+import com.zig.chal.config.ChalRenderPolicy
+import com.zig.chal.config.ChalSimulationParams
+import java.io.Serializable
 
-/**
- * Preset benchmark harness.
- *
- * Port of the reference engine's `src/performance/benchmark.ts`: it walks the four performance
- * presets for `TEST_DURATION_MS` each, records the per-preset FPS statistics, and recommends the
- * highest-fidelity preset that holds the frame-rate targets (60 FPS, then 35 FPS).
- *
- * The renderer drives it: `tick()` receives the live FPS once per rendered frame and the harness
- * asks for the next preset itself.
- */
-class ChalBenchmark(private val nowMillis: () -> Double = { android.os.SystemClock.elapsedRealtime().toDouble() }) {
-
-    /** `BenchmarkResult`. */
+/** GLES-only comparison of distinct presets at a fixed resolution. The user's state is restored. */
+class ChalBenchmark(private val nowMillis: () -> Double = { System.nanoTime() / 1_000_000.0 }) {
     data class BenchmarkResult(
         val presetName: ChalPresetName,
         val averageFPS: Double,
@@ -24,179 +16,127 @@ class ChalBenchmark(private val nowMillis: () -> Double = { android.os.SystemClo
         val maxFPS: Double,
         val averageFrameTimeMs: Double,
         val testDurationSeconds: Double
-    )
+    ) : Serializable
 
-    /** `BenchmarkReport.hardwareInfo`. */
-    data class HardwareInfo(
-        val isMobile: Boolean,
-        val hasIntegratedGPU: Boolean,
-        val devicePixelRatio: Double
-    )
-
-    /** `BenchmarkReport`. */
-    data class BenchmarkReport(
-        val results: List<BenchmarkResult>,
-        val recommendedPreset: ChalPresetName,
-        val hardwareInfo: HardwareInfo
-    )
-
-    /** `BenchmarkState`. */
+    data class HardwareInfo(val isMobile: Boolean, val hasIntegratedGPU: Boolean, val devicePixelRatio: Double) : Serializable
+    data class BenchmarkReport(val results: List<BenchmarkResult>, val recommendedPreset: ChalPresetName, val hardwareInfo: HardwareInfo, val renderScale: Double = 1.0) : Serializable
     enum class State { IDLE, RUNNING, COMPLETED, CANCELLED }
 
     companion object {
-        /** `TEST_DURATION_MS = 5000` -- 5 seconds per preset. */
-        const val TEST_DURATION_MS: Double = 5000.0
+        const val TEST_DURATION_MS = 5_000.0
+        const val WARMUP_MS = 1_000.0
+        val PRESETS_TO_TEST: List<ChalPresetName> = ChalRenderPolicy.fallbackPresets
 
-        /** `PRESETS_TO_TEST`, in ascending quality order. */
-        val PRESETS_TO_TEST: List<ChalPresetName> = listOf(
-            ChalPresetName.MAXIMUM_PERFORMANCE,
-            ChalPresetName.BALANCED,
-            ChalPresetName.HIGH_QUALITY,
-            ChalPresetName.ULTRA_QUALITY
-        )
+        fun recommend(results: List<BenchmarkResult>): ChalPresetName {
+            // Prefer fidelity only when it actually meets a usable frame rate.
+            for (threshold in listOf(60.0, 35.0)) {
+                for (preset in PRESETS_TO_TEST.asReversed()) {
+                    if (results.any { it.presetName == preset && it.averageFPS >= threshold }) return preset
+                }
+            }
+            // If none is usable, choose the FASTEST, never the slowest test.
+            return results.maxByOrNull { it.averageFPS }?.presetName ?: ChalPresetName.MAXIMUM_PERFORMANCE
+        }
     }
 
-    var state: State = State.IDLE
+    @Volatile var state: State = State.IDLE
         private set
-
     val results = mutableListOf<BenchmarkResult>()
-
+    @Volatile var originalParams: ChalSimulationParams? = null
+        private set
     private var currentPresetIndex = 0
+    private var testedScale = 1.0
+    private var waitForPresentation = false
+    private var awaitingPresentation = false
     private var testStartTime = 0.0
     private var fpsSum = 0.0
     private var fpsCount = 0
     private var fpsMin = Double.MAX_VALUE
     private var fpsMax = 0.0
-    private var restoreFeatures: ChalFeatureToggles? = null
 
-    /** `start()`: snapshot the settings the run has to restore, then arm the first preset. */
-    fun start(currentFeatures: ChalFeatureToggles) {
-        restoreFeatures = currentFeatures
+    fun start(params: ChalSimulationParams, renderScale: Double = params.renderScale, waitForFirstPresentation: Boolean = false) {
+        if (state == State.RUNNING) return
+        originalParams = params
+        testedScale = renderScale
+        waitForPresentation = waitForFirstPresentation
         results.clear()
         currentPresetIndex = 0
         state = State.RUNNING
         startPresetTest()
     }
 
-    /** `cancel()`: stop early and hand back the toggles the caller must restore. */
-    fun cancel(): ChalFeatureToggles? {
+    fun cancel(): ChalSimulationParams? {
+        if (state != State.RUNNING) return null
         state = State.CANCELLED
-        val restore = restoreFeatures
-        restoreFeatures = null
+        return takeRestoreParams()
+    }
+
+    /** Available after completion as well as cancellation; consumed exactly once. */
+    fun takeRestoreParams(): ChalSimulationParams? {
+        val restore = originalParams
+        originalParams = null
         return restore
     }
 
-    /** The preset currently under test, or null when nothing is running. */
-    fun currentPreset(): ChalPresetName? {
-        if (state != State.RUNNING || currentPresetIndex >= PRESETS_TO_TEST.size) return null
-        return PRESETS_TO_TEST[currentPresetIndex]
-    }
+    fun currentPreset(): ChalPresetName? =
+        if (state == State.RUNNING) PRESETS_TO_TEST.getOrNull(currentPresetIndex) else null
 
-    /** Progress (0..1) through the current preset's test window. */
-    fun currentProgress(): Double {
-        if (state != State.RUNNING) return 0.0
-        val elapsed = nowMillis() - testStartTime
-        return minOf(elapsed / TEST_DURATION_MS, 1.0)
-    }
+    fun currentProgress(): Double =
+        if (state == State.RUNNING && !awaitingPresentation) ((nowMillis() - testStartTime) / TEST_DURATION_MS).coerceIn(0.0, 1.0) else 0.0
 
-    /**
-     * Feed one rendered frame's FPS and advance the state machine.
-     *
-     * @return the preset the renderer must apply next, or null when the currently applied preset
-     *   should stay in place.
-     */
     fun tick(currentFPS: Double, onComplete: (BenchmarkReport) -> Unit): ChalPresetName? {
-        if (state != State.RUNNING) return null
-
-        if (currentFPS > 0.0 && currentFPS.isFinite()) {
+        if (state != State.RUNNING || awaitingPresentation) return null
+        val elapsed = nowMillis() - testStartTime
+        // Exclude shader warmup and the previous preset's rolling FPS.
+        if (elapsed >= WARMUP_MS && currentFPS > 0.0 && currentFPS.isFinite()) {
             fpsSum += currentFPS
             fpsCount++
             fpsMin = minOf(fpsMin, currentFPS)
             fpsMax = maxOf(fpsMax, currentFPS)
         }
-
-        val elapsed = nowMillis() - testStartTime
-        if (elapsed >= TEST_DURATION_MS) {
-            finishPresetTest()
-            currentPresetIndex++
-            if (currentPresetIndex < PRESETS_TO_TEST.size) {
-                startPresetTest()
-                return PRESETS_TO_TEST[currentPresetIndex]
-            }
-            completeBenchmark(onComplete)
-            return null
+        if (elapsed < TEST_DURATION_MS) return null
+        finishPresetTest()
+        currentPresetIndex++
+        if (currentPresetIndex < PRESETS_TO_TEST.size) {
+            startPresetTest()
+            return PRESETS_TO_TEST[currentPresetIndex]
         }
-        return null
-    }
-
-    /** Build the report: `completeBenchmark()` + `findRecommendedPreset()`. */
-    private fun completeBenchmark(onComplete: (BenchmarkReport) -> Unit) {
         state = State.COMPLETED
-        restoreFeatures = null
-        onComplete(
-            BenchmarkReport(
-                results = results.toList(),
-                recommendedPreset = findRecommendedPreset(),
-                hardwareInfo = HardwareInfo(
-                    isMobile = true, // Every Chal deployment target is a mobile GPU.
-                    hasIntegratedGPU = false, // Would need an EGL/GLES query; the reference hardcodes false too.
-                    devicePixelRatio = 1.0
-                )
-            )
-        )
-    }
-
-    /**
-     * Recommendation rule: the highest-quality preset that sustained 60+ FPS, falling back to the
-     * highest that sustained 35+ FPS, falling back to the cheapest preset.
-     */
-    private fun findRecommendedPreset(): ChalPresetName {
-        val qualityOrder = listOf(
-            ChalPresetName.ULTRA_QUALITY,
-            ChalPresetName.HIGH_QUALITY,
-            ChalPresetName.BALANCED,
-            ChalPresetName.MAXIMUM_PERFORMANCE
-        )
-
-        // Pass 1: High Fidelity (60+ FPS)
-        for (presetName in qualityOrder) {
-            val result = results.firstOrNull { it.presetName == presetName }
-            if (result != null && result.averageFPS >= 60.0) return presetName
-        }
-
-        // Pass 2: Stable Standard (35+ FPS)
-        for (presetName in qualityOrder) {
-            val result = results.firstOrNull { it.presetName == presetName }
-            if (result != null && result.averageFPS >= 35.0) return presetName
-        }
-
-        // Pass 3: whatever survived
-        return results.minByOrNull { it.averageFPS }?.presetName ?: ChalPresetName.MAXIMUM_PERFORMANCE
+        onComplete(BenchmarkReport(results.toList(), recommend(results), HardwareInfo(true, true, 1.0), testedScale))
+        // Keep originalParams until the renderer restores it. Publishing a report must not lose it.
+        return null
     }
 
     private fun startPresetTest() {
         testStartTime = nowMillis()
+        awaitingPresentation = waitForPresentation
         fpsSum = 0.0
         fpsCount = 0
         fpsMin = Double.MAX_VALUE
         fpsMax = 0.0
     }
 
-    private fun finishPresetTest() {
-        val presetName = PRESETS_TO_TEST.getOrNull(currentPresetIndex) ?: return
-        val averageFPS = if (fpsCount > 0) fpsSum / fpsCount else 0.0
-        val averageFrameTimeMs = if (averageFPS > 0.0) 1000.0 / averageFPS else 0.0
-
-        results += BenchmarkResult(
-            presetName = presetName,
-            averageFPS = averageFPS,
-            minFPS = if (fpsMin == Double.MAX_VALUE) 0.0 else fpsMin,
-            maxFPS = fpsMax,
-            averageFrameTimeMs = averageFrameTimeMs,
-            testDurationSeconds = TEST_DURATION_MS / 1000.0
-        )
+    /** Start measurement only after compilation and the first visible frame of this preset. */
+    fun markPresetPresented(): Boolean {
+        if (state != State.RUNNING || !awaitingPresentation) return false
+        awaitingPresentation = false
+        testStartTime = nowMillis()
+        return true
     }
 
-    /** The feature matrix for a preset, as the UI applies it. */
+    private fun finishPresetTest() {
+        val preset = PRESETS_TO_TEST.getOrNull(currentPresetIndex) ?: return
+        val average = if (fpsCount > 0) fpsSum / fpsCount else 0.0
+        results += BenchmarkResult(preset, average, if (fpsCount > 0) fpsMin else 0.0, fpsMax,
+            if (average > 0.0) 1_000.0 / average else 0.0, TEST_DURATION_MS / 1_000.0)
+    }
+
+    fun restoreReport(report: BenchmarkReport) {
+        if (state == State.RUNNING) return
+        results.clear()
+        results.addAll(report.results)
+        state = State.COMPLETED
+    }
+
     fun featuresFor(preset: ChalPresetName): ChalFeatureToggles = ChalFeatures.getPreset(preset)
 }

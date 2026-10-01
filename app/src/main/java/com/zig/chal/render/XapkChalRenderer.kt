@@ -3,6 +3,7 @@ package com.zig.chal.render
 import android.view.Surface
 import com.orchestrsim.blackhole.NativeBridge
 import com.zig.chal.config.ChalRayTracingQuality
+import com.zig.chal.config.ChalRenderPolicy
 import com.zig.chal.config.ChalRendererBackend
 import com.zig.chal.config.ChalSimulationParams
 import com.zig.chal.config.XapkCameraState
@@ -21,7 +22,7 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
     private val lock = Any()
 
     @Volatile
-    override var params: ChalSimulationParams = initialParams
+    override var params: ChalSimulationParams = ChalRenderPolicy.normalize(initialParams, native = true)
         private set
 
     @Volatile
@@ -34,9 +35,10 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
     @Volatile
     private var surfaceConfigured = false
 
-    private var cameraYaw = XapkCameraState.DEFAULT_YAW
-    private var cameraPitch = XapkCameraState.DEFAULT_PITCH
-    private var cameraDistance = initialParams.zoom.toFloat()
+    private var cameraYaw = params.cameraYaw.toFloat()
+    private var cameraPitch = (params.verticalAngle / 180.0).toFloat()
+    private var cameraDistance = params.zoom.toFloat()
+    private var resumed = false
     private var targetFps = 60
     private val telemetry = FloatArray(3)
     private var telemetryFps = 0
@@ -47,29 +49,29 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
         if (!NativeBridge.ensureLoaded()) {
             errorMessage = "Could not load the XAPK Vulkan renderer: ${NativeBridge.loadFailure.orEmpty()}"
         } else {
-            cameraPitch = (initialParams.verticalAngle / 180.0).toFloat()
+            cameraPitch = (params.verticalAngle / 180.0).toFloat()
                 .coerceIn(XapkCameraState.MIN_PITCH, XapkCameraState.MAX_PITCH)
         }
     }
 
-    override fun updateParams(newParams: ChalSimulationParams) {
-        synchronized(lock) {
-            val previous = params
-            params = newParams
-            if (newParams.verticalAngle != previous.verticalAngle) {
-                cameraPitch = (newParams.verticalAngle / 180.0).toFloat()
-                    .coerceIn(XapkCameraState.MIN_PITCH, XapkCameraState.MAX_PITCH)
-            }
-            if (newParams.zoom != previous.zoom) {
-                cameraDistance = newParams.zoom.toFloat()
-                    .coerceIn(XapkCameraState.MIN_DISTANCE, XapkCameraState.MAX_DISTANCE)
-            }
-            if (surfaceConfigured && NativeBridge.ensureLoaded()) pushState()
+    override fun updateParams(newParams: ChalSimulationParams) { editParams { newParams } }
+
+    override fun editParams(edit: ChalSimulationParams.() -> ChalSimulationParams): ChalSimulationParams = synchronized(lock) {
+        val previous = params
+        val updated = ChalRenderPolicy.normalize(params.edit(), native = true)
+        params = updated
+        if (updated.cameraYaw != previous.cameraYaw) cameraYaw = updated.cameraYaw.toFloat()
+        if (updated.verticalAngle != previous.verticalAngle) {
+            cameraPitch = (updated.verticalAngle / 180.0).toFloat()
+                .coerceIn(XapkCameraState.MIN_PITCH, XapkCameraState.MAX_PITCH)
         }
+        if (updated.zoom != previous.zoom) cameraDistance = updated.zoom.toFloat()
+        if (surfaceConfigured && NativeBridge.ensureLoaded()) pushState()
+        params
     }
 
     override fun setDisplayRefreshRate(refreshRateHz: Double) {
-        if (refreshRateHz.isFinite() && refreshRateHz > 0.0) targetFps = refreshRateHz.roundToInt().coerceAtLeast(1)
+        targetFps = if (refreshRateHz.isFinite() && refreshRateHz > 0.0) refreshRateHz.roundToInt().coerceIn(1, 60) else 60
     }
 
     /** SurfaceHolder.Callback: XAPK sends the Android Surface directly to JNI. */
@@ -84,8 +86,11 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
                 surfaceReady = true
                 surfaceConfigured = false
                 errorMessage = null
+                NativeBridge.nativeOnPause(!resumed)
             } catch (failure: Throwable) {
+                try { NativeBridge.nativeOnSurfaceDestroyed() } catch (_: Throwable) { /* best-effort cleanup of a partial initialization */ }
                 surfaceReady = false
+                surfaceConfigured = false
                 errorMessage = "XAPK Vulkan surface initialization failed: ${failure.message ?: failure.javaClass.simpleName}"
             }
         }
@@ -93,14 +98,16 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
 
     fun onSurfaceChanged(width: Int, height: Int) {
         synchronized(lock) {
-            if (!surfaceReady) return
+            if (!surfaceReady || width <= 0 || height <= 0) return
             try {
                 NativeBridge.nativeOnSurfaceChanged(width, height)
                 surfaceConfigured = true
                 errorMessage = null
                 // The reference calls its parameter and camera setters after every size change.
                 pushState()
+                NativeBridge.nativeOnPause(!resumed)
             } catch (failure: Throwable) {
+                surfaceConfigured = false
                 errorMessage = "XAPK Vulkan surface resize failed: ${failure.message ?: failure.javaClass.simpleName}"
             }
         }
@@ -110,6 +117,7 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
         synchronized(lock) {
             if (!surfaceReady) return
             try {
+                try { NativeBridge.nativeOnPause(true) } catch (_: Throwable) { /* teardown must still run */ }
                 NativeBridge.nativeOnSurfaceDestroyed()
             } catch (failure: Throwable) {
                 errorMessage = "XAPK Vulkan surface teardown failed: ${failure.message ?: failure.javaClass.simpleName}"
@@ -121,8 +129,9 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
     }
 
     fun onResume() {
-        if (!NativeBridge.ensureLoaded()) return
         synchronized(lock) {
+            resumed = true
+            if (!surfaceReady || !NativeBridge.ensureLoaded()) return
             try {
                 NativeBridge.nativeOnPause(false)
             } catch (failure: Throwable) {
@@ -132,8 +141,9 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
     }
 
     fun onPause() {
-        if (!NativeBridge.ensureLoaded()) return
         synchronized(lock) {
+            resumed = false
+            if (!surfaceReady || !NativeBridge.ensureLoaded()) return
             try {
                 NativeBridge.nativeOnPause(true)
             } catch (failure: Throwable) {
@@ -149,6 +159,7 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
             cameraYaw = wrapYaw(cameraYaw - distanceX / minimumDimension)
             cameraPitch = (cameraPitch - distanceY / minimumDimension * XapkCameraState.DRAG_PITCH_SENSITIVITY)
                 .coerceIn(XapkCameraState.MIN_PITCH, XapkCameraState.MAX_PITCH)
+            params = params.copy(cameraYaw = cameraYaw.toDouble(), verticalAngle = cameraPitch.toDouble() * 180.0)
             sendCamera()
         }
     }
@@ -169,15 +180,16 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
             cameraYaw = XapkCameraState.DEFAULT_YAW
             cameraPitch = XapkCameraState.DEFAULT_PITCH
             cameraDistance = params.zoom.toFloat()
-                .coerceIn(XapkCameraState.MIN_DISTANCE, XapkCameraState.MAX_DISTANCE)
-            sendCamera()
+            params = params.copy(cameraYaw = cameraYaw.toDouble(), verticalAngle = XapkCameraState.DEFAULT_POLAR_ANGLE_DEGREES)
+            if (surfaceConfigured) pushState()
         }
     }
 
-    /** A scenario selection in the XAPK resets pitch and distance but leaves yaw untouched. */
+    /** A scenario resets pitch and distance but leaves yaw untouched on both backends. */
     fun resetPitchForScenario() {
         synchronized(lock) {
             cameraPitch = XapkCameraState.DEFAULT_PITCH
+            params = params.copy(verticalAngle = XapkCameraState.DEFAULT_POLAR_ANGLE_DEGREES)
             if (surfaceConfigured) pushState()
         }
     }
@@ -220,7 +232,7 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
         }
 
         ChalRenderer.ChalSnapshot(
-            params = params.copy(renderScale = telemetryScale),
+            params = params,
             currentFps = telemetryFps,
             frameTimeMs = telemetryFrameTimeMs,
             quality = quality,
@@ -232,15 +244,12 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
             redshift = redshift,
             isCinematic = false,
             cinematicMode = null,
-            targetFps = targetFps
+            targetFps = targetFps,
+            actualRenderScale = telemetryScale,
+            postProcessingAvailable = true,
+            isReady = surfaceConfigured
         )
     }
-
-    /** Native XAPK has no Chal-only benchmark/cinematic modes. */
-    fun startBenchmark() = Unit
-    fun cancelBenchmark() = Unit
-    fun startCinematic() = Unit
-    fun stopCinematic() = Unit
 
     private fun pushState() {
         val block: XapkParameterBlock = XapkRendererContract.build(

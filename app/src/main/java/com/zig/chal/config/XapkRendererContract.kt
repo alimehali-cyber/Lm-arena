@@ -89,7 +89,7 @@ object XapkRendererContract {
         val zoom = camera.distance.coerceIn(XapkCameraState.MIN_DISTANCE, XapkCameraState.MAX_DISTANCE)
         val normalizedYaw = normalizeYaw(camera.yaw)
         val normalizedPitch = camera.pitch.coerceIn(XapkCameraState.MIN_PITCH, XapkCameraState.MAX_PITCH)
-        val bloomIntensity = params.bloomIntensity
+        val bloomIntensity = if (params.features.bloom) params.bloomIntensity else 0.0
 
         return XapkParameterBlock(
             floats = floatArrayOf(
@@ -103,7 +103,7 @@ object XapkRendererContract {
                 params.diskScaleHeight.toFloat().coerceIn(0.05f, 0.45f),
                 params.bloomThreshold.toFloat().coerceIn(0.0f, 4.0f),
                 bloomIntensity.toFloat().coerceIn(0.0f, 2.0f),
-                params.autoSpin.toFloat().coerceIn(-0.05f, 0.05f),
+                (if (params.reducedMotion) 0.0 else params.autoSpin).toFloat().coerceIn(-0.05f, 0.05f),
                 normalizedYaw,
                 normalizedPitch,
                 zoom,

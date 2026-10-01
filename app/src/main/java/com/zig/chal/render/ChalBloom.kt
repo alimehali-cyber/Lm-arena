@@ -3,7 +3,6 @@ package com.zig.chal.render
 import android.opengl.GLES30
 import com.zig.chal.shader.ChalGlShaders
 import com.zig.chal.shader.ChalShaderSource
-import java.nio.ByteBuffer
 
 /**
  * Bloom Post-Processing Manager.
@@ -125,7 +124,7 @@ class ChalBloom(private val hdrCapable: Boolean) {
         val textures = IntArray(1)
         GLES30.glGenTextures(1, textures, 0)
         val texture = textures[0]
-        if (texture == 0) return 0
+        check(texture != 0) { "Could not allocate a post-processing texture" }
 
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, texture)
         GLES30.glTexImage2D(
@@ -137,7 +136,7 @@ class ChalBloom(private val hdrCapable: Boolean) {
             0,
             GLES30.GL_RGBA,
             textureType,
-            if (hdrCapable) null else ByteBuffer.allocate(width * height * 4)
+            null // allocate GPU storage without a full-size temporary Java heap buffer
         )
 
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR)
@@ -153,7 +152,7 @@ class ChalBloom(private val hdrCapable: Boolean) {
         val framebuffers = IntArray(1)
         GLES30.glGenFramebuffers(1, framebuffers, 0)
         val framebuffer = framebuffers[0]
-        if (framebuffer == 0) return 0
+        check(framebuffer != 0) { "Could not allocate a post-processing framebuffer ($label)" }
 
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, framebuffer)
         GLES30.glFramebufferTexture2D(
@@ -168,7 +167,8 @@ class ChalBloom(private val hdrCapable: Boolean) {
         if (status != GLES30.GL_FRAMEBUFFER_COMPLETE) {
             android.util.Log.e(ChalGlShaders.TAG, "Framebuffer incomplete ($label): $status")
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
-            return 0
+            GLES30.glDeleteFramebuffers(1, intArrayOf(framebuffer), 0)
+            error("Incomplete post-processing framebuffer ($label): $status")
         }
 
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
@@ -200,6 +200,7 @@ class ChalBloom(private val hdrCapable: Boolean) {
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
 
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, sceneFramebuffer)
+        GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
         return sceneFramebuffer
     }
 
@@ -226,8 +227,11 @@ class ChalBloom(private val hdrCapable: Boolean) {
             return
         }
 
-        if (brightPassProgram == 0 || blurProgram == 0 || combineProgram == 0) return
-        if (brightFramebuffer == 0 || blurFramebuffer1 == 0 || blurFramebuffer2 == 0) return
+        if (brightPassProgram == 0 || blurProgram == 0 || combineProgram == 0 ||
+            brightFramebuffer == 0 || blurFramebuffer1 == 0 || blurFramebuffer2 == 0) {
+            drawTextureToScreen(inputTexture, renderScale)
+            return
+        }
 
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, quadBuffer)
 
@@ -255,6 +259,7 @@ class ChalBloom(private val hdrCapable: Boolean) {
 
         // === PASS 2: Blur passes ===
         GLES30.glUseProgram(blurProgram)
+        setTextureScale(blurProgram, renderScale)
         val blurPosition = locations.attribute(blurProgram, "position")
         if (blurPosition != -1) {
             GLES30.glEnableVertexAttribArray(blurPosition)
@@ -415,7 +420,8 @@ class ChalBloom(private val hdrCapable: Boolean) {
         if (brightPassProgram != 0) GLES30.glDeleteProgram(brightPassProgram)
         if (blurProgram != 0) GLES30.glDeleteProgram(blurProgram)
         if (combineProgram != 0) GLES30.glDeleteProgram(combineProgram)
-        // Do not delete quadBuffer as it is shared
+        // createQuadBuffer allocates a new buffer: this pipeline owns it.
+        if (quadBuffer != 0) GLES30.glDeleteBuffers(1, intArrayOf(quadBuffer), 0)
 
         brightPassProgram = 0
         blurProgram = 0

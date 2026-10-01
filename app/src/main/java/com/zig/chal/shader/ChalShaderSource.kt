@@ -591,17 +591,30 @@ void main() {
     float isco = kerr_isco(M, a);
     float absA = abs(u_spin);
 
-    // === LOW QUALITY MODE ===
+    // === ANALYTIC PREVIEW (legacy LOW / OFF) ===
 #if defined(RAY_QUALITY_LOW) || defined(RAY_QUALITY_OFF)
-    vec3 bg = starfield(rd);
+    vec3 bg = vec3(0.0);
+#ifdef ENABLE_STARS
+    bg = starfield(rd);
+#endif
     float d = length(cross(ro, rd));
     float shadow = 1.0 - smoothstep(rh * 0.9, rh * 1.2, d);
+    vec3 glowCol = vec3(0.0);
+#ifdef ENABLE_PHOTON_GLOW
     float photonGlowIndicator = exp(-abs(d - rph) * 12.0) * 0.8;
-    vec3 glowCol = vec3(0.3, 0.6, 1.0) * photonGlowIndicator;
+    glowCol = vec3(0.3, 0.6, 1.0) * photonGlowIndicator;
+#endif
+    vec3 diskColIndicator = vec3(0.0);
+#ifdef ENABLE_DISK
     float diskMask = smoothstep(isco * 0.8, isco, d) * (1.0 - smoothstep(isco, isco * 2.0, d));
-    vec3 diskColIndicator = vec3(1.0, 0.7, 0.3) * diskMask * 0.6;
+    diskColIndicator = vec3(1.0, 0.7, 0.3) * diskMask * 0.6;
+#endif
     vec3 col = bg * (1.0 - shadow) + glowCol + diskColIndicator;
+#ifdef ENABLE_LINEAR_OUTPUT
+    fragColor = vec4(col, 1.0);
+#else
     fragColor = vec4(pow(col, vec3(0.4545)), 1.0);
+#endif
     return;
 #endif
 

@@ -161,7 +161,7 @@ object ChalPerformanceConfig {
         const val MID_REFRESH_CUTOFF_HZ: Double = 85.0
 
         /** Slowest frame time the adaptive controller will chase (30 fps). */
-        const val MAX_TARGET_FRAME_MS: Double = 33.34
+        const val MAX_TARGET_FRAME_MS: Double = 1000.0 / 15.0
 
         /** Fastest frame time the adaptive controller will chase (120 fps). */
         const val MIN_TARGET_FRAME_MS: Double = 8.33
@@ -175,14 +175,13 @@ object ChalPerformanceConfig {
          * there makes the PID drain the resolution toward `MIN_SCALE` for a frame time it can never
          * reach. Pacing to half the panel keeps the picture sharp and the motion even.
          */
-        fun targetFrameTimeMs(refreshRateHz: Double): Double {
-            val fps = when {
-                !refreshRateHz.isFinite() || refreshRateHz <= 0.0 -> Scheduler.TARGET_FPS.toDouble()
-                refreshRateHz >= HIGH_REFRESH_CUTOFF_HZ -> Scheduler.TARGET_FPS.toDouble()
-                refreshRateHz >= MID_REFRESH_CUTOFF_HZ -> refreshRateHz / 2.0
-                else -> minOf(Scheduler.TARGET_FPS.toDouble(), refreshRateHz)
-            }
-            return (1000.0 / fps).coerceIn(MIN_TARGET_FRAME_MS, MAX_TARGET_FRAME_MS)
+        fun targetFrameTimeMs(refreshRateHz: Double, fpsLimit: Int = Scheduler.TARGET_FPS): Double {
+            val rate = if (refreshRateHz.isFinite() && refreshRateHz > 0.0) refreshRateHz else 60.0
+            val limit = fpsLimit.coerceIn(1, Scheduler.TARGET_FPS).toDouble()
+            // An integer number of vsyncs: 60→60, 90→45, 120→60, 144→48, 165→55.
+            // Small tolerance accommodates panels that report 60.01 rather than exactly 60 Hz.
+            val divisor = kotlin.math.ceil(rate / limit - 0.03).coerceAtLeast(1.0)
+            return (1000.0 / minOf(rate / divisor, limit)).coerceIn(MIN_TARGET_FRAME_MS, MAX_TARGET_FRAME_MS)
         }
     }
 

@@ -1,6 +1,8 @@
 package com.zig.chal.render
 
 import com.zig.chal.config.ChalCameraConfig
+import com.zig.chal.config.ChalMotion
+import com.zig.chal.config.ChalRenderPolicy
 import com.zig.chal.config.ChalMouseState
 import com.zig.chal.config.ChalSimulationParams
 import kotlin.math.PI
@@ -9,15 +11,17 @@ import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.pow
+import java.io.Serializable
 
 /**
  * Spherical camera with momentum, auto-pan, and the two "Director Mode" cinematics.
  *
- * Verbatim port of the reference engine's `src/hooks/useCamera.ts` animation loop. The camera state
+ * Adapted from the reference animation loop, with time-based rather than frame-based motion. The camera state
  * is the source of truth (as the reference keeps it in a ref) and is exposed to the renderer as the
  * `u_mouse` uniform pair: `x = theta / (2*PI)`, `y = phi / PI`.
  *
- * All angles are radians. Zoom is in Schwarzschild radii and is stored on the simulation params
+ * All angles are radians. Zoom is in solar Schwarzschild scene units and is stored on the simulation params
  * (the reference mutates `params.zoom` for exactly the same reason: the shader consumes it as
  * `u_zoom = zoom * 2`).
  */
@@ -37,7 +41,7 @@ class ChalCamera {
         var zoomVelocity: Double = 0.0,
         /** Damping factor for momentum decay. */
         var damping: Double = ChalCameraConfig.DAMPING
-    ) {
+    ) : Serializable {
         fun copyState(): CameraState = CameraState(
             theta = theta,
             phi = phi,
@@ -54,15 +58,48 @@ class ChalCamera {
     private class CinematicState(
         var active: Boolean = false,
         var mode: CinematicMode? = null,
-        var startTime: Double = 0.0,
+        var elapsedSeconds: Double = 0.0,
+        var startAutoSpin: Double = ChalCameraConfig.DEFAULT_AUTO_SPIN,
         var startTheta: Double = 0.0,
         var startPhi: Double = 0.0,
         var startZoom: Double = 0.0,
         var velocity: Double = 0.0,
         var angularMomentum: Double = 0.0,
         var recovering: Boolean = false,
-        var recoverStartTime: Double = 0.0
+        var recoverySeconds: Double = 0.0
     )
+
+    data class CinematicProgress(
+        val active: Boolean, val mode: CinematicMode?, val elapsedSeconds: Double,
+        val startAutoSpin: Double, val startTheta: Double, val startPhi: Double, val startZoom: Double,
+        val velocity: Double, val angularMomentum: Double, val recovering: Boolean, val recoverySeconds: Double
+    ) : Serializable
+
+    data class Session(val pose: CameraState, val cinematic: CinematicProgress) : Serializable
+
+    fun saveSession(): Session = Session(state.copyState(), CinematicProgress(
+        cinematic.active, cinematic.mode, cinematic.elapsedSeconds, cinematic.startAutoSpin,
+        cinematic.startTheta, cinematic.startPhi, cinematic.startZoom, cinematic.velocity,
+        cinematic.angularMomentum, cinematic.recovering, cinematic.recoverySeconds
+    ))
+
+    fun restoreSession(session: Session?, params: ChalSimulationParams) {
+        restore(params)
+        if (session == null) return
+        val pose = session.pose
+        if (listOf(pose.theta, pose.phi, pose.thetaVelocity, pose.phiVelocity, pose.zoomVelocity).all { it.isFinite() }) {
+            state = pose.copyState()
+            if (!session.cinematic.active && !session.cinematic.recovering) state.theta = ChalRenderPolicy.normalizeYaw(state.theta / (2.0 * PI)) * 2.0 * PI
+            state.phi = state.phi.coerceIn(0.001, PI - 0.001)
+        }
+        val c = session.cinematic
+        if (!params.reducedMotion && listOf(c.elapsedSeconds, c.recoverySeconds, c.startTheta, c.startPhi,
+                c.startZoom, c.startAutoSpin, c.velocity, c.angularMomentum).all { it.isFinite() }) {
+            cinematic = CinematicState(c.active, c.mode, c.elapsedSeconds.coerceAtLeast(0.0),
+                c.startAutoSpin, c.startTheta, c.startPhi, c.startZoom, c.velocity, c.angularMomentum,
+                c.recovering, c.recoverySeconds.coerceAtLeast(0.0))
+        }
+    }
 
     private var state = CameraState()
     private var cinematic = CinematicState()
@@ -79,7 +116,7 @@ class ChalCamera {
     private var lastDragY = 0.0
     private var lastPinchDistance = 0.0
 
-    val isCinematic: Boolean get() = cinematic.active
+    val isCinematic: Boolean get() = cinematic.active || cinematic.recovering
     val cinematicMode: CinematicMode? get() = cinematic.mode
     val isRecovering: Boolean get() = cinematic.recovering
 
@@ -101,6 +138,7 @@ class ChalCamera {
         if (cinematic.mode != CinematicMode.DIVE) stopCinematic()
 
         isDragging = true
+        touchCount = 1
         lastDragX = x
         lastDragY = y
 
@@ -119,7 +157,7 @@ class ChalCamera {
         // Directly mutate physics state
         // Note: We add to position AND set velocity (for "throw" momentum on release)
         state.theta += deltaX * sensitivity
-        state.phi += deltaY * sensitivity
+        state.phi = (state.phi + deltaY * sensitivity).coerceIn(0.001, PI - 0.001)
         state.thetaVelocity = deltaX * sensitivity * 0.5
         state.phiVelocity = deltaY * sensitivity * 0.5
 
@@ -129,13 +167,22 @@ class ChalCamera {
 
     fun onPointerUp() {
         isDragging = false
+        touchCount = 0
     }
+
+    fun clearMomentum() {
+        state.thetaVelocity = 0.0
+        state.phiVelocity = 0.0
+        state.zoomVelocity = 0.0
+    }
+
+    fun setTouchCount(count: Int) { touchCount = count.coerceAtLeast(0) }
 
     /** Two-finger pan (the reference applies the same sensitivity to the touch centre delta). */
     fun onPan(deltaX: Double, deltaY: Double) {
         val sensitivity = 0.003
         state.theta += deltaX * sensitivity
-        state.phi += deltaY * sensitivity
+        state.phi = (state.phi + deltaY * sensitivity).coerceIn(0.001, PI - 0.001)
     }
 
     fun onPinchStart(distance: Double) {
@@ -181,8 +228,8 @@ class ChalCamera {
      * @param reducedMotion honored like the reference's `prefers-reduced-motion` guard: cinematic
      *   auto-orbit is decorative, so the caller's motion preference silently no-ops here.
      */
-    fun startCinematic(mode: CinematicMode, params: ChalSimulationParams, now: Double, reducedMotion: Boolean) {
-        if (reducedMotion) return
+    fun startCinematic(mode: CinematicMode, params: ChalSimulationParams, reducedMotion: Boolean) {
+        if (reducedMotion || params.reducedMotion) return
 
         // 1. Clean up existing state (Force Stop any previous cinematic)
         stopCinematic()
@@ -200,14 +247,15 @@ class ChalCamera {
         cinematic = CinematicState(
             active = true,
             mode = mode,
-            startTime = now,
+            elapsedSeconds = 0.0,
+            startAutoSpin = params.autoSpin,
             startTheta = state.theta,
             startPhi = state.phi,
             startZoom = params.zoom,
             velocity = 0.0,
             angularMomentum = 0.0,
             recovering = false,
-            recoverStartTime = 0.0
+            recoverySeconds = 0.0
         )
 
         if (mode == CinematicMode.DIVE) {
@@ -230,11 +278,14 @@ class ChalCamera {
         }
     }
 
-    fun stopCinematic() {
+    fun stopCinematic(): Double? {
+        val restoreAutoSpin = if (isCinematic) cinematic.startAutoSpin else null
+        cinematic.recovering = false
         cinematic.active = false
         cinematic.mode = null
         cinematic.velocity = 0.0
         cinematic.angularMomentum = 0.0
+        return restoreAutoSpin
     }
 
     // ---------------------------------------------------------------------------------------
@@ -244,26 +295,29 @@ class ChalCamera {
     /**
      * Advance the camera one frame.
      *
-     * @param now wall-clock milliseconds (the reference uses `performance.now()`).
      * @param dtSeconds frame delta in seconds, already capped at 0.1 (lagguard).
      * @param params current simulation parameters.
      * @param applyParams sink for parameter mutations (zoom, auto-spin, paused) performed by the
      *   cinematic, mirroring `setParams` in the reference.
      */
     fun update(
-        now: Double,
         dtSeconds: Double,
         params: ChalSimulationParams,
         applyParams: (ChalSimulationParams.() -> ChalSimulationParams) -> Unit
     ) {
         // PAUSE GUARD: Skip all physics when simulation is paused
-        if (params.paused) return
+        if (params.paused) { clearMomentum(); return }
+        if (params.reducedMotion) clearMomentum()
+        val dt = dtSeconds.coerceIn(0.0, 0.1)
+        val frameUnits = dt * ChalMotion.REFERENCE_FPS
+        if (cinematic.active) cinematic.elapsedSeconds += dt
+        if (cinematic.recovering) cinematic.recoverySeconds += dt
 
         // --- RECOVERY PHASE: Smooth emergence back to pre-cinematic position ---
         // Like waking from a dream -- initially fast pullback, then gentle settling.
         if (cinematic.recovering) {
             val recoverDuration = 3.5 // seconds (longer = more dramatic)
-            val elapsed = (now - cinematic.recoverStartTime) * 0.001
+            val elapsed = cinematic.recoverySeconds
             val progress = min(elapsed / recoverDuration, 1.0)
 
             // Quartic ease-out: stronger initial pull, very gentle deceleration
@@ -274,7 +328,7 @@ class ChalCamera {
             val targetZoom = cinematic.startZoom
 
             // Accelerating convergence rate
-            val lerpRate = 0.05 + ease * 0.06
+            val lerpRate = 1.0 - (1.0 - (0.05 + ease * 0.06)).pow(frameUnits)
             state.theta += (targetTheta - state.theta) * lerpRate
             state.phi += (targetPhi - state.phi) * lerpRate
 
@@ -297,7 +351,7 @@ class ChalCamera {
                 applyParams {
                     copy(
                         zoom = targetZoom,
-                        autoSpin = ChalCameraConfig.DEFAULT_AUTO_SPIN
+                        autoSpin = cinematic.startAutoSpin
                     )
                 }
             }
@@ -308,17 +362,17 @@ class ChalCamera {
 
         if (cinematic.active && cinematic.mode != null) {
             if (cinematic.mode == CinematicMode.ORBIT) {
-                updateOrbit(now, dtSeconds, params, applyParams)
+                updateOrbit(dt, params, applyParams)
             } else {
-                updateDive(now, dtSeconds, params, applyParams)
+                updateDive(dt, params, applyParams)
             }
 
             // Apply Damping for user input during cinematic
-            state.thetaVelocity *= 0.95
-            state.phiVelocity *= 0.95
+            state.thetaVelocity *= 0.95.pow(frameUnits)
+            state.phiVelocity *= 0.95.pow(frameUnits)
 
-            state.theta += state.thetaVelocity
-            state.phi += state.phiVelocity
+            state.theta += state.thetaVelocity * frameUnits
+            state.phi += state.phiVelocity * frameUnits
 
             state.phi = max(0.001, min(PI - 0.001, state.phi))
             return
@@ -326,17 +380,17 @@ class ChalCamera {
 
         // --- INTERACTIVE MODE: USER CONTROL ---
         // Apply Drag Inertia / Momentum
-        state.thetaVelocity *= state.damping
-        state.phiVelocity *= state.damping
-        state.zoomVelocity *= state.damping
+        state.thetaVelocity *= state.damping.pow(frameUnits)
+        state.phiVelocity *= state.damping.pow(frameUnits)
+        state.zoomVelocity *= state.damping.pow(frameUnits)
 
-        state.theta += state.thetaVelocity
-        state.phi += state.phiVelocity
+        state.theta += state.thetaVelocity * frameUnits
+        state.phi += state.phiVelocity * frameUnits
 
         // Auto-Spin
         val spinSpeed = params.autoSpin
-        if (!isDragging && touchCount == 0 && abs(state.thetaVelocity) < 0.0001) {
-            state.theta += spinSpeed
+        if (!params.reducedMotion && !isDragging && touchCount == 0 && abs(state.thetaVelocity) < 0.0001) {
+            state.theta += ChalMotion.radiansPerSecond(spinSpeed) * dt
         }
 
         // Constraints
@@ -351,7 +405,7 @@ class ChalCamera {
 
         // Zoom momentum is applied to the params (interactive mode only)
         if (abs(state.zoomVelocity) > 0.0001) {
-            val delta = state.zoomVelocity
+            val delta = state.zoomVelocity * frameUnits
             applyParams { copy(zoom = clampZoom(zoom + delta, zoom)) }
         }
     }
@@ -362,19 +416,18 @@ class ChalCamera {
      * breathing.
      */
     private fun updateOrbit(
-        now: Double,
         dtSeconds: Double,
         params: ChalSimulationParams,
         applyParams: (ChalSimulationParams.() -> ChalSimulationParams) -> Unit
     ) {
-        val t = (now - cinematic.startTime) * 0.001
+        val t = cinematic.elapsedSeconds
         val orbitMaxDuration = 120.0
 
         if (t > orbitMaxDuration) {
             cinematic.active = false
             cinematic.mode = null
             cinematic.recovering = true
-            cinematic.recoverStartTime = now
+            cinematic.recoverySeconds = 0.0
             return
         }
 
@@ -457,7 +510,8 @@ class ChalCamera {
 
         // --- Apply with smooth interpolation (no pops) ---
         val currentZoom = params.zoom
-        val zoomLerp = currentZoom + (targetDist - currentZoom) * 0.025
+        val frameUnits = dtSeconds * ChalMotion.REFERENCE_FPS
+        val zoomLerp = currentZoom + (targetDist - currentZoom) * (1.0 - 0.975.pow(frameUnits))
         if (abs(zoomLerp - currentZoom) > 0.001) {
             applyParams { copy(zoom = zoomLerp) }
         }
@@ -471,14 +525,14 @@ class ChalCamera {
 
         if (!isDragging && touchCount == 0) {
             // Smooth phi tracking with wobble
-            state.phi += (targetPhi + wobbleY - state.phi) * 0.018
+            state.phi += (targetPhi + wobbleY - state.phi) * (1.0 - 0.982.pow(frameUnits))
             // Orbit rotation with Keplerian speed variation
-            state.theta += dtSeconds * orbitSpeed + wobbleX
+            state.theta += dtSeconds * orbitSpeed + wobbleX * frameUnits
         }
 
         // Apply breathing to zoom
         if (abs(breathe) > 0.01) {
-            applyParams { copy(zoom = max(minSafe, zoom + breathe * 0.01)) }
+            applyParams { copy(zoom = max(minSafe, zoom + breathe * 0.01 * frameUnits)) }
         }
     }
 
@@ -490,12 +544,11 @@ class ChalCamera {
      *   Act 3: The Maelstrom (20s+)   -- Physics takes over
      */
     private fun updateDive(
-        now: Double,
         dtSeconds: Double,
         params: ChalSimulationParams,
         applyParams: (ChalSimulationParams.() -> ChalSimulationParams) -> Unit
     ) {
-        val t = (now - cinematic.startTime) * 0.001
+        val t = cinematic.elapsedSeconds
         val r = params.zoom
 
         // --- Act-dependent gravity ---
@@ -549,7 +602,7 @@ class ChalCamera {
         // --- Angular Physics (Conservation of Momentum: L = r^2 * omega) ---
         val l = cinematic.angularMomentum
         val omegaProp = l / (newR * newR + 0.1)
-        state.theta += omegaProp * dtSeconds + thetaWobble
+        state.theta += omegaProp * dtSeconds + thetaWobble * dtSeconds * ChalMotion.REFERENCE_FPS
 
         // --- Inclination: Drift toward equatorial plane ---
         val distToEquator = PI * 0.5 - state.phi
@@ -558,7 +611,7 @@ class ChalCamera {
         // Subtle phi wobble for "tumbling through spacetime" feel
         if (t > act2End) {
             val phiWobble = sin(t * 1.7) * 0.004 + cos(t * 2.9) * 0.003
-            state.phi += phiWobble
+            state.phi += phiWobble * dtSeconds * ChalMotion.REFERENCE_FPS
         }
 
         // --- HORIZON CROSSING LOGIC ---
@@ -569,7 +622,7 @@ class ChalCamera {
             cinematic.velocity = 0.0
             cinematic.angularMomentum = 0.0
             cinematic.recovering = true
-            cinematic.recoverStartTime = now
+            cinematic.recoverySeconds = 0.0
 
             // Clear velocities so recovery isn't fighting residual momentum
             state.thetaVelocity = 0.0
@@ -579,7 +632,7 @@ class ChalCamera {
             // Restore autoSpin and unpause
             applyParams {
                 copy(
-                    autoSpin = ChalCameraConfig.DEFAULT_AUTO_SPIN,
+                    autoSpin = cinematic.startAutoSpin,
                     paused = false
                 )
             }
@@ -602,9 +655,31 @@ class ChalCamera {
             copy(
                 zoom = ChalCameraConfig.DEFAULT_ZOOM,
                 autoSpin = ChalCameraConfig.DEFAULT_AUTO_SPIN,
+                cameraYaw = 0.5,
+                verticalAngle = ChalCameraConfig.DEFAULT_VERTICAL_ANGLE * 180.0 / PI,
                 paused = false // Guarantee simulation runs after reset
             )
         }
+    }
+
+    /** Restore a saved pose once, before the surface's first frame. */
+    fun restore(params: ChalSimulationParams) {
+        stopCinematic()
+        state = CameraState(
+            theta = ChalRenderPolicy.normalizeYaw(params.cameraYaw) * 2.0 * PI,
+            phi = (params.verticalAngle * PI / 180.0).coerceIn(0.001, PI - 0.001)
+        )
+        isDragging = false
+        touchCount = 0
+    }
+
+    /** Scenarios reset inclination, not yaw, consistently with the native camera. */
+    fun resetScenarioPitch() {
+        stopCinematic()
+        state.phi = ChalCameraConfig.DEFAULT_VERTICAL_ANGLE
+        state.thetaVelocity = 0.0
+        state.phiVelocity = 0.0
+        state.zoomVelocity = 0.0
     }
 
     private fun clampZoom(value: Double, fallback: Double): Double {

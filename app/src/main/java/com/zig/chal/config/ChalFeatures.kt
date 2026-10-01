@@ -1,14 +1,18 @@
 package com.zig.chal.config
 
+import java.io.Serializable
+
 /**
  * Feature toggle definitions for performance optimization.
  *
- * Verbatim port of the reference engine's `src/types/features.ts`.
+ * Adapted from the reference feature schema; UI capabilities are backend-specific.
  *
  * Lensing quality levels:
  * - off: Analytic Hologram (LOD 0, no ray marching)
- * - low/medium: Geometric Approximation (LOD 1, limited steps)
- * - high/ultra: Relativistic Simulation (LOD 2, full GR)
+ * - low: Analytic preview (same branch as legacy off)
+ * - medium: Approximate ray marching (64 steps)
+ * - high: Approximate Kerr ray marching (80-step mobile cap)
+ * - ultra: Native-only UI tier; the GLES shader caps it identically to high
  */
 enum class ChalRayTracingQuality(val id: String, val label: String, val shaderDefine: String) {
     OFF("off", "Off", "RAY_QUALITY_OFF"),
@@ -50,18 +54,18 @@ data class ChalFeatureToggles(
     val gravitationalRedshift: Boolean,
     val kerrShadow: Boolean,
     val spacetimeVisualization: Boolean
-)
+) : Serializable
 
 /** Global Performance Presets (`PERFORMANCE_PRESETS` in `simulation.config.ts`). */
 object ChalPerformancePresets {
 
     val MAXIMUM_PERFORMANCE = ChalFeatureToggles(
         gravitationalLensing = false,
-        rayTracingQuality = ChalRayTracingQuality.OFF,
-        accretionDisk = false,
+        rayTracingQuality = ChalRayTracingQuality.LOW,
+        accretionDisk = true,
         dopplerBeaming = false,
-        backgroundStars = false,
-        photonSphereGlow = false,
+        backgroundStars = true,
+        photonSphereGlow = true,
         bloom = false,
         relativisticJets = false,
         gravitationalRedshift = false,

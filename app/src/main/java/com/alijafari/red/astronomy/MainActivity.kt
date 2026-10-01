@@ -169,7 +169,8 @@ class MainActivity : ComponentActivity() {
                             containerColor = Color.Transparent,
                             contentWindowInsets = WindowInsets(0, 0, 0, 0),
                             topBar = {
-                                if (uiState.selectedTab != 4 && uiState.selectedTab != 3) {
+                                if (uiState.selectedTab != 4 && uiState.selectedTab != 3 &&
+                                    !(uiState.selectedTab == 0 && com.zig.chal.ui.ChalAppChrome.ownsHeader)) {
                                     val isFa = uiState.language == com.alijafari.red.astronomy.domain.AppLanguage.PERSIAN
                                     Row(
                                         modifier = Modifier

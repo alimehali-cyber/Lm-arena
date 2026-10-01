@@ -35,6 +35,7 @@ class ChalSurfaceView(
 
     private val scaleDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            touchMoved = true
             val span = detector.currentSpan.toDouble()
             queueEvent { renderer.onPinchStart(span) }
             return true
@@ -70,6 +71,7 @@ class ChalSurfaceView(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (renderer.isBenchmarkRunning()) return true
         scaleDetector.onTouchEvent(event)
 
         when (event.actionMasked) {
@@ -90,7 +92,9 @@ class ChalSurfaceView(
                 lastFocusX = focusX(event)
                 lastFocusY = focusY(event)
                 isDragging = false
-                queueEvent { renderer.onPointerUp() }
+                touchMoved = true
+                val count = pointerCount
+                queueEvent { renderer.onPointerUp(); renderer.onTouchCountChanged(count) }
             }
 
             MotionEvent.ACTION_MOVE -> {
@@ -122,11 +126,20 @@ class ChalSurfaceView(
                 pointerCount = event.pointerCount - 1
                 if (pointerCount <= 0) {
                     queueEvent { renderer.onPointerUp() }
-                } else {
-                    lastX = event.x
-                    lastY = event.y
-                    queueEvent { renderer.onPointerDown(event.x.toDouble(), event.y.toDouble()) }
+                } else if (pointerCount == 1) {
+                    val remainingIndex = if (event.actionIndex == 0) 1 else 0
+                    lastX = event.getX(remainingIndex)
+                    lastY = event.getY(remainingIndex)
+                    val x = lastX.toDouble()
+                    val y = lastY.toDouble()
+                    queueEvent { renderer.onPointerDown(x, y) }
                     isDragging = true
+                } else {
+                    isDragging = false
+                    lastFocusX = focusX(event, event.actionIndex)
+                    lastFocusY = focusY(event, event.actionIndex)
+                    val count = pointerCount
+                    queueEvent { renderer.onTouchCountChanged(count) }
                 }
             }
 
@@ -134,22 +147,46 @@ class ChalSurfaceView(
                 pointerCount = 0
                 isDragging = false
                 queueEvent { renderer.onPointerUp() }
-                if (!touchMoved) onTap?.invoke()
+                parent?.requestDisallowInterceptTouchEvent(false)
+                if (event.actionMasked == MotionEvent.ACTION_UP && !touchMoved) performClick()
             }
         }
         return true
     }
 
-    private fun focusX(event: MotionEvent): Float {
-        var sum = 0f
-        for (i in 0 until event.pointerCount) sum += event.getX(i)
-        return sum / event.pointerCount
+    override fun performClick(): Boolean {
+        super.performClick()
+        onTap?.invoke()
+        return true
     }
 
-    private fun focusY(event: MotionEvent): Float {
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        renderer.setDisplayRefreshRate(displayRefreshRateHz())
+    }
+
+    override fun onResume() {
+        queueEvent { renderer.onHostResume() }
+        super.onResume()
+    }
+
+    override fun onPause() {
+        queueEvent { renderer.onHostPause() }
+        super.onPause()
+    }
+
+    fun resetScenarioPitch() { queueEvent { renderer.resetScenarioPitch() } }
+
+    private fun focusX(event: MotionEvent, excludedIndex: Int = -1): Float {
         var sum = 0f
-        for (i in 0 until event.pointerCount) sum += event.getY(i)
-        return sum / event.pointerCount
+        for (i in 0 until event.pointerCount) if (i != excludedIndex) sum += event.getX(i)
+        return sum / (event.pointerCount - if (excludedIndex >= 0) 1 else 0)
+    }
+
+    private fun focusY(event: MotionEvent, excludedIndex: Int = -1): Float {
+        var sum = 0f
+        for (i in 0 until event.pointerCount) if (i != excludedIndex) sum += event.getY(i)
+        return sum / (event.pointerCount - if (excludedIndex >= 0) 1 else 0)
     }
 
     /** Reset the camera from the UI thread (the camera is only ever touched on the GL thread). */

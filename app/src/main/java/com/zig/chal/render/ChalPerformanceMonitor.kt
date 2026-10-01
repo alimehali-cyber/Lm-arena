@@ -13,7 +13,7 @@ import kotlin.math.sqrt
  * Verbatim port of the reference engine's `src/performance/monitor.ts` (ring-buffer frame-time
  * statistics, rolling FPS, frame-budget usage, and the damped PID resolution controller).
  */
-class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.SystemClock.elapsedRealtime().toDouble() }) {
+class ChalPerformanceMonitor(private val nowMillis: () -> Double = { System.nanoTime() / 1_000_000.0 }) {
 
     /** Performance metrics snapshot (`PerformanceMetrics`). */
     data class PerformanceMetrics(
@@ -71,6 +71,7 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
 
     private var currentQuality: ChalRayTracingQuality = ChalRayTracingQuality.HIGH
     private var renderResolution: Double = 1.0
+    private var renderCeiling: Double = 1.0
 
     /*
      * Hardware awareness. The reference sniffs the user agent for
@@ -114,8 +115,10 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
     /**
      * Feed one frame's delta time (ms) and return the updated metrics.
      */
-    fun updateMetrics(deltaTime: Double): PerformanceMetrics {
-        frameTimes.push(deltaTime)
+    fun updateMetrics(deltaTime: Double, adaptive: Boolean = true, maximumScale: Double = 1.0, controllerDelta: Double = deltaTime): PerformanceMetrics {
+        renderCeiling = if (maximumScale.isFinite()) maximumScale.coerceIn(0.5, 1.0) else 1.0
+        setRenderResolution(renderResolution)
+        if (deltaTime.isFinite() && deltaTime > 0.0) frameTimes.push(deltaTime)
         cacheValid = false
 
         val now = nowMillis()
@@ -126,15 +129,15 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
                 isCalibrating = false
                 finalizeCalibration()
             }
-        } else if (ChalPerformanceConfig.Resolution.ENABLE_DYNAMIC_SCALING) {
+        } else if (adaptive && ChalPerformanceConfig.Resolution.ENABLE_DYNAMIC_SCALING) {
             // Chal mobile extension: settle the render scale from the measured frame time first,
             // then let the reference's PID trim it. The PID's own step size is deliberately tiny
             // (0.01 * correction, one change per 500 ms cooldown) and takes about a minute to walk
             // the scale down from native resolution on a phone; after the direct rescale the PID is
             // inside its cooldown, so the two never fight over the same frame.
             applyFastRecalibration()
-            applyPidScaling(deltaTime)
-            trackOverBudget(deltaTime)
+            applyPidScaling(controllerDelta)
+            trackOverBudget(controllerDelta)
         }
 
         return getMetrics(deltaTime)
@@ -236,6 +239,7 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
      */
     fun setTargetFrameTime(frameTimeMs: Double) {
         if (!frameTimeMs.isFinite() || frameTimeMs <= 0.0) return
+        if (frameTimeMs == targetFrameTimeMs) return
         targetFrameTimeMs = frameTimeMs.coerceIn(
             ChalPerformanceConfig.Mobile.MIN_TARGET_FRAME_MS,
             ChalPerformanceConfig.Mobile.MAX_TARGET_FRAME_MS
@@ -400,7 +404,7 @@ class ChalPerformanceMonitor(private val nowMillis: () -> Double = { android.os.
         }
         renderResolution = min(
             maxOf(res, ChalPerformanceConfig.Resolution.MIN_SCALE),
-            ceiling
+            min(ceiling, renderCeiling)
         )
     }
 

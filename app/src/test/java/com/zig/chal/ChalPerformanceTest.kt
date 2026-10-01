@@ -131,9 +131,9 @@ class ChalPerformanceTest {
         val m = ChalPerformanceConfig.Mobile
         // 60 Hz panels hold 60 fps.
         assertEquals(1000.0 / 60.0, m.targetFrameTimeMs(60.0), 1e-9)
-        // 120/144 Hz panels render every other vsync, still 60 fps.
+        // 120 Hz renders every other vsync; 144 Hz renders every third for 48 fps.
         assertEquals(1000.0 / 60.0, m.targetFrameTimeMs(120.0), 1e-9)
-        assertEquals(1000.0 / 60.0, m.targetFrameTimeMs(144.0), 1e-9)
+        assertEquals(1000.0 / 48.0, m.targetFrameTimeMs(144.0), 1e-9)
         // A 90 Hz panel can hold 90 or 45, never 60: pace to 45 so the adaptive controller stops
         // draining the resolution for a frame time the panel cannot display.
         assertEquals(1000.0 / 45.0, m.targetFrameTimeMs(90.0), 1e-9)

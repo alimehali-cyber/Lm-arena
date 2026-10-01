@@ -3,7 +3,6 @@ package com.zig.chal.render
 import android.opengl.GLES30
 import com.zig.chal.shader.ChalGlShaders
 import com.zig.chal.shader.ChalShaderSource
-import java.nio.ByteBuffer
 
 /**
  * Temporal Reprojection / TAA Manager using Variance Clipping in YCoCg space.
@@ -90,7 +89,7 @@ class ChalReprojection(private val hdrCapable: Boolean) {
         val textures = IntArray(1)
         GLES30.glGenTextures(1, textures, 0)
         val texture = textures[0]
-        if (texture == 0) return 0
+        check(texture != 0) { "Could not allocate a post-processing texture" }
 
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, texture)
         GLES30.glTexImage2D(
@@ -102,7 +101,7 @@ class ChalReprojection(private val hdrCapable: Boolean) {
             0,
             GLES30.GL_RGBA,
             textureType,
-            if (hdrCapable) null else ByteBuffer.allocate(width * height * 4)
+            null // allocate GPU storage without a full-size temporary Java heap buffer
         )
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR)
         GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR)
@@ -116,7 +115,7 @@ class ChalReprojection(private val hdrCapable: Boolean) {
         val framebuffers = IntArray(1)
         GLES30.glGenFramebuffers(1, framebuffers, 0)
         val framebuffer = framebuffers[0]
-        if (framebuffer == 0) return 0
+        check(framebuffer != 0) { "Could not allocate a post-processing framebuffer ($label)" }
 
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, framebuffer)
         GLES30.glFramebufferTexture2D(
@@ -131,7 +130,8 @@ class ChalReprojection(private val hdrCapable: Boolean) {
         if (status != GLES30.GL_FRAMEBUFFER_COMPLETE) {
             android.util.Log.e(ChalGlShaders.TAG, "Reprojection FBO incomplete ($label): $status")
             GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
-            return 0
+            GLES30.glDeleteFramebuffers(1, intArrayOf(framebuffer), 0)
+            error("Incomplete post-processing framebuffer ($label): $status")
         }
 
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
@@ -260,6 +260,7 @@ class ChalReprojection(private val hdrCapable: Boolean) {
         cleanupTargets()
         if (program != 0) GLES30.glDeleteProgram(program)
         program = 0
+        if (quadBuffer != 0) GLES30.glDeleteBuffers(1, intArrayOf(quadBuffer), 0)
         quadBuffer = 0
     }
 }

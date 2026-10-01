@@ -2,6 +2,7 @@ package com.zig.chal.config
 
 import com.zig.chal.physics.ChalPhysicsConstants
 import kotlin.math.tan
+import java.io.Serializable
 
 /**
  * Core simulation types.
@@ -18,18 +19,23 @@ data class ChalSimulationParams(
     val lensing: Double = ChalSimulationConfig.LENSING.default,
     val paused: Boolean = false,
     val zoom: Double = ChalSimulationConfig.ZOOM.default,
+    /** Legacy 60 Hz increment; display as radians/second using ChalMotion.radiansPerSecond. */
     val autoSpin: Double = ChalSimulationConfig.AUTO_SPIN.default,
     val diskSize: Double = ChalSimulationConfig.DISK_SIZE.default,
     val diskScaleHeight: Double = ChalSimulationConfig.DISK_SCALE_HEIGHT.default,
     val frameDraggingStrength: Double = ChalSimulationConfig.FRAME_DRAGGING.default,
     val bloomThreshold: Double = ChalSimulationConfig.BLOOM_THRESHOLD.default,
     val bloomIntensity: Double = ChalSimulationConfig.BLOOM_INTENSITY.default,
-    val adaptiveResolution: Boolean = false,
+    val adaptiveResolution: Boolean = true,
+    val automaticQuality: Boolean = false,
+    val batterySaver: Boolean = false,
+    val reducedMotion: Boolean = false,
     val renderScale: Double = ChalSimulationConfig.RENDER_SCALE.default,
     val features: ChalFeatureToggles = ChalSimulationConfig.FEATURES,
     val performancePreset: ChalPresetName = ChalSimulationConfig.DEFAULT_PRESET_MODE,
+    val cameraYaw: Double = XapkCameraState.DEFAULT_YAW.toDouble(),
     val verticalAngle: Double = ChalSimulationConfig.VERTICAL_ANGLE.default
-) {
+) : Serializable {
     companion object {
         /** Reference default (desktop web canvas). */
         val DEFAULT_PARAMS = ChalSimulationParams()

@@ -87,7 +87,7 @@ enum class ChalXapkScenario(
         )
     }
 
-    fun matches(params: ChalSimulationParams): Boolean =
+    fun matches(params: ChalSimulationParams, native: Boolean = true): Boolean =
         abs(params.mass - mass) < 1e-4 &&
             abs(params.spin - spin) < 1e-4 &&
             abs(params.lensing - lensing) < 1e-4 &&
@@ -96,9 +96,9 @@ enum class ChalXapkScenario(
             abs(params.diskDensity - diskDensity) < 1e-4 &&
             abs(params.diskScaleHeight - diskScaleHeight) < 1e-4 &&
             abs(params.zoom - cameraDistance) < 1e-4 &&
-            params.features.rayTracingQuality == quality
+            params.features.rayTracingQuality == ChalRenderPolicy.quality(quality, native)
 
     companion object {
-        fun matching(params: ChalSimulationParams): ChalXapkScenario? = entries.firstOrNull { it.matches(params) }
+        fun matching(params: ChalSimulationParams, native: Boolean = true): ChalXapkScenario? = entries.firstOrNull { it.matches(params, native) }
     }
 }

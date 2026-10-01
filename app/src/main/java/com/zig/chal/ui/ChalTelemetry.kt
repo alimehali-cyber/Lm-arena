@@ -4,148 +4,90 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
-import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.zig.chal.render.ChalRenderer
 import java.util.Locale
 
-/**
- * Real-time renderer telemetry.
- *
- * The XAPK backend uses its native FPS/render-scale data with Kerr helper readouts; the GLES
- * compatibility renderer retains Chal's quality, Schwarzschild-redshift approximation, dilation,
- * and frame-budget telemetry.
- */
+/** Wrapping, readable HUD. Rendering scale and quality describe the actual backend, not a request. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ChalTelemetry(
-    snapshot: ChalRenderer.ChalSnapshot,
-    isPersian: Boolean,
-    isXapkRenderer: Boolean = false,
-    modifier: Modifier = Modifier
-) {
-    val fpsOpacity = when {
-        snapshot.currentFps >= 60 -> 0.95f
-        snapshot.currentFps >= 30 -> 0.80f
-        else -> 0.50f
-    }
-
-    val items = if (isXapkRenderer) {
-        buildList {
-            add(Triple("FPS", snapshot.currentFps.toString(), ""))
-            add(Triple("Scale", "${Math.round(snapshot.params.renderScale * 100.0)}%", ""))
-            add(Triple("r₊", fixedWidth(snapshot.eventHorizonRadius, 6, 2), ""))
-            add(Triple("Photon", fixedWidth(snapshot.photonSphereRadius, 6, 2), ""))
-            add(Triple("ISCO", fixedWidth(snapshot.iscoRadius, 6, 2), ""))
-            if (kotlin.math.abs(snapshot.params.spin) > 1e-4) {
-                add(Triple("a*", fixedWidth(snapshot.params.spin, 5, 2), ""))
+fun ChalTelemetry(snapshot: ChalRenderer.ChalSnapshot, isPersian: Boolean, isXapkRenderer: Boolean = false,
+    modifier: Modifier = Modifier, compact: Boolean = true) {
+    val mass = snapshot.params.mass.takeIf { it.isFinite() && it > 0.0 } ?: 1.0
+    val items = buildList {
+        add(Triple(if (isPersian) "فریم/ثانیه" else "FPS", if (snapshot.params.paused) {
+            if (isPersian) "متوقف" else "Paused"
+        } else snapshot.currentFps.toString(), ""))
+        add(Triple(if (isPersian) "کیفیت" else "Quality", snapshot.quality.uiLabel(isPersian, isXapkRenderer), ""))
+        add(Triple(if (isPersian) "وضوح واقعی" else "Actual scale", "${Math.round(snapshot.actualRenderScale * 100)}%", ""))
+        if (!compact) {
+            add(Triple(if (isPersian) "افق r₊" else "Horizon r₊", fixedWidth(snapshot.eventHorizonRadius / mass, 0, 2), "r_g"))
+            add(Triple(if (isPersian) "مدار فوتونی" else "Photon orbit", fixedWidth(snapshot.photonSphereRadius / mass, 0, 2), "r_g"))
+            add(Triple(if (isPersian) "آخرین مدار پایدار" else "ISCO", fixedWidth(snapshot.iscoRadius / mass, 0, 2), "r_g"))
+            if (!isXapkRenderer) {
+                add(Triple(if (isPersian) "نرخ ساعت (تخمینی)" else "Clock rate (approx.)", fixedWidth(snapshot.timeDilation, 0, 3), "×"))
+                add(Triple(if (isPersian) "انتقال به سرخ (تخمینی)" else "Redshift (approx.)", "z=${fixedWidth(snapshot.redshift, 0, 3)}", ""))
             }
+            add(Triple(if (isPersian) "فاصلهٔ زمانی فریم‌ها" else "Frame interval", if (snapshot.params.paused) "—" else fixedWidth(snapshot.frameTimeMs, 0, 1), "ms"))
+            if (!isXapkRenderer) add(Triple(if (isPersian) "هدف نرخ فریم" else "Pacing target", snapshot.targetFps.toString(), if (isPersian) "فریم/ثانیه" else "FPS"))
         }
-    } else {
-        listOf(
-            Triple(if (isPersian) "فریم" else "FPS", snapshot.currentFps.toString(), "hz"),
-            Triple(if (isPersian) "کیفیت" else "Quality", snapshot.quality.label, "lvl"),
-            Triple(if (isPersian) "افق" else "Horizon", fixedWidth(snapshot.eventHorizonRadius, 6, 2), "Rs"),
-            Triple(if (isPersian) "سرخ‌گرایی" else "Redshift", "z=${fixedWidth(snapshot.redshift, 6, 2)}", ""),
-            Triple(if (isPersian) "کشش زمان" else "Dilation", fixedWidth(snapshot.timeDilation, 7, 3), "x")
-        )
     }
-
-    Column(
-        modifier = modifier.testTag("chal_telemetry"),
-        horizontalAlignment = Alignment.End,
-        verticalArrangement = Arrangement.spacedBy(RedSpacing.xs)
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)) {
-            items.forEachIndexed { index, (label, value, unit) ->
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = label.uppercase(Locale.US),
-                        color = Color.White.copy(alpha = 0.80f),
-                        fontSize = 7.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            text = value,
-                            color = Color.White.copy(alpha = if (index == 0) fpsOpacity else 0.95f),
-                            fontSize = 13.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Black
-                        )
-                        if (unit.isNotEmpty()) {
-                            Text(
-                                text = unit,
-                                color = Color.White.copy(alpha = 0.70f),
-                                fontSize = 8.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
+    Column(modifier.testTag("chal_telemetry"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.fillMaxWidth().clip(RoundedCornerShape(RedCornerRadius.sm))
+            .background(Color.Black.copy(alpha = 0.76f)).padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items.forEach { (label, value, unit) ->
+                Column(Modifier.widthIn(min = 72.dp).semantics(mergeDescendants = true) { contentDescription = "$label: $value $unit" },
+                    verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(label, color = Color.White.copy(alpha = 0.87f), fontSize = 12.sp)
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(value, color = Color.White, fontSize = 14.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                            if (unit.isNotEmpty()) Text(unit, color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
                         }
                     }
                 }
             }
         }
-
-        if (!isXapkRenderer && snapshot.budgetUsage > 0.0) {
-            Column(modifier = Modifier.width(180.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = if (isPersian) "بودجه فریم" else "Frame Budget",
-                        color = Color.White.copy(alpha = 0.55f),
-                        fontSize = 7.sp
-                    )
-                    Text(
-                        text = "${Math.round(snapshot.budgetUsage)}%",
-                        color = Color.White.copy(alpha = 0.75f),
-                        fontSize = 7.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(RedCornerRadius.full))
-                        .background(Color.White.copy(alpha = 0.08f))
-                ) {
-                    Spacer(
-                        modifier = Modifier
-                            .fillMaxWidth((snapshot.budgetUsage / 100.0).coerceIn(0.0, 1.0).toFloat())
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(RedCornerRadius.full))
-                            .background(Color.White.copy(alpha = 0.45f))
-                    )
-                }
+        if (!compact && !snapshot.params.paused && snapshot.budgetUsage > 0.0) {
+            val budget = snapshot.budgetUsage.takeIf { it.isFinite() } ?: 0.0
+            Text((if (isPersian) "فاصلهٔ فریم نسبت به هدف: " else "Frame interval / pacing target: ") + "${Math.round(budget)}%",
+                color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+            Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.15f))) {
+                Spacer(Modifier.fillMaxWidth((budget / 100.0).coerceIn(0.0, 1.0).toFloat()).height(5.dp)
+                    .background(if (budget > 105) Color(0xFFE8A16E) else Color.White.copy(alpha = 0.7f)))
             }
         }
     }
 }
 
-/**
- * Pads a number to a fixed total character count so HUD columns never shift when the integer-part
- * width changes. Sign reserves one column either way.
- */
 internal fun fixedWidth(value: Double, totalWidth: Int, decimals: Int): String {
-    val sign = if (value < 0) "-" else " "
-    val body = String.format(Locale.US, "%.${decimals}f", kotlin.math.abs(value))
-    return (sign + body).padStart(totalWidth, ' ')
+    if (value.isNaN()) return "—"
+    if (value.isInfinite()) return if (value > 0) "∞" else "−∞"
+    return String.format(Locale.US, "%.${decimals}f", value).padStart(totalWidth, ' ')
 }

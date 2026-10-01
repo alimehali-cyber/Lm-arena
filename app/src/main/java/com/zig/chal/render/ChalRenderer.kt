@@ -4,12 +4,16 @@ import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.util.Log
 import com.zig.chal.config.ChalFeatureToggles
+import com.zig.chal.config.ChalRuntimeState
+import com.zig.chal.config.ChalMotion
+import com.zig.chal.config.ChalRenderPolicy
 import com.zig.chal.config.ChalFeatures
 import com.zig.chal.config.ChalPresetName
 import com.zig.chal.config.ChalPerformanceConfig
 import com.zig.chal.config.ChalRayTracingQuality
 import com.zig.chal.config.ChalRendererBackend
 import com.zig.chal.config.ChalSimulationParams
+import com.zig.chal.physics.ChalObserverReadouts
 import com.zig.chal.physics.ChalKerrMetric
 import com.zig.chal.shader.ChalGlShaders
 import com.zig.chal.shader.ChalShaderManager
@@ -22,6 +26,8 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt
+import kotlin.math.roundToInt
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Chal's GLES compatibility renderer.
@@ -30,7 +36,7 @@ import kotlin.math.sqrt
  * renderer. It is an approximate visual fallback, not pixel-identical to the native backend. The
  * Lab screen prefers [XapkChalRenderer] whenever Vulkan 1.1 and arm64-v8a are available.
  */
-class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
+class ChalRenderer(initialParams: ChalSimulationParams = ChalSimulationParams.MOBILE_PARAMS, initialRuntime: ChalRuntimeState? = null) : GLSurfaceView.Renderer, ChalRendererBackend {
 
     /** Live runtime snapshot consumed by the Compose HUD (all fields written on the GL thread). */
     data class ChalSnapshot(
@@ -51,17 +57,29 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         val benchmarkPreset: ChalPresetName? = null,
         val benchmarkProgress: Double = 0.0,
         val benchmarkResults: List<ChalBenchmark.BenchmarkResult> = emptyList(),
-        val benchmarkRecommendation: ChalPresetName? = null
+        val benchmarkRecommendation: ChalPresetName? = null,
+        val actualRenderScale: Double = params.renderScale,
+        val benchmarkRenderScale: Double? = null,
+        val lastWorkingFeatures: ChalFeatureToggles? = null,
+        val postProcessingAvailable: Boolean = true,
+        val bloomThresholdMax: Double = 4.0,
+        val isReady: Boolean = true
     )
 
     private val shaderManager = ChalShaderManager()
     private val benchmark = ChalBenchmark()
     private val camera = ChalCamera()
+    private val frameClock = ChalFrameClock()
+    private val paramsLock = Any()
+    private val configurationDirty = AtomicBoolean(true)
+    private val cadenceDirty = AtomicBoolean(true)
+    private var appliedParams: ChalSimulationParams? = null
+    private var actualRenderScale = 1.0
     private val monitor = ChalPerformanceMonitor()
 
     // Multi-threaded hand-off: the UI thread writes params, the GL thread renders them.
     @Volatile
-    override var params: ChalSimulationParams = ChalSimulationParams.MOBILE_PARAMS
+    override var params: ChalSimulationParams = ChalRenderPolicy.normalize(initialParams, native = false)
         private set
 
     @Volatile
@@ -77,14 +95,15 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
     private var reprojection: ChalReprojection? = null
 
     private var program = 0
+    private var fatalInitializationFailure = false
+    private var graphicsCapabilitiesKnown = false
     private var compiledFeatures: ChalFeatureToggles? = null
     private var compiledHasPost = false
     private var failedFeatures: ChalFeatureToggles? = null
     private var failedHasPost = false
     private val uniformLocations = HashMap<String, Int>()
 
-    private var time = 0.0
-    private var lastFrameTime = 0.0
+    private var time = initialRuntime?.shaderTime?.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
     private var lastMetricsUpdate = 0.0
     private var lastMouseX = 0.0
     private var lastMouseY = 0.0
@@ -104,8 +123,7 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
     private var lastActivityTime = -1.0
 
     /** Set by UI-side parameter pushes so a paused-but-interactive frame still renders. */
-    @Volatile
-    private var paramsDirty = true
+    private val paramsDirty = AtomicBoolean(true)
 
     /**
      * Display refresh rate in Hz, supplied by the surface view. Drives both the adaptive target and
@@ -127,13 +145,16 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
     private var shadowCurveMass = Double.NaN
 
     @Volatile
-    private var lastBenchmarkReport: ChalBenchmark.BenchmarkReport? = null
+    private var lastBenchmarkReport: ChalBenchmark.BenchmarkReport? = initialRuntime?.benchmarkReport
+    @Volatile private var runtimeSnapshot = ChalRuntimeState(params)
+    @Volatile private var cinematicOriginalAutoSpin: Double? = null
 
+    @Volatile
     private var lastSnapshot = ChalSnapshot(
-        params = ChalSimulationParams.MOBILE_PARAMS,
+        params = params,
         currentFps = 0,
         frameTimeMs = 0.0,
-        quality = ChalRayTracingQuality.HIGH,
+        quality = params.features.rayTracingQuality,
         budgetUsage = 0.0,
         eventHorizonRadius = 0.0,
         photonSphereRadius = 0.0,
@@ -142,16 +163,26 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         redshift = 0.0,
         isCinematic = false,
         cinematicMode = null,
-        targetFps = 60
+        targetFps = 60,
+        isReady = false,
+        postProcessingAvailable = false
     )
+
+    init {
+        camera.restoreSession(initialRuntime?.cameraSession, params)
+        if (camera.isCinematic) cinematicOriginalAutoSpin = initialRuntime?.cameraSession?.cinematic?.startAutoSpin
+        initialRuntime?.benchmarkReport?.let { benchmark.restoreReport(it) }
+        publishRuntimeState()
+    }
 
     /** Snapshot for the UI thread. */
     override fun snapshot(): ChalSnapshot = lastSnapshot
 
     /** Called once by the surface view with the panel's refresh rate. */
     override fun setDisplayRefreshRate(refreshRateHz: Double) {
-        displayRefreshRateHz = refreshRateHz
-        monitor.setTargetFrameTime(ChalPerformanceConfig.Mobile.targetFrameTimeMs(refreshRateHz))
+        displayRefreshRateHz = if (refreshRateHz.isFinite() && refreshRateHz > 0.0) refreshRateHz else 60.0
+        configurationDirty.set(true)
+        cadenceDirty.set(true)
     }
 
     // ---------------------------------------------------------------------------------------
@@ -160,57 +191,102 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
 
     /** Replace the simulation parameters (feature changes force a shader recompilation). */
     override fun updateParams(newParams: ChalSimulationParams) {
-        if (newParams.renderScale != params.renderScale) monitor.seedRenderScale(newParams.renderScale)
-        // A quality change moves the cost of a frame by a large factor; let the resolution settle
-        // directly instead of creeping there through the PID.
-        if (newParams.features.rayTracingQuality != params.features.rayTracingQuality) {
-            monitor.requestFastRecalibration()
-        }
-        params = newParams
-        paramsDirty = true
+        editParams { newParams }
     }
 
-    /** Mutating variant used by the camera loop (`setParams` equivalent). */
-    private fun mutateParams(transform: ChalSimulationParams.() -> ChalSimulationParams) {
-        params = params.transform()
+    override fun editParams(edit: ChalSimulationParams.() -> ChalSimulationParams): ChalSimulationParams = synchronized(paramsLock) {
+        val normalized = ChalRenderPolicy.normalize(params.edit(), native = false)
+        params = if (graphicsCapabilitiesKnown && !hdrCapable) normalized.copy(bloomThreshold = normalized.bloomThreshold.coerceAtMost(0.9)) else normalized
+        configurationDirty.set(true)
+        paramsDirty.set(true)
+        params
+    }
+
+    override fun paramsForPersistence(): ChalSimulationParams = benchmark.originalParams
+        ?: params.copy(autoSpin = cinematicOriginalAutoSpin ?: params.autoSpin)
+
+    override fun saveRuntimeState(): ChalRuntimeState = runtimeSnapshot.copy(
+        params = benchmark.originalParams ?: params, benchmarkReport = lastBenchmarkReport
+    )
+
+    private fun publishRuntimeState() {
+        runtimeSnapshot = ChalRuntimeState(params, camera.saveSession(), time, lastBenchmarkReport)
+    }
+
+    /** GL-thread animation edits merge into the latest UI state without resetting frame pacing. */
+    private fun mutateParams(invalidate: Boolean = false, transform: ChalSimulationParams.() -> ChalSimulationParams) {
+        synchronized(paramsLock) { params = params.transform() }
+        if (invalidate) paramsDirty.set(true)
     }
 
     fun resetCamera() {
-        camera.reset { transform -> mutateParams(transform) }
+        cancelBenchmark()
+        camera.reset { mutateParams(invalidate = true, transform = it) }
+        configurationDirty.set(true)
+    }
+
+    fun resetScenarioPitch() {
+        camera.resetScenarioPitch()
+        syncCameraPose()
+        paramsDirty.set(true)
     }
 
     fun startCinematic(mode: ChalCamera.CinematicMode, reducedMotion: Boolean) {
-        camera.startCinematic(mode, params, now(), reducedMotion)
-        if (mode == ChalCamera.CinematicMode.DIVE) {
-            mutateParams { copy(autoSpin = 0.0) } // Disable artificial spin
-        }
+        if (params.reducedMotion || reducedMotion || isBenchmarkRunning()) return
+        stopCinematic()
+        cinematicOriginalAutoSpin = params.autoSpin
+        camera.startCinematic(mode, params, reducedMotion)
+        if (mode == ChalCamera.CinematicMode.DIVE) mutateParams(invalidate = true) { copy(autoSpin = 0.0) }
+        paramsDirty.set(true)
     }
 
-    fun stopCinematic() = camera.stopCinematic()
+    fun stopCinematic() {
+        camera.stopCinematic()?.let { speed -> mutateParams(invalidate = true) { copy(autoSpin = speed) } }
+        cinematicOriginalAutoSpin = null
+    }
 
-    /** Camera input, called on the GL thread through `GLSurfaceView.queueEvent`. */
+    fun onHostResume() { cadenceDirty.set(true) }
+    fun onHostPause() { cancelBenchmark(); syncCameraPose(); publishRuntimeState(); cadenceDirty.set(true) }
+
     fun onPointerDown(x: Double, y: Double) {
         lastActivityTime = now()
         camera.onPointerDown(x, y)
+        paramsDirty.set(true)
     }
     fun onPointerMove(x: Double, y: Double) {
         lastActivityTime = now()
         camera.onPointerMove(x, y)
+        paramsDirty.set(true)
     }
     fun onPointerUp() = camera.onPointerUp()
+    fun onTouchCountChanged(count: Int) = camera.setTouchCount(count)
     fun onPan(dx: Double, dy: Double) {
         lastActivityTime = now()
         camera.onPan(dx, dy)
+        paramsDirty.set(true)
     }
     fun onPinchStart(distance: Double) {
         lastActivityTime = now()
         camera.onPinchStart(distance)
     }
-    fun onPinch(distance: Double) = mutateParams { copy(zoom = camera.onPinch(distance, zoom)) }
-    fun onScrollZoom(delta: Double) = mutateParams { copy(zoom = camera.onScrollZoom(delta, zoom)) }
+    fun onPinch(distance: Double) {
+        lastActivityTime = now()
+        mutateParams(invalidate = true) { copy(zoom = camera.onPinch(distance, zoom)) }
+    }
+    fun onScrollZoom(delta: Double) {
+        lastActivityTime = now()
+        mutateParams(invalidate = true) { copy(zoom = camera.onScrollZoom(delta, zoom)) }
+    }
     fun nudge(dTheta: Double, dPhi: Double) {
+        stopCinematic()
         lastActivityTime = now()
         camera.nudge(dTheta, dPhi)
+        paramsDirty.set(true)
+    }
+
+    private fun syncCameraPose() {
+        val pose = camera.mouseState()
+        mutateParams { copy(cameraYaw = ChalRenderPolicy.normalizeYaw(pose.x), verticalAngle = pose.y * 180.0) }
     }
 
     /** True while a cinematic owns the camera (drives the ABORT SEQ affordance). */
@@ -222,17 +298,27 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
      * GL thread only: it mutates the simulation parameters as it walks the presets.
      */
     fun startBenchmark() {
-        benchmark.start(params.features)
-        mutateParams { copy(features = benchmark.featuresFor(ChalBenchmark.PRESETS_TO_TEST.first()),
-                             performancePreset = ChalBenchmark.PRESETS_TO_TEST.first()) }
+        if (isBenchmarkRunning()) return
+        stopCinematic()
+        syncCameraPose()
+        lastBenchmarkReport = null
+        benchmark.start(params, actualRenderScale, waitForFirstPresentation = true)
+        editParams {
+            copy(features = benchmark.featuresFor(ChalBenchmark.PRESETS_TO_TEST.first()),
+                paused = false, adaptiveResolution = false, automaticQuality = false,
+                reducedMotion = true, batterySaver = false, renderScale = actualRenderScale)
+        }
+        monitor.reset()
     }
 
-    /** Abort the suite and restore the pre-benchmark feature matrix (`cancelBenchmark`). */
     fun cancelBenchmark() {
-        val restore = benchmark.cancel()
-        if (restore != null) {
-            mutateParams { copy(features = restore, performancePreset = ChalFeatures.matchesPreset(restore)) }
-        }
+        benchmark.cancel()?.let { restoreBenchmarkParams(it) }
+    }
+
+    private fun restoreBenchmarkParams(original: ChalSimulationParams) {
+        editParams { original }
+        camera.restore(original)
+        monitor.reset()
     }
 
     fun isBenchmarkRunning(): Boolean = benchmark.state == ChalBenchmark.State.RUNNING
@@ -243,8 +329,12 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         // EGL may recreate the context; program IDs from the previous context are invalid.
+        fatalInitializationFailure = false
         shaderManager.invalidateContext()
         uniformLocations.clear()
+        bloom = null
+        reprojection = null
+        shadowCurveMass = Double.NaN
         program = 0
         compiledFeatures = null
         compiledHasPost = false
@@ -288,12 +378,15 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
 
         // Seed the adaptive controller with the phone start scale and the panel's refresh rate.
         monitor.setTargetFrameTime(ChalPerformanceConfig.Mobile.targetFrameTimeMs(displayRefreshRateHz))
-        monitor.seedRenderScale(monitor.initialResolutionScale())
+        monitor.seedRenderScale(if (params.adaptiveResolution) min(params.renderScale, monitor.initialResolutionScale()) else params.renderScale)
+        monitor.setQuality(params.features.rayTracingQuality)
+        appliedParams = params
         monitor.requestFastRecalibration()
 
         compileProgram(force = true)
 
         if (quadBuffer == 0 || noiseTexture == 0 || blueNoiseTexture == 0 || program == 0) {
+            fatalInitializationFailure = true
             errorMessage = "Chal renderer failed to initialise (shader compile or texture creation)."
         } else {
             errorMessage = null
@@ -301,116 +394,141 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
             ChalGlShaders.warmupShader(program, quadBuffer, surfaceWidth, surfaceHeight)
         }
 
-        lastFrameTime = now()
-        lastMetricsUpdate = lastFrameTime
+        frameClock.reset(now())
+        cadenceDirty.set(true)
+        paramsDirty.set(true)
+        lastMetricsUpdate = 0.0
+        publishSnapshot(monitor.getMetrics())
     }
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
         surfaceWidth = max(1, width)
         surfaceHeight = max(1, height)
         GLES30.glViewport(0, 0, surfaceWidth, surfaceHeight)
-        bloom?.resize(surfaceWidth, surfaceHeight)
-        reprojection?.ensureSize(surfaceWidth, surfaceHeight)
+        try {
+            bloom?.resize(surfaceWidth, surfaceHeight)
+        } catch (failure: RuntimeException) {
+            Log.w(ChalGlShaders.TAG, "Scene target resize failed; using direct rendering", failure)
+            bloom?.cleanup()
+            reprojection?.cleanup()
+            bloom = null
+            reprojection = null
+            compileProgram(force = true)
+        }
+        if (bloom != null) try {
+            reprojection?.ensureSize(surfaceWidth, surfaceHeight)
+        } catch (failure: RuntimeException) {
+            // Keep the working scene/bloom pipeline if only optional temporal AA fails.
+            Log.w(ChalGlShaders.TAG, "TAA resize failed; using the scene texture directly", failure)
+            reprojection?.cleanup()
+            reprojection = null
+        }
+        paramsDirty.set(true)
     }
 
     override fun onDrawFrame(gl: GL10?) {
         val frameStart = now()
-        val deltaTime = frameStart - lastFrameTime
-        lastFrameTime = frameStart
-
-        // Filter out huge spikes from app backgrounding
-        val cappedDelta = min(deltaTime, 100.0)
-
-        // Heavy EMA smoothing: a single spike needs ~15 consecutive bad frames to move the average.
-        smoothedDeltaTime = smoothedDeltaTime * 0.93 + cappedDelta * 0.07
-        val deltaTimeMs = smoothedDeltaTime
-
-        // Idle throttling: 30 FPS once the user has been quiet for idleTimeoutMs.
-        if (lastActivityTime < 0.0) lastActivityTime = frameStart
-        targetFrameTime = if (frameStart - lastActivityTime > ChalPerformanceConfig.Scheduler.IDLE_TIMEOUT_MS) {
-            1000.0 / ChalPerformanceConfig.Scheduler.IDLE_THROTTLE_FPS
-        } else {
-            ChalPerformanceConfig.Mobile.targetFrameTimeMs(displayRefreshRateHz)
+        if (fatalInitializationFailure || program == 0) {
+            publishSnapshot(monitor.getMetrics())
+            return
         }
-
-        // Frame-skip gate: uses the RAW delta, never the EMA, so a past spike cannot make us skip
-        // a perfectly good frame. The 5% slack absorbs vsync jitter (without it a 16.6 ms delta on
-        // a 60 Hz panel would occasionally be skipped, halving the frame rate).
-        if (cappedDelta < targetFrameTime * 0.95) return
-
-        val dtSeconds = min(cappedDelta * 0.001, 0.1)
-
-        // 1. Camera physics (the reference's requestAnimationFrame loop)
-        camera.update(frameStart, dtSeconds, params) { transform -> mutateParams(transform) }
-
-        // 2. Detect camera motion for TAA (mouse delta > 1e-4, debounced by 300 ms)
-        val mouse = camera.mouseState()
-        if (abs(mouse.x - lastMouseX) > 0.0001 || abs(mouse.y - lastMouseY) > 0.0001) {
-            cameraMoving = true
-            cameraMoveTimeout = frameStart + 300.0
-            lastActivityTime = frameStart
-        } else if (frameStart > cameraMoveTimeout) {
-            cameraMoving = false
+        if (cadenceDirty.getAndSet(false)) {
+            frameClock.reset(frameStart)
+            monitor.reset()
+            smoothedDeltaTime = 1000.0 / 60.0
         }
-        lastMouseX = mouse.x
-        lastMouseY = mouse.y
-
-        // 3. Metrics + adaptive resolution (driven by the smoothed delta time)
-        val metrics = monitor.updateMetrics(deltaTimeMs)
-
-        // Performance suite: walk the presets, sampling the live FPS of each.
-        if (benchmark.state == ChalBenchmark.State.RUNNING) {
-            val nextPreset = benchmark.tick(metrics.currentFPS.toDouble()) { report -> lastBenchmarkReport = report }
-            if (nextPreset != null) {
-                mutateParams {
-                    copy(
-                        features = benchmark.featuresFor(nextPreset),
-                        performancePreset = nextPreset
-                    )
-                }
+        if (configurationDirty.getAndSet(false)) {
+            val previous = appliedParams
+            val current = params
+            if (current.renderScale != previous?.renderScale || current.adaptiveResolution != previous?.adaptiveResolution) {
+                monitor.seedRenderScale(current.renderScale)
             }
+            monitor.setQuality(current.features.rayTracingQuality)
+            if (current.features.rayTracingQuality != previous?.features?.rayTracingQuality) monitor.requestFastRecalibration()
+            if (current.paused != previous?.paused) {
+                frameClock.reset(frameStart)
+                monitor.reset()
+            }
+            if (current.reducedMotion && camera.isCinematic) stopCinematic()
+            appliedParams = current
         }
 
-        // PAUSE LOGIC: a paused simulation still renders while the user is interacting with it.
-        val isInteractionActive = cameraMoving || paramsDirty
-        if (params.paused && !isInteractionActive) {
-            if (frameStart - lastMetricsUpdate > 200.0) {
+        if (lastActivityTime < 0.0 || paramsDirty.get()) lastActivityTime = frameStart
+        val idle = !isBenchmarkRunning() && frameStart - lastActivityTime > ChalPerformanceConfig.Scheduler.IDLE_TIMEOUT_MS
+        val fpsLimit = if (params.batterySaver || idle) 30 else ChalPerformanceConfig.Scheduler.TARGET_FPS
+        targetFrameTime = ChalPerformanceConfig.Mobile.targetFrameTimeMs(displayRefreshRateHz, fpsLimit)
+        monitor.setTargetFrameTime(targetFrameTime)
+
+        // Do not manufacture FPS samples or advance a cinematic while a paused scene is still.
+        if (params.paused && !paramsDirty.get()) {
+            if (frameStart - lastMetricsUpdate >= 200.0) {
                 lastMetricsUpdate = frameStart
-                publishSnapshot(metrics)
+                publishSnapshot(monitor.getMetrics())
             }
             return
         }
-        paramsDirty = false
+        val cappedDelta = frameClock.frameDelta(frameStart, targetFrameTime, force = params.paused && paramsDirty.get()) ?: return
+        val interactionDirty = paramsDirty.getAndSet(false)
+        val dtSeconds = min(cappedDelta, 100.0) * 0.001
+        smoothedDeltaTime = smoothedDeltaTime * 0.93 + min(cappedDelta, 100.0) * 0.07
 
-        // Throttle UI updates (5 Hz)
-        if (frameStart - lastMetricsUpdate > 200.0) {
+        camera.update(dtSeconds, params) { mutateParams(transform = it) }
+        syncCameraPose()
+        if (!camera.isCinematic) cinematicOriginalAutoSpin = null
+        val mouse = camera.mouseState()
+        if (interactionDirty || abs(mouse.x - lastMouseX) > 0.0001 || abs(mouse.y - lastMouseY) > 0.0001) {
+            cameraMoving = true
+            cameraMoveTimeout = frameStart + 300.0
+            lastActivityTime = frameStart
+        } else if (frameStart > cameraMoveTimeout) cameraMoving = false
+        lastMouseX = mouse.x
+        lastMouseY = mouse.y
+
+        val metrics = monitor.updateMetrics(cappedDelta,
+            adaptive = params.adaptiveResolution && !params.paused && !isBenchmarkRunning(),
+            maximumScale = if (params.batterySaver) 0.75 else 1.0,
+            controllerDelta = smoothedDeltaTime)
+
+        if (isBenchmarkRunning()) {
+            val next = benchmark.tick(metrics.rollingAverageFPS.toDouble()) { lastBenchmarkReport = it }
+            if (next != null) {
+                editParams { copy(features = benchmark.featuresFor(next)) }
+                monitor.reset()
+            } else if (benchmark.state == ChalBenchmark.State.COMPLETED) {
+                benchmark.takeRestoreParams()?.let { restoreBenchmarkParams(it) }
+            }
+        }
+
+        val frameParams = params
+        val features = frameParams.features
+        val scale = if (frameParams.adaptiveResolution) metrics.renderResolution else frameParams.renderScale
+        // Without a scene FBO, a reduced viewport would paint only one corner of the screen.
+        val renderScale = if (bloom != null) scale.coerceIn(0.5, if (frameParams.batterySaver) 0.75 else 1.0) else 1.0
+        if (abs(renderScale - actualRenderScale) > 0.0001) {
+            cameraMoving = true
+            cameraMoveTimeout = frameStart + 300.0
+        }
+        actualRenderScale = renderScale
+        if (frameStart - lastMetricsUpdate >= 200.0) {
             lastMetricsUpdate = frameStart
             publishSnapshot(metrics)
         }
 
-        val features = params.features
 
         // Recompile shader if feature toggles changed (cached if same)
-        compileProgram(force = false)
+        compileProgram(force = false, features = features)
         if (program == 0) {
             publishSnapshot(metrics)
             return
         }
 
-        // 4. Virtual viewport scaling (PID-driven, seeded from params.renderScale)
-        val renderScale = if (ChalPerformanceConfig.Resolution.ENABLE_DYNAMIC_SCALING) {
-            min(metrics.renderResolution, ChalPerformanceConfig.Resolution.MOBILE_CAP)
-        } else {
-            params.renderScale
-        }
-
-        if (!params.paused) time += 0.01
+        if (!frameParams.paused) time += dtSeconds * ChalMotion.SHADER_TIME_PER_SECOND
 
         val bloomPipeline = bloom
         val reprojectionPipeline = reprojection
 
         // Update Bloom Config (feature-driven)
-        bloomPipeline?.updateConfig(enabled = features.bloom)
+        bloomPipeline?.updateConfig(enabled = features.bloom, intensity = frameParams.bloomIntensity, threshold = frameParams.bloomThreshold)
 
         // 5. Offscreen for Bloom/TAA
         val targetFramebuffer = if (bloomPipeline != null) bloomPipeline.beginScene() else 0
@@ -441,17 +559,17 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         // reference's fallback path when the Rust telemetry stream is unavailable.
         // The 64-point circle only depends on the mass, so it is rebuilt when the mass changes
         // instead of 64 sin/cos + a sqrt every single frame.
-        if (params.mass != shadowCurveMass) {
-            val bCrit = 3.0 * sqrt(3.0) * params.mass
+        if (frameParams.mass != shadowCurveMass) {
+            val bCrit = 3.0 * sqrt(3.0) * frameParams.mass
             for (i in 0 until 64) {
                 val phi = (i / 64.0) * PI * 2.0
                 shadowCurve[i * 2] = (kotlin.math.cos(phi) * bCrit).toFloat()
                 shadowCurve[i * 2 + 1] = (kotlin.math.sin(phi) * bCrit).toFloat()
             }
-            shadowCurveMass = params.mass
+            shadowCurveMass = frameParams.mass
         }
         set1f("u_shadowCount", 64.0)
-        set2f("u_shadowShift", -(params.mass * 2.0) * 2.6, params.mass * 2.0 * 2.6)
+        set2f("u_shadowShift", -(frameParams.mass * 2.0) * 2.6, frameParams.mass * 2.0 * 2.6)
         val curveLocation = loc("u_shadowCurve")
         if (curveLocation != -1) {
             GLES30.glUniform2fv(curveLocation, 64, shadowCurve, 0)
@@ -465,12 +583,12 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         // Set Common Uniforms
         set2f("u_resolution", surfaceWidth * renderScale, surfaceHeight * renderScale)
         set1f("u_time", time)
-        set1f("u_mass", params.mass)
+        set1f("u_mass", frameParams.mass)
         // The shader converts dimensionless chi to a = M * chi exactly once.
-        set1f("u_spin", params.spin)
-        set1f("u_zoom", params.zoom * 2.0) // Decoupled from mass so it grows visibly
-        set1f("u_disk_size", params.diskSize)
-        set1f("u_disk_scale_height", params.diskScaleHeight)
+        set1f("u_spin", frameParams.spin)
+        set1f("u_zoom", frameParams.zoom * 2.0) // Decoupled from mass so it grows visibly
+        set1f("u_disk_size", frameParams.diskSize)
+        set1f("u_disk_scale_height", frameParams.diskScaleHeight)
         // `maxStepsMobile` (80) is Chal's legacy GLES mobile budget. Without it the ultra preset
         // asks for 256 steps per ray on a phone GPU, where a single step costs ~60 ALU ops plus a
         // divide-bound Kerr acceleration evaluation.
@@ -483,15 +601,15 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         )
         set1f("u_show_redshift", if (features.gravitationalRedshift) 1.0 else 0.0)
         set1f("u_show_kerr_shadow", if (features.kerrShadow) 1.0 else 0.0)
-        set1f("u_lensing_strength", params.lensing)
-        set1f("u_frame_dragging_strength", params.frameDraggingStrength)
+        set1f("u_lensing_strength", frameParams.lensing)
+        set1f("u_frame_dragging_strength", frameParams.frameDraggingStrength)
         set2f("u_mouse", mouse.x, mouse.y)
-        set1f("u_disk_density", params.diskDensity)
+        set1f("u_disk_density", frameParams.diskDensity)
 
         // THERMODYNAMICS: T ~ M^-1/4 (Shakura-Sunyaev)
         // Small BH = Hotter (Blue), Large BH = Cooler (Red)
-        val massFactor = params.mass.pow(-0.25)
-        set1f("u_disk_temp", params.diskTemp * massFactor)
+        val massFactor = frameParams.mass.pow(-0.25)
+        set1f("u_disk_temp", frameParams.diskTemp * massFactor)
         set1f("u_debug", 0.0)
 
         if (quadBuffer != 0) {
@@ -500,45 +618,38 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
 
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 6)
 
-        // 6. Post-processing pipeline
-        if (bloomPipeline != null && reprojectionPipeline != null) {
-            val sceneTexture = bloomPipeline.sceneTextureId
-            if (sceneTexture != 0) {
-                // Resolve TAA (Temporal Anti-Aliasing)
-                val resolved = reprojectionPipeline.resolve(sceneTexture, 0.75, cameraMoving, renderScale)
-
-                if (resolved != 0) {
-                    if (features.bloom) {
-                        bloomPipeline.applyBloomToTexture(resolved, renderScale)
-                    } else {
-                        // If bloom disabled, just draw the TAA-resolved frame to screen
-                        bloomPipeline.drawTextureToScreen(resolved, renderScale)
-                    }
-                } else if (features.bloom) {
-                    bloomPipeline.applyBloom(sceneTexture, renderScale)
-                } else {
-                    bloomPipeline.drawTextureToScreen(sceneTexture, renderScale)
-                }
-            }
-        } else if (bloomPipeline != null) {
-            // Non-TAA path
-            if (features.bloom) {
-                bloomPipeline.applyBloom(bloomPipeline.sceneTextureId, renderScale)
+        // A successful bloom/scene FBO is usable even when optional TAA failed to initialize.
+        // Every offscreen scene is presented, including the bloom-disabled / TAA-missing case.
+        if (bloomPipeline != null) {
+            val scene = bloomPipeline.sceneTextureId
+            if (scene != 0) {
+                val resolved = reprojectionPipeline?.resolve(scene, 0.75, cameraMoving, renderScale)
+                    ?.takeIf { it != 0 } ?: scene
+                if (features.bloom) bloomPipeline.applyBloomToTexture(resolved, renderScale)
+                else bloomPipeline.drawTextureToScreen(resolved, renderScale)
             }
         }
 
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+        if (compiledFeatures == features && benchmark.markPresetPresented()) {
+            monitor.reset()
+            frameClock.reset(now())
+            smoothedDeltaTime = targetFrameTime
+        }
+        publishRuntimeState()
     }
 
     // ---------------------------------------------------------------------------------------
     // Internals
     // ---------------------------------------------------------------------------------------
 
-    private fun compileProgram(force: Boolean) {
-        val features = params.features
-        val hasPost = bloom != null && reprojection != null
+    private fun compileProgram(force: Boolean, features: ChalFeatureToggles = params.features) {
+        val hasPost = bloom != null
 
-        if (!force && compiledFeatures == features && compiledHasPost == hasPost) return
+        if (!force && compiledFeatures == features && compiledHasPost == hasPost) {
+            errorMessage = null
+            return
+        }
         if (!force && failedFeatures == features && failedHasPost == hasPost) return
 
         val variant = shaderManager.compileShaderVariant(
@@ -574,17 +685,15 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
         val photonSphereRadius = ChalKerrMetric.calculatePhotonSphere(params.mass, normalizedSpin)
         val iscoRadius = ChalKerrMetric.calculateIsco(params.mass, normalizedSpin, prograde = true)
 
-        val absoluteZoom = params.zoom * 2.0 * params.mass
-        val r = max(absoluteZoom, eventHorizonRadius * 1.01)
-        val timeDilation = ChalKerrMetric.calculateTimeDilation(r, params.mass)
+        val timeDilation = ChalObserverReadouts.clockRate(params)
         // Standard gravitational redshift to infinity: z = 1/g - 1. Guard the horizon limit.
-        val redshift = if (timeDilation > 0.0) (1.0 / timeDilation) - 1.0 else Double.POSITIVE_INFINITY
+        val redshift = ChalObserverReadouts.redshift(timeDilation)
 
         lastSnapshot = ChalSnapshot(
             params = params,
-            currentFps = metrics.currentFPS,
+            currentFps = if (params.paused) 0 else metrics.rollingAverageFPS,
             frameTimeMs = metrics.frameTimeMs,
-            quality = metrics.quality,
+            quality = compiledFeatures?.rayTracingQuality ?: params.features.rayTracingQuality,
             budgetUsage = monitor.getFrameTimeBudgetUsage(),
             eventHorizonRadius = eventHorizonRadius,
             photonSphereRadius = photonSphereRadius,
@@ -593,16 +702,22 @@ class ChalRenderer : GLSurfaceView.Renderer, ChalRendererBackend {
             redshift = redshift,
             isCinematic = camera.isCinematic,
             cinematicMode = camera.cinematicMode,
-            targetFps = ChalPerformanceConfig.Scheduler.TARGET_FPS,
+            targetFps = (1000.0 / targetFrameTime).roundToInt(),
             benchmarkState = benchmark.state,
             benchmarkPreset = benchmark.currentPreset(),
             benchmarkProgress = benchmark.currentProgress(),
             benchmarkResults = benchmark.results.toList(),
-            benchmarkRecommendation = lastBenchmarkReport?.recommendedPreset
+            benchmarkRecommendation = lastBenchmarkReport?.recommendedPreset,
+            benchmarkRenderScale = lastBenchmarkReport?.renderScale,
+            lastWorkingFeatures = compiledFeatures,
+            actualRenderScale = actualRenderScale,
+            postProcessingAvailable = bloom != null,
+            bloomThresholdMax = if (hdrCapable) 4.0 else 0.9,
+            isReady = program != 0 && !fatalInitializationFailure
         )
     }
 
-    private fun now(): Double = android.os.SystemClock.elapsedRealtime().toDouble()
+    private fun now(): Double = System.nanoTime() / 1_000_000.0
 
     private fun loc(name: String): Int = uniformLocations.getOrPut(name) {
         if (program == 0) -1 else GLES30.glGetUniformLocation(program, name)

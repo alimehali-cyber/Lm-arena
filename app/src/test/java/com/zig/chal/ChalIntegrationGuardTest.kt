@@ -161,8 +161,8 @@ class ChalIntegrationGuardTest {
         val renderer = readMain("java/com/zig/chal/render/ChalRenderer.kt")
         val shader = readMain("java/com/zig/chal/shader/ChalShaderSource.kt")
 
-        assertTrue(renderer.contains("set1f(\"u_spin\", params.spin)"))
-        assertFalse(renderer.contains("set1f(\"u_spin\", params.spin * params.mass)"))
+        assertTrue(renderer.contains("set1f(\"u_spin\", frameParams.spin)"))
+        assertFalse(renderer.contains("set1f(\"u_spin\", frameParams.spin * frameParams.mass)"))
         assertTrue(shader.contains("float a = u_spin * M;"))
     }
 
@@ -197,15 +197,15 @@ class ChalIntegrationGuardTest {
             config.contains("const val IS_MOBILE_HARDWARE: Boolean = true")
         )
 
-        // 2. The adaptive controller owns the render scale; the reference's PID must keep running
+        // 2. When enabled, the adaptive controller owns the render scale; the reference's PID must keep running
         //    alongside the direct rescale (it is the part that trims the scale afterwards).
         assertTrue(
             "the reference's PID controller must still drive the resolution",
-            monitor.contains("applyPidScaling(deltaTime)")
+            monitor.contains("applyPidScaling(controllerDelta)")
         )
         assertTrue(
             "the direct rescale must not replace the PID",
-            monitor.indexOf("applyFastRecalibration()") < monitor.indexOf("applyPidScaling(deltaTime)")
+            monitor.indexOf("applyFastRecalibration()") < monitor.indexOf("applyPidScaling(controllerDelta)")
         )
         assertTrue(
             "resolution changes must be clamped to the mobile cap",
