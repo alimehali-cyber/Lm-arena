@@ -18,7 +18,7 @@ The GLES fallback also received targeted fixes: normalized spin is no longer mul
 - Extracted the base and configuration APKs, raw `classes.dex`, and the ARM64 `libblackhole.so`. The base DEX lists **2,008 class descriptors**. The app-facing `MainActivity`, `NativeBridge`, surface/settings classes, and targeted Compose code were decompiled with `droidasc`, following the [apk-reverse](https://github.com/newliver666/apk-reverse) toolchain guidance. `Capstone`/`pyelftools` were used to inspect the AArch64 ELF and JNI/render call paths.
 - Validated eight embedded SPIR-V instruction streams structurally: SPIR-V 1.3 headers, bounded instruction lengths, `main` entry points; two vertex and six fragment modules. The modules are stripped of useful `OpName` symbols. No `spirv-dis`/validator was available, so this is **not** a semantic disassembly or proof of the shader’s physics.
 - The `ddc` release download failed with an EOF from the asset host. Therefore, this was a targeted decompilation of the app logic, not a source dump of all 2,008 DEX classes and bundled libraries. Native C++/Rust source cannot be reconstructed from the stripped `.so`; symbol tables and selected disassembly were inspected instead.
-- Implementation changed the Lab surface host, JNI bridge, native parameter adapter, XAPK settings/presets, controls, GLES fallback, manifest, and tests. Android build/device verification remains unavailable: Java/JDK are absent and the Gradle wrapper could not download Gradle 9.3.1 because the TLS connection to `services.gradle.org` failed.
+- Implementation changed the Lab surface host, JNI bridge, native parameter adapter, XAPK settings/presets, controls, GLES fallback, manifest, and tests. This sandbox has no Java/JDK and cannot download Gradle 9.3.1, but GitHub Actions run [36811438201](https://github.com/alimehali-cyber/Lm-arena/actions/runs/36811438201) successfully ran the JVM suite and assembled the signed release APK. No Android device run was available.
 
 ## Architecture comparison
 
@@ -84,7 +84,7 @@ On each new EGL context, Chal discards stale program IDs without deleting names 
 
 ## Test coverage and remaining verification
 
-The JVM suite now includes contract tests for the 16 floats/four ints, quality steps/flags/scales, camera clamps, and XAPK physical presets; existing physics tests were updated for the matching XAPK control ranges/default camera distance. Tests and APK assembly were **not run**: this sandbox has no `java`, `javac`, or `kotlinc`, and the earlier Gradle 9.3.1 wrapper download failed with `SSL_ERROR_SYSCALL` to `services.gradle.org`.
+The JVM suite now includes contract tests for the 16 floats/four ints, quality steps/flags/scales, camera clamps, and all four XAPK physical presets; existing physics tests were updated for the matching XAPK control ranges/default camera distance. GitHub Actions run [36811438201](https://github.com/alimehali-cyber/Lm-arena/actions/runs/36811438201), on commit `6f836c4`, passed **775 tests** (0 failures/errors/skips), assembled and verified the signed release APK, and uploaded the `ZIG-real-app-apk` artifact. The local sandbox still lacks Java/JDK and its Gradle 9.3.1 download failed with `SSL_ERROR_SYSCALL` to `services.gradle.org`.
 
 Remaining work before release:
 
