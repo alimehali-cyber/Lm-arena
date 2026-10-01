@@ -19,7 +19,7 @@ data class ChalSimulationParams(
     val lensing: Double = ChalSimulationConfig.LENSING.default,
     val paused: Boolean = false,
     val zoom: Double = ChalSimulationConfig.ZOOM.default,
-    /** Legacy 60 Hz increment; display as radians/second using ChalMotion.radiansPerSecond. */
+    /** Legacy GLES 60 Hz increment; convert for its rad/s display. Native keeps engine units. */
     val autoSpin: Double = ChalSimulationConfig.AUTO_SPIN.default,
     val diskSize: Double = ChalSimulationConfig.DISK_SIZE.default,
     val diskScaleHeight: Double = ChalSimulationConfig.DISK_SCALE_HEIGHT.default,

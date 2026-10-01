@@ -103,4 +103,27 @@ class ChalCameraRegressionTest {
         assertEquals(100.0, rig.params.zoom, 0.0)
         assertFalse(rig.params.paused)
     }
+    @Test fun inertiaTravelsTheSameDistanceAtThirtyAndSixtyFrames() {
+        val slow = Rig(ChalSimulationParams(autoSpin = 0.0))
+        val fast = Rig(ChalSimulationParams(autoSpin = 0.0))
+        for (rig in listOf(slow, fast)) {
+            rig.camera.onPointerDown(0.0, 0.0)
+            rig.camera.onPointerMove(100.0, 0.0)
+            rig.camera.onPointerUp()
+        }
+        repeat(15) { slow.tick(1.0 / 30) }
+        repeat(30) { fast.tick(1.0 / 60) }
+        assertEquals(fast.camera.snapshot().theta, slow.camera.snapshot().theta, 1e-9)
+        assertEquals(fast.camera.snapshot().thetaVelocity, slow.camera.snapshot().thetaVelocity, 1e-9)
+    }
+    @Test fun reducedMotionDoesNotContinueAnInertialThrow() {
+        val rig = Rig(ChalSimulationParams(reducedMotion = true))
+        rig.camera.onPointerDown(0.0, 0.0)
+        rig.camera.onPointerMove(20.0, 0.0)
+        rig.camera.onPointerUp()
+        val theta = rig.camera.snapshot().theta
+        repeat(30) { rig.tick(1.0 / 30) }
+        assertEquals(theta, rig.camera.snapshot().theta, 1e-9)
+    }
+
 }

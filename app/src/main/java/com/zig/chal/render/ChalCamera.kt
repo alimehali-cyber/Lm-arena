@@ -369,11 +369,12 @@ class ChalCamera {
             }
 
             // Apply Damping for user input during cinematic
-            state.thetaVelocity *= 0.95.pow(frameUnits)
-            state.phiVelocity *= 0.95.pow(frameUnits)
-
-            state.theta += state.thetaVelocity * frameUnits
-            state.phi += state.phiVelocity * frameUnits
+            val cinematicDecay = 0.95.pow(frameUnits)
+            val cinematicTravel = momentumTravel(0.95, frameUnits)
+            state.theta += state.thetaVelocity * cinematicTravel
+            state.phi += state.phiVelocity * cinematicTravel
+            state.thetaVelocity *= cinematicDecay
+            state.phiVelocity *= cinematicDecay
 
             state.phi = max(0.001, min(PI - 0.001, state.phi))
             return
@@ -381,12 +382,14 @@ class ChalCamera {
 
         // --- INTERACTIVE MODE: USER CONTROL ---
         // Apply Drag Inertia / Momentum
-        state.thetaVelocity *= state.damping.pow(frameUnits)
-        state.phiVelocity *= state.damping.pow(frameUnits)
-        state.zoomVelocity *= state.damping.pow(frameUnits)
-
-        state.theta += state.thetaVelocity * frameUnits
-        state.phi += state.phiVelocity * frameUnits
+        val decay = state.damping.pow(frameUnits)
+        val travel = momentumTravel(state.damping, frameUnits)
+        val zoomTravel = state.zoomVelocity * travel
+        state.theta += state.thetaVelocity * travel
+        state.phi += state.phiVelocity * travel
+        state.thetaVelocity *= decay
+        state.phiVelocity *= decay
+        state.zoomVelocity *= decay
 
         // Auto-Spin
         val spinSpeed = params.autoSpin
@@ -406,7 +409,7 @@ class ChalCamera {
 
         // Zoom momentum is applied to the params (interactive mode only)
         if (abs(state.zoomVelocity) > 0.0001) {
-            val delta = state.zoomVelocity * frameUnits
+            val delta = zoomTravel
             applyParams { copy(zoom = clampZoom(zoom + delta, zoom)) }
         }
     }
@@ -681,6 +684,13 @@ class ChalCamera {
         state.thetaVelocity = 0.0
         state.phiVelocity = 0.0
         state.zoomVelocity = 0.0
+    }
+
+    /** Sum the reference's damp-then-move steps, including fractional 60 Hz steps. */
+    private fun momentumTravel(damping: Double, frameUnits: Double): Double = when {
+        damping == 1.0 -> frameUnits
+        damping <= 0.0 -> 0.0
+        else -> damping * (1.0 - damping.pow(frameUnits)) / (1.0 - damping)
     }
 
     private fun clampZoom(value: Double, fallback: Double): Double {
