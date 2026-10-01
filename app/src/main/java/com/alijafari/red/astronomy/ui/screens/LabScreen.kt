@@ -74,7 +74,7 @@ enum class LabFeatureType(
         titleFa = "چال",
         subtitleEn = "Real-Time Kerr Ray-Marching Engine",
         subtitleFa = "موتور ردیابی پرتوی زمان-واقعی کر",
-        descriptionEn = "Real-time Kerr black-hole ray-marching on the device's native Vulkan engine, with an approximate GLES fallback on hardware that cannot run it.",
+        descriptionEn = "Real-time Kerr black-hole ray-marching on the device's own native GPU engine, with an approximate GLES fallback on hardware that cannot run it.",
         descriptionFa = "ردیابی پرتوی زمان-واقعی سیاه‌چالهٔ کر روی موتور بومی ولکان؛ روی سخت‌افزاری که آن را اجرا نمی‌کند، نسخهٔ تقریبی GLES فعال می‌شود.",
         icon = Icons.Default.BlurCircular,
         isAvailable = true
