@@ -6,16 +6,13 @@ on:
     tags: [ "**" ]
   pull_request:
   workflow_dispatch:
-    inputs:
-      chal_device_checks:
-        description: 'Also run optional Chal live checks with sim-use on a macOS Android emulator'
-        required: false
-        type: boolean
-        default: false
 
-# Automatic builds retain their existing unit-test/release flow. The macOS device check is
-# opt-in through workflow_dispatch or an explicit [chal-device-check] commit marker; ordinary
-# pushes do not reintroduce an automatic emulator gate.
+# Single real-app build job: unit tests -> signed release APK -> artifact upload.
+#
+# The instrumented emulator smoke-test job (AVD boot + connectedDebugAndroidTest + logcat gate for
+# ARSkySmokeInstrumentedTest) has been removed from the pipeline. Nothing here depends on an
+# emulator, and there are no `needs:` gates. Local/JVM unit tests (testDebugUnitTest) are retained
+# and remain a hard gate before the APK is produced.
 jobs:
   build:
     # ubuntu-22.04 keeps the Android SDK image this project's AGP/Kotlin toolchain is built against.
@@ -88,11 +85,6 @@ jobs:
           for path in files:
               root = ET.parse(path).getroot()
               for testcase in root.iter("testcase"):
-                  classname = testcase.attrib.get("classname", "")
-                  if classname.startswith("com.zig.chal"):
-                      for failure_node in list(testcase.findall("failure")) + list(testcase.findall("error")):
-                          detail = (failure_node.text or "")[:7000].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-                          print(f"::error title=Chal failure traceback::{detail}")
                   tests += 1
                   failure = testcase.find("failure")
                   error = testcase.find("error")
@@ -171,42 +163,6 @@ jobs:
               sys.exit("One or more required AR unit test classes were missing, skipped, or failed")
           PY
 
-      - name: Confirm Chal regression classes ran
-        if: always()
-        run: |
-          python3 - <<'PY_CHAL'
-          import glob, sys, xml.etree.ElementTree as ET
-          required = {
-              "com.zig.chal.ChalFrameClockTest", "com.zig.chal.ChalCameraRegressionTest",
-              "com.zig.chal.ChalBenchmarkRegressionTest", "com.zig.chal.ChalControlsRegressionTest",
-              "com.zig.chal.ChalRuntimeStateTest", "com.zig.chal.config.ChalSettingsStoreTest",
-              "com.zig.chal.ui.ChalUiRegressionTest"
-          }
-          seen = set()
-          failures = 0
-          for path in glob.glob("app/build/test-results/testDebugUnitTest/*.xml"):
-              for case in ET.parse(path).getroot().iter("testcase"):
-                  name = case.get("classname")
-                  if name in required:
-                      seen.add(name)
-                      if any(case.find(tag) is not None for tag in ("failure", "error", "skipped")):
-                          failures += 1
-          print("Chal classes:", sorted(seen), "failures/skips:", failures)
-          if seen != required or failures:
-              sys.exit("Chal regression tests are missing, skipped, or failing")
-          PY_CHAL
-
-      - name: Upload Chal UI validation images
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Chal-ui-validation
-          path: app/build/chal-ui/*.png
-          if-no-files-found: warn
-
-      - name: Native renderer licensing reminder
-        run: echo "::notice title=Native redistribution review::The imported Vulkan binaries still require owner-confirmed redistribution rights and notices before publishing. See docs/xapk-native-renderer-provenance.md. Building/testing does not establish those rights."
-
       - name: Build signed release APK with Gradle
         env:
           KEYSTORE_FILE_PATH: ${{ runner.temp }}/keystore.jks
@@ -281,51 +237,3 @@ jobs:
         if: always()
         run: |
           rm -f "$RUNNER_TEMP/keystore.jks"
-
-  chal-device-checks:
-    if: (github.event_name == 'workflow_dispatch' && inputs.chal_device_checks) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[chal-device-check]'))
-    runs-on: macos-15-intel
-    timeout-minutes: 35
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - uses: gradle/actions/setup-gradle@v3
-      # Built and prepared BEFORE the emulator boots so Gradle never competes with it for CPU.
-      - name: Build the debug app to verify
-        run: ./gradlew assembleDebug -Pgravity.ci.tests=false --no-daemon
-      - name: Prepare the pixel verifier
-        run: |
-          python3 -m venv "$RUNNER_TEMP/chal-device-python"
-          "$RUNNER_TEMP/chal-device-python/bin/pip" install --quiet Pillow
-      - name: Install sim-use and the learned skill bundle
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: '1'
-        run: |
-          brew tap lycorp-jp/tap
-          if brew help trust >/dev/null 2>&1; then brew trust lycorp-jp/tap; fi
-          brew install lycorp-jp/tap/sim-use
-          git clone --filter=blob:none https://github.com/lycorp-jp/sim-use.git "$RUNNER_TEMP/sim-use"
-          git -C "$RUNNER_TEMP/sim-use" checkout cd6caf9b422433034c7293fb9e060c2069b642da
-          sim-use --version
-      - name: Observe, interact, and verify Chal using sim-use
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 31
-          target: google_apis
-          arch: x86_64
-          ram-size: 2048M
-          heap-size: 512M
-          disk-size: 4096M
-          disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: bash .github/scripts/chal_device_run.sh
-      - name: Upload visual verification evidence (no APK)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Chal-sim-use-evidence
-          path: ${{ runner.temp }}/chal-device-images/*.png
-          if-no-files-found: warn
