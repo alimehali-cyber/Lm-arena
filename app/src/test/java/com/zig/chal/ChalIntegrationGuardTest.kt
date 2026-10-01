@@ -290,4 +290,35 @@ class ChalIntegrationGuardTest {
         }
         throw AssertionError("could not locate the app main source set")
     }
+
+    /**
+     * Source-shape guard (not a GL test): GLSurfaceView swaps buffers after EVERY callback, so a
+     * callback that draws nothing presents a stale buffer from two or three frames ago, which
+     * shimmers on 90/120 Hz panels and while paused. Every no-new-frame path must re-present the
+     * retained frame, or wait until a frame is due, never just return.
+     */
+    @Test
+    fun callbacksThatAreNotDueNeverSwapAStaleBuffer() {
+        val renderer = readMain("java/com/zig/chal/render/ChalRenderer.kt")
+
+        assertTrue("the retained-frame presenter must exist", renderer.contains("private fun presentRetainedFrame(): Boolean"))
+        assertTrue(
+            "a paused, unchanged scene must re-present its frozen frame",
+            renderer.contains("if (presentRetainedFrame()) return")
+        )
+        assertTrue(
+            "without a retained frame the thread must wait for the next due frame",
+            renderer.contains("sleepQuietly(frameClock.remainingMs(frameStart, targetFrameTime))")
+        )
+        assertFalse(
+            "a bare 'frameDelta(...) ?: return' is the stale-buffer bug",
+            Regex("""frameClock\.frameDelta\(.*\)\s*\?:\s*return""").containsMatchIn(
+                renderer.replace("force = true) ?: return", "force = true)")
+            )
+        )
+        assertTrue(
+            "the error path must present clean black",
+            renderer.contains("GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)")
+        )
+    }
 }

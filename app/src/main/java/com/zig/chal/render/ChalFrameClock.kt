@@ -12,6 +12,13 @@ class ChalFrameClock {
         lastFrameMs = nowMs.takeIf { it.isFinite() }
     }
 
+    /** Milliseconds until [frameDelta] would admit a frame; 0 when one is due or the clock is unset. */
+    fun remainingMs(nowMs: Double, budgetMs: Double): Double {
+        val last = lastFrameMs ?: return 0.0
+        if (!nowMs.isFinite() || !budgetMs.isFinite() || budgetMs <= 0.0 || nowMs < last) return 0.0
+        return (budgetMs * ADMIT_FRACTION - (nowMs - last)).coerceAtLeast(0.0)
+    }
+
     fun frameDelta(nowMs: Double, budgetMs: Double, force: Boolean = false): Double? {
         if (!nowMs.isFinite() || !budgetMs.isFinite() || budgetMs <= 0.0) return null
         val last = lastFrameMs
@@ -20,8 +27,13 @@ class ChalFrameClock {
             return 0.0
         }
         val elapsed = nowMs - last
-        if (!force && elapsed < budgetMs * 0.95) return null
+        if (!force && elapsed < budgetMs * ADMIT_FRACTION) return null
         lastFrameMs = nowMs
         return elapsed
+    }
+
+    private companion object {
+        /** A callback that arrives a hair early (vsync jitter) is still admitted. */
+        const val ADMIT_FRACTION = 0.95
     }
 }

@@ -32,7 +32,7 @@ class ChalSettingsStoreTest {
         assertEquals(original.cameraYaw, restored.cameraYaw, 1e-6)
         assertEquals(original.verticalAngle, restored.verticalAngle, 1e-6)
         assertEquals(original.renderScale, restored.renderScale, 1e-6)
-        assertTrue(restored.paused)
+        assertFalse("pause is transient and must not outlive the visit", restored.paused)
         assertFalse(restored.adaptiveResolution)
         assertTrue(restored.automaticQuality)
         assertTrue(restored.batterySaver)
@@ -78,5 +78,11 @@ class ChalSettingsStoreTest {
         assertEquals(ChalSimulationConfig.MASS.default, defaults.mass, 0.0)
         assertEquals(ChalSimulationConfig.SPIN.default, defaults.spin, 0.0)
         assertFalse(defaults.paused)
+    }
+    @Test fun aPausedSceneIsNotRestoredPausedOnTheNextVisit() {
+        val store = XapkSimulationSettingsStore(context)
+        store.save(ChalSimulationParams(paused = true))
+        assertFalse(store.load().paused)
+        assertFalse("no pause key may be written at all", preferences.contains("chal.paused"))
     }
 }

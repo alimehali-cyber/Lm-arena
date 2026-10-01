@@ -120,7 +120,10 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
                 try { NativeBridge.nativeOnPause(true) } catch (_: Throwable) { /* teardown must still run */ }
                 NativeBridge.nativeOnSurfaceDestroyed()
             } catch (failure: Throwable) {
-                errorMessage = "XAPK Vulkan surface teardown failed: ${failure.message ?: failure.javaClass.simpleName}"
+                // A failed teardown does not affect a future surface. Do not publish it as a render
+                // error: that would permanently switch to the compatibility renderer on return from
+                // the background. If the next surface really cannot start, THAT failure is reported.
+                android.util.Log.w("ChalXapk", "XAPK Vulkan surface teardown failed", failure)
             } finally {
                 surfaceReady = false
                 surfaceConfigured = false
@@ -278,7 +281,9 @@ class XapkChalRenderer(initialParams: ChalSimulationParams) : ChalRendererBacken
         return try {
             block().takeIf { it.isFinite() }
         } catch (failure: Throwable) {
-            errorMessage = "XAPK Kerr telemetry failed: ${failure.message ?: failure.javaClass.simpleName}"
+            // A readout helper failing is not a rendering failure: use the Kotlin Kerr metric instead
+            // and keep the (working) native renderer instead of triggering the compatibility fallback.
+            android.util.Log.w("ChalXapk", "Native Kerr helper failed; using the Kotlin metric", failure)
             null
         }
     }

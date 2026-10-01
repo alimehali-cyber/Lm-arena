@@ -41,4 +41,21 @@ class ChalFrameClockTest {
         assertNull(clock.frameDelta(100.0, 0.0))
         assertNull(clock.frameDelta(100.0, Double.POSITIVE_INFINITY))
     }
+    @Test fun remainingTimeCountsDownToZeroAndMatchesAdmission() {
+        val clock = ChalFrameClock().apply { reset(0.0) }
+        assertEquals(16.67 * 0.95, clock.remainingMs(0.0, 16.67), 1e-9)
+        assertEquals(16.67 * 0.95 - 8.0, clock.remainingMs(8.0, 16.67), 1e-9)
+        assertEquals(0.0, clock.remainingMs(15.9, 16.67), 0.0)
+        assertNull(clock.frameDelta(clock.remainingMs(8.0, 16.67) + 8.0 - 0.01, 16.67))
+        assertNotNull(clock.frameDelta(clock.remainingMs(8.0, 16.67) + 8.0 + 0.01, 16.67))
+    }
+    @Test fun remainingTimeIsZeroForAnUnsetClockBackwardTimeOrBadInput() {
+        val clock = ChalFrameClock()
+        assertEquals(0.0, clock.remainingMs(10.0, 16.67), 0.0)
+        clock.reset(100.0)
+        assertEquals(0.0, clock.remainingMs(50.0, 16.67), 0.0)
+        assertEquals(0.0, clock.remainingMs(Double.NaN, 16.67), 0.0)
+        assertEquals(0.0, clock.remainingMs(110.0, Double.POSITIVE_INFINITY), 0.0)
+        assertEquals(0.0, clock.remainingMs(110.0, 0.0), 0.0)
+    }
 }

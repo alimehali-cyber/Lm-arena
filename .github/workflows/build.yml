@@ -293,6 +293,13 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v3
+      # Built and prepared BEFORE the emulator boots so Gradle never competes with it for CPU.
+      - name: Build the debug app to verify
+        run: ./gradlew assembleDebug -Pgravity.ci.tests=false --no-daemon
+      - name: Prepare the pixel verifier
+        run: |
+          python3 -m venv "$RUNNER_TEMP/chal-device-python"
+          "$RUNNER_TEMP/chal-device-python/bin/pip" install --quiet Pillow
       - name: Install sim-use and the learned skill bundle
         env:
           HOMEBREW_NO_AUTO_UPDATE: '1'

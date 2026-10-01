@@ -29,6 +29,9 @@ import kotlin.math.sqrt
 import kotlin.math.roundToInt
 import java.util.concurrent.atomic.AtomicBoolean
 
+/** Longest the GL thread may sleep to pace one frame (never more than one 15 FPS frame). */
+private const val MAX_PACING_SLEEP_MS = 40L
+
 /**
  * Chal's GLES compatibility renderer.
  *
@@ -75,6 +78,14 @@ class ChalRenderer(initialParams: ChalSimulationParams = ChalSimulationParams.MO
     private val cadenceDirty = AtomicBoolean(true)
     private var appliedParams: ChalSimulationParams? = null
     private var actualRenderScale = 1.0
+
+    /**
+     * The last fully drawn frame, kept as a texture so a callback that is NOT due can show it again.
+     * GLSurfaceView swaps buffers after every callback; swapping without drawing would present a
+     * stale buffer from two or three frames ago, which shimmers on 90/120 Hz panels and while paused.
+     */
+    private var presentedTexture = 0
+    private var presentedScale = 1.0
     private val monitor = ChalPerformanceMonitor()
 
     // Multi-threaded hand-off: the UI thread writes params, the GL thread renders them.
@@ -335,6 +346,7 @@ class ChalRenderer(initialParams: ChalSimulationParams = ChalSimulationParams.MO
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         // EGL may recreate the context; program IDs from the previous context are invalid.
         fatalInitializationFailure = false
+        presentedTexture = 0
         shaderManager.invalidateContext()
         uniformLocations.clear()
         bloom = null
@@ -409,6 +421,7 @@ class ChalRenderer(initialParams: ChalSimulationParams = ChalSimulationParams.MO
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
         surfaceWidth = max(1, width)
         surfaceHeight = max(1, height)
+        presentedTexture = 0 // the post-processing targets are about to be re-created
         GLES30.glViewport(0, 0, surfaceWidth, surfaceHeight)
         try {
             bloom?.resize(surfaceWidth, surfaceHeight)
@@ -434,6 +447,9 @@ class ChalRenderer(initialParams: ChalSimulationParams = ChalSimulationParams.MO
     override fun onDrawFrame(gl: GL10?) {
         val frameStart = now()
         if (fatalInitializationFailure || program == 0) {
+            // Nothing can be drawn; present clean black instead of whatever a stale buffer holds.
+            GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
             publishSnapshot(monitor.getMetrics())
             return
         }
@@ -470,9 +486,17 @@ class ChalRenderer(initialParams: ChalSimulationParams = ChalSimulationParams.MO
                 lastMetricsUpdate = frameStart
                 publishSnapshot(monitor.getMetrics())
             }
-            return
+            // Show the frozen frame again. Without a retained frame (direct rendering) fall through
+            // and keep drawing at the paced rate: time and camera do not advance while paused.
+            if (presentRetainedFrame()) return
         }
-        val cappedDelta = frameClock.frameDelta(frameStart, targetFrameTime, force = params.paused && paramsDirty.get()) ?: return
+        val admittedDelta = frameClock.frameDelta(frameStart, targetFrameTime, force = params.paused && paramsDirty.get())
+        val cappedDelta: Double = admittedDelta ?: run {
+            if (presentRetainedFrame()) return
+            // Nothing to re-present: wait until the next frame is due instead of swapping a stale buffer.
+            sleepQuietly(frameClock.remainingMs(frameStart, targetFrameTime))
+            frameClock.frameDelta(now(), targetFrameTime, force = true) ?: return
+        }
         val interactionDirty = paramsDirty.getAndSet(false)
         val dtSeconds = min(cappedDelta, 100.0) * 0.001
         smoothedDeltaTime = smoothedDeltaTime * 0.93 + min(cappedDelta, 100.0) * 0.07
@@ -630,6 +654,8 @@ class ChalRenderer(initialParams: ChalSimulationParams = ChalSimulationParams.MO
             if (scene != 0) {
                 val resolved = reprojectionPipeline?.resolve(scene, 0.75, cameraMoving, renderScale)
                     ?.takeIf { it != 0 } ?: scene
+                presentedTexture = resolved
+                presentedScale = renderScale
                 if (features.bloom) bloomPipeline.applyBloomToTexture(resolved, renderScale)
                 else bloomPipeline.drawTextureToScreen(resolved, renderScale)
             }
@@ -647,6 +673,31 @@ class ChalRenderer(initialParams: ChalSimulationParams = ChalSimulationParams.MO
     // ---------------------------------------------------------------------------------------
     // Internals
     // ---------------------------------------------------------------------------------------
+
+    /**
+     * Re-issue the final presentation pass for the last finished frame: a few small full-screen passes,
+     * with no ray-marching. The same calls end every normal frame, so GL state stays consistent.
+     *
+     * @return true when a frame was presented; false when there is nothing valid to show again.
+     */
+    private fun presentRetainedFrame(): Boolean {
+        val pipeline = bloom ?: return false
+        val texture = presentedTexture
+        if (texture == 0) return false
+        if (pipeline.config.enabled) pipeline.applyBloomToTexture(texture, presentedScale)
+        else pipeline.drawTextureToScreen(texture, presentedScale)
+        GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER, 0)
+        return true
+    }
+
+    private fun sleepQuietly(milliseconds: Double) {
+        if (!milliseconds.isFinite() || milliseconds <= 0.0) return
+        try {
+            Thread.sleep(milliseconds.toLong().coerceIn(1L, MAX_PACING_SLEEP_MS))
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+    }
 
     private fun compileProgram(force: Boolean, features: ChalFeatureToggles = params.features) {
         val hasPost = bloom != null
@@ -756,6 +807,7 @@ class ChalRenderer(initialParams: ChalSimulationParams = ChalSimulationParams.MO
         reprojection?.cleanup()
         bloom = null
         reprojection = null
+        presentedTexture = 0
         if (noiseTexture != 0) GLES30.glDeleteTextures(1, intArrayOf(noiseTexture), 0)
         if (blueNoiseTexture != 0) GLES30.glDeleteTextures(1, intArrayOf(blueNoiseTexture), 0)
         if (quadBuffer != 0) GLES30.glDeleteBuffers(1, intArrayOf(quadBuffer), 0)

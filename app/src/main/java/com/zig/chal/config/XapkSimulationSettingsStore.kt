@@ -30,7 +30,9 @@ class XapkSimulationSettingsStore(context: Context) {
             diskScaleHeight = number("diskScale", ChalSimulationConfig.DISK_SCALE_HEIGHT),
             bloomThreshold = number("bloomThr", ChalSimulationConfig.BLOOM_THRESHOLD),
             bloomIntensity = number("bloomInt", ChalSimulationConfig.BLOOM_INTENSITY),
-            zoom = number("chal.zoom", ChalSimulationConfig.ZOOM), paused = boolean("chal.paused", false),
+            zoom = number("chal.zoom", ChalSimulationConfig.ZOOM),
+            // Pause is a transient viewing state: it survives rotation (saved runtime state), not a new visit.
+            paused = false,
             cameraYaw = ChalRenderPolicy.normalizeYaw(float("chal.yaw", XapkCameraState.DEFAULT_YAW).toDouble()),
             verticalAngle = number("chal.pitch", ChalSimulationConfig.VERTICAL_ANGLE.copy(min = 0.001 * 180.0 / Math.PI, max = 180.0 - 0.001 * 180.0 / Math.PI)),
             adaptiveResolution = boolean("chal.adaptiveResolution", true),
@@ -59,7 +61,7 @@ class XapkSimulationSettingsStore(context: Context) {
             .putBoolean("chal.adaptiveResolution", params.adaptiveResolution).putBoolean("chal.automaticQuality", params.automaticQuality)
             .putBoolean("chal.batterySaver", params.batterySaver).putBoolean("chal.reducedMotion", params.reducedMotion)
             .putFloat("chal.renderScale", params.renderScale.toFloat()).putFloat("chal.zoom", params.zoom.toFloat())
-            .putBoolean("chal.paused", params.paused).putFloat("chal.yaw", params.cameraYaw.toFloat())
+            .putFloat("chal.yaw", params.cameraYaw.toFloat())
             .putFloat("chal.pitch", params.verticalAngle.toFloat()).apply()
     }
 
