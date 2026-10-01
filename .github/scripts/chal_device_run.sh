@@ -26,6 +26,10 @@ PY
 # Use Homebrew's explicit resource path rather than relying on Swift Bundle.module discovery.
 bridge_apk="$(brew --prefix sim-use)/libexec/SimUse_AndroidBackend.bundle/Resources/sim-use-device-bridge.apk"
 if [ -f "$bridge_apk" ]; then
+  # Cold CI emulators can spend over a minute dex-optimizing the first installed APK. Preinstall
+  # without streaming outside the CLI's fixed 60-second timeout; init remains responsible for
+  # accessibility registration, authentication and bridge verification.
+  run_stage "preinstall bridge on cold emulator" adb install --no-streaming -r -g "$bridge_apk"
   run_stage "initialize sim-use Android bridge" sim-use android init --device emulator-5554 --apk-path "$bridge_apk"
 else
   run_stage "initialize sim-use Android bridge" sim-use android init --device emulator-5554
