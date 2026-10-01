@@ -420,9 +420,12 @@ private fun ChalSlider(config: ChalParameterConfig, value: Double, isPersian: Bo
         val range = "${config.min * displayFactor} – ${config.max * displayFactor} ${config.unit}"
         AlertDialog(onDismissRequest = { editing = false }, title = { Text(label) }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = input, onValueChange = { input = it }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), isError = !valid,
-                    modifier = Modifier.fillMaxWidth().testTag("chal_numeric_input"), label = { Text(if (isPersian) "مقدار" else "Value") })
+                // Numbers/signs keep their natural reading direction inside an otherwise RTL dialog.
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    OutlinedTextField(value = input, onValueChange = { input = it }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), isError = !valid,
+                        modifier = Modifier.fillMaxWidth().testTag("chal_numeric_input"), label = { Text(if (isPersian) "مقدار" else "Value") })
+                }
                 Text((if (isPersian) "بازه: " else "Range: ") + range)
             }
         }, confirmButton = { TextButton(enabled = valid, onClick = { entered?.let { onChange(ChalSliderMath.quantize(it, config)) }; editing = false },

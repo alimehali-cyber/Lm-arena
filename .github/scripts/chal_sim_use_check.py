@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Optional macOS/Android live check: observe → act → verify; never relaunch after a crash."""
 import argparse
-import hashlib
 import json
 import pathlib
 import re
@@ -116,7 +115,14 @@ def main():
     time.sleep(1)
     wait_for(exact("Resume", "ادامه"))
     after = screenshot("chal-paused-after-pinch.png")
-    assert hashlib.sha256(before.read_bytes()).digest() != hashlib.sha256(after.read_bytes()).digest(), "Paused pinch did not redraw the scene"
+    from PIL import Image, ImageChops
+    original = Image.open(before).convert("RGB")
+    updated = Image.open(after).convert("RGB")
+    assert original.size == updated.size
+    w, h = original.size
+    # Ignore changing OS chrome and HUD; check decoded scene pixels rather than PNG metadata.
+    region = (w // 8, h // 4, w * 7 // 8, h * 13 // 20)
+    assert ImageChops.difference(original.crop(region), updated.crop(region)).getbbox() is not None, "Paused pinch did not redraw scene pixels"
 
     # Configuration recreation must retain Chal selection and paused state, not return to Lab/Home.
     run("adb", "-s", serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0")
@@ -147,4 +153,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        message = str(error).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print(f"::error title=sim-use live check::{message}", flush=True)
+        raise

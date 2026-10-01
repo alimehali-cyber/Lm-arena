@@ -102,9 +102,17 @@ class ChalUiRegressionTest {
     @Test fun typedPersianNumbersApplyWithDeclaredPrecisionWithoutLosingViewState() {
         params = params.copy(cameraYaw = 0.72, zoom = 40.0)
         panel(persian = true)
-        rule.onNodeWithTag("chal_value_black_hole_mass").performScrollTo().performClick()
-        rule.onNodeWithTag("chal_numeric_input").performTextReplacement("۱۲٫۳")
-        rule.onNodeWithTag("chal_apply_number").performClick()
+        rule.onNodeWithTag("chal_value_black_hole_mass").performScrollTo()
+        // A focused text field's repeating caret/label animation is not a finite "idle" state.
+        // Control the virtual clock while interacting; still exercise the real text and apply actions.
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag("chal_value_black_hole_mass").performClick()
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("chal_numeric_input").assertIsDisplayed().performTextReplacement("۱۲٫۳")
+        rule.mainClock.advanceTimeBy(100)
+        rule.onNodeWithTag("chal_apply_number").assertIsEnabled().performClick()
+        rule.mainClock.advanceTimeBy(500)
+        rule.mainClock.autoAdvance = true
         rule.runOnIdle {
             assertEquals(12.3, params.mass, 1e-9)
             assertEquals(0.72, params.cameraYaw, 1e-9)
