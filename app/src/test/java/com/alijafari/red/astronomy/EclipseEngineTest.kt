@@ -110,10 +110,11 @@ class EclipseEngineTest {
         assertTrue("Luxor must see 2027-08-02 eclipse", luxorEval.isLocallyVisible)
         assertEquals(100, luxorEval.localObscurationPercent)
 
-        // In Nurabad, Iran (30.1141N, 51.5217E), 2027-08-02 is a deep Partial Solar Eclipse
+        // In Nurabad, Iran (30.1141N, 51.5217E), 2027-08-02 is a deep Partial Solar Eclipse (~58% linear mag, ~49% area obscuration)
         val nurabadEval = engine.evaluateEclipse(solar2027, 30.1141, 51.5217, 940.0, 1810000000000L)
         assertTrue("Nurabad must see 2027-08-02 partial eclipse", nurabadEval.isLocallyVisible)
-        assertTrue("Nurabad obscuration should be between 50% and 95%", nurabadEval.localObscurationPercent in 50..95)
+        assertTrue("Nurabad area obscuration should be between 45% and 60%", nurabadEval.localObscurationPercent in 45..60)
+        assertTrue("Nurabad linear magnitude should be between 0.50 and 0.65", nurabadEval.localMagnitude in 0.50..0.65)
 
         // 2028-12-31 Total Lunar Eclipse (16:52 UTC = 1861894320000L) is completely visible across Iran
         val lunar2028 = engine.findNextLunarEclipse(1860000000000L)!!
