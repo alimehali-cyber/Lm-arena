@@ -38,19 +38,37 @@ object MilkyWayRenderer {
         if (finalAlpha <= 0.02f) return
 
         val screenPoints = mutableListOf<Offset>()
+        var prevPos: Offset? = null
 
         for (pt in galacticPoints) {
             val screenPos = HeroSkyProjection.project(pt.azimuthDeg, pt.altitudeDeg, width, height, latitudeDeg)
             screenPoints.add(screenPos)
-            if (first) {
+            // Break the subpath if consecutive points wrap across the canvas azimuth seam
+            val jumpedSeam = prevPos != null && abs(screenPos.x - prevPos.x) > width * 0.35f
+            if (first || jumpedSeam) {
                 mwPath.moveTo(screenPos.x, screenPos.y)
                 first = false
             } else {
                 mwPath.lineTo(screenPos.x, screenPos.y)
             }
+            prevPos = screenPos
         }
 
-        // Only draw soft ambient dust dots, no heavy squiggly path lines across the sky canvas
+        // Soft diffused galactic band glow
+        val bandColor = when (theme) {
+            SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFF818CF8).copy(alpha = finalAlpha * 0.14f)
+            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color(0xFF94A3B8).copy(alpha = finalAlpha * 0.12f)
+            SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFFC6FF).copy(alpha = finalAlpha * 0.16f)
+            SkyCanvasTheme.OBSERVATORY -> Color(0xFF991B1B).copy(alpha = finalAlpha * 0.18f)
+            SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE9C46A).copy(alpha = finalAlpha * 0.12f)
+        }
+        drawScope.drawPath(
+            path = mwPath,
+            color = bandColor,
+            style = Stroke(width = 26f, cap = StrokeCap.Round)
+        )
+
+        // Draw soft ambient galactic dust dots along the plane
         drawDustDots(drawScope, screenPoints, finalAlpha, frameTimeMs, theme)
     }
 
@@ -61,32 +79,33 @@ object MilkyWayRenderer {
         frameTimeMs: Long,
         theme: SkyCanvasTheme
     ) {
-        val step = 3
-        for (i in screenPoints.indices step step) {
+        for (i in screenPoints.indices) {
             val p = screenPoints[i]
-            val hash = i * 37
-            val offsetX = (hash % 29 - 14).toFloat()
-            val offsetY = (hash % 23 - 11).toFloat()
-            val particleAlpha = finalAlpha * (0.3f + 0.4f * sin(frameTimeMs * 0.001f + hash).toFloat().coerceIn(0f, 1f))
-            val dotRadius = 1.2f + (hash % 3) * 0.6f
+            for (sub in 0..1) {
+                val hash = (i * 37 + sub * 73)
+                val offsetX = (hash % 29 - 14).toFloat()
+                val offsetY = (hash % 23 - 11).toFloat()
+                val particleAlpha = finalAlpha * (0.3f + 0.4f * sin(frameTimeMs * 0.001f + hash).toFloat().coerceIn(0f, 1f))
+                val dotRadius = 1.1f + (hash % 3) * 0.55f
 
-            val dotColor = when (theme) {
-                SkyCanvasTheme.ATMOSPHERIC_SKY -> when (hash % 3) {
-                    0 -> Color(0xFFC084FC)
-                    1 -> Color(0xFF38BDF8)
-                    else -> Color(0xFFFDE047)
+                val dotColor = when (theme) {
+                    SkyCanvasTheme.ATMOSPHERIC_SKY -> when (hash % 3) {
+                        0 -> Color(0xFFC084FC)
+                        1 -> Color(0xFF38BDF8)
+                        else -> Color(0xFFFDE047)
+                    }
+                    SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color(0xFF94A3B8)
+                    SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
+                    SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+                    SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFF4A261)
                 }
-                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color(0xFF94A3B8)
-                SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
-                SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
-                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFF4A261)
-            }
 
-            drawScope.drawCircle(
-                color = dotColor.copy(alpha = particleAlpha),
-                radius = dotRadius,
-                center = Offset(p.x + offsetX, p.y + offsetY)
-            )
+                drawScope.drawCircle(
+                    color = dotColor.copy(alpha = particleAlpha),
+                    radius = dotRadius,
+                    center = Offset(p.x + offsetX, p.y + offsetY)
+                )
+            }
         }
     }
 }

@@ -9,16 +9,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.outlined.NightsStay
+import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,6 +31,8 @@ import com.alijafari.red.astronomy.ui.theme.StatusExcellent
 import com.alijafari.red.astronomy.ui.theme.StatusGood
 import com.alijafari.red.astronomy.ui.theme.StatusWarning
 import com.alijafari.red.astronomy.util.toPersianDigits
+import java.util.Locale
+import kotlin.math.roundToInt
 
 @Composable
 fun EclipseDetailModal(
@@ -87,7 +89,7 @@ fun EclipseDetailModal(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (event.isSolar) Icons.Default.Info else Icons.Default.Visibility,
+                                imageVector = if (event.isSolar) Icons.Outlined.WbSunny else Icons.Outlined.NightsStay,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(24.dp)
@@ -123,9 +125,9 @@ fun EclipseDetailModal(
                 Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
 
                 // Countdown Badge & Local Visibility Banner
-                val bannerBg = if (result.isLocallyVisible) StatusExcellent.copy(alpha = 0.15f) else StatusGood.copy(alpha = 0.15f)
-                val bannerBorder = if (result.isLocallyVisible) StatusExcellent.copy(alpha = 0.5f) else StatusGood.copy(alpha = 0.5f)
-                val bannerTextColor = if (result.isLocallyVisible) StatusExcellent else StatusGood
+                val bannerBg = if (result.isLocallyVisible) StatusExcellent.copy(alpha = 0.15f) else StatusWarning.copy(alpha = 0.15f)
+                val bannerBorder = if (result.isLocallyVisible) StatusExcellent.copy(alpha = 0.5f) else StatusWarning.copy(alpha = 0.5f)
+                val bannerTextColor = if (result.isLocallyVisible) StatusExcellent else StatusWarning
 
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -170,7 +172,11 @@ fun EclipseDetailModal(
                                     .background(bannerTextColor.copy(alpha = 0.2f))
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
-                                val remainingStr = if (isFa) "${detailedInfo.daysRemaining} روز مانده".toPersianDigits() else "${detailedInfo.daysRemaining}d away"
+                                val remainingStr = when {
+                                    detailedInfo.daysRemaining <= 0 -> if (isFa) "امروز / هم‌اکنون" else "Today / Active"
+                                    isFa -> "${detailedInfo.daysRemaining} روز مانده".toPersianDigits()
+                                    else -> "${detailedInfo.daysRemaining}d away"
+                                }
                                 Text(
                                     text = remainingStr,
                                     fontSize = 11.sp,
@@ -188,12 +194,16 @@ fun EclipseDetailModal(
                     }
                 }
 
-                // Local Timings Grid (Start, Peak, End, Total Duration)
+                // Local Timings Grid (Start, Peak, End, Duration)
                 Text(
                     text = if (isFa) "⏱️ زمان‌بندی دقیق محلی (موقعیت شما):" else "⏱️ Exact Local Timing (Your Location):",
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
+
+                val startDisplay = if (isFa) detailedInfo.localStartTimeStr.toPersianDigits() else detailedInfo.localStartTimeStr
+                val peakDisplay = if (isFa) detailedInfo.localPeakTimeStr.toPersianDigits() else detailedInfo.localPeakTimeStr
+                val endDisplay = if (isFa) detailedInfo.localEndTimeStr.toPersianDigits() else detailedInfo.localEndTimeStr
 
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -210,16 +220,16 @@ fun EclipseDetailModal(
                         ) {
                             TimingItem(
                                 label = if (isFa) "شروع گرفتگی:" else "Eclipse Start:",
-                                time = detailedInfo.localStartTimeStr
+                                time = startDisplay
                             )
                             TimingItem(
                                 label = if (isFa) "اوج گرفتگی (پیک):" else "Maximum Peak:",
-                                time = detailedInfo.localPeakTimeStr,
+                                time = peakDisplay,
                                 isHighlight = true
                             )
                             TimingItem(
                                 label = if (isFa) "پایان گرفتگی:" else "Eclipse End:",
-                                time = detailedInfo.localEndTimeStr
+                                time = endDisplay
                             )
                         }
 
@@ -236,10 +246,40 @@ fun EclipseDetailModal(
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = if (isFa) "مدت زمان فاز کل: ${detailedInfo.durationTextFa}" else "Total Phase Duration: ${detailedInfo.durationTextEn}",
+                                text = if (isFa) {
+                                    "مدت قابل رصد در موقعیت شما: ${detailedInfo.durationTextFa}"
+                                } else {
+                                    "Local Observable Duration: ${detailedInfo.durationTextEn}"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        if (event.durationTotalSeconds > 0 &&
+                            (event.type == EclipseEngine.EclipseType.TOTAL_SOLAR ||
+                                event.type == EclipseEngine.EclipseType.ANNULAR_SOLAR ||
+                                event.type == EclipseEngine.EclipseType.TOTAL_LUNAR)
+                        ) {
+                            val totMin = event.durationTotalSeconds / 60
+                            val totSec = event.durationTotalSeconds % 60
+                            val centralDurLabel = when (event.type) {
+                                EclipseEngine.EclipseType.ANNULAR_SOLAR -> if (isFa) {
+                                    "مدت حلقه آتش در اوج جهانی: ${totMin} دقیقه و ${totSec} ثانیه".toPersianDigits()
+                                } else {
+                                    "Max Annularity Duration: ${totMin}m ${totSec}s"
+                                }
+                                else -> if (isFa) {
+                                    "مدت گرفتگی کامل در اوج جهانی: ${totMin} دقیقه و ${totSec} ثانیه".toPersianDigits()
+                                } else {
+                                    "Max Totality Duration: ${totMin}m ${totSec}s"
+                                }
+                            }
+                            Text(
+                                text = centralDurLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -251,6 +291,13 @@ fun EclipseDetailModal(
                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
+
+                val isPenumbralLunar = event.type == EclipseEngine.EclipseType.PENUMBRAL_LUNAR
+                val penumbralPercent = if (isPenumbralLunar && result.isLocallyVisible) {
+                    (result.localMagnitude * 100.0).roundToInt().coerceIn(1, 100)
+                } else 0
+                val displayPercent = if (isPenumbralLunar) penumbralPercent else detailedInfo.obscurationPercent
+                val barColor = if (isPenumbralLunar) StatusGood else MaterialTheme.colorScheme.primary
 
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -267,25 +314,29 @@ fun EclipseDetailModal(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (isFa) "درصد پوشش گرفتگی:" else "Local Obscuration:",
+                                text = if (isPenumbralLunar) {
+                                    if (isFa) "پوشش نیم‌سایه (۰٪ سایه تاریک):" else "Penumbral Shading (0% Umbral):"
+                                } else {
+                                    if (isFa) "درصد پوشش گرفتگی:" else "Local Obscuration:"
+                                },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            val obscurationStr = if (isFa) "%${detailedInfo.obscurationPercent}".toPersianDigits() else "${detailedInfo.obscurationPercent}%"
+                            val obscurationStr = if (isFa) "%$displayPercent".toPersianDigits() else "$displayPercent%"
                             Text(
                                 text = obscurationStr,
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary
+                                color = barColor
                             )
                         }
 
                         LinearProgressIndicator(
-                            progress = (detailedInfo.obscurationPercent / 100f).coerceIn(0f, 1f),
+                            progress = (displayPercent / 100f).coerceIn(0f, 1f),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
                                 .clip(RoundedCornerShape(4.dp)),
-                            color = MaterialTheme.colorScheme.primary,
+                            color = barColor,
                             trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                         )
 
@@ -309,11 +360,36 @@ fun EclipseDetailModal(
                 )
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    val regionStr = if (isFa) "مناطق اصلی گرفتگی کامل: ${event.maxTotalityRegionFa}" else "Max Totality Region: ${event.maxTotalityRegionEn}"
+                    val regionPrefix = when (event.type) {
+                        EclipseEngine.EclipseType.TOTAL_SOLAR,
+                        EclipseEngine.EclipseType.TOTAL_LUNAR,
+                        EclipseEngine.EclipseType.HYBRID_SOLAR ->
+                            if (isFa) "مناطق اصلی گرفتگی کامل" else "Max Totality Region"
+                        EclipseEngine.EclipseType.ANNULAR_SOLAR ->
+                            if (isFa) "مسیر اصلی حلقه آتش (حلقوی)" else "Annularity Path (Ring of Fire)"
+                        else ->
+                            if (isFa) "مناطق قابل رویت در جهان" else "Global Visibility Region"
+                    }
+                    val regionStr = if (isFa) {
+                        "$regionPrefix: ${event.maxTotalityRegionFa}"
+                    } else {
+                        "$regionPrefix: ${event.maxTotalityRegionEn}"
+                    }
                     Text(
                         text = regionStr,
                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
+                    )
+                    val magStr = String.format(Locale.US, "%.3f", event.magnitude)
+                    val metaStr = if (isFa) {
+                        "دوره ساروس ${event.saros} • قدر جهانی: $magStr".toPersianDigits()
+                    } else {
+                        "Saros Series ${event.saros} • Global Magnitude: $magStr"
+                    }
+                    Text(
+                        text = metaStr,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Text(
                         text = if (isFa) event.descriptionFa else event.descriptionEn,

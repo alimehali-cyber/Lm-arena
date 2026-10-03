@@ -33,9 +33,9 @@ object SunRenderer {
         ) {
             when (theme) {
                 SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-                SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
-                SkyCanvasTheme.OBSERVATORY -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs, isObservatory = false)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> drawFunSun(drawScope, center, sunAltitudeDeg, frameTimeMs)
+                SkyCanvasTheme.OBSERVATORY -> drawMonochromeSun(drawScope, center, sunAltitudeDeg, frameTimeMs, isObservatory = true)
                 SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftSun(drawScope, center)
             }
         }
@@ -105,13 +105,18 @@ object SunRenderer {
         drawScope: DrawScope,
         center: Offset,
         sunAltitudeDeg: Double,
-        frameTimeMs: Long
+        frameTimeMs: Long,
+        isObservatory: Boolean = false
     ) {
         val sunRadius = drawScope.run { 18.dp.toPx() }
         val isDay = sunAltitudeDeg > 0.0
 
-        // Adaptive contrast stroke (black on bright white daytime, white on dark night)
-        val baseColor = if (isDay) Color(0xFF18181B) else Color(0xFFFAFAFA)
+        // Adaptive contrast stroke (red in observatory night-vision mode; black on white day, white on dark night in monochrome)
+        val baseColor = when {
+            isObservatory -> Color(0xFFEF4444)
+            isDay -> Color(0xFF18181B)
+            else -> Color(0xFFFAFAFA)
+        }
 
         // Subtle opacity glow pulse
         val opacityGlow = 0.15f + 0.12f * sin(frameTimeMs * 0.002f).toFloat()
@@ -142,10 +147,14 @@ object SunRenderer {
             )
         }
 
-        // Fill during sunset: as altitude drops below 4deg, slowly fills with soft grey
+        // Fill during sunset: as altitude drops below 4deg, slowly fills with soft grey/crimson
         if (sunAltitudeDeg in -5.0..4.0) {
             val fillAlpha = ((4.0 - sunAltitudeDeg) / 9.0).coerceIn(0.0, 1.0).toFloat() * 0.45f
-            val fillColor = if (isDay) Color(0xFF71717A) else Color(0xFFA1A1AA)
+            val fillColor = when {
+                isObservatory -> Color(0xFF991B1B)
+                isDay -> Color(0xFF71717A)
+                else -> Color(0xFFA1A1AA)
+            }
             drawScope.drawCircle(
                 color = fillColor.copy(alpha = fillAlpha),
                 radius = sunRadius,

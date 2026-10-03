@@ -42,49 +42,43 @@ object PlanetRenderer {
                         else -> {}
                     }
                 }
-                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromePlanet(drawScope, pType, center)
-                SkyCanvasTheme.KIDS_WATERCOLOR -> {
-                    when (pType) {
-                        PlanetEngine.PlanetType.JUPITER -> drawJupiter(drawScope, center, frameTimeMs)
-                        PlanetEngine.PlanetType.SATURN -> drawSaturn(drawScope, center)
-                        PlanetEngine.PlanetType.MARS -> drawMars(drawScope, center)
-                        PlanetEngine.PlanetType.VENUS -> drawVenus(drawScope, center)
-                        PlanetEngine.PlanetType.MERCURY -> drawMercury(drawScope, center)
-                        PlanetEngine.PlanetType.URANUS -> drawUranus(drawScope, center)
-                        PlanetEngine.PlanetType.NEPTUNE -> drawNeptune(drawScope, center)
-                        else -> {}
-                    }
-                }
-                SkyCanvasTheme.OBSERVATORY -> drawMonochromePlanet(drawScope, pType, center)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromePlanet(drawScope, pType, center, baseColor = Color.White)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> drawFunPlanet(drawScope, pType, center)
+                SkyCanvasTheme.OBSERVATORY -> drawMonochromePlanet(drawScope, pType, center, baseColor = Color(0xFFEF4444))
                 SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftPlanet(drawScope, pType, center)
             }
         }
     }
 
-    private fun drawMonochromePlanet(drawScope: DrawScope, pType: PlanetEngine.PlanetType, center: Offset) {
+    private fun drawMonochromePlanet(
+        drawScope: DrawScope,
+        pType: PlanetEngine.PlanetType,
+        center: Offset,
+        baseColor: Color = Color.White
+    ) {
         when (pType) {
             PlanetEngine.PlanetType.VENUS -> {
-                drawScope.drawCircle(color = Color.White, radius = 7.5f, center = center)
-                drawScope.drawCircle(color = Color.White.copy(alpha = 0.3f), radius = 12f, center = center)
+                drawScope.drawCircle(color = baseColor, radius = 7.5f, center = center)
+                drawScope.drawCircle(color = baseColor.copy(alpha = 0.3f), radius = 12f, center = center)
             }
             PlanetEngine.PlanetType.MARS -> {
-                drawScope.drawCircle(color = Color.White, radius = 6.5f, center = center, style = Stroke(width = 1.2f))
-                drawScope.drawCircle(color = Color.White, radius = 2.0f, center = center)
+                drawScope.drawCircle(color = baseColor, radius = 6.5f, center = center, style = Stroke(width = 1.2f))
+                drawScope.drawCircle(color = baseColor, radius = 2.0f, center = center)
             }
             PlanetEngine.PlanetType.JUPITER -> {
                 val r = 9.0f
-                drawScope.drawCircle(color = Color.White, radius = r, center = center, style = Stroke(width = 1.2f))
-                drawScope.drawLine(color = Color.White, start = Offset(center.x - r * 0.8f, center.y - 2.5f), end = Offset(center.x + r * 0.8f, center.y - 2.5f), strokeWidth = 1.0f)
-                drawScope.drawLine(color = Color.White, start = Offset(center.x - r * 0.8f, center.y + 2.5f), end = Offset(center.x + r * 0.8f, center.y + 2.5f), strokeWidth = 1.0f)
+                drawScope.drawCircle(color = baseColor, radius = r, center = center, style = Stroke(width = 1.2f))
+                drawScope.drawLine(color = baseColor, start = Offset(center.x - r * 0.8f, center.y - 2.5f), end = Offset(center.x + r * 0.8f, center.y - 2.5f), strokeWidth = 1.0f)
+                drawScope.drawLine(color = baseColor, start = Offset(center.x - r * 0.8f, center.y + 2.5f), end = Offset(center.x + r * 0.8f, center.y + 2.5f), strokeWidth = 1.0f)
             }
             PlanetEngine.PlanetType.SATURN -> {
                 val r = 7.0f
-                drawScope.drawCircle(color = Color.White, radius = r, center = center, style = Stroke(width = 1.2f))
+                drawScope.drawCircle(color = baseColor, radius = r, center = center, style = Stroke(width = 1.2f))
                 drawScope.withTransform({
                     rotate(degrees = -20f, pivot = center)
                 }) {
                     drawScope.drawOval(
-                        color = Color.White,
+                        color = baseColor,
                         topLeft = Offset(center.x - 14f, center.y - 4f),
                         size = Size(28f, 8f),
                         style = Stroke(width = 1.2f)
@@ -92,15 +86,16 @@ object PlanetRenderer {
                 }
             }
             PlanetEngine.PlanetType.MERCURY -> {
-                drawScope.drawCircle(color = Color.White, radius = 5.0f, center = center, style = Stroke(width = 1.2f))
+                drawScope.drawCircle(color = baseColor, radius = 5.0f, center = center, style = Stroke(width = 1.2f))
             }
             PlanetEngine.PlanetType.URANUS -> {
-                drawScope.drawCircle(color = Color.White, radius = 7.0f, center = center, style = Stroke(width = 1.0f))
-                drawScope.drawCircle(color = Color.White, radius = 4.0f, center = center, style = Stroke(width = 1.0f))
+                drawScope.drawCircle(color = baseColor, radius = 7.0f, center = center, style = Stroke(width = 1.0f))
+                drawScope.drawCircle(color = baseColor, radius = 4.0f, center = center, style = Stroke(width = 1.0f))
             }
             PlanetEngine.PlanetType.NEPTUNE -> {
-                drawScope.drawCircle(color = Color(0xFF334155), radius = 6.5f, center = center)
-                drawScope.drawCircle(color = Color.White, radius = 6.5f, center = center, style = Stroke(width = 1.0f))
+                val fillTint = if (baseColor == Color.White) Color(0xFF334155) else baseColor.copy(alpha = 0.25f)
+                drawScope.drawCircle(color = fillTint, radius = 6.5f, center = center)
+                drawScope.drawCircle(color = baseColor, radius = 6.5f, center = center, style = Stroke(width = 1.0f))
             }
             else -> {}
         }

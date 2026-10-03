@@ -52,15 +52,22 @@ fun HomeScreen(
     onNavigateToTab: (Int) -> Unit
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
-    val jd = remember { TimeEngine.getJulianDate() }
-    val sunPos = remember { SunEngine.calculatePosition(jd) }
-    val lastDeg = remember(uiState.userLocation) {
+    val activeTimeMs = remember(uiState.timeMachineState) {
+        if (uiState.timeMachineState.mode == TimeMachineMode.SIMULATION) {
+            uiState.timeMachineState.simulationTimeMs
+        } else {
+            System.currentTimeMillis()
+        }
+    }
+    val jd = remember(activeTimeMs) { TimeEngine.getJulianDate(activeTimeMs) }
+    val sunPos = remember(jd) { SunEngine.calculatePosition(jd) }
+    val lastDeg = remember(jd, uiState.userLocation) {
         TimeEngine.getLAST(jd, uiState.userLocation.longitude)
     }
 
     // Sun altitude for twilight phase
     val sunEquatorial = CoordinateEngine.Equatorial(sunPos.raDeg, sunPos.decDeg)
-    val sunHoriz = remember(lastDeg, uiState.userLocation) {
+    val sunHoriz = remember(sunPos, lastDeg, uiState.userLocation) {
         CoordinateEngine.equatorialToHorizontal(sunEquatorial, lastDeg, uiState.userLocation.latitude)
     }
 
@@ -75,10 +82,22 @@ fun HomeScreen(
         allObjects
             .filter { it.id != "planet_earth" && it.id != "sat_iss" && it.type != ObjectType.SATELLITE }
             .map { obj ->
+                val eq = if (obj.id == "moon") {
+                    CoordinateEngine.geocentricToTopocentric(
+                        geocentric = CoordinateEngine.Equatorial(moonData.raDeg, moonData.decDeg),
+                        geocentricDistanceKm = moonData.distanceKm,
+                        lastDeg = lastDeg,
+                        latitudeDeg = uiState.userLocation.latitude,
+                        elevationM = uiState.userLocation.elevationMeters
+                    )
+                } else {
+                    CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg)
+                }
                 val horiz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(obj.raDeg, obj.decDeg),
+                    eq,
                     lastDeg,
-                    uiState.userLocation.latitude
+                    uiState.userLocation.latitude,
+                    uiState.userLocation.elevationMeters
                 )
                 val obs = ObservabilityEngine.calculateObservability(
                     altitudeDeg = horiz.altitudeDeg,
@@ -99,6 +118,21 @@ fun HomeScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedEclipseResult by remember { mutableStateOf<EclipseEngine.EclipseResult?>(null) }
 
+    val (solarEclipse, lunarEclipse) = remember(
+        uiState.userLocation,
+        activeTimeMs,
+        uiState.calendarSystem
+    ) {
+        EclipseEngine.getNextEclipses(
+            nowMs = activeTimeMs,
+            userLatDeg = uiState.userLocation.latitude,
+            userLonDeg = uiState.userLocation.longitude,
+            elevationM = uiState.userLocation.elevationMeters,
+            timezoneId = uiState.userLocation.timezoneId,
+            calendarSystem = uiState.calendarSystem
+        )
+    }
+
     val filteredSearchResults = remember(searchQuery, sortedObjectsWithObs) {
         val q = searchQuery.trim().lowercase()
         sortedObjectsWithObs.filter { (obj, _, _) ->
@@ -117,7 +151,8 @@ fun HomeScreen(
             EclipseEngine.computeDetailedInfo(
                 result = eclipseRes,
                 userLatDeg = uiState.userLocation.latitude,
-                userLonDeg = uiState.userLocation.longitude
+                userLonDeg = uiState.userLocation.longitude,
+                timezoneId = uiState.userLocation.timezoneId
             )
         }
         EclipseDetailModal(
@@ -137,7 +172,17 @@ fun HomeScreen(
         // 0. HOME HEADER — Centered RED Title, Contextual Location Pill & Essential Actions
         item {
             val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
-            val coordsText = String.format(java.util.Locale.US, "%.2f°N, %.2f°E", uiState.userLocation.latitude, uiState.userLocation.longitude)
+            val latHem = if (uiState.userLocation.latitude >= 0.0) "N" else "S"
+            val lonHem = if (uiState.userLocation.longitude >= 0.0) "E" else "W"
+            val coordsRaw = String.format(
+                java.util.Locale.US,
+                "%.2f°%s, %.2f°%s",
+                kotlin.math.abs(uiState.userLocation.latitude),
+                latHem,
+                kotlin.math.abs(uiState.userLocation.longitude),
+                lonHem
+            )
+            val coordsText = if (isFa) coordsRaw.toPersianDigits() else coordsRaw
 
             Column(
                 modifier = Modifier
@@ -308,8 +353,12 @@ fun HomeScreen(
                                     isTopRanked = idx == 0,
                                     isFa = isFa,
                                     onClick = {
-                                        event.targetObject?.let { obj ->
-                                            viewModel.openObjectDetail(obj)
+                                        when {
+                                            event.id.startsWith("solar_") -> selectedEclipseResult = solarEclipse
+                                            event.id.startsWith("lunar_") -> selectedEclipseResult = lunarEclipse
+                                            else -> event.targetObject?.let { obj ->
+                                                viewModel.openObjectDetail(obj)
+                                            }
                                         }
                                     }
                                 )
@@ -325,12 +374,10 @@ fun HomeScreen(
 
         // 3. UPCOMING ECLIPSES SECTION — Level 3: Supporting Astronomical Events
         item {
-            val (solarEclipse, lunarEclipse) = remember(uiState.userLocation) {
-                EclipseEngine.getNextEclipses(
-                    nowMs = System.currentTimeMillis(),
-                    userLatDeg = uiState.userLocation.latitude,
-                    userLonDeg = uiState.userLocation.longitude
-                )
+            val (primaryEclipse, secondaryEclipse) = if (solarEclipse.localPeakTimeMs <= lunarEclipse.localPeakTimeMs) {
+                solarEclipse to lunarEclipse
+            } else {
+                lunarEclipse to solarEclipse
             }
 
             Column(
@@ -352,30 +399,30 @@ fun HomeScreen(
                         .testTag("home_next_eclipses_card")
                 ) {
                     Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
-                        // Nearest / Primary Eclipse
+                        // Nearest / Primary Eclipse (chronologically first)
                         EclipseItemRow(
-                            isSolar = true,
+                            isSolar = primaryEclipse.event.isSolar,
                             isPrimary = true,
-                            title = if (isFa) solarEclipse.event.nameFa else solarEclipse.event.nameEn,
-                            dateStr = if (isFa) solarEclipse.formattedDateFa else solarEclipse.formattedDateEn,
-                            visibilityInfo = if (isFa) solarEclipse.localVisibilityTextFa else solarEclipse.localVisibilityTextEn,
-                            isLocallyVisible = solarEclipse.isLocallyVisible,
+                            title = if (isFa) primaryEclipse.event.nameFa else primaryEclipse.event.nameEn,
+                            dateStr = if (isFa) primaryEclipse.formattedDateFa else primaryEclipse.formattedDateEn,
+                            visibilityInfo = if (isFa) primaryEclipse.localVisibilityTextFa else primaryEclipse.localVisibilityTextEn,
+                            isLocallyVisible = primaryEclipse.isLocallyVisible,
                             isFa = isFa,
-                            onClick = { selectedEclipseResult = solarEclipse }
+                            onClick = { selectedEclipseResult = primaryEclipse }
                         )
 
                         RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.md))
 
-                        // Secondary Eclipse
+                        // Secondary Eclipse (chronologically second)
                         EclipseItemRow(
-                            isSolar = false,
+                            isSolar = secondaryEclipse.event.isSolar,
                             isPrimary = false,
-                            title = if (isFa) lunarEclipse.event.nameFa else lunarEclipse.event.nameEn,
-                            dateStr = if (isFa) lunarEclipse.formattedDateFa else lunarEclipse.formattedDateEn,
-                            visibilityInfo = if (isFa) lunarEclipse.localVisibilityTextFa else lunarEclipse.localVisibilityTextEn,
-                            isLocallyVisible = lunarEclipse.isLocallyVisible,
+                            title = if (isFa) secondaryEclipse.event.nameFa else secondaryEclipse.event.nameEn,
+                            dateStr = if (isFa) secondaryEclipse.formattedDateFa else secondaryEclipse.formattedDateEn,
+                            visibilityInfo = if (isFa) secondaryEclipse.localVisibilityTextFa else secondaryEclipse.localVisibilityTextEn,
+                            isLocallyVisible = secondaryEclipse.isLocallyVisible,
                             isFa = isFa,
-                            onClick = { selectedEclipseResult = lunarEclipse }
+                            onClick = { selectedEclipseResult = secondaryEclipse }
                         )
                     }
                 }
@@ -473,16 +520,23 @@ fun HomeScreen(
                     ) {
                         Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
                             displayedPredictiveItems.forEachIndexed { idx, (obj, horiz, obs) ->
-                                val riseSetStr = remember(obj, uiState.userLocation, jd, isFa) {
-                                    val rst = CoordinateEngine.calculateRiseSetTransit(
-                                        raDeg = obj.raDeg,
-                                        decDeg = obj.decDeg,
-                                        latDeg = uiState.userLocation.latitude,
-                                        lonDeg = uiState.userLocation.longitude,
-                                        jd = jd,
-                                        isFa = isFa
-                                    )
-                                    if (isFa) "طلوع: ${rst.riseTimeStr} | غروب: ${rst.setTimeStr}" else "Rise: ${rst.riseTimeStr} | Set: ${rst.setTimeStr}"
+                                val riseSetStr = remember(obj, moonData, uiState.userLocation, jd, isFa) {
+                                    if (obj.id == "moon") {
+                                        val tz = TimeEngine.resolveTimeZone(uiState.userLocation.timezoneId)
+                                        val rStr = TimeEngine.formatTime24h(moonData.moonriseTimeMs, isFa, tz)
+                                        val sStr = TimeEngine.formatTime24h(moonData.moonsetTimeMs, isFa, tz)
+                                        if (isFa) "طلوع: $rStr | غروب: $sStr" else "Rise: $rStr | Set: $sStr"
+                                    } else {
+                                        val rst = CoordinateEngine.calculateRiseSetTransit(
+                                            raDeg = obj.raDeg,
+                                            decDeg = obj.decDeg,
+                                            latDeg = uiState.userLocation.latitude,
+                                            lonDeg = uiState.userLocation.longitude,
+                                            jd = jd,
+                                            isFa = isFa
+                                        )
+                                        if (isFa) "طلوع: ${rst.riseTimeStr} | غروب: ${rst.setTimeStr}" else "Rise: ${rst.riseTimeStr} | Set: ${rst.setTimeStr}"
+                                    }
                                 }
 
                                 Row(

@@ -310,6 +310,7 @@ object CoordinateEngineLegacy {
         val ha0Deg = Math.toDegrees(acos(cosH0))
 
         val baseCal = java.util.Calendar.getInstance(TimeEngine.TEHRAN_TIME_ZONE).apply {
+            timeInMillis = TimeEngine.getTimestampFromJulianDate(jd)
             set(java.util.Calendar.HOUR_OF_DAY, 0)
             set(java.util.Calendar.MINUTE, 0)
             set(java.util.Calendar.SECOND, 0)

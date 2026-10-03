@@ -99,7 +99,8 @@ object MoonEngine {
         jd: Double,
         latitude: Double = 30.1141,
         longitude: Double = 51.5217,
-        elevationM: Double = 0.0
+        elevationM: Double = 0.0,
+        computeRiseSet: Boolean = true
     ): MoonData {
         val astroTime = AstroTime.fromJd(jd)
         val lunar = lunarSolar.calculateMoon(astroTime)
@@ -187,18 +188,21 @@ object MoonEngine {
         )
 
         val millis = astroTime.utcMs
-        val targetDate = Date(millis)
-
-        val (riseMs, setMs) = try {
-            val times = MoonTimes.compute().on(targetDate).at(latitude, longitude).execute()
-            val rise = times.rise?.toInstant()?.toEpochMilli()
-            val set = times.set?.toInstant()?.toEpochMilli()
-            Pair(rise, set)
-        } catch (e: Throwable) {
-            Pair(millis - 36000000L, millis + 14000000L)
+        val (riseMs, setMs) = if (computeRiseSet) {
+            val targetDate = Date(millis)
+            try {
+                val times = MoonTimes.compute().on(targetDate).at(latitude, longitude).execute()
+                val rise = times.rise?.toInstant()?.toEpochMilli()
+                val set = times.set?.toInstant()?.toEpochMilli()
+                Pair(rise, set)
+            } catch (e: Throwable) {
+                Pair(millis - 36000000L, millis + 14000000L)
+            }
+        } else {
+            Pair(null, null)
         }
 
-        val cal = Calendar.getInstance().apply { timeInMillis = millis }
+        val cal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply { timeInMillis = millis }
         val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
         val hourOfDay = cal.get(Calendar.HOUR_OF_DAY)
         val frame = (((dayOfYear - 1) * 24) + hourOfDay + 1).coerceIn(1, 8784)

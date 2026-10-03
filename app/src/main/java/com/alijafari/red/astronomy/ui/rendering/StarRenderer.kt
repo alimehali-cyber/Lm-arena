@@ -31,10 +31,39 @@ object StarRenderer {
 
         when (theme) {
             SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg)
-            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg)
-            SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg)
-            SkyCanvasTheme.OBSERVATORY -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg)
+            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg, baseColor = Color.White)
+            SkyCanvasTheme.KIDS_WATERCOLOR -> drawFunStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg)
+            SkyCanvasTheme.OBSERVATORY -> drawMonochromeStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg, baseColor = Color(0xFFF87171))
             SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftStars(drawScope, objects, starVisibility, frameTimeMs, latitudeDeg)
+        }
+    }
+
+    /**
+     * Resolves a star's visual tint from its Harvard spectral classification (O, B, A, F, G, K, M),
+     * falling back to effective temperature or apparent magnitude if spectralType is absent.
+     */
+    private fun resolveSpectralColor(celestialObj: CelestialObject): Color {
+        val specClass = celestialObj.spectralType.trim().uppercase().firstOrNull { it in "OBAFGKM" }
+        return when (specClass) {
+            'O' -> Color(0xFF93C5FD) // Deep blue
+            'B' -> Color(0xFFBFDBFE) // Blue-white (e.g. Rigel, Spica, Regulus)
+            'A' -> Color(0xFFF8FAFC) // Crisp white (e.g. Sirius, Vega, Deneb, Altair)
+            'F' -> Color(0xFFFEF9C3) // Yellow-white (e.g. Canopus, Procyon, Polaris)
+            'G' -> Color(0xFFFDE047) // Warm yellow (e.g. Capella, Rigil Kentaurus)
+            'K' -> Color(0xFFFDBA74) // Orange (e.g. Arcturus, Aldebaran, Pollux)
+            'M' -> Color(0xFFFCA5A5) // Red-orange supergiants (e.g. Betelgeuse, Antares)
+            else -> when {
+                celestialObj.temperatureK >= 10000 -> Color(0xFFBFDBFE)
+                celestialObj.temperatureK >= 7500 -> Color(0xFFF8FAFC)
+                celestialObj.temperatureK >= 6000 -> Color(0xFFFEF9C3)
+                celestialObj.temperatureK >= 5000 -> Color(0xFFFDE047)
+                celestialObj.temperatureK >= 3700 -> Color(0xFFFDBA74)
+                celestialObj.temperatureK > 0 -> Color(0xFFFCA5A5)
+                celestialObj.magnitude < -0.5 -> Color(0xFF93C5FD)
+                celestialObj.magnitude < 0.5 -> Color(0xFFFEF08A)
+                celestialObj.magnitude < 1.2 -> Color(0xFFFCA5A5)
+                else -> Color(0xFFF8FAFC)
+            }
         }
     }
 
@@ -65,12 +94,7 @@ object StarRenderer {
 
                 val baseRadius = (3.6f - celestialObj.magnitude.toFloat() * 0.5f).coerceAtLeast(1.2f) * (0.85f + 0.25f * twinkle)
 
-                val spectralColor = when {
-                    celestialObj.magnitude < -0.5 -> Color(0xFF93C5FD)
-                    celestialObj.magnitude < 0.5 -> Color(0xFFFEF08A)
-                    celestialObj.magnitude < 1.2 -> Color(0xFFFCA5A5)
-                    else -> Color(0xFFF8FAFC)
-                }
+                val spectralColor = resolveSpectralColor(celestialObj)
 
                 if (celestialObj.magnitude < 1.2) {
                     drawScope.drawCircle(
@@ -108,7 +132,8 @@ object StarRenderer {
         objects: List<Pair<CelestialObject, CoordinateEngine.Horizontal>>,
         starVisibility: Float,
         frameTimeMs: Long,
-        latitudeDeg: Double
+        latitudeDeg: Double,
+        baseColor: Color = Color.White
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
@@ -129,13 +154,13 @@ object StarRenderer {
                         val gHeight = 14f
                         // Translucent center
                         drawScope.drawOval(
-                            color = Color.White.copy(alpha = 0.12f * alpha),
+                            color = baseColor.copy(alpha = 0.12f * alpha),
                             topLeft = Offset(center.x - gWidth / 2f, center.y - gHeight / 2f),
                             size = Size(gWidth, gHeight)
                         )
                         // Faint outline
                         drawScope.drawOval(
-                            color = Color.White.copy(alpha = 0.35f * alpha),
+                            color = baseColor.copy(alpha = 0.35f * alpha),
                             topLeft = Offset(center.x - gWidth / 2f, center.y - gHeight / 2f),
                             size = Size(gWidth, gHeight),
                             style = Stroke(width = 1.0f)
@@ -147,10 +172,10 @@ object StarRenderer {
                 val twinkleFreq = 0.002f + (hash % 10) * 0.0003f
                 val twinklePhase = (hash % 100) * 0.1f
 
-                // Twinkle modulating OPACITY ONLY (no scaling, no colors, no glow)
+                // Twinkle modulating OPACITY ONLY (no scaling, no glow)
                 val twinkle = 0.30f + 0.70f * sin(frameTimeMs * twinkleFreq + twinklePhase).toFloat().absoluteValue
                 val alpha = (starVisibility * twinkle).coerceIn(0f, 1f)
-                val starColor = Color.White.copy(alpha = alpha)
+                val starColor = baseColor.copy(alpha = alpha)
 
                 val symbolType = hash % 4
                 when (symbolType) {
@@ -298,10 +323,11 @@ object StarRenderer {
                 val sx = center.x
                 val sy = center.y
 
-                val hash = celestialObj.id.hashCode()
+                val visAlpha = starVisibility.coerceIn(0f, 1f)
                 val size = (5f - celestialObj.magnitude.toFloat() * 0.6f).coerceIn(2.5f, 7.5f)
-                val paperColor = if (celestialObj.magnitude < 1.0) Color(0xFFFFF3B0) else Color(0xFFFFFDF8)
-                val shadowColor = Color(0x28201A18)
+                val paperColor = (if (celestialObj.magnitude < 1.0) Color(0xFFFFF3B0) else Color(0xFFFFFDF8)).copy(alpha = visAlpha)
+                val shadowColor = Color(0x28201A18).copy(alpha = 0.16f * visAlpha)
+                val strokeColor = Color(0x22000000).copy(alpha = 0.13f * visAlpha)
                 val shadowOffset = Offset(2.5f, 3f)
 
                 if (celestialObj.magnitude < 1.5) {
@@ -325,7 +351,7 @@ object StarRenderer {
                     }
                     drawScope.drawPath(path = shadowPath, color = shadowColor)
                     drawScope.drawPath(path = starPath, color = paperColor)
-                    drawScope.drawPath(path = starPath, color = Color(0x22000000), style = Stroke(width = 0.8f))
+                    drawScope.drawPath(path = starPath, color = strokeColor, style = Stroke(width = 0.8f))
                 } else {
                     // Small circular cardstock punchout
                     drawScope.drawCircle(

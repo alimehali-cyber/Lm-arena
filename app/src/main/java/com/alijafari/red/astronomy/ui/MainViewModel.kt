@@ -430,15 +430,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(searchQuery = query) }
     }
 
-    fun openObjectDetail(obj: CelestialObject) {
+    private fun effectiveTimestampMs(overrideMs: Long? = null): Long {
+        if (overrideMs != null) return overrideMs
+        val tm = _uiState.value.timeMachineState
+        return if (tm.mode == TimeMachineMode.SIMULATION) tm.simulationTimeMs else System.currentTimeMillis()
+    }
+
+    fun openObjectDetail(obj: CelestialObject, timestampMs: Long? = null) {
+        val evalTimeMs = effectiveTimestampMs(timestampMs)
         val canonicalId = CanonicalAstroCatalog.resolveCanonicalId(obj.id)
         val canonicalObj = CanonicalAstroCatalog.getCanonicalObject(canonicalId)
         val finalObj = if (canonicalObj != null) {
             val calc = AstroDispatchEngine.calculateState(
                 idOrAlias = canonicalObj.canonicalId,
-                timestampMs = System.currentTimeMillis(),
+                timestampMs = evalTimeMs,
                 userLatDeg = _uiState.value.userLocation.latitude,
-                userLonDeg = _uiState.value.userLocation.longitude
+                userLonDeg = _uiState.value.userLocation.longitude,
+                elevationM = _uiState.value.userLocation.elevationMeters
             )
             CanonicalAstroCatalog.toCelestialObject(
                 canonicalObj = canonicalObj,
@@ -458,15 +466,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun openObjectDetailById(idOrAlias: String) {
+    fun openObjectDetailById(idOrAlias: String, timestampMs: Long? = null) {
+        val evalTimeMs = effectiveTimestampMs(timestampMs)
         val canonicalId = CanonicalAstroCatalog.resolveCanonicalId(idOrAlias)
         val canonicalObj = CanonicalAstroCatalog.getCanonicalObject(canonicalId)
         if (canonicalObj != null) {
             val calc = AstroDispatchEngine.calculateState(
                 idOrAlias = canonicalObj.canonicalId,
-                timestampMs = System.currentTimeMillis(),
+                timestampMs = evalTimeMs,
                 userLatDeg = _uiState.value.userLocation.latitude,
-                userLonDeg = _uiState.value.userLocation.longitude
+                userLonDeg = _uiState.value.userLocation.longitude,
+                elevationM = _uiState.value.userLocation.elevationMeters
             )
             val celObj = CanonicalAstroCatalog.toCelestialObject(
                 canonicalObj = canonicalObj,
@@ -474,9 +484,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 dynamicDec = calc?.decDeg ?: 0.0,
                 dynamicMag = calc?.magnitude ?: canonicalObj.physicalProperties.magnitude
             )
-            openObjectDetail(celObj)
+            openObjectDetail(celObj, evalTimeMs)
         } else {
-            AstronomyCatalog.getById(idOrAlias)?.let { openObjectDetail(it) }
+            val jd = TimeEngine.getJulianDate(evalTimeMs)
+            AstronomyCatalog.getById(idOrAlias, jd)?.let { openObjectDetail(it, evalTimeMs) }
         }
     }
 

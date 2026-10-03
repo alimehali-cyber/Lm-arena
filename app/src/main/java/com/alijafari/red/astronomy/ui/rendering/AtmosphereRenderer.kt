@@ -254,6 +254,24 @@ object AtmosphereRenderer {
             radius = width * 0.6f,
             center = Offset(width * 0.3f, height * 0.4f)
         )
+
+        // Whimsical crayon doodle clouds
+        val cloudFill = if (isDay) Color(0xFFFFFDF8).copy(alpha = 0.90f) else Color(0xFF3D348B).copy(alpha = 0.72f)
+        val cloudOutline = if (isDay) Color(0xFF4A4E69).copy(alpha = 0.75f) else Color(0xFFB8B8FF).copy(alpha = 0.65f)
+        drawCrayonDoodleCloud(
+            drawScope = drawScope,
+            center = Offset(width * 0.22f, height * 0.24f),
+            scale = 1.0f,
+            fillColor = cloudFill,
+            outlineColor = cloudOutline
+        )
+        drawCrayonDoodleCloud(
+            drawScope = drawScope,
+            center = Offset(width * 0.78f, height * 0.20f),
+            scale = 0.85f,
+            fillColor = cloudFill,
+            outlineColor = cloudOutline
+        )
     }
 
     private fun drawObservatoryAtmosphere(

@@ -56,19 +56,25 @@ object MoonRenderer {
 
             when (theme) {
                 SkyCanvasTheme.ATMOSPHERIC_SKY -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, rotationDeg)
-                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, rotationDeg)
-                SkyCanvasTheme.KIDS_WATERCOLOR -> drawCelestialMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, rotationDeg)
-                SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, rotationDeg)
-                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftMoon(drawScope, center, radius, illuminationPercent, rotationDeg)
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, rotationDeg, isObservatory = false)
+                SkyCanvasTheme.KIDS_WATERCOLOR -> drawFunMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, moonPulseScale, lightingState, frameTimeMs, rotationDeg)
+                SkyCanvasTheme.OBSERVATORY -> drawMonochromeMoon(drawScope, center, radius, illuminationPercent, isLunarEclipse, rotationDeg, isObservatory = true)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftMoon(drawScope, center, radius, illuminationPercent, rotationDeg, isLunarEclipse)
             }
         }
     }
 
     private fun drawSolarEclipse(drawScope: DrawScope, center: Offset, radius: Float, theme: SkyCanvasTheme) {
-        val coronaColor = if (theme == SkyCanvasTheme.MONOCHROME) Color.White.copy(alpha = 0.4f) else Color(0xFF60A5FA).copy(alpha = 0.6f)
+        val coronaColor = when (theme) {
+            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color.White.copy(alpha = 0.4f)
+            SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444).copy(alpha = 0.55f)
+            SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFFFF3B0).copy(alpha = 0.7f)
+            else -> Color(0xFF60A5FA).copy(alpha = 0.6f)
+        }
+        val innerCorona = if (theme == SkyCanvasTheme.OBSERVATORY) Color(0xFFFCA5A5) else Color.White
         drawScope.drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(Color.White, coronaColor, Color.Transparent),
+                colors = listOf(innerCorona, coronaColor, Color.Transparent),
                 center = center,
                 radius = radius * 4.0f
             ),
@@ -76,12 +82,17 @@ object MoonRenderer {
             center = center
         )
         drawScope.drawCircle(
-            color = Color(0xFF0F172A),
+            color = if (theme == SkyCanvasTheme.OBSERVATORY) Color(0xFF1A0000) else Color(0xFF0F172A),
             radius = radius,
             center = center
         )
         drawScope.drawCircle(
-            color = if (theme == SkyCanvasTheme.MONOCHROME) Color.White else Color(0xFF60A5FA),
+            color = when (theme) {
+                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color.White
+                SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFF3C5B6)
+                else -> Color(0xFF60A5FA)
+            },
             radius = radius,
             center = center,
             style = Stroke(width = 1.5f)
@@ -94,11 +105,18 @@ object MoonRenderer {
         radius: Float,
         illuminationPercent: Double,
         isLunarEclipse: Boolean,
-        rotationDeg: Float = 0f
+        rotationDeg: Float = 0f,
+        isObservatory: Boolean = false
     ) {
-        // Monochromatic vector Moon: Illuminated part white, shadowed part dark grey, subtle depth stroke
-        val illuminatedColor = if (isLunarEclipse) Color(0xFFD4D4D8) else Color.White
-        val shadowedColor = Color(0xFF262626)
+        // Monochromatic / Observatory vector Moon
+        val illuminatedColor = when {
+            isObservatory && isLunarEclipse -> Color(0xFF991B1B)
+            isObservatory -> Color(0xFFEF4444)
+            isLunarEclipse -> Color(0xFFD4D4D8)
+            else -> Color.White
+        }
+        val shadowedColor = if (isObservatory) Color(0xFF260505) else Color(0xFF262626)
+        val outlineColor = if (isObservatory) Color(0xFFEF4444).copy(alpha = 0.55f) else Color.White.copy(alpha = 0.5f)
 
         // 1. Draw base shadowed disk
         drawScope.drawCircle(
@@ -137,7 +155,7 @@ object MoonRenderer {
 
         // 3. Subtle depth outline (minimal, architectural stroke)
         drawScope.drawCircle(
-            color = Color.White.copy(alpha = 0.5f),
+            color = outlineColor,
             radius = radius,
             center = center,
             style = Stroke(width = drawScope.run { 1.2.dp.toPx() })
@@ -336,12 +354,14 @@ object MoonRenderer {
         center: Offset,
         radius: Float,
         illuminationPercent: Double,
-        rotationDeg: Float = 0f
+        rotationDeg: Float = 0f,
+        isLunarEclipse: Boolean = false
     ) {
         val shadowOffset = Offset(4f, 5f)
         val shadowColor = Color(0x352A221E)
-        val paperCream = Color(0xFFFAF8F3)
+        val paperCream = if (isLunarEclipse) Color(0xFFE07A5F) else Color(0xFFFAF8F3)
         val paperDarkCard = Color(0xFF3B4050)
+        val auraColor = if (isLunarEclipse) Color(0x44E07A5F) else Color(0x33FFF3B0)
 
         // Drop shadow for the main paper moon disc
         drawScope.drawCircle(
@@ -352,7 +372,7 @@ object MoonRenderer {
 
         // Outer Paper Aura Ring
         drawScope.drawCircle(
-            color = Color(0x33FFF3B0),
+            color = auraColor,
             radius = radius * 1.35f,
             center = center
         )
