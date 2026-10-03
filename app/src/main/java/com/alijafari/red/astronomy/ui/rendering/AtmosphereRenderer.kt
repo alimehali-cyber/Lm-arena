@@ -9,21 +9,199 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
+import kotlin.math.abs
+import kotlin.math.hypot
 
 object AtmosphereRenderer {
+
+    private data class SkyGradientAnchor(
+        val altDeg: Double,
+        val zenith: Color,
+        val mid: Color,
+        val horizon: Color
+    )
+
+    private val REAL_SKY_ANCHORS = listOf(
+        SkyGradientAnchor(35.0, Color(0xFF0E2B63), Color(0xFF2358A3), Color(0xFF7CB4E6)),
+        SkyGradientAnchor(15.0, Color(0xFF102C60), Color(0xFF285AA0), Color(0xFF88B6DC)),
+        SkyGradientAnchor(5.0, Color(0xFF0B1E44), Color(0xFF2E4D7E), Color(0xFFD6A67E)),
+        SkyGradientAnchor(0.0, Color(0xFF08142E), Color(0xFF1E3158), Color(0xFF8C5B6E)),
+        SkyGradientAnchor(-3.0, Color(0xFF050B1C), Color(0xFF132040), Color(0xFF3E3B63)),
+        SkyGradientAnchor(-6.0, Color(0xFF030712), Color(0xFF0B142C), Color(0xFF212F56)),
+        SkyGradientAnchor(-12.0, Color(0xFF02040B), Color(0xFF060B1A), Color(0xFF101C38)),
+        SkyGradientAnchor(-18.0, Color(0xFF02030A), Color(0xFF040711), Color(0xFF080E1D))
+    )
+
+    private data class TwilightDomeAnchor(
+        val altDeg: Double,
+        val color: Color,
+        val alpha: Float
+    )
+
+    private val TWILIGHT_DOME_ANCHORS = listOf(
+        TwilightDomeAnchor(14.0, Color(0xFFFFF4CC), 0.18f),
+        TwilightDomeAnchor(5.0, Color(0xFFFFB066), 0.42f),
+        TwilightDomeAnchor(2.0, Color(0xFFFFA252), 0.56f),
+        TwilightDomeAnchor(-3.0, Color(0xFFFF7A3D), 0.48f),
+        TwilightDomeAnchor(-9.0, Color(0xFF3A4A80), 0.34f),
+        TwilightDomeAnchor(-15.0, Color(0xFF0E1A3A), 0.16f),
+        TwilightDomeAnchor(-18.0, Color(0xFF0E1A3A), 0.0f)
+    )
+
+    private fun lerpColor(a: Color, b: Color, t: Float): Color {
+        val f = t.coerceIn(0f, 1f)
+        return Color(
+            red = a.red + (b.red - a.red) * f,
+            green = a.green + (b.green - a.green) * f,
+            blue = a.blue + (b.blue - a.blue) * f,
+            alpha = a.alpha + (b.alpha - a.alpha) * f
+        )
+    }
 
     fun drawAtmosphere(
         drawScope: DrawScope,
         lightingState: LightingState,
         sunPosPx: Offset?,
-        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY
+        theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY,
+        sunAzimuthDeg: Double = 180.0,
+        latitudeDeg: Double = 0.0
     ) {
         when (theme) {
+            SkyCanvasTheme.REAL_SKY -> drawRealSkyAtmosphere(drawScope, lightingState, sunPosPx, sunAzimuthDeg, latitudeDeg)
             SkyCanvasTheme.ATMOSPHERIC_SKY -> drawAtmosphericSky(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.KIDS_WATERCOLOR -> drawKidsWatercolorAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.OBSERVATORY -> drawObservatoryAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftAtmosphere(drawScope, lightingState, sunPosPx)
+        }
+    }
+
+    private fun drawRealSkyAtmosphere(
+        drawScope: DrawScope,
+        lightingState: LightingState,
+        sunPosPx: Offset?,
+        sunAzimuthDeg: Double,
+        latitudeDeg: Double
+    ) {
+        val width = drawScope.size.width
+        val height = drawScope.size.height
+        val horizonY = height * HeroSkyProjection.HORIZON_FRACTION
+        val sunAlt = lightingState.sunAltitudeDeg
+
+        // 1. Smoothly interpolated Zenith -> Mid -> Horizon Preetham/Schaefer gradient
+        var zenithColor = REAL_SKY_ANCHORS.last().zenith
+        var midColor = REAL_SKY_ANCHORS.last().mid
+        var horizonColor = REAL_SKY_ANCHORS.last().horizon
+
+        if (sunAlt >= REAL_SKY_ANCHORS.first().altDeg) {
+            zenithColor = REAL_SKY_ANCHORS.first().zenith
+            midColor = REAL_SKY_ANCHORS.first().mid
+            horizonColor = REAL_SKY_ANCHORS.first().horizon
+        } else if (sunAlt > REAL_SKY_ANCHORS.last().altDeg) {
+            for (i in 0 until REAL_SKY_ANCHORS.size - 1) {
+                val upper = REAL_SKY_ANCHORS[i]
+                val lower = REAL_SKY_ANCHORS[i + 1]
+                if (sunAlt <= upper.altDeg && sunAlt >= lower.altDeg) {
+                    val t = ((upper.altDeg - sunAlt) / (upper.altDeg - lower.altDeg)).toFloat()
+                    zenithColor = lerpColor(upper.zenith, lower.zenith, t)
+                    midColor = lerpColor(upper.mid, lower.mid, t)
+                    horizonColor = lerpColor(upper.horizon, lower.horizon, t)
+                    break
+                }
+            }
+        }
+
+        // Apply subtle Rayleigh moonlight brightening on dark nights when the Moon is above the horizon
+        if (sunAlt < -6.0 && lightingState.moonGlowIntensity > 0.02f) {
+            val moonWash = (lightingState.moonGlowIntensity * 0.16f).coerceIn(0f, 0.16f)
+            val moonSkyTint = Color(0xFF182A4A)
+            zenithColor = lerpColor(zenithColor, moonSkyTint, moonWash * 0.55f)
+            midColor = lerpColor(midColor, moonSkyTint, moonWash * 0.80f)
+            horizonColor = lerpColor(horizonColor, moonSkyTint, moonWash)
+        }
+
+        drawScope.drawRect(
+            brush = Brush.verticalGradient(
+                0.0f to zenithColor,
+                0.55f to midColor,
+                0.86f to horizonColor,
+                1.0f to horizonColor,
+                startY = 0f,
+                endY = height
+            ),
+            size = drawScope.size
+        )
+
+        // 2. Sun-centered radial twilight dome (tracks Sun down to -18° astronomical twilight)
+        if (sunPosPx != null && sunAlt > -18.0 && sunAlt <= 14.0) {
+            var domeColor = TWILIGHT_DOME_ANCHORS.first().color
+            var domeAlpha = 0f
+            for (i in 0 until TWILIGHT_DOME_ANCHORS.size - 1) {
+                val upper = TWILIGHT_DOME_ANCHORS[i]
+                val lower = TWILIGHT_DOME_ANCHORS[i + 1]
+                if (sunAlt <= upper.altDeg && sunAlt >= lower.altDeg) {
+                    val t = ((upper.altDeg - sunAlt) / (upper.altDeg - lower.altDeg)).toFloat()
+                    domeColor = lerpColor(upper.color, lower.color, t)
+                    domeAlpha = upper.alpha + (lower.alpha - upper.alpha) * t
+                    break
+                }
+            }
+
+            if (domeAlpha > 0.005f) {
+                val outerRadius = (hypot(width, height) * 0.78f).coerceAtLeast(220f)
+                drawScope.drawCircle(
+                    brush = Brush.radialGradient(
+                        0.0f to domeColor.copy(alpha = domeAlpha),
+                        0.38f to domeColor.copy(alpha = domeAlpha * 0.45f),
+                        0.72f to domeColor.copy(alpha = domeAlpha * 0.12f),
+                        1.0f to Color.Transparent,
+                        center = sunPosPx,
+                        radius = outerRadius
+                    ),
+                    radius = outerRadius,
+                    center = sunPosPx
+                )
+            }
+        }
+
+        // 3. Opposite-horizon Belt of Venus & Earth's Shadow arch during sunrise/sunset (-5° <= sunAlt <= +4°)
+        if (sunAlt in -5.0..4.0) {
+            val beltEnvelope = (1.0 - abs(sunAlt + 0.5) / 4.5).coerceIn(0.0, 1.0).toFloat()
+            if (beltEnvelope > 0.02f) {
+                val antiSunAz = (sunAzimuthDeg + 180.0) % 360.0
+                val antiCenter = HeroSkyProjection.project(antiSunAz, 3.0, width, height, latitudeDeg)
+                val beltRadius = (width * 0.55f).coerceAtLeast(180f)
+                // Rose-lavender Belt of Venus arch
+                drawScope.drawCircle(
+                    brush = Brush.radialGradient(
+                        0.0f to Color(0xFFD88CA8).copy(alpha = 0.15f * beltEnvelope),
+                        0.55f to Color(0xFF9A6B9A).copy(alpha = 0.07f * beltEnvelope),
+                        1.0f to Color.Transparent,
+                        center = Offset(antiCenter.x, horizonY - 18f),
+                        radius = beltRadius
+                    ),
+                    radius = beltRadius,
+                    center = Offset(antiCenter.x, horizonY - 18f)
+                )
+            }
+        }
+
+        // 4. Subtle natural airglow / atmospheric extinction horizon band at night
+        if (sunAlt < -12.0) {
+            val airglowAlpha = (((-sunAlt - 12.0) / 6.0).coerceIn(0.0, 1.0) * 0.14).toFloat()
+            val bandHeight = height * 0.22f
+            drawScope.drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Color(0xFF142038).copy(alpha = airglowAlpha)
+                    ),
+                    startY = horizonY - bandHeight,
+                    endY = horizonY
+                ),
+                topLeft = Offset(0f, horizonY - bandHeight),
+                size = drawScope.size.copy(height = bandHeight)
+            )
         }
     }
 

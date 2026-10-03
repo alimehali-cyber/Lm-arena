@@ -28,7 +28,7 @@ data class MainUiState(
     val language: AppLanguage = AppLanguage.PERSIAN,
     val calendarSystem: CalendarSystem = CalendarSystem.SOLAR_HIJRI,
     val themeMode: ThemeMode = ThemeMode.DYNAMIC_SILK,
-    val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.PAPERCRAFT_DIORAMA,
+    val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.REAL_SKY,
     val userLocation: UserLocation = UserLocation(),
     val selectedTab: Int = 4,
     val searchQuery: String = "",
@@ -81,9 +81,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 CalendarSystem.SOLAR_HIJRI
             },
             skyCanvasTheme = try {
-                SkyCanvasTheme.valueOf(prefs.getString("sky_canvas_theme", SkyCanvasTheme.PAPERCRAFT_DIORAMA.name) ?: SkyCanvasTheme.PAPERCRAFT_DIORAMA.name)
+                SkyCanvasTheme.valueOf(prefs.getString("sky_canvas_theme", SkyCanvasTheme.REAL_SKY.name) ?: SkyCanvasTheme.REAL_SKY.name)
             } catch (e: Exception) {
-                SkyCanvasTheme.PAPERCRAFT_DIORAMA
+                SkyCanvasTheme.REAL_SKY
             },
             themeMode = try {
                 ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.DYNAMIC_SILK.name) ?: ThemeMode.DYNAMIC_SILK.name)

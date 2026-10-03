@@ -158,6 +158,7 @@ fun SettingsDialog(
     }
 
     val skyCanvasThemeLabel = when (uiState.skyCanvasTheme) {
+        SkyCanvasTheme.REAL_SKY -> if (isFa) "آسمان واقعی" else "Real Sky"
         SkyCanvasTheme.ATMOSPHERIC_SKY -> if (isFa) "آسمان جوی" else "Atmospheric"
         SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (isFa) "تک‌رنگ" else "Monochrome"
         SkyCanvasTheme.KIDS_WATERCOLOR -> if (isFa) "آبرنگ" else "WaterColor"
@@ -310,6 +311,11 @@ fun SettingsDialog(
                     onToggle = { isSkyCanvasThemeExpanded = !isSkyCanvasThemeExpanded },
                     testTag = "settings_section_sky_theme"
                 ) {
+                    SettingsOptionRow(
+                        title = if (isFa) "آسمان واقعی (Real Sky)" else "Real Sky",
+                        isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.REAL_SKY,
+                        onClick = { viewModel.setSkyCanvasTheme(SkyCanvasTheme.REAL_SKY) }
+                    )
                     SettingsOptionRow(
                         title = if (isFa) "آسمان جوی (Atmospheric)" else "Atmospheric Sky",
                         isSelected = uiState.skyCanvasTheme == SkyCanvasTheme.ATMOSPHERIC_SKY,

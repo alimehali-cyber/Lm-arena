@@ -376,6 +376,7 @@ fun HeroSkyCanvas(
 
                         // Emit Stardust particles along finger path styled by active theme
                         val particleColor = when (currentSkyTheme) {
+                            SkyCanvasTheme.REAL_SKY -> if (Random.nextBoolean()) Color(0xFFFFF8EB) else Color(0xFF93C5FD)
                             SkyCanvasTheme.ATMOSPHERIC_SKY -> if (Random.nextBoolean()) Color(0xFF2DD4BF) else Color(0xFFFBBF24)
                             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (currentSunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
                             SkyCanvasTheme.KIDS_WATERCOLOR -> if (Random.nextBoolean()) Color(0xFFFF85A1) else Color(0xFF70D6FF)
@@ -404,7 +405,7 @@ fun HeroSkyCanvas(
             val canvasW = size.width
             val canvasH = size.height
 
-            val sunPosPx = if (sunHoriz.altitudeDeg > -12.0) {
+            val sunPosPx = if (sunHoriz.altitudeDeg > -18.0) {
                 HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
             } else null
 
@@ -413,7 +414,9 @@ fun HeroSkyCanvas(
                 drawScope = this,
                 lightingState = lightingState,
                 sunPosPx = sunPosPx,
-                theme = uiState.skyCanvasTheme
+                theme = uiState.skyCanvasTheme,
+                sunAzimuthDeg = sunHoriz.azimuthDeg,
+                latitudeDeg = userLat
             )
 
             // 2. Milky Way Renderer
@@ -423,7 +426,8 @@ fun HeroSkyCanvas(
                 lightingState = lightingState,
                 frameTimeMs = frameTimeMs,
                 theme = uiState.skyCanvasTheme,
-                latitudeDeg = userLat
+                latitudeDeg = userLat,
+                lastDeg = lastDeg
             )
 
             // 3. Star Renderer
@@ -433,11 +437,12 @@ fun HeroSkyCanvas(
                 starVisibility = lightingState.starVisibility,
                 frameTimeMs = frameTimeMs,
                 theme = uiState.skyCanvasTheme,
-                latitudeDeg = userLat
+                latitudeDeg = userLat,
+                lastDeg = lastDeg
             )
 
             // 4. Sun Renderer
-            if (sunPosPx != null) {
+            if (sunPosPx != null && sunHoriz.altitudeDeg > -12.0) {
                 SunRenderer.drawSun(
                     drawScope = this,
                     center = sunPosPx,
@@ -513,6 +518,7 @@ fun HeroSkyCanvas(
                 }
                 val pulseRing = 1.0f + 0.12f * sin(frameTimeMs * 0.005f).toFloat()
                 val ringColor = when (uiState.skyCanvasTheme) {
+                    SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
                     SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFF38BDF8)
                     SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
                     SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
@@ -633,6 +639,7 @@ fun HeroSkyCanvas(
 
         val accentDotColor = if (isTimeOffsetActive) {
             when (uiState.skyCanvasTheme) {
+                SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
                 SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFFFBBF24)
                 SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Color.White
                 SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)

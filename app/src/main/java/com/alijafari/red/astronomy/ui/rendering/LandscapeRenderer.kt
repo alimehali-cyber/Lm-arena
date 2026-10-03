@@ -63,6 +63,12 @@ object LandscapeRenderer {
 
         // 1. Atmospheric Horizon Mist / Fog Layer
         val mistColor = when (theme) {
+            SkyCanvasTheme.REAL_SKY -> when {
+                lightingState.sunAltitudeDeg > 6.0 -> lightingState.horizonTone.copy(alpha = 0.16f)
+                lightingState.sunAltitudeDeg in -6.0..6.0 -> lightingState.horizonTone.copy(alpha = 0.22f)
+                lightingState.sunAltitudeDeg in -15.0..-6.0 -> lightingState.horizonTone.copy(alpha = 0.14f)
+                else -> Color(0xFF1E293B).copy(alpha = 0.10f)
+            }
             SkyCanvasTheme.OBSERVATORY -> Color(0xFF991B1B).copy(alpha = 0.22f)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (lightingState.sunAltitudeDeg > 0.0) {
                 Color(0xFF64748B).copy(alpha = 0.18f)
@@ -94,6 +100,25 @@ object LandscapeRenderer {
         )
 
         val (layer1Color, layer2Color, darkSilhouetteColor) = when (theme) {
+            SkyCanvasTheme.REAL_SKY -> if (lightingState.sunAltitudeDeg > 2.0) {
+                Triple(
+                    Color(0xFF334E68).copy(alpha = 0.55f),
+                    Color(0xFF1E3348).copy(alpha = 0.80f),
+                    Color(0xFF0A141F)
+                )
+            } else if (lightingState.sunAltitudeDeg > -8.0) {
+                Triple(
+                    Color(0xFF1E293B).copy(alpha = 0.65f),
+                    Color(0xFF0F172A).copy(alpha = 0.85f),
+                    Color(0xFF040812)
+                )
+            } else {
+                Triple(
+                    Color(0xFF0E1525).copy(alpha = 0.72f),
+                    Color(0xFF070B14).copy(alpha = 0.90f),
+                    Color(0xFF020409)
+                )
+            }
             SkyCanvasTheme.OBSERVATORY -> Triple(
                 Color(0xFF3B0404).copy(alpha = 0.7f),
                 Color(0xFF240202).copy(alpha = 0.85f),
@@ -129,7 +154,7 @@ object LandscapeRenderer {
         drawScope.drawPath(path = layer3Path, color = darkSilhouetteColor)
 
         // --- CITY AMBIENT LIGHTS AT NIGHT ---
-        if (lightingState.sunAltitudeDeg < -6.0 && theme != SkyCanvasTheme.MONOCHROME_SCIENTIFIC) {
+        if (lightingState.sunAltitudeDeg < -6.0 && theme != SkyCanvasTheme.MONOCHROME_SCIENTIFIC && theme != SkyCanvasTheme.REAL_SKY) {
             val cityGlowX1 = width * 0.30f
             val cityGlowX2 = width * 0.70f
             val glowPulse = 0.85f + 0.15f * sin(frameTimeMs * 0.0012f).toFloat()

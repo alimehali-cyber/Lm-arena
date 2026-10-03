@@ -3,15 +3,18 @@ package com.alijafari.red.astronomy.ui.rendering
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import com.alijafari.red.astronomy.astro_engine.PlanetEngine
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import kotlin.math.cos
+import kotlin.math.pow
 import kotlin.math.sin
 
 object PlanetRenderer {
@@ -25,29 +28,101 @@ object PlanetRenderer {
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
+        val horizonY = height * HeroSkyProjection.HORIZON_FRACTION
 
-        planets.forEach { (pType, pPos, horiz) ->
-            val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
+        drawScope.clipRect(left = 0f, top = 0f, right = width, bottom = horizonY) {
+            planets.forEach { (pType, pPos, horiz) ->
+                val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
 
-            when (theme) {
-                SkyCanvasTheme.ATMOSPHERIC_SKY -> {
-                    when (pType) {
-                        PlanetEngine.PlanetType.JUPITER -> drawJupiter(drawScope, center, frameTimeMs)
-                        PlanetEngine.PlanetType.SATURN -> drawSaturn(drawScope, center)
-                        PlanetEngine.PlanetType.MARS -> drawMars(drawScope, center)
-                        PlanetEngine.PlanetType.VENUS -> drawVenus(drawScope, center)
-                        PlanetEngine.PlanetType.MERCURY -> drawMercury(drawScope, center)
-                        PlanetEngine.PlanetType.URANUS -> drawUranus(drawScope, center)
-                        PlanetEngine.PlanetType.NEPTUNE -> drawNeptune(drawScope, center)
-                        else -> {}
+                when (theme) {
+                    SkyCanvasTheme.REAL_SKY -> drawRealSkyPlanet(drawScope, pType, pPos, horiz, center)
+                    SkyCanvasTheme.ATMOSPHERIC_SKY -> {
+                        when (pType) {
+                            PlanetEngine.PlanetType.JUPITER -> drawJupiter(drawScope, center, frameTimeMs)
+                            PlanetEngine.PlanetType.SATURN -> drawSaturn(drawScope, center)
+                            PlanetEngine.PlanetType.MARS -> drawMars(drawScope, center)
+                            PlanetEngine.PlanetType.VENUS -> drawVenus(drawScope, center)
+                            PlanetEngine.PlanetType.MERCURY -> drawMercury(drawScope, center)
+                            PlanetEngine.PlanetType.URANUS -> drawUranus(drawScope, center)
+                            PlanetEngine.PlanetType.NEPTUNE -> drawNeptune(drawScope, center)
+                            else -> {}
+                        }
                     }
+                    SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromePlanet(drawScope, pType, center, baseColor = Color.White)
+                    SkyCanvasTheme.KIDS_WATERCOLOR -> drawFunPlanet(drawScope, pType, center)
+                    SkyCanvasTheme.OBSERVATORY -> drawMonochromePlanet(drawScope, pType, center, baseColor = Color(0xFFEF4444))
+                    SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftPlanet(drawScope, pType, center)
                 }
-                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromePlanet(drawScope, pType, center, baseColor = Color.White)
-                SkyCanvasTheme.KIDS_WATERCOLOR -> drawFunPlanet(drawScope, pType, center)
-                SkyCanvasTheme.OBSERVATORY -> drawMonochromePlanet(drawScope, pType, center, baseColor = Color(0xFFEF4444))
-                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> drawPapercraftPlanet(drawScope, pType, center)
             }
         }
+    }
+
+    /**
+     * Steady, untwinkling naked-eye point-source planet rendering (pole-island-sky / Stellarium photometry)
+     * with true planetary albedo colors, Kasten-Young atmospheric extinction, and soft optical halo.
+     */
+    private fun drawRealSkyPlanet(
+        drawScope: DrawScope,
+        pType: PlanetEngine.PlanetType,
+        pPos: PlanetEngine.PlanetPosition,
+        horiz: CoordinateEngine.Horizontal,
+        center: Offset
+    ) {
+        if (horiz.altitudeDeg <= 0.5) return
+
+        // Kasten & Young (1989) airmass extinction
+        val altClamped = horiz.altitudeDeg.coerceIn(0.5, 90.0)
+        val airmass = 1.0 / (sin(Math.toRadians(altClamped)) + 0.50572 * (altClamped + 6.07995).pow(-1.6364))
+        val effMag = pPos.magnitude + 0.25 * (airmass - 1.0)
+        // Naked-eye / twilight visibility cutoff
+        if (effMag > 6.5) return
+
+        val horizonFade = if (horiz.altitudeDeg >= 10.0) 1f else ((horiz.altitudeDeg - 0.5) / 9.5).toFloat().coerceIn(0f, 1f)
+
+        val planetColor = when (pType) {
+            PlanetEngine.PlanetType.MERCURY -> Color(0xFFC9C0B8) // Warm twilight silver-grey
+            PlanetEngine.PlanetType.VENUS -> Color(0xFFFDF6D3)   // Brilliant warm ivory-white
+            PlanetEngine.PlanetType.MARS -> Color(0xFFFF7A55)    // Ochre-coral red
+            PlanetEngine.PlanetType.JUPITER -> Color(0xFFF5D9A3) // Creamy pale gold
+            PlanetEngine.PlanetType.SATURN -> Color(0xFFE8D59A)  // Muted butterscotch yellow
+            PlanetEngine.PlanetType.URANUS -> Color(0xFFA5D8E8)  // Pale ice-cyan
+            PlanetEngine.PlanetType.NEPTUNE -> Color(0xFF6D8EE8) // Faint deep azure
+            else -> Color(0xFFF8FAFC)
+        }
+
+        // Pogson magnitude-to-radius clamped so even Venus (-4.4) stays a realistic luminous point source
+        val coreRadius = (1.55 * 2.512.pow((4.2 - effMag) * 0.20)).toFloat().coerceIn(1.1f, 3.8f)
+        val alpha = (horizonFade * (2.512.pow((6.0 - effMag) * 0.22)).toFloat().coerceIn(0.22f, 1.0f)).coerceIn(0f, 1f)
+
+        // 1. Steady additive atmospheric PSF halo (planets do not twinkle)
+        val haloRadius = coreRadius * 4.2f
+        val haloAlpha = (alpha * 0.38f).coerceIn(0f, 0.45f)
+        drawScope.drawCircle(
+            brush = Brush.radialGradient(
+                0.0f to planetColor.copy(alpha = haloAlpha),
+                0.40f to planetColor.copy(alpha = haloAlpha * 0.38f),
+                1.0f to Color.Transparent,
+                center = center,
+                radius = haloRadius
+            ),
+            radius = haloRadius,
+            center = center,
+            blendMode = BlendMode.Plus
+        )
+
+        // 2. Albedo-tinted planetary point disk
+        drawScope.drawCircle(
+            color = planetColor.copy(alpha = alpha),
+            radius = coreRadius,
+            center = center
+        )
+
+        // 3. High-luminance inner core
+        drawScope.drawCircle(
+            color = Color.White.copy(alpha = (alpha * 0.92f).coerceIn(0f, 1f)),
+            radius = coreRadius * 0.52f,
+            center = center
+        )
     }
 
     private fun drawMonochromePlanet(
