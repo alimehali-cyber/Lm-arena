@@ -92,14 +92,15 @@ class HeroSkyProjectionTest {
         assertEquals("Real Sky", com.alijafari.red.astronomy.domain.SkyCanvasTheme.REAL_SKY.nameEn)
         assertEquals("آسمان واقعی", com.alijafari.red.astronomy.domain.SkyCanvasTheme.REAL_SKY.nameFa)
 
-        // Verify AtmosphereRenderer.calculateLighting starVisibility transitions
-        val dayLighting = com.alijafari.red.astronomy.ui.rendering.AtmosphereRenderer.calculateLighting(25.0, -10.0, 0.0)
+        // Verify LightingEngine.computeLightingState transitions
+        val dayLighting = com.alijafari.red.astronomy.ui.rendering.LightingEngine.computeLightingState(25.0, -10.0, 0.0)
         assertEquals(0.0f, dayLighting.starVisibility, 1e-4f)
 
-        val deepNightDarkMoon = com.alijafari.red.astronomy.ui.rendering.AtmosphereRenderer.calculateLighting(-22.0, -15.0, 0.0)
+        val deepNightDarkMoon = com.alijafari.red.astronomy.ui.rendering.LightingEngine.computeLightingState(-22.0, -15.0, 0.0)
         assertEquals(1.0f, deepNightDarkMoon.starVisibility, 1e-4f)
+        assertEquals(0.0f, deepNightDarkMoon.moonGlowIntensity, 1e-4f)
 
-        val deepNightFullMoon = com.alijafari.red.astronomy.ui.rendering.AtmosphereRenderer.calculateLighting(-22.0, 45.0, 100.0)
-        assertTrue(deepNightFullMoon.starVisibility < deepNightDarkMoon.starVisibility)
+        val deepNightFullMoon = com.alijafari.red.astronomy.ui.rendering.LightingEngine.computeLightingState(-22.0, 45.0, 100.0)
+        assertTrue(deepNightFullMoon.moonGlowIntensity > deepNightDarkMoon.moonGlowIntensity)
     }
 }
