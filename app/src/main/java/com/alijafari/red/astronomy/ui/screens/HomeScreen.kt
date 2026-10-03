@@ -523,8 +523,8 @@ fun HomeScreen(
                                 val riseSetStr = remember(obj, moonData, uiState.userLocation, jd, isFa) {
                                     if (obj.id == "moon") {
                                         val tz = TimeEngine.resolveTimeZone(uiState.userLocation.timezoneId)
-                                        val rStr = TimeEngine.formatTime24h(moonData.moonriseTimeMs, isFa, tz)
-                                        val sStr = TimeEngine.formatTime24h(moonData.moonsetTimeMs, isFa, tz)
+                                        val rStr = TimeEngine.formatTime24h(moonData.moonriseTimeMs ?: 0L, isFa, tz)
+                                        val sStr = TimeEngine.formatTime24h(moonData.moonsetTimeMs ?: 0L, isFa, tz)
                                         if (isFa) "طلوع: $rStr | غروب: $sStr" else "Rise: $rStr | Set: $sStr"
                                     } else {
                                         val rst = CoordinateEngine.calculateRiseSetTransit(

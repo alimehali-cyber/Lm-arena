@@ -731,8 +731,7 @@ class EclipseEngine {
      * Converts JDE (Julian Ephemeris Day in Terrestrial Time TT) to UTC epoch milliseconds.
      */
     private fun jdeToUtcMs(jde: Double): Long {
-        val approxYear = 2000.0 + (jde - 2451545.0) / 365.25
-        val deltaTSec = AstroTime.calculateDeltaT(approxYear)
+        val deltaTSec = AstroTime.fromJd(jde).deltaT
         val jdUtc = jde - deltaTSec / 86400.0
         return ((jdUtc - 2440587.5) * 86400000.0).roundToLong()
     }

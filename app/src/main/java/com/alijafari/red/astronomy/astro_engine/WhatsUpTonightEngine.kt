@@ -208,8 +208,7 @@ object WhatsUpTonightEngine {
                         CanonicalAstroCatalog.toCelestialObject(
                             canonicalObj = it,
                             dynamicRa = moonTopo.raDeg,
-                            dynamicDec = moonTopo.decDeg,
-                            dynamicMag = moonData.apparentMagnitude
+                            dynamicDec = moonTopo.decDeg
                         )
                     }
                 )
