@@ -2495,7 +2495,7 @@ fun CompassARScreen(
                         IconButton(
                             onClick = {
                                 viewModel.setSkyCanvasTheme(
-                                    if (isNightVision) SkyCanvasTheme.ATMOSPHERIC_SKY else SkyCanvasTheme.OBSERVATORY
+                                    if (isNightVision) SkyCanvasTheme.REAL_SKY else SkyCanvasTheme.OBSERVATORY
                                 )
                             },
                             modifier = Modifier.size(32.dp)
