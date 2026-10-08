@@ -38,6 +38,10 @@ import com.alijafari.red.astronomy.domain.TimeMachineMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.rendering.*
+import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature
+import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaLayer
+import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaState
+import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaStatus
 import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.util.toPersianDigits
 import kotlinx.coroutines.delay
@@ -252,6 +256,13 @@ fun HeroSkyCanvas(
     val currentUserLat by rememberUpdatedState(userLat)
     val currentSkyTheme by rememberUpdatedState(uiState.skyCanvasTheme)
 
+    // Photographic panorama (Phase 1). Only active behind the internal SkyPanoramaFeature switch.
+    // Until the panorama reports READY, the legacy atmosphere and procedural Milky Way below stay
+    // visible as the fallback, so there is no black or empty flash.
+    val skyPanoramaState = remember(lastDeg, userLat) { SkyPanoramaState.fromSkyState(lastDeg, userLat) }
+    var panoramaReady by remember { mutableStateOf(false) }
+    val panoramaActive = SkyPanoramaFeature.INTEGRATION_ENABLED && panoramaReady
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -400,6 +411,16 @@ fun HeroSkyCanvas(
                 )
             }
     ) {
+        if (SkyPanoramaFeature.INTEGRATION_ENABLED) {
+            SkyPanoramaLayer(
+                state = skyPanoramaState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(28.dp)),
+                onStatusChanged = { status -> panoramaReady = status == SkyPanoramaStatus.READY }
+            )
+        }
+
         // --- GPU CANVAS RENDERING PIPELINE ---
         Canvas(modifier = Modifier.fillMaxSize()) {
             val canvasW = size.width
@@ -409,26 +430,30 @@ fun HeroSkyCanvas(
                 HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
             } else null
 
-            // 1. Atmosphere Renderer
-            AtmosphereRenderer.drawAtmosphere(
-                drawScope = this,
-                lightingState = lightingState,
-                sunPosPx = sunPosPx,
-                theme = uiState.skyCanvasTheme,
-                sunAzimuthDeg = sunHoriz.azimuthDeg,
-                latitudeDeg = userLat
-            )
+            // 1. Atmosphere Renderer (skipped while the photographic panorama is on screen)
+            if (!panoramaActive) {
+                AtmosphereRenderer.drawAtmosphere(
+                    drawScope = this,
+                    lightingState = lightingState,
+                    sunPosPx = sunPosPx,
+                    theme = uiState.skyCanvasTheme,
+                    sunAzimuthDeg = sunHoriz.azimuthDeg,
+                    latitudeDeg = userLat
+                )
+            }
 
-            // 2. Milky Way Renderer
-            MilkyWayRenderer.drawMilkyWay(
-                drawScope = this,
-                galacticPoints = galacticPlanePoints,
-                lightingState = lightingState,
-                frameTimeMs = frameTimeMs,
-                theme = uiState.skyCanvasTheme,
-                latitudeDeg = userLat,
-                lastDeg = lastDeg
-            )
+            // 2. Milky Way Renderer (procedural; replaced by the photographic panorama when active)
+            if (!panoramaActive) {
+                MilkyWayRenderer.drawMilkyWay(
+                    drawScope = this,
+                    galacticPoints = galacticPlanePoints,
+                    lightingState = lightingState,
+                    frameTimeMs = frameTimeMs,
+                    theme = uiState.skyCanvasTheme,
+                    latitudeDeg = userLat,
+                    lastDeg = lastDeg
+                )
+            }
 
             // 3. Star Renderer
             StarRenderer.drawStars(
