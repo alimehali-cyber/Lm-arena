@@ -40,6 +40,7 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.theme.*
 
 /**
@@ -173,10 +174,11 @@ fun SettingsDialog(
         if (isFa) "خاموش" else "Off"
     }
 
-    val liveSkyStatusLabel = if (uiState.liveSkyBackdropEnabled) {
-        if (isFa) "فعال" else "On"
-    } else {
-        if (isFa) "خاموش" else "Off"
+    val liveSkyStatusLabel = when (uiState.appBackdropMode) {
+        AppBackdropMode.LIVE_SKY -> stringResource(R.string.live_sky_setting)
+        AppBackdropMode.NGC_1929 -> stringResource(R.string.backdrop_ngc1929_setting)
+        AppBackdropMode.CEPHEUS -> stringResource(R.string.backdrop_cepheus_setting)
+        AppBackdropMode.NONE -> if (isFa) "خاموش" else "Off"
     }
 
     val bortleLabel = if (isFa) "کلاس ${uiState.bortleClass}" else "Class ${uiState.bortleClass}"
@@ -572,40 +574,70 @@ fun SettingsDialog(
                     icon = Icons.Outlined.NightsStay,
                     isExpanded = isAppBackdropExpanded,
                     onToggle = { isAppBackdropExpanded = !isAppBackdropExpanded },
-                    statusColor = if (uiState.liveSkyBackdropEnabled) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
+                    statusColor = if (uiState.appBackdropMode != AppBackdropMode.NONE) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
                     testTag = "settings_section_app_backdrop"
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(end = RedSpacing.sm)
+                    Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                         ) {
-                            Text(
-                                text = stringResource(R.string.live_sky_setting),
-                                style = RedTypographyTokens.bodySecondary.copy(fontWeight = FontWeight.SemiBold),
-                                color = RedTheme.colors.textPrimary
+                            FilterChip(
+                                selected = uiState.appBackdropMode == AppBackdropMode.NONE,
+                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NONE) },
+                                label = { Text(text = if (isFa) "خاموش" else "Off", fontSize = 11.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
+                                modifier = Modifier.testTag("settings_backdrop_off")
                             )
-                            Text(
-                                text = stringResource(R.string.live_sky_desc),
-                                style = RedTypographyTokens.caption,
-                                color = RedTheme.colors.textSecondary
+                            FilterChip(
+                                selected = uiState.appBackdropMode == AppBackdropMode.LIVE_SKY,
+                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.LIVE_SKY) },
+                                label = { Text(text = stringResource(R.string.live_sky_setting), fontSize = 11.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("settings_live_sky_switch")
+                            )
+                            FilterChip(
+                                selected = uiState.appBackdropMode == AppBackdropMode.NGC_1929,
+                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NGC_1929) },
+                                label = { Text(text = stringResource(R.string.backdrop_ngc1929_setting), fontSize = 11.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = RedTheme.colors.accentRed,
+                                    selectedLabelColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("settings_backdrop_ngc1929")
                             )
                         }
-                        Switch(
-                            checked = uiState.liveSkyBackdropEnabled,
-                            onCheckedChange = { viewModel.setLiveSkyBackdropEnabled(it) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = RedTheme.colors.accentRed,
-                                uncheckedThumbColor = RedTheme.colors.textSecondary,
-                                uncheckedTrackColor = RedTheme.colors.border
+                        FilterChip(
+                            selected = uiState.appBackdropMode == AppBackdropMode.CEPHEUS,
+                            onClick = { viewModel.setAppBackdropMode(AppBackdropMode.CEPHEUS) },
+                            label = { Text(text = stringResource(R.string.backdrop_cepheus_setting), fontSize = 11.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = RedTheme.colors.accentRed,
+                                selectedLabelColor = Color.White
                             ),
-                            modifier = Modifier.testTag("settings_live_sky_switch")
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("settings_backdrop_cepheus")
+                        )
+                        Text(
+                            text = when (uiState.appBackdropMode) {
+                                AppBackdropMode.LIVE_SKY -> stringResource(R.string.live_sky_desc)
+                                AppBackdropMode.NGC_1929 -> stringResource(R.string.backdrop_ngc1929_desc)
+                                AppBackdropMode.CEPHEUS -> stringResource(R.string.backdrop_cepheus_desc)
+                                AppBackdropMode.NONE -> stringResource(R.string.backdrop_off_desc)
+                            },
+                            style = RedTypographyTokens.caption,
+                            color = RedTheme.colors.textSecondary
                         )
                     }
                 }

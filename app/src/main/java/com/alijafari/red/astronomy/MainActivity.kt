@@ -39,7 +39,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.backdrop.LiveSkyBackdrop
+import com.alijafari.red.astronomy.ui.backdrop.PhotoBackdrop
 import com.alijafari.red.astronomy.ui.components.FavoritesHistoryDialog
 import com.alijafari.red.astronomy.ui.components.LocationSelectorDialog
 import com.alijafari.red.astronomy.ui.components.ObjectDetailModal
@@ -219,7 +221,7 @@ class MainActivity : ComponentActivity() {
                             // Live Sky ON: the layer spans the whole window, so the sky sits behind the status bar and
                             // Liquid Glass samples it. The content keeps the same top inset. Live Sky OFF: this is the
                             // pre-feature layout, unchanged.
-                            val liveSkyLayout = uiState.liveSkyBackdropEnabled
+                            val liveSkyLayout = uiState.appBackdropMode != AppBackdropMode.NONE
                             val contentTopPadding = innerPadding.calculateTopPadding()
                             Box(
                                 modifier = Modifier
@@ -235,7 +237,7 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 // Always composed. It emits nothing unless Live Sky is eligible for the current screen.
                                 LiveSkyBackdrop(
-                                    enabled = uiState.liveSkyBackdropEnabled,
+                                    enabled = uiState.appBackdropMode == AppBackdropMode.LIVE_SKY,
                                     selectedTab = uiState.selectedTab,
                                     isSimulation = uiState.timeMachineState.mode == com.alijafari.red.astronomy.domain.TimeMachineMode.SIMULATION,
                                     simulationTimeMs = uiState.timeMachineState.simulationTimeMs,
@@ -245,6 +247,11 @@ class MainActivity : ComponentActivity() {
                                     theme = uiState.skyCanvasTheme,
                                     liveTimeMs = viewModel.skyLiveClock.timeMs,
                                     dragOffsetHours = viewModel.skyDragOffsetHours,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                PhotoBackdrop(
+                                    mode = uiState.appBackdropMode,
+                                    selectedTab = uiState.selectedTab,
                                     modifier = Modifier.fillMaxSize()
                                 )
                                 Box(

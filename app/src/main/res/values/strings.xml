@@ -87,6 +87,11 @@
     <string name="app_backdrop_title">App Backdrop</string>
     <string name="live_sky_setting">Live Sky</string>
     <string name="live_sky_desc">Use your local sky as the app background.</string>
+    <string name="backdrop_ngc1929_setting">NGC 1929</string>
+    <string name="backdrop_ngc1929_desc">Spitzer / Chandra / ESO photograph of NGC 1929, cropped to fill the screen at full resolution.</string>
+    <string name="backdrop_cepheus_setting">Cepheus</string>
+    <string name="backdrop_cepheus_desc">Spitzer infrared photograph of Cepheus B and C, cropped to fill the screen at full resolution.</string>
+    <string name="backdrop_off_desc">Solid theme background. Choose Live Sky or a photograph as a full-screen backdrop.</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>

@@ -81,7 +81,9 @@ class LiveSkyIsolationTest {
 
         val settings = source("com/alijafari/red/astronomy/ui/components/SettingsDialog.kt")
         assertTrue("Settings must expose the Live Sky switch", settings.contains("settings_live_sky_switch"))
-        assertTrue("Settings must call the Live Sky setter", settings.contains("setLiveSkyBackdropEnabled"))
+        assertTrue("Settings must call the backdrop mode setter", settings.contains("setAppBackdropMode"))
+        assertTrue("Settings must expose NGC 1929", settings.contains("settings_backdrop_ngc1929"))
+        assertTrue("Settings must expose Cepheus", settings.contains("settings_backdrop_cepheus"))
     }
 
     @Test
@@ -95,7 +97,7 @@ class LiveSkyIsolationTest {
     fun liveSkyStringsExistInEnglishAndPersian() {
         val en = resource("values/strings.xml")
         val fa = resource("values-fa/strings.xml")
-        for (key in listOf("app_backdrop_title", "live_sky_setting", "live_sky_desc")) {
+        for (key in listOf("app_backdrop_title", "live_sky_setting", "live_sky_desc", "backdrop_ngc1929_setting", "backdrop_ngc1929_desc", "backdrop_cepheus_setting", "backdrop_cepheus_desc", "backdrop_off_desc")) {
             assertTrue("missing $key in values", en.contains("name=\"$key\""))
             assertTrue("missing $key in values-fa", fa.contains("name=\"$key\""))
         }

@@ -17,6 +17,7 @@ import com.alijafari.red.astronomy.data.database.AppDatabase
 import com.alijafari.red.astronomy.data.database.ObservationLogEntity
 import com.alijafari.red.astronomy.data.database.UserOccasionEntity
 import com.alijafari.red.astronomy.domain.*
+import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.backdrop.LiveSkyPolicy
 import com.alijafari.red.astronomy.ui.backdrop.SkyLiveClock
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassConfig
@@ -53,7 +54,9 @@ data class MainUiState(
     val isLiquidGlassEnabled: Boolean = true,
     val liquidGlassConfig: LiquidGlassConfig = LiquidGlassConfig(),
     /** Live Sky app backdrop preference. Default OFF. Eligibility per screen is decided by [LiveSkyPolicy]. */
-    val liveSkyBackdropEnabled: Boolean = LiveSkyPolicy.DEFAULT_ENABLED
+    val liveSkyBackdropEnabled: Boolean = LiveSkyPolicy.DEFAULT_ENABLED,
+    /** Mutually exclusive full-window backdrop. [liveSkyBackdropEnabled] is true only for [AppBackdropMode.LIVE_SKY]. */
+    val appBackdropMode: AppBackdropMode = AppBackdropMode.NONE
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -80,6 +83,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         MainUiState(
             isLiquidGlassEnabled = prefs.getBoolean("liquid_glass_enabled", true),
             liveSkyBackdropEnabled = LiveSkyPolicy.loadEnabled(prefs),
+            appBackdropMode = AppBackdropMode.fromPrefs(prefs),
             liquidGlassConfig = LiquidGlassConfig(
                 enabled = prefs.getBoolean("liquid_glass_enabled", true),
                 clarity = prefs.getFloat("liquid_glass_clarity", 1.0f),
@@ -231,8 +235,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setLiveSkyBackdropEnabled(enabled: Boolean) {
-        LiveSkyPolicy.saveEnabled(prefs, enabled)
-        _uiState.update { it.copy(liveSkyBackdropEnabled = enabled) }
+        setAppBackdropMode(if (enabled) AppBackdropMode.LIVE_SKY else AppBackdropMode.NONE)
+    }
+
+    fun setAppBackdropMode(mode: AppBackdropMode) {
+        AppBackdropMode.save(prefs, mode)
+        _uiState.update {
+            it.copy(
+                appBackdropMode = mode,
+                liveSkyBackdropEnabled = mode == AppBackdropMode.LIVE_SKY
+            )
+        }
     }
 
     fun setLiquidGlassEnabled(enabled: Boolean) {
