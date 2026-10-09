@@ -76,12 +76,21 @@ fun HeroSkyCanvas(
     val isFa = uiState.language == AppLanguage.PERSIAN
     val coroutineScope = rememberCoroutineScope()
 
-    // Dynamic Astronomical Julian Date (Tracks real system time continuously in live mode, plus simulation offset)
-    var currentSystemTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    // Live clock shared with the Live Sky backdrop (one timer, owned by MainViewModel, running only while collected).
+    val currentSystemTimeMs by viewModel.skyLiveClock.timeMs.collectAsState()
 
     // Direct Finger Time Travel state
     val simulatedOffsetHoursAnim = remember { Animatable(0f) }
     var isDragging by remember { mutableStateOf(false) }
+
+    // Publish the drag offset (including the animated return) so the Live Sky backdrop follows the same instant.
+    // It is reset when Home leaves, exactly as this local offset is.
+    LaunchedEffect(Unit) {
+        snapshotFlow { simulatedOffsetHoursAnim.value }.collect { viewModel.setSkyDragOffsetHours(it) }
+    }
+    DisposableEffect(Unit) {
+        onDispose { viewModel.setSkyDragOffsetHours(0f) }
+    }
 
     // Stardust Particles list
     val stardustParticles = remember { mutableStateListOf<StardustParticle>() }
@@ -95,15 +104,10 @@ fun HeroSkyCanvas(
     val isAnimatingReturn = simulatedOffsetHoursAnim.isRunning
     val hasSelection = selectedCelestial != null
 
-    // Steady state real-time clock update (every 1 second instead of every frame when idle)
-    LaunchedEffect(Unit) {
-        while (true) {
-            val now = System.currentTimeMillis()
-            currentSystemTimeMs = now
-            if (!isDragging && stardustParticles.isEmpty() && !simulatedOffsetHoursAnim.isRunning && selectedCelestial == null) {
-                frameTimeMs = now
-            }
-            delay(1000L)
+    // Steady state real-time clock: one tick per second from the shared clock, instead of every frame when idle
+    LaunchedEffect(currentSystemTimeMs) {
+        if (!isDragging && stardustParticles.isEmpty() && !simulatedOffsetHoursAnim.isRunning && selectedCelestial == null) {
+            frameTimeMs = currentSystemTimeMs
         }
     }
 
@@ -130,13 +134,13 @@ fun HeroSkyCanvas(
 
     // Current Simulated Julian Date (Honours TimeMachineState in simulation mode, plus any finger time travel offset)
     val currentOffsetHours = simulatedOffsetHoursAnim.value
-    val baseTimeMs = if (uiState.timeMachineState.mode == TimeMachineMode.SIMULATION) {
-        uiState.timeMachineState.simulationTimeMs
-    } else {
-        currentSystemTimeMs
-    }
-    val currentBaseJd = TimeEngine.getJulianDate(baseTimeMs)
-    val simulatedJd = currentBaseJd + (currentOffsetHours / 24.0)
+    val baseTimeMs = SkyTimeModel.baseTimeMs(
+        isSimulation = uiState.timeMachineState.mode == TimeMachineMode.SIMULATION,
+        simulationTimeMs = uiState.timeMachineState.simulationTimeMs,
+        liveTimeMs = currentSystemTimeMs
+    )
+    // Same effective instant the Live Sky backdrop uses (see SkyTimeModel)
+    val simulatedJd = SkyTimeModel.effectiveJd(baseTimeMs, currentOffsetHours)
     val simulatedTimeMs = TimeEngine.getTimestampFromJulianDate(simulatedJd)
 
     // Astro computations
@@ -186,8 +190,8 @@ fun HeroSkyCanvas(
     // the feature is enabled (see the SkyPanoramaLayer call below).
     var panoramaReady by remember { mutableStateOf(false) }
     // The panorama replaces the Real Sky background only for that theme; other themes keep their look.
-    val panoramaEnabled = SkyPanoramaFeature.INTEGRATION_ENABLED && uiState.skyCanvasTheme == SkyCanvasTheme.REAL_SKY
-    val panoramaActive = panoramaEnabled && panoramaReady
+    val panoramaEnabled = SkyPanoramaFeature.isEnabledFor(uiState.skyCanvasTheme)
+    val panoramaActive = SkyPanoramaFeature.isPresented(uiState.skyCanvasTheme, panoramaReady)
 
     BoxWithConstraints(
         modifier = modifier
@@ -338,9 +342,7 @@ fun HeroSkyCanvas(
             }
     ) {
         if (panoramaEnabled) {
-            val skyPanoramaState = remember(lastDeg, userLat, sunHoriz.altitudeDeg, lightingState.moonGlowIntensity) {
-                SkyPanoramaState.fromSkyState(lastDeg, userLat, sunHoriz.altitudeDeg, lightingState.moonGlowIntensity)
-            }
+            val skyPanoramaState = remember(skyFrame) { SkyPanoramaState.fromSceneFrame(skyFrame) }
             SkyPanoramaLayer(
                 state = skyPanoramaState,
                 modifier = Modifier

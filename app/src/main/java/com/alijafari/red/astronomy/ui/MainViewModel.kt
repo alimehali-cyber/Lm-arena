@@ -18,6 +18,7 @@ import com.alijafari.red.astronomy.data.database.ObservationLogEntity
 import com.alijafari.red.astronomy.data.database.UserOccasionEntity
 import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.backdrop.LiveSkyPolicy
+import com.alijafari.red.astronomy.ui.backdrop.SkyLiveClock
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -59,6 +60,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AppRepository(AppDatabase.getDatabase(application))
     private val prefs = application.getSharedPreferences("astro_app_prefs", Context.MODE_PRIVATE)
+
+    /** One live clock for the Home hero and the Live Sky backdrop. It runs only while something collects it. */
+    val skyLiveClock = SkyLiveClock(viewModelScope)
+
+    private val _skyDragOffsetHours = MutableStateFlow(0f)
+
+    /**
+     * The Home time-machine drag offset in hours (±12), including its animated return to zero. Home publishes it; the
+     * Live Sky backdrop reads it, so both scenes use the same effective instant. Home resets it to zero when it leaves.
+     */
+    val skyDragOffsetHours: StateFlow<Float> = _skyDragOffsetHours.asStateFlow()
+
+    fun setSkyDragOffsetHours(hours: Float) {
+        if (_skyDragOffsetHours.value != hours) _skyDragOffsetHours.value = hours
+    }
 
     private val _uiState = MutableStateFlow(
         MainUiState(

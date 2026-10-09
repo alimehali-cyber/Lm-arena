@@ -1,6 +1,7 @@
 package com.alijafari.red.astronomy.ui.backdrop
 
-import com.alijafari.red.astronomy.ui.rendering.SkySceneModel
+import com.alijafari.red.astronomy.astro_engine.TimeEngine
+import com.alijafari.red.astronomy.ui.rendering.SkyTimeModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -9,46 +10,65 @@ import org.junit.Test
 
 class LiveSkyFrameRequestTest {
 
+    private val base = 1_700_000_000_000L
     private val minute = 60_000L
-    private val base = 120L * minute // a minute boundary
 
     private fun request(
         visible: Boolean = true,
-        minuteMs: Long = base,
+        baseTimeMs: Long = base,
+        dragOffsetHours: Float = 0f,
         lat: Double = 35.6892,
         lon: Double = 51.3890,
         elev: Double = 1100.0
-    ) = LiveSkyFrameRequest(visible, minuteMs, lat, lon, elev)
+    ) = LiveSkyFrameRequest(visible, baseTimeMs, dragOffsetHours, lat, lon, elev)
 
     @Test
-    fun liveModeFloorsTheWallClockToTheQuantum() {
-        val wall = base + 42_000L
-        val resolved = LiveSkyFrameRequest.resolveMinuteMs(isSimulation = false, simulationTimeMs = 0L, wallClockMs = wall)
-        assertEquals(SkySceneModel.quantizeTimeMs(wall), resolved)
-        assertEquals(base, resolved)
-        assertEquals(0L, resolved % SkySceneModel.TIME_QUANTUM_MS)
+    fun zeroOffsetRequestUsesTheBaseInstantExactly() {
+        // With no drag, the backdrop's instant is the same instant the Home hero computes for the base time.
+        assertEquals(TimeEngine.getJulianDate(base), request().julianDate, 0.0)
     }
 
     @Test
-    fun simulationModeUsesTheTimeMachineInstantNotTheWallClock() {
-        val simulated = 5L * 60 * minute + 30_000L
-        val resolved = LiveSkyFrameRequest.resolveMinuteMs(isSimulation = true, simulationTimeMs = simulated, wallClockMs = 9_999_999_999L)
-        assertEquals(SkySceneModel.quantizeTimeMs(simulated), resolved)
+    fun requestJulianDateIsTheSameFormulaAsHome() {
+        val offset = -4.25f
+        assertEquals(SkyTimeModel.effectiveJd(base, offset), request(dragOffsetHours = offset).julianDate, 0.0)
     }
 
     @Test
-    fun clockTicksInsideOneMinuteProduceAnEqualRequest() {
-        // Equal requests do not restart the producer, so there is no recomputation inside one minute.
-        val first = request(minuteMs = LiveSkyFrameRequest.resolveMinuteMs(false, 0L, base + 1_000L))
-        val tick = request(minuteMs = LiveSkyFrameRequest.resolveMinuteMs(false, 0L, base + 59_000L))
-        assertEquals(first, tick)
+    fun dragOffsetMovesTheEffectiveInstantAndTheRequest() {
+        val dragged = request(dragOffsetHours = 6f)
+        assertNotEquals(request(), dragged)
+        assertEquals(TimeEngine.getJulianDate(base) + 0.25, dragged.julianDate, 1e-9)
     }
 
     @Test
-    fun crossingAMinuteBoundaryProducesANewRequest() {
-        val before = request(minuteMs = LiveSkyFrameRequest.resolveMinuteMs(false, 0L, base + 59_000L))
-        val after = request(minuteMs = LiveSkyFrameRequest.resolveMinuteMs(false, 0L, base + 60_000L))
-        assertNotEquals(before, after)
+    fun everyDragStepProducesADifferentRequest() {
+        // A drag or return animation changes the offset in small steps. Each step must reach the producer.
+        val steps = listOf(0f, 0.1f, 0.2f, 0.3f)
+        val requests = steps.map { request(dragOffsetHours = it) }
+        assertEquals(requests.size, requests.toSet().size)
+    }
+
+    @Test
+    fun identicalInputsProduceAnEqualRequest() {
+        // Equal requests do not restart the producer, so an unchanged sky does no work.
+        assertEquals(request(dragOffsetHours = 2f), request(dragOffsetHours = 2f))
+    }
+
+    @Test
+    fun liveClockTicksAreNotQuantisedAwayFromTheHomeInstant() {
+        // The base is used as given. Home and the backdrop see the same clock value, so no extra rounding is applied.
+        val tick = base + 1_000L
+        assertEquals(TimeEngine.getJulianDate(tick), request(baseTimeMs = tick).julianDate, 0.0)
+        assertNotEquals(request(baseTimeMs = base), request(baseTimeMs = tick))
+    }
+
+    @Test
+    fun simulationBaseIsUsedWhenTheTimeMachineIsActive() {
+        val simulated = base - 5 * minute
+        val baseTime = SkyTimeModel.baseTimeMs(isSimulation = true, simulationTimeMs = simulated, liveTimeMs = base)
+        assertEquals(simulated, baseTime)
+        assertEquals(TimeEngine.getJulianDate(simulated), request(baseTimeMs = baseTime).julianDate, 0.0)
     }
 
     @Test

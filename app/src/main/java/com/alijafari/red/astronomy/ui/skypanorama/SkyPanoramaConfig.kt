@@ -1,5 +1,7 @@
 package com.alijafari.red.astronomy.ui.skypanorama
 
+import com.alijafari.red.astronomy.domain.SkyCanvasTheme
+
 /**
  * Feature gate and renderer configuration for the Phase 1 photographic sky panorama.
  *
@@ -10,6 +12,17 @@ package com.alijafari.red.astronomy.ui.skypanorama
 object SkyPanoramaFeature {
     // Enabled in every build. Set to false only to disable the panorama entirely.
     const val INTEGRATION_ENABLED = true
+
+    /** The panorama replaces the Real Sky background only, and only when the feature is enabled. */
+    fun isEnabledFor(theme: SkyCanvasTheme): Boolean =
+        INTEGRATION_ENABLED && theme == SkyCanvasTheme.REAL_SKY
+
+    /**
+     * True when the panorama is actually on screen and the legacy procedural sky must be skipped.
+     * Until [panoramaReady] is true (loading, or failed), the legacy sky stays visible as the fallback.
+     */
+    fun isPresented(theme: SkyCanvasTheme, panoramaReady: Boolean): Boolean =
+        isEnabledFor(theme) && panoramaReady
 }
 
 /** Texture resolution tiers. Only the 4096 x 2048 runtime master is bundled in Phase 1. */

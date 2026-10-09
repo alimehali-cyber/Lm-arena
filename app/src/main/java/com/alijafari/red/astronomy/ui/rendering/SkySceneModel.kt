@@ -35,7 +35,7 @@ data class SkySceneFrame(
 
 object SkySceneModel {
 
-    /** Time resolution of the astronomical state. The backdrop only recomputes when this quantum changes. */
+    /** Quantum used by [quantizeTimeMs]. The Live Sky backdrop does not quantise: it follows the effective instant. */
     const val TIME_QUANTUM_MS: Long = 60_000L
 
     /** Floors a timestamp to [TIME_QUANTUM_MS]. */

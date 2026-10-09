@@ -1,5 +1,7 @@
 package com.alijafari.red.astronomy.ui.skypanorama
 
+import com.alijafari.red.astronomy.ui.rendering.SkySceneFrame
+
 /**
  * Sky-state inputs for the panorama camera, derived from values the Home hero already computes:
  * the Local Apparent Sidereal Time (`TimeEngine.getLAST`) at the Time Machine / simulated instant,
@@ -34,6 +36,17 @@ data class SkyPanoramaState(
             latitudeDeg = latitudeDeg,
             sunAltDeg = SkyPanoramaSkyModel.quantizeSunAlt(sunAltDeg),
             moonGlow = SkyPanoramaSkyModel.quantizeMoonGlow(moonGlowIntensity)
+        )
+
+        /**
+         * The panorama inputs for one computed sky frame. The Home hero and the Live Sky backdrop both call this, so
+         * the same frame always yields the same panorama state.
+         */
+        fun fromSceneFrame(frame: SkySceneFrame): SkyPanoramaState = fromSkyState(
+            lastDeg = frame.lastDeg,
+            latitudeDeg = frame.latitudeDeg,
+            sunAltDeg = frame.sunHoriz.altitudeDeg,
+            moonGlowIntensity = frame.lightingState.moonGlowIntensity
         )
     }
 }

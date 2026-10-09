@@ -22,18 +22,47 @@ class LiveSkyIsolationTest {
         "com/alijafari/red/astronomy/ui/backdrop/LiveSkyBackdrop.kt",
         "com/alijafari/red/astronomy/ui/backdrop/LiveSkyPolicy.kt",
         "com/alijafari/red/astronomy/ui/backdrop/LiveSkyFrameRequest.kt",
+        "com/alijafari/red/astronomy/ui/backdrop/LiveSkyFramePipeline.kt",
+        "com/alijafari/red/astronomy/ui/backdrop/SkyLiveClock.kt",
         "com/alijafari/red/astronomy/ui/backdrop/SkyBackdropViewport.kt",
+        "com/alijafari/red/astronomy/ui/rendering/SkyTimeModel.kt",
         "com/alijafari/red/astronomy/ui/rendering/SkySceneModel.kt",
         "com/alijafari/red/astronomy/ui/rendering/SkySceneRenderer.kt"
     )
 
     @Test
-    fun backdropDoesNotDependOnThePanoramaFeatureGate() {
-        for (path in backdropFiles) {
-            val text = source(path)
-            assertFalse("$path references the panorama feature gate", text.contains("SkyPanoramaFeature"))
-            assertFalse("$path imports the skypanorama package", text.contains("ui.skypanorama"))
-        }
+    fun backdropUsesTheSharedPanoramaRuleAndNoSecondGlRenderer() {
+        val backdrop = source("com/alijafari/red/astronomy/ui/backdrop/LiveSkyBackdrop.kt")
+        assertTrue("backdrop must mount the shared panorama layer", backdrop.contains("SkyPanoramaLayer("))
+        assertTrue("backdrop must use the shared presentation rule", backdrop.contains("SkyPanoramaFeature.isPresented("))
+        assertTrue("backdrop must use the shared Real Sky rule", backdrop.contains("SkyPanoramaFeature.isEnabledFor("))
+        assertFalse("backdrop must not create its own GL renderer", backdrop.contains("SkyPanoramaRenderer("))
+        assertFalse("backdrop must not decode the panorama itself", backdrop.contains("SkyPanoramaTextureLoader"))
+        assertFalse("backdrop must not hard-code a procedural-only path", backdrop.contains("panoramaActive = false"))
+    }
+
+    @Test
+    fun homeAndBackdropShareOneEffectiveTimeAndOneClock() {
+        val hero = source("com/alijafari/red/astronomy/ui/components/HeroSkyCanvas.kt")
+        val backdrop = source("com/alijafari/red/astronomy/ui/backdrop/LiveSkyBackdrop.kt")
+        assertTrue("Home must use the shared time formula", hero.contains("SkyTimeModel.effectiveJd("))
+        assertTrue("backdrop must use the shared time formula via the request", source("com/alijafari/red/astronomy/ui/backdrop/LiveSkyFrameRequest.kt").contains("SkyTimeModel.effectiveJd("))
+        assertTrue("Home must read the shared live clock", hero.contains("viewModel.skyLiveClock.timeMs"))
+        assertTrue("backdrop must read the shared live clock", backdrop.contains("liveTimeMs"))
+        assertFalse("backdrop must not start its own clock loop", backdrop.contains("delay("))
+        assertFalse("Home must not keep a second 1 Hz clock loop", hero.contains("currentSystemTimeMs = now"))
+    }
+
+    @Test
+    fun liveSkyDoesNothingWhileHiddenAndExcludesLabAndArTabs() {
+        val backdrop = source("com/alijafari/red/astronomy/ui/backdrop/LiveSkyBackdrop.kt")
+        assertTrue("hidden backdrop must return before composing its subtree", backdrop.contains("if (!visible) return"))
+        assertTrue("immersive Lab features must be read from ImmersiveScreenState", backdrop.contains("ImmersiveScreenState.active"))
+        val policy = source("com/alijafari/red/astronomy/ui/backdrop/LiveSkyPolicy.kt")
+        assertTrue(
+            "the allow-list must stay exactly Lab, Satellites, Moon and Home (AR is excluded)",
+            policy.contains("setOf(TAB_LAB, TAB_SATELLITES, TAB_MOON, TAB_HOME)")
+        )
     }
 
     @Test

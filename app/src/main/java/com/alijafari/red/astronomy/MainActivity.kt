@@ -243,6 +243,8 @@ class MainActivity : ComponentActivity() {
                                     longitudeDeg = uiState.userLocation.longitude,
                                     elevationM = uiState.userLocation.elevationMeters,
                                     theme = uiState.skyCanvasTheme,
+                                    liveTimeMs = viewModel.skyLiveClock.timeMs,
+                                    dragOffsetHours = viewModel.skyDragOffsetHours,
                                     modifier = Modifier.fillMaxSize()
                                 )
                                 Box(
