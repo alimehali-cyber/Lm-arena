@@ -3,6 +3,7 @@ package com.alijafari.red.astronomy.ui.rendering
 import androidx.compose.ui.geometry.Offset
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
+import com.alijafari.red.astronomy.ui.skypanorama.GeometricHorizontal
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFraming
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaMath
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaState
@@ -82,7 +83,9 @@ class SkyProjectionTest {
             val dec = -85.0 + random.nextDouble() * 170.0
             val lst = random.nextDouble() * 360.0
             val latitude = -70.0 + random.nextDouble() * 140.0
-            val horiz = CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(ra, dec), lst, latitude)
+            // Geometric altitude: the engine's refraction (under 1 degree) is checked separately, so the exact texel
+            // comparison below tests only the camera and the photograph.
+            val horiz = GeometricHorizontal.of(ra, dec, lst, latitude)
             val p = camera(lst, latitude).project(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitude)
             if (p == SkyProjection.OFF_CANVAS) return@repeat
             if (p.x < 0f || p.x > width || p.y < 0f || p.y > height) return@repeat

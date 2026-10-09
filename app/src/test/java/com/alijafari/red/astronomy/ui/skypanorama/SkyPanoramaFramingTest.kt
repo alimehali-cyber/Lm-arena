@@ -1,7 +1,7 @@
 package com.alijafari.red.astronomy.ui.skypanorama
 
-import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import org.junit.Assert.assertEquals
+import org.junit.Assert.fail
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -86,10 +86,22 @@ class SkyPanoramaFramingTest {
             val dec = -85.0 + random.nextDouble() * 170.0
             val lst = random.nextDouble() * 360.0
             val lat = -80.0 + random.nextDouble() * 160.0
-            val h = CoordinateEngine.equatorialToHorizontal(CoordinateEngine.Equatorial(ra, dec), lst, lat)
+            val h = GeometricHorizontal.of(ra, dec, lst, lat)
             val back = SkyPanoramaMath.directionFromHorizontal(h.azimuthDeg, h.altitudeDeg, lat, lst)
             val forward = SkyPanoramaMath.directionFromRaDec(ra, dec)
             assertTrue("ra=$ra dec=$dec lst=$lst lat=$lat", dot(back, forward) > 1.0 - 1e-9)
+        }
+    }
+
+    @Test
+    fun engineAltitudeDiffersFromGeometryOnlyByRefraction() {
+        val random = Random(13)
+        repeat(3000) {
+            val ra = random.nextDouble() * 360.0
+            val dec = -85.0 + random.nextDouble() * 170.0
+            val lst = random.nextDouble() * 360.0
+            val lat = -80.0 + random.nextDouble() * 160.0
+            GeometricHorizontal.refractionIsTheOnlyDifference(ra, dec, lst, lat) { fail(it) }
         }
     }
 
