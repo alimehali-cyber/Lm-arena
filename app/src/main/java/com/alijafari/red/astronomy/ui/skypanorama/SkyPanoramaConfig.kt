@@ -9,7 +9,9 @@ package com.alijafari.red.astronomy.ui.skypanorama
  * remains visible as the fallback.
  */
 object SkyPanoramaFeature {
-    const val INTEGRATION_ENABLED = false
+    // TEST-ONLY (temporary, branch arena/7732046c-lm-arena): enabled for the test APK build.
+    // Restored to false in the following commit. Do not merge this line as true.
+    const val INTEGRATION_ENABLED = true
 }
 
 /** Texture resolution tiers. Only the 4096 x 2048 runtime master is bundled in Phase 1. */
