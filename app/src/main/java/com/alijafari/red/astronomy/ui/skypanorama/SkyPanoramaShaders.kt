@@ -5,8 +5,8 @@ package com.alijafari.red.astronomy.ui.skypanorama
  *
  * The vertex shader emits one oversized triangle that covers the viewport, so no vertex buffer is
  * needed. The fragment shader converts each pixel to an equatorial view direction using the
- * observer's horizon frame and the hero's screen projection, converts that direction to NASA
- * celestial-map texture coordinates, and samples the panorama with an explicit, screen-uniform LOD.
+ * uniform camera basis, converts that direction to NASA celestial-map texture coordinates, and
+ * samples the panorama with an explicit, screen-uniform LOD.
  *
  * Mapping contract (see [SkyPanoramaMath]):
  *   u = fract(0.5 - RA / 2pi), v = 0.5 - Dec / pi
@@ -39,15 +39,10 @@ in vec2 vNdc;
 out vec4 fragColor;
 
 uniform sampler2D uPanorama;
-// Observer horizon frame in equatorial coordinates (see SkyPanoramaMath.horizonBasis).
-uniform vec3 uEast;
-uniform vec3 uNorth;
-uniform vec3 uZenith;
-// Screen geometry of the hero projection (see SkyPanoramaMath.pixelToDirection).
-uniform vec2 uViewport;        // width, height in pixels
-uniform float uHorizonPx;      // horizon line y, pixels from the top
-uniform float uPxPerDeg;       // pixels per degree of altitude
-uniform float uAzOffsetDeg;    // azimuth at screen centre: 180 north hemisphere, 0 south
+uniform vec3 uForward;
+uniform vec3 uRight;
+uniform vec3 uUp;
+uniform vec2 uTanHalf;
 uniform float uLod;
 uniform float uExposure;
 uniform float uSaturation;
@@ -65,16 +60,8 @@ const float MID_STOP = 0.55;
 const float HORIZON_STOP = 0.86;
 
 void main() {
-    // Pixel in top-left origin coordinates, the same frame as the hero canvas.
-    vec2 pix = vec2(gl_FragCoord.x, uViewport.y - gl_FragCoord.y);
-
-    // Inverse of HeroSkyProjection: x spans 360 deg of azimuth, y is linear in altitude.
-    float relAz = (pix.x / uViewport.x - 0.5) * 360.0;
-    float az = radians(relAz + uAzOffsetDeg);
-    float alt = radians((uHorizonPx - pix.y) / uPxPerDeg);
-
-    // Equatorial direction of this pixel: sin(az) cos(alt) E + cos(az) cos(alt) N + sin(alt) Z.
-    vec3 dir = normalize(sin(az) * cos(alt) * uEast + cos(az) * cos(alt) * uNorth + sin(alt) * uZenith);
+    // Equatorial direction of this pixel. +right is west, +up is north (see SkyPanoramaMath).
+    vec3 dir = normalize(uForward + vNdc.x * uTanHalf.x * uRight + vNdc.y * uTanHalf.y * uUp);
 
     // RA is eastward-positive in -PI..PI. The branch cut at +/-PI lands on the GL_REPEAT seam.
     float ra = atan(dir.y, dir.x);
