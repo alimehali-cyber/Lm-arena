@@ -48,8 +48,16 @@ uniform float uExposure;
 uniform float uSaturation;
 uniform float uContrast;
 uniform float uVisibility;
+// Daytime palette (sRGB 0..1) and night blend. uNightWeight 0 = daytime gradient only,
+// 1 = photographic panorama only (exactly the Phase 1 output).
+uniform vec3 uSkyZenith;
+uniform vec3 uSkyMid;
+uniform vec3 uSkyHorizon;
+uniform float uNightWeight;
 
 const float PI = 3.14159265358979323846;
+const float MID_STOP = 0.55;
+const float HORIZON_STOP = 0.86;
 
 void main() {
     // Equatorial direction of this pixel. +right is west, +up is north (see SkyPanoramaMath).
@@ -72,7 +80,17 @@ void main() {
     c = (c - 0.5) * uContrast + 0.5;
     c *= uVisibility;
 
-    fragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+    // Daytime sky: the same vertical stops as the Compose Real Sky gradient (top = zenith). The top of
+    // the viewport is NDC y = +1, so the fraction from the top is 0.5 - 0.5 * y.
+    float t = 0.5 - 0.5 * vNdc.y;
+    vec3 day = t < MID_STOP
+        ? mix(uSkyZenith, uSkyMid, t / MID_STOP)
+        : (t < HORIZON_STOP
+            ? mix(uSkyMid, uSkyHorizon, (t - MID_STOP) / (HORIZON_STOP - MID_STOP))
+            : uSkyHorizon);
+
+    vec3 sky = mix(day, clamp(c, 0.0, 1.0), uNightWeight);
+    fragColor = vec4(clamp(sky, 0.0, 1.0), 1.0);
 }
 """
 }

@@ -10,16 +10,30 @@ package com.alijafari.red.astronomy.ui.skypanorama
  */
 data class SkyPanoramaState(
     val lstDeg: Double,
-    val latitudeDeg: Double
+    val latitudeDeg: Double,
+    /** Quantized Sun altitude of the hero, degrees. Drives the daytime palette and the night blend. */
+    val sunAltDeg: Double = -90.0,
+    /** Quantized moon-glow intensity from the existing lighting model, 0..1. */
+    val moonGlow: Float = 0f
 ) {
     /** Camera basis in equatorial coordinates. Derived, so it does not affect equality. */
     val basis: SkyPanoramaMath.ViewBasis = SkyPanoramaMath.zenithBasis(lstDeg, latitudeDeg)
 
+    /** Daytime palette and night blend weight. Derived, so it does not affect equality. */
+    val sky: SkyPanoramaSkyModel.Sky = SkyPanoramaSkyModel.skyFor(sunAltDeg, moonGlow)
+
     companion object {
         /** Builds a quantized state from the hero's existing sky values. */
-        fun fromSkyState(lastDeg: Double, latitudeDeg: Double): SkyPanoramaState = SkyPanoramaState(
+        fun fromSkyState(
+            lastDeg: Double,
+            latitudeDeg: Double,
+            sunAltDeg: Double,
+            moonGlowIntensity: Float
+        ): SkyPanoramaState = SkyPanoramaState(
             lstDeg = SkyPanoramaMath.quantizeLst(lastDeg),
-            latitudeDeg = latitudeDeg
+            latitudeDeg = latitudeDeg,
+            sunAltDeg = SkyPanoramaSkyModel.quantizeSunAlt(sunAltDeg),
+            moonGlow = SkyPanoramaSkyModel.quantizeMoonGlow(moonGlowIntensity)
         )
     }
 }

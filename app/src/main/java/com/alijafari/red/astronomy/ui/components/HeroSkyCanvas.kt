@@ -261,7 +261,9 @@ fun HeroSkyCanvas(
     // visible as the fallback, so there is no black or empty flash. Its state is derived only when
     // the feature is enabled (see the SkyPanoramaLayer call below).
     var panoramaReady by remember { mutableStateOf(false) }
-    val panoramaActive = SkyPanoramaFeature.INTEGRATION_ENABLED && panoramaReady
+    // The panorama replaces the Real Sky background only for that theme; other themes keep their look.
+    val panoramaEnabled = SkyPanoramaFeature.INTEGRATION_ENABLED && uiState.skyCanvasTheme == SkyCanvasTheme.REAL_SKY
+    val panoramaActive = panoramaEnabled && panoramaReady
 
     BoxWithConstraints(
         modifier = modifier
@@ -411,8 +413,10 @@ fun HeroSkyCanvas(
                 )
             }
     ) {
-        if (SkyPanoramaFeature.INTEGRATION_ENABLED) {
-            val skyPanoramaState = remember(lastDeg, userLat) { SkyPanoramaState.fromSkyState(lastDeg, userLat) }
+        if (panoramaEnabled) {
+            val skyPanoramaState = remember(lastDeg, userLat, sunHoriz.altitudeDeg, lightingState.moonGlowIntensity) {
+                SkyPanoramaState.fromSkyState(lastDeg, userLat, sunHoriz.altitudeDeg, lightingState.moonGlowIntensity)
+            }
             SkyPanoramaLayer(
                 state = skyPanoramaState,
                 modifier = Modifier
@@ -431,17 +435,17 @@ fun HeroSkyCanvas(
                 HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
             } else null
 
-            // 1. Atmosphere Renderer (skipped while the photographic panorama is on screen)
-            if (!panoramaActive) {
-                AtmosphereRenderer.drawAtmosphere(
-                    drawScope = this,
-                    lightingState = lightingState,
-                    sunPosPx = sunPosPx,
-                    theme = uiState.skyCanvasTheme,
-                    sunAzimuthDeg = sunHoriz.azimuthDeg,
-                    latitudeDeg = userLat
-                )
-            }
+            // 1. Atmosphere Renderer. While the panorama is on screen it supplies the sky gradient and night
+            // sky itself; this pass then draws only the Sun glow and Belt of Venus, faded by night weight.
+            AtmosphereRenderer.drawAtmosphere(
+                drawScope = this,
+                lightingState = lightingState,
+                sunPosPx = sunPosPx,
+                theme = uiState.skyCanvasTheme,
+                sunAzimuthDeg = sunHoriz.azimuthDeg,
+                latitudeDeg = userLat,
+                panoramaMode = panoramaActive
+            )
 
             // 2. Milky Way Renderer (procedural; replaced by the photographic panorama when active)
             if (!panoramaActive) {

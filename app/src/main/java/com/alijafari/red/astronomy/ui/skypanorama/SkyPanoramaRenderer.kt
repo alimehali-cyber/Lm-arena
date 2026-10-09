@@ -68,6 +68,10 @@ class SkyPanoramaRenderer(private val listener: Listener) {
     private var uSaturation = -1
     private var uContrast = -1
     private var uVisibility = -1
+    private var uSkyZenith = -1
+    private var uSkyMid = -1
+    private var uSkyHorizon = -1
+    private var uNightWeight = -1
 
     private var viewportWidth = 0
     private var viewportHeight = 0
@@ -237,6 +241,10 @@ class SkyPanoramaRenderer(private val listener: Listener) {
         uSaturation = GLES30.glGetUniformLocation(prog, "uSaturation")
         uContrast = GLES30.glGetUniformLocation(prog, "uContrast")
         uVisibility = GLES30.glGetUniformLocation(prog, "uVisibility")
+        uSkyZenith = GLES30.glGetUniformLocation(prog, "uSkyZenith")
+        uSkyMid = GLES30.glGetUniformLocation(prog, "uSkyMid")
+        uSkyHorizon = GLES30.glGetUniformLocation(prog, "uSkyHorizon")
+        uNightWeight = GLES30.glGetUniformLocation(prog, "uNightWeight")
     }
 
     private fun compileShader(type: Int, source: String): Int {
@@ -295,6 +303,11 @@ class SkyPanoramaRenderer(private val listener: Listener) {
         GLES30.glUniform1f(uSaturation, cfg.saturation)
         GLES30.glUniform1f(uContrast, cfg.contrast)
         GLES30.glUniform1f(uVisibility, cfg.visibility)
+        val sky = current.sky
+        GLES30.glUniform3f(uSkyZenith, sky.gradient.zenith.r, sky.gradient.zenith.g, sky.gradient.zenith.b)
+        GLES30.glUniform3f(uSkyMid, sky.gradient.mid.r, sky.gradient.mid.g, sky.gradient.mid.b)
+        GLES30.glUniform3f(uSkyHorizon, sky.gradient.horizon.r, sky.gradient.horizon.g, sky.gradient.horizon.b)
+        GLES30.glUniform1f(uNightWeight, sky.nightWeight)
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
 
