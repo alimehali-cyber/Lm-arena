@@ -5,7 +5,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -19,7 +18,11 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class LiveSkyFramePipelineTest {
 
-    /** Collects [flow] for [advanceMs] of virtual time, then stops collecting. */
+    /**
+     * Collects [flow] for [advanceMs] of virtual time, then stops collecting. Sources here keep running, as a real
+     * request stream does. `sample` does not emit a pending value when upstream completes, so a finite source would
+     * hide its last request.
+     */
     private fun <T> TestScope.collectFor(flow: Flow<T>, advanceMs: Long): List<T> {
         val out = mutableListOf<T>()
         val job = launch { flow.collect { out += it } }
@@ -32,7 +35,10 @@ class LiveSkyFramePipelineTest {
     @Test
     fun equalConsecutiveRequestsAreComputedOnce() = runTest {
         var computes = 0
-        val source = flowOf(1, 1, 1, 1, 1)
+        val source = flow {
+            repeat(5) { emit(1) }
+            delay(10_000)
+        }
         val out = collectFor(source.latestFrames(intervalMs = 10) { computes++; it }, advanceMs = 100)
         assertEquals(1, computes)
         assertEquals(listOf(1), out)
@@ -47,6 +53,7 @@ class LiveSkyFramePipelineTest {
                 emit(i)
                 delay(1)
             }
+            delay(10_000)
         }
         val out = collectFor(source.latestFrames(intervalMs = 33) { computes++; it }, advanceMs = 250)
         assertTrue("expected at most ~7 computations, got $computes", computes <= 8)
@@ -63,6 +70,7 @@ class LiveSkyFramePipelineTest {
                 emit(i)
                 delay(10)
             }
+            delay(10_000)
         }
         // Each computation takes 50 ms, but a new request arrives every 10 ms, so almost every one is superseded.
         val out = collectFor(
@@ -95,6 +103,7 @@ class LiveSkyFramePipelineTest {
             emit(2)
             delay(50)
             emit(3)
+            delay(10_000)
         }
         // 2 fails (null). It must not be emitted, so the frame for 1 stays on screen until 3 is ready.
         val out = collectFor(source.latestFrames(intervalMs = 33) { if (it == 2) null else it }, advanceMs = 300)
