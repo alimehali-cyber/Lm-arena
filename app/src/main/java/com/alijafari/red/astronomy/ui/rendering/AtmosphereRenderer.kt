@@ -25,10 +25,11 @@ object AtmosphereRenderer {
         theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY,
         sunAzimuthDeg: Double = 180.0,
         latitudeDeg: Double = 0.0,
-        panoramaMode: Boolean = false
+        panoramaMode: Boolean = false,
+        projection: SkyProjection = HeroProjection
     ) {
         when (theme) {
-            SkyCanvasTheme.REAL_SKY -> drawRealSkyAtmosphere(drawScope, lightingState, sunPosPx, sunAzimuthDeg, latitudeDeg, panoramaMode)
+            SkyCanvasTheme.REAL_SKY -> drawRealSkyAtmosphere(drawScope, lightingState, sunPosPx, sunAzimuthDeg, latitudeDeg, panoramaMode, projection)
             SkyCanvasTheme.ATMOSPHERIC_SKY -> drawAtmosphericSky(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.KIDS_WATERCOLOR -> drawKidsWatercolorAtmosphere(drawScope, lightingState, sunPosPx)
@@ -52,7 +53,8 @@ object AtmosphereRenderer {
         sunPosPx: Offset?,
         sunAzimuthDeg: Double,
         latitudeDeg: Double,
-        panoramaMode: Boolean
+        panoramaMode: Boolean,
+        projection: SkyProjection
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
@@ -105,7 +107,8 @@ object AtmosphereRenderer {
             val beltEnvelope = (1.0 - abs(sunAlt + 0.5) / 4.5).coerceIn(0.0, 1.0).toFloat() * overlayScale
             if (beltEnvelope > 0.02f) {
                 val antiSunAz = (sunAzimuthDeg + 180.0) % 360.0
-                val antiCenter = HeroSkyProjection.project(antiSunAz, 3.0, width, height, latitudeDeg)
+                val antiCenter = projection.project(antiSunAz, 3.0, width, height, latitudeDeg)
+                val beltY = projection.beltAnchorY(antiCenter, horizonY)
                 val beltRadius = (width * 0.55f).coerceAtLeast(180f)
                 // Rose-lavender Belt of Venus arch
                 drawScope.drawCircle(
@@ -113,11 +116,11 @@ object AtmosphereRenderer {
                         0.0f to Color(0xFFD88CA8).copy(alpha = 0.15f * beltEnvelope),
                         0.55f to Color(0xFF9A6B9A).copy(alpha = 0.07f * beltEnvelope),
                         1.0f to Color.Transparent,
-                        center = Offset(antiCenter.x, horizonY - 18f),
+                        center = Offset(antiCenter.x, beltY),
                         radius = beltRadius
                     ),
                     radius = beltRadius,
-                    center = Offset(antiCenter.x, horizonY - 18f)
+                    center = Offset(antiCenter.x, beltY)
                 )
             }
         }

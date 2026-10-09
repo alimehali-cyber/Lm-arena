@@ -55,14 +55,52 @@ object SkyPanoramaMath {
      */
     fun zenithBasis(lstDeg: Double, latitudeDeg: Double): ViewBasis {
         val lat = latitudeDeg.coerceIn(-MAX_ABS_LATITUDE_DEG, MAX_ABS_LATITUDE_DEG)
-        val forward = directionFromRaDec(lstDeg, lat)
-        // North tangent: project +z onto the plane orthogonal to forward.
-        val zDotF = forward[2]
-        val upRaw = doubleArrayOf(-zDotF * forward[0], -zDotF * forward[1], 1.0 - zDotF * forward[2])
+        return basisForForward(directionFromRaDec(lstDeg, lat))
+    }
+
+    /**
+     * Camera basis that looks along [forward] (an equatorial unit vector), with screen up tangent to the
+     * north celestial pole. [forward] must not be parallel to the pole. Used by the Home zenith view.
+     */
+    fun basisForForward(forward: DoubleArray): ViewBasis =
+        basisForForwardAndUp(forward, doubleArrayOf(0.0, 0.0, 1.0))
+
+    /**
+     * Camera basis that looks along [forward] with screen up tangent to [upHint]. The horizon-level backdrop passes
+     * the observer's zenith here, so the sky is never rolled or upside down in either hemisphere. [upHint] must not
+     * be parallel to [forward]. Right is always forward x up, so the basis is orthonormal and not mirrored.
+     */
+    fun basisForForwardAndUp(forward: DoubleArray, upHint: DoubleArray): ViewBasis {
+        val zDotF = upHint[0] * forward[0] + upHint[1] * forward[1] + upHint[2] * forward[2]
+        val upRaw = doubleArrayOf(
+            upHint[0] - zDotF * forward[0],
+            upHint[1] - zDotF * forward[1],
+            upHint[2] - zDotF * forward[2]
+        )
         val up = normalize(upRaw)
         val right = normalize(cross(forward, up))
         val upOrtho = cross(right, forward)
         return ViewBasis(forward, right, upOrtho)
+    }
+
+    /**
+     * Equatorial unit vector for a horizontal direction. This is the exact inverse of
+     * `CoordinateEngine.equatorialToHorizontal` (azimuth from north through east, hour angle = LST - RA),
+     * so a direction computed by the engine maps back to the same equatorial point on the photograph.
+     */
+    fun directionFromHorizontal(azimuthDeg: Double, altitudeDeg: Double, latitudeDeg: Double, lstDeg: Double): DoubleArray {
+        val t = Math.toRadians(lstDeg)
+        val p = Math.toRadians(latitudeDeg)
+        val a = Math.toRadians(azimuthDeg)
+        val h = Math.toRadians(altitudeDeg)
+        // Local frame: north, east and zenith expressed in equatorial coordinates.
+        val n = doubleArrayOf(-sin(p) * cos(t), -sin(p) * sin(t), cos(p))
+        val e = doubleArrayOf(-sin(t), cos(t), 0.0)
+        val z = doubleArrayOf(cos(p) * cos(t), cos(p) * sin(t), sin(p))
+        val north = cos(h) * cos(a)
+        val east = cos(h) * sin(a)
+        val up = sin(h)
+        return DoubleArray(3) { i -> north * n[i] + east * e[i] + up * z[i] }
     }
 
     /**

@@ -49,8 +49,6 @@ data class SkyPanoramaConfig(
     /** Multiplier toward black. 1.0 shows the full panorama. */
     val visibility: Float = 1.0f,
     val qualityTier: SkyPanoramaQualityTier = SkyPanoramaQualityTier.FULL,
-    /** Vertical field of view of the hero camera, in degrees. */
-    val fovYDeg: Float = 60f,
     /** Runtime texture inside the APK assets. The file is produced offline by tools/sky-panorama. */
     val assetPath: String = DEFAULT_ASSET_PATH
 ) {
@@ -59,8 +57,7 @@ data class SkyPanoramaConfig(
         exposure = exposure.coerceIn(0.05f, 4.0f),
         saturation = saturation.coerceIn(0f, 2f),
         contrast = contrast.coerceIn(0.2f, 2f),
-        visibility = visibility.coerceIn(0f, 1f),
-        fovYDeg = fovYDeg.coerceIn(20f, 110f)
+        visibility = visibility.coerceIn(0f, 1f)
     )
 
     companion object {

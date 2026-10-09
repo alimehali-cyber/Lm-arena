@@ -2,11 +2,8 @@ package com.alijafari.red.astronomy.ui.backdrop
 
 import android.util.Log
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,13 +15,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.ui.rendering.SkySceneFrame
 import com.alijafari.red.astronomy.ui.rendering.SkySceneModel
+import com.alijafari.red.astronomy.ui.rendering.SkyRenderTarget
 import com.alijafari.red.astronomy.ui.rendering.SkySceneRenderer
 import com.alijafari.red.astronomy.ui.rendering.SkyTimeModel
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature
@@ -44,7 +40,11 @@ const val LIVE_SKY_BACKDROP_TAG = "live_sky_backdrop"
 
 /**
  * Non-interactive full-screen sky behind the app UI. It shows the same sky as the Home hero: the same effective instant,
- * the same observer, the same photographic panorama and the same [SkySceneRenderer] overlays.
+ * the same observer, the same photographic panorama and the same [SkySceneRenderer] overlays. It differs in two
+ * ways, both chosen by [SkyRenderTarget.APP_BACKDROP]:
+ *  - The panorama and the overlays share one camera that fills the window, so Sun, Moon, planets and stars sit on
+ *    the photograph where the photograph shows them. The Home hero keeps its own zenith camera.
+ *  - There is no horizon landscape. The sky runs uninterrupted to the bottom edge.
  *
  * Time and location:
  *  - The effective instant is [SkyTimeModel.baseTimeMs] (simulation or live clock) plus the Home drag offset, read from
@@ -141,8 +141,10 @@ private fun LiveSkyActiveBackdrop(
     val panoramaEnabled = SkyPanoramaFeature.isEnabledFor(theme)
     var panoramaReady by remember { mutableStateOf(false) }
     val panoramaActive = SkyPanoramaFeature.isPresented(theme, panoramaReady)
-    // Derived from the same frame that Home derives its panorama state from.
-    val panoramaState = remember(currentFrame) { currentFrame?.let { SkyPanoramaState.fromSceneFrame(it) } }
+    // Same frame and same rule as Home. Only the camera framing belongs to this surface.
+    val panoramaState = remember(currentFrame) {
+        currentFrame?.let { SkyPanoramaState.fromSceneFrame(it, SkyRenderTarget.APP_BACKDROP.panoramaFraming) }
+    }
 
     if (currentFrame != null && !renderHealth.failed) {
         Box(
@@ -160,33 +162,20 @@ private fun LiveSkyActiveBackdrop(
                 )
             }
 
-            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                val density = LocalDensity.current
-                val viewport = SkyBackdropViewport.fit(
-                    windowWidthPx = constraints.maxWidth.toFloat(),
-                    windowHeightPx = constraints.maxHeight.toFloat()
-                )
-                if (viewport.isDrawable) {
-                    val canvasWidth = with(density) { viewport.virtualWidthPx.toDp() }
-                    val canvasOffset = with(density) { viewport.offsetXPx.toDp() }
-                    Canvas(
-                        modifier = Modifier
-                            .requiredSize(width = canvasWidth, height = maxHeight)
-                            .offset(x = canvasOffset, y = 0.dp)
-                    ) {
-                        try {
-                            SkySceneRenderer.drawSky(
-                                drawScope = this,
-                                frame = currentFrame,
-                                theme = theme,
-                                frameTimeMs = liveTime,
-                                panoramaActive = panoramaActive
-                            )
-                        } catch (e: Exception) {
-                            renderHealth.failed = true
-                            Log.w(LIVE_SKY_TAG, "Live Sky draw failed; backdrop disabled until re-entered", e)
-                        }
-                    }
+            // Full window: the overlay and the panorama share the same pixels, so their projections agree.
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                try {
+                    SkySceneRenderer.drawSky(
+                        drawScope = this,
+                        frame = currentFrame,
+                        theme = theme,
+                        frameTimeMs = liveTime,
+                        panoramaActive = panoramaActive,
+                        target = SkyRenderTarget.APP_BACKDROP
+                    )
+                } catch (e: Exception) {
+                    renderHealth.failed = true
+                    Log.w(LIVE_SKY_TAG, "Live Sky draw failed; backdrop disabled until re-entered", e)
                 }
             }
         }

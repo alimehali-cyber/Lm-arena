@@ -2,29 +2,30 @@ package com.alijafari.red.astronomy.ui.rendering
 
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.dp
-import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 
 /**
  * Draws the shared Sky Canvas layers for a [SkySceneFrame]: atmosphere, Milky Way, stars, Sun, Moon,
- * planets and the horizon landscape, in that order.
+ * planets and, on the Home hero only, the horizon landscape. The layers are drawn in that order.
  *
- * The projection comes from the [DrawScope] size through [HeroSkyProjection]. Home passes its own
- * canvas size, and the Live Sky backdrop passes its full-screen virtual canvas. Both get identical
- * layering and object styling. Interaction layers (selection ring, particles) stay in the caller.
+ * The sky model is shared by every surface. What differs per surface is chosen by a [SkyRenderTarget]: the
+ * projection of sky directions onto pixels, the clip below which objects are hidden, and whether the landscape is
+ * drawn. Interaction layers (selection ring, particles) stay in the caller.
  */
 object SkySceneRenderer {
 
     /**
-     * @param panoramaActive true while the photographic panorama supplies the sky gradient and the
-     *   procedural Milky Way is replaced. Only the Home hero can set this.
+     * @param panoramaActive true while the photographic panorama on this surface supplies the sky gradient and the
+     *   procedural Milky Way is replaced. Both the Home hero and the Live Sky backdrop set this.
+     * @param target the surface being drawn. It defaults to the Home hero, so existing Home calls draw as before.
      */
     fun drawSky(
         drawScope: DrawScope,
         frame: SkySceneFrame,
         theme: SkyCanvasTheme,
         frameTimeMs: Long,
-        panoramaActive: Boolean
+        panoramaActive: Boolean,
+        target: SkyRenderTarget = SkyRenderTarget.HOME_HERO
     ) {
         val canvasW = drawScope.size.width
         val canvasH = drawScope.size.height
@@ -33,9 +34,12 @@ object SkySceneRenderer {
         val sunHoriz = frame.sunHoriz
         val moonData = frame.moonData
         val lightingState = frame.lightingState
+        val projection = target.projectionFor(frame)
+        val clipBottom = projection.clipBottomPx(canvasH)
 
+        // Raw Sun position, used for the glow. Null when the Sun is far below the horizon.
         val sunPosPx = if (sunHoriz.altitudeDeg > -18.0) {
-            HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
+            projection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
         } else null
 
         // 1. Atmosphere Renderer. While the panorama is on screen it supplies the sky gradient and night
@@ -47,7 +51,8 @@ object SkySceneRenderer {
             theme = theme,
             sunAzimuthDeg = sunHoriz.azimuthDeg,
             latitudeDeg = userLat,
-            panoramaMode = panoramaActive
+            panoramaMode = panoramaActive,
+            projection = projection
         )
 
         // 2. Milky Way Renderer (procedural; replaced by the photographic panorama when active)
@@ -59,7 +64,8 @@ object SkySceneRenderer {
                 frameTimeMs = frameTimeMs,
                 theme = theme,
                 latitudeDeg = userLat,
-                lastDeg = lastDeg
+                lastDeg = lastDeg,
+                projection = projection
             )
         }
 
@@ -71,31 +77,37 @@ object SkySceneRenderer {
             frameTimeMs = frameTimeMs,
             theme = theme,
             latitudeDeg = userLat,
-            lastDeg = lastDeg
+            lastDeg = lastDeg,
+            projection = projection
         )
 
         // 4. Sun Renderer
         if (sunPosPx != null && sunHoriz.altitudeDeg > -12.0) {
             SunRenderer.drawSun(
                 drawScope = drawScope,
-                center = sunPosPx,
+                center = projection.objectPosition(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat),
                 sunAltitudeDeg = sunHoriz.altitudeDeg,
                 frameTimeMs = frameTimeMs,
-                theme = theme
+                theme = theme,
+                clipBottomPx = clipBottom
             )
         }
 
         // 5. Moon Renderer
         if (moonData.altitudeDeg > -12.0) {
-            val moonCenter = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
+            val moonCenter = projection.objectPosition(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
             val baseMoonRadius = with(drawScope) { 26.dp.toPx() }
             val moonPulseScale = AstronomyAnimator.computePulse(frameTimeMs, 4000f, 0.88f, 1.12f)
 
-            val limbScreenAngleDeg = CoordinateEngine.calculateMoonLimbScreenAngleDeg(
+            // The lit limb points at the Sun as it appears on this surface's screen.
+            val limbScreenAngleDeg = projection.moonLimbAngleDeg(
                 moonAzimuthDeg = moonData.azimuthDeg,
                 moonAltitudeDeg = moonData.altitudeDeg,
                 sunAzimuthDeg = sunHoriz.azimuthDeg,
-                sunAltitudeDeg = sunHoriz.altitudeDeg
+                sunAltitudeDeg = sunHoriz.altitudeDeg,
+                width = canvasW,
+                height = canvasH,
+                latitudeDeg = userLat
             )
 
             MoonRenderer.drawMoon(
@@ -111,7 +123,8 @@ object SkySceneRenderer {
                 frameTimeMs = frameTimeMs,
                 isWaxing = (moonData.ageDays < 14.765),
                 theme = theme,
-                limbScreenAngleDeg = limbScreenAngleDeg
+                limbScreenAngleDeg = limbScreenAngleDeg,
+                clipBottomPx = clipBottom
             )
         }
 
@@ -121,15 +134,18 @@ object SkySceneRenderer {
             planets = frame.planetPositions,
             frameTimeMs = frameTimeMs,
             theme = theme,
-            latitudeDeg = userLat
+            latitudeDeg = userLat,
+            projection = projection
         )
 
-        // 7. Horizon Landscape Silhouette Layer
-        LandscapeRenderer.drawHorizonLandscape(
-            drawScope = drawScope,
-            lightingState = lightingState,
-            frameTimeMs = frameTimeMs,
-            theme = theme
-        )
+        // 7. Horizon Landscape Silhouette Layer. Home only: the backdrop is uninterrupted sky to the bottom edge.
+        if (target.drawsLandscape) {
+            LandscapeRenderer.drawHorizonLandscape(
+                drawScope = drawScope,
+                lightingState = lightingState,
+                frameTimeMs = frameTimeMs,
+                theme = theme
+            )
+        }
     }
 }

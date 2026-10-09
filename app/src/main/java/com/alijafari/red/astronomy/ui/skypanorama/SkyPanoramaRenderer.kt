@@ -21,7 +21,7 @@ import kotlin.math.tan
  * Lifecycle:
  *  - [attach] creates EGL, the program and an empty VAO on the GL thread, then reports the GL
  *    limits through [Listener.onGlReady] so the caller can choose a decode tier.
- *  - [uploadTexture] uploads the decoded bitmap once per GL context, generates mips and recycles
+ *  - [uploadTexture] uploads the shared decoded bitmap into this context's own texture and generates mips.
  *    the bitmap. It does not repeat the upload per frame.
  *  - [requestDraw] draws one frame. There is no continuous loop: frames are produced only after a
  *    state, config, viewport or texture change.
@@ -120,11 +120,13 @@ class SkyPanoramaRenderer(private val listener: Listener) {
         }
     }
 
-    /** Takes ownership of [bitmap]: it is recycled after upload, or immediately on failure. */
+    /**
+     * Uploads [bitmap] into this context's texture. The bitmap is shared and read-only, so it is not recycled here;
+     * [SkyPanoramaTextureCache] owns its lifetime.
+     */
     fun uploadTexture(bitmap: Bitmap) = handler.post {
         try {
             if (eglSurface == EGL14.EGL_NO_SURFACE || program == 0) {
-                bitmap.recycle()
                 return@post
             }
             if (bitmap.width > maxTextureSize || bitmap.height > maxTextureSize) {
@@ -150,13 +152,11 @@ class SkyPanoramaRenderer(private val listener: Listener) {
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
             checkGlError("texture upload")
             textureWidth = bitmap.width
-            bitmap.recycle()
             textureReady = true
             frameShownReported = false
             drawNow()
         } catch (t: Throwable) {
             Log.w(TAG, "Sky panorama texture upload failed", t)
-            bitmap.recycle()
             releaseGl()
             listener.onGlFailure(t.message ?: "texture upload failed")
         }
@@ -281,7 +281,8 @@ class SkyPanoramaRenderer(private val listener: Listener) {
 
         val cfg = config
         val basis = current.basis
-        val fovYRad = Math.toRadians(cfg.fovYDeg.toDouble())
+        // The field of view belongs to the framing, so Home and the Live Sky backdrop each use their own camera.
+        val fovYRad = Math.toRadians(current.framing.fovYDeg.toDouble())
         val tanHalfY = tan(fovYRad / 2.0)
         val tanHalfX = tanHalfY * viewportWidth.toDouble() / viewportHeight.toDouble()
         val lod = SkyPanoramaMath.texelLod(textureWidth, fovYRad, viewportHeight)

@@ -31,11 +31,12 @@ object SunRenderer {
         center: Offset,
         sunAltitudeDeg: Double,
         frameTimeMs: Long,
-        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL
+        theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
+        clipBottomPx: Float? = null
     ) {
         if (sunAltitudeDeg < -10.0) return
 
-        val horizonY = drawScope.size.height * 0.85f
+        val horizonY = clipBottomPx ?: (drawScope.size.height * 0.85f)
         drawScope.clipRect(
             left = 0f,
             top = 0f,

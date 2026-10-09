@@ -140,12 +140,9 @@ class SkyPanoramaSurfaceView(
         val tier = SkyPanoramaTextureLoader.chooseTier(config.qualityTier, maxTextureSize)
         decodeJob = scope.launch {
             try {
-                val bitmap = SkyPanoramaTextureLoader.decode(appContext, config.assetPath, tier)
-                if (renderer === owner) {
-                    owner.uploadTexture(bitmap)
-                } else {
-                    bitmap.recycle()
-                }
+                // Shared, read-only decode. This host uploads it into its own texture and never recycles it.
+                val bitmap = SkyPanoramaTextureCache.obtain(appContext, config.assetPath, tier)
+                if (renderer === owner) owner.uploadTexture(bitmap)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

@@ -24,10 +24,10 @@ class LiveSkyIsolationTest {
         "com/alijafari/red/astronomy/ui/backdrop/LiveSkyFrameRequest.kt",
         "com/alijafari/red/astronomy/ui/backdrop/LiveSkyFramePipeline.kt",
         "com/alijafari/red/astronomy/ui/backdrop/SkyLiveClock.kt",
-        "com/alijafari/red/astronomy/ui/backdrop/SkyBackdropViewport.kt",
         "com/alijafari/red/astronomy/ui/rendering/SkyTimeModel.kt",
         "com/alijafari/red/astronomy/ui/rendering/SkySceneModel.kt",
-        "com/alijafari/red/astronomy/ui/rendering/SkySceneRenderer.kt"
+        "com/alijafari/red/astronomy/ui/rendering/SkySceneRenderer.kt",
+        "com/alijafari/red/astronomy/ui/rendering/SkyProjection.kt"
     )
 
     @Test
