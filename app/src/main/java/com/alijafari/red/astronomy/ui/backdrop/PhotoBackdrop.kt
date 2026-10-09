@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -39,7 +38,6 @@ fun PhotoBackdrop(
             .fillMaxSize()
             .clearAndSetSemantics { }
             .testTag(PHOTO_BACKDROP_TAG),
-        contentScale = ContentScale.Crop,
-        filterQuality = FilterQuality.High
+        contentScale = ContentScale.Crop
     )
 }
