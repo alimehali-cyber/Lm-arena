@@ -11,10 +11,8 @@ Source (not fetched by this script; download it yourself and pass the path):
 Pipeline (documented so that it can be re-run and audited):
   1. Read the EXR as half-float linear RGB and verify the 4096 x 2048 data window.
   2. Apply an optional exposure gain in stops (default 0 EV, i.e. no change).
-  3. Hue-preserving highlight roll-off. Pixels with luminance above KNEE get a smooth shoulder
-     that asymptotically approaches 1.0. The RGB ratio is kept, so the bulge is compressed
-     without shifting its hue. Values below KNEE are unchanged.
-  4. Clip to [0, 1], then encode with the sRGB transfer function (IEC 61966-2-1). The linear
+  3. Clip to [0, 1]. No highlight shoulder or other tone curve is applied.
+  4. Encode with the sRGB transfer function (IEC 61966-2-1). The linear
      values are NOT reinterpreted directly as sRGB.
   5. Quantize to 8 bits with a deterministic triangular (TPDF) dither of +/- 1 LSB, which
      prevents posterization of the dark gradients.
@@ -22,7 +20,7 @@ Pipeline (documented so that it can be re-run and audited):
 
 The source file is opened read-only and never modified. Nothing is baked in: no stars, flares,
 gradients or nebulae are added. The conversion is only a colour-space and bit-depth change plus
-the highlight shoulder described above.
+no tone curve.
 
 Requirements (offline development machine only, never shipped in the APK):
   pip install OpenEXR numpy pillow
@@ -46,7 +44,6 @@ import numpy as np
 
 EXPECTED_WIDTH = 4096
 EXPECTED_HEIGHT = 2048
-KNEE = 0.80                 # start of the highlight shoulder (linear luminance)
 JPEG_QUALITY = 92
 SOURCE_URL = "https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/milkyway_2020_4k.exr"
 SOURCE_PAGE = "https://svs.gsfc.nasa.gov/4851/"
@@ -113,20 +110,13 @@ def read_exr_rgb(path: str) -> np.ndarray:
 
 
 def tone_map_highlights(linear: np.ndarray, exposure_ev: float) -> np.ndarray:
-    """Exposure gain plus a hue-preserving highlight shoulder. Output is in [0, 1]."""
+    """Exposure gain then clip to [0, 1]. No highlight shoulder, no tone curve.
+
+    With the default exposure_ev of 0.0 this is a pure clip: the NASA linear values are kept
+    exactly, and the only remaining step is the sRGB transfer function.
+    """
     x = np.clip(linear, 0.0, None) * (2.0 ** exposure_ev)
-    lum = 0.2126 * x[..., 0] + 0.7152 * x[..., 1] + 0.0722 * x[..., 2]
-    lum_safe = np.maximum(lum, 1e-9)
-
-    # Smooth shoulder: identity below KNEE, approaches 1.0 asymptotically above it.
-    span = 1.0 - KNEE
-    over = np.maximum(lum_safe - KNEE, 0.0)
-    shoulder = KNEE + span * (1.0 - np.exp(-over / span))
-    new_lum = np.where(lum_safe > KNEE, shoulder, lum_safe)
-    scale = np.where(lum > 0.0, new_lum / lum_safe, 1.0)
-
-    out = x * scale[..., None]
-    return np.clip(out, 0.0, 1.0)
+    return np.clip(x, 0.0, 1.0)
 
 
 def linear_to_srgb(v: np.ndarray) -> np.ndarray:
@@ -150,6 +140,35 @@ def convert_to_uint8(source: str, exposure_ev: float = 0.0) -> np.ndarray:
     return quantize_with_tpdf_dither(encoded)
 
 
+def srgb_icc_profile() -> bytes:
+    """Built-in sRGB profile from LittleCMS, with its ICC creation date pinned.
+
+    createProfile() writes the current time into ICC header bytes 24-35, so without this the
+    output differs between runs in those two bytes. The pinned date is 2000-01-01 00:00:00. The
+    colour data is unchanged, and the entropy-coded image data is identical either way.
+    """
+    import struct
+    from PIL import ImageCms
+
+    raw = bytearray(ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes())
+    raw[24:36] = struct.pack(">6H", 2000, 1, 1, 0, 0, 0)
+    return bytes(raw)
+
+
+def encode_panorama_jpeg(pixels: np.ndarray) -> bytes:
+    """The single definition of the runtime JPEG encoding: baseline, quality 92, 4:4:4, optimised
+    Huffman tables, embedded built-in sRGB ICC profile. The validator re-uses this function so
+    that its reference encodes use exactly the same settings as the converter."""
+    import io
+    from PIL import Image
+
+    image = Image.fromarray(pixels, mode="RGB")
+    buf = io.BytesIO()
+    image.save(buf, format="JPEG", quality=JPEG_QUALITY, subsampling=0, optimize=True,
+               icc_profile=srgb_icc_profile())
+    return buf.getvalue()
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("source", help="Path to milkyway_2020_4k.exr (downloaded from the NASA source)")
@@ -163,8 +182,6 @@ def main(argv: list[str]) -> int:
                              "Use the hash recorded in provenance/milkyway_2020_4k.source.json.")
     args = parser.parse_args(argv)
 
-    from PIL import Image, ImageCms
-
     source_sha = sha256_file(args.source)
     if args.expected_sha256 and source_sha != args.expected_sha256.lower():
         print(f"REFUSED: source SHA-256 {source_sha} does not match expected {args.expected_sha256}",
@@ -173,11 +190,8 @@ def main(argv: list[str]) -> int:
     pixels = convert_to_uint8(args.source, args.exposure_ev)
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
-    image = Image.fromarray(pixels, mode="RGB")
-    # Embed the built-in sRGB profile so the runtime file is explicitly sRGB, not untagged.
-    srgb_icc = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
-    image.save(args.out, format="JPEG", quality=JPEG_QUALITY, subsampling=0, optimize=True,
-               icc_profile=srgb_icc)
+    with open(args.out, "wb") as f:
+        f.write(encode_panorama_jpeg(pixels))
 
     out_size = os.path.getsize(args.out)
     out_sha = sha256_file(args.out)
@@ -191,13 +205,13 @@ def main(argv: list[str]) -> int:
         "credit": CREDIT,
         "coordinates": "celestial (ICRF/J2000 RA/Dec), RA increasing to the left, centred on RA 0h",
         "output_file": os.path.basename(args.out),
-        "output_dimensions": [image.width, image.height],
+        "output_dimensions": [pixels.shape[1], pixels.shape[0]],
         "output_format": "JPEG baseline, quality %d, 4:4:4" % JPEG_QUALITY,
         "output_size_bytes": out_size,
         "output_sha256": out_sha,
         "exposure_ev": args.exposure_ev,
-        "highlight_knee": KNEE,
-        "transfer": "sRGB OETF (IEC 61966-2-1) after hue-preserving highlight shoulder",
+        "highlight_roll_off": "none",
+        "transfer": "clip to [0,1] then sRGB OETF (IEC 61966-2-1); no tone curve",
         "dither": "deterministic TPDF, +/-1 LSB",
         "converted_utc": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
         "converter": os.path.basename(__file__),

@@ -258,8 +258,8 @@ fun HeroSkyCanvas(
 
     // Photographic panorama (Phase 1). Only active behind the internal SkyPanoramaFeature switch.
     // Until the panorama reports READY, the legacy atmosphere and procedural Milky Way below stay
-    // visible as the fallback, so there is no black or empty flash.
-    val skyPanoramaState = remember(lastDeg, userLat) { SkyPanoramaState.fromSkyState(lastDeg, userLat) }
+    // visible as the fallback, so there is no black or empty flash. Its state is derived only when
+    // the feature is enabled (see the SkyPanoramaLayer call below).
     var panoramaReady by remember { mutableStateOf(false) }
     val panoramaActive = SkyPanoramaFeature.INTEGRATION_ENABLED && panoramaReady
 
@@ -412,6 +412,7 @@ fun HeroSkyCanvas(
             }
     ) {
         if (SkyPanoramaFeature.INTEGRATION_ENABLED) {
+            val skyPanoramaState = remember(lastDeg, userLat) { SkyPanoramaState.fromSkyState(lastDeg, userLat) }
             SkyPanoramaLayer(
                 state = skyPanoramaState,
                 modifier = Modifier

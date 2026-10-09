@@ -34,7 +34,7 @@ class SkyPanoramaSurfaceView(
     var onStatusChanged: ((SkyPanoramaStatus) -> Unit)? = null
         set(value) {
             field = value
-            value?.invoke(status)
+            if (!released) value?.invoke(status)
         }
 
     private val appContext: Context = context.applicationContext
@@ -45,6 +45,9 @@ class SkyPanoramaSurfaceView(
     private var decodeJob: Job? = null
     private var latestState: SkyPanoramaState? = null
     private var status = SkyPanoramaStatus.LOADING
+
+    /** Main thread. Set by [release]; once true, no queued callback may touch the view again. */
+    private var released = false
 
     init {
         // Transparent until the first frame, so the legacy sky underneath shows through.
@@ -67,16 +70,16 @@ class SkyPanoramaSurfaceView(
         lateinit var owner: SkyPanoramaRenderer
         owner = SkyPanoramaRenderer(object : SkyPanoramaRenderer.Listener {
             override fun onGlReady(maxTextureSize: Int) {
-                mainHandler.post { startDecode(owner, maxTextureSize) }
+                mainHandler.post { if (!released) startDecode(owner, maxTextureSize) }
             }
 
             override fun onFrameShown() {
-                mainHandler.post { setStatus(SkyPanoramaStatus.READY) }
+                mainHandler.post { if (!released && renderer === owner) setStatus(SkyPanoramaStatus.READY) }
             }
 
             override fun onGlFailure(reason: String) {
                 Log.w(TAG, "Panorama unavailable: $reason")
-                mainHandler.post { setStatus(SkyPanoramaStatus.UNAVAILABLE) }
+                mainHandler.post { if (!released) failRenderer(owner) }
             }
         })
         renderer = owner
@@ -104,6 +107,7 @@ class SkyPanoramaSurfaceView(
 
     /** Main thread. Cancels pending work and releases GL resources. Safe to call repeatedly. */
     fun release() {
+        released = true
         stopRenderer()
         scope.cancel()
     }
@@ -115,8 +119,23 @@ class SkyPanoramaSurfaceView(
         renderer = null
     }
 
+    /**
+     * Main thread. Any panorama failure (GL init, texture decode, texture upload) ends here: the
+     * renderer's GL thread and context are released and the legacy fallback stays visible.
+     * Safe to call for a renderer that has already been stopped.
+     */
+    private fun failRenderer(owner: SkyPanoramaRenderer) {
+        if (renderer === owner) {
+            // Not stopRenderer(): this may run inside the decode coroutine, which must not cancel itself.
+            decodeJob = null
+            owner.detachAndStop()
+            renderer = null
+        }
+        setStatus(SkyPanoramaStatus.UNAVAILABLE)
+    }
+
     private fun startDecode(owner: SkyPanoramaRenderer, maxTextureSize: Int) {
-        if (renderer !== owner) return
+        if (released || renderer !== owner) return
         decodeJob?.cancel()
         val tier = SkyPanoramaTextureLoader.chooseTier(config.qualityTier, maxTextureSize)
         decodeJob = scope.launch {
@@ -131,13 +150,13 @@ class SkyPanoramaSurfaceView(
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Panorama texture unavailable: ${e.message}")
-                setStatus(SkyPanoramaStatus.UNAVAILABLE)
+                if (!released) failRenderer(owner)
             }
         }
     }
 
     private fun setStatus(next: SkyPanoramaStatus) {
-        if (status == next) return
+        if (released || status == next) return
         status = next
         onStatusChanged?.invoke(next)
     }

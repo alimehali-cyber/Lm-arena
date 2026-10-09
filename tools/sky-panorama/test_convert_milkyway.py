@@ -2,10 +2,10 @@
 """
 Deterministic checks for the sky-panorama conversion and validation tools.
 
-These tests use SYNTHETIC EXR fixtures generated inside the test run. They verify that the
-converter and validator preserve orientation, reject flips/mirrors/resizes/untagged output and
-mismatched hashes. They do NOT verify NASA imagery; that requires the real source file and the
-validator's --source mode (see provenance/milkyway_2020_4k.source.json).
+These tests use SYNTHETIC EXR fixtures generated inside the test run. They verify the converter's
+geometry, orientation, sRGB tagging and source-hash refusal. Validator behaviour is tested in
+test_validate_panorama.py. They do NOT verify NASA imagery or source identity; see
+provenance/milkyway_2020_4k.source.json.
 
 Run:  python3 -m unittest -v tools/sky-panorama/test_convert_milkyway.py
 Needs: OpenEXR, numpy, pillow (offline development machine only).
@@ -26,7 +26,6 @@ import sys
 sys.path.insert(0, HERE)
 
 import convert_milkyway_exr as conv  # noqa: E402
-import validate_panorama as val  # noqa: E402
 
 W, H = conv.EXPECTED_WIDTH, conv.EXPECTED_HEIGHT
 
@@ -104,72 +103,6 @@ class ConversionTests(unittest.TestCase):
             icc = img.info["icc_profile"]
         self.assertIn("srgb", ImageCms.getProfileDescription(
             ImageCms.ImageCmsProfile(io.BytesIO(icc))).lower())
-
-
-class ValidatorTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.tmp = tempfile.TemporaryDirectory()
-        cls.exr = os.path.join(cls.tmp.name, "synthetic_4k.exr")
-        write_synthetic_exr(cls.exr)
-        cls.exr_sha = conv.sha256_file(cls.exr)
-        cls.good = os.path.join(cls.tmp.name, "good.jpg")
-        conv.main([cls.exr, "--out", cls.good])
-        from PIL import Image
-        cls.Image = Image
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        cls.tmp.cleanup()
-
-    def _write_variant(self, name: str, array: np.ndarray, icc: bool = True) -> str:
-        from PIL import ImageCms
-        path = os.path.join(self.tmp.name, name)
-        kwargs = {"icc_profile": ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()} if icc else {}
-        self.Image.fromarray(array, mode="RGB").save(path, format="JPEG", quality=92, subsampling=0, **kwargs)
-        return path
-
-    def test_accepts_correct_conversion_against_source(self) -> None:
-        self.assertEqual(val.validate(self.good, None, self.exr), [])
-
-    def test_accepts_matching_expected_hash(self) -> None:
-        with open(self.good, "rb") as fh:
-            digest = val.sha256_bytes(fh.read())
-        self.assertEqual(val.validate(self.good, digest), [])
-
-    def test_rejects_wrong_expected_hash(self) -> None:
-        reasons = val.validate(self.good, "0" * 64)
-        self.assertTrue(any("SHA-256" in r for r in reasons))
-
-    def test_rejects_vertically_flipped_panorama(self) -> None:
-        pixels = conv.convert_to_uint8(self.exr, 0.0)[::-1, :, :].copy()
-        reasons = val.validate(self._write_variant("flip.jpg", pixels), None, self.exr)
-        self.assertTrue(any("vertical flip" in r for r in reasons), reasons)
-
-    def test_rejects_horizontally_mirrored_panorama(self) -> None:
-        pixels = conv.convert_to_uint8(self.exr, 0.0)[:, ::-1, :].copy()
-        reasons = val.validate(self._write_variant("mirror.jpg", pixels), None, self.exr)
-        self.assertTrue(any("horizontal mirror" in r for r in reasons), reasons)
-
-    def test_rejects_resized_panorama(self) -> None:
-        small = np.asarray(self.Image.open(self.good).convert("RGB").resize((2048, 1024), self.Image.LANCZOS))
-        reasons = val.validate(self._write_variant("small.jpg", small), None, None)
-        self.assertTrue(any("dimensions" in r for r in reasons), reasons)
-
-    def test_rejects_untagged_output_without_srgb_profile(self) -> None:
-        pixels = conv.convert_to_uint8(self.exr, 0.0)
-        reasons = val.validate(self._write_variant("untagged.jpg", pixels, icc=False), None, None)
-        self.assertTrue(any("ICC" in r for r in reasons), reasons)
-
-    def test_rejects_non_srgb_icc_profile(self) -> None:
-        from PIL import ImageCms
-        pixels = conv.convert_to_uint8(self.exr, 0.0)
-        path = os.path.join(self.tmp.name, "xyz.jpg")
-        # A non-sRGB profile: XYZ D50 colour space, built into LittleCMS.
-        xyz = ImageCms.ImageCmsProfile(ImageCms.createProfile("XYZ")).tobytes()
-        self.Image.fromarray(pixels, mode="RGB").save(path, format="JPEG", quality=92, subsampling=0, icc_profile=xyz)
-        reasons = val.validate(path, None, None)
-        self.assertTrue(any("not sRGB" in r for r in reasons), reasons)
 
 
 if __name__ == "__main__":
