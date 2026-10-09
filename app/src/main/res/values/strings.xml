@@ -84,6 +84,9 @@
     <string name="select_city">Select Iran Provincial Capital</string>
     <string name="liquid_glass_setting">Liquid Glass (Optical Surface)</string>
     <string name="liquid_glass_desc">Physical optical refraction and ambient blur on floating UI (Android 13+)</string>
+    <string name="app_backdrop_title">App Backdrop</string>
+    <string name="live_sky_setting">Live Sky</string>
+    <string name="live_sky_desc">Use your local sky as the app background.</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>

@@ -84,6 +84,9 @@
     <string name="select_city">انتخاب شهر / مرکز استان</string>
     <string name="liquid_glass_setting">جلوه شیشه مایع (Liquid Glass)</string>
     <string name="liquid_glass_desc">شکست فیزیکی نور و بازتاب اپتیکال بر روی سطوح شناور (اندروید ۱۳+)</string>
+    <string name="app_backdrop_title">پس‌زمینه برنامه</string>
+    <string name="live_sky_setting">آسمان زنده</string>
+    <string name="live_sky_desc">از آسمان محلی خود به عنوان پس‌زمینه برنامه استفاده کنید.</string>
     <string name="ok">تایید</string>
     <string name="cancel">انصراف</string>
     <string name="confirm">تایید</string>

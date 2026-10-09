@@ -135,6 +135,7 @@ fun SettingsDialog(
     var isAppThemeExpanded by remember { mutableStateOf(false) }
     var isSkyCanvasThemeExpanded by remember { mutableStateOf(false) }
     var isLiquidGlassExpanded by remember { mutableStateOf(false) }
+    var isAppBackdropExpanded by remember { mutableStateOf(false) }
     var isBortleExpanded by remember { mutableStateOf(false) }
 
     // Formatted collapsed labels
@@ -167,6 +168,12 @@ fun SettingsDialog(
     }
 
     val liquidGlassStatusLabel = if (uiState.isLiquidGlassEnabled) {
+        if (isFa) "فعال" else "On"
+    } else {
+        if (isFa) "خاموش" else "Off"
+    }
+
+    val liveSkyStatusLabel = if (uiState.liveSkyBackdropEnabled) {
         if (isFa) "فعال" else "On"
     } else {
         if (isFa) "خاموش" else "Off"
@@ -555,6 +562,51 @@ fun SettingsDialog(
                                 modifier = Modifier.weight(1f)
                             )
                         }
+                    }
+                }
+
+                // 5b. App Backdrop Section. Single option, Live Sky, default OFF.
+                ExpandableSettingsSection(
+                    title = stringResource(R.string.app_backdrop_title),
+                    currentValueLabel = liveSkyStatusLabel,
+                    icon = Icons.Outlined.NightsStay,
+                    isExpanded = isAppBackdropExpanded,
+                    onToggle = { isAppBackdropExpanded = !isAppBackdropExpanded },
+                    statusColor = if (uiState.liveSkyBackdropEnabled) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
+                    testTag = "settings_section_app_backdrop"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = RedSpacing.sm)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.live_sky_setting),
+                                style = RedTypographyTokens.bodySecondary.copy(fontWeight = FontWeight.SemiBold),
+                                color = RedTheme.colors.textPrimary
+                            )
+                            Text(
+                                text = stringResource(R.string.live_sky_desc),
+                                style = RedTypographyTokens.caption,
+                                color = RedTheme.colors.textSecondary
+                            )
+                        }
+                        Switch(
+                            checked = uiState.liveSkyBackdropEnabled,
+                            onCheckedChange = { viewModel.setLiveSkyBackdropEnabled(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = RedTheme.colors.accentRed,
+                                uncheckedThumbColor = RedTheme.colors.textSecondary,
+                                uncheckedTrackColor = RedTheme.colors.border
+                            ),
+                            modifier = Modifier.testTag("settings_live_sky_switch")
+                        )
                     }
                 }
 

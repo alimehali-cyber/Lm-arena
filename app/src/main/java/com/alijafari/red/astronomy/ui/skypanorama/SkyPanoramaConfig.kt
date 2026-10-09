@@ -3,14 +3,12 @@ package com.alijafari.red.astronomy.ui.skypanorama
 /**
  * Feature gate and renderer configuration for the Phase 1 photographic sky panorama.
  *
- * [INTEGRATION_ENABLED] is an internal development switch, not a user-facing setting. While it is
- * `false` the Home hero is rendered exactly as before. When it is `true` the panorama is shown
- * only after its texture has been decoded, uploaded and presented; otherwise the legacy Sky Canvas
- * remains visible as the fallback.
+ * [INTEGRATION_ENABLED] is the permanent feature gate for the panorama. It is not a user-facing setting.
+ * The panorama is shown only after its texture has been decoded, uploaded and presented. Until then, or
+ * if it fails, the legacy Sky Canvas remains visible as the fallback.
  */
 object SkyPanoramaFeature {
-    // TEST-ONLY (temporary, branch arena/7732046c-lm-arena): enabled for the test APK build.
-    // Restored to false in the following commit. Do not merge this line as true.
+    // Enabled in every build. Set to false only to disable the panorama entirely.
     const val INTEGRATION_ENABLED = true
 }
 

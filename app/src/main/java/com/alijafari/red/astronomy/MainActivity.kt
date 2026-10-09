@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.backdrop.LiveSkyBackdrop
 import com.alijafari.red.astronomy.ui.components.FavoritesHistoryDialog
 import com.alijafari.red.astronomy.ui.components.LocationSelectorDialog
 import com.alijafari.red.astronomy.ui.components.ObjectDetailModal
@@ -215,6 +216,11 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         ) { innerPadding ->
+                            // Live Sky ON: the layer spans the whole window, so the sky sits behind the status bar and
+                            // Liquid Glass samples it. The content keeps the same top inset. Live Sky OFF: this is the
+                            // pre-feature layout, unchanged.
+                            val liveSkyLayout = uiState.liveSkyBackdropEnabled
+                            val contentTopPadding = innerPadding.calculateTopPadding()
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -225,37 +231,55 @@ class MainActivity : ComponentActivity() {
                                             Modifier
                                         }
                                     )
-                                    .padding(top = innerPadding.calculateTopPadding())
+                                    .padding(top = if (liveSkyLayout) 0.dp else contentTopPadding)
                             ) {
-                                CompositionLocalProvider(
-                                    com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassBackdrop provides null
+                                // Always composed. It emits nothing unless Live Sky is eligible for the current screen.
+                                LiveSkyBackdrop(
+                                    enabled = uiState.liveSkyBackdropEnabled,
+                                    selectedTab = uiState.selectedTab,
+                                    isSimulation = uiState.timeMachineState.mode == com.alijafari.red.astronomy.domain.TimeMachineMode.SIMULATION,
+                                    simulationTimeMs = uiState.timeMachineState.simulationTimeMs,
+                                    latitudeDeg = uiState.userLocation.latitude,
+                                    longitudeDeg = uiState.userLocation.longitude,
+                                    elevationM = uiState.userLocation.elevationMeters,
+                                    theme = uiState.skyCanvasTheme,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(top = if (liveSkyLayout) contentTopPadding else 0.dp)
                                 ) {
-                                    Crossfade(
-                                        targetState = uiState.selectedTab,
-                                        label = "TabSwitch"
-                                    ) { tab ->
-                                        when (tab) {
-                                            0 -> LabScreen(
-                                                uiState = uiState,
-                                                viewModel = viewModel
-                                            )
-                                            1 -> ISSScreen(
-                                                uiState = uiState,
-                                                viewModel = viewModel
-                                            )
-                                            2 -> MoonScreen(
-                                                uiState = uiState,
-                                                viewModel = viewModel
-                                            )
-                                            3 -> CompassARScreen(
-                                                uiState = uiState,
-                                                viewModel = viewModel
-                                            )
-                                            4 -> HomeScreen(
-                                                uiState = uiState,
-                                                viewModel = viewModel,
-                                                onNavigateToTab = { viewModel.selectTab(it) }
-                                            )
+                                    CompositionLocalProvider(
+                                        com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassBackdrop provides null
+                                    ) {
+                                        Crossfade(
+                                            targetState = uiState.selectedTab,
+                                            label = "TabSwitch"
+                                        ) { tab ->
+                                            when (tab) {
+                                                0 -> LabScreen(
+                                                    uiState = uiState,
+                                                    viewModel = viewModel
+                                                )
+                                                1 -> ISSScreen(
+                                                    uiState = uiState,
+                                                    viewModel = viewModel
+                                                )
+                                                2 -> MoonScreen(
+                                                    uiState = uiState,
+                                                    viewModel = viewModel
+                                                )
+                                                3 -> CompassARScreen(
+                                                    uiState = uiState,
+                                                    viewModel = viewModel
+                                                )
+                                                4 -> HomeScreen(
+                                                    uiState = uiState,
+                                                    viewModel = viewModel,
+                                                    onNavigateToTab = { viewModel.selectTab(it) }
+                                                )
+                                            }
                                         }
                                     }
                                 }

@@ -17,6 +17,7 @@ import com.alijafari.red.astronomy.data.database.AppDatabase
 import com.alijafari.red.astronomy.data.database.ObservationLogEntity
 import com.alijafari.red.astronomy.data.database.UserOccasionEntity
 import com.alijafari.red.astronomy.domain.*
+import com.alijafari.red.astronomy.ui.backdrop.LiveSkyPolicy
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -49,7 +50,9 @@ data class MainUiState(
     val selectedTargetObject: CelestialObject? = null,
     val selectedSatelliteId: String? = null,
     val isLiquidGlassEnabled: Boolean = true,
-    val liquidGlassConfig: LiquidGlassConfig = LiquidGlassConfig()
+    val liquidGlassConfig: LiquidGlassConfig = LiquidGlassConfig(),
+    /** Live Sky app backdrop preference. Default OFF. Eligibility per screen is decided by [LiveSkyPolicy]. */
+    val liveSkyBackdropEnabled: Boolean = LiveSkyPolicy.DEFAULT_ENABLED
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -60,6 +63,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(
         MainUiState(
             isLiquidGlassEnabled = prefs.getBoolean("liquid_glass_enabled", true),
+            liveSkyBackdropEnabled = LiveSkyPolicy.loadEnabled(prefs),
             liquidGlassConfig = LiquidGlassConfig(
                 enabled = prefs.getBoolean("liquid_glass_enabled", true),
                 clarity = prefs.getFloat("liquid_glass_clarity", 1.0f),
@@ -208,6 +212,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setThemeMode(themeMode: ThemeMode) {
         prefs.edit().putString("theme_mode", themeMode.name).apply()
         _uiState.update { it.copy(themeMode = themeMode) }
+    }
+
+    fun setLiveSkyBackdropEnabled(enabled: Boolean) {
+        LiveSkyPolicy.saveEnabled(prefs, enabled)
+        _uiState.update { it.copy(liveSkyBackdropEnabled = enabled) }
     }
 
     fun setLiquidGlassEnabled(enabled: Boolean) {

@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
-import com.alijafari.red.astronomy.data.catalog.AstronomyCatalog
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.ObjectType
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
@@ -147,94 +146,19 @@ fun HeroSkyCanvas(
     val userTimeZone = remember(uiState.userLocation.timezoneId) {
         TimeEngine.resolveTimeZone(uiState.userLocation.timezoneId)
     }
-    val lastDeg = remember(simulatedJd, userLon) { TimeEngine.getLAST(simulatedJd, userLon) }
-
-    // Sun position
-    val sunPos = remember(simulatedJd) { SunEngine.calculatePosition(simulatedJd) }
-    val sunHoriz = remember(sunPos, lastDeg, userLat, userElev) {
-        CoordinateEngine.equatorialToHorizontal(
-            CoordinateEngine.Equatorial(sunPos.raDeg, sunPos.decDeg),
-            lastDeg,
-            userLat,
-            userElev
-        )
+    // Astro computations: one shared scene model (also used by the Live Sky app backdrop)
+    val skyFrame = remember(simulatedJd, userLat, userLon, userElev) {
+        SkySceneModel.compute(simulatedJd, userLat, userLon, userElev)
     }
-
-    // Moon calculation (skip expensive rise/set root-finding on canvas frames)
-    val moonData = remember(simulatedJd, userLat, userLon, userElev) {
-        MoonEngine.calculateMoon(simulatedJd, userLat, userLon, userElev, computeRiseSet = false)
-    }
-
-    // Planets calculation
-    val planetPositions = remember(simulatedJd, lastDeg, userLat, userElev) {
-        PlanetEngine.PlanetType.values().mapNotNull { pType ->
-            if (pType == PlanetEngine.PlanetType.PLUTO) null
-            else {
-                val pPos = PlanetEngine.calculatePlanet(pType, simulatedJd)
-                val horiz = CoordinateEngine.equatorialToHorizontal(
-                    CoordinateEngine.Equatorial(pPos.raDeg, pPos.decDeg),
-                    lastDeg,
-                    userLat,
-                    userElev
-                )
-                if (horiz.altitudeDeg > -2.0) Triple(pType, pPos, horiz) else null
-            }
-        }
-    }
-
-    // Galactic plane points (reuses precomputed LAST & J2000 galactic equator coordinates)
-    val galacticPlanePoints = remember(lastDeg, userLat, userElev) {
-        GalacticEngine.calculateGalacticPlanePointsWithLast(lastDeg, userLat, userElev)
-            .filter { it.altitudeDeg > -5.0 }
-    }
-
-    // Catalog Stars only (Deep-sky catalog objects intentionally excluded to keep the canvas uncrowded)
-    val staticCatalogStars = remember {
-        AstronomyCatalog.getStars().filter { it.magnitude <= 4.5 }
-    }
-    val catalogStars = remember(staticCatalogStars, lastDeg, userLat, userElev) {
-        staticCatalogStars.mapNotNull { celestialObj ->
-            val horiz = CoordinateEngine.equatorialToHorizontal(
-                CoordinateEngine.Equatorial(celestialObj.raDeg, celestialObj.decDeg),
-                lastDeg,
-                userLat,
-                userElev
-            )
-            if (horiz.altitudeDeg > 0.0) Pair(celestialObj, horiz) else null
-        }
-    }
-
-    // Rigorous Eclipse detection
-    val isSolarEclipse = remember(sunHoriz, moonData) {
-        val dAzRad = Math.toRadians(HeroSkyProjection.azimuthDistanceDeg(sunHoriz.azimuthDeg, moonData.azimuthDeg))
-        val sunAltRad = Math.toRadians(sunHoriz.altitudeDeg)
-        val moonAltRad = Math.toRadians(moonData.altitudeDeg)
-        val cosSep = (sin(sunAltRad) * sin(moonAltRad) + cos(sunAltRad) * cos(moonAltRad) * cos(dAzRad)).coerceIn(-1.0, 1.0)
-        val angDistDeg = Math.toDegrees(acos(cosSep))
-        val moonSemiDiamDeg = (moonData.angularDiameterArcmin / 120.0).coerceIn(0.24, 0.29)
-        val solarContactLimitDeg = 0.267 + moonSemiDiamDeg
-        sunHoriz.altitudeDeg > -0.5 && angDistDeg <= solarContactLimitDeg
-    }
-
-    val isLunarEclipse = remember(moonData) {
-        val dKm = moonData.distanceKm.coerceIn(340000.0, 420000.0)
-        // Geocentric angular distance between the Moon and the anti-solar point (Earth's umbral axis)
-        val antiSolarSepDeg = Math.toDegrees(moonData.phaseAngleRad) * (1.0 + dKm / 149597870.7)
-        // Earth horizontal parallax + Moon semi-diameter + Danjon 2% atmospheric umbra enlargement
-        val parallaxDeg = Math.toDegrees(asin(6378.14 / dKm))
-        val moonSemiDiamDeg = Math.toDegrees(asin(1737.4 / dKm))
-        val umbralContactLimitDeg = 1.02 * (parallaxDeg + 0.0024 - 0.2666) + moonSemiDiamDeg
-        moonData.altitudeDeg > -12.0 && antiSolarSepDeg <= umbralContactLimitDeg
-    }
-
-    // Lighting state engine
-    val lightingState = remember(sunHoriz.altitudeDeg, moonData.altitudeDeg, moonData.illuminationPercent) {
-        LightingEngine.computeLightingState(
-            sunAltDeg = sunHoriz.altitudeDeg,
-            moonAltDeg = moonData.altitudeDeg,
-            moonIlluminationPercent = moonData.illuminationPercent
-        )
-    }
+    val lastDeg = skyFrame.lastDeg
+    val sunHoriz = skyFrame.sunHoriz
+    val moonData = skyFrame.moonData
+    val planetPositions = skyFrame.planetPositions
+    val galacticPlanePoints = skyFrame.galacticPlanePoints
+    val catalogStars = skyFrame.catalogStars
+    val isSolarEclipse = skyFrame.isSolarEclipse
+    val isLunarEclipse = skyFrame.isLunarEclipse
+    val lightingState = skyFrame.lightingState
 
     // Auto-return job
     var autoReturnJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
@@ -431,105 +355,16 @@ fun HeroSkyCanvas(
             val canvasW = size.width
             val canvasH = size.height
 
-            val sunPosPx = if (sunHoriz.altitudeDeg > -18.0) {
-                HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
-            } else null
-
-            // 1. Atmosphere Renderer. While the panorama is on screen it supplies the sky gradient and night
-            // sky itself; this pass then draws only the Sun glow and Belt of Venus, faded by night weight.
-            AtmosphereRenderer.drawAtmosphere(
+            // Shared Sky Canvas pipeline: atmosphere, Milky Way, stars, Sun, Moon, planets, horizon landscape
+            SkySceneRenderer.drawSky(
                 drawScope = this,
-                lightingState = lightingState,
-                sunPosPx = sunPosPx,
+                frame = skyFrame,
                 theme = uiState.skyCanvasTheme,
-                sunAzimuthDeg = sunHoriz.azimuthDeg,
-                latitudeDeg = userLat,
-                panoramaMode = panoramaActive
-            )
-
-            // 2. Milky Way Renderer (procedural; replaced by the photographic panorama when active)
-            if (!panoramaActive) {
-                MilkyWayRenderer.drawMilkyWay(
-                    drawScope = this,
-                    galacticPoints = galacticPlanePoints,
-                    lightingState = lightingState,
-                    frameTimeMs = frameTimeMs,
-                    theme = uiState.skyCanvasTheme,
-                    latitudeDeg = userLat,
-                    lastDeg = lastDeg
-                )
-            }
-
-            // 3. Star Renderer
-            StarRenderer.drawStars(
-                drawScope = this,
-                objects = catalogStars,
-                starVisibility = lightingState.starVisibility,
                 frameTimeMs = frameTimeMs,
-                theme = uiState.skyCanvasTheme,
-                latitudeDeg = userLat,
-                lastDeg = lastDeg
+                panoramaActive = panoramaActive
             )
 
-            // 4. Sun Renderer
-            if (sunPosPx != null && sunHoriz.altitudeDeg > -12.0) {
-                SunRenderer.drawSun(
-                    drawScope = this,
-                    center = sunPosPx,
-                    sunAltitudeDeg = sunHoriz.altitudeDeg,
-                    frameTimeMs = frameTimeMs,
-                    theme = uiState.skyCanvasTheme
-                )
-            }
-
-            // 5. Moon Renderer
-            if (moonData.altitudeDeg > -12.0) {
-                val moonCenter = HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat)
-                val baseMoonRadius = 26.dp.toPx()
-                val moonPulseScale = AstronomyAnimator.computePulse(frameTimeMs, 4000f, 0.88f, 1.12f)
-
-                val limbScreenAngleDeg = CoordinateEngine.calculateMoonLimbScreenAngleDeg(
-                    moonAzimuthDeg = moonData.azimuthDeg,
-                    moonAltitudeDeg = moonData.altitudeDeg,
-                    sunAzimuthDeg = sunHoriz.azimuthDeg,
-                    sunAltitudeDeg = sunHoriz.altitudeDeg
-                )
-
-                MoonRenderer.drawMoon(
-                    drawScope = this,
-                    center = moonCenter,
-                    radius = baseMoonRadius,
-                    illuminationPercent = moonData.illuminationPercent,
-                    phaseAngleRad = moonData.phaseAngleRad,
-                    isLunarEclipse = isLunarEclipse,
-                    isSolarEclipse = isSolarEclipse,
-                    moonPulseScale = moonPulseScale,
-                    lightingState = lightingState,
-                    frameTimeMs = frameTimeMs,
-                    isWaxing = (moonData.ageDays < 14.765),
-                    theme = uiState.skyCanvasTheme,
-                    limbScreenAngleDeg = limbScreenAngleDeg
-                )
-            }
-
-            // 6. Planet Renderer
-            PlanetRenderer.drawPlanets(
-                drawScope = this,
-                planets = planetPositions,
-                frameTimeMs = frameTimeMs,
-                theme = uiState.skyCanvasTheme,
-                latitudeDeg = userLat
-            )
-
-            // 7. Horizon Landscape Silhouette Layer
-            LandscapeRenderer.drawHorizonLandscape(
-                drawScope = this,
-                lightingState = lightingState,
-                frameTimeMs = frameTimeMs,
-                theme = uiState.skyCanvasTheme
-            )
-
-            // 7. Tapped Celestial Target Ring Overlay
+            // Tapped Celestial Target Ring Overlay (Home-only interaction layer)
             selectedCelestial?.let { sel ->
                 val selPos = when {
                     sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat)
