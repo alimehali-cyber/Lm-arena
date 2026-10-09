@@ -195,7 +195,9 @@ object CoordinateEngineLegacy {
 
     /**
      * Converts Equatorial J2000 coordinates to Galactic coordinates (l, b).
-     * Galactic North Pole J2000: RA = 192.85948°, Dec = +27.12825°, Node l_N = 32.93192°
+     * Galactic North Pole J2000: RA = 192.85948°, Dec = +27.12825°.
+     * The galactic longitude of the north celestial pole is l_NCP = 122.93192° (this is NOT the
+     * ascending-node value 32.93192°). Checked against the Hipparcos ICRS->Galactic matrix.
      */
     fun equatorialToGalactic(eq: Equatorial): Galactic {
         val raRad = Math.toRadians(eq.raDeg)
@@ -203,7 +205,7 @@ object CoordinateEngineLegacy {
 
         val raNGP = Math.toRadians(192.85948)
         val decNGP = Math.toRadians(27.12825)
-        val lN = 32.93192
+        val lNcpDeg = 122.93192
 
         val sinB = sin(decRad) * sin(decNGP) + cos(decRad) * cos(decNGP) * cos(raRad - raNGP)
         val bRad = asin(sinB.coerceIn(-1.0, 1.0))
@@ -211,7 +213,7 @@ object CoordinateEngineLegacy {
 
         val y = cos(decRad) * sin(raRad - raNGP)
         val x = sin(decRad) * cos(decNGP) - cos(decRad) * sin(decNGP) * cos(raRad - raNGP)
-        var lDeg = lN + 180.0 - Math.toDegrees(atan2(y, x))
+        var lDeg = lNcpDeg - Math.toDegrees(atan2(y, x))
         lDeg %= 360.0
         if (lDeg < 0) lDeg += 360.0
 
@@ -227,14 +229,14 @@ object CoordinateEngineLegacy {
 
         val raNGP = Math.toRadians(192.85948)
         val decNGP = Math.toRadians(27.12825)
-        val lNRad = Math.toRadians(32.93192)
+        val lNcpRad = Math.toRadians(122.93192)
 
-        val sinDec = sin(bRad) * sin(decNGP) + cos(bRad) * cos(decNGP) * cos(lRad - lNRad)
+        val sinDec = sin(bRad) * sin(decNGP) + cos(bRad) * cos(decNGP) * cos(lNcpRad - lRad)
         val decRad = asin(sinDec.coerceIn(-1.0, 1.0))
         val decDeg = Math.toDegrees(decRad)
 
-        val y = cos(bRad) * sin(lRad - lNRad)
-        val x = cos(bRad) * sin(decNGP) * cos(lRad - lNRad) - sin(bRad) * cos(decNGP)
+        val y = cos(bRad) * sin(lNcpRad - lRad)
+        val x = sin(bRad) * cos(decNGP) - cos(bRad) * sin(decNGP) * cos(lNcpRad - lRad)
         var raRad = raNGP + atan2(y, x)
         var raDeg = Math.toDegrees(raRad) % 360.0
         if (raDeg < 0) raDeg += 360.0

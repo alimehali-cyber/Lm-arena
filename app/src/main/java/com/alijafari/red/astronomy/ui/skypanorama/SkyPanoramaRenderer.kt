@@ -12,7 +12,6 @@ import android.opengl.GLUtils
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
-import kotlin.math.tan
 
 /**
  * Owns the GLES 3.0 context, shader program and panorama texture for one [SkyPanoramaSurfaceView]
@@ -54,15 +53,19 @@ class SkyPanoramaRenderer(private val listener: Listener) {
     private var vao = 0
     private var panoramaTexture = 0
     private var textureWidth = 0
+    private var textureHeight = 0
     private var textureReady = false
     private var frameShownReported = false
     private var maxTextureSize = 0
 
     private var uPanorama = -1
-    private var uForward = -1
-    private var uRight = -1
-    private var uUp = -1
-    private var uTanHalf = -1
+    private var uEast = -1
+    private var uNorth = -1
+    private var uZenith = -1
+    private var uViewport = -1
+    private var uHorizonPx = -1
+    private var uPxPerDeg = -1
+    private var uAzOffsetDeg = -1
     private var uLod = -1
     private var uExposure = -1
     private var uSaturation = -1
@@ -150,6 +153,7 @@ class SkyPanoramaRenderer(private val listener: Listener) {
             GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
             checkGlError("texture upload")
             textureWidth = bitmap.width
+            textureHeight = bitmap.height
             bitmap.recycle()
             textureReady = true
             frameShownReported = false
@@ -232,10 +236,13 @@ class SkyPanoramaRenderer(private val listener: Listener) {
         }
         program = prog
         uPanorama = GLES30.glGetUniformLocation(prog, "uPanorama")
-        uForward = GLES30.glGetUniformLocation(prog, "uForward")
-        uRight = GLES30.glGetUniformLocation(prog, "uRight")
-        uUp = GLES30.glGetUniformLocation(prog, "uUp")
-        uTanHalf = GLES30.glGetUniformLocation(prog, "uTanHalf")
+        uEast = GLES30.glGetUniformLocation(prog, "uEast")
+        uNorth = GLES30.glGetUniformLocation(prog, "uNorth")
+        uZenith = GLES30.glGetUniformLocation(prog, "uZenith")
+        uViewport = GLES30.glGetUniformLocation(prog, "uViewport")
+        uHorizonPx = GLES30.glGetUniformLocation(prog, "uHorizonPx")
+        uPxPerDeg = GLES30.glGetUniformLocation(prog, "uPxPerDeg")
+        uAzOffsetDeg = GLES30.glGetUniformLocation(prog, "uAzOffsetDeg")
         uLod = GLES30.glGetUniformLocation(prog, "uLod")
         uExposure = GLES30.glGetUniformLocation(prog, "uExposure")
         uSaturation = GLES30.glGetUniformLocation(prog, "uSaturation")
@@ -281,10 +288,10 @@ class SkyPanoramaRenderer(private val listener: Listener) {
 
         val cfg = config
         val basis = current.basis
-        val fovYRad = Math.toRadians(cfg.fovYDeg.toDouble())
-        val tanHalfY = tan(fovYRad / 2.0)
-        val tanHalfX = tanHalfY * viewportWidth.toDouble() / viewportHeight.toDouble()
-        val lod = SkyPanoramaMath.texelLod(textureWidth, fovYRad, viewportHeight)
+        val widthPx = viewportWidth.toDouble()
+        val heightPx = viewportHeight.toDouble()
+        val pxPerDeg = SkyPanoramaMath.pixelsPerDegree(heightPx)
+        val lod = SkyPanoramaMath.texelLod(textureWidth, textureHeight, viewportWidth, viewportHeight)
 
         GLES30.glViewport(0, 0, viewportWidth, viewportHeight)
         GLES30.glDisable(GLES30.GL_DEPTH_TEST)
@@ -294,10 +301,13 @@ class SkyPanoramaRenderer(private val listener: Listener) {
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, panoramaTexture)
         GLES30.glUniform1i(uPanorama, 0)
-        GLES30.glUniform3f(uForward, basis.forward[0].toFloat(), basis.forward[1].toFloat(), basis.forward[2].toFloat())
-        GLES30.glUniform3f(uRight, basis.right[0].toFloat(), basis.right[1].toFloat(), basis.right[2].toFloat())
-        GLES30.glUniform3f(uUp, basis.up[0].toFloat(), basis.up[1].toFloat(), basis.up[2].toFloat())
-        GLES30.glUniform2f(uTanHalf, tanHalfX.toFloat(), tanHalfY.toFloat())
+        GLES30.glUniform3f(uEast, basis.east[0].toFloat(), basis.east[1].toFloat(), basis.east[2].toFloat())
+        GLES30.glUniform3f(uNorth, basis.north[0].toFloat(), basis.north[1].toFloat(), basis.north[2].toFloat())
+        GLES30.glUniform3f(uZenith, basis.zenith[0].toFloat(), basis.zenith[1].toFloat(), basis.zenith[2].toFloat())
+        GLES30.glUniform2f(uViewport, widthPx.toFloat(), heightPx.toFloat())
+        GLES30.glUniform1f(uHorizonPx, SkyPanoramaMath.horizonYPx(heightPx).toFloat())
+        GLES30.glUniform1f(uPxPerDeg, pxPerDeg.toFloat())
+        GLES30.glUniform1f(uAzOffsetDeg, SkyPanoramaMath.azimuthOffsetDeg(current.latitudeDeg).toFloat())
         GLES30.glUniform1f(uLod, lod)
         GLES30.glUniform1f(uExposure, cfg.exposure)
         GLES30.glUniform1f(uSaturation, cfg.saturation)
@@ -353,6 +363,7 @@ class SkyPanoramaRenderer(private val listener: Listener) {
         vao = 0
         panoramaTexture = 0
         textureWidth = 0
+        textureHeight = 0
         textureReady = false
         frameShownReported = false
     }

@@ -1,7 +1,7 @@
 package com.alijafari.red.astronomy.ui.skypanorama
 
 /**
- * Sky-state inputs for the panorama camera, derived from values the Home hero already computes:
+ * Sky-state inputs for the panorama, derived from values the Home hero already computes:
  * the Local Apparent Sidereal Time (`TimeEngine.getLAST`) at the Time Machine / simulated instant,
  * and the observer's latitude from `UserLocation`.
  *
@@ -16,8 +16,8 @@ data class SkyPanoramaState(
     /** Quantized moon-glow intensity from the existing lighting model, 0..1. */
     val moonGlow: Float = 0f
 ) {
-    /** Camera basis in equatorial coordinates. Derived, so it does not affect equality. */
-    val basis: SkyPanoramaMath.ViewBasis = SkyPanoramaMath.zenithBasis(lstDeg, latitudeDeg)
+    /** Observer horizon frame in equatorial coordinates. Derived, so it does not affect equality. */
+    val basis: SkyPanoramaMath.HorizonBasis = SkyPanoramaMath.horizonBasis(lstDeg, latitudeDeg)
 
     /** Daytime palette and night blend weight. Derived, so it does not affect equality. */
     val sky: SkyPanoramaSkyModel.Sky = SkyPanoramaSkyModel.skyFor(sunAltDeg, moonGlow)

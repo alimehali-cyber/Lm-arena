@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy.ui.skypanorama
 
+import com.alijafari.red.astronomy.ui.rendering.HeroSkyProjection
 import kotlin.math.PI
 import kotlin.math.asin
 import kotlin.math.atan2
@@ -10,33 +11,39 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Pure (Android-free) orientation and texture-coordinate math for the sky panorama.
+ * Pure (Android-free) orientation, screen-geometry and texture-coordinate math for the sky panorama.
  *
  * Conventions (must stay in sync with [SkyPanoramaShaders.FRAGMENT_SHADER]):
  *  - Directions are unit vectors in the ICRF/J2000 equatorial frame: +x toward RA 0h / Dec 0,
- *    +y toward RA 6h / Dec 0, +z toward the north celestial pole.
- *  - Right ascension increases eastward; on the sky as seen from inside the sphere, east is to
- *    the LEFT and west to the RIGHT when north is up.
+ *    +y toward RA 6h / Dec 0, +z toward the north celestial pole. The hero's catalogue stars and
+ *    galactic-plane line pass J2000 RA/Dec straight to CoordinateEngine with the same apparent
+ *    sidereal time (no precession step), so the panorama uses that frame to match them. The Sun and
+ *    planets come from their own engines, whose frame has not been verified here.
  *  - The NASA "celestial" star map is centred on RA 0h, RA increases to the LEFT, and north
- *    (Dec +90) is the TOP row. Texture coordinates therefore are:
+ *    (Dec +90) is the TOP row. Texture coordinates are therefore:
  *        u = fract(0.5 - RA / 2pi)     (u = 0.5 at RA 0h, u decreases as RA increases)
  *        v = 0.5 - Dec / pi            (v = 0 at the north pole, the first image row)
  *    The first row of the decoded bitmap is uploaded as t = 0, so no vertical flip is applied.
- *  - The camera looks along `forward` (the zenith for the observer), with `up` the tangent
- *    pointing toward the north celestial pole and `right = forward x up`. Screen right is
- *    therefore WEST, which matches the NASA map's left/right orientation.
+ *    This was checked against the JPEG itself: the Galactic centre is bright at this mapping and
+ *    dim under the mirrored or flipped alternatives.
+ *  - Screen geometry is NOT a perspective camera. It is the inverse of [HeroSkyProjection], so the
+ *    panorama and the hero's own stars, planets and galactic-plane line share one screen layout:
+ *    horizontal = azimuth across the full width (centred on south in the northern hemisphere,
+ *    north in the southern), vertical = altitude, linear from the top margin (zenith) down past
+ *    the horizon line. Date and time enter only through the local sidereal time, and longitude only
+ *    through that same LST. Latitude enters through the observer frame.
  */
 object SkyPanoramaMath {
 
-    /** Orthonormal camera basis expressed in equatorial (celestial) coordinates. */
-    class ViewBasis(
-        val forward: DoubleArray,
-        val right: DoubleArray,
-        val up: DoubleArray
+    /**
+     * Observer's horizon frame expressed in equatorial (ICRF/J2000) coordinates.
+     * `east`, `north` and `zenith` form a right-handed orthonormal set: east x north = zenith.
+     */
+    class HorizonBasis(
+        val east: DoubleArray,
+        val north: DoubleArray,
+        val zenith: DoubleArray
     )
-
-    /** Latitudes beyond this are clamped: at the exact pole the north tangent is undefined. */
-    private const val MAX_ABS_LATITUDE_DEG = 89.9
 
     /** Quantization step for local sidereal time, in degrees (0.05 deg is about 12 s of time). */
     const val LST_QUANTUM_DEG = 0.05
@@ -50,19 +57,101 @@ object SkyPanoramaMath {
     }
 
     /**
-     * Basis for a zenith-centred view: the camera looks at RA = LST, Dec = latitude, which is the
-     * observer's zenith in equatorial coordinates.
+     * Horizon frame for a local sidereal time (degrees) and latitude (degrees).
+     *  - zenith = (RA = LST, Dec = latitude)
+     *  - north  = d(zenith)/d(latitude): the tangent toward the north celestial pole
+     *  - east   = d(zenith)/d(LST): the direction of increasing RA on the horizon, i.e. the
+     *             direction of the eastern horizon
+     * All three are continuous in latitude, including at the poles, so no clamping is needed.
      */
-    fun zenithBasis(lstDeg: Double, latitudeDeg: Double): ViewBasis {
-        val lat = latitudeDeg.coerceIn(-MAX_ABS_LATITUDE_DEG, MAX_ABS_LATITUDE_DEG)
-        val forward = directionFromRaDec(lstDeg, lat)
-        // North tangent: project +z onto the plane orthogonal to forward.
-        val zDotF = forward[2]
-        val upRaw = doubleArrayOf(-zDotF * forward[0], -zDotF * forward[1], 1.0 - zDotF * forward[2])
-        val up = normalize(upRaw)
-        val right = normalize(cross(forward, up))
-        val upOrtho = cross(right, forward)
-        return ViewBasis(forward, right, upOrtho)
+    fun horizonBasis(lstDeg: Double, latitudeDeg: Double): HorizonBasis {
+        val lst = Math.toRadians(lstDeg)
+        val lat = Math.toRadians(latitudeDeg)
+        val zenith = doubleArrayOf(cos(lat) * cos(lst), cos(lat) * sin(lst), sin(lat))
+        val north = doubleArrayOf(-sin(lat) * cos(lst), -sin(lat) * sin(lst), cos(lat))
+        val east = doubleArrayOf(-sin(lst), cos(lst), 0.0)
+        return HorizonBasis(east = east, north = north, zenith = zenith)
+    }
+
+    /** Screen y of the horizon, in pixels from the top, exactly as [HeroSkyProjection] computes it. */
+    fun horizonYPx(heightPx: Double): Double = heightPx * HeroSkyProjection.HORIZON_FRACTION
+
+    /** Pixels per degree of altitude, exactly as [HeroSkyProjection] computes its vertical scale. */
+    fun pixelsPerDegree(heightPx: Double): Double =
+        (horizonYPx(heightPx) - HeroSkyProjection.TOP_MARGIN_PX) / 90.0
+
+    /**
+     * Azimuth at the centre of the screen: 180 deg (south) in the northern hemisphere, 0 deg (north)
+     * in the southern. Equivalent to [HeroSkyProjection.project]:
+     * relAz = signed(az - offset), x = (0.5 + relAz / 360) W.
+     */
+    fun azimuthOffsetDeg(latitudeDeg: Double): Double = if (latitudeDeg >= 0.0) 180.0 else 0.0
+
+    /**
+     * Horizontal coordinates (azimuth in [0, 360) from north through east, altitude in degrees) of a
+     * screen pixel. This is the exact inverse of [HeroSkyProjection.project]. Pixel coordinates use
+     * the top-left origin, as in Compose and the hero.
+     */
+    fun azAltForPixel(
+        xPx: Double,
+        yPx: Double,
+        widthPx: Double,
+        heightPx: Double,
+        latitudeDeg: Double
+    ): Pair<Double, Double> {
+        val relAz = (xPx / widthPx - 0.5) * 360.0
+        val azDeg = wrap360(relAz + azimuthOffsetDeg(latitudeDeg))
+        val altDeg = (horizonYPx(heightPx) - yPx) / pixelsPerDegree(heightPx)
+        return Pair(azDeg, altDeg)
+    }
+
+    /**
+     * Equatorial unit vector seen at a screen pixel:
+     *   d = sin(az) cos(alt) East + cos(az) cos(alt) North + sin(alt) Zenith.
+     * This is what the fragment shader computes per pixel.
+     */
+    fun pixelToDirection(
+        xPx: Double,
+        yPx: Double,
+        widthPx: Double,
+        heightPx: Double,
+        latitudeDeg: Double,
+        basis: HorizonBasis
+    ): DoubleArray {
+        val (azDeg, altDeg) = azAltForPixel(xPx, yPx, widthPx, heightPx, latitudeDeg)
+        val az = Math.toRadians(azDeg)
+        val alt = Math.toRadians(altDeg)
+        val ca = cos(alt)
+        val e = basis.east
+        val n = basis.north
+        val z = basis.zenith
+        return normalize(
+            doubleArrayOf(
+                sin(az) * ca * e[0] + cos(az) * ca * n[0] + sin(alt) * z[0],
+                sin(az) * ca * e[1] + cos(az) * ca * n[1] + sin(alt) * z[1],
+                sin(az) * ca * e[2] + cos(az) * ca * n[2] + sin(alt) * z[2]
+            )
+        )
+    }
+
+    /**
+     * Screen position (x, y) in pixels where an equatorial direction appears in the panorama. This is
+     * the forward mapping, in the same geometry as [HeroSkyProjection.project] (without refraction).
+     */
+    fun pixelForDirection(
+        direction: DoubleArray,
+        widthPx: Double,
+        heightPx: Double,
+        latitudeDeg: Double,
+        basis: HorizonBasis
+    ): DoubleArray {
+        val d = direction
+        val altDeg = Math.toDegrees(asin(dot(d, basis.zenith).coerceIn(-1.0, 1.0)))
+        val azDeg = wrap360(Math.toDegrees(atan2(dot(d, basis.east), dot(d, basis.north))))
+        val relAz = HeroSkyProjection.normalizeSignedAngle(azDeg - azimuthOffsetDeg(latitudeDeg))
+        val x = (0.5 + relAz / 360.0) * widthPx
+        val y = horizonYPx(heightPx) - altDeg * pixelsPerDegree(heightPx)
+        return doubleArrayOf(x, y)
     }
 
     /**
@@ -78,35 +167,20 @@ object SkyPanoramaMath {
     }
 
     /**
-     * Equatorial direction of a screen pixel. [ndcX]/[ndcY] are in -1..1 with +y up.
-     * Mirrors the vertex/fragment shader pair.
-     */
-    fun cameraRay(basis: ViewBasis, ndcX: Double, ndcY: Double, tanHalfX: Double, tanHalfY: Double): DoubleArray {
-        val f = basis.forward
-        val r = basis.right
-        val u = basis.up
-        val v = doubleArrayOf(
-            f[0] + ndcX * tanHalfX * r[0] + ndcY * tanHalfY * u[0],
-            f[1] + ndcX * tanHalfX * r[1] + ndcY * tanHalfY * u[1],
-            f[2] + ndcX * tanHalfX * r[2] + ndcY * tanHalfY * u[2]
-        )
-        return normalize(v)
-    }
-
-    /**
      * Mip level for a screen-uniform LOD. The panorama is sampled with an explicit LOD instead of
      * implicit derivatives, which avoids a seam where the RA branch cut at +/-pi would otherwise
      * produce a discontinuous derivative.
      *
-     * Texels per pixel = (texels per radian) x (radians per pixel), where an equirectangular map
-     * of width W has W / (2 pi) texels per radian in both directions.
+     * The full 360 deg of azimuth spans the width and the 180 deg of altitude spans the height of
+     * the scaled hero projection, so the texel footprint per pixel is the larger of the two axes.
      */
-    fun texelLod(textureWidth: Int, fovYRad: Double, viewportHeightPx: Int): Float {
-        if (textureWidth <= 0 || viewportHeightPx <= 0) return 0f
-        val texelsPerRadian = textureWidth / (2.0 * PI)
-        val radiansPerPixel = fovYRad / viewportHeightPx
-        val texelsPerPixel = texelsPerRadian * radiansPerPixel
-        return max(0.0, log2(texelsPerPixel)).toFloat()
+    fun texelLod(textureWidth: Int, textureHeight: Int, widthPx: Int, heightPx: Int): Float {
+        if (textureWidth <= 0 || textureHeight <= 0 || widthPx <= 0 || heightPx <= 0) return 0f
+        val pxPerDeg = pixelsPerDegree(heightPx.toDouble())
+        if (pxPerDeg <= 0.0) return 0f
+        val texelsPerPixelX = textureWidth.toDouble() / widthPx
+        val texelsPerPixelY = textureHeight / (180.0 * pxPerDeg)
+        return max(0.0, log2(max(texelsPerPixelX, texelsPerPixelY))).toFloat()
     }
 
     /** Wraps a sidereal time into [0, 360) and snaps it to [LST_QUANTUM_DEG]. */
@@ -116,13 +190,11 @@ object SkyPanoramaMath {
         return if (snapped >= 360.0) snapped - 360.0 else snapped
     }
 
+    fun wrap360(deg: Double): Double = ((deg % 360.0) + 360.0) % 360.0
+
     fun fract(x: Double): Double = x - Math.floor(x)
 
-    fun cross(a: DoubleArray, b: DoubleArray): DoubleArray = doubleArrayOf(
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0]
-    )
+    fun dot(a: DoubleArray, b: DoubleArray): Double = a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
     fun normalize(v: DoubleArray): DoubleArray {
         val len = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
