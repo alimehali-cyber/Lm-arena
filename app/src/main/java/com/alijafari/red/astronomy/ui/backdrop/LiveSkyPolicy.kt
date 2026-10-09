@@ -12,8 +12,8 @@ import android.content.SharedPreferences
  *     tabs. They announce themselves through [com.zig.gravity.ui.ImmersiveScreenState], so they are excluded
  *     by that signal rather than by a tab index.
  *
- * Nothing here depends on [com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature]. The backdrop draws its own
- * sky through the shared renderer, so it does not rely on the panorama feature gate.
+ * Nothing here depends on the panorama feature gate in the skypanorama package. The backdrop draws its own sky
+ * through the shared renderer, so it does not rely on that gate.
  */
 object LiveSkyPolicy {
 
