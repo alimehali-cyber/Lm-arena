@@ -24,15 +24,16 @@ object PlanetRenderer {
         planets: List<Triple<PlanetEngine.PlanetType, PlanetEngine.PlanetPosition, CoordinateEngine.Horizontal>>,
         frameTimeMs: Long,
         theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
-        latitudeDeg: Double = 0.0
+        latitudeDeg: Double = 0.0,
+        projection: SkyProjection = HeroProjection
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
-        val horizonY = height * HeroSkyProjection.HORIZON_FRACTION
+        val horizonY = projection.clipBottomPx(height)
 
         drawScope.clipRect(left = 0f, top = 0f, right = width, bottom = horizonY) {
             planets.forEach { (pType, pPos, horiz) ->
-                val center = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
+                val center = projection.objectPosition(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
 
                 when (theme) {
                     SkyCanvasTheme.REAL_SKY -> drawRealSkyPlanet(drawScope, pType, pPos, horiz, center)

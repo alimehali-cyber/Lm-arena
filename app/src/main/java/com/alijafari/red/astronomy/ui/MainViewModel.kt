@@ -17,6 +17,9 @@ import com.alijafari.red.astronomy.data.database.AppDatabase
 import com.alijafari.red.astronomy.data.database.ObservationLogEntity
 import com.alijafari.red.astronomy.data.database.UserOccasionEntity
 import com.alijafari.red.astronomy.domain.*
+import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
+import com.alijafari.red.astronomy.ui.backdrop.LiveSkyPolicy
+import com.alijafari.red.astronomy.ui.backdrop.SkyLiveClock
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -49,7 +52,11 @@ data class MainUiState(
     val selectedTargetObject: CelestialObject? = null,
     val selectedSatelliteId: String? = null,
     val isLiquidGlassEnabled: Boolean = true,
-    val liquidGlassConfig: LiquidGlassConfig = LiquidGlassConfig()
+    val liquidGlassConfig: LiquidGlassConfig = LiquidGlassConfig(),
+    /** Live Sky app backdrop preference. Default OFF. Eligibility per screen is decided by [LiveSkyPolicy]. */
+    val liveSkyBackdropEnabled: Boolean = LiveSkyPolicy.DEFAULT_ENABLED,
+    /** Mutually exclusive full-window backdrop. [liveSkyBackdropEnabled] is true only for [AppBackdropMode.LIVE_SKY]. */
+    val appBackdropMode: AppBackdropMode = AppBackdropMode.NONE
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -57,9 +64,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = AppRepository(AppDatabase.getDatabase(application))
     private val prefs = application.getSharedPreferences("astro_app_prefs", Context.MODE_PRIVATE)
 
+    /** One live clock for the Home hero and the Live Sky backdrop. It runs only while something collects it. */
+    val skyLiveClock = SkyLiveClock(viewModelScope)
+
+    private val _skyDragOffsetHours = MutableStateFlow(0f)
+
+    /**
+     * The Home time-machine drag offset in hours (±12), including its animated return to zero. Home publishes it; the
+     * Live Sky backdrop reads it, so both scenes use the same effective instant. Home resets it to zero when it leaves.
+     */
+    val skyDragOffsetHours: StateFlow<Float> = _skyDragOffsetHours.asStateFlow()
+
+    fun setSkyDragOffsetHours(hours: Float) {
+        if (_skyDragOffsetHours.value != hours) _skyDragOffsetHours.value = hours
+    }
+
     private val _uiState = MutableStateFlow(
         MainUiState(
             isLiquidGlassEnabled = prefs.getBoolean("liquid_glass_enabled", true),
+            liveSkyBackdropEnabled = LiveSkyPolicy.loadEnabled(prefs),
+            appBackdropMode = AppBackdropMode.fromPrefs(prefs),
             liquidGlassConfig = LiquidGlassConfig(
                 enabled = prefs.getBoolean("liquid_glass_enabled", true),
                 clarity = prefs.getFloat("liquid_glass_clarity", 1.0f),
@@ -208,6 +232,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setThemeMode(themeMode: ThemeMode) {
         prefs.edit().putString("theme_mode", themeMode.name).apply()
         _uiState.update { it.copy(themeMode = themeMode) }
+    }
+
+    fun setLiveSkyBackdropEnabled(enabled: Boolean) {
+        setAppBackdropMode(if (enabled) AppBackdropMode.LIVE_SKY else AppBackdropMode.NONE)
+    }
+
+    fun setAppBackdropMode(mode: AppBackdropMode) {
+        AppBackdropMode.save(prefs, mode)
+        _uiState.update {
+            it.copy(
+                appBackdropMode = mode,
+                liveSkyBackdropEnabled = mode == AppBackdropMode.LIVE_SKY
+            )
+        }
     }
 
     fun setLiquidGlassEnabled(enabled: Boolean) {

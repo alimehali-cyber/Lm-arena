@@ -158,7 +158,8 @@ object MilkyWayRenderer {
         frameTimeMs: Long,
         theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
         latitudeDeg: Double = 0.0,
-        lastDeg: Double = 0.0
+        lastDeg: Double = 0.0,
+        projection: SkyProjection = HeroProjection
     ) {
         // Only render the photometric multi-isophote Milky Way in REAL_SKY mode;
         // the old generic stroke line remains removed across all themes.
@@ -172,7 +173,7 @@ object MilkyWayRenderer {
 
         val width = drawScope.size.width
         val height = drawScope.size.height
-        val horizonY = height * HeroSkyProjection.HORIZON_FRACTION
+        val horizonY = projection.clipBottomPx(height)
 
         // Colors from PiXiEED / pole-island-sky 5-level isophote palette
         val outerHaloTint = Color(0xFF5C6896)   // Level 1-2: diffuse silver-blue outer galactic halo
@@ -194,7 +195,7 @@ object MilkyWayRenderer {
                 val nodeAlpha = masterVisibility * extinction * node.surfaceBrightness
                 if (nodeAlpha <= 0.004f) continue
 
-                val centerPos = HeroSkyProjection.project(
+                val centerPos = projection.objectPosition(
                     centerHoriz.azimuthDeg,
                     centerHoriz.altitudeDeg,
                     width,
@@ -236,7 +237,7 @@ object MilkyWayRenderer {
                     val branchAlpha = (nodeAlpha * 0.022f).coerceIn(0f, 0.028f)
 
                     if (northHoriz.altitudeDeg > 2.5) {
-                        val nPos = HeroSkyProjection.project(northHoriz.azimuthDeg, northHoriz.altitudeDeg, width, height, latitudeDeg)
+                        val nPos = projection.objectPosition(northHoriz.azimuthDeg, northHoriz.altitudeDeg, width, height, latitudeDeg)
                         drawScope.drawCircle(
                             brush = Brush.radialGradient(
                                 0.0f to midTint.copy(alpha = branchAlpha),
@@ -251,7 +252,7 @@ object MilkyWayRenderer {
                         )
                     }
                     if (southHoriz.altitudeDeg > 2.5) {
-                        val sPos = HeroSkyProjection.project(southHoriz.azimuthDeg, southHoriz.altitudeDeg, width, height, latitudeDeg)
+                        val sPos = projection.objectPosition(southHoriz.azimuthDeg, southHoriz.altitudeDeg, width, height, latitudeDeg)
                         val southBoost = if (node.coreWarmth > 0.5f) 1.25f else 1.0f
                         val sColor = lerpColor(midTint, bulgeCoreTint, node.coreWarmth * 0.7f)
                         drawScope.drawCircle(
@@ -319,7 +320,7 @@ object MilkyWayRenderer {
                 val alpha = (speck.baseAlpha * masterVisibility * ext).coerceIn(0f, 0.22f)
                 if (alpha <= 0.015f) continue
 
-                val pos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
+                val pos = projection.objectPosition(horiz.azimuthDeg, horiz.altitudeDeg, width, height, latitudeDeg)
                 drawScope.drawCircle(
                     color = speck.color.copy(alpha = alpha),
                     radius = speck.radiusPx,

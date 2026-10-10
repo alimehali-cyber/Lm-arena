@@ -36,9 +36,10 @@ object MoonRenderer {
         theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
         brightLimbAngleDeg: Double = 0.0,
         parallacticAngleDeg: Double = 0.0,
-        limbScreenAngleDeg: Double? = null
+        limbScreenAngleDeg: Double? = null,
+        clipBottomPx: Float? = null
     ) {
-        val horizonY = drawScope.size.height * 0.85f
+        val horizonY = clipBottomPx ?: (drawScope.size.height * 0.85f)
         drawScope.clipRect(
             left = 0f,
             top = 0f,
