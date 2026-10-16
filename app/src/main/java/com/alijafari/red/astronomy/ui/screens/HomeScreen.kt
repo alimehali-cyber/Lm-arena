@@ -109,7 +109,8 @@ private fun bucketMs(timeMs: Long, isSimulation: Boolean, bucketMs: Long): Long 
 fun HomeScreen(
     uiState: MainUiState,
     viewModel: MainViewModel,
-    onNavigateToTab: (Int) -> Unit
+    onNavigateToTab: (Int) -> Unit,
+    glassBackdrop: com.kyant.backdrop.Backdrop? = null
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
 
@@ -484,6 +485,7 @@ fun HomeScreen(
                             sunHoriz = moonCardSunHoriz,
                             jd = moonCardJd,
                             onScrubDays = { delta -> viewModel.nudgeMoonDayOffset(delta) },
+                            glassBackdrop = glassBackdrop,
                             modifier = Modifier.size(cardSize)
                         )
 
@@ -525,6 +527,7 @@ fun HomeScreen(
                             fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
                             modifier = Modifier.fillMaxWidth(),
                             style = LiquidGlassDefaults.Card,
+                            backdrop = glassBackdrop,
                             fallbackShadowElevation = RedElevation.none,
                         ) {
                             Text(
@@ -543,6 +546,7 @@ fun HomeScreen(
                                 .fillMaxWidth()
                                 .testTag("home_highlights_card"),
                             style = LiquidGlassDefaults.Card,
+                            backdrop = glassBackdrop,
                             fallbackShadowElevation = RedElevation.none,
                         ) {
                             Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
@@ -597,6 +601,7 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .testTag("home_next_eclipses_card"),
                         style = LiquidGlassDefaults.Card,
+                        backdrop = glassBackdrop,
                         fallbackShadowElevation = RedElevation.none,
                     ) {
                         Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
@@ -1192,6 +1197,9 @@ private fun TonightEventRow(
  * Drag the Moon to scrub days — the same ±30 day gesture the Moon screen had — and tap the card to open
  * the Moon window with everything else. The render's dark side is transparent, so no black disc sits
  * behind the Moon; the card's glass shows straight through it.
+ *
+ * With [glassBackdrop] the card surface is REAL liquid glass and refracts the app background behind
+ * it; the Moon render sits on that glass untouched. Without it the card renders the token fallback.
  */
 @Composable
 private fun MoonPhaseCard(
@@ -1201,6 +1209,7 @@ private fun MoonPhaseCard(
     sunHoriz: CoordinateEngine.Horizontal,
     jd: Double,
     onScrubDays: (Float) -> Unit,
+    glassBackdrop: com.kyant.backdrop.Backdrop?,
     modifier: Modifier = Modifier
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
@@ -1218,6 +1227,7 @@ private fun MoonPhaseCard(
         modifier = modifier.testTag("home_moon_card"),
         shape = RoundedCornerShape(RedCornerRadius.tile),
         style = LiquidGlassDefaults.Card,
+        backdrop = glassBackdrop,
         fallbackColor = RedTheme.colors.surfaceElevated,
         onClick = { viewModel.setShowMoonWindow(true) }
     ) {

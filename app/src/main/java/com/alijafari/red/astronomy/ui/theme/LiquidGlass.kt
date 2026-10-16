@@ -11,23 +11,33 @@ package com.alijafari.red.astronomy.ui.theme
  *      in MainActivity is wrapped in `Modifier.layerBackdrop(backdrop)` and
  *      scoped to `CompositionLocalProvider(LocalLiquidGlassBackdrop provides null)`.
  *      These components MUST NOT attempt to call `drawBackdrop()` on that same root
- *      `backdrop` instance (doing so causes the fatal Kyant assertion:
- *      "Can not perform this action inside of drawBackdrop!"). They safely render
- *      high-contrast premium RED design tokens via their `fallbackColor`/`fallbackBorder`.
+ *      `backdrop` instance (doing so causes the fatal Kyant loop crash: the layer
+ *      captures content that draws the layer it is being captured into). They either
+ *      render the premium RED design tokens via their `fallbackColor`/`fallbackBorder`,
+ *      or — when they are glass cards — sample the BACKGROUND layer instead:
+ *      MainActivity wraps the app background (theme color, Live Sky, photo) in a
+ *      second capture layer (`glassBackdrop`) and passes it EXPLICITLY into
+ *      LabScreen/HomeScreen. Cards sitting outside that subtree (the Lab tiles, the
+ *      Home moon card, the tonight and eclipse cards) may safely call
+ *      `drawBackdrop(glassBackdrop)`: they refract the real pixels behind them and
+ *      can never re-enter their own capture.
  *    - Root-Level Sibling Overlays (Floating Bars, Modals, Full-Screen Dialogs):
  *      Components that should render real Liquid Glass optical effects (sampling the
  *      live, animated screen content beneath them) MUST sit OUTSIDE the Crossfade tree
  *      as direct siblings in `MainActivity.kt`'s root Box (e.g., `FloatingBottomBar`,
- *      `LocationSelectorDialog`).
+ *      `LocationSelectorDialog`). They sample the root `backdrop`, which captures
+ *      background + screens.
  *
  *    - Every `LiquidGlassSurface` ALSO scopes its own content to
  *      `LocalLiquidGlassBackdrop provides null`. A card nested inside a card therefore renders the
  *      fallback material instead of opening a second sampling pass on the same backdrop. Nesting is
- *      what the assertion below is about, and it is now impossible to trigger by accident.
+ *      what the loop crash is about, and it is now impossible to trigger by accident.
  *
  * 2. EXPLICIT PARAMETER PASSING MANDATE:
- *    - Always pass the root `backdrop: Backdrop?` as an EXPLICIT parameter down into
- *      the overlay composable and forward it to every internal `LiquidGlassSurface(backdrop = backdrop, ...)`.
+ *    - Always pass the backdrop to sample (`glassBackdrop` from inside the screens,
+ *      the root `backdrop` for overlays) as an EXPLICIT parameter down into the
+ *      overlay composable and forward it to every internal
+ *      `LiquidGlassSurface(backdrop = ..., ...)`.
  *    - NEVER rely on `LocalLiquidGlassBackdrop.current` for components intended to render
  *      real glass, since ambient composition local resolution is intentionally null-scoped
  *      inside the main content tree.

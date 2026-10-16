@@ -158,6 +158,18 @@ class MainActivity : ComponentActivity() {
                     } else {
                         null
                     }
+                    // The app background (theme color, Live Sky, photo) is captured into its own
+                    // layer, separate from the root `backdrop` above. In-screen cards (the Lab
+                    // tiles, the Home moon card, the tonight and eclipse cards) render REAL liquid
+                    // glass by sampling this layer, which shows the exact pixels behind them. That
+                    // is safe — they live outside its subtree. Sampling the root `backdrop` from
+                    // inside the layer it captures would be the fatal loop the Liquid Glass
+                    // placement rules forbid.
+                    val glassBackdrop = if (isGlassActive) {
+                        rememberLayerBackdrop()
+                    } else {
+                        null
+                    }
 
                     CompositionLocalProvider(
                         com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassEnabled provides (uiState.liquidGlassConfig.enabled && com.alijafari.red.astronomy.ui.theme.isLiquidGlassSupported()),
@@ -221,9 +233,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         ) { innerPadding ->
-                            // Live Sky ON: the layer spans the whole window, so the sky sits behind the status bar and
-                            // Liquid Glass samples it. The content keeps the same top inset. Live Sky OFF: this is the
-                            // pre-feature layout, unchanged.
+                            // Live Sky ON: the background layer spans the whole window, so the sky sits behind the
+                            // status bar and Liquid Glass samples it; the screens keep the Scaffold top inset in
+                            // every backdrop mode. The background (theme color, sky, photo) is also captured into
+                            // glassBackdrop — a second layer the in-screen cards refract as real liquid glass.
                             val liveSkyLayout = uiState.appBackdropMode != AppBackdropMode.NONE
                             val contentTopPadding = innerPadding.calculateTopPadding()
                             Box(
@@ -238,6 +251,25 @@ class MainActivity : ComponentActivity() {
                                     )
                                     .padding(top = if (liveSkyLayout) 0.dp else contentTopPadding)
                             ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .then(
+                                            if (glassBackdrop != null && uiState.selectedTab != 3) {
+                                                Modifier.layerBackdrop(glassBackdrop)
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
+                                ) {
+                                    // Solid theme background inside the capture layer, so real-glass
+                                    // cards always have real pixels to refract, even with no photo or
+                                    // Live Sky beneath them.
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(com.alijafari.red.astronomy.ui.theme.RedTheme.colors.background)
+                                    )
                                 // Always composed. It emits nothing unless Live Sky is eligible for the current screen.
                                 LiveSkyBackdrop(
                                     enabled = uiState.appBackdropMode == AppBackdropMode.LIVE_SKY,
@@ -258,6 +290,7 @@ class MainActivity : ComponentActivity() {
                                     selectedTab = uiState.selectedTab,
                                     modifier = Modifier.fillMaxSize()
                                 )
+                                }
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -274,7 +307,8 @@ class MainActivity : ComponentActivity() {
                                                 // Root tab 2 is retired: the Moon screen became a card on Home.
                                                 0 -> LabScreen(
                                                     uiState = uiState,
-                                                    viewModel = viewModel
+                                                    viewModel = viewModel,
+                                                    glassBackdrop = glassBackdrop
                                                 )
                                                 1 -> ISSScreen(
                                                     uiState = uiState,
@@ -287,7 +321,8 @@ class MainActivity : ComponentActivity() {
                                                 4 -> HomeScreen(
                                                     uiState = uiState,
                                                     viewModel = viewModel,
-                                                    onNavigateToTab = { viewModel.selectTab(it) }
+                                                    onNavigateToTab = { viewModel.selectTab(it) },
+                                                    glassBackdrop = glassBackdrop
                                                 )
                                             }
                                         }

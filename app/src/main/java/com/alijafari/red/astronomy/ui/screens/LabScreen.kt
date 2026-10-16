@@ -68,6 +68,7 @@ enum class LabFeatureType(
 fun LabScreen(
     uiState: MainUiState,
     viewModel: MainViewModel,
+    glassBackdrop: com.kyant.backdrop.Backdrop? = null,
     modifier: Modifier = Modifier
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
@@ -133,6 +134,7 @@ fun LabScreen(
                                 LabFeatureTile(
                                     feature = feature,
                                     isFa = isFa,
+                                    glassBackdrop = glassBackdrop,
                                     onClick = {
                                         if (feature.isAvailable) {
                                             selectedFeature = feature
@@ -160,11 +162,15 @@ fun LabScreen(
  * One Lab feature, presented like the Home moon card: a glass square wearing the tile radius, the
  * feature's minimal graphic filling most of it, and just the name beneath. Nothing else rides on
  * the card — no icon badge, no subtitle, no description.
+ *
+ * With [glassBackdrop] the tile is REAL liquid glass: it refracts the app background behind it
+ * (Live Sky, photo or theme color). Without it the tile renders the token fallback material.
  */
 @Composable
 private fun LabFeatureTile(
     feature: LabFeatureType,
     isFa: Boolean,
+    glassBackdrop: com.kyant.backdrop.Backdrop?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -172,6 +178,7 @@ private fun LabFeatureTile(
         modifier = modifier.testTag("lab_feature_card_${feature.name.lowercase()}"),
         shape = RoundedCornerShape(RedCornerRadius.tile),
         style = LiquidGlassDefaults.Card,
+        backdrop = glassBackdrop,
         fallbackColor = RedTheme.colors.surfaceElevated,
         onClick = onClick
     ) {
