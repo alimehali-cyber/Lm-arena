@@ -1216,7 +1216,7 @@ private fun MoonPhaseCard(
 
     LiquidGlassSurface(
         modifier = modifier.testTag("home_moon_card"),
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = RoundedCornerShape(RedCornerRadius.tile),
         style = LiquidGlassDefaults.Card,
         fallbackColor = RedTheme.colors.surfaceElevated,
         onClick = { viewModel.setShowMoonWindow(true) }
@@ -1278,7 +1278,7 @@ private fun SkyCanvasCard(
 ) {
     LiquidGlassSurface(
         modifier = modifier.testTag("home_sky_card"),
-        shape = RoundedCornerShape(RedCornerRadius.window),
+        shape = RoundedCornerShape(RedCornerRadius.tile),
         style = LiquidGlassDefaults.Card,
         clearGlass = true,
         fallbackColor = RedTheme.colors.surfaceElevated

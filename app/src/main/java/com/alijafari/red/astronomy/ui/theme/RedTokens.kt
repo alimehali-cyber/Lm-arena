@@ -42,6 +42,11 @@ object RedCornerRadius {
      * Small controls above keep their own radii, so the concentric hierarchy still reads.
      */
     val window: Dp = 34.dp      // iOS 27 liquid glass medium/large radius
+    /**
+     * The picture tiles — the Home moon card, the Home sky canvas card and the Lab feature tiles.
+     * 20% rounder than the standard card radius ([window]): 34dp → 40.8dp.
+     */
+    val tile: Dp = 40.8.dp
     val lg: Dp = window     // Primary cards, list grouped containers
     val xl: Dp = window     // Hero cards, sheet dialogs
     val xxl: Dp = window    // Floating bars, modals

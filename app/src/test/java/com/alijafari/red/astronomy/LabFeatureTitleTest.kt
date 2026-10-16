@@ -12,11 +12,14 @@ import java.io.File
  * The Labs card for the sandbox is *named*, not described.
  *
  * Source-level, like the sandbox's own structural guards: this project has no Compose UI test
- * harness, so what can be proved from the JVM is the string the card renders, the code path that
- * renders it, and the fact that nothing else on the card moved. The title is the feature's name in
- * both languages and carries nothing else — no product prefix, no colon, no ampersand, and no
- * subtitle folded into it. Subtitle, description, icon, ordering and navigation are the card's own
- * business and are pinned here as unchanged.
+ * harness, so what can be proved from the JVM is the string the card renders and the code path that
+ * renders it. The title is the feature's name in both languages and carries nothing else — no
+ * product prefix, no colon, no ampersand, and no subtitle folded into it.
+ *
+ * The card itself is now a picture tile like the Home moon card: one minimal graphic that says what
+ * the tool is, the name beneath it, and the tile radius. The icon badge, the subtitle and the
+ * description are gone by design and are pinned here as gone. Ordering and navigation are pinned as
+ * unchanged.
  */
 class LabFeatureTitleTest {
 
@@ -55,20 +58,31 @@ class LabFeatureTitleTest {
     }
 
     @Test
-    fun theCardStillLocalizesItsTitleAndKeepsEverythingElse() {
+    fun theCardIsNowAPictureTileCarryingJustItsName() {
         val text = labScreen()
 
-        // The localization mechanism is untouched: one Text per line of the card, chosen by locale,
-        // with nothing concatenated onto the feature name.
+        // The localization mechanism is untouched: one Text per card, chosen by locale, with nothing
+        // concatenated onto the feature name.
         assertTrue(text.contains("if (isFa) feature.titleFa else feature.titleEn"))
-        assertTrue(text.contains("if (isFa) feature.subtitleFa else feature.subtitleEn"))
         assertTrue("the card is still addressed by its tag", text.contains("lab_feature_card_"))
 
+        // The retired card furniture must not come back: no icon badges, no subtitles, no
+        // descriptions, and no header banner card above the tiles.
+        assertFalse("no icon badges on the tiles", text.contains("feature.icon") || text.contains("Icons.Default."))
+        assertFalse("no subtitles on the tiles", text.contains("subtitleEn") || text.contains("subtitleFa"))
+        assertFalse("no descriptions on the tiles", text.contains("descriptionEn") || text.contains("descriptionFa"))
+        assertFalse(
+            "the Astrophysics Lab banner card is gone",
+            text.contains("lab_header_card") || text.contains("Astrophysics Lab")
+        )
+
+        // Every tile carries its own minimal picture of the feature.
+        assertTrue(text.contains("LabFeatureGraphic("))
+        for (artwork in listOf("TimeDilationArtwork", "GravitySandboxArtwork", "GargantuaArtwork", "ChalArtwork")) {
+            assertTrue("$artwork must draw its tile's picture", text.contains("fun $artwork("))
+        }
+
         val block = featureBlock("GRAVITY_SANDBOX")
-        assertEquals("Newton-Kepler Orbital Simulator", value(block, "subtitleEn"))
-        assertEquals("آزمایشگاه مکانیک سماوی و مدارهای کپلری", value(block, "subtitleFa"))
-        assertEquals("Simulate multi-body gravitational interactions, planetary orbits, binary stars, Lagrange equilibrium points, and black hole slingshots.", value(block, "descriptionEn"))
-        assertTrue("the icon is unchanged", block.contains("icon = Icons.Default.Public"))
         assertTrue("the card is still available", block.contains("isAvailable = true"))
 
         // Ordering and navigation are unchanged: the sandbox is still the second feature, and it
@@ -86,6 +100,31 @@ class LabFeatureTitleTest {
             "tapping the sandbox card still opens the sandbox",
             text.contains("selectedFeature == LabFeatureType.GRAVITY_SANDBOX") &&
                 text.contains("com.zig.gravity.ui.GravitySandboxRoot(")
+        )
+    }
+
+    @Test
+    fun thePictureTilesWearTheTwentyPercentRounderRadius() {
+        // The moon card set the old standard at 34dp. The picture tiles — the Lab four plus the
+        // Home moon and sky canvas cards — all wear 20% more: 40.8dp.
+        val tokens = readMain("java/com/alijafari/red/astronomy/ui/theme/RedTokens.kt")
+        assertTrue("the tile radius token must exist", tokens.contains("val tile: Dp = 40.8.dp"))
+
+        val home = readMain("java/com/alijafari/red/astronomy/ui/screens/HomeScreen.kt")
+        assertEquals(
+            "exactly the moon card and the sky canvas card wear the tile radius on Home",
+            2,
+            Regex("""RoundedCornerShape\(RedCornerRadius\.tile\)""").findAll(home).count()
+        )
+        assertTrue(
+            "the tile radius must sit on the two hero cards, not somewhere unrelated",
+            home.indexOf("home_moon_card") < home.indexOf("RedCornerRadius.tile") &&
+                home.indexOf("home_sky_card") < home.lastIndexOf("RedCornerRadius.tile")
+        )
+
+        assertTrue(
+            "the Lab tiles wear the tile radius too",
+            labScreen().contains("RoundedCornerShape(RedCornerRadius.tile)")
         )
     }
 
