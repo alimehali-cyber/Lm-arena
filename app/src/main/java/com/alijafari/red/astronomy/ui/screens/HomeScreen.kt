@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,10 +29,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
@@ -40,6 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -272,17 +278,6 @@ fun HomeScreen(
         )
     }
 
-    // Which eclipse family the "Upcoming Eclipses" card is listing. It defaults to
-    // whichever family has the soonest event at the user's location, and flips when
-    // the Solar/Lunar chips below (or a "Tonight" eclipse row) are tapped.
-    var eclipseKindIsSolar by remember {
-        mutableStateOf(
-            (nextSolarEclipses.firstOrNull()?.localPeakTimeMs ?: Long.MAX_VALUE) <=
-                (nextLunarEclipses.firstOrNull()?.localPeakTimeMs ?: Long.MAX_VALUE)
-        )
-    }
-    val listedEclipses = if (eclipseKindIsSolar) nextSolarEclipses else nextLunarEclipses
-
     val filteredSearchResults = remember(searchQuery, sortedObjectsWithObs) {
         val q = searchQuery.trim().lowercase()
         sortedObjectsWithObs.filter { (obj, _, _) ->
@@ -464,7 +459,39 @@ fun HomeScreen(
                         }
                     }
                 }
-            // 1. MOON + SKY CARDS — the two hero cards side by side, directly under the location selector.
+            // 1. WHAT'S UP TONIGHT — the big hero card, directly under the location selector. Four Moon
+            //    cards' worth of glass, carrying only tonight's events; the section text that used to
+            //    stand above it is gone, like every other text outside the cards.
+            item {
+                val tonightEvents = remember(uiState.userLocation, catalogJd, isFa) {
+                    WhatsUpTonightEngine.calculateTonightEvents(
+                        jd = catalogJd,
+                        userLatDeg = uiState.userLocation.latitude,
+                        userLonDeg = uiState.userLocation.longitude,
+                        isFa = isFa
+                    )
+                }
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val moonTileSize = ((maxWidth - RedSpacing.md) / 2).coerceAtLeast(120.dp)
+                    TonightHeroCard(
+                        events = tonightEvents,
+                        isFa = isFa,
+                        glassBackdrop = glassBackdrop,
+                        onEventClick = { event ->
+                            when {
+                                event.id.startsWith("solar_") -> selectedEclipseResult = nextSolarEclipses.firstOrNull()
+                                event.id.startsWith("lunar_") -> selectedEclipseResult = nextLunarEclipses.firstOrNull()
+                                else -> event.targetObject?.let { obj -> viewModel.openObjectDetail(obj) }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(moonTileSize * 2)
+                    )
+                }
+            }
+
+            // 2. MOON + SKY CARDS — the two hero cards side by side, under the tonight card.
             //    Both are glass squares wearing the one card radius. Tapping the Moon card opens the Moon
             //    window; the sky card's own button opens the fullscreen landscape sky.
             item {
@@ -499,153 +526,38 @@ fun HomeScreen(
                 }
             }
 
-            // 2. WHAT'S UP TONIGHT? — Level 2: Contextual Astronomical Information
+            // 3. SOLAR + LUNAR ECLIPSE CARDS — one picture tile per eclipse family, like the Moon card:
+            //    glass square, a minimal monochrome picture of the phenomenon, and the date of the next
+            //    one. Tapping a tile opens that eclipse's detail window.
             item {
-                val tonightEvents = remember(uiState.userLocation, catalogJd, isFa) {
-                    WhatsUpTonightEngine.calculateTonightEvents(
-                        jd = catalogJd,
-                        userLatDeg = uiState.userLocation.latitude,
-                        userLonDeg = uiState.userLocation.longitude,
-                        isFa = isFa
-                    )
-                }
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                val solarNext = nextSolarEclipses.firstOrNull()
+                val lunarNext = nextLunarEclipses.firstOrNull()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("home_eclipse_cards_row"),
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                 ) {
-                    RedSectionHeader(
-                        title = if (isFa) "امشب در آسمان" else "What's Up Tonight",
-                        subtitle = if (isFa) "رویدادهای شاخص نجومی برای مختصات شما"
-                        else "Key celestial events for your coordinates"
-                    )
-
-                    if (tonightEvents.isEmpty()) {
-                        LiquidGlassSurface(
-                            shape = RoundedCornerShape(RedCornerRadius.lg),
-                            fallbackColor = RedTheme.colors.surfaceElevated,
-                            fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
-                            modifier = Modifier.fillMaxWidth(),
-                            style = LiquidGlassDefaults.Card,
-                            backdrop = glassBackdrop,
-                            fallbackShadowElevation = RedElevation.none,
-                        ) {
-                            Text(
-                                text = if (isFa) "امشب رویداد شاخصی ثبت نشده است." else "No major celestial events tonight.",
-                                style = RedTypographyTokens.bodySecondary,
-                                color = RedTheme.colors.textSecondary,
-                                modifier = Modifier.padding(RedSpacing.lg)
-                            )
-                        }
-                    } else {
-                        LiquidGlassSurface(
-                            shape = RoundedCornerShape(RedCornerRadius.xl),
-                            fallbackColor = RedTheme.colors.surfaceElevated,
-                            fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("home_highlights_card"),
-                            style = LiquidGlassDefaults.Card,
-                            backdrop = glassBackdrop,
-                            fallbackShadowElevation = RedElevation.none,
-                        ) {
-                            Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
-                                tonightEvents.take(5).forEachIndexed { idx, event ->
-                                    TonightEventRow(
-                                        event = event,
-                                        isTopRanked = idx == 0,
-                                        isFa = isFa,
-                                        onClick = {
-                                            when {
-                                                event.id.startsWith("solar_") -> {
-                                                    eclipseKindIsSolar = true
-                                                    selectedEclipseResult = nextSolarEclipses.firstOrNull()
-                                                }
-                                                event.id.startsWith("lunar_") -> {
-                                                    eclipseKindIsSolar = false
-                                                    selectedEclipseResult = nextLunarEclipses.firstOrNull()
-                                                }
-                                                else -> event.targetObject?.let { obj ->
-                                                    viewModel.openObjectDetail(obj)
-                                                }
-                                            }
-                                        }
-                                    )
-                                    if (idx < minOf(4, tonightEvents.size - 1)) {
-                                        RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.md))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. UPCOMING ECLIPSES SECTION — Level 3: Supporting Astronomical Events
-            item {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
-                ) {
-                    RedSectionHeader(
-                        title = if (isFa) "گرفتگی‌های نجومی" else "Upcoming Eclipses",
-                        subtitle = if (isFa) "محاسبه دقیق کسوف و خسوف بر اساس موقعیت شما"
-                        else "Calculated precisely for your location"
-                    )
-
-                    LiquidGlassSurface(
-                        shape = RoundedCornerShape(RedCornerRadius.xl),
-                        fallbackColor = RedTheme.colors.surfaceElevated,
-                        fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
+                    EclipseTileCard(
+                        isSolar = true,
+                        dateText = solarNext?.let { if (isFa) it.formattedDateFa else it.formattedDateEn }
+                            ?: (if (isFa) "خورشیدگرفتگی" else "Solar Eclipses"),
+                        glassBackdrop = glassBackdrop,
+                        onClick = { solarNext?.let { eclipse -> selectedEclipseResult = eclipse } },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("home_next_eclipses_card"),
-                        style = LiquidGlassDefaults.Card,
-                        backdrop = glassBackdrop,
-                        fallbackShadowElevation = RedElevation.none,
-                    ) {
-                        Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
-                            // Solar / Lunar selector — each family lists its own next 3 eclipses,
-                            // every one of them evaluated for the user's location.
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = RedSpacing.md, vertical = RedSpacing.xs),
-                                horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
-                            ) {
-                                EclipseFamilyChip(
-                                    selected = eclipseKindIsSolar,
-                                    onClick = { eclipseKindIsSolar = true },
-                                    label = if (isFa) "☀️ خورشیدگرفتگی" else "☀️ Solar",
-                                    modifier = Modifier.testTag("eclipse_family_solar")
-                                )
-                                EclipseFamilyChip(
-                                    selected = !eclipseKindIsSolar,
-                                    onClick = { eclipseKindIsSolar = false },
-                                    label = if (isFa) "🌙 ماه‌گرفتگی" else "🌙 Lunar",
-                                    modifier = Modifier.testTag("eclipse_family_lunar")
-                                )
-                            }
-
-                            // The next 3 eclipses of the selected family, chronological.
-                            listedEclipses.forEachIndexed { idx, eclipse ->
-                                if (idx > 0) {
-                                    RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.md))
-                                }
-                                EclipseItemRow(
-                                    isSolar = eclipse.event.isSolar,
-                                    isPrimary = idx == 0,
-                                    title = if (isFa) eclipse.event.nameFa else eclipse.event.nameEn,
-                                    dateStr = if (isFa) eclipse.formattedDateFa else eclipse.formattedDateEn,
-                                    visibilityInfo = if (isFa) eclipse.localVisibilityTextFa else eclipse.localVisibilityTextEn,
-                                    isLocallyVisible = eclipse.isLocallyVisible,
-                                    visibilityGrade = eclipse.visibility.grade,
-                                    isFa = isFa,
-                                    onClick = { selectedEclipseResult = eclipse }
-                                )
-                            }
-                        }
-                    }
+                            .weight(1f)
+                            .aspectRatio(1f)
+                    )
+                    EclipseTileCard(
+                        isSolar = false,
+                        dateText = lunarNext?.let { if (isFa) it.formattedDateFa else it.formattedDateEn }
+                            ?: (if (isFa) "ماه‌گرفتگی" else "Lunar Eclipses"),
+                        glassBackdrop = glassBackdrop,
+                        onClick = { lunarNext?.let { eclipse -> selectedEclipseResult = eclipse } },
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
+                    )
                 }
             }
 
@@ -942,252 +854,254 @@ private fun CelestialObjectIcon(
     )
 }
 
+
+
+
 /**
- * Solar / Lunar selector chip for the "Upcoming Eclipses" card.
- *
- * Uses the app's red accent for the selected family so the chip reads as part of the
- * same visual language as [EclipseItemRow]'s primary-row icon.
+ * Shared space-black of the eclipse shadows — black is the monochrome dark.
+ */
+private val EclipseShadow = Color(0xFF060609)
+
+/**
+ * The What's Up Tonight hero: one big minimal glass card — four Moon cards' worth of surface —
+ * carrying only tonight's events. No section text stands outside it; the card is the section.
  */
 @Composable
-private fun EclipseFamilyChip(
-    selected: Boolean,
-    onClick: () -> Unit,
-    label: String,
+private fun TonightHeroCard(
+    events: List<WhatsUpTonightEngine.TonightEvent>,
+    isFa: Boolean,
+    glassBackdrop: com.kyant.backdrop.Backdrop?,
+    onEventClick: (WhatsUpTonightEngine.TonightEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = label,
-                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Medium)
-            )
-        },
-        modifier = modifier,
-        shape = CircleShape,
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = RedTheme.colors.surfaceGrouped,
-            labelColor = RedTheme.colors.textSecondary,
-            selectedContainerColor = RedTheme.colors.accentRed.copy(alpha = 0.16f),
-            selectedLabelColor = RedTheme.colors.accentRed
-        )
-    )
-}
-
-@Composable
-private fun EclipseItemRow(
-    isSolar: Boolean,
-    isPrimary: Boolean,
-    title: String,
-    dateStr: String,
-    visibilityInfo: String,
-    isLocallyVisible: Boolean,
-    /** Verdict from [EclipseVisibility]; drives the badge shown on the right. */
-    visibilityGrade: EclipseVisibility.Grade = EclipseVisibility.Grade.NOT_OBSERVABLE,
-    isFa: Boolean,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm)
-            .testTag("eclipse_item_row_${title.lowercase().replace(' ', '_')}"),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+    LiquidGlassSurface(
+        modifier = modifier.testTag("home_tonight_card"),
+        shape = RoundedCornerShape(RedCornerRadius.tile),
+        style = LiquidGlassDefaults.Card,
+        backdrop = glassBackdrop,
+        fallbackColor = RedTheme.colors.surfaceElevated,
+        fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
+        fallbackShadowElevation = RedElevation.none
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(RedSpacing.md),
-            modifier = Modifier.weight(1f)
-        ) {
-            Icon(
-                imageVector = if (isSolar) Icons.Outlined.WbSunny else Icons.Outlined.NightsStay,
-                contentDescription = null,
-                tint = if (isPrimary) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
-                modifier = Modifier.size(22.dp)
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        if (events.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = title,
-                    style = RedTypographyTokens.bodyPrimary.copy(
-                        fontWeight = if (isPrimary) FontWeight.SemiBold else FontWeight.Medium
-                    ),
-                    color = RedTheme.colors.textPrimary
-                )
-                Text(
-                    text = dateStr,
-                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Medium),
-                    color = if (isPrimary) RedTheme.colors.accentRed else RedTheme.colors.textSecondary
-                )
-                Text(
-                    text = visibilityInfo,
-                    style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                    text = if (isFa) "امشب رویداد شاخصی ثبت نشده است." else "No major celestial events tonight.",
+                    style = RedTypographyTokens.bodySecondary,
                     color = RedTheme.colors.textSecondary
                 )
             }
-        }
-
-        // The list is already filtered to observable events (see EclipseVisibility),
-        // so an event can still be "in the sky" yet have nothing worth seeing — that
-        // is the fallback case, and it must not wear the same badge as a good one.
-        when {
-            visibilityGrade == EclipseVisibility.Grade.SPECTACULAR -> {
-                RedStatusBadge(
-                    text = if (isFa) "دیدنی و بی‌نظیر" else "Spectacular",
-                    statusColor = RedTheme.colors.statusSuccess,
-                    containerColor = RedTheme.colors.statusSuccessContainer
-                )
-            }
-            visibilityGrade == EclipseVisibility.Grade.EXCELLENT ||
-                visibilityGrade == EclipseVisibility.Grade.GOOD -> {
-                RedStatusBadge(
-                    text = if (isFa) visibilityGrade.labelFa else visibilityGrade.labelEn,
-                    statusColor = RedTheme.colors.statusSuccess,
-                    containerColor = RedTheme.colors.statusSuccessContainer
-                )
-            }
-            visibilityGrade == EclipseVisibility.Grade.MARGINAL -> {
-                RedStatusBadge(
-                    text = if (isFa) visibilityGrade.labelFa else visibilityGrade.labelEn,
-                    statusColor = RedTheme.colors.statusWarning,
-                    containerColor = RedTheme.colors.statusWarningContainer
-                )
-            }
-            isLocallyVisible -> {
-                RedBadge(
-                    text = if (isFa) "تقریباً دیده نمی‌شود" else "Barely Visible",
-                    isAccent = true
-                )
-            }
-            else -> {
-                RedBadge(
-                    text = if (isFa) "غیرقابل رصد" else "Not Visible",
-                    backgroundColor = RedTheme.colors.surfaceGrouped,
-                    textColor = RedTheme.colors.textTertiary,
-                    borderColor = RedTheme.colors.border
-                )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(vertical = RedSpacing.lg),
+                verticalArrangement = Arrangement.Center
+            ) {
+                events.take(5).forEachIndexed { idx, event ->
+                    TonightHeroRow(
+                        event = event,
+                        isTopRanked = idx == 0,
+                        isFa = isFa,
+                        onClick = { onEventClick(event) }
+                    )
+                    if (idx < minOf(4, events.size - 1)) {
+                        RedHairlineDivider(modifier = Modifier.padding(horizontal = RedSpacing.lg))
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun TonightEventRow(
+private fun TonightHeroRow(
     event: WhatsUpTonightEngine.TonightEvent,
     isTopRanked: Boolean,
     isFa: Boolean,
     onClick: () -> Unit
 ) {
-    val eventIcon = when {
-        event.targetObject != null -> when (event.targetObject.type) {
-            ObjectType.PLANET, ObjectType.DWARF_PLANET -> Icons.Outlined.Public
-            ObjectType.MOON -> Icons.Outlined.NightsStay
-            ObjectType.SUN -> Icons.Outlined.WbSunny
-            ObjectType.STAR, ObjectType.ASTERISM -> Icons.Outlined.Star
-            ObjectType.DEEP_SKY, ObjectType.GALAXY, ObjectType.NEBULA,
-            ObjectType.STAR_CLUSTER, ObjectType.GLOBULAR_CLUSTER, ObjectType.BLACK_HOLE -> Icons.Outlined.AutoAwesome
-            ObjectType.SATELLITE -> Icons.Outlined.Sensors
-            ObjectType.METEOR_SHOWER -> Icons.Outlined.FlashOn
-            ObjectType.CONSTELLATION -> Icons.Outlined.Grain
-            ObjectType.REFERENCE_POINT -> Icons.Outlined.Place
-        }
-        event.id.contains("solar") -> Icons.Outlined.WbSunny
-        event.id.contains("lunar") -> Icons.Outlined.NightsStay
-        event.id.contains("meteor") -> Icons.Outlined.FlashOn
-        event.id.contains("iss") -> Icons.Outlined.Sensors
-        else -> Icons.Outlined.AutoAwesome
-    }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
+            .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(RedSpacing.md),
-            modifier = Modifier.weight(1f)
+        Text(
+            text = if (isFa) event.titleFa else event.titleEn,
+            style = RedTypographyTokens.bodyPrimary.copy(
+                fontWeight = if (isTopRanked) FontWeight.SemiBold else FontWeight.Medium,
+                fontSize = if (isTopRanked) 16.sp else 14.sp
+            ),
+            color = RedTheme.colors.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = RedSpacing.md)
+        )
+        Text(
+            text = (if (isFa) event.timeOrDateStrFa else event.timeOrDateStrEn) +
+                " \u2022 " +
+                (if (isFa) event.visibilityTextFa else event.visibilityTextEn),
+            style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+            color = RedTheme.colors.textSecondary,
+            maxLines = 1
+        )
+    }
+}
+
+/**
+ * One eclipse family, presented like the Moon card: a glass square wearing the tile radius, a minimal
+ * monochrome picture of the phenomenon, and the date of the next one — the picture says which family
+ * it is, exactly as the Moon render identifies the Moon card. Tapping opens that eclipse's details.
+ */
+@Composable
+private fun EclipseTileCard(
+    isSolar: Boolean,
+    dateText: String,
+    glassBackdrop: com.kyant.backdrop.Backdrop?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val tileModifier = if (isSolar) {
+        modifier.testTag("home_solar_eclipse_card")
+    } else {
+        modifier.testTag("home_lunar_eclipse_card")
+    }
+
+    LiquidGlassSurface(
+        modifier = tileModifier,
+        shape = RoundedCornerShape(RedCornerRadius.tile),
+        style = LiquidGlassDefaults.Card,
+        backdrop = glassBackdrop,
+        fallbackColor = RedTheme.colors.surfaceElevated,
+        onClick = onClick
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(RedSpacing.sm),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = eventIcon,
-                contentDescription = null,
-                tint = if (isTopRanked) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
-                modifier = Modifier.size(20.dp)
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(
-                    text = if (isFa) event.titleFa else event.titleEn,
-                    style = RedTypographyTokens.bodyPrimary.copy(
-                        fontWeight = if (isTopRanked) FontWeight.SemiBold else FontWeight.Medium
-                    ),
-                    color = RedTheme.colors.textPrimary
-                )
-                Text(
-                    text = if (isFa) event.explanationFa else event.explanationEn,
-                    style = RedTypographyTokens.caption,
-                    color = RedTheme.colors.textSecondary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.xs),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isFa) event.timeOrDateStrFa else event.timeOrDateStrEn,
-                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
-                        color = RedTheme.colors.accentRed
-                    )
-                    Text(
-                        text = "•",
-                        style = RedTypographyTokens.caption,
-                        color = RedTheme.colors.textTertiary
-                    )
-                    Text(
-                        text = if (isFa) event.visibilityTextFa else event.visibilityTextEn,
-                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                        color = RedTheme.colors.textSecondary
-                    )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.72f)
+                    .aspectRatio(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSolar) {
+                    SolarEclipseArtwork(modifier = Modifier.fillMaxSize())
+                } else {
+                    LunarEclipseArtwork(modifier = Modifier.fillMaxSize())
                 }
             }
+
+            Spacer(modifier = Modifier.height(RedSpacing.sm))
+
+            Text(
+                text = dateText,
+                style = RedTypographyTokens.caption.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp
+                ),
+                color = RedTheme.colors.textPrimary,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/**
+ * Solar eclipse, monochrome line art: the Moon exactly covering the photosphere, the chromosphere as
+ * a hairline ring at the limb, and the corona as eight quiet rays beyond it — totality, nothing else.
+ */
+@Composable
+private fun SolarEclipseArtwork(modifier: Modifier = Modifier) {
+    val ink = RedTheme.colors.textPrimary
+
+    Canvas(modifier) {
+        val s = size.minDimension
+        val cx = center.x
+        val cy = center.y
+
+        // Corona rays: eight directions, alternating reach.
+        val directions = listOf(
+            0f to -1f, 0.707f to -0.707f, 1f to 0f, 0.707f to 0.707f,
+            0f to 1f, -0.707f to 0.707f, -1f to 0f, -0.707f to -0.707f
+        )
+        directions.forEachIndexed { i, (dx, dy) ->
+            val inner = 0.285f * s
+            val outer = if (i % 2 == 0) 0.42f * s else 0.35f * s
+            drawLine(
+                color = ink.copy(alpha = if (i % 2 == 0) 0.42f else 0.28f),
+                start = Offset(cx + dx * inner, cy + dy * inner),
+                end = Offset(cx + dx * outer, cy + dy * outer),
+                strokeWidth = s * 0.013f,
+                cap = StrokeCap.Round
+            )
         }
 
-        when (event.visibilityStatus) {
-            WhatsUpTonightEngine.EventVisibilityStatus.OPTIMAL -> {
-                RedStatusBadge(
-                    text = if (isFa) "عالی" else "Optimal",
-                    statusColor = RedTheme.colors.statusSuccess,
-                    containerColor = RedTheme.colors.statusSuccessContainer
-                )
-            }
-            WhatsUpTonightEngine.EventVisibilityStatus.GOOD -> {
-                RedStatusBadge(
-                    text = if (isFa) "خوب" else "Good",
-                    statusColor = RedTheme.colors.accentRed,
-                    containerColor = RedTheme.colors.accentRed.copy(alpha = 0.12f)
-                )
-            }
-            WhatsUpTonightEngine.EventVisibilityStatus.MARGINAL -> {
-                RedStatusBadge(
-                    text = if (isFa) "متوسط" else "Marginal",
-                    statusColor = RedTheme.colors.statusWarning,
-                    containerColor = RedTheme.colors.statusWarningContainer
-                )
-            }
-            WhatsUpTonightEngine.EventVisibilityStatus.NOT_VISIBLE -> {
-                RedBadge(
-                    text = if (isFa) "غیرقابل رصد" else "Not Visible",
-                    backgroundColor = RedTheme.colors.surfaceGrouped,
-                    textColor = RedTheme.colors.textTertiary,
-                    borderColor = RedTheme.colors.border
-                )
-            }
+        // The chromosphere, a hairline ring right at the limb.
+        drawCircle(
+            color = ink.copy(alpha = 0.85f),
+            radius = 0.225f * s,
+            style = Stroke(width = s * 0.013f)
+        )
+
+        // The Moon, covering the photosphere.
+        drawCircle(color = EclipseShadow, radius = 0.215f * s)
+    }
+}
+
+/**
+ * Lunar eclipse, monochrome line art: the lunar disc with Earth's circular umbra crossing it —
+ * the crisp umbral edge is the phase; no color is needed to read it.
+ */
+@Composable
+private fun LunarEclipseArtwork(modifier: Modifier = Modifier) {
+    val ink = RedTheme.colors.textPrimary
+
+    Canvas(modifier) {
+        val s = size.minDimension
+        val cx = center.x
+        val cy = center.y
+        val rMoon = 0.25f * s
+
+        // The lunar disc: pale fill and a fine limb.
+        drawCircle(color = ink.copy(alpha = 0.12f), radius = rMoon)
+        drawCircle(
+            color = ink.copy(alpha = 0.8f),
+            radius = rMoon,
+            style = Stroke(width = s * 0.013f)
+        )
+
+        // Earth's umbra, clipped to the disc so the shadow reads as a phase.
+        val moonPath = Path().apply {
+            addOval(Rect(cx - rMoon, cy - rMoon, cx + rMoon, cy + rMoon))
         }
+        clipPath(moonPath) {
+            drawCircle(
+                color = EclipseShadow.copy(alpha = 0.92f),
+                radius = 0.36f * s,
+                center = Offset(cx - 0.20f * s, cy - 0.12f * s)
+            )
+        }
+
+        // The limb again, so the shadow never eats the outline.
+        drawCircle(
+            color = ink.copy(alpha = 0.8f),
+            radius = rMoon,
+            style = Stroke(width = s * 0.013f)
+        )
     }
 }
 

@@ -56,9 +56,9 @@ class RealGlassCardsTest {
         val home = readMain("java/com/alijafari/red/astronomy/ui/screens/HomeScreen.kt")
 
         assertTrue("HomeScreen must accept the background capture layer", home.contains("glassBackdrop: com.kyant.backdrop.Backdrop?"))
-        // Moon card surface, the tonight card (both states) and the eclipse card.
+        // Tonight hero, Moon card surface and the shared solar/lunar eclipse tile.
         val forwards = Regex("""backdrop = glassBackdrop""").findAll(home).count()
-        assertTrue("the moon, tonight and eclipse cards must all sample the glass layer (found $forwards)", forwards >= 4)
+        assertTrue("the tonight, moon and eclipse tiles must all sample the glass layer (found $forwards)", forwards >= 3)
     }
 
     @Test

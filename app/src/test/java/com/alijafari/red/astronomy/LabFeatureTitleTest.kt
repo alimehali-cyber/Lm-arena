@@ -81,6 +81,7 @@ class LabFeatureTitleTest {
         for (artwork in listOf("TimeDilationArtwork", "GravitySandboxArtwork", "GargantuaArtwork", "ChalArtwork")) {
             assertTrue("$artwork must draw its tile's picture", text.contains("fun $artwork("))
         }
+        assertFalse("the artwork is monochrome", text.contains("RedTheme.colors.accent"))
 
         val block = featureBlock("GRAVITY_SANDBOX")
         assertTrue("the card is still available", block.contains("isAvailable = true"))
@@ -105,21 +106,27 @@ class LabFeatureTitleTest {
 
     @Test
     fun thePictureTilesWearTheTwentyPercentRounderRadius() {
-        // The moon card set the old standard at 34dp. The picture tiles — the Lab four plus the
-        // Home moon and sky canvas cards — all wear 20% more: 40.8dp.
+        // The moon card set the old standard at 34dp. Every picture tile — the Home moon and sky
+        // canvas cards, the two eclipse cards, the big tonight card, and the Lab four — wears 20%
+        // more: 40.8dp.
         val tokens = readMain("java/com/alijafari/red/astronomy/ui/theme/RedTokens.kt")
         assertTrue("the tile radius token must exist", tokens.contains("val tile: Dp = 40.8.dp"))
 
         val home = readMain("java/com/alijafari/red/astronomy/ui/screens/HomeScreen.kt")
+        for (tag in listOf(
+            "home_moon_card",
+            "home_sky_card",
+            "home_solar_eclipse_card",
+            "home_lunar_eclipse_card",
+            "home_tonight_card"
+        )) {
+            assertTrue("Home must declare $tag", home.contains("testTag(\"$tag\")"))
+        }
         assertEquals(
-            "exactly the moon card and the sky canvas card wear the tile radius on Home",
-            2,
+            "every picture tile on Home wears the tile radius — the tonight hero, the moon card, " +
+                "the sky canvas card and the shared solar/lunar eclipse tile",
+            4,
             Regex("""RoundedCornerShape\(RedCornerRadius\.tile\)""").findAll(home).count()
-        )
-        assertTrue(
-            "the tile radius must sit on the two hero cards, not somewhere unrelated",
-            home.indexOf("home_moon_card") < home.indexOf("RedCornerRadius.tile") &&
-                home.indexOf("home_sky_card") < home.lastIndexOf("RedCornerRadius.tile")
         )
 
         assertTrue(

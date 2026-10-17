@@ -29,6 +29,7 @@ import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.theme.*
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * The Lab features. Each one is presented exactly like the Home moon card and sky canvas card:
@@ -222,10 +223,9 @@ private fun LabFeatureTile(
 // ------------------------------------------------------------------------------------------------
 // Feature artwork
 //
-// Every tile carries a minimal picture of what the tool is — line and light only, no icon glyphs.
-// The drawings share the glass ink so they stay legible in either theme: strokes use the surface's
-// own contrast-safe text colors, and only the astrophysical light (disks, planets, streaks) carries
-// accent color.
+// Every tile carries a minimal picture of what the tool is — line art only, no icon glyphs. The
+// drawings are monochrome: one glass ink with alpha steps plus solid black for shadows, so they
+// stay legible in either theme and read as precise scientific diagrams, not illustrations.
 // ------------------------------------------------------------------------------------------------
 
 @Composable
@@ -241,158 +241,166 @@ private fun LabFeatureGraphic(
     }
 }
 
+/** Shared space-black of the black-hole and eclipse shadows — black is the monochrome dark. */
+private val BlackHoleShadow = Color(0xFF060609)
+
 /**
- * Time dilation: a journey clock trailing speed streaks, with a small fast traveler and two stars —
- * motion and time, drawn as one tiny scene.
+ * Time dilation: the textbook light clock — two mirrors with a photon bouncing between them while
+ * the whole clock drifts. Single-ink line art; the physics is the picture.
  */
 @Composable
 private fun TimeDilationArtwork(modifier: Modifier = Modifier) {
     val ink = RedTheme.colors.textPrimary
-    val soft = RedTheme.colors.textTertiary
-    val travel = RedTheme.colors.accentBlue
-    val spark = RedTheme.colors.accentRed
 
     Canvas(modifier) {
         val s = size.minDimension
         val cx = center.x
         val cy = center.y
-        val r = s * 0.27f
+        val mirrorY = 0.23f * s
+        val mirrorHalf = 0.27f * s
 
-        // Speed streaks trailing to the left of the clock.
-        listOf(-0.14f to 0.15f, 0.0f to 0.22f, 0.14f to 0.12f).forEach { (dy, len) ->
-            drawLine(
-                color = travel.copy(alpha = 0.65f),
-                start = Offset(cx - s * 0.48f, cy + s * dy),
-                end = Offset(cx - s * 0.48f + s * len, cy + s * dy),
-                strokeWidth = s * 0.022f,
-                cap = StrokeCap.Round
-            )
-        }
-
-        // The clock: ring, quarter ticks and hands at ten past ten.
-        drawCircle(
-            color = ink.copy(alpha = 0.9f),
-            radius = r,
-            style = Stroke(width = s * 0.032f)
-        )
-        for (quarter in 0 until 4) {
-            val angleRad = Math.toRadians(quarter * 90.0 - 90.0)
-            val dir = Offset(cos(angleRad).toFloat(), sin(angleRad).toFloat())
-            drawLine(
-                color = ink.copy(alpha = 0.8f),
-                start = Offset(cx + dir.x * r * 0.80f, cy + dir.y * r * 0.80f),
-                end = Offset(cx + dir.x * r * 0.97f, cy + dir.y * r * 0.97f),
-                strokeWidth = s * 0.024f,
-                cap = StrokeCap.Round
-            )
-        }
-        // Hour hand toward 10 o'clock, minute hand toward 2.
-        listOf(-60.0 to 0.50f, 60.0 to 0.74f).forEach { (fromTwelve, reach) ->
-            val angleRad = Math.toRadians(fromTwelve)
-            val dir = Offset(sin(angleRad).toFloat(), -cos(angleRad).toFloat())
-            drawLine(
-                color = ink.copy(alpha = 0.9f),
-                start = Offset(cx, cy),
-                end = Offset(cx + dir.x * r * reach, cy + dir.y * r * reach),
-                strokeWidth = s * 0.03f,
-                cap = StrokeCap.Round
-            )
-        }
-
-        // A fast traveler arcing past the clock, trailed by its own streak.
-        val comet = Offset(cx + s * 0.34f, cy - s * 0.29f)
+        // The two mirrors.
         drawLine(
-            color = spark.copy(alpha = 0.55f),
-            start = Offset(comet.x + s * 0.10f, comet.y + s * 0.10f),
-            end = Offset(comet.x - s * 0.01f, comet.y - s * 0.01f),
-            strokeWidth = s * 0.02f,
+            color = ink,
+            start = Offset(cx - mirrorHalf, cy - mirrorY),
+            end = Offset(cx + mirrorHalf, cy - mirrorY),
+            strokeWidth = s * 0.022f,
             cap = StrokeCap.Round
         )
-        drawCircle(color = spark, radius = s * 0.034f, center = comet)
+        drawLine(
+            color = ink,
+            start = Offset(cx - mirrorHalf, cy + mirrorY),
+            end = Offset(cx + mirrorHalf, cy + mirrorY),
+            strokeWidth = s * 0.022f,
+            cap = StrokeCap.Round
+        )
 
-        // Two distant stars.
-        drawCircle(color = soft.copy(alpha = 0.9f), radius = s * 0.015f, center = Offset(cx - s * 0.40f, cy - s * 0.34f))
-        drawCircle(color = soft.copy(alpha = 0.9f), radius = s * 0.012f, center = Offset(cx + s * 0.16f, cy + s * 0.42f))
+        // The photon, bouncing between them — its vertices land exactly on the mirrors.
+        val bounces = listOf(
+            Offset(cx - mirrorHalf, cy - mirrorY),
+            Offset(cx - mirrorHalf * 0.33f, cy + mirrorY),
+            Offset(cx + mirrorHalf * 0.33f, cy - mirrorY),
+            Offset(cx + mirrorHalf, cy + mirrorY)
+        )
+        val photonPath = Path().apply {
+            moveTo(bounces[0].x, bounces[0].y)
+            for (i in 1 until bounces.size) {
+                lineTo(bounces[i].x, bounces[i].y)
+            }
+        }
+        drawPath(
+            path = photonPath,
+            color = ink.copy(alpha = 0.75f),
+            style = Stroke(width = s * 0.015f, cap = StrokeCap.Round)
+        )
+        drawCircle(
+            color = ink,
+            radius = s * 0.03f,
+            center = Offset(
+                (bounces[1].x + bounces[2].x) / 2f,
+                (bounces[1].y + bounces[2].y) / 2f
+            )
+        )
+
+        // The clock's velocity.
+        val arrowY = cy + 0.43f * s
+        val arrowTipX = cx + 0.24f * s
+        drawLine(
+            color = ink.copy(alpha = 0.55f),
+            start = Offset(cx - 0.28f * s, arrowY),
+            end = Offset(arrowTipX, arrowY),
+            strokeWidth = s * 0.015f,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = ink.copy(alpha = 0.55f),
+            start = Offset(arrowTipX, arrowY),
+            end = Offset(arrowTipX - 0.07f * s, arrowY - 0.05f * s),
+            strokeWidth = s * 0.015f,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = ink.copy(alpha = 0.55f),
+            start = Offset(arrowTipX, arrowY),
+            end = Offset(arrowTipX - 0.07f * s, arrowY + 0.05f * s),
+            strokeWidth = s * 0.015f,
+            cap = StrokeCap.Round
+        )
     }
 }
 
 /**
- * Gravity sandbox: a tiny orrery — a sun, two orbital paths, an outer planet with its moon and an
- * inner planet, seen slightly from above the orbital plane.
+ * Gravity sandbox: the two-body problem drawn Kepler-correct — the central mass sits at the
+ * orbit's FOCUS, not its center, and the body's velocity vector is tangent to the ellipse.
  */
 @Composable
 private fun GravitySandboxArtwork(modifier: Modifier = Modifier) {
     val ink = RedTheme.colors.textPrimary
-    val soft = RedTheme.colors.textTertiary
-    val sun = RedTheme.colors.accentRed
-    val planet = RedTheme.colors.accentBlue
-    val moon = RedTheme.colors.accentGold
 
     Canvas(modifier) {
         val s = size.minDimension
         val cx = center.x
         val cy = center.y
-        val squash = 0.80f
+        val rx = 0.36f * s
+        val ry = 0.25f * s
+        val focus = sqrt(rx * rx - ry * ry)
+        val sun = Offset(cx - focus, cy)
 
-        // Two orbital paths, squashed to hint a tilted tabletop view.
+        // The orbit.
         drawOval(
-            color = soft.copy(alpha = 0.75f),
-            topLeft = Offset(cx - s * 0.20f, cy - s * 0.20f * squash),
-            size = Size(s * 0.40f, s * 0.40f * squash),
-            style = Stroke(width = s * 0.016f)
-        )
-        drawOval(
-            color = soft.copy(alpha = 0.55f),
-            topLeft = Offset(cx - s * 0.37f, cy - s * 0.37f * squash),
-            size = Size(s * 0.74f, s * 0.74f * squash),
-            style = Stroke(width = s * 0.016f)
+            color = ink.copy(alpha = 0.65f),
+            topLeft = Offset(cx - rx, cy - ry),
+            size = Size(rx * 2f, ry * 2f),
+            style = Stroke(width = s * 0.015f)
         )
 
-        // The sun with a faint corona ring.
-        drawCircle(color = sun.copy(alpha = 0.22f), radius = s * 0.115f, style = Stroke(width = s * 0.03f))
-        drawCircle(color = sun, radius = s * 0.072f)
+        // The central mass, at the focus.
+        drawCircle(color = ink, radius = s * 0.055f, center = sun)
 
-        // Outer planet with a tiny moon beside it.
-        val outerAngleRad = Math.toRadians(38.0)
-        val planetCenter = Offset(
-            cx + cos(outerAngleRad).toFloat() * s * 0.37f,
-            cy + sin(outerAngleRad).toFloat() * s * 0.37f * squash
+        // The orbiting body and its velocity, tangent to the path.
+        val t = Math.toRadians(55.0)
+        val body = Offset(
+            cx + rx * cos(t).toFloat(),
+            cy - ry * sin(t).toFloat()
         )
-        drawCircle(color = planet, radius = s * 0.045f, center = planetCenter)
-        drawCircle(
-            color = ink.copy(alpha = 0.85f),
-            radius = s * 0.018f,
-            center = Offset(planetCenter.x + s * 0.075f, planetCenter.y - s * 0.05f)
+        drawCircle(color = ink.copy(alpha = 0.9f), radius = s * 0.032f, center = body)
+        val tangent = Offset(-rx * sin(t).toFloat(), -ry * cos(t).toFloat())
+        val tangentLen = sqrt(tangent.x * tangent.x + tangent.y * tangent.y)
+        val dir = Offset(tangent.x / tangentLen, tangent.y / tangentLen)
+        val tip = Offset(body.x + dir.x * 0.15f * s, body.y + dir.y * 0.15f * s)
+        drawLine(
+            color = ink.copy(alpha = 0.8f),
+            start = body,
+            end = tip,
+            strokeWidth = s * 0.014f,
+            cap = StrokeCap.Round
         )
-
-        // Inner planet on the opposite side.
-        val innerAngleRad = Math.toRadians(210.0)
-        drawCircle(
-            color = moon,
-            radius = s * 0.032f,
-            center = Offset(
-                cx + cos(innerAngleRad).toFloat() * s * 0.20f,
-                cy + sin(innerAngleRad).toFloat() * s * 0.20f * squash
-            )
+        val head = 0.055f * s
+        drawLine(
+            color = ink.copy(alpha = 0.8f),
+            start = tip,
+            end = Offset(tip.x - dir.x * head - dir.y * head * 0.6f, tip.y - dir.y * head + dir.x * head * 0.6f),
+            strokeWidth = s * 0.014f,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = ink.copy(alpha = 0.8f),
+            start = tip,
+            end = Offset(tip.x - dir.x * head + dir.y * head * 0.6f, tip.y - dir.y * head - dir.x * head * 0.6f),
+            strokeWidth = s * 0.014f,
+            cap = StrokeCap.Round
         )
     }
 }
 
-/** Shared space-black of the two black-hole shadows, so both read as a hole in either theme. */
-private val BlackHoleShadow = Color(0xFF060609)
-
-/** The hot inner light of an accretion disk — pale gold, brighter than the disk's own gold. */
-private val DiskHotLight = Color(0xFFFFE7B0)
-
 /**
- * Gargantua: the edge-on Interstellar silhouette — a black hole shadow with the far side of the
- * accretion disk lensed into a halo over the top, the fainter lensed arc below, and the near side
- * of the disk crossing in front.
+ * Gargantua: the edge-on black hole — shadow, photon ring, the far side of the accretion disk
+ * lensed over the top, the fainter lensed arc below, and the near side crossing in front. Doppler
+ * beaming shows as an ink gradient along the disk: the approaching side is the brighter one.
  */
 @Composable
 private fun GargantuaArtwork(modifier: Modifier = Modifier) {
-    val warm = RedTheme.colors.accentGold
-    val soft = RedTheme.colors.textTertiary
+    val ink = RedTheme.colors.textPrimary
 
     Canvas(modifier) {
         val s = size.minDimension
@@ -402,70 +410,61 @@ private fun GargantuaArtwork(modifier: Modifier = Modifier) {
         val haloTopLeft = Offset(cx - s * 0.40f, cy - s * 0.17f)
         val haloSize = Size(s * 0.80f, s * 0.34f)
         val diskLight = Brush.linearGradient(
-            colors = listOf(warm.copy(alpha = 0.9f), DiskHotLight, warm.copy(alpha = 0.9f)),
+            colors = listOf(ink.copy(alpha = 0.2f), ink.copy(alpha = 0.95f), ink.copy(alpha = 0.2f)),
             start = Offset(cx - s * 0.42f, cy),
             end = Offset(cx + s * 0.42f, cy)
         )
 
         // The faint lensed image of the far disk, under the hole.
         drawArc(
-            color = warm.copy(alpha = 0.35f),
-            startAngle = 20f,
-            sweepAngle = 140f,
+            color = ink.copy(alpha = 0.28f),
+            startAngle = 15f,
+            sweepAngle = 150f,
             useCenter = false,
             topLeft = haloTopLeft,
             size = haloSize,
-            style = Stroke(width = s * 0.032f, cap = StrokeCap.Round)
+            style = Stroke(width = s * 0.024f, cap = StrokeCap.Round)
         )
 
-        // The shadow.
+        // The shadow and its photon ring.
         drawCircle(color = BlackHoleShadow, radius = rH)
-
-        // Photon glow, tight around the shadow.
         drawCircle(
-            color = DiskHotLight.copy(alpha = 0.5f),
-            radius = rH * 1.08f,
-            style = Stroke(width = s * 0.018f)
+            color = ink.copy(alpha = 0.8f),
+            radius = rH * 1.07f,
+            style = Stroke(width = s * 0.012f)
         )
 
         // The halo: the back of the disk, lensed over the top of the shadow.
         drawArc(
             brush = diskLight,
-            startAngle = 185f,
-            sweepAngle = 170f,
+            startAngle = 188f,
+            sweepAngle = 164f,
             useCenter = false,
             topLeft = haloTopLeft,
             size = haloSize,
-            style = Stroke(width = s * 0.042f, cap = StrokeCap.Round)
+            style = Stroke(width = s * 0.030f, cap = StrokeCap.Round)
         )
 
         // The near side of the disk, crossing in front just below center.
-        val bandY = cy + s * 0.035f
         val band = Path().apply {
-            moveTo(cx - s * 0.44f, bandY - s * 0.012f)
-            quadraticTo(cx, bandY + s * 0.055f, cx + s * 0.44f, bandY - s * 0.012f)
+            moveTo(cx - s * 0.44f, cy + s * 0.023f)
+            quadraticTo(cx, cy + s * 0.090f, cx + s * 0.44f, cy + s * 0.023f)
         }
         drawPath(
             path = band,
             brush = diskLight,
-            style = Stroke(width = s * 0.05f, cap = StrokeCap.Round)
+            style = Stroke(width = s * 0.034f, cap = StrokeCap.Round)
         )
-
-        // Two distant stars.
-        drawCircle(color = soft.copy(alpha = 0.9f), radius = s * 0.014f, center = Offset(cx - s * 0.42f, cy + s * 0.32f))
-        drawCircle(color = soft.copy(alpha = 0.9f), radius = s * 0.011f, center = Offset(cx + s * 0.40f, cy - s * 0.36f))
     }
 }
 
 /**
- * Chal: a tilted Kerr look — the accretion disk swung around the shadow with its approaching side
- * brightened, a photon ring at the edge, and background stars warped into short lensed arcs.
+ * Chal: the lensing view — the shadow with its photon ring, and background stars drawn into short
+ * tangential arcs around it (the Einstein-arc geometry), with two undisturbed stars for scale.
  */
 @Composable
 private fun ChalArtwork(modifier: Modifier = Modifier) {
-    val warm = RedTheme.colors.accentGold
-    val flare = RedTheme.colors.accentRed
-    val soft = RedTheme.colors.textTertiary
+    val ink = RedTheme.colors.textPrimary
 
     Canvas(modifier) {
         val s = size.minDimension
@@ -473,61 +472,42 @@ private fun ChalArtwork(modifier: Modifier = Modifier) {
         val cy = center.y
         val rH = s * 0.185f
 
-        // Lensed star arcs, tangent to a circle around the hole.
-        for (i in 0 until 4) {
+        // Lensed star arcs: (angle degrees, radius fraction, ink alpha).
+        listOf(
+            Triple(35f, 0.40f, 0.75f),
+            Triple(125f, 0.36f, 0.55f),
+            Triple(215f, 0.42f, 0.8f),
+            Triple(305f, 0.34f, 0.5f)
+        ).forEach { (angle, radius, alpha) ->
             drawArc(
-                color = soft.copy(alpha = 0.8f),
-                startAngle = i * 90f + 25f - 9f,
-                sweepAngle = 18f,
+                color = ink.copy(alpha = alpha),
+                startAngle = angle - 10f,
+                sweepAngle = 20f,
                 useCenter = false,
-                topLeft = Offset(cx - s * 0.40f, cy - s * 0.40f),
-                size = Size(s * 0.80f, s * 0.80f),
-                style = Stroke(width = s * 0.016f, cap = StrokeCap.Round)
+                topLeft = Offset(cx - radius * s, cy - radius * s),
+                size = Size(radius * 2f * s, radius * 2f * s),
+                style = Stroke(width = s * 0.014f, cap = StrokeCap.Round)
             )
         }
 
-        rotate(degrees = -18f, pivot = Offset(cx, cy)) {
-            val diskTopLeft = Offset(cx - s * 0.42f, cy - s * 0.14f)
-            val diskSize = Size(s * 0.84f, s * 0.28f)
-            val diskLight = Brush.linearGradient(
-                colors = listOf(flare, DiskHotLight, warm),
-                start = Offset(cx - s * 0.42f, cy),
-                end = Offset(cx + s * 0.42f, cy)
-            )
+        // Two stars outside the lensing ring.
+        drawCircle(
+            color = ink.copy(alpha = 0.45f),
+            radius = s * 0.012f,
+            center = Offset(cx - s * 0.30f, cy - s * 0.32f)
+        )
+        drawCircle(
+            color = ink.copy(alpha = 0.35f),
+            radius = s * 0.010f,
+            center = Offset(cx + s * 0.33f, cy + s * 0.30f)
+        )
 
-            // Far half of the disk, behind the shadow.
-            drawArc(
-                brush = diskLight,
-                startAngle = 180f,
-                sweepAngle = 180f,
-                useCenter = false,
-                topLeft = diskTopLeft,
-                size = diskSize,
-                style = Stroke(width = s * 0.042f, cap = StrokeCap.Round)
-            )
-
-            // The shadow and its photon ring.
-            drawCircle(color = BlackHoleShadow, radius = rH)
-            drawCircle(
-                color = DiskHotLight.copy(alpha = 0.55f),
-                radius = rH * 1.07f,
-                style = Stroke(width = s * 0.015f)
-            )
-
-            // Near half of the disk, in front of the shadow's lower lip.
-            drawArc(
-                brush = diskLight,
-                startAngle = 0f,
-                sweepAngle = 180f,
-                useCenter = false,
-                topLeft = diskTopLeft,
-                size = diskSize,
-                style = Stroke(width = s * 0.048f, cap = StrokeCap.Round)
-            )
-        }
-
-        // Two distant stars.
-        drawCircle(color = soft.copy(alpha = 0.9f), radius = s * 0.013f, center = Offset(cx - s * 0.36f, cy - s * 0.40f))
-        drawCircle(color = soft.copy(alpha = 0.9f), radius = s * 0.011f, center = Offset(cx + s * 0.38f, cy + s * 0.38f))
+        // The shadow and its photon ring.
+        drawCircle(color = BlackHoleShadow, radius = rH)
+        drawCircle(
+            color = ink.copy(alpha = 0.75f),
+            radius = rH * 1.07f,
+            style = Stroke(width = s * 0.011f)
+        )
     }
 }
