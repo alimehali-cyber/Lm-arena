@@ -1,0 +1,495 @@
+{
+  "total_active_skills": 68,
+  "collision_count": 0,
+  "agent_discovery_paths": [
+    "/home/user/Lm-arena/.agents/skills",
+    "/home/user/.agents/skills",
+    "/home/user/.claude/skills"
+  ],
+  "quarantined_repositories": [
+    {
+      "repo": "grapeot/gpt_3d_skill",
+      "commit_sha": "d35e84ab193258e802c690c42dc39d90324a1e52",
+      "license_detected": false,
+      "status": "QUARANTINED_EXCLUDED_NO_LICENSE"
+    }
+  ],
+  "skills": [
+    {
+      "slug": "blender-addon-development",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-addon-development/SKILL.md"
+    },
+    {
+      "slug": "blender-animation",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-animation/SKILL.md"
+    },
+    {
+      "slug": "blender-asset-qa",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-asset-qa/SKILL.md"
+    },
+    {
+      "slug": "blender-character-rigging",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-character-rigging/SKILL.md"
+    },
+    {
+      "slug": "blender-core",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-core/SKILL.md"
+    },
+    {
+      "slug": "blender-export-pipelines",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-export-pipelines/SKILL.md"
+    },
+    {
+      "slug": "blender-facial-shapekeys",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-facial-shapekeys/SKILL.md"
+    },
+    {
+      "slug": "blender-game-optimization",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-game-optimization/SKILL.md"
+    },
+    {
+      "slug": "blender-geometry-nodes",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-geometry-nodes/SKILL.md"
+    },
+    {
+      "slug": "blender-hardsurface-modeling",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-hardsurface-modeling/SKILL.md"
+    },
+    {
+      "slug": "blender-lighting-lookdev",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-lighting-lookdev/SKILL.md"
+    },
+    {
+      "slug": "blender-pbr-materials",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-pbr-materials/SKILL.md"
+    },
+    {
+      "slug": "blender-pipeline-automation",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-pipeline-automation/SKILL.md"
+    },
+    {
+      "slug": "blender-rendering",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-rendering/SKILL.md"
+    },
+    {
+      "slug": "blender-retopology-uv",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-retopology-uv/SKILL.md"
+    },
+    {
+      "slug": "blender-scene-setup",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-scene-setup/SKILL.md"
+    },
+    {
+      "slug": "blender-sculpting",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-sculpting/SKILL.md"
+    },
+    {
+      "slug": "blender-simulation",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-simulation/SKILL.md"
+    },
+    {
+      "slug": "blender-texture-baking",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-texture-baking/SKILL.md"
+    },
+    {
+      "slug": "blender-time-of-day",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-time-of-day/SKILL.md"
+    },
+    {
+      "slug": "blender-weather-fx",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-weather-fx/SKILL.md"
+    },
+    {
+      "slug": "blender-workflow-recipes",
+      "source_repo": "EL4CTEO/blender-skills",
+      "commit_sha": "71d031dab8bc6729504d11a78cbe91945401045f",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/el4cteo/skills/blender-workflow-recipes/SKILL.md"
+    },
+    {
+      "slug": "blender-agent-studio",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/SKILL.md"
+    },
+    {
+      "slug": "blender-agent-benchmark",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-agent-benchmark/SKILL.md"
+    },
+    {
+      "slug": "blender-animation-workflow",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-animation-workflow/SKILL.md"
+    },
+    {
+      "slug": "blender-art-direction-intake",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-art-direction-intake/SKILL.md"
+    },
+    {
+      "slug": "blender-asset-validation",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-asset-validation/SKILL.md"
+    },
+    {
+      "slug": "blender-character-workflow",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-character-workflow/SKILL.md"
+    },
+    {
+      "slug": "blender-iterative-refinement",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-iterative-refinement/SKILL.md"
+    },
+    {
+      "slug": "blender-mcp-integration",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-mcp-integration/SKILL.md"
+    },
+    {
+      "slug": "blender-modeling-workflow",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-modeling-workflow/SKILL.md"
+    },
+    {
+      "slug": "blender-procedural-workflow",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-procedural-workflow/SKILL.md"
+    },
+    {
+      "slug": "blender-rendering-workflow",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-rendering-workflow/SKILL.md"
+    },
+    {
+      "slug": "blender-signage-workflow",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-signage-workflow/SKILL.md"
+    },
+    {
+      "slug": "blender-simulation-workflow",
+      "source_repo": "ifBars/blender-agent-studio",
+      "commit_sha": "6ff97fad06d09f5885c941e0bbf3a8f429da3560",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/blender-agent-studio/plugins/blender-agent-studio/skills/blender-simulation-workflow/SKILL.md"
+    },
+    {
+      "slug": "tripo-face-rig",
+      "source_repo": "mdj128/facial-animation",
+      "commit_sha": "5bd659df62fc4877be3183964cea1268d86ecf93",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/facial-animation/.agents/skills/tripo-face-rig/SKILL.md"
+    },
+    {
+      "slug": "mdj-tripo-face-rig",
+      "source_repo": "mdj128/facial-animation",
+      "commit_sha": "5bd659df62fc4877be3183964cea1268d86ecf93",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/facial-animation/.claude/skills/tripo-face-rig/SKILL.md"
+    },
+    {
+      "slug": "animation-quality-gate",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/animation-quality-gate/SKILL.md"
+    },
+    {
+      "slug": "atlas-uv-fitting",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/atlas-uv-fitting/SKILL.md"
+    },
+    {
+      "slug": "cc-blender-animation",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/blender-animation/SKILL.md"
+    },
+    {
+      "slug": "blender-cameras",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/blender-cameras/SKILL.md"
+    },
+    {
+      "slug": "blender-export",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/blender-export/SKILL.md"
+    },
+    {
+      "slug": "blender-lighting",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/blender-lighting/SKILL.md"
+    },
+    {
+      "slug": "blender-materials",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/blender-materials/SKILL.md"
+    },
+    {
+      "slug": "blender-modeling",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/blender-modeling/SKILL.md"
+    },
+    {
+      "slug": "blender-pro-workflow",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/blender-pro-workflow/SKILL.md"
+    },
+    {
+      "slug": "cc-blender-rendering",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/blender-rendering/SKILL.md"
+    },
+    {
+      "slug": "blender-skill-harmonizer",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/blender-skill-harmonizer/SKILL.md"
+    },
+    {
+      "slug": "blender-uv-texturing",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/blender-uv-texturing/SKILL.md"
+    },
+    {
+      "slug": "closed-surface-uv-coverage",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/closed-surface-uv-coverage/SKILL.md"
+    },
+    {
+      "slug": "contour-to-mesh",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/contour-to-mesh/SKILL.md"
+    },
+    {
+      "slug": "fit-repair-optimizer",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/fit-repair-optimizer/SKILL.md"
+    },
+    {
+      "slug": "landmark-fit-repair",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/landmark-fit-repair/SKILL.md"
+    },
+    {
+      "slug": "mascot-logo-reconstruction",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/mascot-logo-reconstruction/SKILL.md"
+    },
+    {
+      "slug": "multiview-constraint-solver",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/multiview-constraint-solver/SKILL.md"
+    },
+    {
+      "slug": "multiview-fit-loop",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/multiview-fit-loop/SKILL.md"
+    },
+    {
+      "slug": "orbital-hud-motion",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/orbital-hud-motion/SKILL.md"
+    },
+    {
+      "slug": "orthographic-registration",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/orthographic-registration/SKILL.md"
+    },
+    {
+      "slug": "quality-refinement-autoloop",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/quality-refinement-autoloop/SKILL.md"
+    },
+    {
+      "slug": "reference-analysis-validator",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/reference-analysis-validator/SKILL.md"
+    },
+    {
+      "slug": "reference-look-calibration",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/reference-look-calibration/SKILL.md"
+    },
+    {
+      "slug": "reference-to-3d",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/reference-to-3d/SKILL.md"
+    },
+    {
+      "slug": "source-part-segmentation",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/source-part-segmentation/SKILL.md"
+    },
+    {
+      "slug": "text-to-blender",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/text-to-blender/SKILL.md"
+    },
+    {
+      "slug": "texture-driven-mesh-fitting",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/texture-driven-mesh-fitting/SKILL.md"
+    },
+    {
+      "slug": "texture-state-animation",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/texture-state-animation/SKILL.md"
+    },
+    {
+      "slug": "wireframe-to-3d",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/plugin/skills/wireframe-to-3d/SKILL.md"
+    },
+    {
+      "slug": "cc-wireframe-to-3d",
+      "source_repo": "RobLe3/cc-blender-skill",
+      "commit_sha": "a2634b588e80265e796aa53f8ab178d75105c2af",
+      "license": "MIT",
+      "skill_md": "avatar_pipeline/skills/cc-blender-skill/skill/wireframe-to-3d/SKILL.md"
+    }
+  ]
+}

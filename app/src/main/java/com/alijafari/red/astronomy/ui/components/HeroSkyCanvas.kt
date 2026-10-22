@@ -35,6 +35,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
+import com.alijafari.red.astronomy.avatar.AvatarAnimator
+import com.alijafari.red.astronomy.avatar.ProfessorZLayer
+import com.alijafari.red.astronomy.avatar.ProfessorZSceneState
+import com.alijafari.red.astronomy.avatar.ProfessorZStatus
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.ObjectType
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
@@ -285,6 +289,20 @@ fun HeroSkyCanvas(
     val panoramaEnabled = SkyPanoramaFeature.isEnabledFor(uiState.skyCanvasTheme)
     val panoramaActive = SkyPanoramaFeature.isPresented(uiState.skyCanvasTheme, panoramaReady)
 
+    // Real-time 3D Professor Z avatar on the Home scene (pure OpenGL ES 3.0, zero Vulkan).
+    // Falls back seamlessly to 2D ObserverRenderer until first GLES frame swaps or if unsupported.
+    var professorZReady by remember { mutableStateOf(false) }
+    var professorZTapCount by remember { mutableIntStateOf(0) }
+    var professorZSpeechLine by remember { mutableStateOf<String?>(null) }
+    val currentIsScene by rememberUpdatedState(isScene)
+
+    LaunchedEffect(professorZTapCount) {
+        if (professorZTapCount > 0) {
+            delay(4200)
+            professorZSpeechLine = null
+        }
+    }
+
     BoxWithConstraints(
         modifier = modifier
             .clip(if (isScene) RectangleShape else RoundedCornerShape(RedCornerRadius.window))
@@ -296,6 +314,41 @@ fun HeroSkyCanvas(
                     val touchRadius = 36.dp.toPx()
 
                     val fa = currentIsFa
+                    if (currentIsScene && canvasW > 0f && canvasH > 0f) {
+                        val comp = SkySceneLayout.composition(
+                            widthPx = canvasW,
+                            heightPx = canvasH,
+                            horizonFraction = SkySceneLayout.HORIZON_FRACTION,
+                            figureOnRight = !fa,
+                        )
+                        val avatarBoxH = canvasH * 0.295f
+                        val avatarBoxW = avatarBoxH * 0.68f
+                        val hitLeft = comp.figureCenterX - avatarBoxW * 0.42f
+                        val hitRight = comp.figureCenterX + avatarBoxW * 0.42f
+                        val hitTop = comp.figureFeetY - avatarBoxH * 0.94f
+                        val hitBottom = comp.figureFeetY + avatarBoxH * 0.04f
+                        if (tapOffset.x in hitLeft..hitRight && tapOffset.y in hitTop..hitBottom) {
+                            val nextTap = professorZTapCount + 1
+                            professorZTapCount = nextTap
+                            val preset = AvatarAnimator.TAP_REACTIONS[(nextTap - 1).mod(AvatarAnimator.TAP_REACTIONS.size)]
+                            professorZSpeechLine = if (fa) preset.lineFa else preset.lineEn
+                            repeat(12) {
+                                stardustParticles.add(
+                                    StardustParticle(
+                                        x = comp.figureCenterX + Random.nextFloat() * 44f - 22f,
+                                        y = comp.figureFeetY - avatarBoxH * 0.62f + Random.nextFloat() * 28f - 14f,
+                                        vx = Random.nextFloat() * 5f - 2.5f,
+                                        vy = Random.nextFloat() * -4f - 1.2f,
+                                        size = Random.nextFloat() * 4.5f + 2.5f,
+                                        alpha = 1.0f,
+                                        color = Color(0xFF93C5FD),
+                                    )
+                                )
+                            }
+                            return@detectTapGestures
+                        }
+                    }
+
                     val lat = currentUserLat
                     val sun = currentSunHoriz
                     val moon = currentMoonData
@@ -468,8 +521,79 @@ fun HeroSkyCanvas(
                     frame = skyFrame,
                     theme = uiState.skyCanvasTheme,
                     frameTimeMs = motionTimeMs,
-                    figureOnRight = !isFa
+                    figureOnRight = !isFa,
+                    drawObserver = !professorZReady
                 )
+            }
+
+            val canvasW = constraints.maxWidth.toFloat()
+            val canvasH = constraints.maxHeight.toFloat()
+            if (canvasW > 0f && canvasH > 0f) {
+                val sceneComp = SkySceneLayout.composition(
+                    widthPx = canvasW,
+                    heightPx = canvasH,
+                    horizonFraction = SkySceneLayout.HORIZON_FRACTION,
+                    figureOnRight = !isFa,
+                )
+                val avatarBoxH = canvasH * 0.295f
+                val avatarBoxW = avatarBoxH * 0.68f
+                val density = LocalDensity.current
+                val boxWidthDp = with(density) { avatarBoxW.toDp() }
+                val boxHeightDp = with(density) { avatarBoxH.toDp() }
+                val leftOffsetPx = (sceneComp.figureCenterX - avatarBoxW * 0.5f).roundToInt()
+                val topOffsetPx = (sceneComp.figureFeetY - avatarBoxH * 0.964f).roundToInt()
+
+                ProfessorZLayer(
+                    state = ProfessorZSceneState(
+                        sunAltitudeDeg = sunHoriz.altitudeDeg,
+                        moonGlowIntensity = lightingState.moonGlowIntensity,
+                        figureOnRight = !isFa,
+                        persian = isFa,
+                        tapCounter = professorZTapCount,
+                    ),
+                    modifier = Modifier
+                        .offset { IntOffset(leftOffsetPx, topOffsetPx) }
+                        .size(width = boxWidthDp, height = boxHeightDp)
+                        .testTag("professor_z_scene_layer"),
+                    onStatusChanged = { status ->
+                        professorZReady = (status == ProfessorZStatus.READY)
+                    },
+                )
+
+                professorZSpeechLine?.let { speech ->
+                    val maxBubbleX = (maxWidth - 228.dp).coerceAtLeast(12.dp)
+                    val bubbleCenterDp = with(density) { sceneComp.figureCenterX.toDp() }
+                    val bubbleTopDp = with(density) {
+                        (sceneComp.figureFeetY - avatarBoxH * 0.99f).coerceAtLeast(12f).toDp()
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color(0xDB0F172A),
+                        border = BorderStroke(1.dp, Color(0xFF60A5FA).copy(alpha = 0.55f)),
+                        shadowElevation = 6.dp,
+                        modifier = Modifier
+                            .offset(
+                                x = (bubbleCenterDp - 110.dp).coerceIn(12.dp, maxBubbleX),
+                                y = (bubbleTopDp - 34.dp).coerceAtLeast(12.dp),
+                            )
+                            .widthIn(max = 220.dp)
+                            .testTag("professor_z_speech_pill"),
+                    ) {
+                        Text(
+                            text = speech,
+                            style = TextStyle(
+                                fontFamily = LocalAppFontFamily.current,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                color = Color.White,
+                            ),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
             }
         }
 

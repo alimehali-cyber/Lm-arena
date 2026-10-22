@@ -1,0 +1,96 @@
+{
+  "pipeline_status": "PASS",
+  "character_slug": "synthetic_subject",
+  "character_name": "synthetic_test_subject",
+  "exports": {
+    "lod0_glb": "/home/user/Lm-arena/avatar_pipeline/exports/synthetic_subject.glb",
+    "lod1_glb": "/home/user/Lm-arena/avatar_pipeline/exports/synthetic_subject_lod1.glb",
+    "canonical_lod0_glb": "/home/user/Lm-arena/avatar_pipeline/exports/avatar_mobile.glb",
+    "canonical_lod1_glb": "/home/user/Lm-arena/avatar_pipeline/exports/avatar_mobile_lod1.glb",
+    "lipsync_json": "/home/user/Lm-arena/avatar_pipeline/exports/synthetic_subject_lipsync.json"
+  },
+  "qa_validation_lod0": {
+    "glb_path": "/home/user/Lm-arena/avatar_pipeline/exports/avatar_mobile.glb",
+    "passed": true,
+    "file_size_mb": 3.0481,
+    "triangle_count": 21994,
+    "draw_calls": 2,
+    "material_count": 1,
+    "texture_resolutions": [
+      [
+        1024,
+        1024
+      ],
+      [
+        1024,
+        1024
+      ],
+      [
+        1024,
+        1024
+      ]
+    ],
+    "skeleton_joint_count": 60,
+    "max_influences_per_vertex": 4,
+    "morph_target_count": 26,
+    "animation_count": 24,
+    "measured_height_m": 1.6783,
+    "min_z_m": -0.0,
+    "checks": {
+      "01_file_size_within_budget": true,
+      "02_triangle_budget": true,
+      "03_finite_manifold_geometry": true,
+      "04_single_pbr_material_low_drawcalls": true,
+      "05_atlas_resolution_within_budget": true,
+      "06_gles30_skeleton_joint_limit": true,
+      "07_clean_four_bone_skin_weights": true,
+      "08_26_facial_morph_targets_present": true,
+      "09_animation_library_embedded": true,
+      "10_metric_world_height_accurate": true,
+      "11_flat_floor_grounding": true
+    },
+    "issues": []
+  },
+  "qa_validation_lod1": {
+    "glb_path": "/home/user/Lm-arena/avatar_pipeline/exports/avatar_mobile_lod1.glb",
+    "passed": true,
+    "file_size_mb": 2.2169,
+    "triangle_count": 11878,
+    "draw_calls": 2,
+    "material_count": 1,
+    "texture_resolutions": [
+      [
+        512,
+        512
+      ],
+      [
+        512,
+        512
+      ],
+      [
+        512,
+        512
+      ]
+    ],
+    "skeleton_joint_count": 60,
+    "max_influences_per_vertex": 4,
+    "morph_target_count": 26,
+    "animation_count": 24,
+    "measured_height_m": 1.6783,
+    "min_z_m": -1e-05,
+    "checks": {
+      "01_file_size_within_budget": true,
+      "02_triangle_budget": true,
+      "03_finite_manifold_geometry": true,
+      "04_single_pbr_material_low_drawcalls": true,
+      "05_atlas_resolution_within_budget": true,
+      "06_gles30_skeleton_joint_limit": true,
+      "07_clean_four_bone_skin_weights": true,
+      "08_26_facial_morph_targets_present": true,
+      "09_animation_library_embedded": true,
+      "10_metric_world_height_accurate": true,
+      "11_flat_floor_grounding": true
+    },
+    "issues": []
+  }
+}

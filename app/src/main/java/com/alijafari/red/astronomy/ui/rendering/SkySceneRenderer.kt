@@ -239,7 +239,8 @@ object SkySceneRenderer {
         frame: SkySceneFrame,
         theme: SkyCanvasTheme,
         frameTimeMs: Long,
-        figureOnRight: Boolean = true
+        figureOnRight: Boolean = true,
+        drawObserver: Boolean = true
     ) {
         val canvasW = drawScope.size.width
         val canvasH = drawScope.size.height
@@ -260,12 +261,14 @@ object SkySceneRenderer {
             )
         }
 
-        ObserverRenderer.draw(
-            drawScope = drawScope,
-            composition = composition,
-            theme = theme,
-            lighting = frame.lightingState,
-            frameTimeMs = frameTimeMs
-        )
+        if (drawObserver) {
+            ObserverRenderer.draw(
+                drawScope = drawScope,
+                composition = composition,
+                theme = theme,
+                lighting = frame.lightingState,
+                frameTimeMs = frameTimeMs
+            )
+        }
     }
 }

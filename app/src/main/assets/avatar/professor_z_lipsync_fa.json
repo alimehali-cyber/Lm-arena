@@ -1,0 +1,492 @@
+{
+  "metadata": {
+    "soundFile": "",
+    "duration": 5.6,
+    "language": "fa",
+    "mode": "explicit_phoneme_schedule_fa"
+  },
+  "mouthCues": [
+    {
+      "start": 0.0,
+      "end": 0.08,
+      "value": "X",
+      "morphWeights": {}
+    },
+    {
+      "start": 0.08,
+      "end": 0.16,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 0.16,
+      "end": 0.25,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 0.25,
+      "end": 0.33,
+      "value": "H",
+      "morphWeights": {
+        "viseme_aa": 0.35,
+        "jawOpen": 0.32,
+        "tongueOut": 0.22
+      }
+    },
+    {
+      "start": 0.33,
+      "end": 0.48,
+      "value": "D",
+      "morphWeights": {
+        "viseme_aa": 0.92,
+        "jawOpen": 0.78
+      }
+    },
+    {
+      "start": 0.48,
+      "end": 0.58,
+      "value": "A",
+      "morphWeights": {
+        "viseme_PP": 0.9
+      }
+    },
+    {
+      "start": 0.58,
+      "end": 0.66,
+      "value": "X",
+      "morphWeights": {}
+    },
+    {
+      "start": 0.66,
+      "end": 0.74,
+      "value": "A",
+      "morphWeights": {
+        "viseme_PP": 0.9
+      }
+    },
+    {
+      "start": 0.74,
+      "end": 0.83,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 0.83,
+      "end": 0.9,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 0.9,
+      "end": 0.98,
+      "value": "A",
+      "morphWeights": {
+        "viseme_PP": 0.9
+      }
+    },
+    {
+      "start": 0.98,
+      "end": 1.06,
+      "value": "E",
+      "morphWeights": {
+        "mouthFunnel": 0.82,
+        "jawOpen": 0.34
+      }
+    },
+    {
+      "start": 1.06,
+      "end": 1.13,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 1.13,
+      "end": 1.22,
+      "value": "E",
+      "morphWeights": {
+        "mouthFunnel": 0.82,
+        "jawOpen": 0.34
+      }
+    },
+    {
+      "start": 1.22,
+      "end": 1.31,
+      "value": "G",
+      "morphWeights": {
+        "viseme_FF": 0.88,
+        "jawOpen": 0.1
+      }
+    },
+    {
+      "start": 1.31,
+      "end": 1.4,
+      "value": "E",
+      "morphWeights": {
+        "mouthFunnel": 0.82,
+        "jawOpen": 0.34
+      }
+    },
+    {
+      "start": 1.4,
+      "end": 1.49,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 1.49,
+      "end": 1.59,
+      "value": "E",
+      "morphWeights": {
+        "mouthFunnel": 0.82,
+        "jawOpen": 0.34
+      }
+    },
+    {
+      "start": 1.59,
+      "end": 1.76,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 1.76,
+      "end": 1.86,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 1.86,
+      "end": 2.03,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 2.03,
+      "end": 2.12,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 2.12,
+      "end": 2.27,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 2.27,
+      "end": 2.36,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 2.36,
+      "end": 2.45,
+      "value": "A",
+      "morphWeights": {
+        "viseme_PP": 0.9
+      }
+    },
+    {
+      "start": 2.45,
+      "end": 2.55,
+      "value": "X",
+      "morphWeights": {}
+    },
+    {
+      "start": 2.55,
+      "end": 2.63,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 2.63,
+      "end": 2.71,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 2.71,
+      "end": 2.79,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 2.79,
+      "end": 2.9,
+      "value": "D",
+      "morphWeights": {
+        "viseme_aa": 0.92,
+        "jawOpen": 0.78
+      }
+    },
+    {
+      "start": 2.9,
+      "end": 2.99,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 2.99,
+      "end": 3.17,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 3.17,
+      "end": 3.29,
+      "value": "D",
+      "morphWeights": {
+        "viseme_aa": 0.92,
+        "jawOpen": 0.78
+      }
+    },
+    {
+      "start": 3.29,
+      "end": 3.37,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 3.37,
+      "end": 3.45,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 3.45,
+      "end": 3.53,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 3.53,
+      "end": 3.65,
+      "value": "D",
+      "morphWeights": {
+        "viseme_aa": 0.92,
+        "jawOpen": 0.78
+      }
+    },
+    {
+      "start": 3.65,
+      "end": 3.73,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 3.73,
+      "end": 3.82,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 3.82,
+      "end": 3.98,
+      "value": "A",
+      "morphWeights": {
+        "viseme_PP": 0.9
+      }
+    },
+    {
+      "start": 3.98,
+      "end": 4.07,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 4.07,
+      "end": 4.15,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 4.15,
+      "end": 4.25,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 4.25,
+      "end": 4.33,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 4.33,
+      "end": 4.42,
+      "value": "A",
+      "morphWeights": {
+        "viseme_PP": 0.9
+      }
+    },
+    {
+      "start": 4.42,
+      "end": 4.5,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 4.5,
+      "end": 4.68,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 4.68,
+      "end": 4.81,
+      "value": "D",
+      "morphWeights": {
+        "viseme_aa": 0.92,
+        "jawOpen": 0.78
+      }
+    },
+    {
+      "start": 4.81,
+      "end": 4.98,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 4.98,
+      "end": 5.1,
+      "value": "D",
+      "morphWeights": {
+        "viseme_aa": 0.92,
+        "jawOpen": 0.78
+      }
+    },
+    {
+      "start": 5.1,
+      "end": 5.18,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 5.18,
+      "end": 5.27,
+      "value": "C",
+      "morphWeights": {
+        "viseme_EE": 0.55,
+        "viseme_aa": 0.42,
+        "jawOpen": 0.36
+      }
+    },
+    {
+      "start": 5.27,
+      "end": 5.44,
+      "value": "B",
+      "morphWeights": {
+        "viseme_EE": 0.48,
+        "jawOpen": 0.14
+      }
+    },
+    {
+      "start": 5.44,
+      "end": 5.6,
+      "value": "X",
+      "morphWeights": {}
+    }
+  ]
+}

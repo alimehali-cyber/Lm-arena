@@ -1,0 +1,28 @@
+{
+  "pipeline_version": "2.0.0",
+  "strict_commercial_licenses_only": true,
+  "allow_noncommercial_bfm": false,
+  "blender_binary": "/home/user/.local/bin/blender",
+  "render": {
+    "engine": "CYCLES",
+    "device": "CPU",
+    "denoiser": "OPENIMAGEDENOISE",
+    "portrait_samples": 48,
+    "fullbody_samples": 40,
+    "tile_samples": 28,
+    "portrait_res": [768, 768],
+    "fullbody_res": [768, 1024],
+    "tile_res": [448, 448]
+  },
+  "budgets": {
+    "lod0_max_triangles": 28000,
+    "lod1_max_triangles": 18000,
+    "lod0_atlas_size": 1024,
+    "lod1_atlas_size": 512,
+    "max_bones": 64,
+    "max_skin_weights_per_vertex": 4,
+    "max_materials": 1,
+    "max_glb_size_mb": 8.0,
+    "use_draco": false
+  }
+}

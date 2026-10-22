@@ -1,0 +1,210 @@
+package com.alijafari.red.astronomy.avatar
+
+import java.io.File
+import kotlin.math.abs
+import kotlin.math.acos
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+data class MouthCue(
+    val startSec: Float,
+    val endSec: Float,
+    val shape: String,
+    val morphWeights: Map<Int, Float>,
+)
+
+/**
+ * Real-time `60`-joint matrix-palette evaluator, Sun-altitude observer pose mapper,
+ * and co-articulated Persian (`fa`) / English (`en`) lip-sync blender.
+ *
+ * Pre-allocates all working arrays so steady-state frame evaluation allocates ZERO heap objects.
+ */
+class AvatarAnimator(private val model: AvatarModelAsset) {
+
+    val jointCount: Int = model.jointNodeIndices.size
+    val morphCount: Int = model.morphTargetCount
+    val skinMatrices: FloatArray = FloatArray(maxOf(jointCount, 1) * 16)
+    val morphWeights: FloatArray = FloatArray(maxOf(morphCount, 26))
+
+    private val nNodes = model.nodes.size
+    private val curT = Array(nNodes) { FloatArray(3) }
+    private val curR = Array(nNodes) { FloatArray(4) }
+    private val curS = Array(nNodes) { FloatArray(3) }
+    private val localMat = Array(nNodes) { FloatArray(16) }
+    private val worldMat = Array(nNodes) { FloatArray(16) }
+    private val computed = BooleanArray(nNodes)
+
+    private var mouthCues: List<MouthCue> = emptyList()
+
+    companion object {
+        // Canonical index order of all 26 morph targets authored by `rig_character.py`
+        val MORPH_INDEX: Map<String, Int> = listOf(
+            "eyeBlinkLeft", "eyeBlinkRight", "eyeWideLeft", "eyeWideRight", "eyeSquintLeft", "eyeSquintRight",
+            "browInnerUp", "browDownLeft", "browDownRight", "browOuterUpLeft", "browOuterUpRight",
+            "mouthSmileLeft", "mouthSmileRight", "mouthFrownLeft", "mouthFrownRight",
+            "mouthPucker", "mouthFunnel", "jawOpen", "tongueOut",
+            "cheekPuff", "cheekSquintLeft", "cheekSquintRight",
+            "viseme_PP", "viseme_FF", "viseme_EE", "viseme_aa",
+        ).withIndex().associate { it.value to it.index }
+
+        fun clipForSunAltitude(sunAltitudeDeg: Double): String = when {
+            sunAltitudeDeg > 12.0 -> "Shade_Eyes_Day"
+            sunAltitudeDeg > -6.0 -> "Check_Phone_Twilight"
+            else -> "ProfZ_DiscoGroove"
+        }
+
+        private fun slerpQuat(a: FloatArray, ao: Int, b: FloatArray, bo: Int, t: Float, out: FloatArray) {
+            var bx = b[bo]; var by = b[bo + 1]; var bz = b[bo + 2]; var bw = b[bo + 3]
+            val ax = a[ao]; val ay = a[ao + 1]; val az = a[ao + 2]; val aw = a[ao + 3]
+            var dot = ax * bx + ay * by + az * bz + aw * bw
+            if (dot < 0f) { dot = -dot; bx = -bx; by = -by; bz = -bz; bw = -bw }
+            val s0: Float
+            val s1: Float
+            if (dot > 0.9995f) {
+                s0 = 1f - t; s1 = t
+            } else {
+                val omega = acos(dot.coerceIn(-1f, 1f))
+                val invSin = 1f / sin(omega)
+                s0 = sin((1f - t) * omega) * invSin
+                s1 = sin(t * omega) * invSin
+            }
+            out[0] = ax * s0 + bx * s1
+            out[1] = ay * s0 + by * s1
+            out[2] = az * s0 + bz * s1
+            out[3] = aw * s0 + bw * s1
+            val n = sqrt(out[0] * out[0] + out[1] * out[1] + out[2] * out[2] + out[3] * out[3]).coerceAtLeast(1e-8f)
+            out[0] /= n; out[1] /= n; out[2] /= n; out[3] /= n
+        }
+
+        private fun composeTRS(t: FloatArray, q: FloatArray, s: FloatArray, m: FloatArray) {
+            val x = q[0]; val y = q[1]; val z = q[2]; val w = q[3]
+            val x2 = x + x; val y2 = y + y; val z2 = z + z
+            val xx = x * x2; val xy = x * y2; val xz = x * z2
+            val yy = y * y2; val yz = y * z2; val zz = z * z2
+            val wx = w * x2; val wy = w * y2; val wz = w * z2
+
+            m[0] = (1f - (yy + zz)) * s[0]; m[1] = (xy + wz) * s[0];        m[2] = (xz - wy) * s[0];        m[3] = 0f
+            m[4] = (xy - wz) * s[1];        m[5] = (1f - (xx + zz)) * s[1]; m[6] = (yz + wx) * s[1];        m[7] = 0f
+            m[8] = (xz + wy) * s[2];        m[9] = (yz - wx) * s[2];        m[10] = (1f - (xx + yy)) * s[2]; m[11] = 0f
+            m[12] = t[0];                   m[13] = t[1];                   m[14] = t[2];                   m[15] = 1f
+        }
+
+        private fun mulMat4(a: FloatArray, b: FloatArray, out: FloatArray, outOff: Int = 0) {
+            for (col in 0..3) {
+                val b0 = b[col * 4]; val b1 = b[col * 4 + 1]; val b2 = b[col * 4 + 2]; val b3 = b[col * 4 + 3]
+                for (row in 0..3) {
+                    out[outOff + col * 4 + row] =
+                        a[row] * b0 + a[4 + row] * b1 + a[8 + row] * b2 + a[12 + row] * b3
+                }
+            }
+        }
+    }
+
+    fun loadLipSyncCues(jsonFile: File) {
+        val root = MiniJson.parse(jsonFile.readText(Charsets.UTF_8)) as Map<*, *>
+        val list = (root["mouthCues"] as? List<*>) ?: emptyList<Any>()
+        mouthCues = list.map { raw ->
+            val m = raw as Map<*, *>
+            val wMap = linkedMapOf<Int, Float>()
+            val mw = m["morphWeights"] as? Map<*, *>
+            mw?.forEach { (k, v) ->
+                val idx = MORPH_INDEX[k.toString()]
+                if (idx != null && v is Number) wMap[idx] = v.toFloat()
+            }
+            MouthCue(
+                startSec = (m["start"] as Number).toFloat(),
+                endSec = (m["end"] as Number).toFloat(),
+                shape = m["value"].toString(),
+                morphWeights = wMap,
+            )
+        }
+    }
+
+    fun evaluateRestPose() {
+        resetToRest()
+        updateWorldAndSkinMatrices()
+    }
+
+    fun evaluateClip(clipName: String, timeSec: Float, overlayLipSyncSec: Float? = null) {
+        resetToRest()
+        val clip = model.animations[clipName]
+        if (clip != null && clip.durationSec > 0f) {
+            val t = ((timeSec % clip.durationSec) + clip.durationSec) % clip.durationSec
+            for (ch in clip.channels) {
+                sampleChannel(ch, t)
+            }
+        }
+        if (overlayLipSyncSec != null && mouthCues.isNotEmpty()) {
+            val cue = mouthCues.firstOrNull { overlayLipSyncSec >= it.startSec && overlayLipSyncSec <= it.endSec }
+            cue?.morphWeights?.forEach { (idx, w) ->
+                if (idx in morphWeights.indices) morphWeights[idx] = w
+            }
+        }
+        updateWorldAndSkinMatrices()
+    }
+
+    private fun resetToRest() {
+        for (i in 0 until nNodes) {
+            model.nodes[i].baseTranslation.copyInto(curT[i])
+            model.nodes[i].baseRotation.copyInto(curR[i])
+            model.nodes[i].baseScale.copyInto(curS[i])
+            computed[i] = false
+        }
+        morphWeights.fill(0f)
+    }
+
+    private fun sampleChannel(ch: AnimChannelData, t: Float) {
+        val times = ch.sampler.times
+        val vals = ch.sampler.values
+        val stride = ch.sampler.stride
+        if (times.isEmpty()) return
+
+        var i0 = 0
+        while (i0 + 1 < times.size && times[i0 + 1] <= t) i0++
+        val i1 = minOf(i0 + 1, times.size - 1)
+        val dt = times[i1] - times[i0]
+        val alpha = if (dt > 1e-6f) ((t - times[i0]) / dt).coerceIn(0f, 1f) else 0f
+
+        when (ch.path) {
+            ChannelPath.TRANSLATION -> {
+                val out = curT[ch.nodeIndex]
+                for (c in 0..2) out[c] = vals[i0 * 3 + c] * (1f - alpha) + vals[i1 * 3 + c] * alpha
+            }
+            ChannelPath.SCALE -> {
+                val out = curS[ch.nodeIndex]
+                for (c in 0..2) out[c] = vals[i0 * 3 + c] * (1f - alpha) + vals[i1 * 3 + c] * alpha
+            }
+            ChannelPath.ROTATION -> {
+                slerpQuat(vals, i0 * 4, vals, i1 * 4, alpha, curR[ch.nodeIndex])
+            }
+            ChannelPath.WEIGHTS -> {
+                val limit = minOf(stride, morphWeights.size)
+                for (c in 0 until limit) {
+                    morphWeights[c] = vals[i0 * stride + c] * (1f - alpha) + vals[i1 * stride + c] * alpha
+                }
+            }
+        }
+    }
+
+    private fun updateWorldAndSkinMatrices() {
+        for (i in 0 until nNodes) composeTRS(curT[i], curR[i], curS[i], localMat[i])
+
+        fun ensureWorld(idx: Int) {
+            if (computed[idx]) return
+            val p = model.nodes[idx].parent
+            if (p < 0) {
+                localMat[idx].copyInto(worldMat[idx])
+            } else {
+                ensureWorld(p)
+                mulMat4(worldMat[p], localMat[idx], worldMat[idx])
+            }
+            computed[idx] = true
+        }
+
+        for (i in 0 until nNodes) ensureWorld(i)
+        for (j in 0 until jointCount) {
+            val nodeIdx = model.jointNodeIndices[j]
+            mulMat4(worldMat[nodeIdx], model.inverseBindMatrices[j], skinMatrices, j * 16)
+        }
+    }
+}

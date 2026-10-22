@@ -17,6 +17,17 @@ local.properties
 .env
 debug.keystore
 
-# Python bytecode
+# Python bytecode & local virtual environments
 __pycache__/
 *.pyc
+.venv/
+.agents/
+
+# Avatar pipeline intermediate caches & third-party skill clones (REGISTRY.json stays tracked)
+avatar_pipeline/working/
+avatar_pipeline/skills/*/
+avatar_pipeline/renders/_tiles/
+avatar_pipeline/exports/professor_z/
+avatar_pipeline/exports/synthetic_subject/
+avatar_pipeline/android_prototype/build/
+build-artifacts/
