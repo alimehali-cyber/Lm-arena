@@ -51,18 +51,53 @@ before a real shoot. `tools/avatar/README.md` lists every tool and its one job.
 
 The authored route was built and run end to end on a CPU-only box:
 
-- **1612 triangles, 904 vertices, 19 bones, 1.68 m tall, 352 KB** — inside every budget in the
-  contract, with 25 unit tests covering bone names, weights, normals, quaternion aiming, seamless
-  loops, the GLB's own bytes and the photo measurements.
+- **1413 triangles, 893 vertices, 21 bones (toes included), 1.715 m tall, 377 KB** for the generic
+  built-in figure, and **4754 triangles, 21 bones, exactly 1.800 m, 541 KB** for Professor Z — both
+  inside every budget in the contract, with 27 unit tests covering bone names, skinning reach,
+  non-degenerate geometry, normals, quaternion aiming, seamless loops, the GLB's own bytes and the
+  photo measurements.
 - The three Home beats are posed by a two-bone IK solver (`solve_arm`), not by guessed Euler angles —
   a test asserts the night hand is above the head and the noon hand is at the brow, because those are
   the two poses a viewer judges in half a second.
 - The contact sheet renders each clip and one tile at the size the character really appears on Home
   (`work/out/testcard_sheet.png`).
 
-What is **not** proved: the Android runtime integration. No GLES3 sidecar exists in the app yet; that
-is the next code step (`skills/zig-avatar-runtime/SKILL.md` §Where it goes), and it needs a device or
-an emulator with a GPU.
+The GLES3 sidecar is deliberately **not** the runtime. The character the Home scene draws is baked:
+`tools/avatar/bake_frames.py` renders every clip from the same skinned mesh the GLB is written from,
+into one sprite atlas per clip (24 frames, 128×192 cells, 8 fps, ~1 MB for the set), and
+`avatar/AvatarRenderer.kt` draws the current cell into the scene's existing motion `Canvas`. Reasons,
+in the order they mattered:
+
+1. **It cannot fail at runtime.** No EGL surface, no GL context to lose, no driver quirk on a device
+   that has already drawn the stars. The worst case is a missing asset, and then the vector observer
+   draws instead.
+2. **It costs nothing per frame.** One scaled bitmap with a colour matrix, on a clock that already
+   runs at 24 Hz for the clouds — no second render loop, no surface to composite.
+3. **It works inside a scrolling column.** A `SurfaceView` punched into a `LazyColumn` is a class of
+   bug this repo does not need; a `drawImage` into an existing canvas is not.
+4. **At 170 px, it is the same picture.** The GLB's extra triangles and skin weights are invisible at
+   the size the figure is actually displayed; the bake is rendered from the GLB's own mesh, so there is
+   no second model to keep in sync.
+
+The GLB is still the deliverable asset: it opens in Blender and any glTF viewer, it is the source the
+frames were rendered from, and it is what a future GPU path would load. `meta.json` next to the sheets
+carries the cell grid, the feet anchor and the per-cell body fraction, so the runtime needs no
+hard-coded numbers.
+
+## How the runtime places the character
+
+`avatar/AvatarFrames.kt` holds the arithmetic and nothing else, so it is unit-tested on the JVM:
+
+| Question | Answer |
+|---|---|
+| Which clip? | `AvatarPoses.forSunAltitude`: `day_shade` above +3°, `dusk_phone` above −7°, otherwise `night_point`, plus a 3-second `wave_hello` when the figure is tapped. Same thresholds the vector observer uses. |
+| Which frame? | `AvatarFraming.frameIndex`: `elapsed / (1000 / fps)`, wrapped for looping clips, clamped for one-shots. |
+| Which cell? | `AvatarFraming.sourceRect`: reading order across `columns × rows`. |
+| Where? | `AvatarFraming.placement`: feet on `SceneComposition.figureFeetY`, body exactly `figureHeightPx` tall, centred on `figureCenterX`, mirrored when the app is in Persian. |
+| What colour? | `AvatarGrade`: the lighting grade (warm at dusk, cool at night, untouched at noon) plus a true luma grade for Monochrome, a red grade for Observatory, and lifted highlights for Watercolour and Papercraft. |
+
+`AvatarAssets.load` is all-or-nothing: no metadata, or no decodable sheet, means the vector observer
+keeps the slot rather than leaving a hole in the grass.
 
 ## The photographs that work
 

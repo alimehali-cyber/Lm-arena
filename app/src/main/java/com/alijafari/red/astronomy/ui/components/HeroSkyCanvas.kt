@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.colorMatrix
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -39,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
 import com.alijafari.red.astronomy.avatar.AvatarAssets
-import com.alijafari.red.astronomy.avatar.AvatarClip
 import com.alijafari.red.astronomy.avatar.AvatarFraming
 import com.alijafari.red.astronomy.avatar.AvatarGrade
 import com.alijafari.red.astronomy.avatar.AvatarPoses
@@ -543,7 +543,8 @@ fun HeroSkyCanvas(
                         val elapsed = if (clip.name == AvatarPoses.WAVE) {
                             (motionTimeMs - waveStartedMs).coerceAtLeast(0L)
                         } else {
-                            // Offset by the bucket so a slow clip does not restart on every repaint.
+                            // Epoch-based, so a clip keeps its phase across recompositions and the
+                            // scene's 24 Hz tick only decides when the next cell is shown.
                             motionTimeMs
                         }
                         AvatarRenderer.draw(

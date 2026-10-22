@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -689,4 +689,33 @@ def build_character(spec: CharacterSpec) -> Avatar:
             )
 
     mesh = builder.build()
+    # The geometry is authored against a skeletal 1.80 m, but hair tufts and boot soles add a few
+    # centimetres on top. Measure what was actually built and scale it, skeleton included, so the answer
+    # to "how tall is Professor Z" is exact rather than approximate.
+    bones = scale_to_height(mesh, bones, spec.height_m)
     return Avatar(p, bones, mesh, palette)
+
+
+def scale_to_height(mesh, bones, target_height: float):
+    """Uniformly scale a mesh and its skeleton so the figure measures exactly `target_height` metres.
+
+    Feet go to y = 0 first, so the scale is also what puts the character on the ground. Returns the
+    scaled bones (bones are frozen, so they are rebuilt rather than mutated).
+    """
+    ys = mesh.positions[:, 1]
+    span = float(ys.max() - ys.min())
+    if span <= 1e-6:
+        return bones
+    factor = target_height / span
+    origin = float(ys.min())
+    if abs(factor - 1.0) < 1e-6 and abs(origin) < 1e-6:
+        return bones
+
+    def fit(point):
+        return (np.asarray(point, dtype=np.float64) - np.array([0.0, origin, 0.0])) * factor
+
+    mesh.positions = fit(mesh.positions)
+    return [
+        replace(bone, head=fit(bone.head), tail=fit(bone.tail))
+        for bone in bones
+    ]

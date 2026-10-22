@@ -179,7 +179,7 @@ def check(path: Path, min_bones: int, require_clips: tuple[str, ...], strict: bo
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("glb", type=Path)
-    parser.add_argument("--min-bones", type=int, default=19)
+    parser.add_argument("--min-bones", type=int, default=21)
     parser.add_argument("--require-clip", action="append", default=None)
     parser.add_argument("--strict", action="store_true", help="treat contract notes as failures")
     args = parser.parse_args(argv)

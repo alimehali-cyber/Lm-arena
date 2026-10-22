@@ -86,6 +86,26 @@ class MeshTest(unittest.TestCase):
         lengths = np.linalg.norm(mesh.normals, axis=1)
         self.assertTrue(np.allclose(lengths, 1.0, atol=1e-6))
 
+    def test_every_vertex_follows_a_nearby_bone(self):
+        # Regression guard. Culling degenerate faces once reindexed the mesh without reindexing the
+        # per-vertex bone allowlists, and a thigh ended up skinned to the forearm: the character tore
+        # open into a slab from hip to knee on every animated frame.
+        mesh = avatar().mesh
+        heads = {b.name: b.head for b in avatar().skeleton}
+        worst = 0.0
+        for i in range(0, mesh.positions.shape[0], 7):
+            dominant = BONE_NAMES[int(mesh.joints[i][0])]
+            gap = float(np.linalg.norm(mesh.positions[i] - heads[dominant]))
+            worst = max(worst, gap)
+        self.assertLess(worst, 0.42, f"a vertex is {worst:.2f} m from the bone that drives it")
+
+    def test_no_degenerate_triangles_reach_the_exporter(self):
+        mesh = avatar().mesh
+        tri = mesh.indices.reshape(-1, 3)
+        a, b, c = (mesh.positions[tri[:, k]] for k in range(3))
+        area = 0.5 * np.linalg.norm(np.cross(b - a, c - a), axis=1)
+        self.assertGreater(float(area.min()), 1e-9, "a zero-area triangle will render as an artefact")
+
     def test_the_figure_is_a_plausible_height_and_stands_on_the_ground(self):
         mesh = avatar().mesh
         self.assertAlmostEqual(float(mesh.positions[:, 1].max()), 1.72, delta=0.06)
@@ -179,7 +199,7 @@ class ExportTest(unittest.TestCase):
         self.assertGreater(len(binary), 1000)
 
     def test_it_passes_our_own_contract_check(self):
-        ok, problems = glb_check.check(self.path, 19, glb_check.REQUIRED_CLIPS, strict=True)
+        ok, problems = glb_check.check(self.path, 21, glb_check.REQUIRED_CLIPS, strict=True)
         self.assertTrue(ok, problems)
 
     def test_the_scene_points_at_the_armature_and_the_mesh(self):
@@ -188,13 +208,13 @@ class ExportTest(unittest.TestCase):
         self.assertEqual(nodes[0]["name"], "Armature")
         mesh_node = next(n for n in nodes if "mesh" in n)
         self.assertIn("skin", mesh_node)
-        self.assertEqual([n.get("name") for n in nodes[1:20]], list(BONE_NAMES))
+        self.assertEqual([n.get("name") for n in nodes[1:1 + len(BONE_NAMES)]], list(BONE_NAMES))
 
     def test_animation_targets_are_bones_and_times_are_sorted(self):
         document, binary = glb_check.parse_glb(self.path.read_bytes())
         for animation in document["animations"]:
             for channel in animation["channels"]:
-                self.assertIn(channel["target"]["node"], range(1, 20))
+                self.assertIn(channel["target"]["node"], range(1, 1 + len(BONE_NAMES)))
                 self.assertEqual(channel["target"]["path"], "rotation")
             for sampler in animation["samplers"]:
                 times = glb_check.read_accessor(document, binary, sampler["input"]).ravel()
@@ -204,7 +224,7 @@ class ExportTest(unittest.TestCase):
         broken = Path(self.tmp.name) / "broken.glb"
         broken.write_bytes(self.path.read_bytes()[:64])
         with self.assertRaises(ValueError):
-            glb_check.check(broken, 19, (), False)
+            glb_check.check(broken, 21, (), False)
 
 
 class IntakeTest(unittest.TestCase):

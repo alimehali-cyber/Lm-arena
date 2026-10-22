@@ -146,19 +146,28 @@ class AvatarFramesTest {
     @Test
     fun theGradeIsANoOpInDaylightAndDimAtNight() {
         assertNull("daylight needs no grade", AvatarGrade.colorMatrix(SkyCanvasTheme.REAL_SKY, AvatarGrade.TINT_DAY))
+
         val night = AvatarGrade.colorMatrix(SkyCanvasTheme.REAL_SKY, AvatarGrade.TINT_NIGHT)
         assertNotNull("night needs a grade", night)
+        val n = night!!
         // Alpha row untouched: a sprite must never lose its transparency to a grade.
-        assertEquals(0f, night!![15], 0f)
-        assertEquals(1f, night[18], 0f)
-        assertEquals(0f, night[19], 0f)
-        // The night grade cools and darkens the red channel relative to the blue one.
-        assertTrue("night must not warm the character", night[0] < night[10])
+        assertEquals(0f, n[15], 0f)
+        assertEquals(1f, n[18], 0f)
+        assertEquals(0f, n[19], 0f)
+        // The night grade cools: red is attenuated more than blue. Row-major 4x5, so R->R is [0], B->B is [12].
+        assertTrue("night must not warm the character", n[0] < n[12])
 
         val mono = AvatarGrade.colorMatrix(SkyCanvasTheme.MONOCHROME_SCIENTIFIC, AvatarGrade.TINT_DAY)
         assertNotNull("Monochrome must desaturate the character", mono)
-        assertEquals(mono!![0], mono[6], 0.001f)
-        assertEquals(mono[6], mono[11], 0.001f)
+        val m = mono!!
+        // A true greyscale: every channel row mixes the same luma weights, and they sum to one.
+        for (row in 0 until 3) {
+            assertEquals(m[0], m[row * 5], 1e-6f)
+            assertEquals(m[1], m[row * 5 + 1], 1e-6f)
+            assertEquals(m[2], m[row * 5 + 2], 1e-6f)
+            assertEquals(1f, m[row * 5] + m[row * 5 + 1] + m[row * 5 + 2], 1e-5f)
+        }
+        assertEquals(1f, m[18], 0f)
 
         assertEquals(AvatarGrade.TINT_DAY, AvatarGrade.lightingBucket(30.0))
         assertEquals(AvatarGrade.TINT_DUSK, AvatarGrade.lightingBucket(0.0))

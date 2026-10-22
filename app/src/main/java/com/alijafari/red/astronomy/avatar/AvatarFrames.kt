@@ -6,7 +6,11 @@ import androidx.compose.ui.unit.IntSize
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.ui.rendering.LightingState
 import com.alijafari.red.astronomy.ui.rendering.SceneComposition
-import org.json.JSONObject
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonAdapter
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlin.math.roundToInt
 
 /**
@@ -48,42 +52,79 @@ data class AvatarFramesMeta(
 
     val cellAspect: Float get() = cellWidth.toFloat() / cellHeight.toFloat()
 
+    /**
+     * The on-disk shape of `meta.json`, as written by `tools/avatar/bake_frames.py`. Moshi rather than
+     * `org.json`: this runs on the JVM in unit tests, where Android's JSON stub returns nulls and would
+     * turn every assertion into a shrug.
+     */
+    @JsonClass(generateAdapter = false)
+    internal class ManifestDto(
+        val asset: String? = null,
+        @Json(name = "height_m") val heightM: Float? = null,
+        val cell: CellDto? = null,
+        val anchor: AnchorDto? = null,
+        @Json(name = "body_fraction") val bodyFraction: Float? = null,
+        val clips: List<ClipDto>? = null
+    )
+
+    @JsonClass(generateAdapter = false)
+    internal class CellDto(val w: Int = 0, val h: Int = 0, val cols: Int = 1, val rows: Int = 1)
+
+    @JsonClass(generateAdapter = false)
+    internal class AnchorDto(val x: Float = 0.5f, val y: Float = 0.95f)
+
+    @JsonClass(generateAdapter = false)
+    internal class ClipDto(
+        val name: String = "",
+        val sheet: String = "",
+        val frames: Int = 1,
+        val fps: Float = 8f,
+        val seconds: Float = 1f,
+        val loop: Boolean = true
+    )
+
     companion object {
+        private val adapter: JsonAdapter<ManifestDto> by lazy {
+            Moshi.Builder().add(KotlinJsonAdapterFactory()).build().adapter(ManifestDto::class.java)
+        }
+
         /**
          * Parses `meta.json`. Returns null on anything unexpected: a malformed avatar must leave the
          * vector observer on screen, never a hole where a person was.
          */
-        fun parse(text: String): AvatarFramesMeta? = runCatching {
-            val root = JSONObject(text)
-            val cell = root.getJSONObject("cell")
-            val anchor = root.optJSONObject("anchor")
-            val clipsJson = root.getJSONArray("clips")
-            val clips = ArrayList<AvatarClip>(clipsJson.length())
-            for (i in 0 until clipsJson.length()) {
-                val c = clipsJson.getJSONObject(i)
-                clips += AvatarClip(
-                    name = c.getString("name"),
-                    sheet = c.getString("sheet"),
-                    frames = c.getInt("frames").coerceAtLeast(1),
-                    fps = c.optDouble("fps", 8.0).toFloat().coerceAtLeast(0.5f),
-                    seconds = c.optDouble("seconds", 1.0).toFloat(),
-                    loop = c.optBoolean("loop", true)
-                )
-            }
+        fun parse(text: String): AvatarFramesMeta? {
+            if (text.isBlank()) return null
+            val dto = runCatching { adapter.fromJson(text) }.getOrNull() ?: return null
+            val cell = dto.cell ?: return null
+            if (cell.w < 1 || cell.h < 1 || cell.cols < 1 || cell.rows < 1) return null
+
+            val clips = dto.clips.orEmpty()
+                .filter { it.name.isNotBlank() && it.sheet.isNotBlank() }
+                .map { c ->
+                    AvatarClip(
+                        name = c.name,
+                        sheet = c.sheet,
+                        frames = c.frames.coerceIn(1, cell.cols * cell.rows),
+                        fps = c.fps.coerceIn(0.5f, 60f),
+                        seconds = c.seconds.coerceAtLeast(0f),
+                        loop = c.loop
+                    )
+                }
             if (clips.isEmpty()) return null
-            AvatarFramesMeta(
-                asset = root.optString("asset", "avatar"),
-                heightM = root.optDouble("height_m", 1.8).toFloat(),
-                cellWidth = cell.getInt("w").coerceAtLeast(1),
-                cellHeight = cell.getInt("h").coerceAtLeast(1),
-                columns = cell.getInt("cols").coerceAtLeast(1),
-                rows = cell.getInt("rows").coerceAtLeast(1),
-                anchorX = anchor?.optDouble("x", 0.5)?.toFloat() ?: 0.5f,
-                anchorY = anchor?.optDouble("y", 0.95)?.toFloat() ?: 0.95f,
-                bodyFraction = root.optDouble("body_fraction", 0.9).toFloat().coerceIn(0.2f, 1f),
+
+            return AvatarFramesMeta(
+                asset = dto.asset ?: "avatar",
+                heightM = (dto.heightM ?: 1.8f).coerceIn(0.3f, 3f),
+                cellWidth = cell.w,
+                cellHeight = cell.h,
+                columns = cell.cols,
+                rows = cell.rows,
+                anchorX = (dto.anchor?.x ?: 0.5f).coerceIn(0f, 1f),
+                anchorY = (dto.anchor?.y ?: 0.95f).coerceIn(0f, 1f),
+                bodyFraction = (dto.bodyFraction ?: 0.9f).coerceIn(0.2f, 1f),
                 clips = clips
             )
-        }.getOrNull()
+        }
     }
 }
 
@@ -188,27 +229,44 @@ object AvatarGrade {
     }
 
     /**
-     * A 4×5 row-major colour matrix, or null for "unchanged". Only the RGB rows are touched; the alpha
+     * A 4x5 row-major colour matrix, or null for "unchanged". Only the RGB rows are touched; the alpha
      * row is always the identity so a sprite never loses its transparency.
+     *
+     * The themed looks win over the light, because a theme is a deliberate art direction: a red
+     * observatory should redden the character standing in it, not just darken him.
      */
-    fun colorMatrix(theme: SkyCanvasTheme, bucket: String): FloatArray? {
-        val (r, g, b) = when (theme) {
-            SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> Triple(0.34f, 0.34f, 0.34f)
-            SkyCanvasTheme.OBSERVATORY -> Triple(1.05f, 0.42f, 0.38f)
-            SkyCanvasTheme.KIDS_WATERCOLOR -> Triple(1.06f, 1.00f, 1.02f)
-            SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Triple(1.02f, 0.98f, 0.92f)
-            else -> when (bucket) {
-                TINT_DAY -> Triple(1.0f, 1.0f, 1.0f)
-                TINT_DUSK -> Triple(1.06f, 0.98f, 0.90f)
-                else -> Triple(0.72f, 0.80f, 1.00f)
-            }
+    fun colorMatrix(theme: SkyCanvasTheme, bucket: String): FloatArray? = when (theme) {
+        // A Swiss plate: the character becomes a value scale like everything else on the sheet.
+        SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> luma()
+        // Rendered in a dim red room; the figure keeps its shape, loses its colour.
+        SkyCanvasTheme.OBSERVATORY -> rowScale(1.02f, 0.40f, 0.36f)
+        // Watercolour and paper both lift the highlights a touch, so the figure reads as painted stock.
+        SkyCanvasTheme.KIDS_WATERCOLOR -> rowScale(1.04f, 1.00f, 1.02f)
+        SkyCanvasTheme.PAPERCRAFT_DIORAMA -> rowScale(1.02f, 0.99f, 0.94f)
+        else -> when (bucket) {
+            TINT_DAY -> null
+            TINT_DUSK -> rowScale(1.06f, 0.98f, 0.90f)
+            else -> rowScale(0.74f, 0.82f, 1.0f)
         }
-        if (r == 1f && g == 1f && b == 1f) return null
-        // Row-major 4x5: R' = r·R, G' = g·G, B' = b·B, A' = A.
+    }
+
+    /** Per-channel gain, alpha untouched. */
+    private fun rowScale(r: Float, g: Float, b: Float): FloatArray = floatArrayOf(
+        r, 0f, 0f, 0f, 0f,
+        0f, g, 0f, 0f, 0f,
+        0f, 0f, b, 0f, 0f,
+        0f, 0f, 0f, 1f, 0f
+    )
+
+    /** Rec. 709 luma, replicated into all three channels: a true greyscale. */
+    private fun luma(): FloatArray {
+        val r = 0.2126f
+        val g = 0.7152f
+        val b = 0.0722f
         return floatArrayOf(
-            r, 0f, 0f, 0f, 0f,
-            0f, g, 0f, 0f, 0f,
-            0f, 0f, b, 0f, 0f,
+            r, g, b, 0f, 0f,
+            r, g, b, 0f, 0f,
+            r, g, b, 0f, 0f,
             0f, 0f, 0f, 1f, 0f
         )
     }

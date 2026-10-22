@@ -218,6 +218,15 @@ def vertex_normals(positions: np.ndarray, indices: np.ndarray) -> np.ndarray:
     for k in range(3):
         np.add.at(normals, tri[:, k], face)
     lengths = np.linalg.norm(normals, axis=1, keepdims=True)
+    # Degenerate geometry can leave a vertex with no usable normal. Those fall back to the radial
+    # direction from the body axis, which is always outward and always unit length after this.
+    empty = lengths[:, 0] < 1e-9
+    if empty.any():
+        radial = positions[empty] - np.array([0.0, positions[empty][:, 1].mean(), 0.0])
+        radial_len = np.linalg.norm(radial, axis=1, keepdims=True)
+        radial_len[radial_len < 1e-9] = 1.0
+        normals[empty] = np.array([0.0, 1.0, 0.0]) + radial / radial_len
+    lengths = np.linalg.norm(normals, axis=1, keepdims=True)
     lengths[lengths < 1e-12] = 1.0
     return normals / lengths
 
@@ -338,8 +347,13 @@ class MeshBuilder:
                 side = 0.90 + 0.10 * math.cos(phi)
                 self.colors.append(tuple(min(1.0, c * side * shade) for c in colour))
                 self._allowed.append(allowed)
+        # A full ellipsoid wraps its last ring segment back to the first. A partial wedge must not: the
+        # wrap would stitch the two cut edges together and produce a pinched, zero-area sliver across
+        # the whole wedge, which shows up as black or unlit triangles in any renderer.
+        full_turn = abs((phi_to - phi_from) - math.tau) < 1e-9
+        span = segments if full_turn else max(segments - 1, 1)
         for i in range(rings):
-            for s in range(segments):
+            for s in range(span):
                 s2 = (s + 1) % segments
                 a = base + i * segments + s
                 b = base + i * segments + s2
@@ -353,6 +367,25 @@ class MeshBuilder:
         positions = np.array(self.positions, dtype=np.float64)
         colours = np.array(self.colors, dtype=np.float64)
         indices = np.array([i for f in self.faces for i in f], dtype=np.int32)
+
+        # No zero-area triangle leaves this builder. A collapsed cap or a pinched seam is invisible in
+        # the mesh and poisonous downstream: it has no normal, so it shades black, and some engines
+        # reject the primitive outright. Cull the faces and the vertices they were the only users of.
+        tri = indices.reshape(-1, 3)
+        a, b, c = positions[tri[:, 0]], positions[tri[:, 1]], positions[tri[:, 2]]
+        keep = np.linalg.norm(np.cross(b - a, c - a), axis=1) > 1e-12
+        if not keep.all():
+            tri = tri[keep]
+            used = np.unique(tri)
+            remap = np.full(len(positions), -1, dtype=np.int64)
+            remap[used] = np.arange(len(used))
+            positions = positions[used]
+            colours = colours[used]
+            # The per-vertex bone allowlists must be remapped with the vertices, or every part after the
+            # first culled face is skinned to the wrong limb (a thigh that follows the forearm).
+            self._allowed = [self._allowed[i] for i in used]
+            indices = remap[tri].ravel().astype(np.int32)
+
         weights, joints = self._skin(positions, falloff)
         return Mesh(positions, colours, indices, weights, joints).with_normals()
 
