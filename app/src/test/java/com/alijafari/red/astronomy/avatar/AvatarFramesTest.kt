@@ -107,7 +107,7 @@ class AvatarFramesTest {
     @Test
     fun theCharacterStandsOnTheGrassLineAtTheObserversHeight() {
         val composition = SkySceneLayout.composition(1080f, 2340f, SkySceneLayout.HORIZON_FRACTION, figureOnRight = true)
-        val placement = AvatarFraming.placement(composition, meta, figureOnRight = true)
+        val placement = AvatarFraming.placement(composition, meta)
 
         // Feet on the composition's grass line, exactly.
         val feetInCell = placement.top + meta.anchorY * placement.height
@@ -127,11 +127,12 @@ class AvatarFramesTest {
     @Test
     fun mirroringKeepsTheCharacterOnTheOtherSide() {
         val composition = SkySceneLayout.composition(1080f, 2340f, SkySceneLayout.HORIZON_FRACTION, figureOnRight = false)
-        val mirrored = AvatarFraming.placement(composition, meta, figureOnRight = false)
-        assertEquals(composition.widthPx - composition.figureCenterX, mirrored.left + meta.anchorX * mirrored.width, 0.5f)
+        val mirrored = AvatarFraming.placement(composition, meta)
+        // The composition owns the side; the placement must not mirror a second time.
+        assertEquals(composition.figureCenterX, mirrored.left + meta.anchorX * mirrored.width, 0.5f)
         assertTrue("mirrored placement must be on the left half", mirrored.left + mirrored.width * 0.5f < 540f)
         val normal = SkySceneLayout.composition(1080f, 2340f, SkySceneLayout.HORIZON_FRACTION, figureOnRight = true)
-        val right = AvatarFraming.placement(normal, meta, figureOnRight = true)
+        val right = AvatarFraming.placement(normal, meta)
         assertTrue("default placement must be on the right half", right.left + right.width * 0.5f > 540f)
     }
 

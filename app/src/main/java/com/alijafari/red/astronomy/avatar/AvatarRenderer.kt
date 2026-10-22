@@ -34,13 +34,12 @@ object AvatarRenderer {
         clip: AvatarClip,
         frameElapsedMs: Long,
         lighting: LightingState,
-        colorFilter: ColorFilter?,
-        figureOnRight: Boolean = true
+        colorFilter: ColorFilter?
     ) {
         val image: ImageBitmap = avatar.sheetFor(clip.name) ?: return
         if (composition.figureHeightPx < 6f) return
 
-        val placement = AvatarFraming.placement(composition, avatar.meta, figureOnRight)
+        val placement = AvatarFraming.placement(composition, avatar.meta)
         drawContactShadow(drawScope, composition, placement, lighting)
 
         val frame = AvatarFraming.frameIndex(clip, frameElapsedMs)

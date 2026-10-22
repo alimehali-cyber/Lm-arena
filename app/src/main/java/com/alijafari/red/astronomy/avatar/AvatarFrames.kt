@@ -192,13 +192,13 @@ object AvatarFraming {
     /**
      * Places the cell on the canvas so the character's feet sit on the grass line at the composition's
      * figure centre, and the character's body is exactly `figureHeightPx` tall.
+     *
+     * The composition already knows which side the figure stands on — `figureCenterX` is mirrored for
+     * Persian — so this reads it rather than deciding again. Mirroring twice puts the character back on
+     * the side the caller was trying to move him away from.
      */
-    fun placement(
-        composition: SceneComposition,
-        meta: AvatarFramesMeta,
-        figureOnRight: Boolean = true
-    ): AvatarPlacement {
-        val centreX = if (figureOnRight) composition.figureCenterX else composition.widthPx - composition.figureCenterX
+    fun placement(composition: SceneComposition, meta: AvatarFramesMeta): AvatarPlacement {
+        val centreX = composition.figureCenterX
         val bodyFraction = meta.bodyFraction.coerceIn(0.2f, 1f)
         val height = composition.figureHeightPx / bodyFraction
         val width = height * meta.cellAspect

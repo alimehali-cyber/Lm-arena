@@ -340,8 +340,7 @@ fun HeroSkyCanvas(
                                 horizonFraction = SkySceneLayout.HORIZON_FRACTION,
                                 figureOnRight = !fa
                             ),
-                            meta = character.meta,
-                            figureOnRight = !fa
+                            meta = character.meta
                         )
                         if (placement.contains(tapOffset)) {
                             waveStartedMs = System.currentTimeMillis()
@@ -553,8 +552,7 @@ fun HeroSkyCanvas(
                             clip = clip,
                             frameElapsedMs = elapsed,
                             lighting = lightingState,
-                            colorFilter = avatarColorFilter,
-                            figureOnRight = !isFa
+                            colorFilter = avatarColorFilter
                         )
                     }
                 }
