@@ -84,8 +84,15 @@ data class AvatarFramesMeta(
     )
 
     companion object {
-        private val adapter: JsonAdapter<ManifestDto> by lazy {
-            Moshi.Builder().add(KotlinJsonAdapterFactory()).build().adapter(ManifestDto::class.java)
+        // Reflection-backed Moshi needs kotlin-reflect at runtime. It ships with `moshi-kotlin`, but a
+        // manifest is not worth a `NoClassDefFoundError` on a Home screen that has already drawn its
+        // stars: if the adapter cannot be built, parsing reports null and the vector observer stays.
+        private val adapter: JsonAdapter<ManifestDto>? by lazy {
+            try {
+                Moshi.Builder().add(KotlinJsonAdapterFactory()).build().adapter(ManifestDto::class.java)
+            } catch (t: Throwable) {
+                null
+            }
         }
 
         /**
@@ -94,7 +101,12 @@ data class AvatarFramesMeta(
          */
         fun parse(text: String): AvatarFramesMeta? {
             if (text.isBlank()) return null
-            val dto = runCatching { adapter.fromJson(text) }.getOrNull() ?: return null
+            val parser = adapter ?: return null
+            val dto = try {
+                parser.fromJson(text)
+            } catch (t: Throwable) {
+                null
+            } ?: return null
             val cell = dto.cell ?: return null
             if (cell.w < 1 || cell.h < 1 || cell.cols < 1 || cell.rows < 1) return null
 
