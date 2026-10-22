@@ -37,7 +37,7 @@ data class ProfessorZSceneState(
  * Dedicated `HandlerThread` OpenGL ES 3.0 renderer for Professor Z (`professor_z.glb` / `professor_z_lod1.glb`).
  *
  * Uses pure `EGL14` + `GLES30` with premultiplied RGBA8 + 16-bit depth (`EGL_ALPHA_SIZE = 8`,
- * `EGL_DEPTH_SIZE = 16`), ZERO Vulkan, ZERO NDK/C++, and degrades seamlessly to `LOD1` or ZIG's
+ * `EGL_DEPTH_SIZE = 16`), pure Kotlin only, and degrades seamlessly to `LOD1` or ZIG's
  * 2D `ObserverRenderer` silhouette if GLES 3.0 initialization fails.
  */
 class ProfessorZRenderer(

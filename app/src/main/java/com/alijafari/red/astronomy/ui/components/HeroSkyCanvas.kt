@@ -289,7 +289,7 @@ fun HeroSkyCanvas(
     val panoramaEnabled = SkyPanoramaFeature.isEnabledFor(uiState.skyCanvasTheme)
     val panoramaActive = SkyPanoramaFeature.isPresented(uiState.skyCanvasTheme, panoramaReady)
 
-    // Real-time 3D Professor Z avatar on the Home scene (pure OpenGL ES 3.0, zero Vulkan).
+    // Real-time 3D Professor Z avatar on the Home scene (pure OpenGL ES 3.0).
     // Falls back seamlessly to 2D ObserverRenderer until first GLES frame swaps or if unsupported.
     var professorZReady by remember { mutableStateOf(false) }
     var professorZTapCount by remember { mutableIntStateOf(0) }

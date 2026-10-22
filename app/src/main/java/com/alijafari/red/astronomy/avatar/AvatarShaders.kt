@@ -5,7 +5,7 @@ package com.alijafari.red.astronomy.avatar
  * Soft Ground Contact Shadow Shaders for ZIG (`com.alijafari.red.astronomy`).
  *
  * Uses `vec4 aJoints` float vertex attributes (`int(aJoints.x + 0.5)`) for 100% compatibility across
- * all Adreno, Mali, and PowerVR mobile GLES 3.0 drivers (`minSdk 24`). Zero Vulkan, zero NDK/C++.
+ * all Adreno, Mali, and PowerVR mobile GLES 3.0 drivers (`minSdk 24`). Pure Kotlin only.
  */
 object AvatarShaders {
 
