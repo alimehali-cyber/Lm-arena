@@ -26,6 +26,9 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -35,6 +38,13 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
+import com.alijafari.red.astronomy.avatar.AvatarAssets
+import com.alijafari.red.astronomy.avatar.AvatarClip
+import com.alijafari.red.astronomy.avatar.AvatarFraming
+import com.alijafari.red.astronomy.avatar.AvatarGrade
+import com.alijafari.red.astronomy.avatar.AvatarPoses
+import com.alijafari.red.astronomy.avatar.AvatarRenderer
+import com.alijafari.red.astronomy.avatar.LoadedAvatar
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.ObjectType
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
@@ -51,8 +61,10 @@ import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.liquidGlass
 import com.alijafari.red.astronomy.util.toPersianDigits
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.math.*
 import kotlin.random.Random
@@ -154,6 +166,19 @@ fun HeroSkyCanvas(
 
     // Selected Tapped Celestial Object
     var selectedCelestial by remember { mutableStateOf<SelectedCelestialInfo?>(null) }
+
+    // --- THE CHARACTER ----------------------------------------------------------------------
+    // The baked 3D avatar, loaded off the main thread. While it is null — no asset installed, a decode
+    // failure, the first frame of a cold start — the vector observer keeps the slot, so the scene never
+    // has a gap where a person stands.
+    val appContext = LocalContext.current.applicationContext
+    val avatar by produceState<LoadedAvatar?>(initialValue = null, key1 = appContext) {
+        value = withContext(Dispatchers.IO) { AvatarAssets.load(appContext) }
+    }
+    // Wave: tapped, and for three seconds afterwards. The avatar is scenery, but tapping a character
+    // that waves back is the one interaction it earns.
+    var waveStartedMs by remember { mutableLongStateOf(0L) }
+    val waveUntilMs = waveStartedMs + 3_000L
 
     // Two clocks. The sky clock moves on the shared 1 Hz tick (and per frame while time is being scrubbed);
     // the motion clock runs the cloud drift and the observer at a capped frame rate. Keeping them apart is
@@ -272,6 +297,7 @@ fun HeroSkyCanvas(
     val currentMoonData by rememberUpdatedState(moonData)
     val currentUserLat by rememberUpdatedState(userLat)
     val currentSkyTheme by rememberUpdatedState(uiState.skyCanvasTheme)
+    val currentAvatar by rememberUpdatedState(avatar)
 
     // The photographic Moon: the Home Moon card's look with the true phase, libration and visibility.
     val moonSprites = rememberSkyMoonSprites()
@@ -285,6 +311,14 @@ fun HeroSkyCanvas(
     val panoramaEnabled = SkyPanoramaFeature.isEnabledFor(uiState.skyCanvasTheme)
     val panoramaActive = SkyPanoramaFeature.isPresented(uiState.skyCanvasTheme, panoramaReady)
 
+    // Theme + lighting grade, built once per change instead of once per frame.
+    val avatarColorFilter: ColorFilter? = remember(uiState.skyCanvasTheme, sunHoriz.altitudeDeg) {
+        AvatarGrade.colorMatrix(
+            theme = uiState.skyCanvasTheme,
+            bucket = AvatarGrade.lightingBucket(sunHoriz.altitudeDeg)
+        )?.let { ColorFilter.colorMatrix(ColorMatrix(it)) }
+    }
+
     BoxWithConstraints(
         modifier = modifier
             .clip(if (isScene) RectangleShape else RoundedCornerShape(RedCornerRadius.window))
@@ -296,6 +330,25 @@ fun HeroSkyCanvas(
                     val touchRadius = 36.dp.toPx()
 
                     val fa = currentIsFa
+                    val character = currentAvatar
+                    if (character != null && isScene) {
+                        // The character is the one tappable thing that is not a sky object: greeting them
+                        // starts the wave. Checked first, so a tap on the figure never opens a star.
+                        val placement = AvatarFraming.placement(
+                            composition = SkySceneLayout.composition(
+                                widthPx = canvasW,
+                                heightPx = canvasH,
+                                horizonFraction = SkySceneLayout.HORIZON_FRACTION,
+                                figureOnRight = !fa
+                            ),
+                            meta = character.meta,
+                            figureOnRight = !fa
+                        )
+                        if (placement.contains(tapOffset)) {
+                            waveStartedMs = System.currentTimeMillis()
+                            return@detectTapGestures
+                        }
+                    }
                     val lat = currentUserLat
                     val sun = currentSunHoriz
                     val moon = currentMoonData
@@ -463,13 +516,48 @@ fun HeroSkyCanvas(
         // to run continuously.
         if (isScene) {
             Canvas(modifier = Modifier.fillMaxSize()) {
+                val character = avatar
                 SkySceneRenderer.drawSceneMotion(
                     drawScope = this,
                     frame = skyFrame,
                     theme = uiState.skyCanvasTheme,
                     frameTimeMs = motionTimeMs,
-                    figureOnRight = !isFa
+                    figureOnRight = !isFa,
+                    // The character replaces the vector observer; the clouds stay either way.
+                    drawObserver = character == null
                 )
+
+                if (character != null) {
+                    val composition = SkySceneLayout.composition(
+                        widthPx = size.width,
+                        heightPx = size.height,
+                        horizonFraction = SkySceneLayout.HORIZON_FRACTION,
+                        figureOnRight = !isFa
+                    )
+                    val clipName = if (motionTimeMs < waveUntilMs) AvatarPoses.WAVE
+                    else AvatarPoses.forSunAltitude(sunHoriz.altitudeDeg)
+                    val clip = character.clipFor(clipName)
+                    if (clip != null) {
+                        // Every clip runs on the scene's motion clock, so the character and the clouds
+                        // share one timebase. The wave is a one-shot, so it counts from the tap.
+                        val elapsed = if (clip.name == AvatarPoses.WAVE) {
+                            (motionTimeMs - waveStartedMs).coerceAtLeast(0L)
+                        } else {
+                            // Offset by the bucket so a slow clip does not restart on every repaint.
+                            motionTimeMs
+                        }
+                        AvatarRenderer.draw(
+                            drawScope = this,
+                            composition = composition,
+                            avatar = character,
+                            clip = clip,
+                            frameElapsedMs = elapsed,
+                            lighting = lightingState,
+                            colorFilter = avatarColorFilter,
+                            figureOnRight = !isFa
+                        )
+                    }
+                }
             }
         }
 

@@ -1,0 +1,111 @@
+{
+  "name": "professor_z",
+  "display_name": "Professor Z",
+  "height_m": 1.8,
+  "notes": [
+    "Measured from the character catalogue: 1.73 m in the sheet, 1.80 m as the Home figure by request.",
+    "Stylised proportions: a large head (5.6 heads tall), narrow shoulders, slim legs, chunky boots.",
+    "Every feature below is geometry, so the character survives being drawn 170 px tall."
+  ],
+  "proportions": {
+    "ankle": 0.04,
+    "knee": 0.28,
+    "hip": 0.52,
+    "waist": 0.598,
+    "chest": 0.7,
+    "shoulder": 0.776,
+    "neck": 0.822,
+    "head_centre": 0.884,
+    "hip_half": 0.06,
+    "waist_half": 0.054,
+    "chest_half": 0.078,
+    "shoulder_half": 0.088,
+    "head_half": 0.071,
+    "depth_ratio": 0.8,
+    "upper_arm": 0.15,
+    "forearm": 0.14,
+    "hand": 0.052,
+    "thigh": 0.24,
+    "shin": 0.24,
+    "foot": 0.088,
+    "arm_spread": 16.0,
+    "forearm_spread": 8.0
+  },
+  "palette": {
+    "skin": [
+      0.93,
+      0.76,
+      0.64
+    ],
+    "skin_shadow": [
+      0.8,
+      0.6,
+      0.49
+    ],
+    "hair": [
+      0.11,
+      0.09,
+      0.09
+    ],
+    "hair_hi": [
+      0.17,
+      0.13,
+      0.13
+    ],
+    "top": [
+      0.54,
+      0.39,
+      0.24
+    ],
+    "jacket_dark": [
+      0.4,
+      0.29,
+      0.17
+    ],
+    "shirt": [
+      0.96,
+      0.94,
+      0.9
+    ],
+    "tie": [
+      0.34,
+      0.18,
+      0.1
+    ],
+    "trousers": [
+      0.31,
+      0.33,
+      0.37
+    ],
+    "shoes": [
+      0.47,
+      0.31,
+      0.19
+    ],
+    "sole": [
+      0.28,
+      0.2,
+      0.13
+    ],
+    "belt": [
+      0.22,
+      0.16,
+      0.11
+    ]
+  },
+  "features": {
+    "glasses": true,
+    "bow_tie": true,
+    "lapels": true,
+    "belt": true,
+    "cuffs": true,
+    "boots": true,
+    "hair_spikes": 13,
+    "hair_volume": 1.02,
+    "ears": true,
+    "nose": true,
+    "mouth": "smile",
+    "brows": "playful",
+    "jacket_open": true
+  }
+}

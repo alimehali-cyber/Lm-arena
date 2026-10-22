@@ -2,7 +2,7 @@
 
 This is the route that needs no GPU, no Blender and no downloaded weights — numpy and Pillow only.
 It builds a stylised, low-poly humanoid from measurements taken off a reference photo, rigs it with
-the 19-bone skeleton the app expects (see skills/zig-avatar-runtime/references/asset-contract.md),
+the 21-bone skeleton the app expects (see skills/zig-avatar-runtime/references/asset-contract.md),
 and hands the result to `glb_export`.
 
 Conventions: metres, Y up, +Z forward (the character faces the camera). The character's LEFT is +X
@@ -30,8 +30,8 @@ BONE_NAMES = (
     "head",
     "shoulder.L", "upper_arm.L", "forearm.L", "hand.L",
     "shoulder.R", "upper_arm.R", "forearm.R", "hand.R",
-    "thigh.L", "shin.L", "foot.L",
-    "thigh.R", "shin.R", "foot.R",
+    "thigh.L", "shin.L", "foot.L", "toe.L",
+    "thigh.R", "shin.R", "foot.R", "toe.R",
 )
 
 PARENTS = {
@@ -42,8 +42,8 @@ PARENTS = {
     "head": "neck",
     "shoulder.L": "chest", "upper_arm.L": "shoulder.L", "forearm.L": "upper_arm.L", "hand.L": "forearm.L",
     "shoulder.R": "chest", "upper_arm.R": "shoulder.R", "forearm.R": "upper_arm.R", "hand.R": "forearm.R",
-    "thigh.L": "hips", "shin.L": "thigh.L", "foot.L": "shin.L",
-    "thigh.R": "hips", "shin.R": "thigh.R", "foot.R": "shin.R",
+    "thigh.L": "hips", "shin.L": "thigh.L", "foot.L": "shin.L", "toe.L": "foot.L",
+    "thigh.R": "hips", "shin.R": "thigh.R", "foot.R": "shin.R", "toe.R": "foot.R",
 }
 
 
@@ -163,10 +163,12 @@ def build_skeleton(p: Proportions) -> list[Bone]:
         hip_j = v(x_hip * sign, p.hip)
         knee_j = v(x_hip * 0.86 * sign, p.knee)
         ankle_j = v(x_hip * 0.80 * sign, p.ankle)
-        toe = np.array([ankle_j[0], p.ankle * h * 0.55, p.foot * h * 0.85])
+        ball = np.array([ankle_j[0], p.ankle * h * 0.62, p.foot * h * 0.55])
+        toe = np.array([ankle_j[0], p.ankle * h * 0.50, p.foot * h * 0.95])
         add(f"thigh.{label}", hip_j, knee_j)
         add(f"shin.{label}", knee_j, ankle_j)
-        add(f"foot.{label}", ankle_j, toe)
+        add(f"foot.{label}", ankle_j, ball)
+        add(f"toe.{label}", ball, toe)
 
     return bones
 
@@ -317,6 +319,8 @@ class MeshBuilder:
         shade: float = 1.0,
         theta_min: float = 0.0,
         theta_max: float = math.pi,
+        phi_from: float = 0.0,
+        phi_to: float = math.tau,
     ) -> None:
         base = len(self.positions)
         rx, ry, rz = radii
@@ -324,7 +328,7 @@ class MeshBuilder:
         for i in range(rows):
             theta = theta_min + (theta_max - theta_min) * i / rings
             for s in range(segments):
-                phi = 2.0 * math.pi * s / segments
+                phi = phi_from + (phi_to - phi_from) * s / max(segments - 1, 1)
                 normal = np.array(
                     [math.sin(theta) * math.cos(phi), math.cos(theta), math.sin(theta) * math.sin(phi)]
                 )

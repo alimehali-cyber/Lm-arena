@@ -1,0 +1,60 @@
+{
+  "schema": "zig.avatar.frames/1",
+  "asset": "professor_z",
+  "height_m": 1.8,
+  "cell": {
+    "w": 128,
+    "h": 192,
+    "cols": 6,
+    "rows": 4
+  },
+  "anchor": {
+    "x": 0.4712,
+    "y": 0.9479
+  },
+  "body_fraction": 0.9167,
+  "clips": [
+    {
+      "name": "idle_breathe",
+      "sheet": "idle_breathe.png",
+      "frames": 24,
+      "fps": 8,
+      "seconds": 3.0,
+      "loop": true
+    },
+    {
+      "name": "day_shade",
+      "sheet": "day_shade.png",
+      "frames": 24,
+      "fps": 8,
+      "seconds": 3.0,
+      "loop": true
+    },
+    {
+      "name": "dusk_phone",
+      "sheet": "dusk_phone.png",
+      "frames": 24,
+      "fps": 8,
+      "seconds": 3.0,
+      "loop": true
+    },
+    {
+      "name": "night_point",
+      "sheet": "night_point.png",
+      "frames": 24,
+      "fps": 8,
+      "seconds": 3.0,
+      "loop": true
+    },
+    {
+      "name": "wave_hello",
+      "sheet": "wave_hello.png",
+      "frames": 24,
+      "fps": 8,
+      "seconds": 3.0,
+      "loop": false
+    }
+  ],
+  "source_glb": "professor_z.glb",
+  "note": "Rendered from the same skinned mesh the GLB is written from; see build_character.py."
+}

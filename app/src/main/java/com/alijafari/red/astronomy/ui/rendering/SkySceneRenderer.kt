@@ -227,6 +227,10 @@ object SkySceneRenderer {
      * The moving half of the full-bleed scene: cloud veils drifting above the stars and the observer
      * breathing on the grass line.
      *
+     * `drawObserver` lets the caller keep the clouds and skip the vector figure, which is what happens
+     * once a baked 3D avatar is installed: the clouds are this pass, the avatar is drawn on top of it by
+     * the caller, in the same canvas and on the same clock.
+     *
      * It is a separate pass from [drawSky] on purpose. The sky is expensive (hundreds of stars, the Milky
      * Way, the Moon sprite) and only changes when the clock or the observer changes, so it is drawn on a
      * slow tick; this pass runs on a faster tick and repaints only a handful of sprites and paths. The
@@ -239,7 +243,8 @@ object SkySceneRenderer {
         frame: SkySceneFrame,
         theme: SkyCanvasTheme,
         frameTimeMs: Long,
-        figureOnRight: Boolean = true
+        figureOnRight: Boolean = true,
+        drawObserver: Boolean = true
     ) {
         val canvasW = drawScope.size.width
         val canvasH = drawScope.size.height
@@ -260,12 +265,14 @@ object SkySceneRenderer {
             )
         }
 
-        ObserverRenderer.draw(
-            drawScope = drawScope,
-            composition = composition,
-            theme = theme,
-            lighting = frame.lightingState,
-            frameTimeMs = frameTimeMs
-        )
+        if (drawObserver) {
+            ObserverRenderer.draw(
+                drawScope = drawScope,
+                composition = composition,
+                theme = theme,
+                lighting = frame.lightingState,
+                frameTimeMs = frameTimeMs
+            )
+        }
     }
 }

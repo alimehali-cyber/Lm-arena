@@ -192,7 +192,7 @@ def render(
         base = w0[..., None] * albedo[tri[0]] + w1[..., None] * albedo[tri[1]] + w2[..., None] * albedo[tri[2]]
         lambert = np.clip(n @ light, 0.0, 1.0)
         rim = np.power(np.clip(1.0 - np.abs(n @ rim_dir), 0.0, 1.0), 3.0)
-        shading = 0.46 + 0.66 * lambert
+        shading = 0.62 + 0.46 * lambert
         lit = base * shading[..., None] + np.array([0.32, 0.46, 0.72]) * (rim * 0.32)[..., None]
         lit = np.clip(lit, 0.0, 1.0)
 
