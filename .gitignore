@@ -20,3 +20,12 @@ debug.keystore
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Vendored third-party engines (AssetFurnace etc.) — installed, never committed
+/vendor/
+
+# Local avatar build output
+/work/
+
+# Avatar build output (characters are content, not the product)
+/out/
