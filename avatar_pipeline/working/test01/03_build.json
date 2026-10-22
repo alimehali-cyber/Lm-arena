@@ -1,0 +1,188 @@
+{
+  "status": "ok",
+  "steps": [
+    "island_core:10502v/21000t",
+    "island_arm.R:2252v/4500t",
+    "island_arm.L:2252v/4500t",
+    "accessories_joined:15006->17051"
+  ],
+  "input_face": true,
+  "warnings": [],
+  "head": {
+    "half_width_m": 0.0799,
+    "half_depth_m": 0.0927,
+    "centre_z": 1.61,
+    "part_count": 11,
+    "height_m": 0.25,
+    "width_m": 0.1599,
+    "depth_m": 0.1855,
+    "width_over_height": 0.64
+  },
+  "islands": [
+    {
+      "name": "core",
+      "verts": 10502,
+      "tris": 21000
+    },
+    {
+      "name": "arm.R",
+      "verts": 2252,
+      "tris": 4500
+    },
+    {
+      "name": "arm.L",
+      "verts": 2252,
+      "tris": 4500
+    }
+  ],
+  "body": {
+    "verts": 15006,
+    "polys": 27371,
+    "dimensions": [
+      0.606,
+      0.336,
+      1.755
+    ],
+    "head_unit_m": 0.25,
+    "feet_on_floor": -0.0251,
+    "height_m": 1.755
+  },
+  "features": [
+    "brow_L",
+    "brow_R",
+    "eye_L",
+    "eye_R",
+    "iris_L",
+    "iris_R",
+    "lid_L",
+    "lid_R",
+    "mouth"
+  ],
+  "feature_geometry": {
+    "eye_radius_m": 0.012,
+    "eye_spacing_m": 0.065,
+    "eye_z": 1.6476,
+    "mouth_z": 1.5601,
+    "head_z_range": [
+      1.5101,
+      1.7601
+    ]
+  },
+  "bones": [
+    "root",
+    "pelvis",
+    "spine",
+    "chest",
+    "neck",
+    "head",
+    "eye.L",
+    "eye.R",
+    "jaw",
+    "clavicle.L",
+    "upperarm.L",
+    "forearm.L",
+    "hand.L",
+    "clavicle.R",
+    "upperarm.R",
+    "forearm.R",
+    "hand.R",
+    "thigh.L",
+    "shin.L",
+    "foot.L",
+    "thigh.R",
+    "shin.R",
+    "foot.R"
+  ],
+  "bone_check": {
+    "upperarm_L_x": 0.175,
+    "sh_w_half": 0.219
+  },
+  "fingers": 10,
+  "bone_count": 33,
+  "deform_bones": 31,
+  "shape_key_displacement_mm": {
+    "jawOpen": 10.42,
+    "viseme_AA": 17.72,
+    "viseme_E": 7.84,
+    "viseme_I": 6.28,
+    "viseme_O": 13.53,
+    "viseme_U": 9.95,
+    "viseme_MBP": 1.41,
+    "mouthSmile_L": 11.33,
+    "mouthSmile_R": 11.78,
+    "mouthFrown": 7.06,
+    "cheekPuff": 3.77,
+    "browInnerUp": 8.84,
+    "browDown_L": 4.8,
+    "browDown_R": 4.86,
+    "eyeSquint_L": 2.3,
+    "eyeSquint_R": 2.14,
+    "Blink": 15.24
+  },
+  "shape_key_dead": [],
+  "shape_keys": [
+    "Basis",
+    "jawOpen",
+    "viseme_AA",
+    "viseme_E",
+    "viseme_I",
+    "viseme_O",
+    "viseme_U",
+    "viseme_MBP",
+    "mouthSmile_L",
+    "mouthSmile_R",
+    "mouthFrown",
+    "cheekPuff",
+    "browInnerUp",
+    "browDown_L",
+    "browDown_R",
+    "eyeSquint_L",
+    "eyeSquint_R",
+    "Blink"
+  ],
+  "shape_key_count": 18,
+  "skinning_method": "island_gated_distance+laplacian",
+  "vertex_counts_per_chain": {
+    "head": 1817,
+    "eye": 1836,
+    "jaw": 592,
+    "neck": 793,
+    "chest": 737,
+    "spine": 775,
+    "thigh": 2288,
+    "pelvis": 208,
+    "shin": 2039,
+    "foot": 1462,
+    "upperarm": 2031,
+    "forearm": 868,
+    "hand": 456,
+    "thumb": 464,
+    "finger3": 229,
+    "finger1": 106,
+    "finger0": 246,
+    "finger2": 104
+  },
+  "materials": [
+    "Brow",
+    "Cloth",
+    "EyeWhite",
+    "Hair",
+    "Iris",
+    "Lips",
+    "Skin"
+  ],
+  "palette": {
+    "skin": "#EACAB6",
+    "hair_top": "#988159",
+    "lips": "#CA9C91",
+    "clothing_chest": "#B45F42"
+  },
+  "totals": {
+    "objects": 2,
+    "verts": 17051,
+    "polys": 29539,
+    "bones": 33
+  },
+  "blend": "working/test01/character.blend",
+  "blend_bytes": 1647547
+}

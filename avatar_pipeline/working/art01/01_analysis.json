@@ -1,0 +1,222 @@
+{
+  "image": "/tmp/art/figure.png",
+  "image_sha256_note": "hash recorded by the manifest stage, not here",
+  "validation": {
+    "readable": true,
+    "min_resolution_ok": true,
+    "not_a_blank_frame": true,
+    "aspect_sane": true
+  },
+  "face_source": "silhouette",
+  "rejected_faces": [
+    {
+      "box": [
+        145,
+        70,
+        134,
+        134
+      ],
+      "reason": "cascade head 181px vs silhouette 124px suggests non-human proportions"
+    }
+  ],
+  "silhouette": {
+    "bbox": [
+      115,
+      49,
+      191,
+      552
+    ],
+    "coverage": 0.2046,
+    "figure_type": "full_body",
+    "shoulder_px": 107.0,
+    "head_px_estimate": 124.3,
+    "head_width_estimate": 143.0,
+    "heads_tall_estimate": 4.44,
+    "head_estimate_basis": "crown width",
+    "bottom_reaches_frame": false,
+    "source": "background"
+  },
+  "face": {
+    "x": 162,
+    "y": 55,
+    "w": 96,
+    "h": 124,
+    "detector": "opencv_haar"
+  },
+  "colours": {
+    "skin_forehead": "#EBBE96",
+    "skin_cheek": "#EBBE96",
+    "skin_cheek_r": "#EBBE96",
+    "hair_top": "#462D28",
+    "lips": "#D8AE8A",
+    "eye_left": "#EBBE96",
+    "eye_right": "#EBBE96",
+    "clothing_chest": "#B4505A",
+    "clothing_shoulder": "#B4505A",
+    "iris_left": "#91755D",
+    "iris_right": "#91755D",
+    "brow": "#462D28",
+    "iris": "#91755D",
+    "skin": "#EBBE96"
+  },
+  "regions": {
+    "skin_forehead": {
+      "box": [
+        190.8,
+        67.4,
+        229.2,
+        87.2
+      ],
+      "clusters": [
+        "#EBBE96",
+        "#462D28",
+        "#EBBE96"
+      ],
+      "inside_figure": 1.0
+    },
+    "skin_cheek": {
+      "box": [
+        173.5,
+        119.5,
+        194.6,
+        144.3
+      ],
+      "clusters": [
+        "#EBBE96",
+        "#3C3C3C",
+        "#EBBE96"
+      ],
+      "inside_figure": 1.0
+    },
+    "skin_cheek_r": {
+      "box": [
+        225.4,
+        119.5,
+        246.5,
+        144.3
+      ],
+      "clusters": [
+        "#EBBE96",
+        "#3C3C3C",
+        "#EBBE96"
+      ],
+      "inside_figure": 1.0
+    },
+    "hair_top": {
+      "box": [
+        186.0,
+        27.7,
+        234.0,
+        64.9
+      ],
+      "clusters": [
+        "#462D28",
+        "#462D28",
+        "#462D28"
+      ],
+      "inside_figure": 0.378
+    },
+    "lips": {
+      "box": [
+        198.5,
+        146.8,
+        221.5,
+        156.7
+      ],
+      "clusters": [
+        "#EBBE96",
+        "#EBBE96",
+        "#EBBE96"
+      ],
+      "inside_figure": 1.0
+    },
+    "eye_left": {
+      "box": [
+        181.2,
+        102.1,
+        194.6,
+        112.0
+      ],
+      "clusters": [
+        "#EBBE96",
+        "#EBBE96",
+        "#EBBE96"
+      ],
+      "inside_figure": 1.0
+    },
+    "eye_right": {
+      "box": [
+        225.4,
+        102.1,
+        238.8,
+        112.0
+      ],
+      "clusters": [
+        "#EBBE96",
+        "#EBBE96",
+        "#EBBE96"
+      ],
+      "inside_figure": 1.0
+    },
+    "clothing_chest": {
+      "box": [
+        162,
+        247.2,
+        354.0,
+        377.4
+      ],
+      "clusters": [
+        "#B4505A",
+        "#F5F5F5",
+        "#B4505A"
+      ],
+      "inside_figure": 0.649
+    },
+    "background": [
+      0,
+      0,
+      50.4,
+      91.2
+    ],
+    "clothing_shoulder": {
+      "box": [
+        133.2,
+        210.0,
+        286.8,
+        253.4
+      ],
+      "clusters": [
+        "#B4505A",
+        "#F5F5F5",
+        "#B4505A"
+      ],
+      "inside_figure": 1.0
+    }
+  },
+  "proportions": {
+    "estimated_person_metres": 1.75,
+    "heads_tall": 4.44,
+    "head_unit_m": 0.3941,
+    "head_count_source": "silhouette",
+    "shoulder_width_in_heads": 1.9,
+    "arm_span_in_heads": 3.6,
+    "leg_length_in_heads": 3.4,
+    "waist_height_in_heads": 4.2,
+    "head_px": 124.3,
+    "image_px": [
+      420,
+      760
+    ],
+    "head_takes_fraction_of_frame": 0.1636
+  },
+  "proportion_method": "no photographic face; head height derived from the silhouette crown (full_body, 4.44 heads tall, a guess)",
+  "proportion_confidence": 0.5,
+  "target_tris": 30000,
+  "learned_reconstruction": "unavailable",
+  "limitations": [
+    "No learned image-to-3D model is installed in this sandbox (no GPU, no model weights). The mesh is parametric, fitted to the measured face box and sampled colours.",
+    "The output is NOT a likeness of this person. Identity, expression and fine facial structure are not recovered from one photograph.",
+    "Scale is assumed: a single photo carries no metric reference, so height defaults to 1.75 m.",
+    "Back-of-head, clothing folds and occluded regions are invented from sample colours, not measured."
+  ]
+}

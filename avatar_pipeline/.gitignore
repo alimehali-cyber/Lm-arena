@@ -1,0 +1,13 @@
+# Binary artefacts: regenerable, large, and one of them is derived from a photograph.
+.venv/
+tools/headless/stublibs/
+working/*/character.blend
+working/*/character_anim.blend
+exports/*/*.glb
+renders/
+android/assets/*.glb
+__pycache__/
+*.pyc
+catalogue/*
+!catalogue/README.md
+working/*/character*.blend1

@@ -1,0 +1,130 @@
+{
+  "id": "art01",
+  "generated_by": "avatar_pipeline",
+  "versions": {
+    "python": "3.11.2",
+    "platform": "Linux-6.1.158+-x86_64-with-glibc2.36",
+    "blender": "5.0.1"
+  },
+  "artefacts": {
+    "analysis": {
+      "path": "working/art01/01_analysis.json",
+      "bytes": 4601,
+      "sha256": "8668313f809075b3bf33714755887f8e579b3324d217a2e1de8d9d407219ad5e"
+    },
+    "character_blend": {
+      "path": "working/art01/character.blend",
+      "bytes": 1674834,
+      "sha256": "76622bf7357914b550f587b4d7eefdd8804681147253939115e94a2ddb060a4d"
+    },
+    "build_report": {
+      "path": "working/art01/03_build.json",
+      "bytes": 3331,
+      "sha256": "a1d4f972567596db451c7f5a6b25141193cac9fd45bee0ea1c174cc8b2fdb90f"
+    },
+    "skin_report": {
+      "path": "working/art01/05_skin.json",
+      "bytes": 1933,
+      "sha256": "1561a386ab9d17db7118358ade97a9a9953b6b10970ffd9ef0a612f9c0a93b2d"
+    },
+    "animated_blend": {
+      "path": "working/art01/character_anim.blend",
+      "bytes": 1699792,
+      "sha256": "0bbdd7cb19e2c535ccf0920190835a0c8325378eff298e16d7d11c132a989f02"
+    },
+    "anim_report": {
+      "path": "working/art01/06_anim.json",
+      "bytes": 6667,
+      "sha256": "0d55aaf43d95074cf76258689b42c970c89fdc3e71f86f270ced0c1cf60c59d1"
+    },
+    "export_report": {
+      "path": "exports/art01/08_export.json",
+      "bytes": 1398,
+      "sha256": "9909f9795041725ece70420c12ac01c6b5915a5395409c2cdd9ec389bf332e4e"
+    },
+    "glb": {
+      "path": "exports/art01/avatar.glb",
+      "bytes": 1613736,
+      "sha256": "e1a1ba269c4ff4c18a265b1da669cfe14dfaf8bb37e74b5adbfa82d6b84cb962"
+    },
+    "validate_report": {
+      "path": "exports/art01/09_validate.json",
+      "bytes": 3374,
+      "sha256": "648704acca22903580ed4cf11d81ce6541a79991515152d2be6312b842670b83"
+    }
+  },
+  "licences": {
+    "pipeline_source_code": {
+      "licence": "author's own work, not published here"
+    },
+    "blender_bpy": {
+      "licence": "GPL-3.0-or-later",
+      "note": "running Blender headless does not make the output GPL"
+    },
+    "generated_assets": {
+      "licence": "derived from the input image named in 01_analysis.json",
+      "input_image": "see analysis.image",
+      "note": "no third-party model weights were used; the mesh is parametric, not a reconstruction of the subject"
+    },
+    "vendored_skills": {
+      "blender-skills": {
+        "licence": "MIT",
+        "commit": "71d031d",
+        "use": "primary skill workflow"
+      },
+      "blender-agent-studio": {
+        "licence": "MIT",
+        "commit": "6ff97fa",
+        "use": "reference: agent/tool structure"
+      },
+      "facial-animation": {
+        "licence": "MIT",
+        "commit": "5bd659d",
+        "use": "reference: facial scope"
+      },
+      "cc-blender-skill": {
+        "licence": "MIT",
+        "commit": "a2634b5",
+        "use": "reference: rig conventions"
+      },
+      "gpt_3d_skill": {
+        "licence": "NO LICENCE FILE",
+        "commit": "d35e84a",
+        "use": "REFERENCE ONLY - never executed, never redistributed"
+      }
+    },
+    "rhubarb_lipsync": {
+      "licence": "MIT (optional)",
+      "note": "not installed; energy fallback used instead"
+    },
+    "gltf_exporter": {
+      "licence": "Apache-2.0 (Khronos glTF-Blender-IO)"
+    }
+  },
+  "status": {
+    "glb_validation": "pass",
+    "glb_mb": 1.614,
+    "clips": 21,
+    "skinning": "pass",
+    "max_edge_stretch": {
+      "arm_raise": 1.05,
+      "arm_forward": 2.59,
+      "elbow_fold": 4.28,
+      "knee_bend": 4.05,
+      "spine_twist": 3.14,
+      "head_turn": 7.33,
+      "hip_flex": 4.65,
+      "hip_90_stress": 7.38
+    },
+    "skinning_known_limitations": [
+      "hip_90_stress: 225 edges over the limit (max 7.38x) - outside the shipped motion range, reported not gated"
+    ],
+    "runtime_vertices": 17096,
+    "runtime_triangles": 33988,
+    "joints": 31,
+    "draw_calls": 7,
+    "android_runtime": "NOT TESTED - no device and no emulator exist in this environment",
+    "photo_identity_match": "NO - the mesh is generic, not a likeness of the subject"
+  },
+  "reproduce": "./run_pipeline.sh working/art01"
+}

@@ -1,0 +1,165 @@
+{
+  "status": "ok",
+  "steps": [],
+  "character": "Professor Z",
+  "source": "character sheet front view, measured",
+  "warnings": [],
+  "face": {
+    "eye_z": 1.467,
+    "eye_x": 0.0609,
+    "eye_y": -0.132,
+    "eye_r": 0.0375,
+    "mouth_z": 1.3311
+  },
+  "geo": {
+    "torso_hw": 0.17,
+    "torso_hd": 0.128,
+    "sh_half": 0.163,
+    "chest_z": 1.0726,
+    "hip_z": 0.718
+  },
+  "islands": [
+    [
+      "core",
+      0,
+      11961
+    ],
+    [
+      "arm.L",
+      11961,
+      13027
+    ],
+    [
+      "arm.R",
+      13027,
+      14093
+    ]
+  ],
+  "bones": [
+    "root",
+    "pelvis",
+    "spine",
+    "chest",
+    "neck",
+    "head",
+    "eye.L",
+    "eye.R",
+    "jaw",
+    "clavicle.L",
+    "upperarm.L",
+    "forearm.L",
+    "hand.L",
+    "clavicle.R",
+    "upperarm.R",
+    "forearm.R",
+    "hand.R",
+    "thigh.L",
+    "shin.L",
+    "foot.L",
+    "thigh.R",
+    "shin.R",
+    "foot.R"
+  ],
+  "bone_check": {
+    "upperarm_L_x": 0.163,
+    "sh_w_half": 0.163
+  },
+  "fingers": 10,
+  "bone_count": 33,
+  "deform_bones": 31,
+  "shape_key_displacement_mm": {
+    "jawOpen": 4.11,
+    "viseme_AA": 25.51,
+    "viseme_E": 11.29,
+    "viseme_I": 9.05,
+    "viseme_O": 19.48,
+    "viseme_U": 14.32,
+    "viseme_MBP": 2.03,
+    "mouthSmile_L": 16.97,
+    "mouthSmile_R": 16.61,
+    "mouthFrown": 10.17,
+    "cheekPuff": 5.43,
+    "browInnerUp": 13.38,
+    "browDown_L": 7.36,
+    "browDown_R": 7.36,
+    "eyeSquint_L": 3.39,
+    "eyeSquint_R": 3.39,
+    "Blink": 24.32
+  },
+  "shape_key_dead": [],
+  "shape_keys": [
+    "Basis",
+    "jawOpen",
+    "viseme_AA",
+    "viseme_E",
+    "viseme_I",
+    "viseme_O",
+    "viseme_U",
+    "viseme_MBP",
+    "mouthSmile_L",
+    "mouthSmile_R",
+    "mouthFrown",
+    "cheekPuff",
+    "browInnerUp",
+    "browDown_L",
+    "browDown_R",
+    "eyeSquint_L",
+    "eyeSquint_R",
+    "Blink"
+  ],
+  "shape_key_count": 18,
+  "skinning_method": "island_gated_distance+laplacian",
+  "vertex_counts_per_chain": {
+    "head": 5285,
+    "jaw": 1873,
+    "eye": 2658,
+    "chest": 635,
+    "thigh": 272,
+    "pelvis": 67,
+    "spine": 251,
+    "neck": 512,
+    "shin": 112,
+    "foot": 296,
+    "upperarm": 672,
+    "forearm": 168,
+    "hand": 1230,
+    "thumb": 54,
+    "finger0": 4,
+    "finger3": 4
+  },
+  "body": {
+    "verts": 14093,
+    "polys": 14854,
+    "dimensions": [
+      0.482,
+      0.377,
+      1.73
+    ],
+    "height_m": 1.73,
+    "head_unit_m": 0.3391
+  },
+  "materials": [
+    "Brow",
+    "EyeWhite",
+    "Glasses",
+    "Hair",
+    "Iris",
+    "Jacket",
+    "JacketDark",
+    "Lips",
+    "Pupil",
+    "Shirt",
+    "Shoe",
+    "Skin",
+    "Tie",
+    "Trousers"
+  ],
+  "totals": {
+    "objects": 2,
+    "verts": 14093,
+    "polys": 14854,
+    "bones": 33
+  },
+  "blend": "working/profz/character.blend",
+  "blend_bytes": 1082381
+}

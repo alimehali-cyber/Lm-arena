@@ -1,0 +1,75 @@
+{
+  "blend": "working/art01/character.blend",
+  "verts": 17051,
+  "edges": 46051,
+  "weight_discontinuous_edges": 44,
+  "cases": {
+    "arm_raise": {
+      "max_stretch": 1.05,
+      "p99_stretch": 1.0,
+      "edges_over_limit": 0,
+      "class": "gate",
+      "fraction_over_limit": 0.0
+    },
+    "arm_forward": {
+      "max_stretch": 2.59,
+      "p99_stretch": 1.08,
+      "edges_over_limit": 4,
+      "class": "gate",
+      "fraction_over_limit": 0.0001
+    },
+    "elbow_fold": {
+      "max_stretch": 4.28,
+      "p99_stretch": 1.16,
+      "edges_over_limit": 21,
+      "class": "gate",
+      "fraction_over_limit": 0.0005
+    },
+    "knee_bend": {
+      "max_stretch": 4.05,
+      "p99_stretch": 1.56,
+      "edges_over_limit": 141,
+      "class": "gate",
+      "fraction_over_limit": 0.0031
+    },
+    "spine_twist": {
+      "max_stretch": 3.14,
+      "p99_stretch": 1.48,
+      "edges_over_limit": 120,
+      "class": "gate",
+      "fraction_over_limit": 0.0026
+    },
+    "head_turn": {
+      "max_stretch": 7.33,
+      "p99_stretch": 1.26,
+      "edges_over_limit": 97,
+      "class": "gate",
+      "fraction_over_limit": 0.0021
+    },
+    "hip_flex": {
+      "max_stretch": 4.65,
+      "p99_stretch": 1.35,
+      "edges_over_limit": 78,
+      "class": "gate",
+      "fraction_over_limit": 0.0017
+    },
+    "hip_90_stress": {
+      "max_stretch": 7.38,
+      "p99_stretch": 1.61,
+      "edges_over_limit": 225,
+      "class": "stress",
+      "fraction_over_limit": 0.0049
+    }
+  },
+  "warnings": [],
+  "status": "pass",
+  "failed_cases": [],
+  "known_limitations": [
+    "hip_90_stress: 225 edges over the limit (max 7.38x) - outside the shipped motion range, reported not gated"
+  ],
+  "criteria": {
+    "max_stretch_limit": 2.0,
+    "allowed_fraction_over_limit": 0.005,
+    "note": "A torn seam produces thousands of over-stretched edges; a handful at an extreme joint angle is normal for linear blend skinning."
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "glb": "exports/profz/avatar.glb",
+  "bytes": 1624380,
+  "mb": 1.624,
+  "status": "pass",
+  "failed": [],
+  "bones": [
+    "root",
+    "pelvis",
+    "spine",
+    "chest",
+    "neck",
+    "head",
+    "eye.L",
+    "eye.R",
+    "jaw",
+    "upperarm.L",
+    "forearm.L",
+    "hand.L",
+    "finger0.L",
+    "finger1.L",
+    "finger2.L",
+    "finger3.L",
+    "thumb.L",
+    "upperarm.R",
+    "forearm.R",
+    "hand.R",
+    "finger0.R",
+    "finger1.R",
+    "finger2.R",
+    "finger3.R",
+    "thumb.R",
+    "thigh.L",
+    "shin.L",
+    "foot.L",
+    "thigh.R",
+    "shin.R",
+    "foot.R"
+  ],
+  "durations_s": {
+    "Expression_Curious": 1.833,
+    "Expression_Frustrated": 1.833,
+    "Expression_Happy": 1.833,
+    "Expression_Sad": 1.833,
+    "Expression_Set": 14,
+    "Expression_Surprised": 1.833,
+    "Expression_Thinking": 1.833,
+    "Gesture_Emphasize": 1.708,
+    "Gesture_Explain": 2.167,
+    "Gesture_Greet": 2.292,
+    "Gesture_Point": 1.958,
+    "Gesture_Set": 9.667,
+    "Idle_Breathing": 28.125,
+    "Idle_LookAround": 12,
+    "React_Negative": 1.333,
+    "React_Positive": 1.333,
+    "Talk_Expressive": 10,
+    "Talk_Neutral": 10,
+    "Turn": 1.583,
+    "Walk": 3.042,
+    "Blink_Natural": 2.75
+  },
+  "channel_paths": {
+    "translation": 620,
+    "rotation": 620,
+    "scale": 620,
+    "weights": 13
+  },
+  "checks": [
+    {
+      "check": "json_chunk",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "bin_chunk",
+      "pass": true,
+      "detail": "1257928 bytes"
+    },
+    {
+      "check": "generator",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "no_external_uris",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "accessor_bounds",
+      "pass": true,
+      "detail": "0 out of range"
+    },
+    {
+      "check": "single_skin",
+      "pass": true,
+      "detail": "1"
+    },
+    {
+      "check": "joint_count",
+      "pass": true,
+      "detail": "31"
+    },
+    {
+      "check": "inverse_bind_matrices",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "check": "all_joints_named",
+      "pass": true,
+      "detail": "0 unnamed"
+    },
+    {
+      "check": "primitives",
+      "pass": true,
+      "detail": "14 draw calls"
+    },
+    {
+      "check": "skinned_primitives",
+      "pass": true,
+      "detail": "0 without WEIGHTS_0"
+    },
+    {
+      "check": "morph_targets_match",
+      "pass": true,
+      "detail": "{17}"
+    },
+    {
+      "check": "morph_names_recorded",
+      "pass": true,
+      "detail": "17 names"
+    },
+    {
+      "check": "morph_name_count",
+      "pass": true,
+      "detail": "17 vs 17"
+    },
+    {
+      "check": "animation_count",
+      "pass": true,
+      "detail": "21"
+    },
+    {
+      "check": "all_required_clips",
+      "pass": true,
+      "detail": "19 named clips present"
+    },
+    {
+      "check": "no_empty_animations",
+      "pass": true,
+      "detail": "[]"
+    },
+    {
+      "check": "bone_and_morph_channels",
+      "pass": true,
+      "detail": "{'translation': 620, 'rotation': 620, 'scale': 620, 'weights': 13}"
+    },
+    {
+      "check": "root_joint_exported",
+      "pass": true,
+      "detail": "31 joints"
+    },
+    {
+      "check": "turn_moves_root",
+      "pass": true,
+      "detail": "Turn must key the root node"
+    },
+    {
+      "check": "size_budget",
+      "pass": true,
+      "detail": "1.62 MB"
+    }
+  ]
+}

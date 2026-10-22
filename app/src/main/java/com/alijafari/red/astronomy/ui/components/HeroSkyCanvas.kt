@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -41,6 +42,7 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.domain.TimeMachineMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.character.HeroCharacterSprite
 import com.alijafari.red.astronomy.ui.rendering.*
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaLayer
@@ -129,6 +131,16 @@ fun HeroSkyCanvas(
     val coroutineScope = rememberCoroutineScope()
 
     val isScene = presentation == SkyCanvasPresentation.SCENE
+
+    // Load the character sprite once for the scene. Decoding is ~2.4 MB and happens on the first
+    // composition; until it finishes the renderer draws the vector observer, so there is no gap.
+    if (isScene) {
+        val characterContext = LocalContext.current
+        LaunchedEffect(characterContext) {
+            HeroCharacterSprite.ensureLoaded(characterContext.applicationContext)
+        }
+    }
+
     // The scene puts the horizon low so the sky owns the frame; the viewer keeps the old 0.85.
     val horizonFraction = if (isScene) SkySceneLayout.HORIZON_FRACTION else HeroSkyProjection.HORIZON_FRACTION
     val renderTarget = if (isScene) SkyRenderTarget.HOME_SCENE else SkyRenderTarget.HOME_HERO

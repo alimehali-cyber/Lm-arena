@@ -1,0 +1,191 @@
+{
+  "image": "tests/fixtures/portrait-astronaut.jpg",
+  "image_sha256_note": "hash recorded by the manifest stage, not here",
+  "validation": {
+    "readable": true,
+    "min_resolution_ok": true,
+    "not_a_blank_frame": true,
+    "aspect_sane": true
+  },
+  "face": {
+    "x": 85,
+    "y": 56,
+    "w": 98,
+    "h": 98,
+    "detector": "opencv_haar"
+  },
+  "colours": {
+    "skin_forehead": "#EDD1BE",
+    "skin_cheek": "#F0CFBE",
+    "skin_cheek_r": "#E3C0A7",
+    "hair_top": "#988159",
+    "lips": "#CA9C91",
+    "eye_left": "#E2C4AE",
+    "eye_right": "#CAAD99",
+    "clothing_chest": "#B45F42",
+    "background": "#B7B0AB",
+    "clothing_shoulder": "#0B0805",
+    "iris_left": "#463527",
+    "iris_right": "#312518",
+    "brow": "#796037",
+    "iris": "#312518",
+    "skin": "#EACAB6"
+  },
+  "regions": {
+    "skin_forehead": {
+      "box": [
+        114.4,
+        65.8,
+        153.6,
+        81.5
+      ],
+      "clusters": [
+        "#EDD1BE",
+        "#85643A",
+        "#BE9A7B"
+      ]
+    },
+    "skin_cheek": {
+      "box": [
+        96.8,
+        107.0,
+        118.3,
+        126.6
+      ],
+      "clusters": [
+        "#F0CFBE",
+        "#D7B095",
+        "#AC7F61"
+      ]
+    },
+    "skin_cheek_r": {
+      "box": [
+        149.7,
+        107.0,
+        171.2,
+        126.6
+      ],
+      "clusters": [
+        "#E3C0A7",
+        "#CDA88E",
+        "#AD896D"
+      ]
+    },
+    "hair_top": {
+      "box": [
+        109.5,
+        34.4,
+        158.5,
+        63.8
+      ],
+      "clusters": [
+        "#988159",
+        "#B6A178",
+        "#796037"
+      ]
+    },
+    "lips": {
+      "box": [
+        122.2,
+        128.5,
+        145.8,
+        136.4
+      ],
+      "clusters": [
+        "#CA9C91",
+        "#EED1C2",
+        "#A27463"
+      ]
+    },
+    "eye_left": {
+      "box": [
+        104.6,
+        93.2,
+        118.3,
+        101.1
+      ],
+      "clusters": [
+        "#E2C4AE",
+        "#C5A58E",
+        "#725740"
+      ]
+    },
+    "eye_right": {
+      "box": [
+        149.7,
+        93.2,
+        163.4,
+        101.1
+      ],
+      "clusters": [
+        "#CAAD99",
+        "#977B66",
+        "#503C27"
+      ]
+    },
+    "clothing_chest": {
+      "box": [
+        85,
+        207.9,
+        281.0,
+        310.8
+      ],
+      "clusters": [
+        "#B45F42",
+        "#231311",
+        "#D1C8C8"
+      ]
+    },
+    "background": {
+      "box": [
+        0,
+        0,
+        33.1,
+        47.9
+      ],
+      "clusters": [
+        "#B7B0AB",
+        "#B4AAA1",
+        "#C0B7AE"
+      ]
+    },
+    "clothing_shoulder": {
+      "box": [
+        55.6,
+        178.5,
+        212.4,
+        212.8
+      ],
+      "clusters": [
+        "#0B0805",
+        "#D7CECE",
+        "#736C6C"
+      ]
+    }
+  },
+  "proportions": {
+    "estimated_person_metres": 1.75,
+    "heads_tall": 7.0,
+    "head_unit_m": 0.25,
+    "shoulder_width_in_heads": 1.9,
+    "arm_span_in_heads": 3.6,
+    "leg_length_in_heads": 3.4,
+    "waist_height_in_heads": 4.2,
+    "head_px": 132.3,
+    "image_px": [
+      276,
+      399
+    ],
+    "head_takes_fraction_of_frame": 0.3316
+  },
+  "proportion_method": "face detected; head measured from the cascade box (x1.35 for the skull)",
+  "proportion_confidence": 0.72,
+  "target_tris": 30000,
+  "learned_reconstruction": "unavailable",
+  "limitations": [
+    "No learned image-to-3D model is installed in this sandbox (no GPU, no model weights). The mesh is parametric, fitted to the measured face box and sampled colours.",
+    "The output is NOT a likeness of this person. Identity, expression and fine facial structure are not recovered from one photograph.",
+    "Scale is assumed: a single photo carries no metric reference, so height defaults to 1.75 m.",
+    "Back-of-head, clothing folds and occluded regions are invented from sample colours, not measured."
+  ]
+}

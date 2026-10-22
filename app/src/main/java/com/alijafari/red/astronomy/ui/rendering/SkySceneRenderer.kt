@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
+import com.alijafari.red.astronomy.ui.character.HeroCharacterSprite
 
 /**
  * Draws the shared Sky Canvas layers for a [SkySceneFrame]: atmosphere, Milky Way, stars, Sun, Moon,
@@ -260,12 +261,23 @@ object SkySceneRenderer {
             )
         }
 
-        ObserverRenderer.draw(
+        // The character is a real 3D model baked to a sprite strip (see HeroCharacterSprite).
+        // It returns false when the strip is not loaded, so the vector observer stays the
+        // fallback rather than a blank space on the grass.
+        val drewCharacter = HeroCharacterSprite.draw(
             drawScope = drawScope,
             composition = composition,
-            theme = theme,
             lighting = frame.lightingState,
             frameTimeMs = frameTimeMs
         )
+        if (!drewCharacter) {
+            ObserverRenderer.draw(
+                drawScope = drawScope,
+                composition = composition,
+                theme = theme,
+                lighting = frame.lightingState,
+                frameTimeMs = frameTimeMs
+            )
+        }
     }
 }

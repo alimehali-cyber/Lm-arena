@@ -1,0 +1,364 @@
+{
+  "fps": 24,
+  "clips": {
+    "Idle_Breathing": {
+      "frames": 672,
+      "seconds": 27.96,
+      "fcurves": 15,
+      "bone_curves": 15,
+      "morph_curves": 0,
+      "keys": 168
+    },
+    "Idle_LookAround": {
+      "frames": 288,
+      "seconds": 11.96,
+      "fcurves": 10,
+      "bone_curves": 9,
+      "morph_curves": 1,
+      "keys": 107
+    },
+    "Blink_Natural": {
+      "frames": 90,
+      "seconds": 3.71,
+      "fcurves": 1,
+      "bone_curves": 0,
+      "morph_curves": 1,
+      "keys": 8
+    },
+    "Expression_Set": {
+      "frames": 336,
+      "seconds": 13.96,
+      "fcurves": 15,
+      "bone_curves": 6,
+      "morph_curves": 9,
+      "keys": 120
+    },
+    "Expression_Happy": {
+      "frames": 44,
+      "seconds": 1.79,
+      "fcurves": 21,
+      "bone_curves": 12,
+      "morph_curves": 9,
+      "keys": 96
+    },
+    "Expression_Sad": {
+      "frames": 44,
+      "seconds": 1.79,
+      "fcurves": 21,
+      "bone_curves": 12,
+      "morph_curves": 9,
+      "keys": 96
+    },
+    "Expression_Surprised": {
+      "frames": 44,
+      "seconds": 1.79,
+      "fcurves": 21,
+      "bone_curves": 12,
+      "morph_curves": 9,
+      "keys": 96
+    },
+    "Expression_Thinking": {
+      "frames": 44,
+      "seconds": 1.79,
+      "fcurves": 21,
+      "bone_curves": 12,
+      "morph_curves": 9,
+      "keys": 96
+    },
+    "Expression_Curious": {
+      "frames": 44,
+      "seconds": 1.79,
+      "fcurves": 21,
+      "bone_curves": 12,
+      "morph_curves": 9,
+      "keys": 96
+    },
+    "Expression_Frustrated": {
+      "frames": 44,
+      "seconds": 1.79,
+      "fcurves": 21,
+      "bone_curves": 12,
+      "morph_curves": 9,
+      "keys": 96
+    },
+    "Gesture_Set": {
+      "frames": 232,
+      "seconds": 9.62,
+      "fcurves": 18,
+      "bone_curves": 18,
+      "morph_curves": 0,
+      "keys": 342
+    },
+    "Talk_Neutral": {
+      "frames": 240,
+      "seconds": 9.96,
+      "fcurves": 9,
+      "bone_curves": 3,
+      "morph_curves": 6,
+      "keys": 360
+    },
+    "Talk_Expressive": {
+      "frames": 240,
+      "seconds": 9.96,
+      "fcurves": 9,
+      "bone_curves": 3,
+      "morph_curves": 6,
+      "keys": 369
+    },
+    "Walk": {
+      "frames": 73,
+      "seconds": 3.0,
+      "fcurves": 24,
+      "bone_curves": 24,
+      "morph_curves": 0,
+      "keys": 144
+    },
+    "Turn": {
+      "frames": 38,
+      "seconds": 1.54,
+      "fcurves": 9,
+      "bone_curves": 9,
+      "morph_curves": 0,
+      "keys": 24
+    },
+    "React_Positive": {
+      "frames": 32,
+      "seconds": 1.29,
+      "fcurves": 10,
+      "bone_curves": 6,
+      "morph_curves": 4,
+      "keys": 34
+    },
+    "React_Negative": {
+      "frames": 32,
+      "seconds": 1.29,
+      "fcurves": 9,
+      "bone_curves": 6,
+      "morph_curves": 3,
+      "keys": 33
+    },
+    "Gesture_Explain": {
+      "frames": 58,
+      "seconds": 2.38,
+      "fcurves": 18,
+      "bone_curves": 18,
+      "morph_curves": 0,
+      "keys": 90,
+      "derived_from": "Gesture_Set"
+    },
+    "Gesture_Greet": {
+      "frames": 65,
+      "seconds": 2.67,
+      "fcurves": 18,
+      "bone_curves": 18,
+      "morph_curves": 0,
+      "keys": 90,
+      "derived_from": "Gesture_Set"
+    },
+    "Gesture_Point": {
+      "frames": 65,
+      "seconds": 2.67,
+      "fcurves": 18,
+      "bone_curves": 18,
+      "morph_curves": 0,
+      "keys": 72,
+      "derived_from": "Gesture_Set"
+    },
+    "Gesture_Emphasize": {
+      "frames": 47,
+      "seconds": 1.92,
+      "fcurves": 18,
+      "bone_curves": 18,
+      "morph_curves": 0,
+      "keys": 90,
+      "derived_from": "Gesture_Set"
+    }
+  },
+  "warnings": [],
+  "shape_keys": 18,
+  "nla_tracks": [
+    {
+      "clip": "Blink_Natural",
+      "tracks": [
+        "morphs"
+      ],
+      "fcurves": 1
+    },
+    {
+      "clip": "Expression_Curious",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 21
+    },
+    {
+      "clip": "Expression_Frustrated",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 21
+    },
+    {
+      "clip": "Expression_Happy",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 21
+    },
+    {
+      "clip": "Expression_Sad",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 21
+    },
+    {
+      "clip": "Expression_Set",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 15
+    },
+    {
+      "clip": "Expression_Surprised",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 21
+    },
+    {
+      "clip": "Expression_Thinking",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 21
+    },
+    {
+      "clip": "Gesture_Emphasize",
+      "tracks": [
+        "bones"
+      ],
+      "fcurves": 18
+    },
+    {
+      "clip": "Gesture_Explain",
+      "tracks": [
+        "bones"
+      ],
+      "fcurves": 18
+    },
+    {
+      "clip": "Gesture_Greet",
+      "tracks": [
+        "bones"
+      ],
+      "fcurves": 18
+    },
+    {
+      "clip": "Gesture_Point",
+      "tracks": [
+        "bones"
+      ],
+      "fcurves": 18
+    },
+    {
+      "clip": "Gesture_Set",
+      "tracks": [
+        "bones"
+      ],
+      "fcurves": 18
+    },
+    {
+      "clip": "Idle_Breathing",
+      "tracks": [
+        "bones"
+      ],
+      "fcurves": 15
+    },
+    {
+      "clip": "Idle_LookAround",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 10
+    },
+    {
+      "clip": "React_Negative",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 9
+    },
+    {
+      "clip": "React_Positive",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 10
+    },
+    {
+      "clip": "Talk_Expressive",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 9
+    },
+    {
+      "clip": "Talk_Neutral",
+      "tracks": [
+        "bones",
+        "morphs"
+      ],
+      "fcurves": 9
+    },
+    {
+      "clip": "Turn",
+      "tracks": [
+        "bones"
+      ],
+      "fcurves": 9
+    },
+    {
+      "clip": "Walk",
+      "tracks": [
+        "bones"
+      ],
+      "fcurves": 24
+    }
+  ],
+  "actions_in_file": [
+    "Blink_Natural",
+    "Expression_Curious",
+    "Expression_Frustrated",
+    "Expression_Happy",
+    "Expression_Sad",
+    "Expression_Set",
+    "Expression_Surprised",
+    "Expression_Thinking",
+    "Gesture_Emphasize",
+    "Gesture_Explain",
+    "Gesture_Greet",
+    "Gesture_Point",
+    "Gesture_Set",
+    "Idle_Breathing",
+    "Idle_LookAround",
+    "React_Negative",
+    "React_Positive",
+    "Talk_Expressive",
+    "Talk_Neutral",
+    "Turn",
+    "Walk"
+  ],
+  "blend": "working/art01/character_anim.blend"
+}

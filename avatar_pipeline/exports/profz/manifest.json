@@ -1,0 +1,123 @@
+{
+  "id": "profz",
+  "generated_by": "avatar_pipeline",
+  "versions": {
+    "python": "3.11.2",
+    "platform": "Linux-6.1.158+-x86_64-with-glibc2.36",
+    "blender": "5.0.1"
+  },
+  "artefacts": {
+    "character_blend": {
+      "path": "working/profz/character.blend",
+      "bytes": 1082381,
+      "sha256": "85e87a9f10de1be8c56f32b49dd532969fa947b76402aaa1308381cd64b17eaf"
+    },
+    "build_report": {
+      "path": "working/profz/03_build.json",
+      "bytes": 2778,
+      "sha256": "9805b053de496930bcca3f6760e963a97bd1f1ebf029a033946bcbdf7bf39533"
+    },
+    "skin_report": {
+      "path": "working/profz/05_skin.json",
+      "bytes": 1785,
+      "sha256": "609b31c5c2e0ab0536dd51d9e1fa63620a4c909d479d44b706bade85f8dd1b8c"
+    },
+    "animated_blend": {
+      "path": "working/profz/character_anim.blend",
+      "bytes": 1110415,
+      "sha256": "eb491fbef220d0586e92c022bd6fd46cd12aadaf66dc00bfc6bd5e7493ff9ae5"
+    },
+    "anim_report": {
+      "path": "working/profz/06_anim.json",
+      "bytes": 6667,
+      "sha256": "b9d2373fe111f7e93c4d62ed2f62541659b190f560ea90b15685e3c5ff34c673"
+    },
+    "export_report": {
+      "path": "exports/profz/08_export.json",
+      "bytes": 1470,
+      "sha256": "c84b63a51fd917623c3432c3ea2df2b799f4e5032c40b45df2c82982f28423f6"
+    },
+    "glb": {
+      "path": "exports/profz/avatar.glb",
+      "bytes": 1624380,
+      "sha256": "7690a7d3fa63ddc1e4977d6bbcc2ef0cd67cc80157c99cb463d96fcc096d4606"
+    },
+    "validate_report": {
+      "path": "exports/profz/09_validate.json",
+      "bytes": 3375,
+      "sha256": "8341ac05492bb0bd2ead686d5aae5f23d98bee2bd8a2bf2db4ee7a6aa71acd3c"
+    }
+  },
+  "licences": {
+    "pipeline_source_code": {
+      "licence": "author's own work, not published here"
+    },
+    "blender_bpy": {
+      "licence": "GPL-3.0-or-later",
+      "note": "running Blender headless does not make the output GPL"
+    },
+    "generated_assets": {
+      "licence": "derived from the input image named in 01_analysis.json",
+      "input_image": "see analysis.image",
+      "note": "no third-party model weights were used; the mesh is parametric, not a reconstruction of the subject"
+    },
+    "vendored_skills": {
+      "blender-skills": {
+        "licence": "MIT",
+        "commit": "71d031d",
+        "use": "primary skill workflow"
+      },
+      "blender-agent-studio": {
+        "licence": "MIT",
+        "commit": "6ff97fa",
+        "use": "reference: agent/tool structure"
+      },
+      "facial-animation": {
+        "licence": "MIT",
+        "commit": "5bd659d",
+        "use": "reference: facial scope"
+      },
+      "cc-blender-skill": {
+        "licence": "MIT",
+        "commit": "a2634b5",
+        "use": "reference: rig conventions"
+      },
+      "gpt_3d_skill": {
+        "licence": "NO LICENCE FILE",
+        "commit": "d35e84a",
+        "use": "REFERENCE ONLY - never executed, never redistributed"
+      }
+    },
+    "rhubarb_lipsync": {
+      "licence": "MIT (optional)",
+      "note": "not installed; energy fallback used instead"
+    },
+    "gltf_exporter": {
+      "licence": "Apache-2.0 (Khronos glTF-Blender-IO)"
+    }
+  },
+  "status": {
+    "glb_validation": "pass",
+    "glb_mb": 1.624,
+    "clips": 21,
+    "skinning": "pass",
+    "max_edge_stretch": {
+      "arm_raise": 1.06,
+      "arm_forward": 1.16,
+      "elbow_fold": 1.33,
+      "knee_bend": 1.8,
+      "spine_twist": 1.3,
+      "head_turn": 2.2,
+      "hip_flex": 1.39,
+      "hip_90_stress": 1.61
+    },
+    "skinning_known_limitations": [],
+    "runtime_vertices": 14093,
+    "runtime_triangles": 27716,
+    "joints": 31,
+    "draw_calls": 14,
+    "android_runtime": "NOT TESTED - no device and no emulator exist in this environment",
+    "character_identity": "STYLISED INTERPRETATION - modelled from the supplied character sheet; not a likeness of any real person"
+  },
+  "reproduce": "./run_pipeline.sh working/profz"
+}

@@ -1,0 +1,135 @@
+{
+  "id": "test01",
+  "generated_by": "avatar_pipeline",
+  "versions": {
+    "python": "3.11.2",
+    "platform": "Linux-6.1.158+-x86_64-with-glibc2.36",
+    "blender": "5.0.1"
+  },
+  "artefacts": {
+    "analysis": {
+      "path": "working/test01/01_analysis.json",
+      "bytes": 3824,
+      "sha256": "138d48ae4471aa819e50e673b2b97f5b92bc853cc62bbf71aa2585c87c74fe7f"
+    },
+    "character_blend": {
+      "path": "working/test01/character.blend",
+      "bytes": 1647547,
+      "sha256": "028d9aaa018bfe0a715d1436581da4681923f9ac1869518661edbe025b2d5036"
+    },
+    "build_report": {
+      "path": "working/test01/03_build.json",
+      "bytes": 3323,
+      "sha256": "a96a6be19563829f275af93e8f115b72aca727914a93d7ebf70c17e41657c5ab"
+    },
+    "skin_report": {
+      "path": "working/test01/05_skin.json",
+      "bytes": 1934,
+      "sha256": "64a106bb24cac6aae7d0fb30a83521870e99de6cfa3f0476a2c66dea01ba76c9"
+    },
+    "animated_blend": {
+      "path": "working/test01/character_anim.blend",
+      "bytes": 1681968,
+      "sha256": "528976843c89d3bc34af70539aed1207d300b4c9ec1eeb018006c06a244f2bd3"
+    },
+    "anim_report": {
+      "path": "working/test01/06_anim.json",
+      "bytes": 6668,
+      "sha256": "56682034215f5d99c6ae9ab00f3f8f8885b915c4ba1aa2edd5a9b540d93da9bd"
+    },
+    "visemes": {
+      "path": "working/test01/07_visemes.json",
+      "bytes": 9679,
+      "sha256": "8a44412a90f613ed81831395cdead0e2e44cc5ae10fc2739f00df7783b12ef01"
+    },
+    "export_report": {
+      "path": "exports/test01/08_export.json",
+      "bytes": 1399,
+      "sha256": "c07d055138d1d79b904060ee3eb8d617511a1b1289dbc875ce02329c3ff4eafe"
+    },
+    "glb": {
+      "path": "exports/test01/avatar.glb",
+      "bytes": 1615364,
+      "sha256": "3c2e828879925b1e8075f8f6af2a52ad3f4cc6b5b53179c710ace4ca1b602144"
+    },
+    "validate_report": {
+      "path": "exports/test01/09_validate.json",
+      "bytes": 3375,
+      "sha256": "d56d08e15fba195b50c0411495c0644d6344ded977345bbea36a4eeb0e16bf38"
+    }
+  },
+  "licences": {
+    "pipeline_source_code": {
+      "licence": "author's own work, not published here"
+    },
+    "blender_bpy": {
+      "licence": "GPL-3.0-or-later",
+      "note": "running Blender headless does not make the output GPL"
+    },
+    "generated_assets": {
+      "licence": "derived from the input image named in 01_analysis.json",
+      "input_image": "see analysis.image",
+      "note": "no third-party model weights were used; the mesh is parametric, not a reconstruction of the subject"
+    },
+    "vendored_skills": {
+      "blender-skills": {
+        "licence": "MIT",
+        "commit": "71d031d",
+        "use": "primary skill workflow"
+      },
+      "blender-agent-studio": {
+        "licence": "MIT",
+        "commit": "6ff97fa",
+        "use": "reference: agent/tool structure"
+      },
+      "facial-animation": {
+        "licence": "MIT",
+        "commit": "5bd659d",
+        "use": "reference: facial scope"
+      },
+      "cc-blender-skill": {
+        "licence": "MIT",
+        "commit": "a2634b5",
+        "use": "reference: rig conventions"
+      },
+      "gpt_3d_skill": {
+        "licence": "NO LICENCE FILE",
+        "commit": "d35e84a",
+        "use": "REFERENCE ONLY - never executed, never redistributed"
+      }
+    },
+    "rhubarb_lipsync": {
+      "licence": "MIT (optional)",
+      "note": "not installed; energy fallback used instead"
+    },
+    "gltf_exporter": {
+      "licence": "Apache-2.0 (Khronos glTF-Blender-IO)"
+    }
+  },
+  "status": {
+    "glb_validation": "pass",
+    "glb_mb": 1.615,
+    "clips": 21,
+    "skinning": "pass",
+    "max_edge_stretch": {
+      "arm_raise": 1.03,
+      "arm_forward": 4.37,
+      "elbow_fold": 6.46,
+      "knee_bend": 7.45,
+      "spine_twist": 3.22,
+      "head_turn": 8.95,
+      "hip_flex": 4.68,
+      "hip_90_stress": 6.59
+    },
+    "skinning_known_limitations": [
+      "hip_90_stress: 349 edges over the limit (max 6.59x) - outside the shipped motion range, reported not gated"
+    ],
+    "runtime_vertices": 17100,
+    "runtime_triangles": 33988,
+    "joints": 31,
+    "draw_calls": 7,
+    "android_runtime": "NOT TESTED - no device and no emulator exist in this environment",
+    "photo_identity_match": "NO - the mesh is generic, not a likeness of the subject"
+  },
+  "reproduce": "./run_pipeline.sh working/test01"
+}
