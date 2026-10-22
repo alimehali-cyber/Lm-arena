@@ -262,6 +262,49 @@ class AvatarPipelineEndToEndTests(unittest.TestCase):
             self.assertEqual(res["animations_verified"], 24)
             self.assertLess(res["max_rest_bind_identity_error"], 1e-4)
 
+    def test_11_untouched_reference_sha256_and_master_khr_variants_roundtrip(self) -> None:
+        """Verifies untouched SHA-256 reference inputs, initial AssetFurnace visual-hull mesh, 2048 Master GLB variants, and extra plates."""
+        import hashlib
+
+        ref1 = REPO_ROOT / "avatar_pipeline/input/ref_01_professor_z_lineup.png"
+        ref2 = REPO_ROOT / "avatar_pipeline/input/ref_02_professor_z_catalogue.png"
+        self.assertEqual(
+            hashlib.sha256(ref1.read_bytes()).hexdigest(),
+            "19a055b164d683257fcc66005fa57ea221cd4347f92f788de977a4998870b143",
+        )
+        self.assertEqual(
+            hashlib.sha256(ref2.read_bytes()).hexdigest(),
+            "098d1902057d18a9f346438d5f5bb3378b7a21f49894c72d01d6acd35be6b797",
+        )
+
+        # Untouched initial source reconstruction preserved separately from refined assets
+        init_src = REPO_ROOT / "avatar_pipeline/exports/professor_z_initial_visual_hull_source.glb"
+        self.assertTrue(init_src.is_file())
+        self.assertGreater(init_src.stat().st_size, 50_000)
+
+        # Separate Master 2048 GLB with AssetFurnace `KHR_materials_variants` + round-trip Blender re-import
+        manifest = json.loads((REPO_ROOT / "avatar_pipeline/reports/professor_z_manifest.json").read_text())
+        master_info = manifest["export_summary_and_roundtrip_reimport"]["master"]
+        self.assertEqual(
+            master_info["khr_materials_variants"],
+            ["Catalogue Tweed Blazer", "Midnight Lab Navy Z-Suit"],
+        )
+        self.assertTrue(master_info["blender_roundtrip_reimport"]["reimport_ok"])
+        self.assertTrue(manifest["export_summary_and_roundtrip_reimport"]["lod0"]["blender_roundtrip_reimport"]["reimport_ok"])
+        self.assertTrue(manifest["export_summary_and_roundtrip_reimport"]["lod1"]["blender_roundtrip_reimport"]["reimport_ok"])
+
+        # Neutral side-profile, cinematic hero, and direct REF-vs-3D turnaround comparison plates exist
+        for plate in (
+            "10_side_profile_portrait.png",
+            "11_cinematic_hero_portrait.png",
+            "12_reference_vs_3d_turnaround.png",
+        ):
+            p = REPO_ROOT / "avatar_pipeline/renders" / plate
+            self.assertTrue(p.is_file(), f"Missing plate {plate}")
+            with Image.open(p) as im:
+                self.assertGreaterEqual(im.width, 512)
+                self.assertGreaterEqual(im.height, 512)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -21,13 +21,12 @@ debug.keystore
 __pycache__/
 *.pyc
 .venv/
-.agents/
 
-# Avatar pipeline intermediate caches & third-party skill clones (REGISTRY.json stays tracked)
+# Avatar pipeline intermediate caches & transient scratch files
 avatar_pipeline/working/
-avatar_pipeline/skills/*/
 avatar_pipeline/renders/_tiles/
 avatar_pipeline/exports/professor_z/
 avatar_pipeline/exports/synthetic_subject/
+avatar_pipeline/exports/*.blend
 avatar_pipeline/android_prototype/build/
 build-artifacts/

@@ -341,16 +341,17 @@ def author_all_24_clips(rig: bpy.types.Object, head_obj: bpy.types.Object, lipsy
             cb.rot_deg("Hips", f, 0.0, 2.5 * p, -6.0 * p)
             cb.rot_deg("Chest", f, -3.5 * p, -2.0 * p, 6.0 * p)
             cb.rot_deg("Head", f, -4.0 * p, 5.5 * p, -8.0 * p)
-            # Raise left arm forward & up so fingers rest right against the outer gold rim of his round glasses!
-            cb.rot_deg("UpperArm_L", f, -62.0 * p, 12.0 * p, -22.0 * p)
-            cb.rot_deg("Forearm_L", f, -78.0 * p, 18.0 * p, -32.0 * p)
-            cb.rot_deg("Hand_L", f, 10.0 * p, -12.0 * p, 0.0)
+            # Raise left arm forward & up so fingers rest right at the outer bronze rim of his round glasses!
+            cb.rot_deg("UpperArm_L", f, -92.0 * p, 14.0 * p, -16.0 * p)
+            cb.rot_deg("Forearm_L", f, -82.0 * p, 22.0 * p, -26.0 * p)
+            cb.rot_deg("Hand_L", f, 14.0 * p, -10.0 * p, 0.0)
+            cb.rot_deg("mouthSmileLeft" if False else "Head", f, -4.0 * p, 5.5 * p, -8.0 * p)
             # Relaxed pocket-ready right hand posture
             cb.rot_deg("UpperArm_R", f, -10.0 * p, 4.0 * p, 8.0 * p)
             cb.rot_deg("Forearm_R", f, -22.0 * p, 0.0, -10.0 * p)
-            cb.morph("mouthSmileLeft", f, 0.75 * p)
-            cb.morph("mouthSmileRight", f, 0.50 * p)
-            cb.morph("jawOpen", f, 0.22 * p)
+            cb.morph("mouthSmileLeft", f, 0.72 * p)
+            cb.morph("mouthSmileRight", f, 0.52 * p)
+            cb.morph("jawOpen", f, 0.08 * p)
             cb.morph("browOuterUpLeft", f, 0.55 * p)
     add_clip("ProfZ_HeroGlassesAdjust", 70, c_hero)
 

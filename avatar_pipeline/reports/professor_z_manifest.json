@@ -2,18 +2,275 @@
   "pipeline_status": "PASS",
   "character_slug": "professor_z",
   "character_name": "Professor Z",
+  "untouched_initial_reconstruction": {
+    "untouched_initial_glb": "/home/user/Lm-arena/avatar_pipeline/working/professor_z/initial_visual_hull_source.glb",
+    "untouched_projected_albedo": "/home/user/Lm-arena/avatar_pipeline/working/professor_z/initial_photo_painted_albedo.png",
+    "backend_modules_used": [
+      "skimage.measure.marching_cubes",
+      "image_to_3dlab.surface_calm.taubin",
+      "image_to_3dlab.winding.outward_sign",
+      "image_to_3dlab.photo_paint.paint_texture"
+    ],
+    "vertex_count": 12706,
+    "triangle_count": 25412,
+    "outward_winding_sign_initial": 1.0,
+    "uv_texel_coverage_fraction": 0.6096,
+    "mean_projection_confidence": 0.8974,
+    "limitations_requiring_clean_blender_rebuild": [
+      "Marching-cubes visual hull merges round wire glasses, hair strands, blazer lapels, and hands into single-genus blocks.",
+      "No separated eyeballs, inner oral cavity, teeth, tongue, or clean edge loops around eyelids/lips for ARKit visemes.",
+      "Cylindrical UV seams wrap across under-chin and under-arm occlusions."
+    ]
+  },
   "exports": {
+    "master_blend": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z_master.blend",
+    "master_glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z_master.glb",
     "lod0_glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z.glb",
     "lod1_glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z_lod1.glb",
     "canonical_lod0_glb": "/home/user/Lm-arena/avatar_pipeline/exports/avatar_mobile.glb",
     "canonical_lod1_glb": "/home/user/Lm-arena/avatar_pipeline/exports/avatar_mobile_lod1.glb",
     "lipsync_json": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z_lipsync.json"
   },
+  "export_summary_and_roundtrip_reimport": {
+    "status": "exported",
+    "master": {
+      "glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z/avatar_master_2048.glb",
+      "size_mb": 6.078,
+      "triangles": 29932,
+      "atlas_size": 2048,
+      "khr_materials_variants": [
+        "Catalogue Tweed Blazer",
+        "Midnight Lab Navy Z-Suit"
+      ],
+      "blender_roundtrip_reimport": {
+        "reimport_ok": true,
+        "reimported_mesh_objects": [
+          "Avatar_Body",
+          "Avatar_Head_Mesh",
+          "Icosphere"
+        ],
+        "reimported_vertices": 17178,
+        "reimported_triangles": 30012,
+        "uv_layers_present_all_meshes": true,
+        "reimported_bones": 60,
+        "reimported_morph_targets": 26,
+        "reimported_packed_images": 5,
+        "reimported_blender_actions": 48,
+        "assetfurnace_glb_stats": {
+          "triangles": 29932,
+          "vertices": 17136,
+          "meshes": 2,
+          "materials": 2,
+          "textures": [
+            {
+              "width": 2048,
+              "height": 2048,
+              "format": "png"
+            },
+            {
+              "width": 2048,
+              "height": 2048,
+              "format": "png"
+            },
+            {
+              "width": 2048,
+              "height": 2048,
+              "format": "png"
+            },
+            {
+              "width": 2048,
+              "height": 2048,
+              "format": "png"
+            },
+            {
+              "width": 2048,
+              "height": 2048,
+              "format": "png"
+            }
+          ],
+          "bones": 60,
+          "moves": [
+            "Idle_Breathing",
+            "Idle_LookAround",
+            "Blink_Natural",
+            "Talk_Gesture_01",
+            "Talk_Gesture_02",
+            "Wave_Hello",
+            "Nod_Yes",
+            "Shake_No",
+            "Emote_Happy",
+            "Emote_Surprised",
+            "Emote_Thinking",
+            "Point_Sky_Night",
+            "Point_Horizon",
+            "Shade_Eyes_Day",
+            "Check_Phone_Twilight",
+            "Walk_Cycle",
+            "Turn_Left",
+            "Turn_Right",
+            "Sit_Stargaze",
+            "LipSync_Speech",
+            "ProfZ_HeroGlassesAdjust",
+            "ProfZ_DiscoGroove",
+            "ProfZ_Sleepy",
+            "ProfZ_TongueOutWink"
+          ],
+          "bytes": 6373296
+        }
+      }
+    },
+    "lod0": {
+      "glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z/avatar_mobile.glb",
+      "size_mb": 2.951,
+      "triangles": 18477,
+      "atlas_size": 1024,
+      "khr_materials_variants": [],
+      "blender_roundtrip_reimport": {
+        "reimport_ok": true,
+        "reimported_mesh_objects": [
+          "Avatar_Body",
+          "Avatar_Head_Mesh",
+          "Icosphere"
+        ],
+        "reimported_vertices": 11135,
+        "reimported_triangles": 18557,
+        "uv_layers_present_all_meshes": true,
+        "reimported_bones": 60,
+        "reimported_morph_targets": 26,
+        "reimported_packed_images": 3,
+        "reimported_blender_actions": 48,
+        "assetfurnace_glb_stats": {
+          "triangles": 18477,
+          "vertices": 11093,
+          "meshes": 2,
+          "materials": 1,
+          "textures": [
+            {
+              "width": 1024,
+              "height": 1024,
+              "format": "png"
+            },
+            {
+              "width": 1024,
+              "height": 1024,
+              "format": "png"
+            },
+            {
+              "width": 1024,
+              "height": 1024,
+              "format": "png"
+            }
+          ],
+          "bones": 60,
+          "moves": [
+            "Idle_Breathing",
+            "Idle_LookAround",
+            "Blink_Natural",
+            "Talk_Gesture_01",
+            "Talk_Gesture_02",
+            "Wave_Hello",
+            "Nod_Yes",
+            "Shake_No",
+            "Emote_Happy",
+            "Emote_Surprised",
+            "Emote_Thinking",
+            "Point_Sky_Night",
+            "Point_Horizon",
+            "Shade_Eyes_Day",
+            "Check_Phone_Twilight",
+            "Walk_Cycle",
+            "Turn_Left",
+            "Turn_Right",
+            "Sit_Stargaze",
+            "LipSync_Speech",
+            "ProfZ_HeroGlassesAdjust",
+            "ProfZ_DiscoGroove",
+            "ProfZ_Sleepy",
+            "ProfZ_TongueOutWink"
+          ],
+          "bytes": 3094460
+        }
+      }
+    },
+    "lod1": {
+      "glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z/avatar_mobile_lod1.glb",
+      "size_mb": 2.129,
+      "triangles": 11868,
+      "atlas_size": 512,
+      "khr_materials_variants": [],
+      "blender_roundtrip_reimport": {
+        "reimport_ok": true,
+        "reimported_mesh_objects": [
+          "Avatar_Body",
+          "Avatar_Head_Mesh",
+          "Icosphere"
+        ],
+        "reimported_vertices": 7368,
+        "reimported_triangles": 11948,
+        "uv_layers_present_all_meshes": true,
+        "reimported_bones": 60,
+        "reimported_morph_targets": 26,
+        "reimported_packed_images": 3,
+        "reimported_blender_actions": 48,
+        "assetfurnace_glb_stats": {
+          "triangles": 11868,
+          "vertices": 7326,
+          "meshes": 2,
+          "materials": 1,
+          "textures": [
+            {
+              "width": 512,
+              "height": 512,
+              "format": "png"
+            },
+            {
+              "width": 512,
+              "height": 512,
+              "format": "png"
+            },
+            {
+              "width": 512,
+              "height": 512,
+              "format": "png"
+            }
+          ],
+          "bones": 60,
+          "moves": [
+            "Idle_Breathing",
+            "Idle_LookAround",
+            "Blink_Natural",
+            "Talk_Gesture_01",
+            "Talk_Gesture_02",
+            "Wave_Hello",
+            "Nod_Yes",
+            "Shake_No",
+            "Emote_Happy",
+            "Emote_Surprised",
+            "Emote_Thinking",
+            "Point_Sky_Night",
+            "Point_Horizon",
+            "Shade_Eyes_Day",
+            "Check_Phone_Twilight",
+            "Walk_Cycle",
+            "Turn_Left",
+            "Turn_Right",
+            "Sit_Stargaze",
+            "LipSync_Speech",
+            "ProfZ_HeroGlassesAdjust",
+            "ProfZ_DiscoGroove",
+            "ProfZ_Sleepy",
+            "ProfZ_TongueOutWink"
+          ],
+          "bytes": 2231976
+        }
+      }
+    }
+  },
   "qa_validation_lod0": {
     "glb_path": "/home/user/Lm-arena/avatar_pipeline/exports/avatar_mobile.glb",
     "passed": true,
-    "file_size_mb": 2.806,
-    "triangle_count": 18478,
+    "file_size_mb": 2.9511,
+    "triangle_count": 18477,
     "draw_calls": 2,
     "material_count": 1,
     "texture_resolutions": [
@@ -34,7 +291,7 @@
     "max_influences_per_vertex": 4,
     "morph_target_count": 26,
     "animation_count": 24,
-    "measured_height_m": 1.7298,
+    "measured_height_m": 1.7285,
     "min_z_m": -1e-05,
     "checks": {
       "01_file_size_within_budget": true,
@@ -54,7 +311,7 @@
   "qa_validation_lod1": {
     "glb_path": "/home/user/Lm-arena/avatar_pipeline/exports/avatar_mobile_lod1.glb",
     "passed": true,
-    "file_size_mb": 2.1234,
+    "file_size_mb": 2.1286,
     "triangle_count": 11868,
     "draw_calls": 2,
     "material_count": 1,
@@ -76,8 +333,8 @@
     "max_influences_per_vertex": 4,
     "morph_target_count": 26,
     "animation_count": 24,
-    "measured_height_m": 1.7294,
-    "min_z_m": -0.00014,
+    "measured_height_m": 1.7283,
+    "min_z_m": -1e-05,
     "checks": {
       "01_file_size_within_budget": true,
       "02_triangle_budget": true,

@@ -1,0 +1,109 @@
+{
+  "generated_on": "2026-10-23",
+  "sandbox_environment": {
+    "os": "Linux 6.1.158+ x86_64",
+    "cpu": "Intel Xeon @ 2.60GHz (1 physical core / 2 threads, AVX2 + AVX-512)",
+    "ram_gib": 3.8,
+    "swap_gib": 0.0,
+    "free_disk_gib": 16.0,
+    "gpu_devices": [],
+    "cuda_available": false,
+    "dri_render_nodes": false,
+    "python_version": "3.11.2",
+    "blender_bpy_version": "4.2.0",
+    "reachable_hosts": [
+      "github.com",
+      "codeload.github.com",
+      "api.github.com",
+      "pypi.org",
+      "files.pythonhosted.org",
+      "registry.npmjs.org"
+    ],
+    "blocked_hosts_tls_eof": [
+      "huggingface.co",
+      "download.pytorch.org",
+      "objects.githubusercontent.com",
+      "blob.core.windows.net",
+      "dl.google.com",
+      "maven.google.com",
+      "repo.maven.apache.org"
+    ]
+  },
+  "evaluated_repositories": [
+    {
+      "rank": 1,
+      "repo": "Bingeljell/image-to-3dlab",
+      "package_name": "image-to-3dlab (AssetFurnace)",
+      "version": "0.5.1",
+      "local_path": "avatar_pipeline/models/repos/image-to-3dlab",
+      "git_commit": "1a5093571075abce4d19cbd3f2c6fbc0faa9d6f9",
+      "commit_date": "2026-10-22",
+      "code_license": "Apache-2.0 (root) + MIT subcomponents (NOTICE required on redistribution)",
+      "weights_license": "NVIDIA Kimodo Open Model License (bundled motions/*.npz); optional external generators separate",
+      "cpu_compatible_modules_active": [
+        "image_to_3dlab.photo_paint",
+        "image_to_3dlab.view_align",
+        "image_to_3dlab.surface_calm",
+        "image_to_3dlab.winding",
+        "image_to_3dlab.glb_skins",
+        "image_to_3dlab.glb_stats",
+        "image_to_3dlab.rig_profile",
+        "image_to_3dlab.provenance"
+      ],
+      "upstream_pytest_verified": {
+        "passed": 3512,
+        "skipped": 31,
+        "gpu_torch_only_failures": 41
+      },
+      "selected_role": "PRIMARY multi-view projection, mesh fairing, KHR_materials_variants skinning & GLB QA engine paired with Headless Blender 4.2 multi-part character sculpture & rigging"
+    },
+    {
+      "rank": 2,
+      "repo": "VAST-AI-Research/TripoSR",
+      "local_path": "avatar_pipeline/models/repos/TripoSR",
+      "git_commit": "107cefdc244c39106fa830359024f6a2f1c78871",
+      "commit_date": "2026-06-04",
+      "code_license": "MIT",
+      "weights_id": "stabilityai/TripoSR",
+      "weights_license": "MIT",
+      "status_in_sandbox": "BLOCKED_WEIGHT_DOWNLOAD_TLS_EOF",
+      "blocker_reason": "Supports `--device cpu` in `run.py`, but downloads `model.ckpt` + `config.yaml` from `huggingface.co` (blocked by sandbox TLS proxy) and single-view marching cubes merges glasses/limbs without facial topology or rigging."
+    },
+    {
+      "rank": 3,
+      "repo": "microsoft/TRELLIS.2",
+      "local_path": "avatar_pipeline/models/repos/TRELLIS.2",
+      "git_commit": "75fbf0183001ed9876c8dbb35de6b68552ee08bd",
+      "commit_date": "2026-06-05",
+      "code_license": "MIT",
+      "weights_id": "microsoft/TRELLIS.2-4B + facebook/dinov3-vitl16-pretrain-lvd1689m",
+      "weights_license": "MIT (TRELLIS.2-4B) + Meta DINOv3 License (gated)",
+      "status_in_sandbox": "BLOCKED_GPU_VRAM_AND_CUDA_EXTENSIONS",
+      "blocker_reason": "Requires NVIDIA CUDA GPU >= 24 GB VRAM, custom compiled CUDA ops (`flash-attn`, `nvdiffrast`, `nvdiffrec`, `CuMesh`, `FlexGEMM`, `o-voxel`), >16 GB system RAM for 4B weights, and `huggingface.co` access."
+    },
+    {
+      "rank": 4,
+      "repo": "Stability-AI/stable-fast-3d",
+      "local_path": "avatar_pipeline/models/repos/stable-fast-3d",
+      "git_commit": "ff21fc491b4dc5314bf6734c7c0dabd86b5f5bb2",
+      "commit_date": "2025-01-22",
+      "code_license": "Stability AI Community License (<$1M USD annual revenue cap)",
+      "weights_id": "stabilityai/stable-fast-3d (Gated)",
+      "weights_license": "Stability AI Community License",
+      "status_in_sandbox": "BLOCKED_LICENSE_GATE_AND_GPU",
+      "blocker_reason": "Gated Hugging Face repository (`TLS EOF`), custom C++/CUDA/MPS `texture_baker` rasterizer, and restrictive Community License when `strict_commercial_licenses_only=true`."
+    }
+  ],
+  "untouched_reference_inputs": [
+    {
+      "path": "avatar_pipeline/input/ref_01_professor_z_lineup.png",
+      "sha256": "19a055b164d683257fcc66005fa57ea221cd4347f92f788de977a4998870b143",
+      "dimensions": [1536, 1024]
+    },
+    {
+      "path": "avatar_pipeline/input/ref_02_professor_z_catalogue.png",
+      "sha256": "098d1902057d18a9f346438d5f5bb3378b7a21f49894c72d01d6acd35be6b797",
+      "dimensions": [1536, 1024]
+    }
+  ]
+}

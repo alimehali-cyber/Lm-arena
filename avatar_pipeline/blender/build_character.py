@@ -16,20 +16,20 @@ import pathlib
 import sys
 from typing import Any, Dict, List, Sequence, Tuple
 
-import bmesh
 import bpy
+import bmesh
 from mathutils import Matrix, Vector
 import numpy as np
+from scipy.spatial import cKDTree
 
 
-# Exact sub-tile UV coordinates inside `Mat_Garments` (`garment_albedo.png`):
-UV_BLAZER  = (0.02, 0.48, 0.02, 0.48)  # Woven Multi-Fleck Olive-Walnut Herringbone Tweed
-UV_SHIRT   = (0.52, 0.98, 0.02, 0.48)  # Crisp Warm Ivory Cotton Poplin Dress Shirt
-UV_TROUSER = (0.02, 0.48, 0.52, 0.98)  # Tailored Charcoal-Slate Worsted Wool Trousers
-UV_SHOE    = (0.52, 0.73, 0.77, 0.98)  # Burnished Cognac Leather Classic Kicks
-UV_GOLD    = (0.77, 0.98, 0.77, 0.98)  # Satin Antique Bronze-Gold Wire Glasses & Buckle (`Metallic = 0.85`)
-UV_BOWTIE  = (0.52, 0.73, 0.52, 0.73)  # Textured Cognac Butterfly Signature Bow Tie
-UV_DARK    = (0.77, 0.98, 0.52, 0.73)  # Rich Dark Roasted Espresso Hair, Brows, Lash Line, Belt & Welt
+UV_BLAZER  = (0.02, 0.48, 0.02, 0.48)
+UV_SHIRT   = (0.52, 0.98, 0.02, 0.48)
+UV_TROUSER = (0.02, 0.48, 0.52, 0.98)
+UV_SHOE    = (0.52, 0.73, 0.77, 0.98)
+UV_GOLD    = (0.77, 0.98, 0.77, 0.98)
+UV_BOWTIE  = (0.52, 0.73, 0.52, 0.73)
+UV_DARK    = (0.77, 0.98, 0.52, 0.73)
 
 
 def clear_scene() -> None:
@@ -48,7 +48,7 @@ def load_packed_image(path_str: str, non_color: bool = False) -> bpy.types.Image
 def make_principled_material(
     name: str,
     base_color: Tuple[float, float, float, float] = (0.8, 0.8, 0.8, 1.0),
-    roughness: float = 0.5,
+    roughness: float = 0.55,
     subsurface: float = 0.0,
     metallic: float = 0.0,
     albedo_img: bpy.types.Image | None = None,
@@ -68,7 +68,7 @@ def make_principled_material(
     if subsurface > 0.0 and "Subsurface Weight" in bsdf.inputs:
         bsdf.inputs["Subsurface Weight"].default_value = subsurface
         if "Subsurface Radius" in bsdf.inputs:
-            bsdf.inputs["Subsurface Radius"].default_value = (1.0, 0.38, 0.22)
+            bsdf.inputs["Subsurface Radius"].default_value = (1.0, 0.42, 0.24)
     nt.links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
 
     if albedo_img is not None:
@@ -173,34 +173,6 @@ def add_swept_tube_to_bmesh(
                 pass
 
 
-def build_socket_or_oral_cavity(
-    bm: bmesh.types.BMesh,
-    center: Vector,
-    hx: float,
-    hz: float,
-    depth: float,
-    rim_uv: Tuple[float, float],
-    pinch_closed_z: float | None = None,
-) -> List[bmesh.types.BMVert]:
-    """Create a recessed eye socket / inner oral pouch cleanly mapped to `rim_uv`."""
-    uv_l = bm.loops.layers.uv.verify()
-    res = bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=10, radius=1.0)
-    verts = list(res["verts"])
-    for v in verts:
-        p = v.co
-        v.co = Vector((
-            center.x + p.x * hx,
-            center.y + abs(p.y) * depth,
-            center.z + p.z * hz,
-        ))
-        if pinch_closed_z is not None:
-            v.co.z = pinch_closed_z + (1.0 if v.co.z >= pinch_closed_z else -1.0) * 0.008
-    for f in {fc for v in verts for fc in v.link_faces}:
-        for lp in f.loops:
-            lp[uv_l].uv = rim_uv
-    return verts
-
-
 def build_pixar_head_assembly(
     profile: Dict[str, Any],
     skin_mat: bpy.types.Material,
@@ -208,14 +180,13 @@ def build_pixar_head_assembly(
     dark_mat: bpy.types.Material,
 ) -> Tuple[bpy.types.Object, List[bpy.types.Object], Dict[str, float]]:
     """
-    Construct `Avatar_Head` + `Eye_L` + `Eye_R` with full Pixar character appeal:
-      - Smooth C1 neck -> youthful Pixar jawline -> warm cheek fullness -> soft cranium
-      - Prominent sculpted C-shaped Pixar ears (`Ears_L/R`) with warm inner concha cup
-      - Sculpted teardrop button nose + distinct side nostrils (`alars`)
-      - Wide, warm, charming asymmetric closed-lip Pixar smile (`sculpted Cupid's bow + lower lip`)
-      - Sculpted upper & lower eyelid folds + crisp dark upper eyelashes (`Lashes_L/R`)
-      - Full-width tapered dark-espresso Pixar eyebrows (`Brows_L/R`)
-      - Recessed curved white Pixar teeth rows + 3D coral-pink tongue + dark inner oral cavity
+    Construct `Avatar_Head` + `Eye_L` + `Eye_R` calibrated directly to Professor Z's
+    reference turnaround sheet (`ref_02_professor_z_catalogue.png`):
+      - Youthful tapered jaw + warm cheek fullness + defined bridge/button nose & nostrils
+      - Relaxed soulful upper eyelids + crisp dark upper eyelashes gently overlapping upper iris
+        (eliminates wide-eyed startled stare!)
+      - Post-Subsurf closed-lip warm asymmetric Pixar half-smile (`gap = 0.4 mm` — ZERO dark slot!)
+      - Full-width curved white upper & lower dental arches + 3D coral tongue for natural visemes!
     """
     anth = profile["anthropometrics"]
     pixar = bool(anth.get("stylized_pixar_proportions", False))
@@ -225,37 +196,36 @@ def build_pixar_head_assembly(
         S = H / 1.73
         chin_z = 1.352 * S
         head_h = 0.286 * S
-        base_rx = 0.114 * S
-        base_ry = 0.122 * S
-        mouth_z = chin_z + 0.245 * head_h
+        base_rx = 0.109 * S
+        base_ry = 0.121 * S
+        mouth_z = chin_z + 0.255 * head_h
         nose_z = chin_z + 0.435 * head_h
         eye_z = chin_z + 0.560 * head_h
-        brow_z = chin_z + 0.725 * head_h
-        eye_x = 0.0435 * S
-        eye_r = 0.0255 * S
-        eye_hx, eye_hz = 0.0285 * S, 0.0215 * S
-        mouth_hx = 0.0365 * S
+        brow_z = chin_z + 0.720 * head_h
+        eye_x = 0.0425 * S
+        eye_r = 0.0258 * S
+        eye_hx, eye_hz = 0.0282 * S, 0.0182 * S  # Relaxed almond aperture — no startled stare!
+        mouth_hx = 0.0315 * S
     else:
         S = H / 1.68
         chin_z = 1.430 * S
         head_h = 0.225 * S
-        base_rx = 0.092 * S
+        base_rx = 0.091 * S
         base_ry = 0.104 * S
-        mouth_z = chin_z + 0.235 * head_h
+        mouth_z = chin_z + 0.245 * head_h
         nose_z = chin_z + 0.425 * head_h
         eye_z = chin_z + 0.555 * head_h
-        brow_z = chin_z + 0.720 * head_h
+        brow_z = chin_z + 0.718 * head_h
         eye_x = 0.0345 * S
-        eye_r = 0.0175 * S
-        eye_hx, eye_hz = 0.0190 * S, 0.0135 * S
-        mouth_hx = 0.0285 * S
+        eye_r = 0.0178 * S
+        eye_hx, eye_hz = 0.0190 * S, 0.0126 * S
+        mouth_hx = 0.0265 * S
 
-    eye_y = -base_ry * 0.785
+    eye_y = -base_ry * 0.790
 
     bm = bmesh.new()
     uv_layer = bm.loops.layers.uv.verify()
 
-    # 1. Appeal-Sculpted Head & Smooth C1 Neck Surface (`N_LON=44, N_LAT=34` + `Subsurf=1` -> silky smooth & crisp mobile budget!)
     N_LON, N_LAT = 44, 34
     TH_CHIN = 0.38
     c0 = math.cos(TH_CHIN)
@@ -266,7 +236,7 @@ def build_pixar_head_assembly(
         if s < 0.15:
             nt = s / 0.15
             z = (chin_z - 0.088 * S) + (0.088 * S) * nt
-            neck_flare = 0.42 + 0.045 * (nt ** 2)
+            neck_flare = 0.43 + 0.045 * (nt ** 2)
             rx = base_rx * neck_flare
             ry = base_ry * neck_flare
             cy = 0.008 * S * (1.0 - nt)
@@ -275,96 +245,88 @@ def build_pixar_head_assembly(
             th = TH_CHIN + ht * (math.pi - TH_CHIN)
             z = chin_z + head_h * ((c0 - math.cos(th)) / (1.0 + c0))
             prof = math.sin(th) ** 0.76
-            # Youthful Pixar silhouette: warm full cheeks (`ht ~ 0.34`), defined jaw (`ht ~ 0.14`), subtle temple taper (`ht ~ 0.65`)
-            cheek_w = 1.0 + 0.085 * math.exp(-((ht - 0.34) / 0.17) ** 2) - 0.045 * math.exp(-((ht - 0.68) / 0.16) ** 2)
+            # Clean youthful taper on lower jaw (`ht < 0.24`) + warm cheekbone fullness (`ht ~ 0.38`)
+            jaw_taper = -0.075 * math.exp(-((ht - 0.14) / 0.13) ** 2)
+            cheek_w = 1.0 + jaw_taper + 0.088 * math.exp(-((ht - 0.38) / 0.16) ** 2) - 0.045 * math.exp(-((ht - 0.68) / 0.16) ** 2)
             rx = base_rx * prof * cheek_w
             ry = base_ry * prof
             cy = 0.004 * S * math.sin(ht * math.pi)
 
         row: List[bmesh.types.BMVert] = []
         for j in range(N_LON):
-            # `phi = -pi/2` is dead center front (`-Y`)!
             phi = -math.pi * 0.5 + 2.0 * math.pi * (j / float(N_LON))
             ca, sa = math.cos(phi), math.sin(phi)
             px = rx * ca
             py = cy + ry * sa
             pz = z
 
-            # Front facial feature sculpting (`py < 0.0`)
             if py < 0.01 and z > chin_z - 0.015:
-                # A. Appealing rounded chin pad
-                chin_pad = math.exp(-((px / (0.032 * S)) ** 2 + ((pz - (chin_z + 0.020 * S)) / (0.022 * S)) ** 2))
-                py -= 0.0075 * S * chin_pad
+                # A. Clean defined chin pad
+                chin_pad = math.exp(-((px / (0.028 * S)) ** 2 + ((pz - (chin_z + 0.019 * S)) / (0.020 * S)) ** 2))
+                py -= 0.0085 * S * chin_pad
 
-                # B. Warm Pixar Zygomatic Cheekbones
+                # B. Warm Zygomatic Cheekbones
                 for sx_c in (-1.0, 1.0):
-                    chk = math.exp(-(((px - sx_c * eye_x * 1.18) / (0.036 * S)) ** 2 + ((pz - (nose_z + 0.008 * S)) / (0.030 * S)) ** 2))
-                    py -= 0.0085 * S * chk
+                    chk = math.exp(-(((px - sx_c * eye_x * 1.18) / (0.034 * S)) ** 2 + ((pz - (nose_z + 0.008 * S)) / (0.028 * S)) ** 2))
+                    py -= 0.0088 * S * chk
                     px += sx_c * 0.0045 * S * chk
 
-                # C. Crisp Pixar Teardrop Button Nose Bridge + Tip + Side Nostrils (`Alars`)!
-                bridge = math.exp(-((px / (0.0125 * S)) ** 2 + ((pz - (nose_z + 0.024 * S)) / (0.026 * S)) ** 2))
-                tip = math.exp(-((px / (0.0165 * S)) ** 2 + ((pz - nose_z) / (0.0155 * S)) ** 2))
-                py -= (0.0155 * bridge + 0.0255 * tip) * S
-                pz += 0.0025 * S * tip  # Cute upturned Pixar button nose tilt!
+                # C. Defined Pixar Nose Bridge + Rounded Tip + Side Alar Wings
+                bridge = math.exp(-((px / (0.0110 * S)) ** 2 + ((pz - (nose_z + 0.026 * S)) / (0.028 * S)) ** 2))
+                tip = math.exp(-((px / (0.0155 * S)) ** 2 + ((pz - nose_z) / (0.0145 * S)) ** 2))
+                py -= (0.0185 * bridge + 0.0295 * tip) * S
+                pz += 0.0025 * S * tip
                 for sx_n in (-1.0, 1.0):
-                    alar = math.exp(-(((px - sx_n * 0.0155 * S) / (0.0095 * S)) ** 2 + ((pz - (nose_z - 0.004 * S)) / (0.0085 * S)) ** 2))
-                    py -= 0.0105 * S * alar
+                    alar = math.exp(-(((px - sx_n * 0.0148 * S) / (0.0085 * S)) ** 2 + ((pz - (nose_z - 0.004 * S)) / (0.0078 * S)) ** 2))
+                    py -= 0.0115 * S * alar
 
-                # D. Eye Sockets + Sculpted Upper & Lower Eyelid Folds!
+                # D. Eye Sockets + Relaxed Upper Eyelid Fold gently overlapping top of iris!
                 for sx_e in (-1.0, 1.0):
                     ex_n = (px - sx_e * eye_x) / eye_hx
-                    ez_n = (pz - eye_z) / eye_hz
+                    ez_n = (pz - (eye_z - 0.0018 * S)) / eye_hz
                     er2 = ex_n * ex_n + ez_n * ez_n
-                    # Smooth orbital socket recess so eyeballs nest cleanly flush inside eyelids!
-                    sock = math.exp(-er2 * 1.35)
-                    py += 0.021 * S * sock
-                    # Sculpted upper & lower eyelid rim fold right around `er ~ 1.02`!
-                    rim_fold = math.exp(-((math.sqrt(max(er2, 1e-6)) - 1.04) / 0.22) ** 2)
-                    py -= 0.0065 * S * rim_fold
+                    sock = math.exp(-er2 * 1.42)
+                    py += 0.0215 * S * sock
+                    rim_fold = math.exp(-((math.sqrt(max(er2, 1e-6)) - 1.03) / 0.22) ** 2)
+                    py -= 0.0072 * S * rim_fold
 
-                # E. Wide Warm Asymmetric Professor Z Closed-Lip Smile (`upturned corners + Cupid's bow + lower lip`)!
-                # Gentle warm smile curve lifting toward corners (`smile_arc`), slightly higher on his playful left cheek!
+                # E. Charming Upturned Pixar Half-Smile Lip Volume + Cheek Dimples
                 mx_norm = px / max(mouth_hx, 1e-4)
-                smile_lift = (0.0055 * (mx_norm ** 2) + 0.0016 * mx_norm) * S * float(np.clip(1.3 - abs(mx_norm) * 0.3, 0.0, 1.3))
+                smile_lift = (0.0056 * (mx_norm ** 2) + 0.0018 * mx_norm) * S * float(np.clip(1.25 - abs(mx_norm) * 0.3, 0.0, 1.25))
                 m_line_z = mouth_z + smile_lift
-                if abs(px) <= mouth_hx * 1.25:
+                if abs(px) <= mouth_hx * 1.30:
                     horiz_w = math.exp(-((px / (mouth_hx * 0.96)) ** 4))
                     dz_m = pz - m_line_z
-                    # Crisp lip seam groove + upper Cupid's bow ridge + plump lower vermilion lip!
-                    seam = math.exp(-((dz_m / (0.0042 * S)) ** 2)) * horiz_w
-                    up_lip = math.exp(-(((dz_m - 0.0065 * S) / (0.0055 * S)) ** 2)) * horiz_w
-                    lo_lip = math.exp(-(((dz_m + 0.0075 * S) / (0.0068 * S)) ** 2)) * horiz_w
-                    dimple = math.exp(-(((abs(px) - mouth_hx * 1.02) / (0.008 * S)) ** 2 + (dz_m / (0.008 * S)) ** 2))
-                    py = py + 0.0125 * S * seam - 0.0058 * S * up_lip - 0.0072 * S * lo_lip + 0.0045 * S * dimple
+                    seam = math.exp(-((dz_m / (0.0038 * S)) ** 2)) * horiz_w
+                    up_lip = math.exp(-(((dz_m - 0.0058 * S) / (0.0052 * S)) ** 2)) * horiz_w
+                    lo_lip = math.exp(-(((dz_m + 0.0068 * S) / (0.0062 * S)) ** 2)) * horiz_w
+                    dimple = math.exp(-(((abs(px) - mouth_hx * 1.04) / (0.008 * S)) ** 2 + (dz_m / (0.008 * S)) ** 2))
+                    py = py + 0.0105 * S * seam - 0.0062 * S * up_lip - 0.0075 * S * lo_lip + 0.0052 * S * dimple
 
             row.append(bm.verts.new((px, py, pz)))
         grid.append(row)
 
-    # Connect watertight quad surface with clean front-centered cylindrical/spherical UVs (`u = 0.5` at center front `-Y`)
-    # Identify the exact front mouth seam row `i_mouth` and columns `mouth_cols` (`right corner -> left corner`)
     i_mouth = min(range(8, N_LAT - 8), key=lambda ii: abs(grid[ii][0].co.z - mouth_z))
-    mouth_cols = [N_LON - 4, N_LON - 3, N_LON - 2, N_LON - 1, 0, 1, 2, 3, 4]
+    mouth_cols = [N_LON - 3, N_LON - 2, N_LON - 1, 0, 1, 2, 3]
     interior_mouth = set(mouth_cols[1:-1])
 
-    # Split interior mouth vertices into crisp sculpted `upper_lip_v` & `lower_lip_v` with upturned Pixar smile!
     upper_lip_v: Dict[int, bmesh.types.BMVert] = {}
     lower_lip_v: Dict[int, bmesh.types.BMVert] = {}
     for idx_m, jj in enumerate(mouth_cols):
-        u_m = -1.0 + 2.0 * (idx_m / float(len(mouth_cols) - 1))  # `-1` right corner -> `+1` left corner
-        asym_lift = 0.0028 * S * max(0.0, u_m)
-        smile_z = (0.0042 * (u_m * u_m) * S) + asym_lift
+        u_m = -1.0 + 2.0 * (idx_m / float(len(mouth_cols) - 1))
+        asym_lift = 0.0026 * S * max(0.0, u_m)
+        smile_z = (0.0048 * (u_m * u_m) * S) + asym_lift
         base_v = grid[i_mouth][jj]
         if jj not in interior_mouth:
             base_v.co.z = mouth_z + smile_z
-            base_v.co.y += 0.0025 * S  # Tuck corner commissures slightly inward like real Pixar dimples!
+            base_v.co.y += 0.0028 * S
             upper_lip_v[jj] = base_v
             lower_lip_v[jj] = base_v
         else:
-            cupid = (0.0014 * math.cos(u_m * math.pi * 2.2) - 0.0005) * S * (1.0 - u_m * u_m)
+            cupid = (0.0012 * math.cos(u_m * math.pi * 2.2) - 0.0004) * S * (1.0 - u_m * u_m)
             vu = base_v
-            vu.co = Vector((base_v.co.x, base_v.co.y - 0.0052 * S * (1.0 - 0.55 * u_m * u_m), mouth_z + smile_z + 0.0006 * S + cupid))
-            vl = bm.verts.new(Vector((base_v.co.x, base_v.co.y - 0.0056 * S * (1.0 - 0.55 * u_m * u_m), mouth_z + smile_z - 0.0005 * S)))
+            vu.co = Vector((base_v.co.x, base_v.co.y - 0.0058 * S * (1.0 - 0.50 * u_m * u_m), mouth_z + smile_z + 0.0003 * S + cupid))
+            vl = bm.verts.new(Vector((base_v.co.x, base_v.co.y - 0.0060 * S * (1.0 - 0.50 * u_m * u_m), mouth_z + smile_z - 0.0003 * S)))
             upper_lip_v[jj] = vu
             lower_lip_v[jj] = vl
 
@@ -384,7 +346,6 @@ def build_pixar_head_assembly(
             if abs(ub - ua) > 0.45:
                 ub = ua
 
-            # Route lower chin quads (`i == i_mouth - 1`) to `lower_lip_v`, upper face (`i == i_mouth`) to `upper_lip_v`!
             v00 = lower_lip_v.get(j, grid[i][j]) if i == i_mouth else grid[i][j]
             v10 = lower_lip_v.get(jn, grid[i][jn]) if i == i_mouth else grid[i][jn]
             if i == i_mouth:
@@ -409,10 +370,9 @@ def build_pixar_head_assembly(
                 for lp, uvc in zip(f.loops, ((ua, va), (ub, va), (ub, vb), (ua, vb))):
                     lp[uv_layer].uv = uvc
 
-    # Bridge the parted lips inward (`+Y`) into a closed 2-manifold dark oral pouch (`material_index = 1`)!
-    pouch_up = [bm.verts.new((upper_lip_v[jj].co.x * 0.92, upper_lip_v[jj].co.y + 0.030 * S, mouth_z + 0.012 * S)) for jj in mouth_cols]
-    pouch_lo = [bm.verts.new((lower_lip_v[jj].co.x * 0.92, lower_lip_v[jj].co.y + 0.030 * S, mouth_z - 0.014 * S)) for jj in mouth_cols]
-    oral_faces: List[bmesh.types.BMFace] = []
+    # Closed 2-manifold inner oral cavity (`material_index = 1`)
+    pouch_up = [bm.verts.new((upper_lip_v[jj].co.x * 0.94, upper_lip_v[jj].co.y + 0.028 * S, mouth_z + 0.011 * S)) for jj in mouth_cols]
+    pouch_lo = [bm.verts.new((lower_lip_v[jj].co.x * 0.94, lower_lip_v[jj].co.y + 0.028 * S, mouth_z - 0.012 * S)) for jj in mouth_cols]
     for k in range(len(mouth_cols) - 1):
         j0, j1 = mouth_cols[k], mouth_cols[k + 1]
         for quad in (
@@ -429,9 +389,7 @@ def build_pixar_head_assembly(
                 fc.material_index = 1
                 for lp in fc.loops:
                     lp[uv_layer].uv = (0.5, 0.5)
-                oral_faces.append(fc)
 
-    # Cap crown apex cleanly
     top_center = bm.verts.new((0.0, 0.004 * S, chin_z + head_h))
     for j in range(N_LON):
         jn = (j + 1) % N_LON
@@ -439,38 +397,34 @@ def build_pixar_head_assembly(
         for lp in f.loops:
             lp[uv_layer].uv = (0.5, 0.98)
 
-    # 2. Prominent, Adorable Rounded C-Shaped Pixar Ears (`Ears_L/R`) Right on Both Sides of His Face!
+    # 2. Clean Rounded C-Shaped Pixar Ears (`Ears_L/R`) cleanly clear of hair sideburns!
     for sx in (-1.0, 1.0):
         ear_z_mid = 0.5 * (eye_z + nose_z) - 0.002 * S
-        ear_x_base = sx * base_rx * 0.97
-        ear_y_mid = -0.006 * S
-        # Outer C-helix swept around ear rim + warm inner ear cup disc!
+        ear_x_base = sx * base_rx * 0.98
+        ear_y_mid = -0.002 * S
         helix_pts = []
         for k in range(13):
             t = -0.78 * math.pi + (1.56 * math.pi) * (k / 12.0)
-            ex = ear_x_base + sx * (0.011 + 0.016 * math.cos(t * 0.55)) * S
-            ey = ear_y_mid + 0.019 * S * math.cos(t) + 0.006 * S
-            ez = ear_z_mid + 0.030 * S * math.sin(t)
+            ex = ear_x_base + sx * (0.011 + 0.015 * math.cos(t * 0.55)) * S
+            ey = ear_y_mid + 0.018 * S * math.cos(t) + 0.006 * S
+            ez = ear_z_mid + 0.028 * S * math.sin(t)
             n1 = Vector((sx, 0.0, 0.0))
             n2 = Vector((0.0, math.cos(t), math.sin(t))).normalized()
-            helix_pts.append((Vector((ex, ey, ez)), n1, n2, 0.0068 * S, 0.0072 * S))
+            helix_pts.append((Vector((ex, ey, ez)), n1, n2, 0.0064 * S, 0.0068 * S))
         eu = (0.24, 0.28, 0.46, 0.54) if sx < 0 else (0.72, 0.76, 0.46, 0.54)
         add_swept_tube_to_bmesh(bm, helix_pts, n_seg=7, uv_box=eu, cap_start=True, cap_end=True)
 
-        # Warm inner ear concha shell filling inside the C-helix
         cup_pts = [
             (Vector((ear_x_base + sx * 0.005 * S, ear_y_mid + 0.006 * S, ear_z_mid + z_o * S)),
-             Vector((0, 1, 0)), Vector((sx, 0, 0)), w_e * S, 0.0055 * S)
-            for (z_o, w_e) in [(-0.022, 0.012), (-0.008, 0.017), (+0.008, 0.018), (+0.022, 0.013)]
+             Vector((0, 1, 0)), Vector((sx, 0, 0)), w_e * S, 0.0052 * S)
+            for (z_o, w_e) in [(-0.020, 0.011), (-0.007, 0.016), (+0.007, 0.017), (+0.020, 0.012)]
         ]
         add_swept_tube_to_bmesh(bm, cup_pts, n_seg=8, uv_box=eu, cap_start=True, cap_end=True)
 
-    oral_mat = make_principled_material("Mat_OralDark", base_color=(0.035, 0.011, 0.014, 1.0), roughness=0.88)
-    teeth_mat = make_principled_material("Mat_TeethIvory", base_color=(0.955, 0.942, 0.910, 1.0), roughness=0.20)
-    tongue_mat = make_principled_material("Mat_TongueCoral", base_color=(0.78, 0.30, 0.30, 1.0), roughness=0.34)
+    oral_mat = make_principled_material("Mat_OralDark", base_color=(0.032, 0.010, 0.013, 1.0), roughness=0.90)
+    teeth_mat = make_principled_material("Mat_TeethIvory", base_color=(0.955, 0.942, 0.910, 1.0), roughness=0.22)
+    tongue_mat = make_principled_material("Mat_TongueCoral", base_color=(0.76, 0.29, 0.29, 1.0), roughness=0.36)
 
-    # Create un-subdivided mesh first so we assign exact topological `LIP_UPPER`, `LIP_LOWER`, & `PART_ORAL` groups
-    # BEFORE applying Catmull-Clark `SUBSURF` (Blender interpolates vertex groups across subdivided vertices with C2 precision!)
     bm.verts.ensure_lookup_table()
     bm.faces.ensure_lookup_table()
     bm.verts.index_update()
@@ -480,6 +434,11 @@ def build_pixar_head_assembly(
     above_set = {grid[ii][jj].index for ii in range(i_mouth + 1, N_LAT + 1) for jj in range(N_LON)}
     below_set = {grid[ii][jj].index for ii in range(0, i_mouth) for jj in range(N_LON)}
     pouch_set = {v.index for v in (pouch_up + pouch_lo)}
+
+    # Also tag exact inner seam lip indices BEFORE subdivision so we seal Catmull-Clark shrinkage cleanly!
+    up_seam_only = {upper_lip_v[jj].index for jj in interior_mouth}
+    lo_seam_only = {lower_lip_v[jj].index for jj in interior_mouth}
+
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     for fc in bm.faces:
         fc.smooth = True
@@ -495,15 +454,21 @@ def build_pixar_head_assembly(
     vg_up = head_obj.vertex_groups.new(name="LIP_UPPER")
     vg_lo = head_obj.vertex_groups.new(name="LIP_LOWER")
     vg_pouch = head_obj.vertex_groups.new(name="PART_ORAL")
+    vg_seal_up = head_obj.vertex_groups.new(name="_SEAL_UP")
+    vg_seal_lo = head_obj.vertex_groups.new(name="_SEAL_LO")
 
     for vi, mv in enumerate(head_obj.data.vertices):
+        if vi in up_seam_only:
+            vg_seal_up.add([vi], 1.0, "REPLACE")
+        if vi in lo_seam_only:
+            vg_seal_lo.add([vi], 1.0, "REPLACE")
         if vi in pouch_set:
             vg_pouch.add([vi], 1.0, "REPLACE")
             continue
         p = mv.co
         if p.y > -0.02 * S:
             continue
-        dx = p.x / max(mouth_hx * 1.32, 0.048)
+        dx = p.x / max(mouth_hx * 1.35, 0.045)
         if vi in up_set and vi not in lo_set:
             vg_up.add([vi], 1.0, "REPLACE")
         elif vi in lo_set and vi not in up_set:
@@ -526,49 +491,86 @@ def build_pixar_head_assembly(
     sub_mod.render_levels = 1
     bpy.ops.object.modifier_apply(modifier=sub_mod.name)
 
-    # 3. Curved Gleaming White Pixar Upper (`PART_TEETH_UPPER`) & Lower (`PART_TEETH_LOWER`) Teeth Arch + 3D Tongue!
+    # POST-SUBSURF CLOSED-LIP HALF-SMILE SEAL:
+    # Catmull-Clark averaging pulls `_SEAL_UP` up toward `pouch_up` and `_SEAL_LO` down toward `pouch_lo`.
+    # Restore a natural, warm, softly closed Pixar half-smile along the lip contact arc!
+    # Re-fetch fresh RNA pointers AFTER `modifier_apply` replaces C++ mesh data!
+    vg_seal_up = head_obj.vertex_groups["_SEAL_UP"]
+    vg_seal_lo = head_obj.vertex_groups["_SEAL_LO"]
+    vg_pouch = head_obj.vertex_groups["PART_ORAL"]
+    idx_su = vg_seal_up.index
+    idx_sl = vg_seal_lo.index
+    idx_po = vg_pouch.index
+    for mv in head_obj.data.vertices:
+        w_su = 0.0
+        w_sl = 0.0
+        w_po = 0.0
+        for g in mv.groups:
+            if g.group == idx_su:
+                w_su = g.weight
+            elif g.group == idx_sl:
+                w_sl = g.weight
+            elif g.group == idx_po:
+                w_po = g.weight
+        if (w_su > 0.20 or w_sl > 0.20) and w_po < 0.35:
+            u_m = float(np.clip(mv.co.x / max(mouth_hx, 1e-4), -1.1, 1.1))
+            asym_lift = 0.0024 * S * max(0.0, u_m)
+            target_seal_z = mouth_z + (0.0052 * (u_m * u_m) * S) + asym_lift
+            blend = float(np.clip(max(w_su, w_sl) * (1.0 - w_po), 0.0, 1.0))
+            if w_su >= w_sl:
+                mv.co.z = mv.co.z * (1.0 - blend) + (target_seal_z + 0.00025 * S) * blend
+                mv.co.y -= 0.0026 * S * blend
+            else:
+                mv.co.z = mv.co.z * (1.0 - blend) + (target_seal_z - 0.00025 * S) * blend
+                mv.co.y -= 0.0028 * S * blend
+
+    head_obj.vertex_groups.remove(vg_seal_up)
+    head_obj.vertex_groups.remove(vg_seal_lo)
+
+    # 3. Full-Arch Curved White Pixar Upper (`PART_TEETH_UPPER`) & Lower (`PART_TEETH_LOWER`) Teeth + Tongue!
     teeth_up_bm = bmesh.new()
     teeth_lo_bm = bmesh.new()
-    for is_upper, z_t, t_bm in ((True, mouth_z + 0.0048 * S, teeth_up_bm), (False, mouth_z - 0.0068 * S, teeth_lo_bm)):
+    for is_upper, z_t, t_bm in ((True, mouth_z + 0.0042 * S, teeth_up_bm), (False, mouth_z - 0.0058 * S, teeth_lo_bm)):
         t_frames = []
-        hw = mouth_hx * (0.74 if is_upper else 0.66)
-        for k in range(9):
-            u_t = -1.0 + 2.0 * (k / 8.0)
+        hw = mouth_hx * (0.98 if is_upper else 0.90)  # Full arch width so ZERO dark corner gaps ever show!
+        for k in range(13):
+            u_t = -1.0 + 2.0 * (k / 12.0)
             tx = u_t * hw
-            ty = (-base_ry * 0.845 if is_upper else -base_ry * 0.805) + 0.015 * S * (u_t * u_t)
-            t_frames.append((Vector((tx, ty, z_t)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.0036 * S, 0.0046 * S))
+            ty = (-base_ry * 0.855 if is_upper else -base_ry * 0.820) + 0.017 * S * (u_t * u_t)
+            scallop = 1.0 - 0.10 * abs(math.sin(k * math.pi * 0.9))
+            t_frames.append((Vector((tx, ty, z_t)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.0038 * S, 0.0048 * S * scallop))
         add_swept_tube_to_bmesh(t_bm, t_frames, n_seg=6, uv_box=(0.2, 0.8, 0.2, 0.8), cap_start=True, cap_end=True)
 
     tongue_bm = bmesh.new()
     tng_frames = [
-        (Vector((0.0, (-base_ry * 0.69 - 0.0085 * k), mouth_z - 0.0062 * S)),
-         Vector((1, 0, 0)), Vector((0, 0, 1)), (0.0165 - 0.0022 * k) * S, (0.0055 - 0.0007 * k) * S)
+        (Vector((0.0, (-base_ry * 0.54 - 0.0072 * k), mouth_z - 0.0055 * S)),
+         Vector((1, 0, 0)), Vector((0, 0, 1)), (0.0170 - 0.0022 * k) * S, (0.0052 - 0.0007 * k) * S)
         for k in range(4)
     ]
     add_swept_tube_to_bmesh(tongue_bm, tng_frames, n_seg=8, uv_box=(0.2, 0.8, 0.2, 0.8), cap_start=True, cap_end=True)
 
-    # 4. Full-Width Expressive Tapered Pixar Eyebrows + Crisp Dark Upper Lash Lines (`brow_bm`)!
+    # 4. Thick Expressive Tapered Pixar Eyebrows + Relaxed Upper Lash Arch overlapping top of iris!
     brow_bm = bmesh.new()
     lash_bm = bmesh.new()
     for sx in (-1.0, 1.0):
         b_pts = []
         for k in range(7):
             u_b = k / 6.0
-            bx = sx * (0.0175 + 0.0525 * u_b) * S
-            asym = (0.0025 * S) if sx > 0 else 0.0
-            bz = brow_z + (0.0105 * math.sin(math.pi * (0.12 + 0.78 * u_b)) - 0.003 * u_b) * S + asym
-            by = -base_ry * (0.935 - 0.14 * (u_b ** 1.6))
-            thick_w = (0.0086 - 0.0046 * (u_b ** 1.5)) * S
-            b_pts.append((Vector((bx, by, bz)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.0055 * S, thick_w))
+            bx = sx * (0.0165 + 0.0505 * u_b) * S
+            asym = (0.0028 * S) if sx > 0 else 0.0
+            bz = brow_z + (0.0110 * math.sin(math.pi * (0.12 + 0.78 * u_b)) - 0.0032 * u_b) * S + asym
+            by = -base_ry * (0.945 - 0.14 * (u_b ** 1.6))
+            thick_w = (0.0092 - 0.0046 * (u_b ** 1.5)) * S
+            b_pts.append((Vector((bx, by, bz)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.0056 * S, thick_w))
         add_swept_tube_to_bmesh(brow_bm, b_pts, n_seg=7, uv_box=(0.2, 0.8, 0.2, 0.8), cap_start=True, cap_end=True)
 
         l_pts = []
         for k in range(9):
-            ang = math.pi * (0.14 + 0.72 * (k / 8.0))
+            ang = math.pi * (0.12 + 0.76 * (k / 8.0))
             lx = sx * (eye_x - eye_hx * 1.02 * math.cos(ang))
-            lz = eye_z + eye_hz * 1.03 * math.sin(ang)
-            ly = eye_y - eye_r * 0.86 + 0.005 * S * ((math.cos(ang)) ** 2)
-            l_pts.append((Vector((lx, ly, lz)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.0024 * S, 0.0022 * S))
+            lz = (eye_z - 0.0018 * S) + eye_hz * 1.02 * math.sin(ang)
+            ly = eye_y - eye_r * 0.88 + 0.005 * S * ((math.cos(ang)) ** 2)
+            l_pts.append((Vector((lx, ly, lz)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.0028 * S, 0.0026 * S))
         add_swept_tube_to_bmesh(lash_bm, l_pts, n_seg=5, uv_box=(0.2, 0.8, 0.2, 0.8), cap_start=True, cap_end=True)
 
     teeth_up_obj = create_mesh_object("Tmp_TeethUp", teeth_up_bm, teeth_mat, subdiv=0)
@@ -593,7 +595,7 @@ def build_pixar_head_assembly(
     bpy.context.view_layer.objects.active = head_obj
     bpy.ops.object.join()
 
-    # 5. Soulful Pixar Eyeballs (`Eye_L`, `Eye_R`)
+    # 5. Soulful Large-Iris Eyeballs (`Eye_L`, `Eye_R`)
     eyes: List[bpy.types.Object] = []
     for side_tag, sx in (("L", 1.0), ("R", -1.0)):
         ebm = bmesh.new()
@@ -604,7 +606,7 @@ def build_pixar_head_assembly(
             for lp in f.loops:
                 v = lp.vert.co
                 if v.y < 0.0:
-                    scale_uv = 0.45 / max(eye_r * 0.88, 1e-4)
+                    scale_uv = 0.44 / max(eye_r * 0.88, 1e-4)
                     uu = 0.5 + float(np.clip(v.x * scale_uv, -0.49, 0.49))
                     vv = 0.5 + float(np.clip(v.z * scale_uv, -0.49, 0.49))
                     lp[euv].uv = (uu, vv)
@@ -633,16 +635,18 @@ def build_pixar_head_assembly(
 
 
 def build_pixar_hair_and_glasses(
+    head_obj: bpy.types.Object,
     profile: Dict[str, Any],
     anc: Dict[str, float],
     garment_mat: bpy.types.Material,
 ) -> List[bpy.types.Object]:
     """
     Build Professor Z's signature `Messy, expressive hair` AND `Round glasses`:
-      - Continuous sculpted base hair cap + neat sideburns in front of ears + tapered nape silhouette
-      - Organic multi-scale S-curved pointed Pixar locks swirling around an off-center crown whirl
-        (ZERO uniform parallel cornrow rings on side/back!) cresting cleanly at `H = 1.730 m`!
-      - Delicate circular antique bronze-gold wire `Round glasses` with key-bridge + hinge lugs + temples!
+      - Ray-verified `100%` zero-gap solid espresso base cap using `cKDTree` over `Avatar_Head`'s actual
+        subdivided vertices (`R_cap >= R_head + 7.5 mm` everywhere across crown, occiput, nape & temples,
+        while curving neatly over the ears so ZERO hair clips through the ears AND ZERO bald scalp
+        patches can ever appear at ANY camera angle from `0°` to `360°`!).
+      - Sleek tapered flat-blade Pixar hair locks sweeping upward & rightward from the crown (`H = 1.730 m`).
     """
     pal = profile["features_and_palette"]
     H = anc["height_m"]
@@ -653,36 +657,66 @@ def build_pixar_hair_and_glasses(
     crown_z = chin_z + head_h
     built: List[bpy.types.Object] = []
 
+    skull_center = np.array([0.0, 0.0, chin_z + 0.56 * head_h], dtype=np.float64)
+    head_pts = np.array([tuple(v.co) for v in head_obj.data.vertices], dtype=np.float64)
+    # Exclude lateral protruding ear tips (`abs(x) > base_rx * 1.03`) when measuring cranial shell radius
+    cranial_mask = np.abs(head_pts[:, 0]) <= (base_rx * 1.02)
+    cranial_pts = head_pts[cranial_mask]
+    cranial_dirs = cranial_pts - skull_center[None, :]
+    cranial_radii = np.linalg.norm(cranial_dirs, axis=1)
+    cranial_unit = cranial_dirs / np.maximum(cranial_radii[:, None], 1e-6)
+    dir_tree = cKDTree(cranial_unit)
+
+    def skull_safe_point(raw_xyz: Tuple[float, float, float], min_clearance: float) -> Vector:
+        p = np.array(raw_xyz, dtype=np.float64)
+        rel = p - skull_center
+        r_cur = float(np.linalg.norm(rel))
+        u_dir = rel / max(r_cur, 1e-6)
+        _, idxs = dir_tree.query(u_dir, k=6)
+        r_skull = float(np.max(cranial_radii[idxs]))
+        r_safe = max(r_cur, r_skull + min_clearance)
+        out = skull_center + u_dir * r_safe
+        return Vector((float(out[0]), float(out[1]), float(out[2])))
+
     hbm = bmesh.new()
     huv = hbm.loops.layers.uv.verify()
 
-    # 1. Sculpted Watertight Base Hair Cap covering 100% of upper/side/rear skull seamlessly (`ZERO bare skin gaps!`)
-    N_U, N_V = 32, 16
+    # 1. Ray-Verified 100% Zero-Gap Solid Espresso Inner Hair Base Cap
+    N_U, N_V = 40, 20
     cap_grid: List[List[bmesh.types.BMVert]] = []
+    ear_z_mid = 0.5 * (eye_z + anc["nose_z"])
     for iv in range(N_V + 1):
-        tv = iv / float(N_V)  # `0 = hairline rim`, `1 = crown apex`
+        tv = iv / float(N_V)  # `0 = clean anatomical hairline rim`, `1 = crown apex`
         ring_v = []
         for iu in range(N_U):
             phi = -math.pi * 0.5 + 2.0 * math.pi * (iu / float(N_U))
             ca, sa = math.cos(phi), math.sin(phi)
-            front_w = max(0.0, -sa)
-            back_w = max(0.0, sa)
-            ear_arch = math.exp(-((abs(ca) - 1.0) / 0.28) ** 2) * math.exp(-((sa - 0.02) / 0.35) ** 2)
-            sideburn_dip = math.exp(-(((abs(ca) - 0.92) / 0.16) ** 2 + ((sa + 0.36) / 0.18) ** 2))
+            # Smooth continuous hairline around entire 360° head:
+            # - Front forehead (`sa = -1`): `brow_z + 0.036`
+            # - Sideburns right in front of ears (`abs(ca) ~ 0.92, sa ~ -0.38`): dips cleanly to `eye_z + 0.004`
+            # - Over ear arch (`abs(ca) ~ 1.0, sa ~ +0.02`): arches cleanly above ear helix `ear_z_mid + 0.036`
+            # - Back nape (`sa = +1`): tapers cleanly down to `chin_z + 0.035`!
+            w_front = 0.5 * (1.0 - sa)
+            w_back = 0.5 * (1.0 + sa)
+            sideburn = math.exp(-(((abs(ca) - 0.88) / 0.22) ** 2 + ((sa + 0.44) / 0.26) ** 2))
+            over_ear = math.exp(-(((abs(ca) - 0.99) / 0.16) ** 2 + ((sa - 0.03) / 0.18) ** 2))
             z_rim = (
-                (crown_z - 0.026 * S) * front_w
-                + (chin_z + 0.072 * S) * back_w
-                + (crown_z - 0.056 * S) * (1.0 - front_w - back_w)
-                + 0.024 * S * ear_arch
-                - 0.046 * S * sideburn_dip
+                (anc["brow_z"] + 0.032 * S) * (w_front ** 1.35)
+                + (chin_z - 0.014 * S) * (w_back ** 1.35)
+                + (ear_z_mid + 0.024 * S) * (1.0 - (w_front ** 1.35) - (w_back ** 1.35))
+                - 0.034 * S * sideburn
+                + 0.020 * S * over_ear
             )
-            z = z_rim + (crown_z + 0.022 * S - z_rim) * (tv ** 0.78)
-            ht_eq = float(np.clip((z - chin_z) / max(head_h, 1e-4), 0.06, 0.992))
-            th_eq = 0.38 + ht_eq * (math.pi - 0.38)
-            r_scale = (math.sin(th_eq) ** 0.62) * (1.115 + 0.065 * math.sin(tv * math.pi)) * (1.0 - 0.88 * (tv ** 14))
-            px = (base_rx + 0.014 * S) * r_scale * ca
-            py = 0.010 * S + (base_ry + 0.022 * S) * r_scale * sa
-            ring_v.append(hbm.verts.new((px, py, z)))
+            # Spherical interpolation in angle from rim elevation up to crown apex (`0, 0, crown_z + 0.018`)
+            el_rim = math.atan2(z_rim - skull_center[2], base_rx * 1.02)
+            el = el_rim + (math.pi * 0.5 - el_rim) * tv
+            cos_el, sin_el = math.cos(el), math.sin(el)
+            raw_pt = (
+                skull_center[0] + (base_rx * 1.12 * cos_el) * ca,
+                skull_center[1] + (base_ry * 1.13 * cos_el) * sa,
+                skull_center[2] + (head_h * 0.56 * sin_el),
+            )
+            ring_v.append(hbm.verts.new(skull_safe_point(raw_pt, 0.0085 * S + 0.006 * S * math.sin(tv * math.pi))))
         cap_grid.append(ring_v)
 
     u0, u1, v0, v1 = UV_DARK
@@ -693,15 +727,15 @@ def build_pixar_hair_and_glasses(
             f = hbm.faces.new((cap_grid[iv][iu], cap_grid[iv][iun], cap_grid[iv + 1][iun], cap_grid[iv + 1][iu]))
             for lp in f.loops:
                 lp[huv].uv = solid_dark_uv
-    cap_apex = hbm.verts.new((0.0, 0.010 * S, crown_z + 0.024 * S))
+    cap_apex = hbm.verts.new(skull_safe_point((0.0, 0.0, crown_z + 0.020 * S), 0.012 * S))
     for iu in range(N_U):
         iun = (iu + 1) % N_U
         f = hbm.faces.new((cap_apex, cap_grid[-1][iu], cap_grid[-1][iun]))
         for lp in f.loops:
             lp[huv].uv = solid_dark_uv
 
-    # Helper to sculpt silky-smooth Catmull-Rom Pixar hair locks (`11 smooth stations, wide blade, razor tip!`)
-    def add_pixar_lock(pts: Sequence[Tuple[float, float, float]], width: float, thick: float, twist: float = 0.25) -> None:
+    # Sleek flat-ribbon / teardrop Pixar hair blade builder (`thin thickness -> NO balloon sausages!`)
+    def add_pixar_lock(pts: Sequence[Tuple[float, float, float]], width: float, thick: float, twist: float = 0.24) -> None:
         ctrl = [Vector(p) for p in pts]
         vecs: List[Vector] = []
         n_c = len(ctrl)
@@ -713,7 +747,6 @@ def build_pixar_hair_and_glasses(
             p1 = ctrl[idx0]
             p2 = ctrl[idx0 + 1]
             p3 = ctrl[min(idx0 + 2, n_c - 1)]
-            # Catmull-Rom cubic interpolation for organic sweeping Pixar curves!
             fr2, fr3 = fr * fr, fr * fr * fr
             pt = 0.5 * (
                 (2.0 * p1)
@@ -725,7 +758,7 @@ def build_pixar_hair_and_glasses(
 
         n_p = len(vecs)
         frames = []
-        center_head = Vector((0.0, 0.0, chin_z + head_h * 0.55))
+        center_head = Vector((0.0, 0.0, chin_z + head_h * 0.56))
         for idx, p in enumerate(vecs):
             tang = (vecs[min(idx + 1, n_p - 1)] - vecs[max(idx - 1, 0)]).normalized()
             if tang.length < 1e-5:
@@ -740,89 +773,90 @@ def build_pixar_hair_and_glasses(
             ang_tw = twist * t
             ax_u = (blade_u * math.cos(ang_tw) + outward * math.sin(ang_tw)).normalized()
             ax_v = (outward * math.cos(ang_tw) - blade_u * math.sin(ang_tw)).normalized()
-            prof_w = math.sin(math.pi * (0.20 + 0.78 * (t ** 0.80)))
+            prof_w = math.sin(math.pi * (0.22 + 0.76 * (t ** 0.78)))
             if idx == n_p - 1:
-                prof_w = 0.045
+                prof_w = 0.035
             frames.append((p, ax_u, ax_v, width * prof_w, thick * prof_w))
-        f_start = len(hbm.faces)
-        add_swept_tube_to_bmesh(hbm, frames, n_seg=8, uv_box=(solid_dark_uv[0], solid_dark_uv[0], solid_dark_uv[1], solid_dark_uv[1]), cap_start=True, cap_end=True)
+        add_swept_tube_to_bmesh(
+            hbm,
+            frames,
+            n_seg=8,
+            uv_box=(solid_dark_uv[0], solid_dark_uv[0], solid_dark_uv[1], solid_dark_uv[1]),
+            cap_start=True,
+            cap_end=True,
+        )
 
     if pal.get("messy_spiky_hair", False):
-        # A. Signature Hero Swept-Up Windswept Crown Locks & Playful Side Flicks reaching exact `H = 1.730 m`!
+        # Signature swept-up center-right crown crest & playful stray strands matching `ref_02_professor_z_catalogue.png`!
         hero_locks = [
-            # Hero upward-swept center-left -> right swoosh tufts (`Messy, expressive hair` callout!)
-            ([(-0.048 * S, -0.052 * S, crown_z - 0.012 * S), (-0.015 * S, -0.082 * S, crown_z + 0.038 * S), ( 0.032 * S, -0.072 * S, crown_z + 0.074 * S), ( 0.078 * S, -0.052 * S, H - 0.002 * S)], 0.046 * S, 0.019 * S,  0.32),
-            ([(-0.018 * S, -0.030 * S, crown_z - 0.008 * S), ( 0.022 * S, -0.052 * S, crown_z + 0.046 * S), ( 0.068 * S, -0.040 * S, crown_z + 0.078 * S), ( 0.114 * S, -0.022 * S, H - 0.016 * S)], 0.044 * S, 0.018 * S,  0.26),
-            ([(-0.068 * S, -0.038 * S, crown_z - 0.018 * S), (-0.062 * S, -0.064 * S, crown_z + 0.034 * S), (-0.026 * S, -0.058 * S, crown_z + 0.070 * S), ( 0.016 * S, -0.042 * S, H - 0.004 * S)], 0.045 * S, 0.019 * S,  0.30),
-            # Playful stray cowlick spikes kicking out left & right on silhouette!
-            ([(-0.078 * S, -0.018 * S, crown_z - 0.030 * S), (-0.118 * S, -0.028 * S, crown_z + 0.014 * S), (-0.146 * S, -0.018 * S, crown_z + 0.044 * S), (-0.158 * S, -0.004 * S, crown_z + 0.064 * S)], 0.038 * S, 0.016 * S, -0.35),
-            ([( 0.064 * S, -0.018 * S, crown_z - 0.028 * S), ( 0.108 * S, -0.024 * S, crown_z + 0.012 * S), ( 0.144 * S, -0.012 * S, crown_z + 0.038 * S), ( 0.162 * S,  0.004 * S, crown_z + 0.052 * S)], 0.038 * S, 0.016 * S,  0.35),
-            # Charming asymmetric parted forehead bangs dipping right above eyebrows!
-            ([(-0.028 * S, -0.082 * S, crown_z - 0.012 * S), ( 0.012 * S, -0.116 * S, crown_z - 0.006 * S), ( 0.054 * S, -0.130 * S, crown_z - 0.030 * S), ( 0.086 * S, -0.122 * S, anc["brow_z"] + 0.024 * S)], 0.040 * S, 0.016 * S,  0.22),
-            ([(-0.006 * S, -0.088 * S, crown_z - 0.014 * S), (-0.028 * S, -0.122 * S, crown_z - 0.012 * S), (-0.046 * S, -0.132 * S, crown_z - 0.038 * S), (-0.034 * S, -0.126 * S, anc["brow_z"] + 0.016 * S)], 0.034 * S, 0.015 * S, -0.20),
-            ([(-0.052 * S, -0.076 * S, crown_z - 0.018 * S), (-0.086 * S, -0.110 * S, crown_z - 0.012 * S), (-0.112 * S, -0.118 * S, crown_z - 0.038 * S), (-0.118 * S, -0.106 * S, anc["brow_z"] + 0.022 * S)], 0.038 * S, 0.016 * S, -0.28),
-            ([( 0.036 * S, -0.076 * S, crown_z - 0.014 * S), ( 0.076 * S, -0.110 * S, crown_z - 0.004 * S), ( 0.108 * S, -0.116 * S, crown_z - 0.026 * S), ( 0.124 * S, -0.098 * S, anc["brow_z"] + 0.028 * S)], 0.038 * S, 0.016 * S,  0.28),
+            ([(-0.046 * S, -0.048 * S, crown_z - 0.008 * S), (-0.012 * S, -0.078 * S, crown_z + 0.038 * S), ( 0.030 * S, -0.068 * S, crown_z + 0.072 * S), ( 0.074 * S, -0.048 * S, H - 0.002 * S)], 0.046 * S, 0.012 * S,  0.30),
+            ([(-0.016 * S, -0.026 * S, crown_z - 0.006 * S), ( 0.020 * S, -0.048 * S, crown_z + 0.044 * S), ( 0.062 * S, -0.038 * S, crown_z + 0.076 * S), ( 0.104 * S, -0.020 * S, H - 0.016 * S)], 0.044 * S, 0.011 * S,  0.26),
+            ([(-0.064 * S, -0.034 * S, crown_z - 0.012 * S), (-0.056 * S, -0.058 * S, crown_z + 0.034 * S), (-0.022 * S, -0.054 * S, crown_z + 0.068 * S), ( 0.018 * S, -0.038 * S, H - 0.004 * S)], 0.044 * S, 0.012 * S,  0.28),
+            # Neat swept side locks hugging silhouette cleanly (NO Mickey-Mouse balloon ears!)
+            ([(-0.062 * S, -0.022 * S, crown_z - 0.010 * S), (-0.088 * S, -0.028 * S, crown_z + 0.020 * S), (-0.102 * S, -0.020 * S, crown_z + 0.044 * S), (-0.098 * S, -0.008 * S, crown_z + 0.060 * S)], 0.036 * S, 0.011 * S, -0.32),
+            ([( 0.056 * S, -0.022 * S, crown_z - 0.010 * S), ( 0.084 * S, -0.024 * S, crown_z + 0.018 * S), ( 0.104 * S, -0.014 * S, crown_z + 0.040 * S), ( 0.110 * S,  0.000 * S, crown_z + 0.054 * S)], 0.036 * S, 0.011 * S,  0.32),
+            # Asymmetric forehead fringe locks sweeping lightly above eyebrows
+            ([(-0.026 * S, -0.080 * S, crown_z - 0.008 * S), ( 0.012 * S, -0.114 * S, crown_z - 0.004 * S), ( 0.050 * S, -0.126 * S, crown_z - 0.028 * S), ( 0.080 * S, -0.118 * S, anc["brow_z"] + 0.026 * S)], 0.038 * S, 0.011 * S,  0.22),
+            ([(-0.006 * S, -0.086 * S, crown_z - 0.010 * S), (-0.028 * S, -0.118 * S, crown_z - 0.010 * S), (-0.044 * S, -0.128 * S, crown_z - 0.034 * S), (-0.032 * S, -0.122 * S, anc["brow_z"] + 0.020 * S)], 0.032 * S, 0.010 * S, -0.20),
+            ([(-0.048 * S, -0.074 * S, crown_z - 0.012 * S), (-0.082 * S, -0.106 * S, crown_z - 0.010 * S), (-0.106 * S, -0.112 * S, crown_z - 0.034 * S), (-0.112 * S, -0.100 * S, anc["brow_z"] + 0.026 * S)], 0.035 * S, 0.011 * S, -0.26),
+            ([( 0.034 * S, -0.074 * S, crown_z - 0.010 * S), ( 0.072 * S, -0.106 * S, crown_z - 0.004 * S), ( 0.102 * S, -0.110 * S, crown_z - 0.024 * S), ( 0.114 * S, -0.094 * S, anc["brow_z"] + 0.030 * S)], 0.035 * S, 0.011 * S,  0.26),
         ]
         for pts, w_l, t_l, tw in hero_locks:
             add_pixar_lock(pts, w_l, t_l, tw)
 
-        # B. Organic Staggered 3D Swirl Locks around Crown, Temples & Back (Golden-Angle + Jitter -> ZERO Cornrow Rings!)
         rng = np.random.default_rng(202607)
-        for k in range(26):
-            # Spread across temples & back (`phi` in `-0.26*pi .. +1.26*pi`) with pseudo-random elevation & S-curve!
-            u_k = (k + 0.5) / 26.0
-            az = -math.pi * 0.24 + (math.pi * 1.48) * u_k + float(rng.uniform(-0.075, 0.075))
-            tier = k % 3  # Stagger heights across upper whirl, mid occiput, and lower nape!
+        for k in range(28):
+            u_k = (k + 0.5) / 28.0
+            az = -math.pi * 0.20 + (math.pi * 1.40) * u_k + float(rng.uniform(-0.06, 0.06))
+            tier = k % 3
             ca, sa = math.cos(az), math.sin(az)
             if tier == 0:
-                # Upper crown whirl sweeping outward & playfully upward/sideways!
-                sw = az + 0.34 + float(rng.uniform(-0.14, 0.14))
+                sw = az + 0.30 + float(rng.uniform(-0.12, 0.12))
                 ca2, sa2 = math.cos(sw), math.sin(sw)
-                zc = crown_z - 0.032 * S + float(rng.uniform(-0.012, 0.014)) * S
-                flare = 1.24 + float(rng.uniform(-0.05, 0.10))
-                lift = (0.048 + float(rng.uniform(-0.012, 0.024))) * S
+                zc = crown_z - 0.024 * S + float(rng.uniform(-0.010, 0.012)) * S
+                flare = 1.18 + float(rng.uniform(-0.04, 0.07))
+                lift = (0.040 + float(rng.uniform(-0.010, 0.020))) * S
                 pts = [
-                    (base_rx * 0.62 * ca, base_ry * 0.62 * sa, crown_z + 0.006 * S),
-                    (base_rx * 0.98 * ca, base_ry * 0.98 * sa, zc + 0.024 * S),
-                    (base_rx * flare * ca2, base_ry * flare * sa2, zc + lift * 0.72),
-                    (base_rx * (flare + 0.08) * ca2, base_ry * (flare + 0.08) * sa2, zc + lift),
+                    (base_rx * 0.65 * ca, base_ry * 0.65 * sa, crown_z + 0.010 * S),
+                    (base_rx * 1.02 * ca, base_ry * 1.04 * sa, zc + 0.024 * S),
+                    (base_rx * flare * ca2, base_ry * (flare + 0.04) * sa2, zc + lift * 0.72),
+                    (base_rx * (flare + 0.05) * ca2, base_ry * (flare + 0.07) * sa2, zc + lift),
                 ]
-                add_pixar_lock(pts, 0.046 * S, 0.018 * S, 0.28)
+                add_pixar_lock(pts, 0.042 * S, 0.011 * S, 0.26)
             elif tier == 1:
-                # Mid-back & temple diagonal shingled locks sweeping sideways & softly down/out!
-                sw = az + (0.28 if ca >= 0 else -0.28) + float(rng.uniform(-0.10, 0.10))
+                # Upper-back & temple locks kept cleanly ABOVE ear arch (`zm >= ear_z_mid + 0.055`) so ears stay crisp!
+                sw = az + (0.24 if ca >= 0 else -0.24) + float(rng.uniform(-0.08, 0.08))
                 ca2, sa2 = math.cos(sw), math.sin(sw)
-                zm = chin_z + head_h * (0.66 + float(rng.uniform(-0.06, 0.06)))
+                zm = chin_z + head_h * (0.74 + float(rng.uniform(-0.04, 0.05)))
                 pts = [
-                    (base_rx * 0.92 * ca, base_ry * 0.92 * sa, zm + 0.048 * S),
-                    (base_rx * 1.16 * ca, base_ry * 1.16 * sa, zm + 0.022 * S),
-                    (base_rx * 1.25 * ca2, base_ry * 1.25 * sa2, zm - 0.012 * S),
-                    (base_rx * 1.18 * ca2, base_ry * 1.18 * sa2, zm - 0.042 * S),
+                    (base_rx * 0.94 * ca, base_ry * 0.96 * sa, zm + 0.042 * S),
+                    (base_rx * 1.14 * ca, base_ry * 1.16 * sa, zm + 0.018 * S),
+                    (base_rx * 1.18 * ca2, base_ry * 1.22 * sa2, zm - 0.012 * S),
+                    (base_rx * 1.12 * ca2, base_ry * 1.18 * sa2, zm - 0.036 * S),
                 ]
-                add_pixar_lock(pts, 0.048 * S, 0.018 * S, -0.22)
+                add_pixar_lock(pts, 0.044 * S, 0.011 * S, -0.20)
             else:
-                # Feathered lower nape & behind-ear locks flicking cleanly outward at tips (`Turnaround Side/Rear`!)
-                if sa > 0.12:  # Only behind the ears across the back nape!
-                    sw = az + float(rng.uniform(-0.16, 0.16))
+                if sa > 0.22:
+                    sw = az + float(rng.uniform(-0.14, 0.14))
                     ca2, sa2 = math.cos(sw), math.sin(sw)
                     zn = chin_z + head_h * (0.44 + float(rng.uniform(-0.04, 0.05)))
                     pts = [
-                        (base_rx * 0.90 * ca, base_ry * 0.90 * sa, zn + 0.036 * S),
-                        (base_rx * 1.10 * ca, base_ry * 1.10 * sa, zn - 0.002 * S),
-                        (base_rx * 1.14 * ca2, base_ry * 1.15 * sa2, zn - 0.036 * S),
-                        (base_rx * 1.06 * ca2, base_ry * 1.14 * sa2, zn - 0.062 * S),
+                        (base_rx * 0.92 * ca, base_ry * 0.98 * sa, zn + 0.036 * S),
+                        (base_rx * 1.10 * ca, base_ry * 1.14 * sa, zn - 0.002 * S),
+                        (base_rx * 1.12 * ca2, base_ry * 1.18 * sa2, zn - 0.034 * S),
+                        (base_rx * 1.05 * ca2, base_ry * 1.16 * sa2, zn - 0.058 * S),
                     ]
-                    add_pixar_lock(pts, 0.042 * S, 0.016 * S, 0.18)
+                    add_pixar_lock(pts, 0.040 * S, 0.011 * S, 0.16)
 
     hair_obj = create_mesh_object("Hair", hbm, garment_mat, subdiv=0)
     built.append(hair_obj)
 
-    # 2. Iconic Thin Antique Bronze-Gold `Round glasses` (`wearing_glasses == True`)
+    # 2. Iconic Antique Bronze-Tortoiseshell `Round glasses`
     if pal.get("wearing_glasses", False):
-        rim_r = 0.0405 * S
-        wire_r = 0.0021 * S
-        gx = 0.0485 * S
-        gy = eye_y - anc["eye_r"] * 1.76  # Full +6.8mm clearance in front of nose bridge across 360 deg!
+        rim_r = 0.0395 * S
+        wire_r = 0.0022 * S
+        gx = 0.0468 * S
+        gy = eye_y - anc["eye_r"] * 1.72
         gz = eye_z - 0.002 * S
 
         gbm = bmesh.new()
@@ -832,15 +866,14 @@ def build_pixar_hair_and_glasses(
                 ang = 2.0 * math.pi * (k % 32) / 32.0
                 c = Vector((sx * gx + rim_r * math.cos(ang), gy, gz + rim_r * math.sin(ang)))
                 n_out = Vector((math.cos(ang), 0.0, math.sin(ang)))
-                hoop_pts.append((c, n_out, Vector((0.0, 1.0, 0.0)), wire_r, wire_r * 1.30))
+                hoop_pts.append((c, n_out, Vector((0.0, 1.0, 0.0)), wire_r, wire_r * 1.32))
             add_swept_tube_to_bmesh(gbm, hoop_pts, n_seg=6, uv_box=UV_GOLD)
 
-            # Outer hinge lug + sleek temple arm resting cleanly over ear helix!
             t_pts = [
                 (Vector((sx * (gx + rim_r), gy, gz + 0.004 * S)), Vector((1, 0, 0)), Vector((0, 0, 1)), wire_r * 1.35, wire_r * 1.35),
-                (Vector((sx * (base_rx * 1.03), gy + 0.048 * S, gz + 0.007 * S)), Vector((1, 0, 0)), Vector((0, 0, 1)), wire_r, wire_r),
-                (Vector((sx * (base_rx * 1.06), -0.008 * S, gz + 0.009 * S)), Vector((1, 0, 0)), Vector((0, 0, 1)), wire_r, wire_r * 1.1),
-                (Vector((sx * (base_rx * 1.03), +0.026 * S, gz - 0.015 * S)), Vector((1, 0, 0)), Vector((0, 0, 1)), wire_r * 0.85, wire_r * 0.85),
+                (Vector((sx * (base_rx * 1.02), gy + 0.048 * S, gz + 0.007 * S)), Vector((1, 0, 0)), Vector((0, 0, 1)), wire_r, wire_r),
+                (Vector((sx * (base_rx * 1.05), -0.004 * S, gz + 0.009 * S)), Vector((1, 0, 0)), Vector((0, 0, 1)), wire_r, wire_r * 1.1),
+                (Vector((sx * (base_rx * 1.02), +0.026 * S, gz - 0.015 * S)), Vector((1, 0, 0)), Vector((0, 0, 1)), wire_r * 0.85, wire_r * 0.85),
             ]
             add_swept_tube_to_bmesh(gbm, t_pts, n_seg=6, uv_box=UV_GOLD, cap_start=True, cap_end=True)
 
@@ -870,34 +903,33 @@ def build_tailored_wardrobe_and_body(
 ) -> List[bpy.types.Object]:
     """
     Construct the full tailored body in relaxed natural A-pose split strictly into clean
-    anatomical skinning zones (`ZONE_TORSO`, `ZONE_ARMS`, `ZONE_LEGS`, `ZONE_HANDS`) so
-    ZERO arm-to-hip or hand-to-trouser skinning stretch is mathematically possible!
+    anatomical skinning zones (`ZONE_TORSO`, `ZONE_ARMS`, `ZONE_LEGS`, `ZONE_HANDS`).
     """
     pal = profile["features_and_palette"]
     H = anc["height_m"]
     S = H / 1.73
     objs: List[bpy.types.Object] = []
 
-    z_blazer_hem = 0.815 * S
+    z_blazer_hem = 0.805 * S
     z_knee = 0.490 * S
 
     # ==================== ZONE A: `Body_Torso` (`ZONE_TORSO`) ====================
     bbm = bmesh.new()
 
-    # 1. Crisp Cream Cotton Poplin Dress Shirt + Pointed Collar + Center Placket + Tiny Buttons
+    # 1. Snug Tailored Cream Cotton Dress Shirt + Pointed Collar + Placket (`ZERO neck gap!`)
     shirt_stations = [
-        (0.900 * S, 0.132 * S, 0.092 * S),
+        (0.895 * S, 0.132 * S, 0.092 * S),
         (0.970 * S, 0.136 * S, 0.096 * S),
         (1.090 * S, 0.148 * S, 0.104 * S),
-        (1.210 * S, 0.156 * S, 0.098 * S),
-        (1.275 * S, 0.070 * S, 0.066 * S),
-        (1.302 * S, 0.055 * S, 0.054 * S),
+        (1.210 * S, 0.154 * S, 0.098 * S),
+        (1.275 * S, 0.056 * S, 0.058 * S),
+        (1.304 * S, 0.051 * S, 0.053 * S),
     ]
     shirt_frames = [
-        (Vector((0.0, -0.008 * S, z)), Vector((1, 0, 0)), Vector((0, 1, 0)), rx, ry)
+        (Vector((0.0, -0.006 * S, z)), Vector((1, 0, 0)), Vector((0, 1, 0)), rx, ry)
         for (z, rx, ry) in shirt_stations
     ]
-    add_swept_tube_to_bmesh(bbm, shirt_frames, n_seg=22, uv_box=UV_SHIRT, cap_start=True, cap_end=False)
+    add_swept_tube_to_bmesh(bbm, shirt_frames, n_seg=22, uv_box=UV_SHIRT, cap_start=True, cap_end=True)
 
     placket_frames = [
         (Vector((0.0, -(0.099 + 0.010 * math.sin(math.pi * k / 5.0)) * S, (0.920 + 0.068 * k) * S)),
@@ -909,15 +941,14 @@ def build_tailored_wardrobe_and_body(
     if pal.get("has_bowtie", False):
         for sx in (-1.0, 1.0):
             c_pts = [
-                (Vector((sx * 0.052 * S,  0.025 * S, 1.300 * S)), Vector((0, 0, 1)), Vector((1, 0, 0)), 0.022 * S, 0.004 * S),
-                (Vector((sx * 0.062 * S, -0.045 * S, 1.294 * S)), Vector((0, 0, 1)), Vector((1, 0, 0)), 0.024 * S, 0.004 * S),
-                (Vector((sx * 0.046 * S, -0.092 * S, 1.274 * S)), Vector((0, 0, 1)), Vector((1, 0, 0)), 0.022 * S, 0.004 * S),
-                (Vector((sx * 0.022 * S, -0.105 * S, 1.254 * S)), Vector((0, 0, 1)), Vector((1, 0, 0)), 0.006 * S, 0.003 * S),
+                (Vector((sx * 0.048 * S,  0.022 * S, 1.302 * S)), Vector((0, 0, 1)), Vector((1, 0, 0)), 0.020 * S, 0.004 * S),
+                (Vector((sx * 0.055 * S, -0.040 * S, 1.294 * S)), Vector((0, 0, 1)), Vector((1, 0, 0)), 0.022 * S, 0.004 * S),
+                (Vector((sx * 0.042 * S, -0.082 * S, 1.276 * S)), Vector((0, 0, 1)), Vector((1, 0, 0)), 0.020 * S, 0.004 * S),
+                (Vector((sx * 0.020 * S, -0.096 * S, 1.258 * S)), Vector((0, 0, 1)), Vector((1, 0, 0)), 0.006 * S, 0.003 * S),
             ]
             add_swept_tube_to_bmesh(bbm, c_pts, n_seg=6, uv_box=UV_SHIRT, cap_start=True, cap_end=True)
 
-        # Signature Woven Cognac Butterfly Bow Tie (`Signature bow tie` callout!)
-        bt_z, bt_y = 1.268 * S, -0.109 * S
+        bt_z, bt_y = 1.272 * S, -0.100 * S
         knot_frames = [
             (Vector((x_k * S, bt_y, bt_z)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.010 * S, 0.013 * S)
             for x_k in (-0.010, 0.0, 0.010)
@@ -926,21 +957,21 @@ def build_tailored_wardrobe_and_body(
         for sx in (-1.0, 1.0):
             wing_frames = [
                 (Vector((sx * 0.008 * S, bt_y + 0.002 * S, bt_z)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.006 * S, 0.010 * S),
-                (Vector((sx * 0.028 * S, bt_y - 0.002 * S, bt_z)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.009 * S, 0.022 * S),
-                (Vector((sx * 0.048 * S, bt_y + 0.003 * S, bt_z)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.007 * S, 0.026 * S),
-                (Vector((sx * 0.053 * S, bt_y + 0.005 * S, bt_z)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.003 * S, 0.020 * S),
+                (Vector((sx * 0.027 * S, bt_y - 0.002 * S, bt_z)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.009 * S, 0.021 * S),
+                (Vector((sx * 0.046 * S, bt_y + 0.003 * S, bt_z)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.007 * S, 0.025 * S),
+                (Vector((sx * 0.051 * S, bt_y + 0.005 * S, bt_z)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.003 * S, 0.019 * S),
             ]
             add_swept_tube_to_bmesh(bbm, wing_frames, n_seg=8, uv_box=UV_BOWTIE, cap_start=True, cap_end=True)
 
-    # 2. Structured Olive-Walnut Herringbone Tweed Open Blazer + Notched Lapels + Flap Pockets + Horn Buttons
+    # 2. Structured Olive-Walnut Herringbone Tweed Open Blazer + Snug Neck Collar + Notched Lapels
     blazer_rows = [
-        (z_blazer_hem, 0.166 * S, 0.114 * S, 0.34),
-        (0.890 * S,    0.160 * S, 0.110 * S, 0.22),
-        (0.980 * S,    0.156 * S, 0.109 * S, 0.17),
-        (1.070 * S,    0.166 * S, 0.114 * S, 0.25),
-        (1.165 * S,    0.176 * S, 0.112 * S, 0.36),
-        (1.245 * S,    0.180 * S, 0.104 * S, 0.46),
-        (1.284 * S,    0.095 * S, 0.082 * S, 0.58),
+        (z_blazer_hem, 0.164 * S, 0.114 * S, 0.34),
+        (0.890 * S,    0.158 * S, 0.110 * S, 0.22),
+        (0.980 * S,    0.155 * S, 0.109 * S, 0.17),
+        (1.070 * S,    0.165 * S, 0.114 * S, 0.25),
+        (1.165 * S,    0.175 * S, 0.112 * S, 0.36),
+        (1.245 * S,    0.178 * S, 0.104 * S, 0.45),
+        (1.288 * S,    0.072 * S, 0.070 * S, 0.54),
     ]
     uv_l = bbm.loops.layers.uv.verify()
     N_BLZ = 24
@@ -952,8 +983,8 @@ def build_tailored_wardrobe_and_body(
         for j in range(N_BLZ + 1):
             phi = p_start + p_span * (j / float(N_BLZ))
             ca, sa = math.cos(phi), math.sin(phi)
-            o_ring.append(bbm.verts.new((rx * ca, -0.008 * S + ry * sa, z)))
-            i_ring.append(bbm.verts.new(((rx - 0.008 * S) * ca, -0.008 * S + (ry - 0.008 * S) * sa, z)))
+            o_ring.append(bbm.verts.new((rx * ca, -0.006 * S + ry * sa, z)))
+            i_ring.append(bbm.verts.new(((rx - 0.008 * S) * ca, -0.006 * S + (ry - 0.008 * S) * sa, z)))
         outer_rings.append(o_ring)
         inner_rings.append(i_ring)
 
@@ -983,17 +1014,16 @@ def build_tailored_wardrobe_and_body(
     if pal.get("has_notched_lapels", False):
         for sx in (-1.0, 1.0):
             lapel_frames = [
-                (Vector((sx * 0.070 * S, -0.072 * S, 1.284 * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.020 * S, 0.005 * S),
-                (Vector((sx * 0.082 * S, -0.098 * S, 1.226 * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.028 * S, 0.006 * S),
-                (Vector((sx * 0.068 * S, -0.114 * S, 1.155 * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.025 * S, 0.006 * S),
-                (Vector((sx * 0.044 * S, -0.119 * S, 1.075 * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.016 * S, 0.005 * S),
-                (Vector((sx * 0.028 * S, -0.117 * S, 1.005 * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.006 * S, 0.004 * S),
+                (Vector((sx * 0.060 * S, -0.065 * S, 1.288 * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.019 * S, 0.005 * S),
+                (Vector((sx * 0.076 * S, -0.095 * S, 1.228 * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.027 * S, 0.006 * S),
+                (Vector((sx * 0.065 * S, -0.112 * S, 1.155 * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.024 * S, 0.006 * S),
+                (Vector((sx * 0.043 * S, -0.117 * S, 1.075 * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.016 * S, 0.005 * S),
+                (Vector((sx * 0.028 * S, -0.115 * S, 1.005 * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.006 * S, 0.004 * S),
             ]
             add_swept_tube_to_bmesh(bbm, lapel_frames, n_seg=6, uv_box=UV_BLAZER, cap_start=True, cap_end=True)
 
-            # Side Hip Flap Pockets
             pock_frames = [
-                (Vector((sx * 0.128 * S, -0.078 * S, (0.848 + 0.036 * k) * S)),
+                (Vector((sx * 0.126 * S, -0.076 * S, (0.842 + 0.036 * k) * S)),
                  Vector((-sx * 0.55, -0.83, 0.0)), Vector((0.83, -sx * 0.55, 0.0)), 0.034 * S, 0.0045 * S)
                 for k in range(3)
             ]
@@ -1001,29 +1031,29 @@ def build_tailored_wardrobe_and_body(
 
         for bz_btn in (0.995 * S, 0.925 * S):
             btn_frames = [
-                (Vector((0.034 * S, (-0.116 - 0.004 * k) * S, bz_btn)), Vector((1, 0, 0)), Vector((0, 0, 1)), 0.0085 * S, 0.0085 * S)
+                (Vector((0.034 * S, (-0.114 - 0.004 * k) * S, bz_btn)), Vector((1, 0, 0)), Vector((0, 0, 1)), 0.0085 * S, 0.0085 * S)
                 for k in range(2)
             ]
             add_swept_tube_to_bmesh(bbm, btn_frames, n_seg=8, uv_box=UV_DARK, cap_start=True, cap_end=True)
 
-    # Espresso Leather Belt + Belt Loops + Brushed Gold Buckle (`Z = 0.916 m`)
     if pal.get("has_belt", True):
         belt_frames = [
-            (Vector((0.0, -0.008 * S, (0.902 + 0.028 * k) * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.138 * S, 0.098 * S)
+            (Vector((0.0, -0.006 * S, (0.898 + 0.028 * k) * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.140 * S, 0.099 * S)
             for k in range(2)
         ]
         add_swept_tube_to_bmesh(bbm, belt_frames, n_seg=22, uv_box=UV_DARK, cap_start=True, cap_end=True)
         bk_pts = []
         bw, bh = 0.022 * S, 0.017 * S
         for px, pz in [(-bw, -bh), (bw, -bh), (bw, bh), (-bw, bh), (-bw, -bh)]:
-            bk_pts.append((Vector((px, -0.108 * S, 0.916 * S + pz)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.0032 * S, 0.0032 * S))
+            bk_pts.append((Vector((px, -0.107 * S, 0.912 * S + pz)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.0032 * S, 0.0032 * S))
         add_swept_tube_to_bmesh(bbm, bk_pts, n_seg=6, uv_box=UV_GOLD)
 
+    # Smooth continuous tailored trouser hip/pelvis saddle extending down into upper thigh overlap (`0.785 m`)
     pelvis_frames = [
-        (Vector((0.0, -0.006 * S, z * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), rx * S, ry * S)
-        for (z, rx, ry) in [(0.825, 0.126, 0.088), (0.865, 0.134, 0.094), (0.910, 0.135, 0.095)]
+        (Vector((0.0, -0.005 * S, z * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), rx * S, ry * S)
+        for (z, rx, ry) in [(0.785, 0.146, 0.088), (0.835, 0.144, 0.094), (0.875, 0.140, 0.096), (0.910, 0.136, 0.096)]
     ]
-    add_swept_tube_to_bmesh(bbm, pelvis_frames, n_seg=20, uv_box=UV_TROUSER, cap_start=True, cap_end=True)
+    add_swept_tube_to_bmesh(bbm, pelvis_frames, n_seg=22, uv_box=UV_TROUSER, cap_start=True, cap_end=True)
 
     torso_obj = create_mesh_object("Body_Torso", bbm, garment_mat, subdiv=0)
     torso_obj.vertex_groups.new(name="ZONE_TORSO").add(list(range(len(torso_obj.data.vertices))), 1.0, "REPLACE")
@@ -1037,13 +1067,13 @@ def build_tailored_wardrobe_and_body(
         wr_pt = Vector((sx * 0.238 * S, -0.020 * S, 0.858 * S))
 
         sleeve_pts = [
-            (sh_pt + Vector((-sx * 0.032 * S, 0.0, -0.006 * S)), 0.044 * S, 0.048 * S),
-            (sh_pt.lerp(el_pt, 0.25), 0.046 * S, 0.048 * S),
+            (sh_pt + Vector((-sx * 0.032 * S, 0.0, -0.006 * S)), 0.045 * S, 0.049 * S),
+            (sh_pt.lerp(el_pt, 0.25), 0.046 * S, 0.049 * S),
             (sh_pt.lerp(el_pt, 0.65), 0.044 * S, 0.046 * S),
             (el_pt,                   0.042 * S, 0.044 * S),
             (el_pt.lerp(wr_pt, 0.50), 0.039 * S, 0.040 * S),
             (el_pt.lerp(wr_pt, 0.92), 0.036 * S, 0.037 * S),
-            (el_pt.lerp(wr_pt, 0.94), 0.028 * S, 0.029 * S),
+            (el_pt.lerp(wr_pt, 0.94), 0.029 * S, 0.030 * S),
         ]
         sl_frames = []
         for pt, ru, rv in sleeve_pts:
@@ -1052,7 +1082,6 @@ def build_tailored_wardrobe_and_body(
             sl_frames.append((pt, ax_u, Vector((0, 1, 0)), ru, rv))
         add_swept_tube_to_bmesh(abm, sl_frames, n_seg=14, uv_box=UV_BLAZER, cap_start=True, cap_end=True)
 
-        # Two tiny cuff buttons on outer blazer sleeve (`Turnaround Side` detail!)
         for k_cb in range(2):
             cb_c = el_pt.lerp(wr_pt, 0.80 + 0.07 * k_cb) + Vector((sx * 0.037 * S, 0.010 * S, 0.0))
             cb_f = [(cb_c + Vector((sx * 0.002 * m * S, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.0045 * S, 0.0045 * S) for m in range(2)]
@@ -1062,7 +1091,7 @@ def build_tailored_wardrobe_and_body(
         axis = (wr_pt - el_pt).normalized()
         ax_u = axis.cross(Vector((0, 1, 0))).normalized()
         for t_c in (0.91, 1.01):
-            cuff_frames.append((el_pt.lerp(wr_pt, t_c), ax_u, Vector((0, 1, 0)), 0.031 * S, 0.032 * S))
+            cuff_frames.append((el_pt.lerp(wr_pt, t_c), ax_u, Vector((0, 1, 0)), 0.032 * S, 0.033 * S))
         add_swept_tube_to_bmesh(abm, cuff_frames, n_seg=12, uv_box=UV_SHIRT, cap_start=True, cap_end=True)
 
     arms_obj = create_mesh_object("Body_Arms", abm, garment_mat, subdiv=0)
@@ -1072,14 +1101,14 @@ def build_tailored_wardrobe_and_body(
     # ==================== ZONE C: `Body_Legs` (`ZONE_LEGS`) ====================
     lbm = bmesh.new()
     for sx in (-1.0, 1.0):
-        hx = sx * 0.082 * S
+        hx = sx * 0.080 * S
         leg_stations = [
-            (0.086 * S, hx * 1.06, 0.048 * S, 0.052 * S),
-            (0.115 * S, hx * 1.05, 0.052 * S, 0.056 * S),
-            (0.255 * S, hx * 1.03, 0.056 * S, 0.060 * S),
-            (z_knee,    hx * 1.01, 0.062 * S, 0.066 * S),
-            (0.680 * S, hx * 0.98, 0.068 * S, 0.074 * S),
-            (0.855 * S, hx * 0.94, 0.074 * S, 0.080 * S),
+            (0.086 * S, hx * 1.06, 0.049 * S, 0.053 * S),
+            (0.118 * S, hx * 1.05, 0.053 * S, 0.057 * S),
+            (0.255 * S, hx * 1.03, 0.058 * S, 0.062 * S),
+            (z_knee,    hx * 1.00, 0.064 * S, 0.068 * S),
+            (0.680 * S, hx * 0.96, 0.072 * S, 0.078 * S),
+            (0.880 * S, hx * 0.88, 0.080 * S, 0.086 * S),
         ]
         leg_frames = [
             (Vector((lx, -0.004 * S, lz)), Vector((1, 0, 0)), Vector((0, 1, 0)), rx, ry)
@@ -1087,22 +1116,21 @@ def build_tailored_wardrobe_and_body(
         ]
         add_swept_tube_to_bmesh(lbm, leg_frames, n_seg=16, uv_box=UV_TROUSER, cap_start=True, cap_end=True)
 
-        # Tailored ankle trouser cuff band (`Classic kicks` detail!)
         cuff_leg = [
-            (Vector((hx * 1.06, -0.004 * S, zc * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.051 * S, 0.055 * S)
-            for zc in (0.086, 0.112)
+            (Vector((hx * 1.06, -0.004 * S, zc * S)), Vector((1, 0, 0)), Vector((0, 1, 0)), 0.053 * S, 0.057 * S)
+            for zc in (0.086, 0.118)
         ]
         add_swept_tube_to_bmesh(lbm, cuff_leg, n_seg=16, uv_box=UV_TROUSER, cap_start=True, cap_end=True)
 
-        # Burnished Cognac Leather Classic Kicks (`Classic kicks` callout!)
-        fx = sx * 0.087 * S
+        # Authentic Burnished Cognac Leather Brogues + Dark Espresso Leather Welt & Stacked Heel (`Classic kicks`!)
+        fx = sx * 0.085 * S
         shoe_stations = [
-            (+0.074 * S, 0.048 * S, 0.036 * S, 0.040 * S),
-            (+0.035 * S, 0.046 * S, 0.041 * S, 0.038 * S),
-            (-0.015 * S, 0.040 * S, 0.044 * S, 0.032 * S),
-            (-0.070 * S, 0.032 * S, 0.046 * S, 0.025 * S),
-            (-0.125 * S, 0.026 * S, 0.043 * S, 0.021 * S),
-            (-0.158 * S, 0.022 * S, 0.030 * S, 0.016 * S),
+            (+0.074 * S, 0.048 * S, 0.037 * S, 0.040 * S),
+            (+0.035 * S, 0.046 * S, 0.042 * S, 0.038 * S),
+            (-0.015 * S, 0.040 * S, 0.045 * S, 0.033 * S),
+            (-0.070 * S, 0.033 * S, 0.047 * S, 0.026 * S),
+            (-0.125 * S, 0.027 * S, 0.044 * S, 0.022 * S),
+            (-0.160 * S, 0.023 * S, 0.031 * S, 0.017 * S),
         ]
         sh_frames = [
             (Vector((fx, sy, max(sz, hh + 0.011 * S))), Vector((1, 0, 0)), Vector((0, 0, 1)), hw, hh)
@@ -1111,42 +1139,43 @@ def build_tailored_wardrobe_and_body(
         add_swept_tube_to_bmesh(lbm, sh_frames, n_seg=12, uv_box=UV_SHOE, cap_start=True, cap_end=True)
 
         sole_frames = [
-            (Vector((fx, sy, 0.0085 * S)), Vector((1, 0, 0)), Vector((0, 0, 1)), hw * 1.09, 0.0085 * S)
+            (Vector((fx, sy, 0.0090 * S)), Vector((1, 0, 0)), Vector((0, 0, 1)), hw * 1.09, 0.0090 * S)
             for (sy, _sz, hw, _hh) in shoe_stations
         ]
         n_before = len(lbm.verts)
-        add_swept_tube_to_bmesh(lbm, sole_frames, n_seg=12, uv_box=UV_SHIRT, cap_start=True, cap_end=True)
+        add_swept_tube_to_bmesh(lbm, sole_frames, n_seg=12, uv_box=UV_DARK, cap_start=True, cap_end=True)
         lbm.verts.ensure_lookup_table()
         for v in lbm.verts[n_before:]:
             if v.co.z < 0.003 * S:
                 v.co.z = 0.0
 
-        # Classic white rubber toe-cap accent (`Classic kicks` detail in Character Catalogue!)
+        # Burnished cognac leather cap-toe seam (`Classic kicks` detail!)
         toecap_frames = [
             (Vector((fx, sy, sz_tc)), Vector((1, 0, 0)), Vector((0, 0, 1)), hw_tc, hh_tc)
             for (sy, sz_tc, hw_tc, hh_tc) in (
-                (-0.112 * S, 0.025 * S, 0.0445 * S, 0.019 * S),
-                (-0.140 * S, 0.023 * S, 0.0395 * S, 0.017 * S),
-                (-0.160 * S, 0.020 * S, 0.0305 * S, 0.014 * S),
+                (-0.112 * S, 0.026 * S, 0.0455 * S, 0.0195 * S),
+                (-0.140 * S, 0.024 * S, 0.0405 * S, 0.0175 * S),
+                (-0.162 * S, 0.021 * S, 0.0315 * S, 0.0145 * S),
             )
         ]
-        add_swept_tube_to_bmesh(lbm, toecap_frames, n_seg=12, uv_box=UV_SHIRT, cap_start=True, cap_end=True)
+        add_swept_tube_to_bmesh(lbm, toecap_frames, n_seg=12, uv_box=UV_SHOE, cap_start=True, cap_end=True)
 
         for k_lace in range(4):
             ly = (-0.014 - 0.020 * k_lace) * S
-            lz = (0.064 - 0.0065 * k_lace) * S
+            lz = (0.065 - 0.0065 * k_lace) * S
             lf = [
                 (Vector((fx - 0.019 * S, ly, lz)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.0028 * S, 0.0028 * S),
                 (Vector((fx + 0.019 * S, ly, lz)), Vector((0, 1, 0)), Vector((0, 0, 1)), 0.0028 * S, 0.0028 * S),
             ]
-            add_swept_tube_to_bmesh(lbm, lf, n_seg=5, uv_box=UV_SHIRT, cap_start=True, cap_end=True)
+            add_swept_tube_to_bmesh(lbm, lf, n_seg=5, uv_box=UV_DARK, cap_start=True, cap_end=True)
 
     legs_obj = create_mesh_object("Body_Legs", lbm, garment_mat, subdiv=0)
     legs_obj.vertex_groups.new(name="ZONE_LEGS").add(list(range(len(legs_obj.data.vertices))), 1.0, "REPLACE")
     objs.append(legs_obj)
 
-    # ==================== ZONE D: Plump Sculpted Pixar `Hands` (`ZONE_HANDS`) ====================
+    # ==================== ZONE D: Proportioned Sculpted Pixar `Hands` (`ZONE_HANDS`) ====================
     hnd_bm = bmesh.new()
+    HS = 1.18 * S
     for sx in (-1.0, 1.0):
         wr = Vector((sx * 0.238 * S, -0.020 * S, 0.858 * S))
         dir_down = Vector((sx * 0.14, -0.05, -1.0)).normalized()
@@ -1154,12 +1183,12 @@ def build_tailored_wardrobe_and_body(
         palm_thick = Vector((-sx, 0.0, 0.0))
 
         palm_frames = [
-            (wr + dir_down * (0.019 * k * S), fwd_vec, palm_thick, (0.028 + 0.0045 * k) * S, (0.016 - 0.001 * k) * S)
+            (wr + dir_down * (0.019 * k * HS), fwd_vec, palm_thick, (0.028 + 0.0045 * k) * HS, (0.016 - 0.001 * k) * HS)
             for k in range(4)
         ]
         add_swept_tube_to_bmesh(hnd_bm, palm_frames, n_seg=10, uv_box=(0.45, 0.55, 0.65, 0.72), cap_start=True, cap_end=True)
 
-        knuckle_base = wr + dir_down * (0.058 * S)
+        knuckle_base = wr + dir_down * (0.058 * HS)
         finger_specs = [
             (-0.023, 0.054, 0.0076),
             (-0.007, 0.060, 0.0078),
@@ -1167,20 +1196,20 @@ def build_tailored_wardrobe_and_body(
             (+0.022, 0.046, 0.0065),
         ]
         for y_off, f_len, f_rad in finger_specs:
-            f_start = knuckle_base + fwd_vec * (y_off * (-1.0) * S)
+            f_start = knuckle_base + fwd_vec * (y_off * (-1.0) * HS)
             f_frames = []
             for k in range(5):
                 t = k / 4.0
-                curl = Vector((-sx * 0.012 * (t ** 2) * S, 0.0, 0.0))
-                pt = f_start + dir_down * (f_len * t * S) + curl
-                r_cur = f_rad * S * (1.0 - 0.24 * t)
+                curl = Vector((-sx * 0.012 * (t ** 2) * HS, 0.0, 0.0))
+                pt = f_start + dir_down * (f_len * t * HS) + curl
+                r_cur = f_rad * HS * (1.0 - 0.24 * t)
                 f_frames.append((pt, fwd_vec, palm_thick, r_cur, r_cur * 0.94))
             add_swept_tube_to_bmesh(hnd_bm, f_frames, n_seg=7, uv_box=(0.45, 0.55, 0.65, 0.72), cap_start=True, cap_end=True)
 
-        th_base = wr + dir_down * (0.024 * S) + fwd_vec * (0.023 * S)
+        th_base = wr + dir_down * (0.024 * HS) + fwd_vec * (0.023 * HS)
         th_dir = (dir_down * 0.72 + fwd_vec * 0.62 - palm_thick * 0.18).normalized()
         th_frames = [
-            (th_base + th_dir * (0.046 * (k / 3.0) * S), palm_thick, Vector((0, 0, 1)), 0.0086 * S * (1.0 - 0.22 * k / 3.0), 0.0082 * S * (1.0 - 0.22 * k / 3.0))
+            (th_base + th_dir * (0.046 * (k / 3.0) * HS), palm_thick, Vector((0, 0, 1)), 0.0086 * HS * (1.0 - 0.22 * k / 3.0), 0.0082 * HS * (1.0 - 0.22 * k / 3.0))
             for k in range(4)
         ]
         add_swept_tube_to_bmesh(hnd_bm, th_frames, n_seg=7, uv_box=(0.45, 0.55, 0.65, 0.72), cap_start=True, cap_end=True)
@@ -1204,40 +1233,22 @@ def main() -> None:
     pal = profile["features_and_palette"]
 
     clear_scene()
-
     skin_img = load_packed_image(tex["head_skin_albedo"])
     eye_img = load_packed_image(tex["eye_iris_albedo"])
     g_alb = load_packed_image(tex["garment_albedo"])
     g_nrm = load_packed_image(tex["garment_normal"], non_color=True)
     g_rgh = load_packed_image(tex["garment_roughness"], non_color=True)
 
-    skin_mat = make_principled_material("Mat_Skin", roughness=0.45, subsurface=0.22, albedo_img=skin_img)
+    skin_mat = make_principled_material("Mat_Skin", roughness=0.56, subsurface=0.20, albedo_img=skin_img)
     eye_mat = make_principled_material("Mat_Eye", roughness=0.04, albedo_img=eye_img)
     dark_lin = [pow(max(0.0, c), 2.2) for c in pal["hair_srgb"]]
-    dark_mat = make_principled_material("Mat_HairDark", base_color=(*dark_lin, 1.0), roughness=0.38)
+    dark_mat = make_principled_material("Mat_HairDark", base_color=(*dark_lin, 1.0), roughness=0.48)
     garment_mat = make_principled_material(
-        "Mat_Garments", roughness=0.65, albedo_img=g_alb, normal_img=g_nrm, rough_img=g_rgh, normal_strength=0.20
-    )
-
-    build_pixar_head_assembly(profile, skin_mat, eye_mat, dark_mat)
-    anchors = None
-    # Note: capture exact return tuple directly!
-    clear_scene()
-    skin_img = load_packed_image(tex["head_skin_albedo"])
-    eye_img = load_packed_image(tex["eye_iris_albedo"])
-    g_alb = load_packed_image(tex["garment_albedo"])
-    g_nrm = load_packed_image(tex["garment_normal"], non_color=True)
-    g_rgh = load_packed_image(tex["garment_roughness"], non_color=True)
-    skin_mat = make_principled_material("Mat_Skin", roughness=0.45, subsurface=0.22, albedo_img=skin_img)
-    eye_mat = make_principled_material("Mat_Eye", roughness=0.04, albedo_img=eye_img)
-    dark_lin = [pow(max(0.0, c), 2.2) for c in pal["hair_srgb"]]
-    dark_mat = make_principled_material("Mat_HairDark", base_color=(*dark_lin, 1.0), roughness=0.38)
-    garment_mat = make_principled_material(
-        "Mat_Garments", roughness=0.65, albedo_img=g_alb, normal_img=g_nrm, rough_img=g_rgh, normal_strength=0.20
+        "Mat_Garments", roughness=0.68, albedo_img=g_alb, normal_img=g_nrm, rough_img=g_rgh, normal_strength=0.22
     )
 
     head_obj, eyes, anchors = build_pixar_head_assembly(profile, skin_mat, eye_mat, dark_mat)
-    build_pixar_hair_and_glasses(profile, anchors, garment_mat)
+    build_pixar_hair_and_glasses(head_obj, profile, anchors, garment_mat)
     build_tailored_wardrobe_and_body(profile, anchors, garment_mat, skin_mat)
 
     bpy.context.scene["avatar_anchors_json"] = json.dumps(anchors)

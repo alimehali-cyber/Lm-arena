@@ -1,33 +1,39 @@
 #!/usr/bin/env python3
 """
-Stage 7: Single-Atlas PBR Consolidation, `PIN_DETAIL` LOD Decimation & Clean glTF 2.0 Exporter
-(`optimize_and_export.py`).
-
-Consolidates all multi-material character sub-surfaces into **ONE unified `Mat_AvatarMobile_PBR`**
-(`Albedo + Tangent Normal + Occlusion/Roughness/Metallic`) so the entire animated 3D character renders
-in just **2 OpenGL ES 3.0 draw calls** (`Avatar_Head` with sparse morphs + `Avatar_Body` skinned mesh).
+Stage 7: Master `2048x2048` + Mobile `1024x1024` (`LOD0`) + `512x512` (`LOD1`) PBR Exporter,
+`AssetFurnace / image-to-3dlab` `KHR_materials_variants` & `glb_stats` Post-Processor, and
+Clean Blender 4.2 glTF 2.0 Round-Trip Re-Import Verifier (`optimize_and_export.py`).
 """
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import pathlib
+import shutil
 import sys
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 import bpy
 import numpy as np
 from PIL import Image
 from scipy.spatial import cKDTree
 
+from image_to_3dlab import glb_skins, glb_stats, photo_paint
 
-def build_master_avatar_atlas(profile: Dict[str, Any], out_dir: pathlib.Path, size: int = 1024) -> Dict[str, str]:
+
+def build_master_avatar_atlas(
+    profile: Dict[str, Any],
+    out_dir: pathlib.Path,
+    size: int = 1024,
+    navy_variant: bool = False,
+) -> Dict[str, str]:
     """
-    Pack all 4 character quadrants into a single power-of-two `size x size` PBR atlas (`PIL row 0 -> uv_v = 1.0`):
-      - Top-Left     (`u: 0.0..0.5, v: 0.5..1.0` -> `rows 0..h, cols 0..h`): Head Skin Subsurface Albedo
-      - Top-Right    (`u: 0.5..1.0, v: 0.5..1.0` -> `rows 0..h, cols h..s`): Glossy Eye Sclera + Chestnut Iris
-      - Bottom-Left  (`u: 0.0..0.5, v: 0.0..0.5` -> `rows h..s, cols 0..h`): Garment 2x2 Sub-Atlas (`Tweed/Shirt/Wool/Shoe/Gold`)
-      - Bottom-Right (`u: 0.5..1.0, v: 0.0..0.5` -> `rows h..s, cols h..s`): 4 Crisp Solid/Micro Swatches (`HairDark`, `TeethIvory`, `TongueCoral`, `OralDark`)
+    Pack all 4 character quadrants into a power-of-two `size x size` PBR atlas:
+      - Top-Left     (`u: 0.0..0.5, v: 0.5..1.0`): Head Skin Subsurface Albedo
+      - Top-Right    (`u: 0.5..1.0, v: 0.5..1.0`): Glossy Eye Sclera + Soulful Chestnut Iris
+      - Bottom-Left  (`u: 0.0..0.5, v: 0.0..0.5`): Garment 2x2 Sub-Atlas (`Tweed/Shirt/Wool/Shoe/Bronze`)
+      - Bottom-Right (`u: 0.5..1.0, v: 0.0..0.5`): `HairDark`, `TeethIvory`, `TongueCoral`, `OralDark`
     """
     tex = profile["generated_textures"]
     pal = profile["features_and_palette"]
@@ -41,7 +47,7 @@ def build_master_avatar_atlas(profile: Dict[str, Any], out_dir: pathlib.Path, si
     normal[..., 2] = 255
     orm = np.zeros((size, size, 3), dtype=np.uint8)
     orm[..., 0] = 248
-    orm[..., 1] = 128
+    orm[..., 1] = 140
     orm[..., 2] = 0
 
     head_im = np.array(Image.open(tex["head_skin_albedo"]).convert("RGB").resize((h, h), Image.Resampling.LANCZOS))
@@ -50,35 +56,41 @@ def build_master_avatar_atlas(profile: Dict[str, Any], out_dir: pathlib.Path, si
     garm_nrm = np.array(Image.open(tex["normal"]).convert("RGB").resize((h, h), Image.Resampling.BILINEAR))
     garm_orm = np.array(Image.open(tex["orm"]).convert("RGB").resize((h, h), Image.Resampling.BILINEAR))
 
-    # Top-Left: Head Skin (`roughness = 0.46`)
+    if navy_variant:
+        # Second switchable outfit variant inspired by `ref_01_professor_z_lineup.png` (`Midnight Lab Navy Z-Suit`)
+        hh2 = h // 2
+        garm_alb[hh2:h, 0:hh2] = np.clip(garm_alb[hh2:h, 0:hh2].astype(np.float32) * np.array([0.38, 0.68, 1.85]), 0, 255).astype(np.uint8)
+        garm_alb[hh2:h, hh2:h] = np.clip(garm_alb[hh2:h, hh2:h].astype(np.float32) * np.array([0.24, 0.34, 0.56]), 0, 255).astype(np.uint8)
+
+    # Top-Left: Natural Matte-Subsurface Skin (`roughness = 0.56`)
     albedo[0:h, 0:h] = head_im
-    orm[0:h, 0:h, 1] = int(0.46 * 255)
+    orm[0:h, 0:h, 1] = int(0.56 * 255)
 
-    # Top-Right: Eye Sclera + Iris (`roughness = 0.045`)
+    # Top-Right: Wet Glossy Cornea & Iris (`roughness = 0.04`)
     albedo[0:h, h:size] = eye_im
-    orm[0:h, h:size, 1] = int(0.045 * 255)
+    orm[0:h, h:size, 1] = int(0.04 * 255)
 
-    # Bottom-Left: Garments + Sneakers + Metallic-Gold Glasses tile!
-    garm_orm[0 : h // 4, (h * 3) // 4 : h, 2] = 225  # Metallic = 0.88 on Gold Glasses & Buckle!
-    garm_orm[0 : h // 4, (h * 3) // 4 : h, 1] = 56   # Satin Roughness = 0.22
+    # Bottom-Left: Garments + Leather Brogues + Satin Bronze Frames
+    garm_orm[0 : h // 4, (h * 3) // 4 : h, 2] = 220
+    garm_orm[0 : h // 4, (h * 3) // 4 : h, 1] = 68
     albedo[h:size, 0:h] = garm_alb
     normal[h:size, 0:h] = garm_nrm
     orm[h:size, 0:h] = garm_orm
 
-    # Bottom-Right: `HairDark` (TL), `TeethIvory` (TR), `TongueCoral` (BL), `OralDark` (BR)
     def fill_swatch(r0: int, r1: int, c0: int, c1: int, rgb01, rough_val: float):
         albedo[r0:r1, c0:c1] = np.clip(np.array(rgb01) * 255.0, 0, 255).astype(np.uint8)
         orm[r0:r1, c0:c1, 1] = int(rough_val * 255)
 
-    fill_swatch(h, h + q, h, h + q, pal["hair_srgb"], 0.38)
-    fill_swatch(h, h + q, h + q, size, [0.955, 0.942, 0.910], 0.20)
-    fill_swatch(h + q, size, h, h + q, [0.74, 0.28, 0.28], 0.36)
-    fill_swatch(h + q, size, h + q, size, [0.035, 0.011, 0.014], 0.85)
+    fill_swatch(h, h + q, h, h + q, pal["hair_srgb"], 0.48)
+    fill_swatch(h, h + q, h + q, size, [0.955, 0.942, 0.910], 0.22)
+    fill_swatch(h + q, size, h, h + q, [0.76, 0.29, 0.29], 0.36)
+    fill_swatch(h + q, size, h + q, size, [0.032, 0.010, 0.013], 0.88)
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    p_a = out_dir / f"avatar_master_albedo_{size}.png"
-    p_n = out_dir / f"avatar_master_normal_{size}.png"
-    p_o = out_dir / f"avatar_master_orm_{size}.png"
+    tag = "_navy_variant" if navy_variant else ""
+    p_a = out_dir / f"avatar_master_albedo_{size}{tag}.png"
+    p_n = out_dir / f"avatar_master_normal_{size}{tag}.png"
+    p_o = out_dir / f"avatar_master_orm_{size}{tag}.png"
     Image.fromarray(albedo).save(p_a)
     Image.fromarray(normal).save(p_n)
     Image.fromarray(orm).save(p_o)
@@ -125,7 +137,6 @@ def create_unified_gltf_pbr_material(atlas: Dict[str, str]) -> bpy.types.Materia
 
 
 def remap_object_uvs_to_single_atlas(obj: bpy.types.Object, unified_mat: bpy.types.Material) -> None:
-    """Remap per-polygon UVs from each source material slot into exact quadrants of `Mat_AvatarMobile_PBR`."""
     uv_layer = obj.data.uv_layers.active.data
     slot_names = [ms.material.name if ms.material else "" for ms in obj.material_slots]
 
@@ -157,7 +168,6 @@ def remap_object_uvs_to_single_atlas(obj: bpy.types.Object, unified_mat: bpy.typ
 
 
 def clamp_and_normalize_skin_weights(obj: bpy.types.Object, valid_bones: set[str], max_inf: int = 4) -> None:
-    # Remove any non-bone helper vertex groups FIRST (`PIN_DETAIL`, `ZONE_*`, `PART_*`)
     for vg in list(obj.vertex_groups):
         if vg.name not in valid_bones:
             obj.vertex_groups.remove(vg)
@@ -179,37 +189,63 @@ def clamp_and_normalize_skin_weights(obj: bpy.types.Object, valid_bones: set[str
             obj.vertex_groups[gid].add([v.index], w / total, "REPLACE")
 
 
+def verify_roundtrip_blender_reimport(glb_path: pathlib.Path) -> Dict[str, Any]:
+    """Re-import exported `.glb` into an empty Blender scene and verify geometry, UVs, textures, rig, morphs & animations."""
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=str(glb_path.resolve()))
+    meshes = [o for o in bpy.data.objects if o.type == "MESH"]
+    arms = [o for o in bpy.data.objects if o.type == "ARMATURE"]
+    tris = sum(sum(len(p.vertices) - 2 for p in m.data.polygons) for m in meshes)
+    verts = sum(len(m.data.vertices) for m in meshes)
+    has_uvs = all(len(m.data.uv_layers) >= 1 for m in meshes)
+    n_bones = sum(len(a.data.bones) for a in arms)
+    morphs = max((len(m.data.shape_keys.key_blocks) - 1 for m in meshes if m.data.shape_keys), default=0)
+    n_images = len(bpy.data.images)
+    n_actions = len(bpy.data.actions)
+    af_stats = glb_stats.file_stats(glb_path.resolve())
+    return {
+        "reimport_ok": bool(len(meshes) >= 2 and len(arms) == 1 and has_uvs and n_bones == 60 and morphs == 26 and n_images >= 3),
+        "reimported_mesh_objects": [m.name for m in meshes],
+        "reimported_vertices": verts,
+        "reimported_triangles": tris,
+        "uv_layers_present_all_meshes": has_uvs,
+        "reimported_bones": n_bones,
+        "reimported_morph_targets": morphs,
+        "reimported_packed_images": n_images,
+        "reimported_blender_actions": n_actions,
+        "assetfurnace_glb_stats": af_stats,
+    }
+
+
 def export_lod_variant(
     master_blend: pathlib.Path,
     profile: Dict[str, Any],
     out_glb: pathlib.Path,
     atlas_dir: pathlib.Path,
     atlas_size: int,
-    target_max_tris: int,
+    target_max_tris: int | None,
     max_inf: int,
     draco: bool,
+    attach_khr_variants: bool = False,
 ) -> Dict[str, Any]:
     bpy.ops.wm.open_mainfile(filepath=str(master_blend.resolve()))
     rig = bpy.data.objects["AvatarRig"]
     head = bpy.data.objects["Avatar_Head"]
     body = bpy.data.objects["Avatar_Body"]
 
-    # Remove studio review helpers if any exist
     for o in list(bpy.data.objects):
         if o not in (rig, head, body):
             bpy.data.objects.remove(o, do_unlink=True)
 
-    atlas_paths = build_master_avatar_atlas(profile, atlas_dir, size=atlas_size)
+    atlas_paths = build_master_avatar_atlas(profile, atlas_dir, size=atlas_size, navy_variant=False)
     unified_mat = create_unified_gltf_pbr_material(atlas_paths)
     remap_object_uvs_to_single_atlas(head, unified_mat)
     remap_object_uvs_to_single_atlas(body, unified_mat)
 
-    # Decimate `Avatar_Head` (preserving all 26 morph targets via cKDTree 4-NN interpolation!) & `Avatar_Body` (`PIN_DETAIL`-safe) for `LOD1`!
     cur_tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in (head, body))
-    if cur_tris > target_max_tris:
+    if target_max_tris is not None and cur_tris > target_max_tris:
         ratio = max(0.26, min(0.88, (target_max_tris * 0.66) / float(cur_tris)))
 
-        # 1. Capture `Avatar_Head` basis + all 26 morph target deltas BEFORE removing shape keys for `DECIMATE`
         n_h0 = len(head.data.vertices)
         p0 = np.empty((n_h0, 3), dtype=np.float64)
         head.data.vertices.foreach_get("co", p0.ravel())
@@ -235,7 +271,6 @@ def export_lod_variant(
             bpy.ops.object.modifier_move_up(modifier=hdec.name)
         bpy.ops.object.modifier_apply(modifier=hdec.name)
 
-        # Re-bind all 26 morph targets + all 24 NLA strips cleanly onto decimated `Avatar_Head`!
         n_h1 = len(head.data.vertices)
         p1 = np.empty((n_h1, 3), dtype=np.float64)
         head.data.vertices.foreach_get("co", p1.ravel())
@@ -258,7 +293,6 @@ def export_lod_variant(
                 st.blend_type = "REPLACE"
                 tr.mute = True
 
-        # 2. Decimate `Avatar_Body` while protecting `PIN_DETAIL` (`Round glasses`)!
         bpy.ops.object.select_all(action="DESELECT")
         body.select_set(True)
         bpy.context.view_layer.objects.active = body
@@ -275,7 +309,6 @@ def export_lod_variant(
     clamp_and_normalize_skin_weights(head, valid_bones, max_inf)
     clamp_and_normalize_skin_weights(body, valid_bones, max_inf)
 
-    # Purge orphan materials so exported `.glb` contains strictly ONE shared PBR material!
     for m in list(bpy.data.materials):
         if m != unified_mat:
             bpy.data.materials.remove(m, do_unlink=True)
@@ -297,11 +330,31 @@ def export_lod_variant(
     )
 
     final_tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in (head, body))
+
+    # On High-Resolution Master GLB, embed `KHR_materials_variants` (`Catalogue Tweed` + `Midnight Lab Navy`)
+    # using live `AssetFurnace / image-to-3dlab` (`glb_skins.with_variants`)!
+    variants_attached = []
+    if attach_khr_variants:
+        navy_paths = build_master_avatar_atlas(profile, atlas_dir, size=atlas_size, navy_variant=True)
+        buf1 = pathlib.Path(navy_paths["albedo"]).read_bytes()
+        raw_glb = out_glb.read_bytes()
+        navy_glb = photo_paint.replace_base_colour(raw_glb, buf1)
+        skinned_glb = glb_skins.with_variants(
+            raw_glb,
+            [("Midnight Lab Navy Z-Suit", navy_glb)],
+            original="Catalogue Tweed Blazer",
+        )
+        out_glb.write_bytes(skinned_glb)
+        variants_attached = ["Catalogue Tweed Blazer", "Midnight Lab Navy Z-Suit"]
+
+    roundtrip = verify_roundtrip_blender_reimport(out_glb)
     return {
         "glb": str(out_glb.resolve()),
         "size_mb": round(out_glb.stat().st_size / (1024.0 * 1024.0), 3),
         "triangles": final_tris,
         "atlas_size": atlas_size,
+        "khr_materials_variants": variants_attached,
+        "blender_roundtrip_reimport": roundtrip,
     }
 
 
@@ -321,15 +374,49 @@ def main() -> None:
     atlas_dir = exp_dir / "atlases"
     master_blend = pathlib.Path(args.in_blend)
 
+    # 1. Separate High-Resolution Master Asset (`2048x2048` PBR + `KHR_materials_variants` + Master `.blend`)
+    shutil.copy2(master_blend, exp_dir / "avatar_master.blend")
+    master = export_lod_variant(
+        master_blend,
+        profile,
+        exp_dir / "avatar_master_2048.glb",
+        atlas_dir,
+        2048,
+        None,
+        int(b["max_skin_weights_per_vertex"]),
+        False,
+        attach_khr_variants=True,
+    )
+
+    # 2. Mobile Android GLB `LOD0` (`1024x1024` single PBR material for GLES 3.0)
     lod0 = export_lod_variant(
-        master_blend, profile, exp_dir / "avatar_mobile.glb", atlas_dir,
-        int(b["lod0_atlas_size"]), int(b["lod0_max_triangles"]), int(b["max_skin_weights_per_vertex"]), bool(b["use_draco"])
+        master_blend,
+        profile,
+        exp_dir / "avatar_mobile.glb",
+        atlas_dir,
+        int(b["lod0_atlas_size"]),
+        int(b["lod0_max_triangles"]),
+        int(b["max_skin_weights_per_vertex"]),
+        bool(b["use_draco"]),
+        attach_khr_variants=False,
     )
+
+    # 3. Mobile Android GLB `LOD1` (`512x512` single PBR material decimated with `PIN_DETAIL` protection)
     lod1 = export_lod_variant(
-        master_blend, profile, exp_dir / "avatar_mobile_lod1.glb", atlas_dir,
-        int(b["lod1_atlas_size"]), int(b["lod1_max_triangles"]), int(b["max_skin_weights_per_vertex"]), bool(b["use_draco"])
+        master_blend,
+        profile,
+        exp_dir / "avatar_mobile_lod1.glb",
+        atlas_dir,
+        int(b["lod1_atlas_size"]),
+        int(b["lod1_max_triangles"]),
+        int(b["max_skin_weights_per_vertex"]),
+        bool(b["use_draco"]),
+        attach_khr_variants=False,
     )
-    print(json.dumps({"status": "exported", "lod0": lod0, "lod1": lod1}, indent=2))
+
+    summary = {"status": "exported", "master": master, "lod0": lod0, "lod1": lod1}
+    (exp_dir / "export_summary.json").write_text(json.dumps(summary, indent=2))
+    print(json.dumps(summary, indent=2))
 
 
 if __name__ == "__main__":

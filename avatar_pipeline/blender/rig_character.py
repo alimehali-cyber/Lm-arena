@@ -303,13 +303,18 @@ def assign_head_weights_and_26_morphs(head_obj: bpy.types.Object, rig: bpy.types
             return wl, -1.0
         return 0.0, 0.0
 
-    # 1..6: Eyelids + Upper Lashes (`Blink` & `Wink` close 100% cleanly!)
+    # 1..6: Eyelids + Upper Lashes (`Blink` & `Wink` close 100% cleanly across entire eyeball!)
     for sk_n, sx in (("eyeBlinkLeft", 1.0), ("eyeBlinkRight", -1.0)):
-        add_sk(sk_n, lambda i, p, s=sx: Vector((
-            0.0,
-            -0.0068 * eye_lid_mask(i, p, s),
-            (-0.044 if (p.z >= eye_z - 0.002 or i in lash_ids) else +0.012) * eye_lid_mask(i, p, s) * 1.15,
-        )))
+        def blink_fn(i: int, p: Vector, s: float = sx) -> Vector:
+            if i in lash_ids and p.x * s > 0.0:
+                return Vector((0.0, -0.0055, -0.029 * S if "S" in locals() else -0.029))
+            m = eye_lid_mask(i, p, s)
+            if m <= 1e-4:
+                return Vector((0.0, 0.0, 0.0))
+            if p.z >= eye_z - 0.001:
+                return Vector((0.0, -0.0165 * m, -0.048 * m))
+            return Vector((0.0, -0.0075 * m, +0.014 * m))
+        add_sk(sk_n, blink_fn)
     for sk_n, sx in (("eyeWideLeft", 1.0), ("eyeWideRight", -1.0)):
         add_sk(sk_n, lambda i, p, s=sx: Vector((0.0, 0.0, (+0.0085 if p.z >= eye_z else -0.004) * eye_lid_mask(i, p, s))))
     for sk_n, sx in (("eyeSquintLeft", 1.0), ("eyeSquintRight", -1.0)):

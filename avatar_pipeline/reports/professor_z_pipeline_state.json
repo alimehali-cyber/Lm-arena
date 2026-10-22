@@ -1,0 +1,11 @@
+{
+  "reconstruct": "b49e88bb0333d2ba4bf416b9ad516e6068ac3bd42ee62cc3e1635c535e42cff0",
+  "lipsync": "611a5a54644466335f255ca8548e5aa6e04808f3cbbce6049094bf56308eb728",
+  "build_character": "97ec21f1532a9557b193b75472d67d1d4479d8108790e36bc908abba663cba47",
+  "rig_character": "1e3b4140720d400b5e542ee75650fccc400526209669f029eaff8c647fb8dd0b",
+  "animate_character": "4f3f1458b4e15ee8cf369ff164013b138b435c8bb57f362c3ccb8f0d2f5f5b65",
+  "render_review": "ed6f7c65043bdee82b8ceaa30558f9aa308f764424bb63ce1aaad29e2c0129a9",
+  "optimize_export": "a634bd0eb002258bfe73589b41f3f43d8a6c1be4d35fabf6b1f4690f39ee9360",
+  "validate_qa": "bf535fb2a6289a451d5cb8086a60ad2cf44970b3b5be33262a8135bda089d37e",
+  "_full_source_sig": "b5cdfc803022a6c2fd59e083cfb44ab9df7d851070dcd2494d1e1bc437550fb7"
+}
