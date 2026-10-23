@@ -1,7 +1,7 @@
 {
   "glb": "exports/profz/avatar.glb",
-  "bytes": 1624380,
-  "mb": 1.624,
+  "bytes": 3160004,
+  "mb": 3.16,
   "status": "pass",
   "failed": [],
   "bones": [
@@ -75,7 +75,7 @@
     {
       "check": "bin_chunk",
       "pass": true,
-      "detail": "1257928 bytes"
+      "detail": "2797012 bytes"
     },
     {
       "check": "generator",
@@ -170,7 +170,7 @@
     {
       "check": "size_budget",
       "pass": true,
-      "detail": "1.62 MB"
+      "detail": "3.16 MB"
     }
   ]
 }

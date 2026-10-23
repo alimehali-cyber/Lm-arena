@@ -1,11 +1,11 @@
 {
   "source_blend": "working/profz/character_anim.blend",
   "status": "ok",
-  "source_vertices": 14093,
-  "source_triangles": 27716,
+  "source_vertices": 39627,
+  "source_triangles": 77578,
   "glb": {
-    "glb_bytes": 1624380,
-    "bin_bytes": 1257928,
+    "glb_bytes": 3160004,
+    "bin_bytes": 2797012,
     "generator": "Khronos glTF Blender I/O v5.0.21",
     "nodes": 33,
     "meshes": 1,
@@ -15,8 +15,8 @@
     "images": 0,
     "skins": 1,
     "joints": 31,
-    "runtime_vertices": 14093,
-    "runtime_triangles": 27716,
+    "runtime_vertices": 39627,
+    "runtime_triangles": 77578,
     "animations": [
       "Expression_Curious",
       "Expression_Frustrated",
@@ -79,7 +79,9 @@
       17,
       17
     ],
-    "extensions_used": [],
-    "accessors": 973
+    "extensions_used": [
+      "KHR_materials_emissive_strength"
+    ],
+    "accessors": 940
   }
 }

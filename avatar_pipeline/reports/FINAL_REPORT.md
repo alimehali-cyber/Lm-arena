@@ -370,58 +370,88 @@ export and validator. New runner: `./run_authored.sh working/profz blender/build
 
 ### 12.1 What was measured, not guessed
 
-Front view isolated from the sheet (133 x 418 px): face box (30, 34, 70, 78), chin at 112,
-hair at 1. That is **3.73 heads to the chin** — not the 5.5 an early estimate assumed, and not
-7. Width profile at eleven heights (0.30 → 97 px shoulders, 0.56 → 126 px jacket hem,
-0.70 → 72 px legs). Colours sampled from tight per-feature crops, not k-means boxes: cheek
-`#E09561` lit / `#90522C` shadow, hair `#1C1610`, tweed `#694B2E`, trousers `#2C261E`.
-Height 1.73 m. All of it is the `F{}` fraction table and the `PALETTE` in
-`blender/build_professor_z.py`.
+The character was rebuilt against `catalogue/profz_sheet_v2.png` (front / side / back
+turnaround), not eyeballed against it. The sheet is 1,536 x 1,024; the front figure is
+797 px from crown to sole, which at the current scale is **468.82 px per metre**. Every
+landmark in `Z{}` and every width in the profiling notes comes from that grid: hair top
+1.698, skull top 1.576, brow 1.512, eye line 1.462, nose 1.414, chin 1.331, collar 1.303,
+shoulder 1.150, armpit 1.054, tee hem 0.785, hip 0.734, crotch 0.648, knee 0.446, cuff
+0.226/0.158, sole 0.0.
 
-### 12.2 How the mesh is built, and the two mistakes that mattered
+Two tools keep the comparison honest, because "it looks close" is not an acceptance test:
 
-`build_professor_z.py` lofts the skull, jacket, sleeves, legs and shoes from profile tables,
-places eyes/irises/pupils/catch-lights, thick brows, a button nose, ears, round wire glasses
-(torus rims + temples + bridge), a bow tie, hands with four fingers and a thumb, and a hair
-shell whose front is cut by a window function — then assigns **one material per part before
-the join**, so the boundaries are exact.
+- **`blender/render_ortho.py`** renders front / side / back orthographically at exactly the
+  sheet's framing and scale (797 px, 468.82 px/m, transparent), so the two images can be
+  subtracted instead of described.
+- **`tools/compare_sheet.py`** turns both into silhouettes, finds the alignment that
+  maximises overlap (not the bounding-box centre — one stray pixel or one limb drawn wider
+  shifts the whole figure and makes every row report the same bias), and prints IoU, missed
+  and extra pixels, and the worst rows, plus a green/magenta overlay.
+- **`tools/render_head_ab.py`** renders 266 x 200 px of head at the sheet's own scale for a
+  1:1 face comparison.
 
-- **Voxel remesh was wrong here.** The shared pipeline unions every shell and re-derives
-  materials by nearest author label. On a clothed character that welded the jacket to the
-  shirt; the first render came out as a nude figure with random colour patches. Parts now keep
-  their own closed surfaces (as eyes and hair already did in the generic path).
-- **Units bug.** `head_profile()` values are *fractions* of the head's half width and depth.
-  The hair shell multiplied them raw, built a one-metre sphere, and the character rendered
-  bald with two dark strips at the temples. Fixed at the multiply.
-- **Seam bug.** An open hair window leaves two ring edges; a closed one must wrap. Without the
-  wrap the hair had a slit down the crown that read as a notch in the hairline.
+Colours are sampled from tight per-feature crops of the sheet rather than k-means
+averages: skin `#DE9C63`, hair `#1A1411`, tee `#17181A`, denim `#1D2128`, cuff `#5A626C`,
+canvas `#131416`, sole `#EAE5DB`, gold `#C9A24A`, Z glow `#8E6BFF`. All of it lives in the
+`HEAD_PROF` / `Z` / `PALETTE` tables of `blender/build_professor_z.py`.
 
-### 12.3 Mouth, brows and eyes are driven by the same landmarks as the generic head
+### 12.2 How the mesh is built, and the mistakes that mattered
 
-The generic `add_shape_keys` places brow/eye/mouth weights at positions calibrated for its own
-head. On Professor Z's larger, lower-set face five of eighteen morphs moved nothing
-(`jawOpen`, `browDown_L/R`, `eyeSquint_L/R`). `add_shape_keys(..., landmarks=None)` now takes an
-optional landmark dict in head-heights; the defaults reproduce the generic head exactly, and
-Professor Z passes its own. **Dead morphs: 0.** Displacements: jaw 23.3 mm, Blink 24.3 mm,
-browInnerUp 12.4 mm, mouthSmile 15.5 mm, visemes 8–23 mm, cheekPuff 5.0 mm (all measured in
-`working/profz/03_build.json`).
+`build_professor_z.py` lofts the skull, tee, sleeves, arms, pelvis, legs and shoes from
+profile tables; places every facial feature **through a surface function** (`face_point`),
+builds the hair as a measured silhouette covered in 277 spiral coils, and assigns one
+material per part before the join so boundaries stay exact.
 
-### 12.4 Build and pipeline result (executed)
+Each of these came from an inspected render, not from theory:
+
+- **A fixed `y` does not work on a curved face.** The mouth was modelled at a constant depth
+  and ended up 10 mm *inside* the cheek; the eyes vanished behind the skin. Everything is now
+  placed with `face_point(x, z, out)`, and `out` stays in the 1–9 mm range.
+- **A sphere in a socket does not read.** Two attempts produced eyes that were invisible or
+  looked like beads. The current eye is a shallow almond disc set proud of the surface, with
+  iris, pupil, catch-light and a skin hood over the top.
+- **A tube along a smile curve breaks into three pieces.** The cheek turns away faster than a
+  tube of constant radius can follow, so the corners detach. The mouth is a lens-shaped
+  `conformal_patch` that follows the surface edge to edge and tapers to nothing.
+- **Tori are not curls.** 900 of them read as a pile of doughnuts with holes. `char_lib.coil()`
+  spirals a tube for 1–2 turns and, placed along the surface normal, reads as hair from every
+  angle. The shell under them is displaced by a few millimetres so the mass is lumpy rather
+  than a swim cap.
+- **A tube's flat end cap is a disc.** At the shoulder it stuck out as a triangular fin on
+  both sides; the sleeve now starts inside the torso with a small radius.
+- **Gaussian sculpt fields need sigma >= 0.03.** At 0.009–0.014 the kernel lands on single
+  vertices and the nose came out M-shaped. Sigma below ~0.03 is banned.
+- **Draw calls are a mobile budget.** glTF makes one draw call per material and the validator
+  caps at 16; merging near-duplicate materials (brow into hair, lace into sole, watch and
+  tee-dark into canvas) brought the GLB from 17 primitives to **14**.
+
+### 12.3 Shape keys and the jaw
+
+The generic `add_shape_keys` places brow/eye/mouth weights at positions calibrated for its
+own head, so Professor Z passes its own landmark dict in head-heights. Seventeen of eighteen
+morphs move real geometry (jaw 0.4 mm to viseme_AA 18.4 mm). **`jawOpen` is recorded as dead**
+and the report says so rather than hiding it: the jaw bone exists and drives the chin, but the
+morph itself no longer has displacement after the head was re-lofted. Lip-sync uses the six
+viseme morphs (6.5–18.4 mm), which do move.
+
+### 12.4 Build and pipeline result (executed, this build)
 
 | Metric | Value |
 |---|---|
-| Mesh | 14,093 verts, 27,716 tris, 33 bones (31 deform), 18 shape keys |
-| Height | 1.730 m, shoulder span 0.336 m, head unit 0.346 m |
-| Materials | 14 (skin, hair, brow, eye white, iris, pupil, lips, jacket, jacket dark, shirt, tie, trousers, shoe, glasses) |
-| Skinning gate | **pass**, no known limitations; worst stretch head turn 2.21×, knee bend 1.80×, hip-90 1.61× |
+| Mesh | 39,627 verts, 41,378 polys, 77,578 tris, 33 bones (31 deform), 18 shape keys |
+| Height | 1.696 m; dimensions 0.509 x 0.342 x 1.696 m |
+| Hair | 277 coils on a measured mushroom profile |
+| Materials | 14 (skin, hair, eye white, iris, pupil, lips, tee, denim, cuff, canvas, sole, gold, Z glow, Z core) |
+| Skinning gate | **pass**; weight-discontinuous edges 2 of 80,292; worst-case stretch is confined to 13–26 edges (0.02–0.03 % of the mesh) at knee/hip/head limits |
 | Clips | 21, all non-empty, NLA tracks present |
-| GLB | **1.624 MB**, validation **pass**, 0 failed checks |
-| Runtime | 14,093 verts / 27,716 tris, 31 joints, 14 draw calls |
+| GLB | **3.16 MB**, validation **pass**, 0 failed checks, 14 primitives |
+| Sprite | 16 frames of `Idle_Breathing` at 160 x 240, 2.5 s cycle, 484 KB |
 
-Renders: `renders/profz/*.png` (seven angles) and `renders/profz/suite/*.png` (expressions,
-animation, deform, material). Every one was opened and looked at; the changes in 12.2 and the
-proportion fixes (boxy jacket, arms outside the silhouette, no stuck-on cheek spheres, no
-pocket lumps) came from that looking, not from the numbers.
+Renders: `renders/profz/ortho/*.png` (front / side / back at sheet scale),
+`renders/profz/head/*.png` (1:1 head), `renders/profz/sheet_vs_model.png` (sheet beside
+model for all three views) and `renders/profz/turnaround_model.png`. The proportion fixes in
+this build — the sleeve fin, the pigeon toes, the nappy-shaped pelvis, the oversized Z, the
+dark pocket "tiles", the claws that were fingers — each came from looking at one of those.
 
 ### 12.5 How the character reached the app
 
@@ -438,7 +468,7 @@ scene), drawn by the same Compose Canvas that draws the sky.
 - Files touched in the app: **two** — `SkySceneRenderer.drawSceneMotion` (try the character,
   fall back to the vector observer if the strip is not loaded) and `HeroSkyCanvas` (decode the
   strip once for the scene). New: one file, `ui/character/HeroCharacterSprite.kt`, and one
-  drawable, `res/drawable-nodpi/hero_profz_idle.png` (485 KB).
+  drawable, `res/drawable-nodpi/hero_profz_idle.png` (484 KB, 2560 x 240 = 16 frames).
 - Rollback: `HeroCharacter.ENABLED = false` in that one file restores the previous behaviour
   exactly. No gradle, manifest, signing, AR or astronomy file was touched.
 - ⛔ **Kotlin not compiled, app not run.** Same reason as §8: no SDK, no device, no emulator.
@@ -455,8 +485,8 @@ extra 488 KB drawable.
 **Planned:** the three observer poses (shading eyes / phone / looking up) are not in the baked
 character — the one-shot candidates read as nothing at 90 px, so the figure ships with its idle
 and the vector figure keeps the pose logic for when the strip is disabled; a device test of the
-GLES runtime; a second bake pass with a proper hair card mesh and a mouth that reads at
-portrait distance.
+GLES runtime; a `jawOpen` morph that displaces geometry again; and a hair build that costs
+fewer vertices than 277 separate coils at full body scale.
 
 **Still true, and it must stay said:** this is a **stylised interpretation of the supplied
 art**, not a likeness of any real person, and the app integration is **not tested on a device**.

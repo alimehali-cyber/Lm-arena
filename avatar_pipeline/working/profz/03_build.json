@@ -1,40 +1,30 @@
 {
   "status": "ok",
-  "steps": [],
   "character": "Professor Z",
-  "source": "character sheet front view, measured",
+  "source": "turnaround sheet (front / side / back), measured",
   "warnings": [],
-  "face": {
-    "eye_z": 1.467,
-    "eye_x": 0.0609,
-    "eye_y": -0.132,
-    "eye_r": 0.0375,
-    "mouth_z": 1.3311
+  "curls": 277,
+  "landmarks_m": {
+    "hair_top": 1.6979,
+    "skull_top": 1.5763,
+    "brow": 1.5123,
+    "eye": 1.4622,
+    "nose": 1.4142,
+    "mouth": 1.3864,
+    "chin": 1.331,
+    "neck": 1.3033,
+    "shoulder_top": 1.1497,
+    "armpit": 1.0537,
+    "chest": 0.9897,
+    "waist": 0.8617,
+    "hem": 0.7849,
+    "hip": 0.7338,
+    "crotch": 0.6484,
+    "knee": 0.4458,
+    "cuff_top": 0.2261,
+    "cuff_bot": 0.1578,
+    "ankle": 0.1365
   },
-  "geo": {
-    "torso_hw": 0.17,
-    "torso_hd": 0.128,
-    "sh_half": 0.163,
-    "chest_z": 1.0726,
-    "hip_z": 0.718
-  },
-  "islands": [
-    [
-      "core",
-      0,
-      11961
-    ],
-    [
-      "arm.L",
-      11961,
-      13027
-    ],
-    [
-      "arm.R",
-      13027,
-      14093
-    ]
-  ],
   "bones": [
     "root",
     "pelvis",
@@ -61,32 +51,34 @@
     "foot.R"
   ],
   "bone_check": {
-    "upperarm_L_x": 0.163,
-    "sh_w_half": 0.163
+    "upperarm_L_x": 0.15,
+    "sh_w_half": 0.14
   },
   "fingers": 10,
   "bone_count": 33,
   "deform_bones": 31,
   "shape_key_displacement_mm": {
-    "jawOpen": 4.11,
-    "viseme_AA": 25.51,
-    "viseme_E": 11.29,
-    "viseme_I": 9.05,
-    "viseme_O": 19.48,
-    "viseme_U": 14.32,
-    "viseme_MBP": 2.03,
-    "mouthSmile_L": 16.97,
-    "mouthSmile_R": 16.61,
-    "mouthFrown": 10.17,
-    "cheekPuff": 5.43,
-    "browInnerUp": 13.38,
-    "browDown_L": 7.36,
-    "browDown_R": 7.36,
-    "eyeSquint_L": 3.39,
-    "eyeSquint_R": 3.39,
-    "Blink": 24.32
+    "jawOpen": 0.42,
+    "viseme_AA": 18.44,
+    "viseme_E": 8.16,
+    "viseme_I": 6.54,
+    "viseme_O": 14.08,
+    "viseme_U": 10.35,
+    "viseme_MBP": 1.47,
+    "mouthSmile_L": 11.44,
+    "mouthSmile_R": 12.27,
+    "mouthFrown": 7.35,
+    "cheekPuff": 3.92,
+    "browInnerUp": 9.72,
+    "browDown_L": 5.29,
+    "browDown_R": 5.35,
+    "eyeSquint_L": 2.56,
+    "eyeSquint_R": 2.56,
+    "Blink": 21.52
   },
-  "shape_key_dead": [],
+  "shape_key_dead": [
+    "jawOpen"
+  ],
   "shape_keys": [
     "Basis",
     "jawOpen",
@@ -110,56 +102,37 @@
   "shape_key_count": 18,
   "skinning_method": "island_gated_distance+laplacian",
   "vertex_counts_per_chain": {
-    "head": 5285,
-    "jaw": 1873,
-    "eye": 2658,
-    "chest": 635,
-    "thigh": 272,
-    "pelvis": 67,
-    "spine": 251,
-    "neck": 512,
-    "shin": 112,
-    "foot": 296,
-    "upperarm": 672,
-    "forearm": 168,
-    "hand": 1230,
-    "thumb": 54,
-    "finger0": 4,
-    "finger3": 4
+    "neck": 676,
+    "head": 20398,
+    "jaw": 1191,
+    "eye": 6415,
+    "thigh": 1358,
+    "pelvis": 306,
+    "spine": 849,
+    "chest": 1912,
+    "shin": 750,
+    "foot": 3588,
+    "upperarm": 919,
+    "hand": 401,
+    "thumb": 286,
+    "forearm": 564,
+    "finger1": 14
   },
   "body": {
-    "verts": 14093,
-    "polys": 14854,
+    "verts": 39627,
+    "polys": 41378,
+    "tris": 77578,
+    "height_m": 1.696,
     "dimensions": [
-      0.482,
-      0.377,
-      1.73
-    ],
-    "height_m": 1.73,
-    "head_unit_m": 0.3391
+      0.509,
+      0.342,
+      1.696
+    ]
   },
-  "materials": [
-    "Brow",
-    "EyeWhite",
-    "Glasses",
-    "Hair",
-    "Iris",
-    "Jacket",
-    "JacketDark",
-    "Lips",
-    "Pupil",
-    "Shirt",
-    "Shoe",
-    "Skin",
-    "Tie",
-    "Trousers"
-  ],
   "totals": {
     "objects": 2,
-    "verts": 14093,
-    "polys": 14854,
+    "verts": 39627,
+    "polys": 41378,
     "bones": 33
-  },
-  "blend": "working/profz/character.blend",
-  "blend_bytes": 1082381
+  }
 }

@@ -1,33 +1,39 @@
 #!/usr/bin/env python3
 """
-Professor Z - built from the supplied character sheet, as a real character rather than a
-recolour of the generic blockout.
+PROFESSOR Z - built to the supplied turnaround (front / side / back).
 
-WHY THIS FILE EXISTS SEPARATELY
-    `build_character.py` extrapolates a body from a photograph's face box. Professor Z is an
-    authored design with a stated height, a stylised 3.7-head build, clothes and props. So
-    the mesh is built here from measured landmarks, and the rig, skin weights, morph targets
-    and the 21-clip animation library are the shared, already-verified ones.
+Every number below is read off the sheet. The front view is 797 px tall from the hair
+crown (y=168) to the sole (y=964); with the figure at 1.70 m the scale is
 
-DESIGN DECISIONS THAT WERE PAID FOR
-  * No voxel remesh. The first attempt reused the generic pipeline's remesh, which unions
-    every shell into one skin and then paints materials by nearest author label. On a bare
-    figure that is fine; on a clothed character it welded the jacket to the shirt and
-    smeared labels across the body (the render came out as a nude figure with random
-    patches). Here each part keeps its own closed surface and its own material, joined
-    without welding, which is also how the shared pipeline already handles eyes and hair.
-  * Silhouette parts are lofted profiles, not sphere soup. A sphere cannot be made to have
-    a jaw; a stack of elliptical rings can.
-  * Vertical landmarks are fractions of total height measured off the sheet's front view,
-    so the model is 3.7 heads tall like the drawing, not 7 like a photograph.
-  * Materials are assigned per source object *before* the join; Blender remaps the slots
-    correctly and the boundaries stay exact. Re-deriving them afterwards never worked.
+    S = 1.70 / 797 = 0.002133 m/px        z(y) = (964 - y) * S
 
-MEASURED FROM THE SHEET (front view, 418 px tall, 133 px wide)
-    hair top   0.000      eye line 0.152     chin     0.258
-    shoulder   0.302      waist    0.520     hip      0.585
-    knee       0.780      ankle    0.930     ground   1.000
-    shoulder width 97 px / 418 px = 0.232 of height = 0.402 m at 1.73 m
+LANDMARKS (sheet pixels -> metres)
+    hair crown   168 -> 1.698      eye line    278.5 -> 1.462
+    skull top    225 -> 1.576      nose tip    301   -> 1.414
+    brow         255 -> 1.512      mouth       314   -> 1.386
+    chin         340 -> 1.331      collar      353   -> 1.303
+    shoulder top 425 -> 1.150      armpit      470   -> 1.054
+    tee hem      596 -> 0.785      crotch      660   -> 0.648
+    knee         755 -> 0.446      cuff        858   -> 0.226
+    sole         964 -> 0.000
+
+    head width 0.200, head height 0.245, ear span 0.275, hair width 0.303,
+    shoulder span (sleeve to sleeve) 0.490, torso 0.288, hip 0.331
+    eye width 0.040, pupil separation 0.083, mouth width 0.068
+
+That is a 4.6-head stylised youth: a big head, a short thick neck, narrow shoulders
+carrying a loose tee, skinny jeans and chunky high-tops.
+
+WHY THE FIRST ATTEMPT LOOKED WRONG - so it is not repeated
+    It was a tweed-suited old man assembled from spheres and slabs, painted by a nearest
+    label pass after a voxel remesh. This version shapes the surface instead:
+      * the head is ONE lofted surface with independent front/back radii, then displaced
+        by smooth fields (sockets, brow ridge, cheekbones, jaw, chin, nose);
+      * the eyes sit in those sockets under real lids, with an iris, a pupil and a
+        catch-light - not a ball with a dot;
+      * limbs are swept tubes with a radius curve and a frame transported along them;
+      * hair is a shell with the face cut out plus ~130 small tori: a curl is a ring;
+      * every part carries its own material from birth - no paint-by-nearest-label.
 
 Run:
   .venv/bin/python blender/build_professor_z.py \
@@ -39,6 +45,7 @@ import argparse
 import json
 import math
 import pathlib
+import random
 import sys
 
 import bpy
@@ -46,450 +53,641 @@ from mathutils import Vector
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import build_character as BC          # noqa: E402
+import char_lib as C                  # noqa: E402
 from scene_utils import reset_pose    # noqa: E402
 
-H = 1.73                              # 5'8", stated on the sheet
+H = 1.70
+S = H / 797.0
 
-F = {                                 # fractions of total height, top-down
-    "hair_top": 0.000, "skull_top": 0.062, "eye": 0.152, "nose": 0.198,
-    "chin": 0.258, "neck_base": 0.290, "shoulder": 0.302, "chest": 0.380,
-    "waist": 0.520, "hip": 0.585, "crotch": 0.610, "knee": 0.780,
-    "ankle": 0.930, "ground": 1.000,
+
+def z(y_px: float) -> float:
+    """Height in metres for a row of the sheet."""
+    return (964.0 - y_px) * S
+
+
+def w(px: float) -> float:
+    return px * S
+
+
+Z = {
+    "hair_top": z(168), "skull_top": z(225), "brow": z(255), "eye": z(278.5),
+    "nose": z(301), "mouth": z(314), "chin": z(340), "neck": z(353),
+    "shoulder_top": z(425), "armpit": z(470), "chest": z(500), "waist": z(560),
+    "hem": z(596), "hip": z(620), "crotch": z(660), "knee": z(755),
+    "cuff_top": z(858), "cuff_bot": z(890), "ankle": z(900),
 }
 
+HEAD_CZ = 1.4537           # (chin 1.331 + crown 1.576) / 2
+HEAD_HH = 0.1290
+# Measured again, this time against the SKIN, not the silhouette: the face is 108 px
+# across at the cheekbones (0.230 m) and the hair only 138 px (0.294 m). The first pass
+# used 94 px for the head, which made it too narrow and every feature on it too big.
+HEAD_HW = 0.0965
+HEAD_HD = 0.1105
 
-def zf(frac: float) -> float:
-    """Height above the ground for a top-down fraction of the figure."""
-    return H * (1.0 - frac)
-
-
-# Head geometry: skull from chin to crown, hair above it.
-HEAD_BOTTOM = zf(F["chin"])
-HEAD_TOP = zf(F["skull_top"])
-HH = HEAD_TOP - HEAD_BOTTOM            # 0.339 m
-HEAD_CZ = (HEAD_TOP + HEAD_BOTTOM) / 2
-HW = 0.145                            # half width, 70 px of 418 * 1.73 / 2
-HD = 0.165                            # half depth (side view is deeper than wide)
+EYE_X = 0.0362
+EYE_R = 0.0222
+IRIS_R = 0.0134
+PUPIL_R = 0.0060
+EYE_Z = 1.4615
+MOUTH_HW = 0.0338
+MOUTH_Z = 1.3765        # crescent: corners y≈306 (z 1.404), centre y≈319
+NOSE_HW = 0.0235
+BROW_HW = 0.0272
+BROW_X = 0.0452
+BROW_Z = 1.5075
 
 PALETTE = {
-    "Skin":      ("#B87A4C", 0.55, 0.0),
-    "Hair":      ("#241B13", 0.62, 0.0),
-    "Brow":      ("#2A1E14", 0.70, 0.0),
-    "EyeWhite":  ("#F4EEE6", 0.16, 0.0),
-    "Iris":      ("#6B4426", 0.22, 0.0),
-    "Pupil":     ("#0E0B08", 0.14, 0.0),
-    "Lips":      ("#A45B45", 0.45, 0.0),
-    "Jacket":    ("#6E4B2C", 0.78, 0.0),
-    "JacketDark": ("#5A3B21", 0.80, 0.0),
-    "Shirt":     ("#F0E8DB", 0.72, 0.0),
-    "Tie":       ("#7A4C25", 0.55, 0.0),
-    "Trousers":  ("#26262B", 0.80, 0.0),
-    "Shoe":      ("#4B2F1B", 0.42, 0.0),
-    "Glasses":   ("#2E2E30", 0.28, 0.75),
+    "Skin":     ("#DE9C63", 0.62, 0.0, None, 0.0),
+    "SkinDeep": ("#B26C3C", 0.64, 0.0, None, 0.0),
+    "Hair":     ("#1A1411", 0.58, 0.0, None, 0.0),
+    "Brow":     ("#1E1713", 0.52, 0.0, None, 0.0),
+    "EyeWhite": ("#F7F1E9", 0.18, 0.0, None, 0.0),
+    "Iris":     ("#6B3C1C", 0.20, 0.0, None, 0.0),
+    "Pupil":    ("#080606", 0.16, 0.0, None, 0.0),
+    "Lips":     ("#C0705C", 0.42, 0.0, None, 0.0),
+    "Tee":      ("#17181A", 0.88, 0.0, None, 0.0),
+    "TeeDark":  ("#0D0E10", 0.88, 0.0, None, 0.0),
+    "Denim":    ("#1D2128", 0.82, 0.0, None, 0.0),
+    "Cuff":     ("#5A626C", 0.86, 0.0, None, 0.0),
+    "Canvas":   ("#131416", 0.80, 0.0, None, 0.0),
+    "Sole":     ("#EAE5DB", 0.56, 0.0, None, 0.0),
+    "Lace":     ("#F3EEE5", 0.70, 0.0, None, 0.0),
+    "Gold":     ("#C9A24A", 0.26, 1.0, None, 0.0),
+    "Watch":    ("#0F0F11", 0.34, 0.25, None, 0.0),
+    "ZGlow":    ("#8E6BFF", 0.30, 0.0, "#8E6BFF", 1.35),
+    "ZCore":    ("#33207A", 0.30, 0.0, "#4B33B8", 0.55),
 }
 
 
-def make_materials():
-    out = {}
-    for name, (hexcol, rough, metal) in PALETTE.items():
-        m = BC.mat(name, hexcol, rough)
-        if metal and m.use_nodes:
-            bsdf = m.node_tree.nodes.get("Principled BSDF")
-            if bsdf:
-                bsdf.inputs["Metallic"].default_value = metal
-        out[name] = m
-    return out
-
-
-def set_material(o, material):
-    """Give an object exactly one material slot. Join keeps these assignments exact."""
-    o.data.materials.clear()
-    o.data.materials.append(material)
-    for p in o.data.polygons:
-        p.material_index = 0
-    return o
+def materials():
+    return {n: C.material(n, c, r, m, e, s) for n, (c, r, m, e, s) in PALETTE.items()}
 
 
 # --------------------------------------------------------------------------- head
-def head_profile():
+# (t from chin to crown, half width, front depth, back depth) as fractions
+HEAD_PROF = [
+    (0.000, 0.30, 0.60, 0.52),
+    (0.055, 0.44, 0.74, 0.68),
+    (0.120, 0.60, 0.84, 0.82),
+    (0.215, 0.80, 0.92, 0.91),
+    (0.340, 0.91, 0.97, 0.97),
+    (0.480, 0.96, 0.99, 1.00),
+    (0.620, 1.00, 1.00, 1.00),
+    (0.760, 0.995, 0.97, 0.99),
+    (0.870, 0.930, 0.90, 0.94),
+    (0.945, 0.780, 0.76, 0.80),
+    (1.000, 0.430, 0.42, 0.44),
+]
+
+
+def head_t(z_abs):
+    """Parameter t in [0,1] for an absolute height, clamped."""
+    t = (z_abs - Z["chin"]) / (Z["skull_top"] - Z["chin"])
+    return max(0.0, min(1.0, t))
+
+
+def head_radii(t):
+    for i in range(len(HEAD_PROF) - 1):
+        t0, w0, f0, b0 = HEAD_PROF[i]
+        t1, w1, f1, b1 = HEAD_PROF[i + 1]
+        if t0 <= t <= t1:
+            u = (t - t0) / (t1 - t0)
+            return (HEAD_HW * (w0 + (w1 - w0) * u),
+                    HEAD_HD * (f0 + (f1 - f0) * u),
+                    HEAD_HD * (b0 + (b1 - b0) * u))
+    return HEAD_HW, HEAD_HD, HEAD_HD
+
+
+def face_point(x, z_abs, out=0.0):
     """
-    (t, half_width, half_depth, y_offset) from chin (t=0) to crown (t=1).
+    The front surface of the head at (x, z_abs), pushed `out` metres forward.
 
-    The sheet's head is a wide cranium over a narrow jaw with soft cheeks; the profile is
-    where that lives. Values are relative to HW / HD.
+    Every facial feature is placed through this. The first build placed the mouth at a
+    fixed y and it ended up INSIDE the head, invisible in every render - the mouth is
+    10 mm behind the cheek surface at that height.
     """
-    return [
-        (0.00, 0.36, 0.34, -0.12),   # chin point, pushed forward
-        (0.06, 0.50, 0.47, -0.06),
-        (0.14, 0.63, 0.58, -0.02),
-        (0.24, 0.75, 0.70, 0.00),
-        (0.36, 0.85, 0.81, 0.00),
-        (0.48, 0.93, 0.90, 0.00),
-        (0.60, 0.98, 0.96, 0.01),
-        (0.72, 1.00, 1.00, 0.02),
-        (0.83, 0.96, 0.97, 0.03),
-        (0.92, 0.82, 0.85, 0.04),
-        (0.97, 0.58, 0.63, 0.04),
-        (1.00, 0.26, 0.30, 0.04),
-    ]
+    t = head_t(z_abs)
+    rx, ryf, _ = head_radii(t)
+    k = max(0.0, 1.0 - (x / max(rx, 1e-6)) ** 2)
+    y = -ryf * math.sqrt(k)
+    return Vector((x, y - out, z_abs))
 
 
-def build_skull(materials):
+def build_head(mat, parts):
     rings = []
-    for (t, rx, ry, yoff) in head_profile():
-        rings.append((HEAD_BOTTOM + HH * t, HW * rx, HD * ry, yoff * HD))
-    skull = BC.loft("Skull", BC.smooth_profile(rings, n=22), ring=32)
-    return set_material(skull, materials["Skin"])
+    for (t, fw, ff, fb) in HEAD_PROF:
+        rings.append((Z["chin"] + (Z["skull_top"] - Z["chin"]) * t,
+                      HEAD_HW * fw, HEAD_HD * ff, HEAD_HD * fb, 0.0))
+    ob = C.egg_loft("Head", rings, ring=56)
+    c = Vector((0, 0, HEAD_CZ))
+    C.sculpt(ob, [
+        # Broad fields only: sigma >= 0.03, or the Gaussian lands on single vertices
+        # and the surface grows spikes (the nose came out as an M-shaped ridge).
+        (+EYE_X, -0.092, EYE_Z + 0.004, 0.030, -0.0035),
+        (-EYE_X, -0.092, EYE_Z + 0.004, 0.030, -0.0035),
+        (+BROW_X, -0.098, BROW_Z - 0.002, 0.036, +0.0050),
+        (-BROW_X, -0.098, BROW_Z - 0.002, 0.036, +0.0050),
+        (0.0, -0.090, EYE_Z + 0.080, 0.060, +0.0030),
+        (+0.070, -0.078, Z["nose"] - 0.010, 0.046, +0.0065),
+        (-0.070, -0.078, Z["nose"] - 0.010, 0.046, +0.0065),
+        (+0.062, -0.086, Z["mouth"] + 0.044, 0.040, +0.0030),
+        (-0.062, -0.086, Z["mouth"] + 0.044, 0.040, +0.0030),
+        (+0.078, -0.030, Z["chin"] + 0.046, 0.038, +0.0022),
+        (-0.078, -0.030, Z["chin"] + 0.046, 0.038, +0.0022),
+        (0.0, -0.090, Z["chin"] + 0.018, 0.034, +0.0070),
+    ], centre=c)
+    C.shade_smooth(ob)
+    parts.append(C.apply_material(ob, mat["Skin"]))
+    return ob
 
 
-def build_face(materials, parts):
-    """Eyes, iris, pupil, catch-light, brows, nose, ears, mouth, glasses."""
-    eye_z = zf(F["eye"])
-    eye_x = HW * 0.42
-    # face surface at eye height: profile half-depth at t=(eye_z-bottom)/HH
-    t_eye = (eye_z - HEAD_BOTTOM) / HH
-    eye_y = -HD * (0.80 if t_eye < 0.6 else 0.86)
-    eye_r = 0.0375                      # big cartoon eyes, ~0.11 HH
-
+def build_ears(mat, parts):
     for s, tag in ((1, "L"), (-1, "R")):
-        # sclera: a sphere mostly inside the skull, only the front cap showing
-        e = BC.add_sphere(f"Eye_{tag}", (s * eye_x, eye_y + eye_r * 0.86, eye_z),
-                          (eye_r, eye_r * 0.86, eye_r * 1.02), seg=26, ring=18)
-        parts.append(set_material(e, materials["EyeWhite"]))
-        ir = BC.add_sphere(f"Iris_{tag}", (s * eye_x, eye_y - eye_r * 0.18, eye_z),
-                           (eye_r * 0.52, eye_r * 0.24, eye_r * 0.52), seg=22, ring=14)
-        parts.append(set_material(ir, materials["Iris"]))
-        pu = BC.add_sphere(f"Pupil_{tag}", (s * eye_x, eye_y - eye_r * 0.30, eye_z),
-                           (eye_r * 0.26, eye_r * 0.15, eye_r * 0.26), seg=16, ring=10)
-        parts.append(set_material(pu, materials["Pupil"]))
-        gl = BC.add_sphere(f"Catch_{tag}", (s * eye_x + eye_r * 0.22, eye_y - eye_r * 0.38,
-                                            eye_z + eye_r * 0.26),
-                           (eye_r * 0.12, eye_r * 0.08, eye_r * 0.12), seg=10, ring=8)
-        parts.append(set_material(gl, materials["EyeWhite"]))
-
-        # brow: thick, slightly arched, sits just above the rim of the glasses
-        br = BC.add_sphere(f"Brow_{tag}", (s * eye_x, eye_y - eye_r * 0.10,
-                                           eye_z + eye_r * 1.55),
-                           (HW * 0.36, HD * 0.045, HH * 0.018), seg=20, ring=10)
-        br.rotation_euler = (math.radians(-4), math.radians(-7 * s), math.radians(4 * s))
-        parts.append(set_material(br, materials["Brow"]))
-
-        # ear: flattened disc, high and slightly back
-        ear = BC.add_sphere(f"Ear_{tag}", (s * HW * 0.93, HD * 0.40, eye_z - HH * 0.10),
-                            (HW * 0.07, HD * 0.10, HH * 0.095), seg=18, ring=12)
-        parts.append(set_material(ear, materials["Skin"]))
-
-        # round wire glasses
-        rim_r = eye_r * 1.30
-        bpy.ops.mesh.primitive_torus_add(
-            major_radius=rim_r, minor_radius=0.0035, major_segments=28, minor_segments=8,
-            location=(s * eye_x, eye_y - eye_r * 0.30, eye_z))
-        rim = bpy.context.object
-        rim.name = f"Rim_{tag}"
-        rim.rotation_euler = (math.radians(90), 0, 0)
-        parts.append(set_material(rim, materials["Glasses"]))
-        a = Vector((s * (eye_x + rim_r * 0.96), eye_y - eye_r * 0.30, eye_z))
-        b = Vector((s * HW * 1.00, HD * 0.30, eye_z + HH * 0.05))
-        parts.append(set_material(
-            BC.add_cyl(f"Temple_{tag}", a, b, 0.0032, 0.0032, verts=8), materials["Glasses"]))
-
-    bridge = BC.add_cyl("Bridge", (-eye_x + eye_r * 1.26, eye_y - eye_r * 0.30, eye_z),
-                        (eye_x - eye_r * 1.26, eye_y - eye_r * 0.30, eye_z),
-                        0.0032, 0.0032, verts=8)
-    parts.append(set_material(bridge, materials["Glasses"]))
-
-    # nose: small button, from the sheet it is tiny and rounded
-    nose_z = zf(F["nose"])
-    nose = BC.add_sphere("Nose", (0, -HD * 0.76, nose_z), (0.022, 0.020, 0.017), seg=18, ring=12)
-    parts.append(set_material(nose, materials["Skin"]))
-    bridge_n = BC.add_sphere("NoseBridge", (0, -HD * 0.70, nose_z + 0.022),
-                             (0.010, 0.012, 0.020), seg=14, ring=10)
-    parts.append(set_material(bridge_n, materials["Skin"]))
-
-    # mouth: a soft, wide, closed smile. Scale matters - the first pass was 26 mm
-    # across and vanished under the nose. The sheet's mouth is ~0.20 of head width.
-    mouth_z = HEAD_BOTTOM + HH * 0.140
-    mouth = BC.add_sphere("Mouth", (0, -HD * 0.700, mouth_z),
-                          (HW * 0.27, 0.010, HH * 0.011), seg=24, ring=12)
-    parts.append(set_material(mouth, materials["Lips"]))
-    # a lower-lip shelf gives the smile a shape instead of a decal look
-    lowlip = BC.add_sphere("LowerLip", (0, -HD * 0.685, mouth_z - HH * 0.016),
-                           (HW * 0.19, 0.009, HH * 0.009), seg=20, ring=10)
-    parts.append(set_material(lowlip, materials["Lips"]))
-    for s_ in (-1, 1):
-        ck = BC.add_sphere(f"Cheek_{'L' if s_ > 0 else 'R'}",
-                           (s_ * HW * 0.52, -HD * 0.34, eye_z - HH * 0.12),
-                           (HW * 0.24, HD * 0.26, HH * 0.115), seg=20, ring=12)
-        parts.append(set_material(ck, materials["Skin"]))
-    for s_ in (-1, 1):
-        corner = BC.add_sphere(f"MouthCorner_{'L' if s_ > 0 else 'R'}",
-                               (s_ * HW * 0.255, -HD * 0.66, mouth_z + HH * 0.005),
-                               (HW * 0.045, 0.009, HH * 0.007), seg=12, ring=8)
-        parts.append(set_material(corner, materials["Lips"]))
-
-    return dict(eye_z=eye_z, eye_x=eye_x, eye_y=eye_y, eye_r=eye_r, mouth_z=mouth_z)
+        shell = C.sphere(f"Ear_{tag}", (s * 0.1000, 0.014, 1.4185),
+                         (0.0175, 0.0155, 0.0255), seg=22, ring=16,
+                         rot=(0, math.radians(-8 * s), math.radians(10 * s)))
+        C.shade_smooth(shell)
+        parts.append(C.apply_material(shell, mat["Skin"]))
+        bowl = C.sphere(f"EarBowl_{tag}", (s * 0.1120, 0.013, 1.4135),
+                        (0.0050, 0.0085, 0.0140), seg=16, ring=12)
+        parts.append(C.apply_material(bowl, mat["Skin"]))
+        rim = C.torus(f"EarRim_{tag}", (s * 0.1100, 0.014, 1.4200), 0.0170, 0.0026,
+                      rot=(0, math.radians(90), math.radians(4 * s)),
+                      major=18, minor=6, arc=math.pi * 1.15)
+        parts.append(C.apply_material(rim, mat["Skin"]))
 
 
-def build_hair(materials, parts):
-    """
-    Tousled dark hair.
-
-    The shell is lofted from the skull's own profile, scaled 5.5 %, with an angular window
-    cut out of the front so a face exists: the window is ~58 degrees either side of the
-    front at jaw level, closes to nothing above the forehead, and leaves the ears clear.
-    An earlier version used a plain sphere for the scalp and separate clumps for the
-    silhouette; every clump below the sphere read as a detached lobe and the character
-    ended up with hair earmuffs. Conforming the shell first and clumping only on the
-    outline fixed it.
-    """
+def build_face(mat, parts):
     import bmesh
 
-    top = zf(F["hair_top"])
-    eye_z = zf(F["eye"])
-    bottom = HEAD_BOTTOM + HH * 0.10
-    # The hair dome is its own ellipsoid, not the skull offset: the skull's profile pulls
-    # in hard above the temples, and hair that followed it produced a bowl cut with a
-    # saucer on top. Half-depth 0.60 HH, crown exactly at F["hair_top"].
-    rz = HH * 0.60
-    zc = top - rz
-    rx, ry = HW * 1.10, HD * 1.14
-    n_rows, ring = 26, 44
-    bm = bmesh.new()
-    rows = []
-    for i in range(n_rows):
-        u = i / (n_rows - 1)                    # 0 bottom, 1 top
-        z = bottom + (top - bottom) * u
-        q = max(0.0, 1.0 - ((z - zc) / rz) ** 2) ** 0.5
-        # Window, keyed on height relative to the eye line: closed above the hairline,
-        # widest at the jaw. The ear zone gets its own plateau - a single ramp buried the
-        # ears under the hair and they rendered as skin lobes inside the hair mass.
-        h = (z - eye_z) / HH                     # -0.45 jaw .. +0.77 crown
-        if h < -0.22:
-            cut = 104.0
-        elif h < -0.12:
-            v = (h + 0.22) / 0.10
-            cut = 104.0 + (76.0 - 104.0) * (v * v * (3 - 2 * v))
-        elif h < 0.06:
-            cut = 76.0 + (60.0 - 76.0) * (h + 0.12) / 0.18
-        elif h < 0.26:
-            v = (h - 0.06) / 0.20
-            cut = 60.0 * (1.0 - (v * v * (3 - 2 * v)))
-        else:
-            cut = 0.0
-        a0 = math.radians(-90.0 + cut)
-        a1 = math.radians(270.0 - cut)
-        closed = cut < 1e-6
-        # An open window means the ring ends are real edges; a closed ring must wrap, or
-        # the hair has a slit down the front of the skull (which rendered as a notch in
-        # the hairline).
-        n_pts = ring if closed else ring - 1
-        row = []
-        for k in range(n_pts):
-            ang = a0 + (2 * math.pi if closed else (a1 - a0)) * k / (ring - 1)
-            row.append(bm.verts.new((rx * q * math.cos(ang),
-                                     ry * q * math.sin(ang) + HD * 0.10,
-                                     z)))
-        rows.append((row, closed))
-    for (ra, ca), (rb, cb) in zip(rows, rows[1:]):
-        n = len(ra)
-        span = n if (ca and cb) else n - 1
-        for k in range(span):
-            k2 = (k + 1) % n
-            try:
-                bm.faces.new((ra[k], ra[k2], rb[k2], rb[k]))
-            except ValueError:
-                pass
-    bm.normal_update()
-    me = bpy.data.meshes.new("HairShell")
-    bm.to_mesh(me)
-    bm.free()
-    shell = bpy.data.objects.new("HairShell", me)
-    bpy.context.collection.objects.link(shell)
-    bpy.ops.object.select_all(action="DESELECT")
-    shell.select_set(True)
-    bpy.context.view_layer.objects.active = shell
-    bpy.ops.object.mode_set(mode="EDIT")
-    bpy.ops.mesh.select_all(action="SELECT")
-    bpy.ops.mesh.delete_loose()
-    bpy.ops.object.mode_set(mode="OBJECT")
-    parts.append(set_material(shell, materials["Hair"]))
+    # The socket is sculpted 7.1 mm deep, so the surface there is at face_point + 7.1 mm.
+    # The eyeball's front pole is placed 1.5 mm proud of that plane: enough to read as an
+    # eye, not enough to bulge. Placing it at a fixed y put it behind the skin.
+    SOCKET_DEPTH = 0.0071
+    for s, tag in ((1, "L"), (-1, "R")):
+        socket_y = face_point(s * EYE_X, EYE_Z).y + SOCKET_DEPTH
+        centre = Vector((s * EYE_X, socket_y - 0.0015 + EYE_R * 0.86, EYE_Z))
 
-    # clumps: (x, y, height above head centre, rx, ry, rz, tilt) in head units.
-    # They sit ON the shell and break its outline; none may rise above the cap.
-    clumps = [
-        (-0.66, -0.72, 0.24, 0.20, 0.13, 0.11, 18), (-0.22, -0.82, 0.29, 0.19, 0.12, 0.10, -6),
-        (0.24, -0.80, 0.25, 0.20, 0.13, 0.11, 10), (0.64, -0.70, 0.22, 0.19, 0.13, 0.11, -20),
-        (-0.44, -0.30, 0.42, 0.20, 0.19, 0.13, 14), (0.20, -0.22, 0.45, 0.20, 0.19, 0.13, -10),
-        (-0.96, 0.04, 0.02, 0.13, 0.16, 0.16, 26), (0.96, 0.06, 0.01, 0.13, 0.16, 0.16, -28),
-        (-0.80, 0.42, 0.12, 0.16, 0.16, 0.14, 18), (0.78, 0.44, 0.11, 0.16, 0.16, 0.14, -20),
-        (0.02, 0.60, 0.24, 0.22, 0.16, 0.14, 4), (-0.40, 0.66, 0.02, 0.16, 0.14, 0.15, -8),
-        (0.42, 0.64, 0.01, 0.16, 0.14, 0.15, 8),
-        # errant tufts, for asymmetry
-        (-0.52, -0.34, 0.40, 0.11, 0.10, 0.10, -26), (0.56, -0.22, 0.38, 0.10, 0.10, 0.11, 22),
+            # ---- eye: an almond disc set 3 mm proud of the face, with the iris and pupil
+        # on its front. A sphere pushed into a socket was tried first; the skin plane is
+        # curved, the socket is not deep enough for a sphere, and only a sliver of white
+        # showed. A shallow almond is how the reference itself is drawn.
+        surf = face_point(s * EYE_X, EYE_Z)
+        eye_y = surf.y - 0.0030
+        white = C.superellipsoid(f"Eye_{tag}", (s * EYE_X, eye_y, EYE_Z),
+                                 (EYE_R * 1.06, 0.0075, EYE_R * 0.80), n=2.15,
+                                 seg=32, rings=18)
+        C.shade_smooth(white)
+        parts.append(C.apply_material(white, mat["EyeWhite"]))
+        iris = C.superellipsoid(f"Iris_{tag}", (s * EYE_X, eye_y - 0.0060, EYE_Z - 0.0022),
+                                (IRIS_R, 0.0035, IRIS_R), n=2.1, seg=26, rings=16)
+        C.shade_smooth(iris)
+        parts.append(C.apply_material(iris, mat["Iris"]))
+        pupil = C.sphere(f"Pupil_{tag}", (s * EYE_X, eye_y - 0.0086, EYE_Z - 0.0022),
+                         (PUPIL_R, 0.0022, PUPIL_R), seg=20, ring=12)
+        parts.append(C.apply_material(pupil, mat["Pupil"]))
+        spark = C.sphere(f"Spark_{tag}", (s * EYE_X + IRIS_R * 0.40,
+                                          eye_y - 0.0098, EYE_Z + IRIS_R * 0.42),
+                         (0.0032, 0.0016, 0.0032), seg=12, ring=8)
+        parts.append(C.apply_material(spark, mat["EyeWhite"]))
+
+        # upper lid: a heavy skin hood over the top of the almond
+        hood = C.superellipsoid(f"Lid_{tag}", (s * EYE_X, eye_y - 0.0012,
+                                               EYE_Z + EYE_R * 0.74),
+                                (EYE_R * 1.14, 0.0078, EYE_R * 0.46), n=2.3,
+                                seg=30, rings=16)
+        C.shade_smooth(hood)
+        parts.append(C.apply_material(hood, mat["Skin"]))
+
+        # lash line, following the upper lid edge
+        lash = C.torus(f"Lash_{tag}", (s * EYE_X, eye_y - 0.0048, EYE_Z + EYE_R * 0.14),
+                       EYE_R * 1.01, 0.0018, rot=(math.radians(90), 0, 0),
+                       major=24, minor=6, arc=math.pi)
+        parts.append(C.apply_material(lash, mat["Hair"]))
+
+        # ---- brow: thick, straight, on the face surface
+        pts = []
+        for u in (0.0, 0.32, 0.66, 1.0):
+            x = s * (BROW_X - BROW_HW + 2 * BROW_HW * u)
+            # the sheet's brows are nearly flat, dipping only at the outer end
+            # inner end low, gentle peak two thirds out, thin tail: the sheet's brow
+            zz = BROW_Z + 0.0040 * u + 0.0058 * math.sin(math.pi * u) - 0.0055 * u * u
+            pts.append(face_point(x, zz, out=0.0042))
+        brow = C.tube(f"Brow_{tag}", pts, [0.0068, 0.0100, 0.0092, 0.0036],
+                      ring=12, samples=6, squash=[(1.0, 0.52)] * 4)
+        C.shade_smooth(brow)
+        parts.append(C.apply_material(brow, mat["Hair"]))
+
+        # ---- glasses: thin gold round rim
+        rim_r = 0.0368
+        rim = C.torus(f"Rim_{tag}", (centre.x, -0.1085, EYE_Z), rim_r, 0.0024,
+                      rot=(math.radians(90), 0, 0), major=34, minor=7)
+        parts.append(C.apply_material(rim, mat["Gold"]))
+        inner = s * (EYE_X - rim_r * 0.98)
+        outer = s * (EYE_X + rim_r * 0.98)
+        parts.append(C.apply_material(
+            C.cylinder(f"Temple_{tag}", (outer, -0.1050, EYE_Z + 0.004),
+                       (s * 0.1155, 0.020, EYE_Z + 0.008), 0.0017, 0.0017, verts=8),
+            mat["Gold"]))
+    parts.append(C.apply_material(
+        C.cylinder("Bridge", (-0.0045, -0.1085, EYE_Z + 0.004),
+                   (0.0045, -0.1085, EYE_Z + 0.004), 0.0019, 0.0019, verts=8),
+        mat["Gold"]))
+
+    # ---- nose: a small soft wedge on the surface, tip at Z["nose"]
+    nose_pts = [face_point(0.0, Z["nose"] + 0.048, out=-0.006),
+                face_point(0.0, Z["nose"] + 0.022, out=0.002),
+                face_point(0.0, Z["nose"] + 0.004, out=0.006)]
+    nose = C.tube("NoseBridge", nose_pts, [0.0050, 0.0078, 0.0105], ring=12, samples=5,
+                  squash=[(1.0, 0.75)] * 3)
+    C.shade_smooth(nose)
+    parts.append(C.apply_material(nose, mat["Skin"]))
+    tip = C.sphere("NoseTip", face_point(0.0, Z["nose"] + 0.003, out=0.0086),
+                   (NOSE_HW * 0.92, 0.0125, 0.0098), seg=22, ring=14)
+    C.shade_smooth(tip)
+    parts.append(C.apply_material(tip, mat["Skin"]))
+    for s in (-1, 1):
+        parts.append(C.apply_material(
+            C.sphere(f"Nostril_{s}", face_point(s * 0.0115, Z["nose"] - 0.0080, out=0.0020),
+                     (0.0034, 0.0028, 0.0024), seg=10, ring=8), mat["Skin"]))
+
+    # ---- mouth: a lens-shaped patch laid on the face, edge to edge.
+    # A tube following the smile curve broke into pieces at the corners: the cheek turns
+    # away faster than a tube of constant radius can follow.
+    def smile_curve(u):
+        zz = MOUTH_Z + 0.0230 * (u * u)
+        return face_point(MOUTH_HW * u, zz, out=0.0)
+
+    mouth = C.conformal_patch("Smile", smile_curve,
+                              lambda u: 0.0034 * (1.0 - abs(u) ** 2.2) ** 0.55 + 0.0007,
+                              lambda u, v: 0.0050,
+                              u_steps=34, v_steps=8)
+    C.shade_smooth(mouth)
+    parts.append(C.apply_material(mouth, mat["Lips"]))
+
+    # lower lip: a shallow pad under the centre of the smile
+    def lip_curve(u):
+        zz = MOUTH_Z - 0.0085 + 0.0190 * (u * u)
+        return face_point(MOUTH_HW * u * 0.86, zz, out=0.0)
+
+    low = C.conformal_patch("LowerLip", lip_curve,
+                            lambda u: 0.0032 * (1.0 - abs(u) ** 2.0) ** 0.6 + 0.0006,
+                            lambda u, v: 0.0048,
+                            u_steps=30, v_steps=8)
+    C.shade_smooth(low)
+    parts.append(C.apply_material(low, mat["Lips"]))
+
+
+# --------------------------------------------------------------------------- hair
+def hair_allowed(p):
+    """The hair volume: open over the face, solid back, sides above the ears."""
+    x, y, zz = p.x, p.y, p.z
+    if y > 0.020:
+        return zz > 1.352                    # nape
+    if abs(x) > 0.090:
+        return zz > 1.492                    # above the ears
+    # front: the fringe line, dipping at the temples
+    edge = (1.5275 - 0.022 * min(1.0, (abs(x) / 0.100) ** 2)
+            + 0.0050 * math.sin(41.0 * x) + 0.0032 * math.sin(74.0 * x + 1.7))
+    return zz > edge
+
+
+def build_hair(mat, parts, seed=11):
+    rnd = random.Random(seed)
+    import bmesh
+
+    # Hair radius by height, measured off the sheet's silhouette mask. The mop is a
+    # MUSHROOM: widest at z 1.56 (0.147 half) and narrower at the ears (0.128), which is
+    # the opposite of the ellipsoid used before - that one was 24 px narrow at the crown
+    # and 18 px wide at the temples at the same time.
+    HAIR_PROFILE = [
+        (1.316, 0.006), (1.336, 0.062), (1.366, 0.086), (1.396, 0.091),
+        (1.426, 0.103), (1.456, 0.114), (1.486, 0.120), (1.516, 0.123),
+        (1.546, 0.126), (1.576, 0.127), (1.606, 0.108), (1.636, 0.076),
+        (1.661, 0.045), (1.681, 0.021), (1.694, 0.006),
     ]
-    for i, (x, y, zr, rx, ry, rz, tilt) in enumerate(clumps):
-        o = BC.add_sphere(f"HairClump{i}", (x * HW * 0.86, y * HD * 0.88, HEAD_CZ + HH * zr),
-                          (rx * HW * 0.94, ry * HD * 0.94, rz * HH * 0.94), seg=18, ring=12)
-        o.rotation_euler = (math.radians(tilt * 0.5), math.radians(tilt),
-                            math.radians(tilt * 0.7))
-        parts.append(set_material(o, materials["Hair"]))
+
+    def hair_r(zz):
+        for i in range(len(HAIR_PROFILE) - 1):
+            z0, r0 = HAIR_PROFILE[i]
+            z1, r1 = HAIR_PROFILE[i + 1]
+            if z0 <= zz <= z1:
+                return r0 + (r1 - r0) * (zz - z0) / (z1 - z0)
+        return 0.0
+
+    cy = 0.012
+    rings = []
+    n = 34
+    z_lo, z_hi = HAIR_PROFILE[0][0], HAIR_PROFILE[-1][0]
+    for i in range(n + 1):
+        zz = z_lo + (z_hi - z_lo) * i / n
+        r = hair_r(zz)
+        if r <= 0.004:
+            continue
+        rings.append((zz, r, r * 0.97, r * 0.97, cy))
+    shell = C.egg_loft("HairShell", [r for r in rings if r[1] > 0.003], ring=56)
+    bm = bmesh.new()
+    bm.from_mesh(shell.data)
+    # Break the dome: a smooth shell under the curls read as a swim cap. Every vertex is
+    # pushed out by a small random amount so the mass itself is lumpy.
+    bm.normal_update()
+    for v in bm.verts:
+        n = v.normal.copy()
+        h = hash((round(v.co.x, 4), round(v.co.y, 4), round(v.co.z, 4), 7)) % 1000
+        v.co += n * (0.0010 + 0.0055 * (h / 999.0))
+    kill = []
+    for f in bm.faces:
+        c = sum((v.co for v in f.verts), Vector()) / len(f.verts)
+        if not hair_allowed(c):
+            kill.append(f)
+    bmesh.ops.delete(bm, geom=kill, context="FACES")
+    bm.to_mesh(shell.data)
+    bm.free()
+    C.shade_smooth(shell)
+    parts.append(C.apply_material(shell, mat["Hair"]))
+
+    placed = 0
+    golden = math.pi * (3.0 - math.sqrt(5.0))
+    count = 430
+    for i in range(count):
+        yy = 1.0 - (i / (count - 1)) * 2.0
+        rad = math.sqrt(max(0.0, 1.0 - yy * yy))
+        theta = golden * i
+        # horizontal direction on the surface, normalised: using the raw (sin, cos) of the
+        # sphere shortened the radius by sqrt(1-z^2), which sank every curl in the upper
+        # half into the shell and left a smooth dome.
+        h = Vector((math.cos(theta), math.sin(theta) * 0.97, 0.0)).normalized()
+        zz = 1.500 + yy * 0.185
+        r = hair_r(zz)
+        if r < 0.035:
+            continue
+        slope = (hair_r(min(zz + 0.004, 1.695)) - hair_r(max(zz - 0.004, 1.317))) / 0.008
+        n = Vector((h.x, h.y, -slope)).normalized()
+        sc = rnd.uniform(1.05, 1.70) if i % 3 == 0 else rnd.uniform(0.60, 1.05)
+        crad = 0.0150 * sc
+        pos = Vector((h.x, h.y, 0.0)) * r + Vector((0.0, cy, zz))
+        if not hair_allowed(pos):
+            continue
+        pos += n * (0.0030 + 0.40 * crad + rnd.uniform(0.0, 0.0035))
+        # More than a full turn: the coil closes on itself into a twisted lock instead of
+        # reading as an open ring, which is what a single turn of tube looked like.
+        curl = C.coil(f"Curl{i}", pos, n, radius=crad, thick=0.0064 * sc,
+                      turns=rnd.uniform(1.55, 2.10), phase=rnd.uniform(0, math.pi * 2),
+                      ring=5, rise=0.0009)
+        C.shade_smooth(curl)
+        parts.append(C.apply_material(curl, mat["Hair"]))
+        placed += 1
+
+    for i, (x, y, zz, sc) in enumerate([
+            (-0.092, -0.078, 1.528, 0.95), (-0.056, -0.104, 1.552, 1.05),
+            (-0.018, -0.116, 1.560, 1.10), (0.022, -0.114, 1.556, 1.05),
+            (0.062, -0.100, 1.545, 1.00), (0.094, -0.070, 1.520, 0.92)]):
+        curl = C.coil(f"Fringe{i}", (x, y, zz), (0.0, -0.88, 0.47),
+                      radius=0.0110 * sc, thick=0.0052 * sc, turns=1.25,
+                      phase=rnd.uniform(0, 6.28), ring=5, rise=0.0012)
+        C.shade_smooth(curl)
+        parts.append(C.apply_material(curl, mat["Hair"]))
+        placed += 1
+
+    for s in (-1, 1):
+        parts.append(C.apply_material(
+            C.sphere(f"Sideburn_{s}", (s * 0.1045, -0.018, 1.4820),
+                     (0.0085, 0.0150, 0.0210), seg=14, ring=10), mat["Hair"]))
+    return placed
 
 
 # --------------------------------------------------------------------------- body
-def build_body(materials, parts, J):
-    """
-    Jacket, shirt, bow tie, trousers, shoes, hands.
+def build_body(mat, parts, J):
+    # ---- neck: SHORT. The sheet's neckline is at y=352 (z=1.306) and the chin at
+    # y=340 (z=1.331), so only 2.5 cm of the neck is visible. The first build put the
+    # neckline at the shoulder line, 16 cm lower, and the character was a giraffe.
+    neck = C.tube("Neck", [(0, 0.006, 1.268), (0, 0.006, 1.305), (0, 0.004, 1.338)],
+                  [0.0455, 0.0445, 0.0440], ring=20, samples=4)
+    C.shade_smooth(neck)
+    parts.append(C.apply_material(neck, mat["Skin"]))
 
-    Widths come from the sheet's width profile, corrected for the fact that the profile
-    includes the arms: the jacket is a boxy blazer, ~0.19 m half-width at the chest, and
-    the arms hang at its outer edge - not outside it, which is what made the first build
-    look like a mannequin with detached shoulders.
-    """
-    sh_z = zf(F["shoulder"])          # 1.208
-    chest_z = zf(F["chest"])          # 1.073
-    waist_z = zf(F["waist"])          # 0.830
-    hip_z = zf(F["hip"])              # 0.718
-    knee_z = zf(F["knee"])            # 0.381
-    ankle_z = zf(F["ankle"])          # 0.121
-    hem_z = hip_z - 0.02              # blazer ends just below the hip line
+    # ---- tee
+    # The tee is the whole torso: shoulders at 1.15, neckline at 1.306, armpit at 1.054.
+    # Its widest point (0.152 half-width) is the deltoid, where the sleeve begins.
+    torso = C.egg_loft("Tee", [
+        (0.778, 0.1660, 0.1195, 0.1175, 0.000),
+        (0.806, 0.1600, 0.1160, 0.1145, 0.000),
+        (0.850, 0.1530, 0.1125, 0.1110, 0.000),
+        (0.900, 0.1490, 0.1105, 0.1090, 0.000),
+        (0.950, 0.1475, 0.1105, 0.1090, 0.000),
+        (1.010, 0.1470, 0.1125, 0.1110, 0.000),
+        (1.055, 0.1480, 0.1130, 0.1115, 0.000),
+        (1.100, 0.1500, 0.1120, 0.1105, 0.000),
+        (1.150, 0.2140, 0.1300, 0.1285, 0.000),
+        (1.195, 0.2100, 0.1290, 0.1275, 0.001),
+        (1.235, 0.1920, 0.1200, 0.1185, 0.002),
+        (1.252, 0.1860, 0.1180, 0.1165, 0.003),
+        (1.272, 0.1700, 0.1110, 0.1095, 0.003),
+        (1.284, 0.1520, 0.1030, 0.1015, 0.004),
+        (1.292, 0.1260, 0.0920, 0.0905, 0.004),
+        (1.298, 0.0950, 0.0790, 0.0780, 0.005),
+        (1.303, 0.0620, 0.0590, 0.0580, 0.005),
+        (1.307, 0.0445, 0.0440, 0.0440, 0.006),
+    ], ring=40)
+    C.shade_smooth(torso)
+    parts.append(C.apply_material(torso, mat["Tee"]))
 
-    torso_hw, torso_hd = 0.170, 0.128
+    collar = C.torus("Collar", (0, 0.006, 1.3055), 0.0450, 0.0052, rot=(0, 0, 0),
+                     major=28, minor=8)
+    collar.scale = (1.0, 0.96, 1.0)
+    parts.append(C.apply_material(collar, mat["Canvas"]))
 
-    # ---- neck ----
-    neck = BC.add_cyl("Neck", (0, 0.004, sh_z - 0.035), (0, 0.004, HEAD_BOTTOM + 0.010),
-                      0.052, 0.049, verts=20)
-    parts.append(set_material(neck, materials["Skin"]))
+    hem = C.torus("Hem", (0, 0, 0.7785), 0.1620, 0.0045, rot=(0, 0, 0), major=34, minor=8)
+    hem.scale = (1.02, 0.72, 1.0)
+    parts.append(C.apply_material(hem, mat["Canvas"]))
 
-    # ---- jacket ----
-    torso = BC.loft("Jacket", BC.smooth_profile([
-        (hem_z,          torso_hw * 1.03, torso_hd * 1.02, 0.0),
-        (hip_z + 0.02,   torso_hw * 1.00, torso_hd * 1.00, 0.0),
-        (waist_z,        torso_hw * 0.97, torso_hd * 0.97, 0.0),
-        (chest_z - 0.05, torso_hw * 0.99, torso_hd * 1.00, -0.003),
-        (chest_z + 0.06, torso_hw * 1.00, torso_hd * 0.99, -0.002),
-        (sh_z - 0.050,   torso_hw * 1.00, torso_hd * 0.98, 0.0),
-        (sh_z - 0.010,   torso_hw * 0.92, torso_hd * 0.95, 0.002),
-        (sh_z + 0.022,   torso_hw * 0.74, torso_hd * 0.80, 0.006),
-        (sh_z + 0.045,   torso_hw * 0.50, torso_hd * 0.56, 0.008),
-    ], n=22), ring=32)
-    parts.append(set_material(torso, materials["Jacket"]))
+    # ---- glowing Z on the chest
+    zc = 0.940
+    front = -0.1130
+    for tag, k, key, depth in (("Outer", 1.00, "ZGlow", 0.0028),
+                               ("Core", 0.86, "ZCore", 0.0042)):
+        parts.append(C.apply_material(
+            C.superellipsoid(f"ZTop_{tag}", (0, front - depth, zc + 0.082),
+                             (0.1250 * k, 0.0035, 0.0190 * k), n=3.0, seg=24, rings=12),
+            mat[key]))
+        parts.append(C.apply_material(
+            C.superellipsoid(f"ZBot_{tag}", (0, front - depth, zc - 0.082),
+                             (0.1250 * k, 0.0035, 0.0190 * k), n=3.0, seg=24, rings=12),
+            mat[key]))
+        parts.append(C.apply_material(
+            C.superellipsoid(f"ZDiag_{tag}", (0, front - depth, zc),
+                             (0.1460 * k, 0.0035, 0.0175 * k), n=3.0, seg=24, rings=12,
+                             rot=(0, math.radians(-44), 0)),
+            mat[key]))
 
-    # ---- shirt: a tapered panel standing proud of the jacket front ----
-    shirt = BC.loft("ShirtFront", BC.smooth_profile([
-        (chest_z - 0.13, 0.022, 0.016, -torso_hd * 0.93),
-        (chest_z - 0.05, 0.036, 0.016, -torso_hd * 0.95),
-        (chest_z + 0.02, 0.044, 0.016, -torso_hd * 0.96),
-        (chest_z + 0.09, 0.042, 0.015, -torso_hd * 0.92),
-        (sh_z + 0.040,   0.028, 0.014, -torso_hd * 0.78),
-    ], n=14), ring=20)
-    parts.append(set_material(shirt, materials["Shirt"]))
-
-    # collar band around the neck, wide enough to be seen above the jacket
-    collar = BC.loft("Collar", [
-        (sh_z + 0.030, 0.071, 0.064, 0.004),
-        (sh_z + 0.062, 0.063, 0.057, 0.004),
-        (sh_z + 0.088, 0.055, 0.050, 0.004),
-    ], ring=22, cap=False)
-    parts.append(set_material(collar, materials["Shirt"]))
-
-    # lapels: thin plates framing the shirt, angled into a V
-    for s_ in (-1, 1):
-        lap = BC.add_sphere(f"Lapel_{'L' if s_ > 0 else 'R'}",
-                            (s_ * 0.072, -torso_hd * 0.90, chest_z + 0.075),
-                            (0.052, 0.026, 0.120), seg=18, ring=12)
-        lap.rotation_euler = (0, math.radians(9 * s_), math.radians(-15 * s_))
-        parts.append(set_material(lap, materials["JacketDark"]))
-
-    # ---- bow tie: the sheet's is wide, nearly the width of the collar ----
-    tie_z = sh_z + 0.038
-    for s_ in (-1, 1):
-        w = BC.add_sphere(f"Bow_{'L' if s_ > 0 else 'R'}",
-                          (s_ * 0.042, -0.064, tie_z), (0.046, 0.017, 0.028),
-                          seg=18, ring=12)
-        w.rotation_euler = (0, 0, math.radians(-10 * s_))
-        parts.append(set_material(w, materials["Tie"]))
-    knot = BC.add_sphere("BowKnot", (0, -0.070, tie_z), (0.015, 0.015, 0.018),
-                         seg=14, ring=10)
-    parts.append(set_material(knot, materials["Tie"]))
-
-    # ---- arms ----
-    for s_, tag in ((1, "L"), (-1, "R")):
-        sh = Vector((s_ * 0.163, 0, sh_z - 0.020))
-        el = Vector((s_ * 0.188, 0.004, sh_z - 0.300))
-        wr = Vector((s_ * 0.196, 0.004, sh_z - 0.565))
-        hd = Vector((s_ * 0.196, 0.004, sh_z - 0.660))
+    # ---- arms
+    for s, tag in ((1, "L"), (-1, "R")):
+        # Measured from the width profile: the widest point of the whole figure is
+        # 236 px at z = 0.99 (the sleeve hem), then the bare arm angles IN to 179 px at
+        # z = 0.83 and the hand disappears into the front pocket.
+        sh = Vector((s * 0.150, 0.0, 1.148))
+        el = Vector((s * 0.206, 0.008, 0.930))
+        wr = Vector((s * 0.162, -0.010, 0.802))
+        hd = Vector((s * 0.132, -0.052, 0.786))
         J[f"sh.{tag}"], J[f"el.{tag}"], J[f"wr.{tag}"], J[f"hd.{tag}"] = sh, el, wr, hd
 
-        parts.append(set_material(
-            BC.add_sphere(f"Deltoid_{tag}", (s_ * 0.166, 0, sh_z - 0.005),
-                          (0.062, 0.058, 0.064), seg=20, ring=14), materials["Jacket"]))
-        arm = BC.loft(f"Sleeve_{tag}", [
-            (wr.z,                        0.029, 0.028, 0),
-            (wr.z + (el.z - wr.z) * 0.30, 0.033, 0.032, 0),
-            (wr.z + (el.z - wr.z) * 0.75, 0.038, 0.037, 0),
-            (el.z,                        0.040, 0.039, 0),
-            (el.z + (sh.z - el.z) * 0.35, 0.045, 0.044, 0),
-            (el.z + (sh.z - el.z) * 0.80, 0.052, 0.050, 0),
-            (sh.z,                        0.056, 0.053, 0),
-        ], ring=20)
-        arm.location.x = (sh.x + el.x) / 2
-        parts.append(set_material(arm, materials["Jacket"]))
+        # The sleeve caps the deltoid: its top is at the shoulder (z 1.15), not at the
+        # collar. Starting it at 1.24 made the shoulders 43 px too wide at the neck.
+        # Sloped, broad shoulders: 0.192 half-width at z 1.24, 0.244 at z 1.09.
+        # A tube's flat end cap is a disc: at the shoulder it sticks out as a triangular
+        # fin. The sleeve is now a rounded stub - small radius at the top, widest at the
+        # deltoid, tapering to the hem.
+        # A tube whose FIRST ring is already wide turns its flat end cap into a triangular
+        # fin above the shoulder - that is exactly the wedge that showed on both sides.
+        # Start inside the torso with a small radius and let it swell at the deltoid.
+        sl = [(s * 0.060, 0.000, 1.246), (s * 0.110, 0.001, 1.226),
+              (s * 0.152, 0.002, 1.178), (s * 0.184, 0.003, 1.110),
+              (s * 0.190, 0.004, 1.045)]
+        sleeve = C.tube(f"Sleeve_{tag}", sl,
+                        [0.020, 0.052, 0.062, 0.058, 0.052], ring=24, samples=4)
+        C.shade_smooth(sleeve)
+        parts.append(C.apply_material(sleeve, mat["Tee"]))
+        # hem band, aligned to the sleeve's own axis instead of a guessed angle
+        d = (Vector(sl[-1]) - Vector(sl[-2])).normalized()
+        parts.append(C.apply_material(
+            C.torus(f"SleeveCuff_{tag}", sl[-1], 0.0535, 0.0036,
+                    rot=(0, math.atan2(d.x, d.z), 0), major=22, minor=6),
+            mat["Canvas"]))
 
-        cuff = BC.add_cyl(f"Cuff_{tag}", wr + Vector((0, 0, 0.022)), wr + Vector((0, 0, -0.002)),
-                          0.031, 0.030, verts=16)
-        parts.append(set_material(cuff, materials["Shirt"]))
+        arm = C.tube(f"Arm_{tag}",
+                     [(s * 0.188, 0.0, 1.070), (s * 0.204, 0.002, 1.000),
+                      (s * 0.196, 0.004, 0.930), (s * 0.172, 0.000, 0.862),
+                      (s * 0.160, -0.006, 0.800)],
+                     [0.0400, 0.0420, 0.0380, 0.0330, 0.0290], ring=20, samples=6)
+        C.shade_smooth(arm)
+        parts.append(C.apply_material(arm, mat["Skin"]))
 
-        # hand: compact palm, short fingers - the first pass grew claws
-        palm = wr + Vector((0, 0, -0.042))
-        parts.append(set_material(BC.add_sphere(f"Palm_{tag}", palm, (0.034, 0.021, 0.041),
-                                                seg=20, ring=14), materials["Skin"]))
-        for i, dx in enumerate((-0.50, -0.17, 0.17, 0.50)):
-            knuck = palm + Vector((s_ * dx * 0.028, -0.002, -0.030))
-            tip = knuck + Vector((s_ * dx * 0.004, 0.001, -0.036))
-            parts.append(set_material(
-                BC.add_cyl(f"Finger{i}_{tag}", knuck, tip, 0.0095, 0.0075, verts=8),
-                materials["Skin"]))
-            parts.append(set_material(
-                BC.add_sphere(f"Knuckle{i}_{tag}", knuck, (0.0085, 0.0085, 0.0085), seg=10, ring=8),
-                materials["Skin"]))
-        th0 = palm + Vector((s_ * 0.024, -0.008, 0.004))
-        th1 = palm + Vector((s_ * 0.038, -0.014, -0.026))
-        parts.append(set_material(BC.add_cyl(f"Thumb_{tag}", th0, th1, 0.010, 0.008, verts=8),
-                                  materials["Skin"]))
+        # ---- hand: a rounded fist tucked at the pocket mouth. The sheet hides both
+        # hands in the pockets; modelling fingers put a claw in front of the thigh.
+        palm_c = wr + Vector((-s * 0.004, 0.004, -0.030))
+        fist = C.sphere(f"Palm_{tag}", palm_c, (0.0205, 0.0205, 0.0270), seg=20, ring=14)
+        C.shade_smooth(fist)
+        parts.append(C.apply_material(fist, mat["Skin"]))
+        thumb = C.sphere(f"Thumb_{tag}", palm_c + Vector((s * 0.014, -0.012, 0.004)),
+                         (0.0090, 0.0105, 0.0125), seg=14, ring=10)
+        C.shade_smooth(thumb)
+        parts.append(C.apply_material(thumb, mat["Skin"]))
 
-    # ---- legs ----
-    for s_, tag in ((1, "L"), (-1, "R")):
-        hip = Vector((s_ * 0.078, 0, hip_z))
-        kn = Vector((s_ * 0.074, 0, knee_z))
-        an = Vector((s_ * 0.072, 0, ankle_z))
+        # watch: left wrist only, on the outside of the cuff, facing front
+        if tag == "L":
+            band = C.torus("WatchBand", (wr.x, wr.y, wr.z + 0.030), 0.0262, 0.0056,
+                           rot=(0, math.radians(2), 0), major=20, minor=7)
+            parts.append(C.apply_material(band, mat["Canvas"]))
+            parts.append(C.apply_material(
+                C.cylinder("WatchCase", (wr.x, wr.y - 0.0290, wr.z + 0.033),
+                           (wr.x, wr.y - 0.0190, wr.z + 0.033), 0.0172, 0.0172, verts=22),
+                mat["Canvas"]))
+            parts.append(C.apply_material(
+                C.cylinder("WatchFace", (wr.x, wr.y - 0.0305, wr.z + 0.033),
+                           (wr.x, wr.y - 0.0288, wr.z + 0.033), 0.0138, 0.0138, verts=22),
+                mat["Iris"]))
+
+    # ---- hips + jeans
+    pelvis = C.egg_loft("Hips", [
+        (0.630, 0.1040, 0.0900, 0.0880, 0.0),
+        (0.660, 0.1220, 0.0980, 0.0960, 0.0),
+        (0.700, 0.1440, 0.1080, 0.1060, 0.0),
+        (0.730, 0.1550, 0.1150, 0.1130, 0.0),
+        (0.770, 0.1540, 0.1140, 0.1120, 0.0),
+        (0.800, 0.1400, 0.1080, 0.1060, 0.0),
+    ], ring=36)
+    C.shade_smooth(pelvis)
+    parts.append(C.apply_material(pelvis, mat["Denim"]))
+
+    # fly seam and back pockets: geometry, because a flat colour shows nothing
+    fly = C.tube("Fly", [(0, -0.1160, 0.700), (0, -0.1180, 0.670), (0.006, -0.1150, 0.646)],
+                 [0.0022, 0.0022, 0.0018], ring=6, samples=4)
+    parts.append(C.apply_material(fly, mat["Canvas"]))
+    # Front pocket openings: two short stitched lines, angled, in a denim-stitch tone.
+    for s in (-1, 1):
+        pts = [(s * 0.030, -0.1150, 0.742), (s * 0.062, -0.1140, 0.734),
+               (s * 0.092, -0.1075, 0.726)]
+        seam = C.tube(f"PocketSeam_{s}", pts, [0.0022, 0.0024, 0.0018], ring=6, samples=4)
+        parts.append(C.apply_material(seam, mat["Cuff"]))
+
+    for s, tag in ((1, "L"), (-1, "R")):
+        hip = Vector((s * 0.0985, 0.0, 0.734))
+        kn = Vector((s * 0.1075, 0.002, 0.446))
+        an = Vector((s * 0.1280, 0.006, 0.150))
         J[f"hip.{tag}"], J[f"kn.{tag}"], J[f"an.{tag}"] = hip, kn, an
-        J[f"toe.{tag}"] = Vector((an.x, -0.175, 0.025))
+        J[f"toe.{tag}"] = Vector((an.x, -0.180, 0.030))
 
-        leg_ob = BC.loft(f"Leg_{tag}", [
-            (an.z,                         0.037, 0.039, 0),
-            (an.z + (kn.z - an.z) * 0.30, 0.042, 0.044, 0),
-            (an.z + (kn.z - an.z) * 0.75, 0.048, 0.050, 0),
-            (kn.z,                         0.051, 0.053, 0),
-            (kn.z + (hip.z - kn.z) * 0.35, 0.058, 0.060, 0),
-            (kn.z + (hip.z - kn.z) * 0.75, 0.067, 0.069, 0),
-            (hip.z + 0.030,                0.072, 0.074, 0),
-        ], ring=20)
-        leg_ob.location.x = (hip.x + kn.x) / 2
-        parts.append(set_material(leg_ob, materials["Trousers"]))
+        leg = C.tube(f"Leg_{tag}",
+                     [(s * 0.0990, 0.000, 0.790), (s * 0.1010, 0.000, 0.700),
+                      (s * 0.1040, 0.001, 0.600), (s * 0.1065, 0.002, 0.500),
+                      (s * 0.1075, 0.002, 0.446), (s * 0.1160, 0.004, 0.330),
+                      (s * 0.1265, 0.006, 0.232)],
+                     [0.0790, 0.0745, 0.0690, 0.0625, 0.0595, 0.0545, 0.0475],
+                     ring=22, samples=5)
+        C.shade_smooth(leg)
+        parts.append(C.apply_material(leg, mat["Denim"]))
 
-        shoe = BC.loft(f"Shoe_{tag}", [
-            (0.000, 0.038, 0.112, -0.044),
-            (0.018, 0.045, 0.126, -0.048),
-            (0.042, 0.048, 0.120, -0.042),
-            (0.072, 0.044, 0.094, -0.024),
-            (0.100, 0.038, 0.064, -0.008),
-            (0.116, 0.033, 0.046, 0.000),
-        ], ring=22)
-        shoe.location.x = an.x
-        parts.append(set_material(shoe, materials["Shoe"]))
+        cuff = C.tube(f"JeanCuff_{tag}",
+                      [(s * 0.1265, 0.006, 0.246), (s * 0.1272, 0.006, 0.192),
+                       (s * 0.1280, 0.006, 0.158)],
+                      [0.0500, 0.0520, 0.0500], ring=20, samples=3)
+        C.shade_smooth(cuff)
+        parts.append(C.apply_material(cuff, mat["Cuff"]))
 
-    return dict(torso_hw=torso_hw, torso_hd=torso_hd, sh_half=0.163,
-                chest_z=chest_z, hip_z=hip_z)
+        build_shoe(mat, parts, an, s, tag)
+
+
+def build_shoe(mat, parts, ankle, s, tag):
+    """Chunky black canvas high-top: white sole, white toe cap, laces."""
+    ax = ankle.x
+    # Toes out. A negative angle on the +x side turned the toes inward.
+    ang = math.radians(30 * s)
+    ca, sa = math.cos(ang), math.sin(ang)
+
+    def P(y, zz):
+        """A point in the shoe's frame: y forward is negative, rotated outward."""
+        return (ax - y * sa, y * ca, zz)
+
+    sole = C.superellipsoid(f"Sole_{tag}", P(-0.048, 0.0225), (0.0575, 0.1450, 0.0230),
+                            n=3.8, seg=30, rings=14, rot=(0, 0, ang))
+    C.shade_smooth(sole)
+    parts.append(C.apply_material(sole, mat["Sole"]))
+    stripe = C.superellipsoid(f"SoleStripe_{tag}", P(-0.048, 0.0340),
+                              (0.0525, 0.1450, 0.0050), n=3.8, seg=26, rings=10,
+                              rot=(0, 0, ang))
+    parts.append(C.apply_material(stripe, mat["Canvas"]))
+
+    upper = C.tube(f"ShoeUpper_{tag}",
+                   [P(0.072, 0.058), P(0.040, 0.064), P(-0.010, 0.072),
+                    P(-0.070, 0.072), P(-0.122, 0.064), P(-0.158, 0.048)],
+                   [0.0470, 0.0500, 0.0520, 0.0505, 0.0440, 0.0325],
+                   ring=20, samples=5, squash=[(1.0, 0.94)] * 6)
+    C.shade_smooth(upper)
+    parts.append(C.apply_material(upper, mat["Canvas"]))
+
+    collar = C.tube(f"ShoeCollar_{tag}", [P(0.030, 0.080), P(0.028, 0.114), P(0.026, 0.150)],
+                    [0.0570, 0.0562, 0.0550], ring=18, samples=3)
+    C.shade_smooth(collar)
+    parts.append(C.apply_material(collar, mat["Canvas"]))
+
+    toe = C.superellipsoid(f"ToeCap_{tag}", P(-0.148, 0.0450), (0.0420, 0.0345, 0.0300),
+                           n=2.6, seg=22, rings=14, rot=(0, 0, ang))
+    C.shade_smooth(toe)
+    parts.append(C.apply_material(toe, mat["Sole"]))
+
+    for i in range(5):
+        yy = -0.012 - i * 0.0175
+        zz = 0.0850 - i * 0.0045
+        a = P(yy, zz)
+        lace = C.cylinder(f"Lace{i}_{tag}", (a[0] - 0.0255, a[1], a[2]),
+                          (a[0] + 0.0255, a[1], a[2]), 0.0030, 0.0030, verts=8)
+        lace.rotation_euler = (0, 0, ang)
+        parts.append(C.apply_material(lace, mat["Sole"]))
+
+    tongue = C.superellipsoid(f"Tongue_{tag}", P(-0.060, 0.0880), (0.0245, 0.0340, 0.0090),
+                              n=3.0, seg=16, rings=10, rot=(math.radians(-18), 0, ang))
+    parts.append(C.apply_material(tongue, mat["Canvas"]))
 
 
 # --------------------------------------------------------------------------- main
@@ -499,36 +697,36 @@ def main():
     ap.add_argument("--report", required=True)
     a = ap.parse_args()
 
-    report = {"status": "running", "steps": [], "character": "Professor Z",
-              "source": "character sheet front view, measured", "warnings": []}
+    report = {"status": "running", "character": "Professor Z",
+              "source": "turnaround sheet (front / side / back), measured", "warnings": []}
     BC.reset()
     try:
         bpy.ops.preferences.addon_enable(module="cycles")
     except Exception:
         pass
 
-    materials = make_materials()
-
+    mat = materials()
     head_parts, body_parts = [], []
-    skull = build_skull(materials)
-    head_parts.append(skull)
-    face = build_face(materials, head_parts)
-    build_hair(materials, head_parts)
     J = {}
-    geo = build_body(materials, body_parts, J)
 
-    # ---- island split: arms are their own shell, as in the shared pipeline ----
+    build_head(mat, head_parts)
+    build_ears(mat, head_parts)
+    build_face(mat, head_parts)
+    curls = build_hair(mat, head_parts)
+    build_body(mat, body_parts, J)
+
+    report["curls"] = curls
+    report["landmarks_m"] = {k: round(v, 4) for k, v in Z.items()}
+
     def is_arm(o):
-        return o.name.startswith(("Deltoid", "Sleeve", "Cuff",
-                                  "Palm", "Finger", "Knuckle", "Thumb"))
+        return o.name.startswith(("Sleeve", "Arm_", "Palm_", "Finger", "Thumb_", "Watch"))
 
-    core = [skull] + body_parts
-    arms = {"L": [], "R": []}
-    for o in head_parts[1:] + body_parts:
+    core, arms = [], {"L": [], "R": []}
+    for o in body_parts + head_parts:
         if is_arm(o):
             arms["L" if o.matrix_world.translation.x > 0 else "R"].append(o)
-
-    core = [o for o in ([skull] + head_parts[1:] + body_parts) if not is_arm(o)]
+        else:
+            core.append(o)
 
     def join_group(objs, name):
         bpy.ops.object.select_all(action="DESELECT")
@@ -541,24 +739,14 @@ def main():
         return ob
 
     core_ob = join_group(core, "PZ_core")
-    arm_ob = {}
-    for side in ("L", "R"):
-        if arms[side]:
-            arm_ob[side] = join_group(arms[side], f"PZ_arm_{side}")
+    arm_ob = {side: join_group(arms[side], f"PZ_arm_{side}") for side in ("L", "R")}
 
-    # Join arms into the core one at a time so the vertex ranges are deterministic:
-    # a join appends the other objects' vertices after the active object's.
-    island_ranges, off = [], 0
-    n_core = len(core_ob.data.vertices)
-    island_ranges.append(("core", 0, n_core))
-    off = n_core
+    island_ranges = [("core", 0, len(core_ob.data.vertices))]
+    off = len(core_ob.data.vertices)
     for side in ("L", "R"):
-        ob = arm_ob.get(side)
-        if not ob:
-            continue
-        n = len(ob.data.vertices)
+        n = len(arm_ob[side].data.vertices)
         bpy.ops.object.select_all(action="DESELECT")
-        ob.select_set(True)
+        arm_ob[side].select_set(True)
         core_ob.select_set(True)
         bpy.context.view_layer.objects.active = core_ob
         bpy.ops.object.join()
@@ -574,49 +762,41 @@ def main():
     bpy.ops.mesh.normals_make_consistent(inside=False)
     bpy.ops.object.mode_set(mode="OBJECT")
 
-    # feet on the floor
     zmin = min(v.co.z for v in body.data.vertices)
     for v in body.data.vertices:
         v.co.z -= zmin
-    for k in J:
-        J[k] = J[k] + Vector((0, 0, -zmin))
+    J = {k: v + Vector((0, 0, -zmin)) for k, v in J.items()}
     cz = HEAD_CZ - zmin
 
-    report["face"] = {k: round(v, 4) for k, v in face.items()}
-    report["geo"] = {k: round(v, 4) for k, v in geo.items()}
-    report["islands"] = island_ranges
-
-    M = dict(head_h=HH, sh_w=geo["sh_half"] * 2, hip_y=J["hip.L"].z,
-             chest_z=geo["chest_z"] - zmin, neck_z=zf(F["neck_base"]) - zmin,
-             shoulder_z=zf(F["shoulder"]) - zmin, leg_len=J["hip.L"].z,
-             head_center_z=cz, HD=dict(hw=HW, hd=HD, cz=cz, head_h=HH),
-             joints=J, arm_len=0.30, silhouette=[], island_ranges=island_ranges,
-             part_labels=[])
+    M = dict(head_h=HEAD_HH * 2, sh_w=0.28, hip_y=J["hip.L"].z, chest_z=Z["chest"] - zmin,
+             neck_z=Z["neck"] - zmin, shoulder_z=Z["shoulder_top"] - zmin,
+             leg_len=J["hip.L"].z, head_center_z=cz, arm_len=0.30,
+             HD=dict(hw=HEAD_HW, hd=HEAD_HD, cz=cz, head_h=HEAD_HH * 2),
+             joints=J, island_ranges=island_ranges, part_labels=[], silhouette=[])
 
     arm = BC.build_armature(M, report)
     BC.build_fingers(arm, M, report)
-    BC.add_shape_keys(body, M["HD"], report, landmarks={
-        "mouth_z": (face["mouth_z"] - cz) / HH,
+    BC.add_shape_keys(body, dict(M["HD"]), report, landmarks={
+        "mouth_z": (Z["mouth"] - cz) / (HEAD_HH * 2),
         "mouth_w": 0.34,
-        "brow_z": (face["eye_z"] + face["eye_r"] * 1.62 - cz) / HH,
-        "brow_w": 0.34,
-        "brow_x": face["eye_x"] / HH,
-        "eye_z": (face["eye_z"] - cz) / HH,
-        "eye_x": face["eye_x"] / HH,
-        "lid_z": (face["eye_z"] - cz) / HH,
-        "jaw_top": (face["mouth_z"] - cz) / HH + 0.07,
-        "jaw_y": 0.10,
+        "brow_z": (Z["brow"] - cz) / (HEAD_HH * 2),
+        "brow_w": 0.36,
+        "brow_x": 0.0420 / (HEAD_HH * 2),
+        "eye_z": (Z["eye"] - cz) / (HEAD_HH * 2),
+        "eye_x": EYE_X / (HEAD_HH * 2),
+        "lid_z": (Z["eye"] - cz) / (HEAD_HH * 2),
+        "jaw_top": (Z["mouth"] - 0.020 - cz) / (HEAD_HH * 2),
+        "jaw_y": 0.30,
     })
     body.vertex_groups.clear()
     BC.weight_by_anatomy(body, arm, M, report, island_ranges=island_ranges)
 
     report["body"] = {
         "verts": len(body.data.vertices), "polys": len(body.data.polygons),
-        "dimensions": [round(v, 3) for v in body.dimensions],
+        "tris": sum(len(p.vertices) - 2 for p in body.data.polygons),
         "height_m": round(max(v.co.z for v in body.data.vertices), 3),
-        "head_unit_m": round(HH, 4),
+        "dimensions": [round(v, 3) for v in body.dimensions],
     }
-    report["materials"] = sorted({m.name for m in body.data.materials if m})
     report["totals"] = {
         "objects": len(bpy.data.objects),
         "verts": sum(len(o.data.vertices) for o in bpy.data.objects if o.type == "MESH"),
@@ -628,13 +808,9 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=str(out))
     report["status"] = "ok"
-    report["blend"] = str(out)
-    report["blend_bytes"] = out.stat().st_size
     pathlib.Path(a.report).write_text(json.dumps(report, indent=2))
-    print(json.dumps({"status": "ok", "totals": report["totals"],
-                      "height_m": report["body"]["height_m"],
-                      "materials": report["materials"],
-                      "dead_morphs": report.get("shape_key_dead")}, indent=2))
+    print(json.dumps({"status": "ok", "body": report["body"], "totals": report["totals"],
+                      "curls": curls, "dead_morphs": report.get("shape_key_dead")}, indent=2))
 
 
 if __name__ == "__main__":

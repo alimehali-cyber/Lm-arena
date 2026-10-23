@@ -43,9 +43,9 @@ def key_light(target_z):
     for name, loc, energy, size, col in [
         # 900 W clipped every skin highlight to white and the face read as a blank
         # mask. These values keep the sRGB albedo visible on the mid-tones.
-        ("Key", (2.6, -3.2, target_z * 1.55), 340, 3.0, (1.0, 0.96, 0.90)),
-        ("Fill", (-3.0, -2.2, target_z * 1.05), 110, 4.0, (0.82, 0.88, 1.0)),
-        ("Rim", (-1.6, 3.4, target_z * 1.75), 260, 2.5, (0.80, 0.88, 1.0)),
+        ("Key", (2.2, -3.4, target_z * 1.62), 300, 2.2, (1.0, 0.96, 0.90)),
+        ("Fill", (-3.0, -2.2, target_z * 1.05), 45, 4.0, (0.82, 0.88, 1.0)),
+        ("Rim", (-1.6, 3.4, target_z * 1.75), 130, 2.5, (0.80, 0.88, 1.0)),
     ]:
         d = bpy.data.lights.new(name, "AREA")
         d.energy = energy

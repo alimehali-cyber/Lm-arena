@@ -57,6 +57,22 @@ $AVATAR_BLENDER_PY blender/bake_hero_sprite.py \
 # app/src/main/res/drawable-nodpi/hero_profz_idle.png
 ```
 
+Two measurement tools exist so that "it looks close" is never the acceptance test:
+
+```bash
+# silhouette agreement against the sheet, row by row (IoU + worst rows + overlay PNG)
+.venv/bin/python tools/compare_sheet.py --render renders/profz/ortho/ortho_front.png \
+    --view front --out /tmp/overlay_front.png
+
+# the head at exactly the sheet's 468.82 px/m, for a 1:1 face comparison
+.venv/bin/python tools/render_head_ab.py --blend working/profz/character.blend \
+    --out renders/profz/head/head_ab.png
+```
+
+`compare_sheet.py` aligns by best silhouette overlap, not by bounding box: a single stray
+pixel or one limb drawn a few pixels wider shifts the whole figure and every row then
+reports the same bias.
+
 The measured fractions that make the sprite stand at the right height in the scene are in
 `HeroCharacterSprite.kt` (body = 86.25 % of the frame, soles at 94.17 %).
 
