@@ -228,7 +228,7 @@ class Body:
     cuff_top = 0.108
     knee = 0.245
     crotch = 0.386
-    shirt_hem = 0.459
+    shirt_hem = 0.4340
     hip = 0.478
     waistband = 0.478
     waist = 0.560
@@ -243,14 +243,14 @@ class Body:
     mouth = 0.7955
     nose = 0.8150
     eye = 0.8420
-    brow = 0.8600
+    brow = 0.8790
     ear_top = 0.8660
     hairline = 0.8780
     skull_top = 0.9000
     hair_top = 0.998
 
     # Half-widths.
-    head_half = 0.0745
+    head_half = 0.0775
     head_front = 0.0680
     head_back = 0.0730
     neck_half = 0.0400
@@ -258,10 +258,10 @@ class Body:
     chest_half = 0.0920
     waist_half = 0.0925
     hip_half = 0.0880
-    thigh_half = 0.0545
-    knee_half = 0.0425
+    thigh_half = 0.0405
+    knee_half = 0.0360
     shin_half = 0.0335
-    leg_centre = 0.0518
+    leg_centre = 0.0570
 
     # Depths.
     chest_depth = 0.0700
@@ -300,12 +300,15 @@ def build_character(spec: CharacterSpec) -> Avatar:
     # --- legs and jeans ---------------------------------------------------------------------
     for label, sign in (("L", 1.0), ("R", -1.0)):
         hip_x = sign * H(b.leg_centre)
+        # The legs splay a little on the way down, the way they do in the sheet: they meet under the
+        # hem and the daylight between them widens toward the ankles. A constant gap reads as a slot
+        # cut through the figure; a widening one reads as two legs.
         leg = [
-            (np.array([hip_x, H(b.crotch + 0.084), 0.0]), H(b.thigh_half * 0.94), H(b.thigh_half * 0.92)),
-            (np.array([hip_x, H(b.crotch + 0.004), H(0.002)]), H(b.thigh_half), H(b.thigh_half * 0.97)),
-            (np.array([hip_x * 0.99, H(b.knee + 0.045), H(0.004)]), H(b.knee_half + 0.003), H(b.knee_half + 0.002)),
-            (np.array([hip_x * 0.98, H(b.knee), H(0.002)]), H(b.knee_half), H(b.knee_half * 0.97)),
-            (np.array([hip_x * 0.97, H(b.cuff_top + 0.035), 0.0]), H(b.shin_half), H(b.shin_half * 0.95)),
+            (np.array([hip_x * 0.86, H(b.crotch + 0.084), 0.0]), H(b.thigh_half * 0.94), H(b.thigh_half * 0.92)),
+            (np.array([hip_x * 0.90, H(b.crotch + 0.004), H(0.002)]), H(b.thigh_half), H(b.thigh_half * 0.97)),
+            (np.array([hip_x * 0.97, H(b.knee + 0.045), H(0.004)]), H(b.knee_half + 0.003), H(b.knee_half + 0.002)),
+            (np.array([hip_x * 0.99, H(b.knee), H(0.002)]), H(b.knee_half), H(b.knee_half * 0.97)),
+            (np.array([hip_x * 1.04, H(b.cuff_top + 0.035), 0.0]), H(b.shin_half), H(b.shin_half * 0.95)),
         ]
         builder.add_tube(
             [station[0] for station in leg],
@@ -321,9 +324,9 @@ def build_character(spec: CharacterSpec) -> Avatar:
         if features.rolled_cuffs:
             builder.add_tube(
                 [
-                    np.array([hip_x * 0.97, H(b.cuff_top + 0.028), 0.0]),
-                    np.array([hip_x * 0.97, H(b.cuff_top + 0.008), 0.0]),
-                    np.array([hip_x * 0.97, H(b.cuff_top - 0.014), 0.0]),
+                    np.array([hip_x * 1.04, H(b.cuff_top + 0.028), 0.0]),
+                    np.array([hip_x * 1.04, H(b.cuff_top + 0.008), 0.0]),
+                    np.array([hip_x * 1.04, H(b.cuff_top - 0.014), 0.0]),
                 ],
                 [H(b.shin_half + 0.001), H(b.shin_half + 0.007), H(b.shin_half + 0.004)],
                 [H(b.shin_half + 0.001), H(b.shin_half + 0.006), H(b.shin_half + 0.003)],
@@ -337,9 +340,9 @@ def build_character(spec: CharacterSpec) -> Avatar:
         # ends in mid-air and the figure appears to float above its own shoes.
         builder.add_tube(
             [
-                np.array([hip_x * 0.97, H(b.cuff_top - 0.006), 0.0]),
-                np.array([hip_x * 0.97, H(0.090), 0.0]),
-                np.array([hip_x * 0.97, H(0.070), -H(0.002)]),
+                np.array([hip_x * 1.04, H(b.cuff_top - 0.006), 0.0]),
+                np.array([hip_x * 1.04, H(0.090), 0.0]),
+                np.array([hip_x * 1.04, H(0.070), -H(0.002)]),
             ],
             [H(b.shin_half * 0.84), H(b.shin_half * 0.80), H(b.shin_half * 0.78)],
             [H(b.shin_half * 0.82), H(b.shin_half * 0.78), H(b.shin_half * 0.80)],
@@ -350,10 +353,28 @@ def build_character(spec: CharacterSpec) -> Avatar:
             cap_end=False,
         )
         if features.sneakers:
-            build_sneaker(builder, palette, H, hip_x * 0.97, label, yaw=sign * math.radians(24.0))
+            build_sneaker(builder, palette, H, hip_x * 1.04, label, yaw=sign * math.radians(14.0))
 
     # (No separate seat: the thighs meet above the crotch and the tee's hem is closed, so a seat
     # layer here could only show as a lighter wedge between the legs.)
+
+    # The crotch. The sheet's legs separate below the seat, so something is visible through the gap
+    # they leave — and it has to be shade, not skin, and quieter than the jeans around it, or it reads
+    # as a patch. Its front sits well behind the thighs, which is where the shadow actually falls.
+    builder.add_loft(
+        [
+            (np.array([0.0, H(0.4780), 0.0]), H(0.0740), H(0.0230), H(0.0285), 0.80),
+            (np.array([0.0, H(0.4600), 0.0]), H(0.0755), H(0.0235), H(0.0290), 0.80),
+            (np.array([0.0, H(0.4400), 0.0]), H(0.0690), H(0.0225), H(0.0275), 0.82),
+            (np.array([0.0, H(0.4220), 0.0]), H(0.0560), H(0.0205), H(0.0245), 0.84),
+            (np.array([0.0, H(0.4080), H(0.001)]), H(0.0380), H(0.0170), H(0.0200), 0.86),
+        ],
+        jeans_dark,
+        ["hips", "thigh.L", "thigh.R"],
+        segments=18,
+        cap_start=True,
+        cap_end=True,
+    )
 
     # The waistband, a shade darker and a millimetre proud of the seat.
     builder.add_loft(
@@ -382,8 +403,8 @@ def build_character(spec: CharacterSpec) -> Avatar:
 
     # --- torso: the tee -----------------------------------------------------------------------
     tee = [
-        (b.shirt_hem - 0.002, 0.0955, 0.0715, 0.0720, 0.84),
-        (b.shirt_hem + 0.020, 0.0952, 0.0712, 0.0718, 0.84),
+        (b.shirt_hem - 0.002, 0.0958, 0.0718, 0.0724, 0.84),
+        (b.shirt_hem + 0.020, 0.0954, 0.0714, 0.0720, 0.84),
         (b.waist, 0.0938, 0.0700, 0.0706, 0.84),
         (b.waist + 0.035, 0.0940, 0.0702, 0.0710, 0.84),
         (b.chest, 0.0946, 0.0706, 0.0712, 0.84),
@@ -491,11 +512,11 @@ def build_sneaker(builder: MeshBuilder, palette, H, ankle_x: float, label: str, 
     # every angle. It is the value cue that keeps a black shoe off a dark ground.
     builder.add_loft(
         [
-            ring(0.0000, 0.0290, 0.0690, 0.0545, 0.66),
-            ring(0.0055, 0.0345, 0.0830, 0.0635, 0.60),
-            ring(0.0155, 0.0370, 0.0865, 0.0660, 0.56),
-            ring(0.0270, 0.0366, 0.0855, 0.0650, 0.56),
-            ring(0.0335, 0.0344, 0.0822, 0.0622, 0.58),
+            ring(0.0000, 0.0290, 0.0700, 0.0548, 0.66),
+            ring(0.0030, 0.0330, 0.0808, 0.0618, 0.60),
+            ring(0.0085, 0.0340, 0.0832, 0.0636, 0.56),
+            ring(0.0148, 0.0336, 0.0824, 0.0626, 0.56),
+            ring(0.0186, 0.0322, 0.0800, 0.0604, 0.58),
         ],
         sole,
         bones,
@@ -506,7 +527,7 @@ def build_sneaker(builder: MeshBuilder, palette, H, ankle_x: float, label: str, 
     # The canvas upper, from the sole line up over the instep to the ankle collar.
     builder.add_loft(
         [
-            ring(0.0328, 0.0290, 0.0770, 0.0582, 0.60),
+            ring(0.0182, 0.0296, 0.0796, 0.0600, 0.60),
             ring(0.0460, 0.0296, 0.0735, 0.0574, 0.62),
             ring(0.0600, 0.0292, 0.0645, 0.0546, 0.64),
             ring(0.0760, 0.0284, 0.0495, 0.0502, 0.68),
@@ -523,13 +544,13 @@ def build_sneaker(builder: MeshBuilder, palette, H, ankle_x: float, label: str, 
     # only a little way back, so it hugs the toe instead of swelling off it.
     builder.add_loft(
         [
-            ring(0.0000, 0.0345, 0.0850, 0.0360, 0.62),
-            ring(0.0150, 0.0365, 0.0868, 0.0360, 0.58),
-            ring(0.0305, 0.0362, 0.0862, 0.0330, 0.58),
-            ring(0.0420, 0.0348, 0.0842, 0.0268, 0.60),
-            ring(0.0515, 0.0324, 0.0776, 0.0205, 0.66),
-            ring(0.0585, 0.0286, 0.0686, 0.0158, 0.72),
-            ring(0.0630, 0.0232, 0.0596, 0.0124, 0.80),
+            ring(0.0000, 0.0302, 0.0812, 0.0330, 0.62),
+            ring(0.0090, 0.0312, 0.0824, 0.0330, 0.58),
+            ring(0.0180, 0.0310, 0.0818, 0.0300, 0.58),
+            ring(0.0260, 0.0300, 0.0800, 0.0250, 0.60),
+            ring(0.0325, 0.0280, 0.0750, 0.0200, 0.66),
+            ring(0.0378, 0.0252, 0.0678, 0.0155, 0.72),
+            ring(0.0412, 0.0206, 0.0598, 0.0120, 0.80),
         ],
         sole,
         bones,
@@ -538,19 +559,38 @@ def build_sneaker(builder: MeshBuilder, palette, H, ankle_x: float, label: str, 
         cap_end=False,
         shade=0.99,
     )
+    # The instep's own front profile, so the lacing is laid *on* the shoe instead of buried in it.
+    instep = [(0.0182, 0.0796), (0.0460, 0.0735), (0.0600, 0.0645), (0.0760, 0.0495),
+              (0.0910, 0.0325), (0.1055, 0.0210)]
+
+    def front_of(y_frac: float) -> float:
+        for (y0, z0), (y1, z1) in zip(instep, instep[1:]):
+            if y0 <= y_frac <= y1:
+                mix = (y_frac - y0) / (y1 - y0)
+                return z0 + (z1 - z0) * mix
+        return instep[-1][1]
+
     # Tongue, just proud of the lacing.
-    add_box(builder, np.array([ankle_x, H(0.0790), zoff + H(0.0262)]), (H(0.0140), H(0.0195), H(0.0062)), shoe, bones)
+    tongue_y = 0.0855
+    add_box(
+        builder,
+        np.array([ankle_x, H(tongue_y), zoff + H(front_of(tongue_y)) + H(0.0016)]),
+        (H(0.0132), H(0.0140), H(0.0042)),
+        shoe,
+        bones,
+    )
     # Four criss-crossed laces climbing the instep.
     for i in range(4):
         t = i / 3.0
-        y = H(0.0530 + t * 0.0385)
-        z = zoff + H(0.0520 - t * 0.0300)
-        half = H(0.0112 - t * 0.0010)
+        y_frac = 0.0500 + t * 0.0300
+        y = H(y_frac)
+        z = zoff + H(front_of(y_frac)) + H(0.0022)
+        half = H(0.0108 - t * 0.0014)
         for side in (-1.0, 1.0):
             add_box(
                 builder,
-                np.array([ankle_x, y, z + H(0.0022)]),
-                (half, H(0.0018), H(0.0018)),
+                np.array([ankle_x, y, z]),
+                (half, H(0.0017), H(0.0016)),
                 lace,
                 bones,
                 roll=side * 0.46,
@@ -851,75 +891,77 @@ class HeadGeometry:
         return self.H(0.0335)
 
     def build_eyes(self, builder, palette) -> None:
-        """A big, calm eye: a white almond, a wide brown iris, a dark pupil and one glint.
+        """A big calm almond, iris nearly filling it, and a heavy upper lash.
 
-        Measured off the sheet: each lens is nearly half the head's width, and the eye inside it
-        almost fills the glass. That scale is what makes the face read as a character rather than a
-        mannequin, so the eye is built large and set shallow into the socket.
+        The eye is a *flat* lens set into the socket, not a ball on the face: anything with depth at
+        this scale swells, and a sclera that shows all the way round the iris reads as startled. So
+        the white is a shallow almond, the iris covers most of its height, and the lash line — thick,
+        dark, curving down at the outer corner — is what gives the eye its shape.
         """
         H = self.H
         eye_y = self.eye_y
         for sign in (-1.0, 1.0):
             x = sign * self.eye_x
             front = self.surface(eye_y, x)
-            centre = np.array([x, eye_y, front - H(0.0022)])
-            # The white of the eye, a shallow lens set into the socket.
+            centre = np.array([x, eye_y, front + H(0.0010)])
+            # The white: shallow and wide, its top third covered by the lid.
             builder.add_ellipsoid(
                 centre,
-                (H(0.0200), H(0.0132), H(0.0052)),
+                (H(0.0180), H(0.0122), H(0.0022)),
                 palette["eye_white"],
                 ["head"],
                 rings=8,
-                segments=18,
+                segments=20,
             )
-            iris = centre + np.array([-sign * H(0.0006), H(0.0004), H(0.0034)])
+            # The iris fills most of the opening, sitting proud of the white by a millimetre.
+            iris = centre + np.array([-sign * H(0.0006), H(0.0002), H(0.0012)])
             builder.add_ellipsoid(
                 iris,
-                (H(0.0122), H(0.0122), H(0.0022)),
+                (H(0.0104), H(0.0106), H(0.0016)),
                 palette["iris"],
                 ["head"],
                 rings=8,
                 segments=18,
             )
             builder.add_ellipsoid(
-                iris + np.array([0.0, 0.0, H(0.0012)]),
-                (H(0.0058), H(0.0058), H(0.0014)),
+                iris + np.array([0.0, 0.0, H(0.0010)]),
+                (H(0.0050), H(0.0051), H(0.0010)),
                 palette["pupil"],
                 ["head"],
                 rings=6,
                 segments=12,
             )
             builder.add_ellipsoid(
-                iris + np.array([-sign * H(0.0034), H(0.0038), H(0.0016)]),
-                (H(0.0024), H(0.0025), H(0.0010)),
+                iris + np.array([-sign * H(0.0032), H(0.0036), H(0.0014)]),
+                (H(0.0022), H(0.0023), H(0.0008)),
                 (1.0, 0.99, 0.97),
                 ["head"],
                 rings=4,
                 segments=8,
             )
-            # The upper lid: a thin skin crease over the top of the eye, and the lash line that gives
-            # the eye its shape. No mass: at this size a lid big enough to cover the eye swells.
-            arc = []
-            for i in range(7):
-                t = (i - 3) / 3.0
-                ax = x + sign * t * H(0.0205)
-                ay = eye_y + H(0.0112) * (1.0 - 0.22 * t * t)
-                arc.append(np.array([ax, ay, self.surface(ay, ax) - H(0.0012)]))
+            # The upper lid: a band of skin that comes down over the top of the white, so the eye is
+            # an almond rather than an oval, and its dark lower edge is the lash line.
+            lid = []
+            for i in range(9):
+                t = (i - 4) / 4.0
+                ax = x + sign * t * H(0.0192)
+                ay = eye_y + H(0.0092) * (1.0 - 0.34 * t * t)
+                lid.append(np.array([ax, ay, self.surface(ay, ax) + H(0.0016)]))
             builder.add_tube(
-                arc,
-                [H(0.0012), H(0.0016), H(0.0019), H(0.0020), H(0.0019), H(0.0016), H(0.0012)],
-                [H(0.0011), H(0.0014), H(0.0016), H(0.0017), H(0.0016), H(0.0014), H(0.0011)],
+                lid,
+                [H(0.0012), H(0.0024), H(0.0034), H(0.0040), H(0.0042), H(0.0040), H(0.0034), H(0.0024), H(0.0012)],
+                [H(0.0010), H(0.0018), H(0.0024), H(0.0028), H(0.0029), H(0.0028), H(0.0024), H(0.0018), H(0.0010)],
                 palette["brow"],
                 ["head"],
-                segments=6,
+                segments=7,
                 cap_start=False,
                 cap_end=False,
             )
             # A soft crease under the eye: one pale line, which is all a stylised face gets.
             add_box(
                 builder,
-                centre + np.array([0.0, -H(0.0148), H(0.0018)]),
-                (H(0.0150), H(0.0008), H(0.0010)),
+                np.array([x, eye_y - H(0.0148), self.surface(eye_y - H(0.0148), x) + H(0.0012)]),
+                (H(0.0140), H(0.0008), H(0.0010)),
                 palette["skin_shadow"],
                 ["head"],
                 shade=1.05,
@@ -937,7 +979,7 @@ class HeadGeometry:
             for t in (0.0, 0.28, 0.55, 0.80, 1.0):
                 bx = sign * H(0.0075 + t * 0.0385)
                 by = brow_y + H(0.0016) * math.sin(t * math.pi) - H(0.0032) * t
-                stations.append(np.array([bx, by, self.surface(by, bx) - H(0.0012)]))
+                stations.append(np.array([bx, by, self.surface(by, bx) + H(0.0012)]))
             builder.add_tube(
                 stations,
                 [H(0.0064), H(0.0068), H(0.0058), H(0.0046), H(0.0028)],
@@ -1001,29 +1043,27 @@ class HeadGeometry:
         """
         H = self.H
         mouth_y = self.H(self.b.mouth)
-        # A closed smile: the line rises at the corners, and the middle of the lower lip is the
-        # lowest point of the mouth. Two arcs, not one straight dash.
-        points = []
-        for i in range(11):
-            t = (i - 5) / 5.0
-            x = t * H(0.0215)
-            y = mouth_y - H(0.0036) * (1.0 - t * t) + H(0.0062) * (t * t * t)
-            points.append(np.array([x, y, self.surface(y, x) - H(0.0022)]))
-        builder.add_tube(
-            points,
-            [H(0.0019)] * 11,
-            [H(0.0015)] * 11,
-            palette["mouth"],
-            ["head"],
-            segments=6,
-            cap_start=True,
-            cap_end=True,
-            shade=0.92,
-        )
+        # A closed smile. The line is drawn as overlapping beads: a lofted tube along a shallow arc
+        # collapses into a lump at this radius, while beads keep the width and taper into the corners.
+        count = 19
+        for i in range(count):
+            t = (i - (count - 1) / 2.0) / ((count - 1) / 2.0)
+            x = t * H(0.0230)
+            y = mouth_y + H(0.0062) * (t * t) - H(0.0018) * (1.0 - t * t)
+            taper = 1.0 - 0.55 * abs(t) ** 2.4
+            builder.add_ellipsoid(
+                np.array([x, y, self.surface(y, x) + H(0.0012)]),
+                (H(0.0027) * taper, H(0.0022) * taper, H(0.0016) * taper),
+                palette["mouth"],
+                ["head"],
+                rings=5,
+                segments=10,
+                shade=0.95,
+            )
         # The lower lip: a soft, lit roll under the line, widest at the middle.
         builder.add_ellipsoid(
-            np.array([0.0, mouth_y - H(0.0090), self.surface(mouth_y, 0.0) - H(0.0046)]),
-            (H(0.0122), H(0.0036), H(0.0042)),
+            np.array([0.0, mouth_y - H(0.0076), self.surface(mouth_y, 0.0) - H(0.0022)]),
+            (H(0.0132), H(0.0032), H(0.0040)),
             lerp_colour(palette["skin"], palette["lip"], 0.16),
             ["head"],
             rings=5,
@@ -1071,7 +1111,7 @@ class HeadGeometry:
     def build_glasses(self, builder, palette) -> None:
         H = self.H
         eye_y = self.eye_y + H(0.0015)
-        rim = H(0.0272)
+        rim = H(0.0252)
         frame = palette["glasses"]
         for sign in (-1.0, 1.0):
             x = sign * self.eye_x
@@ -1173,8 +1213,10 @@ def build_hair(builder: MeshBuilder, palette, features, H, head: HeadGeometry) -
     )
 
     rng = np.random.default_rng(20240611)
-    centre = np.array([0.0, H(0.893), -H(0.004)])
-    radius = np.array([H(0.0778), H(0.0672), H(0.0755)]) * volume
+    # The mass is widest just above the ears and comes to a crown: the sheet's mop is a dome that
+    # tapers, not a beret. The field's own axes are therefore narrow at the top and wide at the base.
+    centre = np.array([0.0, H(0.876), -H(0.004)])
+    radius = np.array([H(0.0800), H(0.0795), H(0.0775)]) * volume
 
     count = max(12, int(features.hair_curls))
     for index in range(count):
@@ -1185,7 +1227,7 @@ def build_hair(builder: MeshBuilder, palette, features, H, head: HeadGeometry) -
         ny, ring = math.cos(theta), math.sin(theta)
         nx, nz = ring * math.cos(phi), ring * math.sin(phi)
         # Taper toward the crown, so the mass peaks instead of swelling into a dome.
-        crown = 1.0 - 0.42 * max(0.0, ny - 0.45) ** 1.3
+        crown = 1.0 - 0.62 * max(0.0, ny - 0.40) ** 1.25
         point = centre + np.array([nx * radius[0] * crown, ny * radius[1], nz * radius[2] * crown])
         height = point[1] / H(1.0)
         # The nape and the sides carry hair down to the ear line; the face does not.
@@ -1193,9 +1235,9 @@ def build_hair(builder: MeshBuilder, palette, features, H, head: HeadGeometry) -
         if height < floor:
             continue
         # Nothing in front of the brow, and nothing hanging over the glasses.
-        if nz > 0.15 and height < 0.888:
+        if nz > 0.15 and height < 0.897:
             continue
-        if nz > 0.55 and height < 0.900:
+        if nz > 0.55 and height < 0.906:
             continue
 
         normal = np.array([nx, ny * 1.0, nz])
@@ -1239,7 +1281,7 @@ def build_hair(builder: MeshBuilder, palette, features, H, head: HeadGeometry) -
         root = np.array([x * 0.7, H(0.914 - 0.012 * (t - 0.5) ** 2), H(0.038)])
         tip = np.array([
             x * 1.06,
-            H(0.8940 - 0.004 * math.sin(t * math.pi)),
+            H(0.9040 - 0.004 * math.sin(t * math.pi)),
             H(0.062 + 0.004 * math.sin(t * math.pi)),
         ])
         mid_point = (root + tip) * 0.5 + np.array([0.0, H(0.008), H(0.008)])
