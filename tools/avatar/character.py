@@ -1151,6 +1151,8 @@ def build_hair(builder: MeshBuilder, palette, features, H, head: HeadGeometry) -
     # The scalp: a thin cap, from just above the ears up over the crown. Its front edge is the
     # hairline, so it must stay shallow at the brow and reach further at the temples.
     shell = [
+        (0.8300, 0.0560, 0.0100, 0.0620, 0.95),
+        (0.8420, 0.0592, 0.0190, 0.0648, 0.95),
         (0.856, 0.0608, 0.0280, 0.0640, 0.95),
         (0.872, 0.0636, 0.0380, 0.0672, 0.95),
         (0.888, 0.0650, 0.0470, 0.0690, 0.95),
@@ -1172,7 +1174,7 @@ def build_hair(builder: MeshBuilder, palette, features, H, head: HeadGeometry) -
 
     rng = np.random.default_rng(20240611)
     centre = np.array([0.0, H(0.893), -H(0.004)])
-    radius = np.array([H(0.0742), H(0.0640), H(0.0725)]) * volume
+    radius = np.array([H(0.0778), H(0.0672), H(0.0755)]) * volume
 
     count = max(12, int(features.hair_curls))
     for index in range(count):
@@ -1183,10 +1185,12 @@ def build_hair(builder: MeshBuilder, palette, features, H, head: HeadGeometry) -
         ny, ring = math.cos(theta), math.sin(theta)
         nx, nz = ring * math.cos(phi), ring * math.sin(phi)
         # Taper toward the crown, so the mass peaks instead of swelling into a dome.
-        crown = 1.0 - 0.80 * max(0.0, ny - 0.45) ** 1.4
+        crown = 1.0 - 0.42 * max(0.0, ny - 0.45) ** 1.3
         point = centre + np.array([nx * radius[0] * crown, ny * radius[1], nz * radius[2] * crown])
         height = point[1] / H(1.0)
-        if height < 0.845:
+        # The nape and the sides carry hair down to the ear line; the face does not.
+        floor = 0.846 if nz < -0.30 else (0.860 if abs(nz) < 0.30 else 0.872)
+        if height < floor:
             continue
         # Nothing in front of the brow, and nothing hanging over the glasses.
         if nz > 0.15 and height < 0.888:
@@ -1201,8 +1205,8 @@ def build_hair(builder: MeshBuilder, palette, features, H, head: HeadGeometry) -
         tangent = np.array([-normal[2], 0.0, normal[0]]) * (1.0 if index % 2 else -1.0)
         direction = normal * 1.0 + np.array([0.0, 0.55 + 0.5 * rng.random(), 0.0]) + tangent * (0.25 + twist * 0.4)
         direction /= np.linalg.norm(direction)
-        length = H(0.019 + 0.014 * rng.random()) * volume
-        root_r = H(0.0092 + 0.0042 * rng.random()) * volume
+        length = H(0.022 + 0.016 * rng.random()) * volume
+        root_r = H(0.0100 + 0.0048 * rng.random()) * volume
 
         path = [
             point - normal * H(0.004),

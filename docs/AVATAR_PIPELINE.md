@@ -52,7 +52,7 @@ before a real shoot. `tools/avatar/README.md` lists every tool and its one job.
 The authored route was built and run end to end on a CPU-only box:
 
 - **1413 triangles, 893 vertices, 21 bones (toes included), 1.715 m tall, 377 KB** for the generic
-  built-in figure, and **19,407 triangles, 11,452 vertices, 21 bones, exactly 1.800 m, 1.2 MB** for
+  built-in figure, and **19,133 triangles, 11,288 vertices, 21 bones, exactly 1.800 m, 1.2 MB** for
   Professor Z — both inside every budget in the contract, with 33 unit tests covering bone names,
   skinning reach, non-degenerate geometry, outward-facing normals, quaternion aiming, seamless loops,
   the GLB's own bytes, the photo measurements, and the authored character's height, budget,
