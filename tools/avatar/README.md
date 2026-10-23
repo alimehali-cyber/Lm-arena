@@ -19,7 +19,7 @@ runs and the measurements that route shares.
 | `glb_check.py` | Read a GLB back and assert the asset contract: joints, weights, inverse bind matrices, clip targets, budgets. |
 | `preview.py` | Skinning plus a numpy z-buffer rasteriser: a four-pose contact sheet and a tile at Home scale. |
 | `make_test_photo.py` | Draw a stand-in reference card in A-pose, so the chain can be run before a real shoot. |
-| `tests/test_avatar.py` | 27 tests: skeleton, mesh, weights, non-degenerate geometry, skinning reach, quaternions, IK poses, seamless loops, GLB bytes, photo measurement. |
+| `tests/test_avatar.py` | 33 tests: skeleton, mesh, weights, non-degenerate geometry, outward-facing normals, skinning reach, quaternions, IK poses, seamless loops, GLB bytes, photo measurement, and the authored character's own height, budget and silhouette. |
 
 ```bash
 python3 tools/avatar/make_test_photo.py --out work/test_card.png

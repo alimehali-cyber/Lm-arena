@@ -129,7 +129,7 @@ def write_glb(avatar: Avatar, path: Path, clips: tuple[Clip, ...] = CLIPS) -> di
     # Animations.
     animations = []
     for clip in clips:
-        times, tracks = sample_clip(clip, BONE_NAMES)
+        times, tracks = sample_clip(clip, BONE_NAMES, getattr(avatar, "rig", None))
         time_accessor = accessors.add(times.astype(np.float32), FLOAT, "SCALAR", min_max=True)
         samplers = []
         channels = []

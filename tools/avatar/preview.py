@@ -75,6 +75,21 @@ def skin(avatar: Avatar, world: dict[str, np.ndarray]) -> tuple[np.ndarray, np.n
 # ------------------------------------------------------------------------------------------------
 
 
+def _studio(height: int, width: int) -> np.ndarray:
+    """The reference sheet's backdrop: warm light grey, a soft falloff to the corners, a floor."""
+    rows = np.linspace(0.0, 1.0, height)[:, None]
+    cols = np.linspace(0.0, 1.0, width)[None, :]
+    base = np.array([0.905, 0.892, 0.875])
+    top = np.array([0.945, 0.936, 0.923])
+    gradient = top + (base - top) * rows
+    image = np.repeat(gradient[:, None, :], width, axis=1)
+    # A gentle vignette keeps the eye on the figure without drawing a box.
+    vx = (cols - 0.5) * 1.6
+    vy = (rows - 0.45) * 1.1
+    vignette = np.clip(1.0 - 0.10 * (vx ** 2 + vy ** 2), 0.0, 1.0)
+    return image * vignette[..., None]
+
+
 def _frame(height: int, width: int, horizon: float = 0.70) -> np.ndarray:
     rows = np.linspace(0.0, 1.0, height)[:, None]
     top = np.array([0.043, 0.063, 0.118])
@@ -88,11 +103,11 @@ def _frame(height: int, width: int, horizon: float = 0.70) -> np.ndarray:
     return image
 
 
-def _camera(avatar: Avatar, w: int, h: int, yaw_deg: float):
+def _camera(avatar: Avatar, w: int, h: int, yaw_deg: float, elevation_deg: float = 4.0, distance_factor: float = 2.05):
     target = np.array([0.0, avatar.proportions.h * 0.52, 0.0])
     yaw = np.radians(yaw_deg)
-    elevation = np.radians(4.0)
-    distance = avatar.proportions.h * 2.05
+    elevation = np.radians(elevation_deg)
+    distance = avatar.proportions.h * distance_factor
     eye = target + distance * np.array([
         np.sin(yaw) * np.cos(elevation), np.sin(elevation), np.cos(yaw) * np.cos(elevation)
     ])
@@ -121,18 +136,22 @@ def render(
     yaw_deg: float = 18.0,
     supersample: int = 2,
     with_alpha: bool = False,
+    studio: bool = False,
+    elevation_deg: float = 4.0,
+    distance_factor: float = 2.05,
+    shadow: bool = True,
 ) -> Image.Image:
     w, h = width * supersample, height * supersample
-    pose = clip.pose(min(time_s, clip.length))
+    pose = clip.at(time_s, getattr(avatar, "rig", None))
     world = bone_world_transforms(avatar, pose)
     positions, normals = skin(avatar, world)
 
-    eye, right, up, forward, focal, distance = _camera(avatar, w, h, yaw_deg)
+    eye, right, up, forward, focal, distance = _camera(avatar, w, h, yaw_deg, elevation_deg, distance_factor)
     # The ground line of the sheet is the row the feet land on — the same relationship the Home scene
     # keeps between its grass line and the observer standing on it.
     feet_px = _project(np.array([0.0, 0.004, 0.0]), eye, right, up, forward, focal, w, h)
     horizon = 0.70 if feet_px is None else min(0.86, max(0.45, feet_px[1] / h))
-    colour = _frame(h, w, horizon=horizon)
+    colour = _studio(h, w) if studio else _frame(h, w, horizon=horizon)
     depth = np.full((h, w), np.inf)
     rel = positions - eye
     view = np.stack([rel @ right, rel @ up, rel @ forward], axis=1)
@@ -142,10 +161,18 @@ def render(
     screen = np.stack([px, py], axis=1)
     view_z = view[:, 2]
 
-    light = np.array([-0.45, 0.75, 0.55])
-    light = light / np.linalg.norm(light)
-    rim_dir = np.array([0.35, 0.15, -0.92])
+    # A portrait rig: a warm key from the upper left, a cool fill from the right, a rim from behind.
+    # Ambient carries a sky tint, so shadows on a stylised character stay blue rather than going grey.
+    key = np.array([-0.52, 0.70, 0.62])
+    key = key / np.linalg.norm(key)
+    fill = np.array([0.72, 0.20, 0.50])
+    fill = fill / np.linalg.norm(fill)
+    rim_dir = np.array([0.28, 0.30, -0.91])
     rim_dir = rim_dir / np.linalg.norm(rim_dir)
+    key_colour = np.array([1.00, 0.965, 0.925])
+    fill_colour = np.array([0.66, 0.76, 0.95])
+    rim_colour = np.array([1.00, 0.88, 0.70])
+    ambient = np.array([0.40, 0.44, 0.50])
 
     mesh = avatar.mesh
     indices = mesh.indices.reshape(-1, 3)
@@ -190,10 +217,28 @@ def render(
         n_len[n_len < 1e-9] = 1.0
         n = n / n_len[..., None]
         base = w0[..., None] * albedo[tri[0]] + w1[..., None] * albedo[tri[1]] + w2[..., None] * albedo[tri[2]]
-        lambert = np.clip(n @ light, 0.0, 1.0)
-        rim = np.power(np.clip(1.0 - np.abs(n @ rim_dir), 0.0, 1.0), 3.0)
-        shading = 0.62 + 0.46 * lambert
-        lit = base * shading[..., None] + np.array([0.32, 0.46, 0.72]) * (rim * 0.32)[..., None]
+        key_term = np.clip(n @ key, 0.0, 1.0) ** 1.05
+        fill_term = np.clip(n @ fill, 0.0, 1.0) * 0.34
+        rim_term = np.power(np.clip(1.0 + (n @ rim_dir), 0.0, 1.0), 2.6)
+        # A soft wrapped term on the key: skin at this stylisation has almost no hard terminator.
+        wrapped = np.clip((n @ key + 0.35) / 1.35, 0.0, 1.0)
+        light_total = (
+            ambient[None, None, :]
+            + key_colour[None, None, :] * (0.66 * key_term + 0.22 * wrapped)[..., None]
+            + fill_colour[None, None, :] * fill_term[..., None]
+        )
+        # Specular: a Blinn highlight from the key, plus a fresnel sheen at the silhouette. This is what
+        # gives the hair its streaks and the glasses their glint — without it, dark materials read as
+        # flat black holes at any size.
+        half = key + np.array([0.0, 0.0, 1.0])
+        half = half / np.linalg.norm(half)
+        specular = np.clip(n @ half, 0.0, 1.0) ** 26.0
+        fresnel = np.clip(1.0 - np.abs(n @ np.array([0.0, 0.0, 1.0])), 0.0, 1.0) ** 4.0
+        lit = base * light_total + rim_colour[None, None, :] * (rim_term * 0.16)[..., None]
+        lit = lit + (specular * 0.30 + fresnel * 0.055)[..., None]
+        # A touch of bounce from the floor, warm and low, keeps the undersides from going to mud.
+        ground_bounce = np.clip(-n[..., 1], 0.0, 1.0)
+        lit = lit + np.array([0.20, 0.16, 0.12]) * (ground_bounce * 0.10)[..., None]
         lit = np.clip(lit, 0.0, 1.0)
 
         patch_depth[closer] = z_value[closer]
@@ -201,7 +246,7 @@ def render(
         patch[closer] = lit[closer]
 
     # Contact shadow on the grass, drawn after the body so it reads as ground contact.
-    if feet_px is not None:
+    if feet_px is not None and shadow:
         cx, cy = feet_px
         rx = 0.30 * focal / distance
         ry = 0.055 * focal / distance

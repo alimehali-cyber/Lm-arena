@@ -52,15 +52,28 @@ before a real shoot. `tools/avatar/README.md` lists every tool and its one job.
 The authored route was built and run end to end on a CPU-only box:
 
 - **1413 triangles, 893 vertices, 21 bones (toes included), 1.715 m tall, 377 KB** for the generic
-  built-in figure, and **4754 triangles, 21 bones, exactly 1.800 m, 541 KB** for Professor Z — both
-  inside every budget in the contract, with 27 unit tests covering bone names, skinning reach,
-  non-degenerate geometry, normals, quaternion aiming, seamless loops, the GLB's own bytes and the
-  photo measurements.
+  built-in figure, and **19,407 triangles, 11,452 vertices, 21 bones, exactly 1.800 m, 1.2 MB** for
+  Professor Z — both inside every budget in the contract, with 33 unit tests covering bone names,
+  skinning reach, non-degenerate geometry, outward-facing normals, quaternion aiming, seamless loops,
+  the GLB's own bytes, the photo measurements, and the authored character's height, budget,
+  skinning and silhouette.
 - The three Home beats are posed by a two-bone IK solver (`solve_arm`), not by guessed Euler angles —
   a test asserts the night hand is above the head and the noon hand is at the brow, because those are
   the two poses a viewer judges in half a second.
 - The contact sheet renders each clip and one tile at the size the character really appears on Home
   (`work/out/testcard_sheet.png`).
+
+The authored route's measurements come off the turnaround itself: every number in
+`character.py`'s `Body` table is a pixel position on the sheet divided by the figure's
+height, and the silhouette is checked against the sheet row by row (`ref 0.324 w/h vs model 0.283`
+today, after masking the sheet's label and cast shadow — the remaining gap is the sheet's hand-in-
+pocket stance, which the A-pose does not reproduce).
+
+One bug worth recording, because it was invisible in a wireframe and poisoned every render: the
+`add_loft` and `add_tube` quads were wound the wrong way round, so every one of those surfaces had its
+normal pointing *into* the body. Faces still rasterised, so the mesh looked fine — but the figure was
+lit only by ambient and rendered flat, grey and dead. `MeshTest.test_normals_point_out_of_the_form`
+now fails if either primitive's winding flips again.
 
 The GLES3 sidecar is deliberately **not** the runtime. The character the Home scene draws is baked:
 `tools/avatar/bake_frames.py` renders every clip from the same skinned mesh the GLB is written from,

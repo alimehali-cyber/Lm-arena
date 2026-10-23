@@ -22,21 +22,24 @@ import numpy as np
 
 
 def head_crop(avatar, clip, yaw_deg: float, size: int = 340) -> Image.Image:
-    """A close-up of the head, framed on the head's own world position."""
-    pose = clip.pose(0.0)
-    world = bone_world_transforms(avatar, pose)
-    head = world["head"][0:3, 3]
+    """A close-up of the head, framed on the head's own landmarks.
+
+    The head is pinned by height rather than by the `head` bone's world position: the bone's origin is
+    at the base of the skull, so framing on it puts the chin in the middle of the crop.
+    """
     full = render(avatar, clip, 0.0, width=size, height=size * 2, yaw_deg=yaw_deg)
-    # The head sits at `head` height; the render frames the whole body, so crop proportionally.
     eye, right, up, forward, focal, distance = _camera(avatar, size, size * 2, yaw_deg)
-    point = _project(head, eye, right, up, forward, focal, size, size * 2)
+    centre_y = avatar.proportions.h * (avatar.rig.chin + 0.115) if hasattr(avatar.rig, "chin") else 0.0
+    if centre_y <= 0.0:
+        # The rig carries the eye line; the head's centre sits a little above it.
+        centre_y = avatar.proportions.h * avatar.rig.eye_y + avatar.proportions.h * 0.045
+    point = _project(np.array([0.0, centre_y, 0.0]), eye, right, up, forward, focal, size, size * 2)
     if point is None:
         return full.crop((0, 0, size, size))
     cx, cy = point
-    half = size * 0.30
-    box = (int(cx - half), int(cy - half * 1.15), int(cx + half), int(cy + half * 0.85))
-    crop = full.crop(box)
-    return crop.resize((size, size), Image.LANCZOS)
+    half = size * 0.235
+    box = (int(cx - half), int(cy - half), int(cx + half), int(cy + half))
+    return full.crop(box).resize((size, size), Image.LANCZOS)
 
 
 def build_sheet(avatar, path: Path) -> Path:

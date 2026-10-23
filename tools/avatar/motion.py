@@ -112,12 +112,84 @@ def unit(v) -> np.ndarray:
     return v / (np.linalg.norm(v) or 1.0)
 
 
+@dataclass(frozen=True)
+class Rig:
+    """The handful of landmarks the performances aim at, in units of body height.
+
+    A clip that hard-codes "the hand goes to y = 0.952" only works for the character it was tuned on.
+    Every target below is expressed off this rig instead, so the same five performances fit a 1.55 m
+    child, this 1.80 m astronomer, or anything else the pipeline builds.
+    """
+
+    shoulder_y: float = 0.794
+    shoulder_x: float = 0.0929
+    upper: float = 0.155
+    fore: float = 0.145
+    hand: float = 0.052
+    chest_y: float = 0.720
+    head_y: float = 0.925
+    brow_y: float = 0.945
+    eye_y: float = 0.925
+    head_z: float = 0.037   # half-depth of the head, for reaching in front of the face
+    hip_y: float = 0.530
+    arm_spread: float = 22.0
+    forearm_spread: float = 10.0
+
+    def rest_direction(self, side: str, forearm: bool = False) -> np.ndarray:
+        """The direction the bone points at rest, per the skeleton's own spread angles."""
+        angle = math.radians(self.forearm_spread if forearm else self.arm_spread)
+        sign = 1.0 if side == ".L" else -1.0
+        return np.array([sign * math.sin(angle), -math.cos(angle), 0.0])
+
+    @staticmethod
+    def from_bones(bones, p) -> "Rig":
+        """Read the rig off a real skeleton, so the IK aims with the bones that will actually move.
+
+        Measuring beats recomputing: the arm's rest length is whatever the skeleton made it, and the
+        socket is wherever the shoulder bone really ends. A rig derived from the numbers instead of
+        from the bones is off by a centimetre or two, which is the difference between a hand that
+        rests on the brow and one that hovers over it.
+        """
+        by_name = {bone.name: bone for bone in bones}
+
+        def length(name: str) -> float:
+            bone = by_name[name]
+            return float(np.linalg.norm(bone.tail - bone.head))
+
+        head = by_name["head"]
+        return Rig(
+            shoulder_y=float(by_name["upper_arm.R"].head[1] / p.h),
+            shoulder_x=float(abs(by_name["upper_arm.R"].head[0]) / p.h),
+            upper=length("upper_arm.R") / p.h,
+            fore=length("forearm.R") / p.h,
+            hand=length("hand.R") / p.h,
+            chest_y=float(p.chest),
+            head_y=float(head.head[1] / p.h),
+            brow_y=float(p.head_centre) + float(p.head_half) * 0.42,
+            eye_y=float(p.head_centre),
+            head_z=float(p.head_half) * float(p.depth_ratio),
+            hip_y=float(p.hip),
+            arm_spread=float(p.arm_spread),
+            forearm_spread=float(p.forearm_spread),
+        )
+
+
+DEFAULT_RIG = Rig()
+
+
 # ------------------------------------------------------------------------------------------------
 # Aiming
 # ------------------------------------------------------------------------------------------------
 
 
-def aim_chain(upper: str, upper_to, fore_to, hand_to=None, roll: float = 0.0) -> dict[str, np.ndarray]:
+def aim_chain(
+    upper: str,
+    upper_to,
+    fore_to,
+    hand_to=None,
+    roll: float = 0.0,
+    rig: Rig = DEFAULT_RIG,
+) -> dict[str, np.ndarray]:
     """Local quaternions that point a two-bone arm at resting-space directions.
 
     `upper_to` is where the upper arm should point in body space, `fore_to` the forearm, and so on.
@@ -129,9 +201,9 @@ def aim_chain(upper: str, upper_to, fore_to, hand_to=None, roll: float = 0.0) ->
     parent = q_axis("z", roll) if roll else IDENTITY.copy()
 
     for bone, rest, target in (
-        (upper, REST[side], upper_to),
-        (upper.replace("upper_arm", "forearm"), FORE[side], fore_to),
-        (upper.replace("upper_arm", "hand"), FORE[side], fore_to if hand_to is None else hand_to),
+        (upper, rig.rest_direction(side), upper_to),
+        (upper.replace("upper_arm", "forearm"), rig.rest_direction(side, forearm=True), fore_to),
+        (upper.replace("upper_arm", "hand"), rig.rest_direction(side, forearm=True), fore_to if hand_to is None else hand_to),
     ):
         world_rest = q_rotate(parent, rest)
         delta = q_from_to(world_rest, unit(target))
@@ -141,20 +213,14 @@ def aim_chain(upper: str, upper_to, fore_to, hand_to=None, roll: float = 0.0) ->
     return out
 
 
-# Bone lengths and the shoulder's rest position, in units of body height (Proportions defaults).
-UPPER_LEN = 0.155
-FORE_LEN = 0.145
-SHOULDER = {".L": (0.0929, 0.794, 0.0), ".R": (-0.0929, 0.794, 0.0)}
-
-
-def solve_arm(side: str, target, pole, reach: float = 0.985) -> dict[str, np.ndarray]:
+def solve_arm(side: str, target, pole, reach: float = 0.985, rig: Rig = DEFAULT_RIG) -> dict[str, np.ndarray]:
     """Two-bone IK: put the wrist at `target`, with the elbow pushed towards `pole`.
 
     All arguments are in units of body height, so the same target works for any character height.
     The chain is clamped just inside full extension, which keeps the elbow from locking into a
     perfectly straight pipe (the classic tell of a badly posed arm).
     """
-    shoulder = np.array(SHOULDER[side], dtype=np.float64)
+    shoulder = np.array([rig.shoulder_x if side == ".L" else -rig.shoulder_x, rig.shoulder_y, 0.0])
     goal = np.array(target, dtype=np.float64)
     d = goal - shoulder
     distance = float(np.linalg.norm(d))
@@ -162,13 +228,14 @@ def solve_arm(side: str, target, pole, reach: float = 0.985) -> dict[str, np.nda
         d = np.array([0.0, -1.0, 0.0])
         distance = 1e-6
     direction = d / distance
-    span = UPPER_LEN + FORE_LEN
+    upper, fore = rig.upper, rig.fore
+    span = upper + fore
     distance = min(distance, span * reach)
-    distance = max(distance, abs(UPPER_LEN - FORE_LEN) + 1e-3)
+    distance = max(distance, abs(upper - fore) + 1e-3)
 
     # Law of cosines: how far along the shoulder→goal line the elbow projects.
-    along = (UPPER_LEN ** 2 - FORE_LEN ** 2 + distance ** 2) / (2.0 * distance)
-    height_sq = max(UPPER_LEN ** 2 - along ** 2, 0.0)
+    along = (upper ** 2 - fore ** 2 + distance ** 2) / (2.0 * distance)
+    height_sq = max(upper ** 2 - along ** 2, 0.0)
     bend = math.sqrt(height_sq)
 
     pole = np.asarray(pole, dtype=np.float64)
@@ -187,6 +254,7 @@ def solve_arm(side: str, target, pole, reach: float = 0.985) -> dict[str, np.nda
         elbow - shoulder,
         wrist - elbow,
         hand_dir,  # the hand continues the forearm
+        rig=rig,
     )
 
 
@@ -207,6 +275,10 @@ class Clip:
     @property
     def frames(self) -> int:
         return int(round(self.length * FPS)) + 1
+
+    def at(self, time_s: float, rig: Rig | None = None) -> Pose:
+        """The pose at `time_s` for a rig. Clamped to the clip, so callers can hand it any clock."""
+        return self.pose(min(max(time_s, 0.0), self.length), rig or DEFAULT_RIG)
 
 
 def _sin(t: float, period: float) -> float:
@@ -243,7 +315,7 @@ def _arms_rest(breath: float, shift: float) -> Pose:
     }
 
 
-def idle_breathe(t: float) -> Pose:
+def idle_breathe(t: float, rig: Rig = DEFAULT_RIG) -> Pose:
     """Breath on 4 s, weight shift on 8 s: different periods, so the loop never reads as a loop."""
     breath, shift, look = _sin(t, 4.0), _sin(t, 8.0), _cos(t, 8.0)
     pose = _torso(breath, shift, look)
@@ -251,7 +323,7 @@ def idle_breathe(t: float) -> Pose:
     return pose
 
 
-def day_shade(t: float) -> Pose:
+def day_shade(t: float, rig: Rig = DEFAULT_RIG) -> Pose:
     """Noon: hand up to the brow like a visor, weight on the left leg, other hand on the hip."""
     breath, sway = _sin(t, 4.0), _sin(t, 8.0)
     pose = _torso(breath, sway * 0.8, 0.0, bend=-1.0)
@@ -262,15 +334,29 @@ def day_shade(t: float) -> Pose:
     pose["shoulder.R"] = q_euler(0.0, 0.0, -8.0)
     pose["shoulder.L"] = q_euler(0.0, 0.0, 4.0)
     # Right wrist to the brow, elbow pushed out and forward: a visor against the noon sun.
-    pose.update(solve_arm(".R", (-0.050 + sway * 0.004, 0.952, 0.072), (-1.0, -0.35, 0.30)))
+    # Just above the brow, and only a hand's depth in front of the face: the hand is a visor, not a
+    # wave, and a hand that floats at temple height in mid-air reads as neither.
+    brow = rig.brow_y + 0.012
+    pose.update(solve_arm(
+        ".R",
+        (-rig.shoulder_x * 0.62 + sway * 0.004, brow, rig.head_z * 1.35),
+        (-1.0, -0.35, 0.30),
+        rig=rig,
+    ))
     # Left hand rests on the hip.
-    pose.update(solve_arm(".L", (0.086, 0.612, 0.030), (1.0, 0.10, 0.55), reach=0.93))
+    pose.update(solve_arm(
+        ".L",
+        (rig.shoulder_x * 0.95, rig.hip_y + 0.075, rig.head_z * 0.8),
+        (1.0, 0.10, 0.55),
+        reach=0.93,
+        rig=rig,
+    ))
     pose["thigh.R"] = q_euler(-2.0, 0.0, -3.0)
     pose["shin.R"] = q_euler(3.0, 0.0, 0.0)
     return pose
 
 
-def dusk_phone(t: float) -> Pose:
+def dusk_phone(t: float, rig: Rig = DEFAULT_RIG) -> Pose:
     """Twilight: both elbows in, head down to the screen, a slow glance up at the horizon."""
     breath = _sin(t, 4.0)
     glance = max(0.0, _sin(t, 8.0) - 0.55) / 0.45
@@ -280,12 +366,14 @@ def dusk_phone(t: float) -> Pose:
     pose["shoulder.R"] = q_euler(0.0, 0.0, -4.0)
     pose["shoulder.L"] = q_euler(0.0, 0.0, 4.0)
     # Both wrists meet in front of the chest, as if around a phone; elbows tucked in.
-    pose.update(solve_arm(".R", (-0.030, 0.700, 0.150), (-1.0, -0.55, 0.15)))
-    pose.update(solve_arm(".L", (0.030, 0.700, 0.150), (1.0, -0.55, 0.15)))
+    phone_y = rig.chest_y - 0.020
+    phone_z = rig.head_z * 4.0
+    pose.update(solve_arm(".R", (-0.030, phone_y, phone_z), (-1.0, -0.55, 0.15), rig=rig))
+    pose.update(solve_arm(".L", (0.030, phone_y, phone_z), (1.0, -0.55, 0.15), rig=rig))
     return pose
 
 
-def night_point(t: float) -> Pose:
+def night_point(t: float, rig: Rig = DEFAULT_RIG) -> Pose:
     """Astronomical night: right arm up to the sky, head tipped back, chest open."""
     breath, sweep = _sin(t, 4.0), _sin(t, 8.0)
     pose = _torso(breath, -0.8 + breath * 0.3, 0.0, bend=-2.0)
@@ -298,11 +386,16 @@ def night_point(t: float) -> Pose:
     pose["shoulder.L"] = q_euler(0.0, 0.0, 4.0)
     # Left arm hangs; right wrist is above the head, pointing at the sky, elbow out to the side.
     pose.update(_arms_rest(breath, 1.0))
-    pose.update(solve_arm(".R", (-0.215 + sweep * 0.012, 1.062, 0.050), (-1.0, -0.20, 0.35)))
+    pose.update(solve_arm(
+        ".R",
+        (-rig.shoulder_x * 2.2 + sweep * 0.012, rig.brow_y + 0.115, rig.head_z * 1.35),
+        (-1.0, -0.20, 0.35),
+        rig=rig,
+    ))
     return pose
 
 
-def wave_hello(t: float) -> Pose:
+def wave_hello(t: float, rig: Rig = DEFAULT_RIG) -> Pose:
     """The one generic clip worth keeping: a friendly wave, hand above the shoulder."""
     breath = _sin(t, 4.0)
     wave = math.sin(2.0 * math.pi * 2.0 * t / 3.0)
@@ -315,8 +408,9 @@ def wave_hello(t: float) -> Pose:
     # Right hand up beside the head, waving from the wrist via a moving elbow pole.
     pose.update(solve_arm(
         ".R",
-        (-0.255 + wave * 0.020, 1.010, 0.090),
+        (-rig.shoulder_x * 2.6 + wave * 0.020, rig.brow_y + 0.065, rig.head_z * 2.4),
         (-1.0, -0.10, 0.30 + wave * 0.25),
+        rig=rig,
     ))
     return pose
 
@@ -334,7 +428,7 @@ CLIPS: tuple[Clip, ...] = (
 CLIPS_BY_NAME = {clip.name: clip for clip in CLIPS}
 
 
-def sample_clip(clip: Clip, bone_names: tuple[str, ...]) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+def sample_clip(clip: Clip, bone_names: tuple[str, ...], rig: Rig | None = None) -> tuple[np.ndarray, dict[str, np.ndarray]]:
     """(times, {bone: (frames, 4) quaternions}) sampled at FPS, last frame inclusive."""
     frames = clip.frames
     times = np.array([i / FPS for i in range(frames)], dtype=np.float64)
@@ -342,15 +436,15 @@ def sample_clip(clip: Clip, bone_names: tuple[str, ...]) -> tuple[np.ndarray, di
     for bone in bone_names:
         keys = np.zeros((frames, 4), dtype=np.float64)
         for i, time in enumerate(times):
-            pose = clip.pose(float(min(time, clip.length)))
+            pose = clip.at(float(time), rig)
             keys[i] = pose.get(bone, IDENTITY)
         out[bone] = keys
     return times, out
 
 
-def loop_error(clip: Clip, bone_names: tuple[str, ...]) -> float:
+def loop_error(clip: Clip, bone_names: tuple[str, ...], rig: Rig | None = None) -> float:
     """Largest angular gap, in degrees, between the first and last sampled pose of a looping clip."""
-    _, keys = sample_clip(clip, bone_names)
+    _, keys = sample_clip(clip, bone_names, rig)
     worst = 0.0
     for track in keys.values():
         a, b = track[0], track[-1]

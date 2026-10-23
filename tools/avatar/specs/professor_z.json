@@ -3,109 +3,165 @@
   "display_name": "Professor Z",
   "height_m": 1.8,
   "notes": [
-    "Measured from the character catalogue: 1.73 m in the sheet, 1.80 m as the Home figure by request.",
-    "Stylised proportions: a large head (5.6 heads tall), narrow shoulders, slim legs, chunky boots.",
-    "Every feature below is geometry, so the character survives being drawn 170 px tall."
+    "Measured off the supplied turnaround: every landmark below is a pixel position on that sheet, divided by the figure's 820 px height.",
+    "Stylised proportions: 4.2 heads tall including the hair, a big round head, short arms, slim legs, chunky sneakers.",
+    "Features are geometry, not textures, so the character survives being drawn 170 px tall on Home."
   ],
   "proportions": {
-    "ankle": 0.04,
-    "knee": 0.28,
-    "hip": 0.52,
-    "waist": 0.598,
-    "chest": 0.7,
-    "shoulder": 0.776,
-    "neck": 0.822,
-    "head_centre": 0.884,
-    "hip_half": 0.06,
-    "waist_half": 0.054,
-    "chest_half": 0.078,
-    "shoulder_half": 0.088,
-    "head_half": 0.071,
-    "depth_ratio": 0.8,
-    "upper_arm": 0.15,
+    "ankle": 0.075,
+    "knee": 0.29,
+    "hip": 0.478,
+    "waist": 0.56,
+    "chest": 0.645,
+    "shoulder": 0.7,
+    "neck": 0.737,
+    "head_centre": 0.832,
+    "hip_half": 0.102,
+    "waist_half": 0.098,
+    "chest_half": 0.104,
+    "shoulder_half": 0.107,
+    "head_half": 0.0635,
+    "depth_ratio": 0.86,
+    "upper_arm": 0.145,
     "forearm": 0.14,
     "hand": 0.052,
-    "thigh": 0.24,
-    "shin": 0.24,
-    "foot": 0.088,
-    "arm_spread": 16.0,
-    "forearm_spread": 8.0
+    "thigh": 0.188,
+    "shin": 0.215,
+    "foot": 0.118,
+    "arm_spread": 17.0,
+    "forearm_spread": 7.0
   },
   "palette": {
     "skin": [
-      0.93,
-      0.76,
-      0.64
+      0.955,
+      0.715,
+      0.56
     ],
     "skin_shadow": [
-      0.8,
-      0.6,
-      0.49
+      0.78,
+      0.52,
+      0.38
     ],
     "hair": [
-      0.11,
-      0.09,
-      0.09
+      0.075,
+      0.062,
+      0.052
+    ],
+    "hair_mid": [
+      0.135,
+      0.108,
+      0.088
     ],
     "hair_hi": [
-      0.17,
-      0.13,
-      0.13
+      0.225,
+      0.18,
+      0.145
     ],
-    "top": [
-      0.54,
-      0.39,
-      0.24
+    "brow": [
+      0.105,
+      0.082,
+      0.065
     ],
-    "jacket_dark": [
-      0.4,
-      0.29,
-      0.17
+    "iris": [
+      0.23,
+      0.135,
+      0.075
+    ],
+    "mouth": [
+      0.3,
+      0.12,
+      0.09
+    ],
+    "lip": [
+      0.62,
+      0.33,
+      0.25
     ],
     "shirt": [
-      0.96,
-      0.94,
-      0.9
+      0.075,
+      0.075,
+      0.082
     ],
-    "tie": [
-      0.34,
-      0.18,
-      0.1
+    "shirt_dark": [
+      0.042,
+      0.042,
+      0.047
     ],
-    "trousers": [
-      0.31,
-      0.33,
-      0.37
+    "shirt_hi": [
+      0.12,
+      0.12,
+      0.128
     ],
-    "shoes": [
-      0.47,
-      0.31,
-      0.19
+    "jeans": [
+      0.14,
+      0.148,
+      0.16
+    ],
+    "jeans_dark": [
+      0.09,
+      0.096,
+      0.106
+    ],
+    "cuff": [
+      0.215,
+      0.232,
+      0.252
+    ],
+    "shoe": [
+      0.062,
+      0.062,
+      0.065
     ],
     "sole": [
-      0.28,
-      0.2,
-      0.13
+      0.9,
+      0.888,
+      0.862
     ],
-    "belt": [
-      0.22,
-      0.16,
-      0.11
+    "lace": [
+      0.93,
+      0.92,
+      0.9
+    ],
+    "emblem_bed": [
+      0.07,
+      0.045,
+      0.18
+    ],
+    "emblem": [
+      0.17,
+      0.085,
+      0.52
+    ],
+    "emblem_glow": [
+      0.4,
+      0.215,
+      0.98
+    ],
+    "emblem_core": [
+      0.76,
+      0.56,
+      1.0
+    ],
+    "glasses": [
+      0.3,
+      0.29,
+      0.275
+    ],
+    "glasses_hi": [
+      0.62,
+      0.64,
+      0.66
     ]
   },
   "features": {
+    "hair_curls": 190,
+    "hair_volume": 1.0,
+    "fringe": 6,
     "glasses": true,
-    "bow_tie": true,
-    "lapels": true,
-    "belt": true,
-    "cuffs": true,
-    "boots": true,
-    "hair_spikes": 13,
-    "hair_volume": 1.02,
-    "ears": true,
-    "nose": true,
-    "mouth": "smile",
-    "brows": "playful",
-    "jacket_open": true
+    "sneakers": true,
+    "emblem": true,
+    "watch": true,
+    "rolled_cuffs": true,
+    "lashes": true
   }
 }

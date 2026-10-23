@@ -9,10 +9,10 @@
     "rows": 4
   },
   "anchor": {
-    "x": 0.4781,
-    "y": 0.9375
+    "x": 0.5043,
+    "y": 0.9401
   },
-  "body_fraction": 0.8724,
+  "body_fraction": 0.8333,
   "clips": [
     {
       "name": "idle_breathe",

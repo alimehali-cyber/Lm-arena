@@ -294,9 +294,9 @@ class MeshBuilder:
             for s in range(segments):
                 s2 = (s + 1) % segments
                 a = base + i * segments + s
-                b = base + i * segments + s2
+                b = base + (i + 1) * segments + s
                 c = base + (i + 1) * segments + s2
-                d = base + (i + 1) * segments + s
+                d = base + i * segments + s2
                 self.add_quad(a, b, c, d)
 
         if cap_start:
@@ -360,6 +360,106 @@ class MeshBuilder:
                 c = base + (i + 1) * segments + s2
                 d = base + (i + 1) * segments + s
                 self.add_quad(a, b, c, d)
+
+    def add_loft(
+        self,
+        rings: list,
+        colour: tuple[float, float, float],
+        allowed: list[str],
+        segments: int = 20,
+        cap_start: bool = True,
+        cap_end: bool = True,
+        shade: float = 1.0,
+    ) -> None:
+        """A stack of cross-sections, each an ellipse with independent front and back depth.
+
+        `rings` is a list of `(centre, rx, z_front, z_back, exponent)`. The separate depths are what let
+        a head be a head: a face is flatter than an occiput. `exponent` below 1 squares the section off,
+        which is how a jaw or a cheekbone gets an edge instead of a balloon.
+
+        Unlike `add_tube` the sections are horizontal and never re-frame themselves, so a loft can bend
+        forward (a nose, a chest) without the rings twisting.
+        """
+        base = len(self.positions)
+        for centre, rx, z_front, z_back, exponent in rings:
+            centre = np.asarray(centre, dtype=np.float64)
+            for s in range(segments):
+                theta = math.tau * s / segments
+                c, sn = math.cos(theta), math.sin(theta)
+                px = math.copysign(abs(c) ** exponent, c) * rx
+                pz = math.copysign(abs(sn) ** exponent, sn) * (z_front if sn >= 0.0 else z_back)
+                self.positions.append(centre + np.array([px, 0.0, pz]))
+                side = 0.90 + 0.10 * c
+                # A touch of vertical falloff, so a lofted form shades instead of banding.
+                self.colors.append(tuple(min(1.0, ch * side * shade) for ch in colour))
+                self._allowed.append(allowed)
+        for i in range(len(rings) - 1):
+            for s in range(segments):
+                s2 = (s + 1) % segments
+                # Wound so the face normal points out of the form, not into it.
+                self.add_quad(
+                    base + i * segments + s,
+                    base + (i + 1) * segments + s,
+                    base + (i + 1) * segments + s2,
+                    base + i * segments + s2,
+                )
+        if cap_start:
+            centre_index = len(self.positions)
+            self.positions.append(np.asarray(rings[0][0], dtype=np.float64))
+            self.colors.append(tuple(min(1.0, ch * shade * 0.94) for ch in colour))
+            self._allowed.append(allowed)
+            for s in range(segments):
+                s2 = (s + 1) % segments
+                self.faces.append((centre_index, base + s, base + s2))
+        if cap_end:
+            last = base + (len(rings) - 1) * segments
+            centre_index = len(self.positions)
+            self.positions.append(np.asarray(rings[-1][0], dtype=np.float64))
+            self.colors.append(tuple(min(1.0, ch * shade) for ch in colour))
+            self._allowed.append(allowed)
+            for s in range(segments):
+                s2 = (s + 1) % segments
+                self.faces.append((centre_index, last + s, last + s2))
+
+    def add_prism(
+        self,
+        outline: list[tuple[float, float]],
+        z_front: float,
+        depth: float,
+        colour: tuple[float, float, float],
+        allowed: list[str],
+        bend: float = 0.0,
+        shade: float = 1.0,
+        centre_x: float = 0.0,
+    ) -> None:
+        """Extrude a 2-D outline in the XY plane along Z, optionally wrapping it round a cylinder.
+
+        `bend` is the radius of the surface the badge sits on: a flat panel on a chest has to curve
+        away at its edges or it looks glued on. The outline is triangulated as a fan, so it must be
+        convex — build a complex shape from several prisms instead of one.
+        """
+        n = len(outline)
+
+        def place(x: float, y: float, z: float) -> np.ndarray:
+            dx = x - centre_x
+            return np.array([x, y, z - (dx * dx) / (2.0 * bend) if bend > 1e-6 else z])
+
+        base = len(self.positions)
+        for x, y in outline:
+            self.positions.append(place(x, y, z_front))
+            self.colors.append(tuple(min(1.0, ch * 1.04 * shade) for ch in colour))
+            self._allowed.append(allowed)
+        for x, y in outline:
+            self.positions.append(place(x, y, z_front - depth))
+            self.colors.append(tuple(min(1.0, ch * 0.72 * shade) for ch in colour))
+            self._allowed.append(allowed)
+
+        for i in range(1, n - 1):
+            self.faces.append((base, base + i, base + i + 1))
+            self.faces.append((base + n, base + n + i + 1, base + n + i))
+        for i in range(n):
+            j = (i + 1) % n
+            self.add_quad(base + i, base + n + i, base + n + j, base + j)
 
     # -- finish -----------------------------------------------------------------------------
 
@@ -440,6 +540,9 @@ class Avatar:
     skeleton: list[Bone]
     mesh: Mesh
     palette: dict[str, tuple[float, float, float]]
+    # The landmarks the animation aims at (see motion.Rig). Filled by the builders; None means the
+    # default rig, which is what the generic humanoid uses.
+    rig: object | None = None
 
 
 def default_palette() -> dict[str, tuple[float, float, float]]:
@@ -605,4 +708,5 @@ def build_avatar(proportions: Proportions, palette: dict[str, tuple[float, float
             segments=10,
         )
 
-    return Avatar(p, bones, builder.build(), palette)
+    from motion import Rig  # local: the rig describes the clips, and this module has no other use for them
+    return Avatar(p, bones, builder.build(), palette, Rig.from_bones(bones, p))

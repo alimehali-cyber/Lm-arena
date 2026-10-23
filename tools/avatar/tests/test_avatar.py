@@ -114,6 +114,39 @@ class MeshTest(unittest.TestCase):
         widths = mesh.positions[:, 0].max() - mesh.positions[:, 0].min()
         self.assertLess(float(widths), 0.9)
 
+    def test_normals_point_out_of_the_form(self):
+        # Lofts and tubes were once wound the wrong way round, so every one of those surfaces had its
+        # normal pointing into the body. Faces still drew, so the mesh looked fine in a wireframe —
+        # but the figure was lit only by ambient and rendered flat, grey and dead. Sample vertices
+        # away from the ends, where the normal should be roughly radial.
+        for builder_surface in ("loft", "tube"):
+            builder = avatar_core.MeshBuilder(build_skeleton(Proportions()), {})
+            if builder_surface == "loft":
+                builder.add_loft(
+                    [(np.array([0.0, y, 0.0]), 0.1, 0.1, 0.1, 0.9) for y in (0.0, 0.1, 0.2)],
+                    (0.5, 0.5, 0.5),
+                    ["head"],
+                    segments=12,
+                    cap_start=False,
+                    cap_end=False,
+                )
+            else:
+                builder.add_tube(
+                    [np.array([0.0, y, 0.0]) for y in (0.0, 0.1, 0.2)],
+                    [0.1] * 3,
+                    [0.1] * 3,
+                    (0.5, 0.5, 0.5),
+                    ["head"],
+                    segments=12,
+                    cap_start=False,
+                    cap_end=False,
+                )
+            mesh = builder.build()
+            radial = mesh.positions - np.array([0.0, 0.1, 0.0])
+            radial /= np.linalg.norm(radial, axis=1, keepdims=True)
+            outward = float(np.mean(np.sum(mesh.normals * radial, axis=1)))
+            self.assertGreater(outward, 0.5, f"{builder_surface} normals face into the body")
+
     def test_vertex_colours_are_albedo(self):
         mesh = avatar().mesh
         self.assertEqual(mesh.colors.shape, mesh.positions.shape)
@@ -278,6 +311,48 @@ class PaletteTest(unittest.TestCase):
             for channel in colour:
                 self.assertGreaterEqual(channel, 0.0)
                 self.assertLessEqual(channel, 1.0)
+
+
+class ProfessorZTest(unittest.TestCase):
+    """The authored character, built from the turnaround in `specs/professor_z.json`."""
+
+    @staticmethod
+    def _build():
+        import character
+
+        spec = character.CharacterSpec.load(ROOT / "tools" / "avatar" / "specs" / "professor_z.json")
+        return character.build_character(spec)
+
+    def test_he_is_one_point_eight_metres_tall(self):
+        avatar_z = self._build()
+        self.assertAlmostEqual(float(avatar_z.mesh.positions[:, 1].max()), 1.80, delta=0.005)
+        self.assertLess(float(avatar_z.mesh.positions[:, 1].min()), 0.01)
+
+    def test_the_build_stays_inside_the_triangle_budget(self):
+        mesh = self._build().mesh
+        self.assertGreater(mesh.triangle_count, 6000)
+        self.assertLessEqual(mesh.triangle_count, 20000)
+
+    def test_every_vertex_is_skinned_to_a_known_bone(self):
+        mesh = self._build().mesh
+        self.assertLess(int(mesh.joints.max()), len(BONE_NAMES))
+        self.assertLess(float(np.abs(mesh.weights.sum(axis=1) - 1.0).max()), 1e-6)
+
+    def test_he_is_wider_than_a_stick_and_narrower_than_a_door(self):
+        mesh = self._build().mesh
+        height = float(mesh.positions[:, 1].max())
+        width = float(mesh.positions[:, 0].max() - mesh.positions[:, 0].min())
+        # The sheet's figure is 0.32 of its height across the shoulders and at the feet.
+        self.assertGreater(width / height, 0.24)
+        self.assertLess(width / height, 0.40)
+
+    def test_the_spec_carries_every_colour_the_builder_asks_for(self):
+        import character
+
+        spec = character.CharacterSpec.load(ROOT / "tools" / "avatar" / "specs" / "professor_z.json")
+        palette = spec.palette_obj()
+        for key in ("skin", "hair", "shirt", "jeans", "cuff", "shoe", "sole", "lace", "emblem"):
+            self.assertIn(key, palette)
 
 
 if __name__ == "__main__":
