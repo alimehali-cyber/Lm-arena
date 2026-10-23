@@ -47,3 +47,14 @@ Every repository, binary runtime, Python library, pretrained weight package, and
   - `avatar_pipeline/input/ref_01_professor_z_lineup.png` (`sha256: 19a055b164d683257fcc66005fa57ea221cd4347f92f788de977a4998870b143`)
   - `avatar_pipeline/input/ref_02_professor_z_catalogue.png` (`sha256: 098d1902057d18a9f346438d5f5bb3378b7a21f49894c72d01d6acd35be6b797`)
 - **100% Local Processing**: Neither reference image was ever uploaded, transmitted, encoded into an external request, or sent to any third-party/cloud API. Original files remain byte-for-byte untouched.
+
+## Iteration-3 additions (2026-10-23)
+
+| Component | License | Notes |
+|---|---|---|
+| `ForJiang/image-to-splat` @ `05d10fc34056a825192c88cc243c9a592f5d0ff1` (ONNX packaging of Depth-Anything-V2-Small) | MIT | Only `model_fp16.onnx` is fetched via git sparse checkout; weights remain gitignored locally |
+| Depth Anything V2 model weights (upstream `DepthAnything/Depth-Anything-V2`) | Apache-2.0 | Inference-only local usage; not redistributed in this repository |
+| `onnxruntime==1.31.0` | MIT | CPUExecutionProvider only |
+| `pymeshlab==2025.7.post1` | GPL-2.0-or-later (isolated) | Attempted for smoothing; NOT imported by any committed pipeline file (replaced by Taubin via `trimesh` + `fast-simplification`), NOT shipped in the APK |
+| `fast-simplification==0.2.0` | MIT | QEM decimation used in v8/v9 mesh pipeline (offline tooling only) |
+| `trimesh==4.6.4` | MIT | Mesh assembly/repair |

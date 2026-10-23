@@ -42,6 +42,18 @@ $REPO_ROOT/avatar_pipeline/models/repos/TripoSR
 $REPO_ROOT/avatar_pipeline/models/repos/stable-fast-3d
 EOF
 
+# Iteration-3 neural depth weights: Depth-Anything-V2-Small fp16 ONNX (Apache-2.0 upstream, MIT-packaged)
+# pinned to ForJiang/image-to-splat@05d10fc34056a825192c88cc243c9a592f5d0ff1 via git sparse checkout (github.com only).
+DA2_DIR="$REPO_ROOT/avatar_pipeline/models/depth_anything_v2_small"
+if [ ! -s "$DA2_DIR/model_fp16.onnx" ]; then
+  mkdir -p "$DA2_DIR"
+  TMPDA2=$(mktemp -d)
+  git clone --quiet --depth 1 --filter=blob:none --sparse https://github.com/ForJiang/image-to-splat.git "$TMPDA2/repo"
+  git -C "$TMPDA2/repo" sparse-checkout set models/depth-anything-v2-small/onnx
+  cp -f "$TMPDA2/repo/models/depth-anything-v2-small/onnx/model_fp16.onnx" "$DA2_DIR/model_fp16.onnx"
+  rm -rf "$TMPDA2"
+fi
+
 JAVA_HOME_DIR=$("$REPO_ROOT/.venv/bin/python" -c "import jdk4py; print(jdk4py.JAVA_HOME)")
 ln -sf "$JAVA_HOME_DIR/bin/java" "$HOME/.local/bin/java"
 ln -sf "$JAVA_HOME_DIR/bin/javac" "$HOME/.local/bin/javac"

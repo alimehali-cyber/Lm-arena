@@ -34,14 +34,14 @@
   "export_summary_and_roundtrip_reimport": {
     "status": "exported",
     "master": {
-      "glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z/avatar_master_2048.glb",
-      "size_mb": 6.078,
-      "triangles": 29932,
-      "atlas_size": 2048,
+      "glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z_master.glb",
+      "size_mb": 8.7503,
+      "triangles": 47313,
       "khr_materials_variants": [
-        "Catalogue Tweed Blazer",
-        "Midnight Lab Navy Z-Suit"
+        "Signature Black Z-Tee",
+        "Midnight Cosmic Z-Tee"
       ],
+      "atlas_size": 2048,
       "blender_roundtrip_reimport": {
         "reimport_ok": true,
         "reimported_mesh_objects": [
@@ -49,16 +49,16 @@
           "Avatar_Head_Mesh",
           "Icosphere"
         ],
-        "reimported_vertices": 17178,
-        "reimported_triangles": 30012,
+        "reimported_vertices": 39541,
+        "reimported_triangles": 47393,
         "uv_layers_present_all_meshes": true,
         "reimported_bones": 60,
         "reimported_morph_targets": 26,
         "reimported_packed_images": 5,
         "reimported_blender_actions": 48,
         "assetfurnace_glb_stats": {
-          "triangles": 29932,
-          "vertices": 17136,
+          "triangles": 47313,
+          "vertices": 39499,
           "meshes": 2,
           "materials": 2,
           "textures": [
@@ -115,16 +115,14 @@
             "ProfZ_Sleepy",
             "ProfZ_TongueOutWink"
           ],
-          "bytes": 6373296
+          "bytes": 9175392
         }
       }
     },
     "lod0": {
-      "glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z/avatar_mobile.glb",
-      "size_mb": 2.951,
-      "triangles": 18477,
-      "atlas_size": 1024,
-      "khr_materials_variants": [],
+      "glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z.glb",
+      "size_mb": 3.4478,
+      "triangles": 22286,
       "blender_roundtrip_reimport": {
         "reimport_ok": true,
         "reimported_mesh_objects": [
@@ -132,16 +130,16 @@
           "Avatar_Head_Mesh",
           "Icosphere"
         ],
-        "reimported_vertices": 11135,
-        "reimported_triangles": 18557,
+        "reimported_vertices": 21166,
+        "reimported_triangles": 22366,
         "uv_layers_present_all_meshes": true,
         "reimported_bones": 60,
         "reimported_morph_targets": 26,
         "reimported_packed_images": 3,
         "reimported_blender_actions": 48,
         "assetfurnace_glb_stats": {
-          "triangles": 18477,
-          "vertices": 11093,
+          "triangles": 22286,
+          "vertices": 21124,
           "meshes": 2,
           "materials": 1,
           "textures": [
@@ -188,16 +186,14 @@
             "ProfZ_Sleepy",
             "ProfZ_TongueOutWink"
           ],
-          "bytes": 3094460
+          "bytes": 3615324
         }
       }
     },
     "lod1": {
-      "glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z/avatar_mobile_lod1.glb",
-      "size_mb": 2.129,
-      "triangles": 11868,
-      "atlas_size": 512,
-      "khr_materials_variants": [],
+      "glb": "/home/user/Lm-arena/avatar_pipeline/exports/professor_z_lod1.glb",
+      "size_mb": 2.2314,
+      "triangles": 10717,
       "blender_roundtrip_reimport": {
         "reimport_ok": true,
         "reimported_mesh_objects": [
@@ -205,16 +201,16 @@
           "Avatar_Head_Mesh",
           "Icosphere"
         ],
-        "reimported_vertices": 7368,
-        "reimported_triangles": 11948,
+        "reimported_vertices": 11601,
+        "reimported_triangles": 10797,
         "uv_layers_present_all_meshes": true,
         "reimported_bones": 60,
         "reimported_morph_targets": 26,
         "reimported_packed_images": 3,
         "reimported_blender_actions": 48,
         "assetfurnace_glb_stats": {
-          "triangles": 11868,
-          "vertices": 7326,
+          "triangles": 10717,
+          "vertices": 11559,
           "meshes": 2,
           "materials": 1,
           "textures": [
@@ -261,16 +257,16 @@
             "ProfZ_Sleepy",
             "ProfZ_TongueOutWink"
           ],
-          "bytes": 2231976
+          "bytes": 2339752
         }
       }
     }
   },
   "qa_validation_lod0": {
-    "glb_path": "/home/user/Lm-arena/avatar_pipeline/exports/avatar_mobile.glb",
+    "glb_path": "app/src/main/assets/avatar/professor_z.glb",
     "passed": true,
-    "file_size_mb": 2.9511,
-    "triangle_count": 18477,
+    "file_size_mb": 3.4478,
+    "triangle_count": 22286,
     "draw_calls": 2,
     "material_count": 1,
     "texture_resolutions": [
@@ -291,8 +287,8 @@
     "max_influences_per_vertex": 4,
     "morph_target_count": 26,
     "animation_count": 24,
-    "measured_height_m": 1.7285,
-    "min_z_m": -1e-05,
+    "measured_height_m": 1.7299,
+    "min_z_m": -4e-05,
     "checks": {
       "01_file_size_within_budget": true,
       "02_triangle_budget": true,
@@ -309,10 +305,10 @@
     "issues": []
   },
   "qa_validation_lod1": {
-    "glb_path": "/home/user/Lm-arena/avatar_pipeline/exports/avatar_mobile_lod1.glb",
+    "glb_path": "app/src/main/assets/avatar/professor_z_lod1.glb",
     "passed": true,
-    "file_size_mb": 2.1286,
-    "triangle_count": 11868,
+    "file_size_mb": 2.2314,
+    "triangle_count": 10717,
     "draw_calls": 2,
     "material_count": 1,
     "texture_resolutions": [
@@ -333,7 +329,7 @@
     "max_influences_per_vertex": 4,
     "morph_target_count": 26,
     "animation_count": 24,
-    "measured_height_m": 1.7283,
+    "measured_height_m": 1.7299,
     "min_z_m": -1e-05,
     "checks": {
       "01_file_size_within_budget": true,
@@ -349,5 +345,40 @@
       "11_flat_floor_grounding": true
     },
     "issues": []
-  }
+  },
+  "iteration3_reference_faithful_rebuild": {
+    "date": "2026-10-23",
+    "authoritative_reference": "avatar_pipeline/input/professor_z_turnaround_ref.png",
+    "reference_sha256": "c13e3cc7083d453c51ee55d3c64462f9656b649afd04bc96e6b95901e2fbb284",
+    "reference_resolution": "1536x1024 (FRONT | SIDE | BACK orthographic turnaround sheet, untouched)",
+    "method": [
+      "Razor sub-pixel matting with fitted quadratic paper-background unmixing (zero cream halo, white sneaker rubber preserved via signed coolness + neural depth gates)",
+      "Depth-Anything-V2-Small fp16 ONNX monocular depth (local CPU onnxruntime) fused multi-scale for facial/garment/curl relief",
+      "MediaPipe FaceMesh 478 landmarks (2x-upscaled head crop) driving a C1 RBF craniofacial surface calibrated directly onto the measured SIDE sagittal profile (nose/lips/chin anchored to <1 mm)",
+      "Exact 3-view visual-hull hair carve (FRONT full head \u222a SIDE/BACK hair mass) + Depth-Anything high-pass lock relief + S-wave grooves; smooth sigmoid hemisphere carving replaces hard boolean intersections (zero Steinmetz ledges/hole-shells at any angle)",
+      "Analytic decimation-proof sculpted Pixar ears fused after QEM; neck/chest plug reaches inside crew-collar so no gap at any angle",
+      "Converse high-tops swept from measured SIDE single-leg silhouette with continuous instep ramp, foxing pinstripe, laces, eyelets; contra-posto stance with ankle-only forward offset (no floating heels)",
+      "3D bronze panto eyeglasses (frame rings + keyhole bridge + temple arms hooked over ear tops) and 3D left-wrist smartwatch (strap torus + rounded-square case + crown)",
+      "Per-part zero-bleed PBR bake: raycast-visibility-culled 4-view class-filtered plate projection + 3D k-NN crevice synthesis; final GLB packs all parts into a padded 3x3 atlas (no shared texels, no mip bleed)"
+    ],
+    "parts": [
+      "head_skin",
+      "arms_skin",
+      "hair",
+      "tshirt",
+      "jeans",
+      "shoe_left",
+      "shoe_right",
+      "glasses",
+      "watch"
+    ],
+    "pipeline_scripts": "avatar_pipeline/blender/reconstruction_v3/ (README.md documents run order)"
+  },
+  "mobile_assets_synced": {
+    "lod0": "app/src/main/assets/avatar/professor_z.glb",
+    "lod1": "app/src/main/assets/avatar/professor_z_lod1.glb",
+    "lipsync_fa": "app/src/main/assets/avatar/professor_z_lipsync_fa.json",
+    "lipsync_en": "app/src/main/assets/avatar/professor_z_lipsync_en.json"
+  },
+  "generated_at_iteration3": "2026-10-23T19:56:54+00:00"
 }

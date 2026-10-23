@@ -98,12 +98,43 @@
     {
       "path": "avatar_pipeline/input/ref_01_professor_z_lineup.png",
       "sha256": "19a055b164d683257fcc66005fa57ea221cd4347f92f788de977a4998870b143",
-      "dimensions": [1536, 1024]
+      "dimensions": [
+        1536,
+        1024
+      ]
     },
     {
       "path": "avatar_pipeline/input/ref_02_professor_z_catalogue.png",
       "sha256": "098d1902057d18a9f346438d5f5bb3378b7a21f49894c72d01d6acd35be6b797",
-      "dimensions": [1536, 1024]
+      "dimensions": [
+        1536,
+        1024
+      ]
     }
-  ]
+  ],
+  "neural_weights": [
+    {
+      "component": "Depth-Anything-V2-Small (relative monocular depth, encoder ViT-S)",
+      "upstream_repo": "DepthAnything/Depth-Anything-V2",
+      "upstream_license": "Apache-2.0",
+      "weights_source_repo": "ForJiang/image-to-splat",
+      "weights_source_commit": "05d10fc34056a825192c88cc243c9a592f5d0ff1",
+      "weights_source_license": "MIT (ONNX conversion packaging)",
+      "file": "avatar_pipeline/models/depth_anything_v2_small/model_fp16.onnx",
+      "size_bytes": 49642442,
+      "sha256": "2df6223f206b5164e21f664ace61dabeb9bb6a49b8b5a3e00510b4807d0f5b04",
+      "runtime": "onnxruntime 1.31.0 CPUExecutionProvider (no GPU, no torch)",
+      "acquisition": "git sparse-checkout of model_fp16.onnx from the pinned commit (github.com only; never any cloud inference API)",
+      "usage": "Stage-A per-view neural depth + stage-B v8 hair lock-relief carving; all outputs remain local files."
+    }
+  ],
+  "iteration3_addendum": {
+    "date": "2026-10-23",
+    "note": "Iteration-3 reference-faithful rebuild added only this local ONNX depth model; TripoSR/TRELLIS.2/stable-fast-3d remain evaluated-but-unused for licensing (see license_ledger).",
+    "licenses_added": {
+      "code": "MIT (ForJiang/image-to-splat ONNX packaging)",
+      "weights": "Apache-2.0 (Depth Anything V2, ByteDance)",
+      "training_data": "unspecified public datasets; only the released inference weights are used for inference, never redistributed (gitignored, re-fetched by bootstrap_env.sh)"
+    }
+  }
 }

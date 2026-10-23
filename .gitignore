@@ -30,3 +30,7 @@ avatar_pipeline/exports/synthetic_subject/
 avatar_pipeline/exports/*.blend
 avatar_pipeline/android_prototype/build/
 build-artifacts/
+
+# Large local-only model weights (re-fetched by bootstrap_env.sh, sha256 pinned in MODEL_MANIFEST.json)
+*.onnx
+avatar_pipeline/models/depth_anything_v2_small/

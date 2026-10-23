@@ -201,7 +201,7 @@ class AvatarPipelineEndToEndTests(unittest.TestCase):
                 str(VENV_PYTHON),
                 "avatar_pipeline/tools/create_avatar.py",
                 "--input",
-                "avatar_pipeline/input/professor_z_catalogue.png",
+                "avatar_pipeline/input/ref_02_professor_z_catalogue.png",
                 "--phonemes",
                 "avatar_pipeline/input/professor_z_persian_phonemes.json",
                 "--lang",
@@ -287,7 +287,7 @@ class AvatarPipelineEndToEndTests(unittest.TestCase):
         master_info = manifest["export_summary_and_roundtrip_reimport"]["master"]
         self.assertEqual(
             master_info["khr_materials_variants"],
-            ["Catalogue Tweed Blazer", "Midnight Lab Navy Z-Suit"],
+            ["Signature Black Z-Tee", "Midnight Cosmic Z-Tee"],
         )
         self.assertTrue(master_info["blender_roundtrip_reimport"]["reimport_ok"])
         self.assertTrue(manifest["export_summary_and_roundtrip_reimport"]["lod0"]["blender_roundtrip_reimport"]["reimport_ok"])

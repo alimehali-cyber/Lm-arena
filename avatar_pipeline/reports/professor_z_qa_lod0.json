@@ -1,0 +1,42 @@
+{
+  "glb_path": "app/src/main/assets/avatar/professor_z.glb",
+  "passed": true,
+  "file_size_mb": 3.4478,
+  "triangle_count": 22286,
+  "draw_calls": 2,
+  "material_count": 1,
+  "texture_resolutions": [
+    [
+      1024,
+      1024
+    ],
+    [
+      1024,
+      1024
+    ],
+    [
+      1024,
+      1024
+    ]
+  ],
+  "skeleton_joint_count": 60,
+  "max_influences_per_vertex": 4,
+  "morph_target_count": 26,
+  "animation_count": 24,
+  "measured_height_m": 1.7299,
+  "min_z_m": -4e-05,
+  "checks": {
+    "01_file_size_within_budget": true,
+    "02_triangle_budget": true,
+    "03_finite_manifold_geometry": true,
+    "04_single_pbr_material_low_drawcalls": true,
+    "05_atlas_resolution_within_budget": true,
+    "06_gles30_skeleton_joint_limit": true,
+    "07_clean_four_bone_skin_weights": true,
+    "08_26_facial_morph_targets_present": true,
+    "09_animation_library_embedded": true,
+    "10_metric_world_height_accurate": true,
+    "11_flat_floor_grounding": true
+  },
+  "issues": []
+}
