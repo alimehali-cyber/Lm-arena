@@ -2,8 +2,11 @@ package com.alijafari.red.astronomy.ui.rendering
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -12,6 +15,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import kotlin.math.PI
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /** What the observer is doing. Chosen from the real Sun altitude, never from weather. */
@@ -27,15 +31,18 @@ internal enum class ObserverPose {
 }
 
 /**
- * The observer standing on the grass line of the full-bleed Home scene.
+ * The observer standing on the grass line of the full-bleed Home scene: Professor Z.
  *
- * This is ZIG's answer to the figure in Samsung's weather screen: one small, calm silhouette that gives
- * the sky a human scale. It is drawn entirely from vector paths, its clothing comes from the theme
- * palette, and its pose comes from the actual Sun altitude — so it is scenery, not decoration that
- * pretends to know the weather.
+ * The figure is the professor's pre-rendered sprite sheet (see [ObserverSprites]) — one row per
+ * [ObserverPose], chosen from the actual Sun altitude, and twelve columns of a 5.2 s breath the
+ * scene clock steps through. The sheet's pose frames were rendered in the avatar lab from the
+ * uploaded reference photos, so this is a real character, scenery and not decoration.
  *
- * The whole figure is generated per frame at roughly a dozen draw calls, so it can breathe and sway while
- * the cloud veils drift.
+ * Everything the observer already promised is kept: the contact shadow, the 17 s weight shift,
+ * the breath that rides the scene clock at ~24 fps, the twilight phone glow that scales with
+ * darkness, and a palette that keeps answering the theme (the sheet is tinted down toward night
+ * as the ambient light falls). Until the sheet finishes decoding — and for any theme that wants
+ * the cheap figure — the original vector silhouette is still drawn, unchanged.
  */
 object ObserverRenderer {
 
@@ -53,7 +60,8 @@ object ObserverRenderer {
         composition: SceneComposition,
         theme: SkyCanvasTheme,
         lighting: LightingState,
-        frameTimeMs: Long
+        frameTimeMs: Long,
+        sprites: ObserverSprites? = null
     ) {
         val palette = figurePalette(theme, lighting)
         val s = composition.figureHeightPx
@@ -79,17 +87,11 @@ object ObserverRenderer {
             rotate(degrees = sway * 0.35f, pivot = Offset(0f, 0f))
             scale(scaleX = 1f + breath * 0.004f, scaleY = 1f + breath * 0.004f, pivot = Offset(0f, 0f))
         }) {
-            // Back arm first, so the front arm reads on top of the torso.
-            drawArms(drawScope, s, facing, pose, palette, front = false)
-
-            drawLegs(drawScope, s, palette)
-            drawTorso(drawScope, s, palette)
-            drawHead(drawScope, s, facing, palette, pose, breath)
-
-            drawArms(drawScope, s, facing, pose, palette, front = true)
-
-            if (pose == ObserverPose.PHONE) {
-                drawPhone(drawScope, s, facing, lighting)
+            val sheet = sprites?.sheet
+            if (sheet != null) {
+                drawSheetFrame(drawScope, sheet, s, facing, pose, t, lighting)
+            } else {
+                drawVectorFigure(drawScope, s, facing, pose, palette, breath, lighting)
             }
         }
     }
@@ -99,6 +101,84 @@ object ObserverRenderer {
         sunAltitudeDeg > 3.0 -> ObserverPose.SHADING_EYES
         sunAltitudeDeg > -7.0 -> ObserverPose.PHONE
         else -> ObserverPose.LOOKING_UP
+    }
+
+    /**
+     * One cell of the sheet: row [ObserverPose.ordinal], column the breath phase. The cell frames
+     * [ObserverSprites.FRAME_M] of world, the professor himself stands
+     * [ObserverSprites.CHAR_M] tall, so drawing the cell at `s * FRAME_M / CHAR_M` high — feet on
+     * the grass line — keeps the figure exactly the height the composition asked for.
+     */
+    private fun drawSheetFrame(
+        drawScope: DrawScope,
+        sheet: ImageBitmap,
+        s: Float,
+        facing: Float,
+        pose: ObserverPose,
+        t: Double,
+        lighting: LightingState
+    ) {
+        val frame = ((t / BREATH_SECONDS) * ObserverSprites.FRAMES).toInt()
+            .mod(ObserverSprites.FRAMES)
+        val srcX = frame * ObserverSprites.CELL_W
+        val srcY = pose.ordinal * ObserverSprites.CELL_H
+
+        val dstH = s * (ObserverSprites.FRAME_M / ObserverSprites.CHAR_M)
+        val dstW = dstH * (ObserverSprites.CELL_W.toFloat() / ObserverSprites.CELL_H)
+
+        // Night answers the sheet: as the ambient light falls, the professor is multiplied down
+        // toward the blue dark the scene itself takes. Daylight leaves his rendered colours alone.
+        val dim = 1f - 0.30f * (1f - lighting.ambientBrightness.coerceIn(0f, 1f))
+        val colorFilter = if (dim < 0.995f) {
+            ColorFilter.tint(
+                color = Color(red = dim, green = dim, blue = (dim * 1.06f).coerceAtMost(1f)),
+                blendMode = BlendMode.Multiply
+            )
+        } else {
+            null
+        }
+
+        drawScope.withTransform({ scale(scaleX = facing, scaleY = 1f, pivot = Offset(0f, 0f)) }) {
+            drawScope.drawImage(
+                image = sheet,
+                srcOffset = androidx.compose.ui.unit.IntOffset(srcX, srcY),
+                srcSize = androidx.compose.ui.unit.IntSize(ObserverSprites.CELL_W, ObserverSprites.CELL_H),
+                dstOffset = androidx.compose.ui.unit.IntOffset((-dstW / 2f).roundToInt(), (-dstH).roundToInt()),
+                dstSize = androidx.compose.ui.unit.IntSize(dstW.roundToInt(), dstH.roundToInt()),
+                colorFilter = colorFilter
+            )
+        }
+
+        // The twilight phone keeps its live glow on top of the sheet's phone.
+        if (pose == ObserverPose.PHONE) {
+            drawPhone(drawScope, s, facing, lighting)
+        }
+    }
+
+    // ------------------------------------------------------------------ vector fallback
+
+    /** The original vector silhouette, drawn while the sheet decodes (and forever, if it cannot). */
+    private fun drawVectorFigure(
+        drawScope: DrawScope,
+        s: Float,
+        facing: Float,
+        pose: ObserverPose,
+        palette: FigurePalette,
+        breath: Float,
+        lighting: LightingState
+    ) {
+        // Back arm first, so the front arm reads on top of the torso.
+        drawArms(drawScope, s, facing, pose, palette, front = false)
+
+        drawLegs(drawScope, s, palette)
+        drawTorso(drawScope, s, palette)
+        drawHead(drawScope, s, facing, palette, pose, breath)
+
+        drawArms(drawScope, s, facing, pose, palette, front = true)
+
+        if (pose == ObserverPose.PHONE) {
+            drawPhone(drawScope, s, facing, lighting)
+        }
     }
 
     private fun drawContactShadow(drawScope: DrawScope, feet: Offset, s: Float, lighting: LightingState) {

@@ -276,6 +276,9 @@ fun HeroSkyCanvas(
     // The photographic Moon: the Home Moon card's look with the true phase, libration and visibility.
     val moonSprites = rememberSkyMoonSprites()
 
+    // Professor Z as the observer: the pre-rendered sprite sheet on the grass line.
+    val observerSprites = rememberObserverSprites()
+
     // Photographic panorama (Phase 1). Only active behind the internal SkyPanoramaFeature switch.
     // Until the panorama reports READY, the legacy atmosphere and procedural Milky Way below stay
     // visible as the fallback, so there is no black or empty flash. Its state is derived only when
@@ -468,7 +471,8 @@ fun HeroSkyCanvas(
                     frame = skyFrame,
                     theme = uiState.skyCanvasTheme,
                     frameTimeMs = motionTimeMs,
-                    figureOnRight = !isFa
+                    figureOnRight = !isFa,
+                    observerSprites = observerSprites
                 )
             }
         }

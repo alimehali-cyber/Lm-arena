@@ -239,7 +239,8 @@ object SkySceneRenderer {
         frame: SkySceneFrame,
         theme: SkyCanvasTheme,
         frameTimeMs: Long,
-        figureOnRight: Boolean = true
+        figureOnRight: Boolean = true,
+        observerSprites: ObserverSprites? = null
     ) {
         val canvasW = drawScope.size.width
         val canvasH = drawScope.size.height
@@ -265,7 +266,8 @@ object SkySceneRenderer {
             composition = composition,
             theme = theme,
             lighting = frame.lightingState,
-            frameTimeMs = frameTimeMs
+            frameTimeMs = frameTimeMs,
+            sprites = observerSprites
         )
     }
 }
