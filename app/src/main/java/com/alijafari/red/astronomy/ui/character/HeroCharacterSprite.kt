@@ -64,17 +64,17 @@ object HeroCharacter {
  * Loads the strip once and draws it where the vector observer used to stand.
  *
  * The numbers below were measured off the baked frames themselves rather than assumed: with the
- * camera fitted at 1.20x the body height, the figure occupies 86.25 % of the frame vertically and
- * its soles sit at 94.17 % of the frame, horizontally centred. Drawing with those fractions is what
+ * camera fitted at 1.20x the body height, the figure occupies 86.67 % of the frame vertically and
+ * its soles sit at 94.58 % of the frame, horizontally centred. Drawing with those fractions is what
  * makes the character the same height as the observer it replaces.
  */
 object HeroCharacterSprite {
 
     /** Body height as a fraction of the strip frame height (measured, see above). */
-    private const val BODY_HEIGHT_FRACTION = 0.8625f
+    private const val BODY_HEIGHT_FRACTION = 0.8667f
 
     /** Where the soles sit inside the frame, as a fraction of its height (measured). */
-    private const val FEET_FRACTION = 0.9417f
+    private const val FEET_FRACTION = 0.9458f
 
     /** Frame aspect: 160 x 240. */
     private const val ASPECT = 160f / 240f
