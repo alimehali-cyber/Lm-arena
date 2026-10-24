@@ -225,11 +225,11 @@ def main() -> None:
     # Trim, natural arm & sleeve stance matching `FRONT` width 1:1 (`arms slightly closer to ribs`):
     ay_k = np.array([0.878, 0.940, 1.008, 1.076, 1.158])
     arm_curves = {
-        "r_xc": interpolate.PchipInterpolator(ay_k, np.array([-0.118, -0.160, -0.194, -0.208, -0.192])),
+        "r_xc": interpolate.PchipInterpolator(ay_k, np.array([-0.108, -0.154, -0.194, -0.208, -0.192])),
         "r_xr": interpolate.PchipInterpolator(ay_k, np.array([0.025, 0.030, 0.034, 0.037, 0.035])),
-        "l_xc": interpolate.PchipInterpolator(ay_k, np.array([+0.118, +0.156, +0.190, +0.202, +0.188])),
+        "l_xc": interpolate.PchipInterpolator(ay_k, np.array([+0.108, +0.150, +0.190, +0.202, +0.188])),
         "l_xr": interpolate.PchipInterpolator(ay_k, np.array([0.025, 0.030, 0.034, 0.037, 0.035])),
-        "zc": interpolate.PchipInterpolator(ay_k, np.array([+0.036, +0.012, -0.034, -0.076, -0.044])),
+        "zc": interpolate.PchipInterpolator(ay_k, np.array([+0.040, +0.020, -0.018, +0.004, +0.030])),
     }
 
     # Rebuild Head+Arms (`silky smooth cheek smile — 0.35x gentle lip groove so ZERO mouth-corner wrinkles!`):
@@ -251,9 +251,9 @@ def main() -> None:
     zs = orig[2] + np.arange(dims[2], dtype=np.float32) * pitch
 
     ty_k = np.array([0.850, 0.900, 1.000, 1.120, 1.240, 1.310, 1.342, 1.360])
-    txr_k = np.array([0.145, 0.141, 0.142, 0.150, 0.156, 0.136, 0.088, 0.059])
+    txr_k = np.array([0.152, 0.148, 0.142, 0.150, 0.156, 0.136, 0.088, 0.059])
     tzc_k = np.array([0.020, 0.019, 0.016, 0.012, 0.010, 0.014, 0.018, 0.020])
-    tzr_k = np.array([0.090, 0.094, 0.102, 0.108, 0.105, 0.088, 0.068, 0.056])
+    tzr_k = np.array([0.097, 0.099, 0.102, 0.108, 0.105, 0.088, 0.068, 0.056])
     spl_xr = interpolate.PchipInterpolator(ty_k, txr_k)
     spl_zc = interpolate.PchipInterpolator(ty_k, tzc_k)
     spl_zr = interpolate.PchipInterpolator(ty_k, tzr_k)
@@ -270,7 +270,8 @@ def main() -> None:
         collar_rib = -0.0038 * np.exp(-((top_plane + 0.006) / 0.006) ** 2)
         drape = -0.0028 * np.sin(np.arctan2(Zg - zc, Xg) * 5.0 + Yg * 18.0) * np.exp(-((Yg - 0.905) / 0.055) ** 2)
         tnorm = (((np.abs(Xg - 0.002) / xr) ** 2.10) + ((np.abs(Zg - zc) / zr) ** 2.06)) ** (1.0 / 2.08)
-        d_trunk = np.maximum((tnorm - 1.0) * np.minimum(xr, zr) + hem_lip + collar_rib + drape, np.maximum(0.854 - Yg, top_plane))
+        hem_round = 55.0 * np.maximum(0.860 - Yg, 0.0) ** 2  # rounded hanging hem, no pointed ellipse-rim corners
+        d_trunk = np.maximum((tnorm - 1.0) * np.minimum(xr, zr) + hem_lip + collar_rib + drape + hem_round, np.maximum(0.848 - Yg, top_plane))
 
         d_slvs = np.full_like(d_trunk, 0.50)
         for sgn in (-1.0, +1.0):
@@ -297,7 +298,7 @@ def main() -> None:
     for leg_x in (-0.11, +0.10):
         m_side = low_lip & ((vj[:, 0] < 0) if leg_x < 0 else (vj[:, 0] >= 0))
         cx_m = np.median(vj[m_side, 0])
-        vj[m_side, 0] = cx_m + (vj[m_side, 0] - cx_m) * 0.92
+        vj[m_side, 0] = cx_m + (vj[m_side, 0] - cx_m) * 0.985
     jeans_mesh = trimesh.Trimesh(vertices=vj, faces=jeans_mesh.faces, process=True)
     trimesh.repair.fix_normals(jeans_mesh)
 

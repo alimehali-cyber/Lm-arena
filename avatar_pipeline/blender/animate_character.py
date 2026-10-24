@@ -282,10 +282,12 @@ def author_all_24_clips(rig: bpy.types.Object, head_obj: bpy.types.Object, lipsy
             cb.rot_deg("Thigh_R", f, -26.0 * s, 0.0, 0.0)
             cb.rot_deg("Calf_L", f, -28.0 * max(0.0, -c), 0.0, 0.0)
             cb.rot_deg("Calf_R", f, -28.0 * max(0.0,  c), 0.0, 0.0)
-            cb.rot_deg("UpperArm_L", f, -22.0 * s, 0.0, 0.0)
-            cb.rot_deg("UpperArm_R", f,  22.0 * s, 0.0, 0.0)
-            cb.rot_deg("Forearm_L", f, 16.0 + 10.0 * max(0.0, -s), 0.0, 0.0)
-            cb.rot_deg("Forearm_R", f, 16.0 + 10.0 * max(0.0,  s), 0.0, 0.0)
+            # Iteration-4: stronger anti-phase arm swing (±27°) so BOTH hands fully clear the
+            # front pockets during locomotion; jeans never follow (semantic part weighting).
+            cb.rot_deg("UpperArm_L", f, -27.0 * s, 0.0, -4.0 * abs(s))
+            cb.rot_deg("UpperArm_R", f,  27.0 * s, 0.0, -4.0 * abs(s))
+            cb.rot_deg("Forearm_L", f, 14.0 + 12.0 * max(0.0, -s), 0.0, 0.0)
+            cb.rot_deg("Forearm_R", f, 14.0 + 12.0 * max(0.0,  s), 0.0, 0.0)
     add_clip("Walk_Cycle", 32, c_walk)
 
     # 17..19. Turn_Left, Turn_Right, Sit_Stargaze

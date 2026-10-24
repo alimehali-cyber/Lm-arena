@@ -52,8 +52,8 @@ class AvatarAnimator(private val model: AvatarModelAsset) {
     private var mouthCuesFa: List<MouthCue> = emptyList()
     private var mouthCuesEn: List<MouthCue> = emptyList()
 
-    private var currentPrimaryClip: String = "Idle_Breathe"
-    private var previousClip: String = "Idle_Breathe"
+    private var currentPrimaryClip: String = "Idle_Breathing"
+    private var previousClip: String = "Idle_Breathing"
     private var crossFadeProgress: Float = 1f
     private var activeReactionClip: String? = null
     private var reactionStartSec: Float = -100f
@@ -123,7 +123,7 @@ class AvatarAnimator(private val model: AvatarModelAsset) {
         fun ambientClipAtTime(sunAltitudeDeg: Double, timeSec: Float): String {
             val cyclePhase = ((timeSec % 16.0f) + 16.0f) % 16.0f
             return when {
-                cyclePhase < 7.5f -> "Idle_Breathe"
+                cyclePhase < 7.5f -> "Idle_Breathing"
                 cyclePhase < 12.5f -> clipForSunAltitude(sunAltitudeDeg)
                 else -> "ProfZ_HeroGlassesAdjust"
             }
@@ -342,7 +342,7 @@ class AvatarAnimator(private val model: AvatarModelAsset) {
         outMorph: FloatArray,
     ) {
         resetPoseBuffers(outT, outR, outS, outMorph)
-        val clip = model.animations[clipName] ?: model.animations["Idle_Breathe"] ?: return
+        val clip = model.animations[clipName] ?: model.animations["Idle_Breathing"] ?: return
         if (clip.durationSec <= 0f) return
         val t = ((timeSec % clip.durationSec) + clip.durationSec) % clip.durationSec
         for (ch in clip.channels) {

@@ -58,3 +58,13 @@ Every repository, binary runtime, Python library, pretrained weight package, and
 | `pymeshlab==2025.7.post1` | GPL-2.0-or-later (isolated) | Attempted for smoothing; NOT imported by any committed pipeline file (replaced by Taubin via `trimesh` + `fast-simplification`), NOT shipped in the APK |
 | `fast-simplification==0.2.0` | MIT | QEM decimation used in v8/v9 mesh pipeline (offline tooling only) |
 | `trimesh==4.6.4` | MIT | Mesh assembly/repair |
+
+## Iteration-4 additions (2026-10-24)
+
+| Component | License | Notes |
+|---|---|---|
+| `manifold3d==3.5.4` | Apache-2.0 | Pinned in `bootstrap_env.sh`; offline mesh tooling only, not shipped in the APK |
+| `networkx==3.6.1` | BSD-3-Clause | Skeleton/adjacency analysis in offline steps only, not shipped in the APK |
+| MediaPipe Face Mesh (`mediapipe==0.10.21`, bundled face model) | Apache-2.0 | Runs 100% locally on the reference crop; `step_a3` now cross-checks it against a ground-truth iris blob detector and rigidly re-registers all 478 landmarks (detector is offline, nothing uploaded) |
+| `bpy==4.2.0` (Blender Python) | GPL-2.0-or-later (tool only) | Used strictly as an offline authoring/export tool; pipeline scripts are first-party and the exported GLBs are unencumbered |
+| `kotlinc 2.2.10` + minimal JUnit-shape harness | Apache-2.0 | Headless verification of `ProfessorZAvatarUnitTest` (3/3 vs shipped GLBs) and the `professorZBox` portrait-composition contract; test sources are first-party, never shipped |

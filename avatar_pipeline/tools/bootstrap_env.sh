@@ -28,7 +28,12 @@ fi
   "pygltflib==1.16.3" \
   "pocketsphinx==5.1.1" \
   "jdk4py==21.0.8.0" \
-  "bpy==4.2.0"
+  "bpy==4.2.0" \
+  "onnxruntime==1.31.0" \
+  "fast-simplification==0.2.0"
+
+# Trimesh boolean/mesh repair backends used by the Iteration-3 reconstruction scripts.
+"$REPO_ROOT/.venv/bin/uv" pip install --python "$REPO_ROOT/.venv/bin/python" "manifold3d==3.5.4" "networkx==3.6.1"
 
 # MediaPipe pulls `opencv-contrib-python` (linked against libGL.so.1); overlay headless `cv2` cleanly so
 # every CLI script and unittest runs with zero system X11/OpenGL shared-library requirements.

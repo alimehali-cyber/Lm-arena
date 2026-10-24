@@ -132,7 +132,7 @@
           "Avatar_Head_Mesh",
           "Icosphere"
         ],
-        "reimported_vertices": 11135,
+        "reimported_vertices": 11138,
         "reimported_triangles": 18557,
         "uv_layers_present_all_meshes": true,
         "reimported_bones": 60,
@@ -141,7 +141,7 @@
         "reimported_blender_actions": 48,
         "assetfurnace_glb_stats": {
           "triangles": 18477,
-          "vertices": 11093,
+          "vertices": 11096,
           "meshes": 2,
           "materials": 1,
           "textures": [
@@ -188,7 +188,7 @@
             "ProfZ_Sleepy",
             "ProfZ_TongueOutWink"
           ],
-          "bytes": 3094460
+          "bytes": 3094616
         }
       }
     },
@@ -269,7 +269,7 @@
   "qa_validation_lod0": {
     "glb_path": "/home/user/Lm-arena/avatar_pipeline/exports/avatar_mobile.glb",
     "passed": true,
-    "file_size_mb": 2.9511,
+    "file_size_mb": 2.9513,
     "triangle_count": 18477,
     "draw_calls": 2,
     "material_count": 1,

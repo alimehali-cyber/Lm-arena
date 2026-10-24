@@ -526,7 +526,7 @@ def main() -> None:
     # Reuse Converse, Glasses & Watch builders from v5 alongside our clean new 4 body sub-meshes!
     import sys as _sys
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(WORK))
+    _sys.path.insert(0, str(WORK))
     import step_b_build_flawless_v4 as v5
 
     cal = prepare_calibration()

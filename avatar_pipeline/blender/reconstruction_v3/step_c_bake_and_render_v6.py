@@ -389,7 +389,7 @@ def main() -> None:
     TEX_DIR.mkdir(parents=True, exist_ok=True)
     RENDER_DIR.mkdir(parents=True, exist_ok=True)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(WORK))
+    sys.path.insert(0, str(WORK))
     cal = np.load(WORK / "calibration_v6.npz")
 
     bpy.ops.wm.read_factory_settings(use_empty=True)

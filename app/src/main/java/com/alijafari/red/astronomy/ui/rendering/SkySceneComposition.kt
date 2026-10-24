@@ -41,6 +41,22 @@ object SkySceneLayout {
     /** Top of the solid ground band, below the horizon, as a fraction of the scene height. */
     const val GROUND_TOP_FRACTION = 0.052f
 
+    /**
+     * Horizontal centre of Professor Z's 3D layer, as a fraction of width. He stands on the LEFT of the
+     * sky canvas (mirrored from the observer's default right slot) so the mascot and the silhouette
+     * observer never compete for the same third of the frame.
+     */
+    const val PROFESSOR_Z_CENTER_FRACTION = 0.175f
+
+    /** Height of Professor Z's box as a fraction of the scene height. */
+    const val PROFESSOR_Z_HEIGHT_FRACTION = 0.295f
+
+    /** Width of Professor Z's box as a fraction of its own height. */
+    const val PROFESSOR_Z_BOX_ASPECT = 0.68f
+
+    /** How far into his box the feet sit (0.964 = feet on the grass line with a small sole margin). */
+    const val PROFESSOR_Z_FEET_SEAT = 0.964f
+
     /** Builds the composition for a canvas of [widthPx] x [heightPx] pixels. */
     fun composition(
         widthPx: Float,
@@ -64,6 +80,32 @@ object SkySceneLayout {
             figureCenterX = w * figureCenter,
             farRidgeAmplitude = h * FAR_RIDGE_FRACTION,
             midRidgeAmplitude = h * MID_RIDGE_FRACTION
+        )
+    }
+
+    /**
+     * Rectangle for the 3D Professor Z layer: [PROFESSOR_Z_HEIGHT_FRACTION] of the scene height, centred on
+     * the left third of the canvas and clamped so the box never leaves it, feet seated on the grass line.
+     */
+    fun professorZBox(
+        widthPx: Float,
+        heightPx: Float,
+        horizonFraction: Float = HORIZON_FRACTION,
+    ): ProfessorZBox {
+        val w = widthPx.coerceAtLeast(1f)
+        val h = heightPx.coerceAtLeast(1f)
+        // A tall portrait canvas must NOT stretch him across the phone: cap the box so its width always
+        // fits inside the left portion (plus margins), the height fraction is the ceiling, not the rule.
+        val boxH = minOf(h * PROFESSOR_Z_HEIGHT_FRACTION, (w * 0.46f) / PROFESSOR_Z_BOX_ASPECT)
+        val boxW = boxH * PROFESSOR_Z_BOX_ASPECT
+        val centerX = (w * PROFESSOR_Z_CENTER_FRACTION)
+            .coerceIn(boxW * 0.5f + 4f, (w - boxW * 0.5f - 4f).coerceAtLeast(boxW * 0.5f + 4f))
+        val scene = composition(widthPx = w, heightPx = h, horizonFraction = horizonFraction, figureOnRight = true)
+        return ProfessorZBox(
+            leftPx = centerX - boxW * 0.5f,
+            topPx = scene.figureFeetY - boxH * PROFESSOR_Z_FEET_SEAT,
+            widthPx = boxW,
+            heightPx = boxH,
         )
     }
 }
@@ -90,3 +132,18 @@ data class SceneComposition(
     /** Vertical extent of everything below the horizon, in pixels. */
     val groundHeightPx: Float get() = (heightPx - horizonY).coerceAtLeast(1f)
 }
+
+/**
+ * Pixel rectangle for the 3D Professor Z layer on the Home Sky canvas (left-anchored, feet on the grass).
+ * Produced by [SkySceneLayout.professorZBox]; pure arithmetic so it is unit-testable on the JVM.
+ */
+data class ProfessorZBox(
+    val leftPx: Float,
+    val topPx: Float,
+    val widthPx: Float,
+    val heightPx: Float,
+) {
+    val centerX: Float get() = leftPx + widthPx * 0.5f
+    val feetY: Float get() = topPx + heightPx * SkySceneLayout.PROFESSOR_Z_FEET_SEAT
+}
+

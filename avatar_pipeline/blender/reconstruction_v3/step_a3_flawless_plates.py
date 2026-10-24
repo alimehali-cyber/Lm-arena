@@ -132,16 +132,83 @@ fx0, sx0 = int(front["x0"]), int(side["x0"])
 # Right lens center is around `x_local = 200` (`x_global = 350`) and `y = 263`!!
 # AHA!! LOOK WHY `lms` HAD `+30px` OFFSET IN `step_a2`: `hcrop2x` HAD `W=420, H=394`, AND WE MULTIPLIED `lm.x * (hx1 - hx0)` WHERE `hx0=240` WAS RIGHT — WAIT WHY WAS `EyeL` `334` INSTEAD OF `302`?!
 # LET'S PRINT EXACT EYE PUPIL DARK MINIMA IN `f_rgb` DIRECTLY SO WE NEVER TRUST ANY SCALE BUG EVER!!
-for tag, xa, xb in [("ViewerLeft_Pupil", 130, 175), ("ViewerRight_Pupil", 180, 225)]:
-    sub = f_luma[245:280, xa:xb]
-    iy, ix = np.unravel_index(np.argmin(sub), sub.shape)
-    print(f"DIRECT PIXEL PUPIL {tag}: x_local={xa+ix} (x_global={fx0+xa+ix}), y={245+iy}, luma={sub[iy,ix]:.1f}")
+def detect_iris(local_x_hint, local_y_hint, label, side):
+    """Ground-truth iris: darkest COMPACT round blob in a +/-30px window on the matted plate.
+    Eyebrows are wide (bbox width >= 20 px) and lashes are thin arcs (fill < 0.35) - both rejected."""
+    from scipy import ndimage as _nd
+    sm = _nd.gaussian_filter(f_luma, 1.1)
+    x0 = int(max(0, local_x_hint - 30)); x1 = int(min(f_rgb.shape[1], local_x_hint + 31))
+    y0 = int(max(0, local_y_hint - 26)); y1 = int(min(f_rgb.shape[0], local_y_hint + 27))
+    dark = (sm[y0:y1, x0:x1] < 62.0) & front["mask"][y0:y1, x0:x1].astype(bool)
+    lab, n = _nd.label(dark)
+    best = None
+    for k in range(1, n + 1):
+        ys, xs = np.where(lab == k)
+        size = len(ys)
+        if size < 10 or size > 260:
+            continue
+        bw, bh = xs.max() - xs.min() + 1, ys.max() - ys.min() + 1
+        if bw > 16 or bh > 16 or size / (bw * bh) < 0.42:
+            continue
+        _mx, _my = x0 + xs.mean(), y0 + ys.mean()
+        # darkest mean wins, but a blob on the wrong side of the hint is heavily penalized
+        # (the opposite iris can wander into a +/-30px window when FaceMesh was skewed):
+        _off = max(0.0, _mx - local_x_hint) if side == "L" else max(0.0, local_x_hint - _mx)
+        w = float(sm[y0 + ys, x0 + xs].mean()) + 0.5 * _off
+        if best is None or w < best[0]:
+            best = (w, _mx, _my, size)
+    assert best is not None, f"{label}: no compact dark iris blob found near local ({local_x_hint:.0f},{local_y_hint:.0f})"
+    print(f"IRIS GROUND-TRUTH {label}: local=({best[1]:.2f},{best[2]:.2f}) global=({best[1]+fx0:.2f},{best[2]:.2f}) size={best[3]}")
+    return np.array([best[1], best[2]])
 
-# Re-run FaceMesh directly on full `f_rgb` (un-cropped!) so coordinates are 100.000% IDENTICAL to `f_rgb`!
+print("DIRECT PIXEL PUPIL (legacy argmin): skipped - replaced by blob detector below")
+
+# Re-run FaceMesh on the EXACT unresized head crop of `f_rgb` so landmark coordinates are 100.000%
+# IDENTICAL to the plate pixels (Iteration-3 lesson: NEVER resize the crop, never resize and subtract!)!
+# Full-frame detection is unreliable on a 385px-wide matted plate, so the crop is padded from the
+# a2 landmark bounding box and grown once if the detector still declines.
 import mediapipe as mp
-with mp.solutions.face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.2) as fm:
-    res = fm.process(f_rgb)
-    lms_local = np.array([[lm.x * f_rgb.shape[1], lm.y * f_rgb.shape[0], lm.z * f_rgb.shape[1]] for lm in res.multi_face_landmarks[0].landmark], dtype=np.float32)
+lx_a2, ly_a2 = lms[:, 0] - fx0, lms[:, 1]
+lms_local = None
+for _pad in (30, 64):
+    cx0 = int(max(0, lx_a2.min() - _pad)); cx1 = int(min(f_rgb.shape[1], lx_a2.max() + _pad + 1))
+    cy0 = int(max(0, ly_a2.min() - _pad)); cy1 = int(min(f_rgb.shape[0], ly_a2.max() + _pad + 1))
+    crop = f_rgb[cy0:cy1, cx0:cx1]
+    with mp.solutions.face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.2) as fm:
+        res = fm.process(crop)
+    if res.multi_face_landmarks:
+        lms_local = np.array(
+            [
+                [lm.x * crop.shape[1] + cx0, lm.y * crop.shape[0] + cy0, lm.z * crop.shape[1]]
+                for lm in res.multi_face_landmarks[0].landmark
+            ],
+            dtype=np.float32,
+        )
+        break
+assert lms_local is not None, "FaceMesh failed on exact padded head crops (30px & 64px)"
+
+# ---------------- TRUE-IRIS RIGID CORRECTION (Iteration-4 likeness fix) ----------------
+# FaceMesh chokes on the ~17 deg head roll in the FRONT panel and lands both eyes 18-24 px off.
+# Everything downstream (head x_hat roll frame in step_b_v4, bake w_proj, protect polys) inherits
+# that error, which is exactly why baked features sat ~2-4 cm off the sculpted eye sockets. Detect
+# the TRUE irises, then apply the unique similarity transform FaceMesh-pair -> true-pair to ALL 478
+# landmarks so index semantics and face topology are preserved and the whole face re-registers.
+_tL = detect_iris(lms_local[468, 0], lms_local[468, 1], "viewer_left ", "L")
+_tR = detect_iris(lms_local[473, 0], lms_local[473, 1], "viewer_right", "R")
+_sep = float(np.linalg.norm(_tR - _tL))
+assert 30.0 <= _sep <= 60.0, f"iris pair separation {_sep:.1f}px implausible"
+_fL, _fR = lms_local[468, :2].copy(), lms_local[473, :2].copy()
+_vf, _vt = _fR - _fL, _tR - _tL
+_k = float(np.linalg.norm(_vt) / max(1e-6, np.linalg.norm(_vf)))
+assert 0.75 < _k < 1.35, f"iris-pair scale {_k:.3f} implausible"
+_th = float(np.arctan2(_vt[1], _vt[0]) - np.arctan2(_vf[1], _vf[0]))
+_R2 = np.array([[np.cos(_th), -np.sin(_th)], [np.sin(_th), np.cos(_th)]])
+_xy = _tL[None, :] + _k * ((lms_local[:, :2] - _fL[None, :]) @ _R2.T)
+shift = np.linalg.norm(_xy - lms_local[:, :2], axis=1)
+print(f"IRIS SIMILARITY CORRECTION: scale={_k:.4f} rot={np.degrees(_th):+.2f}deg median|shift|={np.median(shift):.2f}px max={shift.max():.2f}px")
+lms_local[:, 0] = _xy[:, 0]
+lms_local[:, 1] = _xy[:, 1]
+
 lms_global = lms_local.copy()
 lms_global[:, 0] += fx0
 np.save(f"{out_dir}/front_facemesh_478.npy", lms_global)

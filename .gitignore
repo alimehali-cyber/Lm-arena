@@ -34,3 +34,6 @@ build-artifacts/
 # Large local-only model weights (re-fetched by bootstrap_env.sh, sha256 pinned in MODEL_MANIFEST.json)
 *.onnx
 avatar_pipeline/models/depth_anything_v2_small/
+avatar_pipeline/models/repos/
+avatar_pipeline/skills/**/.github/
+.agents/

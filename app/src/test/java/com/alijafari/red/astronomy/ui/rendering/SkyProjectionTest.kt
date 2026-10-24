@@ -165,6 +165,24 @@ class SkyProjectionTest {
     }
 
     @Test
+    fun professorZOwnsTheLeftOfTheSceneAndStaysInsideTheCanvas() {
+        for (w in listOf(320f, 412f, 1080f)) {
+            for (h in listOf(500f, 900f, 1344f)) {
+                val box = SkySceneLayout.professorZBox(widthPx = w, heightPx = h)
+                assertTrue("box must fit horizontally on ${w}x$h", box.leftPx >= 0f && box.leftPx + box.widthPx <= w)
+                assertTrue("Professor Z must own the left half on ${w}x$h", box.centerX < w * 0.5f)
+                assertTrue("box top must be inside the canvas on ${w}x$h", box.topPx > 0f)
+                val scene = SkySceneLayout.composition(w, h, figureOnRight = true)
+                assertEquals("feet sit on the grass line", scene.figureFeetY, box.feetY, 0.01f)
+            }
+        }
+        val box = SkySceneLayout.professorZBox(1080f, 1075f)
+        assertEquals(1075f * SkySceneLayout.PROFESSOR_Z_HEIGHT_FRACTION, box.heightPx, 0.01f)
+        assertEquals(1075f * SkySceneLayout.PROFESSOR_Z_HEIGHT_FRACTION * SkySceneLayout.PROFESSOR_Z_BOX_ASPECT, box.widthPx, 0.01f)
+        assertEquals(1080f * SkySceneLayout.PROFESSOR_Z_CENTER_FRACTION, box.centerX, 0.01f)
+    }
+
+    @Test
     fun homeAndBackdropPanoramaStatesDifferOnlyByFraming() {
         val frame = SkySceneModel.compute(TimeEngine.getJulianDate(1_700_000_000_000L), lat, 13.4, 0.0)
         val home = SkyPanoramaState.fromSceneFrame(frame, SkyPanoramaFraming.HOME_ZENITH)

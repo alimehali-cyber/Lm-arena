@@ -1,8 +1,8 @@
 {
   "glb_path": "app/src/main/assets/avatar/professor_z.glb",
   "passed": true,
-  "file_size_mb": 3.4478,
-  "triangle_count": 22286,
+  "file_size_mb": 3.5209,
+  "triangle_count": 22284,
   "draw_calls": 2,
   "material_count": 1,
   "texture_resolutions": [
@@ -23,7 +23,7 @@
   "max_influences_per_vertex": 4,
   "morph_target_count": 26,
   "animation_count": 24,
-  "measured_height_m": 1.7299,
+  "measured_height_m": 1.7289,
   "min_z_m": -4e-05,
   "checks": {
     "01_file_size_within_budget": true,

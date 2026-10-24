@@ -127,6 +127,127 @@ def remap_uvs_to_tile(obj: bpy.types.Object, col: int, row: int, margin: float =
         )
 
 
+
+def assign_semantic_part_weights(body: bpy.types.Object, rig: bpy.types.Object) -> None:
+    """Part-pinned anatomical skinning (`zero cross-talk`): garments NEVER follow hands/arms and bare
+    arms never inherit legs — the reference-matched fix for hands-in-pockets dragging the jeans."""
+    bone_names = {b.name for b in rig.data.bones}
+    segs = {
+        b.name: (np.array(b.head_local, dtype=np.float64), np.array(b.tail_local, dtype=np.float64))
+        for b in rig.data.bones
+    }
+
+    torso_set = {"Hips", "Spine01", "Spine02", "Chest", "Neck"}
+    arm_chain = {
+        sgn: ({"Chest", f"Clavicle_{sgn}", f"UpperArm_{sgn}", f"UpperArmTwist_{sgn}", f"Forearm_{sgn}"})
+        for sgn in ("L", "R")
+    }
+    hand_chain = {}
+    for sgn in ("L", "R"):
+        digits = {f"Hand_{sgn}", f"ForearmTwist_{sgn}"}
+        for finger in ("Thumb", "Index", "Middle", "Ring", "Pinky"):
+            for k in (1, 2, 3):
+                digits.add(f"{finger}{k}_{sgn}")
+        hand_chain[sgn] = digits
+    leg_set = {"Hips", "Spine01", "Thigh_L", "Thigh_R", "Calf_L", "Calf_R", "Foot_L", "Foot_R", "Toe_L", "Toe_R"}
+
+    def bone_segs(names):
+        return {n: segs[n] for n in names if n in bone_names}
+
+    src_index = {o: i for i, o in enumerate(body.vertex_groups)}
+    part_of = np.full(len(body.data.vertices), "", dtype=object)
+    for vg in body.vertex_groups:
+        if vg.name.startswith("SRC_"):
+            for v in body.data.vertices:
+                for g in v.groups:
+                    if g.group == vg.index and g.weight > 0.5 and part_of[v.index] == "":
+                        part_of[v.index] = vg.name[4:]
+                        break
+
+    rigid_map = {"watch": "ForearmTwist_L", "shoe_l": "Foot_L", "shoe_r": "Foot_R"}
+
+    vgs = {b.name: (body.vertex_groups.get(b.name) or body.vertex_groups.new(name=b.name)) for b in rig.data.bones}
+    verts = body.data.vertices
+    for i, v in enumerate(verts):
+        part = part_of[i]
+        if part in ("hair", "glasses"):
+            continue  # already 100% rigid on `Head` (joined vertex groups survived `join`)
+        p = np.array(v.co, dtype=np.float64)
+        side = "L" if p[0] >= 0.0 else "R"
+        if part in rigid_map and rigid_map[part] in bone_names:
+            vgs[rigid_map[part]].add([i], 1.0, "REPLACE")
+            continue
+        if part == "jeans":
+            allowed = bone_segs(leg_set)
+        elif part == "tshirt":
+            if abs(p[0]) < 0.075:
+                allowed = bone_segs(torso_set | {"Clavicle_L", "Clavicle_R"})
+            else:
+                allowed = bone_segs(torso_set | arm_chain[side])
+        elif part == "arms_skin":
+            allowed = bone_segs(arm_chain[side] | hand_chain[side])
+        else:
+            allowed = bone_segs(torso_set | arm_chain["L"] | arm_chain["R"])
+
+        if not allowed:
+            vgs["Hips" if "Hips" in bone_names else next(iter(bone_names))].add([i], 1.0, "REPLACE")
+            continue
+        dists = []
+        for bname, (a, b) in allowed.items():
+            ab = b - a
+            t = float(np.clip(np.dot(p - a, ab) / max(float(np.dot(ab, ab)), 1e-9), 0.0, 1.0))
+            proj = a + t * ab
+            dists.append((float(np.linalg.norm(p - proj)), bname))
+        dists.sort(key=lambda x: x[0])
+        top = dists[: min(4, len(dists))]
+        sigma = max(top[0][0] * 0.45 + 0.015, 0.015)
+        raw_w = [math.exp(-((d - top[0][0]) ** 2) / (2.0 * sigma * sigma)) for d, _ in top]
+        s_w = sum(raw_w) or 1.0
+        for (_, bname), w in zip(top, raw_w):
+            nw = w / s_w
+            if nw > 0.005:
+                vgs[bname].add([i], nw, "REPLACE")
+
+    # Hard self-check: every non-rigid vertex may ONLY carry bones from its own part's allowed set.
+    # A regression here is exactly the Iteration-3 pocket-drag bug, so it must abort the export.
+    allowed_of = {}
+    violations = 0
+    for i, v in enumerate(verts):
+        part = part_of[i]
+        if part in ("hair", "glasses"):
+            continue
+        p3 = np.array(v.co, dtype=np.float64)
+        side = "L" if p3[0] >= 0.0 else "R"
+        if part in rigid_map:
+            allowed_of[i] = {rigid_map[part]}
+        elif part == "jeans":
+            allowed_of[i] = leg_set
+        elif part == "tshirt":
+            allowed_of[i] = torso_set | {"Clavicle_L", "Clavicle_R"} if abs(p3[0]) < 0.075 else torso_set | arm_chain[side]
+        elif part == "arms_skin":
+            allowed_of[i] = arm_chain[side] | hand_chain[side]
+        else:
+            allowed_of[i] = torso_set | arm_chain["L"] | arm_chain["R"]
+    bone_by_index = {vg.index: bname for bname, vg in vgs.items()}
+    viol_examples: dict[str, int] = {}
+    for i, v in enumerate(verts):
+        if part_of[i] in ("hair", "glasses"):
+            continue  # INTENDED 100%-rigid `Head` attachments (zero-wobble contract), not cross-talk.
+        for g in v.groups:
+            if g.weight > 1e-4:
+                bname = bone_by_index.get(g.group)
+                if bname is not None and bname not in allowed_of.get(i, set()):
+                    violations += 1
+                    key = f"{part_of[i] or '?'}:{bname}"
+                    viol_examples[key] = viol_examples.get(key, 0) + 1
+    if violations:
+        print("CROSS-TALK VIOLATION BREAKDOWN:", json.dumps(dict(sorted(viol_examples.items(), key=lambda kv: -kv[1])[:25]), indent=2))
+    assert violations == 0, f"semantic skinning cross-talk detected on {violations} vertices!"
+    for vg_name in [g.name for g in body.vertex_groups if g.name.startswith("SRC_")]:
+        body.vertex_groups.remove(body.vertex_groups[vg_name])
+    print(f"SEMANTIC PART WEIGHTING DONE — {len(verts):,} body verts, zero jeans/hand cross-talk (verified)")
+
+
 def build_rigged_animated_master_blend(cal: dict) -> Path:
     bpy.ops.wm.open_mainfile(filepath=str(WORK / "professor_z_studio_v9_final.blend"))
 
@@ -205,6 +326,17 @@ def build_rigged_animated_master_blend(cal: dict) -> Path:
         hair_o,
         glasses_o,
     ]
+
+    # ---- Iteration-4 POCKET-DRAG FIX: tag source part on every vertex BEFORE the join ----------
+    # In Iteration-3 the joined `Avatar_Body` carried NO part zones, so the capsule fallback let
+    # `assign_body_capsule_weights` bind jeans-pocket vertices to the Hand/Forearm bones (the rest
+    # pose literally has those capsules inside the pockets) and the fabric followed the hands when
+    # any clip moved an arm. Every vertex now keeps an immutable `SRC_<part>` marker which the
+    # semantic weighter below uses to pin each garment to its own anatomical chain ONLY.
+    for o in body_list:
+        src_tag = o.name.replace("ProfZ_", "SRC_")
+        vg_src = o.vertex_groups.new(name=src_tag)
+        vg_src.add(list(range(len(o.data.vertices))), 1.0, "REPLACE")
     bpy.ops.object.select_all(action="DESELECT")
     for o in body_list:
         o.select_set(True)
@@ -214,7 +346,7 @@ def build_rigged_animated_master_blend(cal: dict) -> Path:
     main_body.name = "Avatar_Body"
     main_body.data.name = "Avatar_Body_Mesh"
 
-    rig_character.assign_body_capsule_weights(main_body, rig, skip_rigid_bones={"Eye_L", "Eye_R", "Head"})
+    assign_semantic_part_weights(main_body, rig)
 
     # Protect high-detail sneakers, glasses, watch & hair silhouettes during mobile LOD decimation:
     vg_pin = main_body.vertex_groups.new(name="PIN_DETAIL")

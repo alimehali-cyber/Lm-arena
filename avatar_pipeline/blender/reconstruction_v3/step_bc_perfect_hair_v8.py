@@ -211,6 +211,51 @@ def build_exact_multiview_hair_mesh() -> None:
     det_s = sd_hair_s - sd_hair_s_macro
     det_b = sd_hair_b - sd_hair_b_macro
 
+    # ---- Iteration-4 DISCRETE CURL-CLUMPS ------------------------------------------------------
+    # The reference curls are SEPARATE lush lumps that break the silhouette in every view — not a
+    # smooth helmet. 96 golden-spiral lobes are soft-unioned OUTSIDE the tri-view hull, with an
+    # explicit nape skirt (hair must reach the shirt collar in BACK) and pre-ear sideburn tufts.
+    # The face-oval + eye-socket guards below still carve everything facial, so ZERO hair ever
+    # grows over brows/eyes. Deterministic seed -> byte-identical reruns.
+    rng_cl = np.random.default_rng(20261024)
+    aniso = np.array([0.1085, 0.1265, 0.1185])
+    clump_defs = []
+    N_CL = 88
+    for i_c in range(N_CL):
+        z_n = 1.0 - 2.0 * (i_c + 0.5) / N_CL
+        r_xy = np.sqrt(max(0.0, 1.0 - z_n * z_n))
+        phi = i_c * 2.39996323
+        d = np.array([np.cos(phi) * r_xy, z_n, np.sin(phi) * r_xy])
+        if d[1] < -0.62:
+            continue
+        protr = 0.0072 + 0.0106 * float(rng_cl.random())
+        r_clump = 0.0118 + 0.0052 * float(rng_cl.random())
+        q_c = d * (aniso * 1.015 + protr)
+        # Front-face exclusion window: no clump centers over the face oval below the forehead line.
+        if q_c[2] > 0.020 and q_c[1] < 0.085 and ((q_c[0] / 0.088) ** 2 + ((q_c[1] - 0.004) / 0.098) ** 2) < 1.15:
+            continue
+        # SIDEBURN-WING GUARD (FRONT-overlay finding): hair must NEVER bulge beside the cheeks below
+        # ear-top level — the reference silhouette tucks in there, only the back crown keeps depth.
+        if q_c[1] < -0.010 and abs(q_c[2]) < 0.075 and abs(q_c[0]) > 0.075:
+            continue
+        clump_defs.append((q_c, r_clump))
+    for i_n in range(12):
+        t_n = i_n / 11.0
+        q_nape = np.array(
+            [(t_n - 0.5) * 0.100, -0.096 - 0.020 * np.sin(t_n * np.pi), -0.040 - 0.046 * (1.0 - abs(t_n - 0.5) * 2.0)]
+        )
+        clump_defs.append((q_nape, 0.0128 + 0.0038 * float(rng_cl.random())))
+    for sgn_sb in (-1.0, +1.0):
+        for i_s in range(3):
+            q_sb = np.array([sgn_sb * 0.102, 0.030 - 0.016 * i_s, 0.018 + 0.013 * i_s])
+            clump_defs.append((q_sb, 0.0088 + 0.0020 * float(rng_cl.random())))
+    clumps_w = []
+    for q_c, r_clump in clump_defs:
+        w_c = c_h + q_c @ R_h.T
+        clumps_w.append((float(w_c[0]), float(w_c[1]), float(w_c[2]), float(r_clump)))
+    print(f"ITER-4 CURL-CLUMPS: {len(clumps_w)} lobes unioned onto the locked hull")
+    # ---------------------------------------------------------------------------------------------
+
     pitch = 0.0014
     orig = np.array([-0.240, 1.340, -0.265], dtype=np.float64)
     upp = np.array([+0.260, 1.775, +0.245], dtype=np.float64)
@@ -282,10 +327,19 @@ def build_exact_multiview_hair_mesh() -> None:
         real_3d_locks = -0.0062 * (wf * rf + wb * rb + ws * rs) / (wf + wb + ws)
 
         d_final = vh_sdf + real_3d_locks
+        # Soft hull union of the protruding curl clumps (hard min + the 0.62 px-grid gaussian below
+        # melts every lobe junction — watertight by construction, silhouette-breaking by design):
+        d_cl = np.full_like(d_final, 0.5)
+        for cx_c, cy_c, cz_c, r_c in clumps_w:
+            d_cl = np.minimum(d_cl, np.sqrt((Xg - cx_c) ** 2 + (Yg - cy_c) ** 2 + (Zg - cz_c) ** 2) - r_c)
+        # HULL-ANCHOR GATE: a lobe only survives within 22 mm of the actual hair hull surface, so
+        # stray “beads” can never float over cheeks, ears or the neck (clay-check finding).
+        d_cl = np.maximum(d_cl, vh_sdf - 0.022)
+        d_final = np.minimum(d_final, d_cl)
         d_final = np.maximum(d_final, np.maximum(d_skin_carve, np.maximum(ear_cut, inner_skull)))
         sdf[i0:i1] = d_final.astype(np.float32)
 
-    sdf = ndimage.gaussian_filter(sdf, sigma=0.80)
+    sdf = ndimage.gaussian_filter(sdf, sigma=0.62)
     sdf[[0, -1], :, :] = 0.05
     sdf[:, [0, -1], :] = 0.05
     sdf[:, :, [0, -1]] = 0.05

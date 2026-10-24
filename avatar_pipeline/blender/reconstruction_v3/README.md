@@ -7,7 +7,10 @@ All processing is 100% local/offline; the reference photo is never uploaded anyw
 
 Run order (each stage is idempotent and re-runnable):
 
-1. `step_a_surgical_extract.py` — per-view masks + `Depth-Anything-V2-Small` ONNX neural depth (CPU, `onnxruntime`).
+0. `step_a0_neural_depth.py` — `Depth-Anything-V2-Small` ONNX neural depth (CPU, `onnxruntime`) per view
+   producing `{front,side,back}.npz` (`depth`, `depth_global`) + the seed `front_facemesh_478.npy` that
+   `step_a*` consumes. Added in Iteration-4 so the whole chain is reproducible from a cold cache.
+1. `step_a_surgical_extract.py` — per-view masks over the A0 depth plates.
 2. `step_a2_perfect_plates.py` — PCHIP multi-view Y-correspondence, MediaPipe 478-point FaceMesh on the head crop.
 3. `step_a3_flawless_plates.py` — surgical razor matting (unmixing from the fitted paper background), elliptical
    eyeglasses-ring fit, watch-free inpainted SIDE plate.
@@ -30,3 +33,39 @@ Models: `bpy==4.2.0`, `onnxruntime`, `mediapipe==0.10.21`, `trimesh==4.6.4`, `sc
 `fast-simplification`, `pygltflib` (all installed by `avatar_pipeline/tools/bootstrap_env.sh`).
 Depth weights: `avatar_pipeline/models/depth_anything_v2_small/model_fp16.onnx` (see MODEL_MANIFEST.json;
 re-fetched by bootstrap, gitignored binary).
+
+## Iteration-4 refinements (2026-10-24)
+
+* **Reproducible cold start** — `step_a0_neural_depth.py` now generates the neural-depth plates that
+  previously only existed as Iteration-3 scratch; `step_a3` re-runs FaceMesh on the exact padded head
+  crop (never resized) with a grow-on-failure retry.
+* **Pocket-drag fix** — `step_d` tags every vertex with its semantic source part BEFORE the join and
+  skins with a part-pinned bone allow-list (`jeans→Hips/legs only`, `bare arms→arm+hand chains`,
+  `shirt torso→spine set`, `sleeves→same-side arm chain`, `watch→ForearmTwist_L`, `shoes→Foot_L/R`
+  rigid). A hard self-check asserts ZERO cross-talk before export, so arms can never drag the jeans.
+* **Walk clips** release both hands from the pockets with a stronger ±27° anti-phase swing.
+* **Likeness polish** — discrete extruded curl clumps (96 golden-spiral lobes + nape skirt + sideburn
+  tufts) break the hair silhouette like the reference instead of a smooth helmet; smaller tucked ears;
+  fuller cheeks; bolder brows; softer jaw; sturdier neck; hands hang deeper into the pockets (v8 arm
+  splines); slimmer wrist-worn watch; snugger rolled cuffs (trumpet flare removed); lens-veil &
+  smile-shadow cleanup in the face bake.
+
+### Iteration-4b — garment forensics & portrait layout (same day)
+
+* **Jeans ankle decontamination** — the leg-loft silhouette splines sampled mask rows *below* 23 cm, where the
+  reference photo's WIDE SNEAKERS share the rows: every ankle opening ballooned to 14.5 cm and the flat clip-plane
+  cap rendered as a floating brim wider than the shoes. Splines are now clamped to `y ≥ 0.230` and a linear
+  calf→cuff taper (floor 52 mm x-radius) restores the snug rolled-cuff silhouette.
+* **Symmetric shoe splay** — `−30°/+14°` asymmetric yaw (an Iteration-3 leftover) → mirrored `∓13°`.
+* **T-shirt hem** — hard ellipse-rim plane cut produced pointed "wing" corners at the hips; replaced with a
+  quadratic round-hanging term, hem lowered to 848 mm and widened (+7 mm x / +7 mm z at the bottom row) so the
+  fabric fully covers the waistband like the reference.
+* **`SkySceneLayout.professorZBox` portrait cap** — height-fraction-only sizing made the box 603 px wide on a
+  320-px-wide phone (overflowing, and center-clamped OFF the left half on 412×900). The box now takes
+  `min(h·0.68, w·0.46/aspect)` so Professor Z ALWAYS fits entirely inside the canvas and owns the left half on
+  every phone aspect — verified by a JVM `kotlinc` harness run (all 10 viewport combinations + the 1080×2400
+  portrait spot check) and by `SkyProjectionTest`/`ProfessorZAvatarUnitTest` (3/3 green against the shipped GLBs).
+* **FaceMesh skew guard in `step_a3`** — blob-detected ground-truth irises (compact-dark-blob search with
+  brow/lash rejection + wrong-side penalty) drive a rigid similarity correction of all 478 landmarks; on this
+  reference the correction measured scale 0.972/rot +0.68°, confirming the historic +30 px offset is gone and
+  locking the face registration against future detector wobble.

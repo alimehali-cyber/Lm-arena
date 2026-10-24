@@ -315,18 +315,13 @@ fun HeroSkyCanvas(
 
                     val fa = currentIsFa
                     if (currentIsScene && canvasW > 0f && canvasH > 0f) {
-                        val comp = SkySceneLayout.composition(
-                            widthPx = canvasW,
-                            heightPx = canvasH,
-                            horizonFraction = SkySceneLayout.HORIZON_FRACTION,
-                            figureOnRight = !fa,
-                        )
-                        val avatarBoxH = canvasH * 0.295f
-                        val avatarBoxW = avatarBoxH * 0.68f
-                        val hitLeft = comp.figureCenterX - avatarBoxW * 0.42f
-                        val hitRight = comp.figureCenterX + avatarBoxW * 0.42f
-                        val hitTop = comp.figureFeetY - avatarBoxH * 0.94f
-                        val hitBottom = comp.figureFeetY + avatarBoxH * 0.04f
+                        // Tap hit region mirrors `SkySceneLayout.professorZBox` — the SAME left anchor the
+                        // rendered layer uses, so the touch target can never drift off the character.
+                        val zBox = SkySceneLayout.professorZBox(widthPx = canvasW, heightPx = canvasH)
+                        val hitLeft = zBox.centerX - zBox.widthPx * 0.42f
+                        val hitRight = zBox.centerX + zBox.widthPx * 0.42f
+                        val hitTop = zBox.topPx + zBox.heightPx * 0.02f
+                        val hitBottom = zBox.feetY + zBox.heightPx * 0.04f
                         if (tapOffset.x in hitLeft..hitRight && tapOffset.y in hitTop..hitBottom) {
                             val nextTap = professorZTapCount + 1
                             professorZTapCount = nextTap
@@ -335,8 +330,8 @@ fun HeroSkyCanvas(
                             repeat(12) {
                                 stardustParticles.add(
                                     StardustParticle(
-                                        x = comp.figureCenterX + Random.nextFloat() * 44f - 22f,
-                                        y = comp.figureFeetY - avatarBoxH * 0.62f + Random.nextFloat() * 28f - 14f,
+                                        x = zBox.centerX + Random.nextFloat() * 44f - 22f,
+                                        y = zBox.topPx + zBox.heightPx * 0.32f + Random.nextFloat() * 28f - 14f,
                                         vx = Random.nextFloat() * 5f - 2.5f,
                                         vy = Random.nextFloat() * -4f - 1.2f,
                                         size = Random.nextFloat() * 4.5f + 2.5f,
@@ -526,46 +521,39 @@ fun HeroSkyCanvas(
                 )
             }
 
-            val canvasW = constraints.maxWidth.toFloat()
-            val canvasH = constraints.maxHeight.toFloat()
-            if (canvasW > 0f && canvasH > 0f) {
-                val sceneComp = SkySceneLayout.composition(
-                    widthPx = canvasW,
-                    heightPx = canvasH,
-                    horizonFraction = SkySceneLayout.HORIZON_FRACTION,
-                    figureOnRight = !isFa,
-                )
-                val avatarBoxH = canvasH * 0.295f
-                val avatarBoxW = avatarBoxH * 0.68f
-                val density = LocalDensity.current
-                val boxWidthDp = with(density) { avatarBoxW.toDp() }
-                val boxHeightDp = with(density) { avatarBoxH.toDp() }
-                val leftOffsetPx = (sceneComp.figureCenterX - avatarBoxW * 0.5f).roundToInt()
-                val topOffsetPx = (sceneComp.figureFeetY - avatarBoxH * 0.964f).roundToInt()
+                val canvasW = constraints.maxWidth.toFloat()
+                val canvasH = constraints.maxHeight.toFloat()
+                if (canvasW > 0f && canvasH > 0f) {
+                    // Professor Z owns the LEFT of the sky canvas (see `SkySceneLayout.professorZBox`); the
+                    // 2D observer silhouette keeps the classic right slot as the loading placeholder.
+                    val zBox = SkySceneLayout.professorZBox(widthPx = canvasW, heightPx = canvasH)
+                    val density = LocalDensity.current
+                    val boxWidthDp = with(density) { zBox.widthPx.toDp() }
+                    val boxHeightDp = with(density) { zBox.heightPx.toDp() }
+                    val leftOffsetPx = zBox.leftPx.roundToInt()
+                    val topOffsetPx = zBox.topPx.roundToInt()
 
-                ProfessorZLayer(
-                    state = ProfessorZSceneState(
-                        sunAltitudeDeg = sunHoriz.altitudeDeg,
-                        moonGlowIntensity = lightingState.moonGlowIntensity,
-                        figureOnRight = !isFa,
-                        persian = isFa,
-                        tapCounter = professorZTapCount,
-                    ),
-                    modifier = Modifier
-                        .offset { IntOffset(leftOffsetPx, topOffsetPx) }
-                        .size(width = boxWidthDp, height = boxHeightDp)
-                        .testTag("professor_z_scene_layer"),
-                    onStatusChanged = { status ->
-                        professorZReady = (status == ProfessorZStatus.READY)
-                    },
-                )
+                    ProfessorZLayer(
+                        state = ProfessorZSceneState(
+                            sunAltitudeDeg = sunHoriz.altitudeDeg,
+                            moonGlowIntensity = lightingState.moonGlowIntensity,
+                            figureOnRight = false,
+                            persian = isFa,
+                            tapCounter = professorZTapCount,
+                        ),
+                        modifier = Modifier
+                            .offset { IntOffset(leftOffsetPx, topOffsetPx) }
+                            .size(width = boxWidthDp, height = boxHeightDp)
+                            .testTag("professor_z_scene_layer"),
+                        onStatusChanged = { status ->
+                            professorZReady = (status == ProfessorZStatus.READY)
+                        },
+                    )
 
-                professorZSpeechLine?.let { speech ->
-                    val maxBubbleX = (maxWidth - 228.dp).coerceAtLeast(12.dp)
-                    val bubbleCenterDp = with(density) { sceneComp.figureCenterX.toDp() }
-                    val bubbleTopDp = with(density) {
-                        (sceneComp.figureFeetY - avatarBoxH * 0.99f).coerceAtLeast(12f).toDp()
-                    }
+                    professorZSpeechLine?.let { speech ->
+                        val maxBubbleX = (maxWidth - 228.dp).coerceAtLeast(12.dp)
+                        val bubbleCenterDp = with(density) { zBox.centerX.toDp() }
+                        val bubbleTopDp = with(density) { (zBox.topPx - 26f).coerceAtLeast(12f).toDp() }
                     Surface(
                         shape = RoundedCornerShape(18.dp),
                         color = Color(0xDB0F172A),

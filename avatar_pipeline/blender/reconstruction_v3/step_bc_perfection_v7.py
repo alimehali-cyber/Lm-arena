@@ -67,6 +67,10 @@ def build_head_and_arms_v7(cal: dict, arm_curves: dict) -> tuple[trimesh.Trimesh
         qz_smooth += 0.0025 * np.exp(-(((GX2 - qa[0]) / 0.009) ** 2 + ((GY2 - qa[1]) / 0.008) ** 2))
     for sgn_n in (-1.0, +1.0):
         qz_smooth -= 0.0022 * np.exp(-(((GX2 - (q_nose[0] + sgn_n * 0.0095)) / 0.0048) ** 2 + ((GY2 - (q_nose[1] - 0.0095)) / 0.0038) ** 2))
+    # Iteration-4: soft rounded Pixar cheek mounds at landmarks 50/280 (reference cheeks are FULL, not gaunt):
+    for c_idx in (50, 280):
+        qc = Q[c_idx]
+        qz_smooth += 0.0019 * np.exp(-(((GX2 - qc[0]) / 0.0275) ** 2 + ((GY2 - (qc[1] - 0.004)) / 0.0240) ** 2))
 
     for iris_i, up_i in ((468, 159), (473, 386)):
         qi, qu = Q[iris_i], Q[up_i]
@@ -84,8 +88,8 @@ def build_head_and_arms_v7(cal: dict, arm_curves: dict) -> tuple[trimesh.Trimesh
         by_s = np.interp(tb, np.linspace(0, 1, len(grp)), pts_b[:, 1])
         brow_f = np.zeros_like(qz_smooth)
         for bxv, byv in zip(bx_s, by_s):
-            brow_f = np.maximum(brow_f, np.exp(-(((GX2 - bxv) / 0.0080) ** 2 + ((GY2 - byv) / 0.0052) ** 2)))
-        qz_smooth += 0.0030 * brow_f
+            brow_f = np.maximum(brow_f, np.exp(-(((GX2 - bxv) / 0.0084) ** 2 + ((GY2 - byv) / 0.0060) ** 2)))
+        qz_smooth += 0.0038 * brow_f
 
     mouth_idx = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291]
     pts_m = Q[mouth_idx]
@@ -111,8 +115,8 @@ def build_head_and_arms_v7(cal: dict, arm_curves: dict) -> tuple[trimesh.Trimesh
 
     # Prominent, charming stylized Pixar ears aligned to `0.0 mm` with BOTH `FRONT`, `SIDE`, and `BACK`!
     ear_defs = [
-        (-1.0, np.array([-(rx_cran + 0.014), -0.022, -0.025])),
-        (+1.0, np.array([+(rx_cran + 0.014), -0.022, -0.025])),
+        (-1.0, np.array([-(rx_cran + 0.0118), -0.022, -0.025])),
+        (+1.0, np.array([+(rx_cran + 0.0118), -0.022, -0.025])),
     ]
 
     for i0 in range(0, dims_h[0], 48):
@@ -126,8 +130,8 @@ def build_head_and_arms_v7(cal: dict, arm_curves: dict) -> tuple[trimesh.Trimesh
         jaw_t = np.clip(-qy / 0.132, 0.0, 1.0)
         rx_base = np.where((qz < 0.005) & (qy > -0.01), 0.074, rx_cran)
         rz_base = np.where(qz < 0.015, 0.066, rz_cran)
-        rx_loc = rx_base * (1.0 - 0.17 * (jaw_t**1.4))
-        rz_loc = rz_base * (1.0 - 0.15 * (jaw_t**1.6))
+        rx_loc = rx_base * (1.0 - 0.148 * (jaw_t**1.4))
+        rz_loc = rz_base * (1.0 - 0.138 * (jaw_t**1.6))
         d_skull = (np.sqrt((qx / rx_loc) ** 2 + ((qy + 0.006) / ry_cran) ** 2 + ((qz + 0.004) / rz_loc) ** 2) - 1.0) * 0.098
 
         iy_g = np.clip((qy - gy[0]) / (gy[1] - gy[0]), 0.0, len(gy) - 1.001)
@@ -140,8 +144,8 @@ def build_head_and_arms_v7(cal: dict, arm_curves: dict) -> tuple[trimesh.Trimesh
         for sgn_e, q_ear in ear_defs:
             ex = (qx - q_ear[0]) * sgn_e
             ey, ez = qy - q_ear[1], qz - q_ear[2]
-            er = np.sqrt(((ex - 0.006 - 0.006 * (-ez / 0.018)) / 0.0145) ** 2 + (ey / 0.0295) ** 2 + (ez / 0.0185) ** 2)
-            d_ear = (er - 1.0) * 0.016 + 0.0048 * np.exp(-(((ey - 0.001) / 0.015) ** 2 + ((ez - 0.002) / 0.010) ** 2 + ((ex - 0.012) / 0.007) ** 2))
+            er = np.sqrt(((ex - 0.005 - 0.005 * (-ez / 0.018)) / 0.0128) ** 2 + (ey / 0.0262) ** 2 + (ez / 0.0168) ** 2)
+            d_ear = (er - 1.0) * 0.015 + 0.0042 * np.exp(-(((ey - 0.001) / 0.015) ** 2 + ((ez - 0.002) / 0.010) ** 2 + ((ex - 0.012) / 0.007) ** 2))
             d_core = smin(d_core, d_ear, 0.009)
 
         # Neck + upper sternum base aligned to `0.0 mm` with `SIDE` & `FRONT` neck axis (`cz_n = -0.006 + 0.018 * tn`):
@@ -150,7 +154,7 @@ def build_head_and_arms_v7(cal: dict, arm_curves: dict) -> tuple[trimesh.Trimesh
         cx_n = 0.003 + 0.018 * tn
         cz_n = -0.006 + 0.018 * tn
         d_neck = np.maximum(
-            (np.sqrt(((Xc - cx_n) / (0.054 + chest_flare)) ** 2 + ((Zc - cz_n) / (0.052 + chest_flare * 0.7)) ** 2) - 1.0) * 0.054,
+            (np.sqrt(((Xc - cx_n) / (0.0585 + chest_flare)) ** 2 + ((Zc - cz_n) / (0.0555 + chest_flare * 0.7)) ** 2) - 1.0) * 0.055,
             np.maximum(1.258 - Yc, Yc - 1.455),
         )
         sdf_h[i0:i1] = smin(d_core.astype(np.float32), d_neck.astype(np.float32), 0.016)
@@ -161,10 +165,10 @@ def build_head_and_arms_v7(cal: dict, arm_curves: dict) -> tuple[trimesh.Trimesh
     ears = []
     for sgn_e in (-1.0, +1.0):
         ear = trimesh.creation.icosphere(subdivisions=4, radius=1.0)
-        ear.apply_scale([0.0175, 0.0315, 0.0215])
-        ear.apply_transform(trimesh.transformations.rotation_matrix(math.radians(sgn_e * 14.0), [0, 1, 0]))
-        ear.apply_transform(trimesh.transformations.rotation_matrix(math.radians(-10.0), [1, 0, 0]))
-        q_c = np.array([sgn_e * (rx_cran + 0.0125), -0.020, -0.025], dtype=np.float64)
+        ear.apply_scale([0.0150, 0.0272, 0.0184])
+        ear.apply_transform(trimesh.transformations.rotation_matrix(math.radians(sgn_e * 11.0), [0, 1, 0]))
+        ear.apply_transform(trimesh.transformations.rotation_matrix(math.radians(-8.0), [1, 0, 0]))
+        q_c = np.array([sgn_e * (rx_cran + 0.0104), -0.021, -0.0235], dtype=np.float64)
         ear.vertices = np.asarray(ear.vertices) @ R_h.T + (c_h + q_c @ R_h.T)
         ears.append(ear)
     head_mesh = trimesh.util.concatenate([head_mesh] + ears)
@@ -349,17 +353,21 @@ def build_sleek_slim_jeans_v7(cal: dict) -> tuple[trimesh.Trimesh, np.ndarray, n
     for i0 in range(0, dims[0], 54):
         i1 = min(dims[0], i0 + 54)
         Xg, Yg, Zg = np.meshgrid(xs[i0:i1], ys, zs, indexing="ij")
-        yl = np.clip(Yg, 0.136, 0.675)
+        yl = np.clip(Yg, 0.230, 0.675)  # Iter-4: silhouette rows < 23 cm are SHOE-contaminated -> skirt was 14 cm wide!
         stride_t = np.clip((0.56 - yl) / 0.42, 0.0, 1.0) ** 1.7
         rzc = spl_lzc(yl) + 0.052 * stride_t
         lzc = spl_lzc(yl)
         rxc, rxr = spl_rxc(yl), spl_rxr(yl)
         lxc, lxr = spl_lxc(yl), spl_lxr(yl)
         lzr = spl_lzr(yl)
+        calf_t = np.maximum(0.230 - Yg, 0.0)
+        rxr = np.maximum(rxr - 0.30 * calf_t, 0.052)
+        lxr = np.maximum(lxr - 0.30 * calf_t, 0.052)
+        lzr = np.maximum(lzr - 0.26 * calf_t, 0.048)
 
         # Neat, snug turned-up rolled denim cuff (`y = 0.136 .. 0.170 m`, subtle `+3.2 mm` cuff roll!):
         in_cuff = (Yg >= 0.136) & (Yg <= 0.170)
-        cuff_boost = np.where(in_cuff, 0.0032, 0.0) - 0.0018 * np.exp(-((Yg - 0.171) / 0.0035) ** 2)
+        cuff_boost = np.where(in_cuff, 0.0024, 0.0) - 0.0012 * np.exp(-((Yg - 0.171) / 0.0035) ** 2)
         fold = 0.0022 * np.sin(Yg * 62.0 + Xg * 14.0) * np.exp(-((Yg - 0.25) / 0.11) ** 2)
         fold += 0.0016 * np.sin(Yg * 48.0) * np.exp(-((Yg - 0.50) / 0.09) ** 2)
 
@@ -455,8 +463,8 @@ def main() -> None:
     tshirt_mesh = build_tshirt_v7()
     jeans_mesh, ank_R, ank_L = build_sleek_slim_jeans_v7(cal)
 
-    shoe_R = v5.build_converse_sneaker_v5(ank_R, yaw_rad=np.radians(-30.0), length_m=0.276, width_m=0.100)
-    shoe_L = v5.build_converse_sneaker_v5(ank_L, yaw_rad=np.radians(+14.0), length_m=0.274, width_m=0.100)
+    shoe_R = v5.build_converse_sneaker_v5(ank_R, yaw_rad=np.radians(-13.0), length_m=0.276, width_m=0.100)
+    shoe_L = v5.build_converse_sneaker_v5(ank_L, yaw_rad=np.radians(+13.0), length_m=0.274, width_m=0.100)
     head_pack = {"P_landmarks": cal["P"], "R_head": cal["R_h"], "c_head": cal["c_h"]}
     glasses_mesh = v5.build_flush_3d_glasses(cal, head_pack)
     prof_w = {"spl_larm_xc": arm_curves["l_xc"], "spl_larm_xr": arm_curves["l_xr"], "spl_arm_zc": arm_curves["zc"]}

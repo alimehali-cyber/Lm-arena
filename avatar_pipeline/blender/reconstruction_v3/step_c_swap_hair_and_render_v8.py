@@ -90,15 +90,42 @@ def main() -> None:
     face_plate = v6.prepare_hairfree_face_plate(cal["f_rgb_noglass"], cal["f_mask"], P_lm, scale, u0_f, v_sole)
     col_front = v7.sample_plate(face_plate, v_sole - Ph[:, 1] / scale, u0_f + Ph[:, 0] / scale)
     Q_loc = (Ph - c_h) @ R_h
+
+    # ---- Iteration-4 face-plate cleanups -------------------------------------------------------
+    # (a) LENS-VEIL REMOVAL: the glasses-removal inpaint leaves a cool grey ring between iris and
+    #     rim which projects onto our skin as blank lens discs. Re-skin everything in that annulus
+    #     with the warm procedural base so the reference's SEE-THROUGH lenses read correctly.
+    # (b) SMILE-SOFTEN: the photo's dark smile-crease shading is stronger than the reference wants
+    #     once projected onto our (slightly wider) face; lift it 42% toward the skin base so the
+    #     lower face never reads as stubble.
+    veil = np.zeros(len(Ph), dtype=np.float32)
+    for eye_i in (468, 473):
+        qe = (P_lm[eye_i] - c_h) @ R_h
+        rr = np.sqrt((Q_loc[:, 0] - qe[0]) ** 2 + (Q_loc[:, 1] - qe[1]) ** 2)
+        veil = np.maximum(
+            veil,
+            np.clip((rr - 0.0150) / 0.0035, 0.0, 1.0) * np.clip((0.0270 - rr) / 0.0040, 0.0, 1.0)
+            * np.clip((Q_loc[:, 2] - 0.0300) / 0.0100, 0.0, 1.0),
+        )
+    qm = (0.5 * (P_lm[13] + P_lm[14]) - c_h) @ R_h
+    dm = np.sqrt((Q_loc[:, 0] - qm[0]) ** 2 + ((Q_loc[:, 1] - qm[1]) / 0.62) ** 2)
+    msoft = (
+        np.clip((dm - 0.0165) / 0.0060, 0.0, 1.0) * np.clip((0.0430 - dm) / 0.0090, 0.0, 1.0)
+        * np.clip((Q_loc[:, 2] - 0.0100) / 0.0110, 0.0, 1.0)
+    )
+    # ---------------------------------------------------------------------------------------------
+
     light_up = 0.5 + 0.5 * np.clip(Nh[:, 1] * 0.45 + Nh[:, 2] * 0.55, -1.0, 1.0)
     skin_base = (
         np.array([172.0, 99.0, 58.0])[None, :] * (1.0 - light_up[:, None])
         + np.array([224.0, 148.0, 98.0])[None, :] * light_up[:, None]
     )
     skin_base[np.abs(Q_loc[:, 0]) > 0.092] *= np.array([1.03, 0.92, 0.86])
+    col_front = col_front * (1.0 - (0.85 * veil)[:, None]) + skin_base * (0.85 * veil)[:, None]
+    col_front = col_front * (1.0 - (0.42 * msoft)[:, None]) + skin_base * (0.42 * msoft)[:, None]
     w_proj = np.clip((Nh[:, 2] - 0.05) / 0.40, 0.0, 1.0) * np.clip((Q_loc[:, 2] + 0.005) / 0.035, 0.0, 1.0)
     w_proj *= np.clip((Ph[:, 1] - 1.355) / 0.045, 0.15, 1.0)
-    col_head = (col_front * 0.92) * w_proj[:, None] + skin_base * (1.0 - w_proj[:, None])
+    col_head = (col_front * 1.02) * w_proj[:, None] + skin_base * (1.0 - w_proj[:, None])
     rough_h = np.full(len(Ph), 0.52, dtype=np.float32)
     for eye_i in (468, 473):
         rough_h = np.where(np.linalg.norm(Ph - P_lm[eye_i], axis=1) < 0.012, 0.07, rough_h)

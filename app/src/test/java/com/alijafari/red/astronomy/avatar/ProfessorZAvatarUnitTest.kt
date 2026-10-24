@@ -46,6 +46,19 @@ class ProfessorZAvatarUnitTest {
         assertEquals(26, lod0.morphTargetCount)
         assertEquals(24, lod0.animations.size)
 
+        // Every clip the runtime schedules by name MUST exist in the shipped GLB (the ambient cycle
+        // and every tap-reaction preset; a silent name drift used to park Professor Z in rest pose).
+        val ambientClips = listOf(
+            "Idle_Breathing", "Idle_LookAround", "Point_Sky_Night", "Shade_Eyes_Day",
+            "Check_Phone_Twilight", "ProfZ_HeroGlassesAdjust",
+        )
+        for (clip in ambientClips) {
+            assertTrue("Runtime clip missing from LOD0 GLB: $clip", lod0.animations.containsKey(clip))
+        }
+        for (preset in AvatarAnimator.TAP_REACTIONS) {
+            assertTrue("Tap reaction clip missing: ${preset.clipName}", lod0.animations.containsKey(preset.clipName))
+        }
+
         assertNotNull("LOD0 embedded albedo PNG missing", lod0.albedoPngBytes)
         assertNotNull("LOD0 embedded ORM PNG missing", lod0.ormPngBytes)
         val albedoImg = ImageIO.read(ByteArrayInputStream(lod0.albedoPngBytes))

@@ -736,8 +736,8 @@ def build_flush_3d_glasses(cal: dict, head_pack: dict) -> trimesh.Trimesh:
 
 
 def build_flush_3d_watch(prof: dict) -> trimesh.Trimesh:
-    """Place matte-black left smartwatch flush around exact measured left-wrist tangent (`y = 0.962 m`)."""
-    y_w = 0.962
+    """Place matte-black left smartwatch flush around exact measured left-wrist tangent (`y = 0.948 m`)."""
+    y_w = 0.948
     w_center = np.array([float(prof["spl_larm_xc"](y_w)), y_w, float(prof["spl_arm_zc"](y_w))], dtype=np.float64)
     p_lo = np.array([float(prof["spl_larm_xc"](y_w - 0.03)), y_w - 0.03, float(prof["spl_arm_zc"](y_w - 0.03))])
     p_hi = np.array([float(prof["spl_larm_xc"](y_w + 0.03)), y_w + 0.03, float(prof["spl_arm_zc"](y_w + 0.03))])
@@ -756,14 +756,14 @@ def build_flush_3d_watch(prof: dict) -> trimesh.Trimesh:
     U, V, W = np.meshgrid(u, v, w, indexing="ij")
 
     r_rad = np.sqrt(U * U + V * V)
-    d_band = np.maximum(np.maximum((r_wrist - 0.002) - r_rad, r_rad - (r_wrist + 0.0038)), np.abs(W) - 0.0108)
+    d_band = np.maximum(np.maximum((r_wrist - 0.002) - r_rad, r_rad - (r_wrist + 0.0034)), np.abs(W) - 0.0094)
     q_case = (
-        ((np.abs(U - (r_wrist + 0.0052)) / 0.0062) ** 4.0)
-        + ((np.abs(V) / 0.0185) ** 5.0)
-        + ((np.abs(W) / 0.0215) ** 5.0)
+        ((np.abs(U - (r_wrist + 0.0044)) / 0.0052) ** 4.0)
+        + ((np.abs(V) / 0.0165) ** 5.0)
+        + ((np.abs(W) / 0.0192) ** 5.0)
     ) ** 0.22
     d_case = (q_case - 1.0) * 0.012
-    d_crown = np.maximum(np.sqrt((U - (r_wrist + 0.0052)) ** 2 + (W - 0.006) ** 2) - 0.0028, np.abs(V - 0.0198) - 0.0022)
+    d_crown = np.maximum(np.sqrt((U - (r_wrist + 0.0044)) ** 2 + (W - 0.0055) ** 2) - 0.0023, np.abs(V - 0.0176) - 0.0020)
 
     sdf_w = smin(d_band, np.minimum(d_case, d_crown), 0.0025)
     vw_l, fw_l, _, _ = measure.marching_cubes(sdf_w, level=0.0, spacing=(u[1] - u[0], v[1] - v[0], w[1] - w[0]))
