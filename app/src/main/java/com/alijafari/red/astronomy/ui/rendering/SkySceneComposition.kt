@@ -42,9 +42,10 @@ object SkySceneLayout {
     const val GROUND_TOP_FRACTION = 0.052f
 
     /**
-     * Horizontal centre of Professor Z's 3D layer, as a fraction of width. He stands on the LEFT of the
-     * sky canvas (mirrored from the observer's default right slot) so the mascot and the silhouette
-     * observer never compete for the same third of the frame.
+     * Horizontal centre of Professor Z's 3D layer, as a fraction of width, in RTL (Persian) mode: he owns
+     * the LEFT of the sky canvas while the silhouette observer keeps the right. In English (LTR) mode the
+     * side is mirrored (`1 - f`): Professor Z stands on the RIGHT, reading side, and the observer on the
+     * left — the two never compete for the same third of the frame in either mode.
      */
     const val PROFESSOR_Z_CENTER_FRACTION = 0.175f
 
@@ -85,20 +86,24 @@ object SkySceneLayout {
 
     /**
      * Rectangle for the 3D Professor Z layer: [PROFESSOR_Z_HEIGHT_FRACTION] of the scene height, centred on
-     * the left third of the canvas and clamped so the box never leaves it, feet seated on the grass line.
+     * [PROFESSOR_Z_CENTER_FRACTION] of the canvas (mirrored to `1 - f` when [figureOnRight]) and clamped so the
+     * box never leaves the canvas, feet seated on the grass line. English mode places him RIGHT, Persian (RTL)
+     * mode places him LEFT — the exact mirror of where the text column sits.
      */
     fun professorZBox(
         widthPx: Float,
         heightPx: Float,
         horizonFraction: Float = HORIZON_FRACTION,
+        figureOnRight: Boolean = false,
     ): ProfessorZBox {
         val w = widthPx.coerceAtLeast(1f)
         val h = heightPx.coerceAtLeast(1f)
         // A tall portrait canvas must NOT stretch him across the phone: cap the box so its width always
-        // fits inside the left portion (plus margins), the height fraction is the ceiling, not the rule.
+        // fits inside its half (plus margins), the height fraction is the ceiling, not the rule.
         val boxH = minOf(h * PROFESSOR_Z_HEIGHT_FRACTION, (w * 0.46f) / PROFESSOR_Z_BOX_ASPECT)
         val boxW = boxH * PROFESSOR_Z_BOX_ASPECT
-        val centerX = (w * PROFESSOR_Z_CENTER_FRACTION)
+        val centerFraction = if (figureOnRight) 1f - PROFESSOR_Z_CENTER_FRACTION else PROFESSOR_Z_CENTER_FRACTION
+        val centerX = (w * centerFraction)
             .coerceIn(boxW * 0.5f + 4f, (w - boxW * 0.5f - 4f).coerceAtLeast(boxW * 0.5f + 4f))
         val scene = composition(widthPx = w, heightPx = h, horizonFraction = horizonFraction, figureOnRight = true)
         return ProfessorZBox(

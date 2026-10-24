@@ -315,9 +315,11 @@ fun HeroSkyCanvas(
 
                     val fa = currentIsFa
                     if (currentIsScene && canvasW > 0f && canvasH > 0f) {
-                        // Tap hit region mirrors `SkySceneLayout.professorZBox` — the SAME left anchor the
-                        // rendered layer uses, so the touch target can never drift off the character.
-                        val zBox = SkySceneLayout.professorZBox(widthPx = canvasW, heightPx = canvasH)
+                        // Tap hit region mirrors `SkySceneLayout.professorZBox` — the SAME side the rendered
+                        // layer uses (English right, Persian left), so the touch target can never drift off him.
+                        val zBox = SkySceneLayout.professorZBox(
+                            widthPx = canvasW, heightPx = canvasH, figureOnRight = !fa
+                        )
                         val hitLeft = zBox.centerX - zBox.widthPx * 0.42f
                         val hitRight = zBox.centerX + zBox.widthPx * 0.42f
                         val hitTop = zBox.topPx + zBox.heightPx * 0.02f
@@ -524,9 +526,12 @@ fun HeroSkyCanvas(
                 val canvasW = constraints.maxWidth.toFloat()
                 val canvasH = constraints.maxHeight.toFloat()
                 if (canvasW > 0f && canvasH > 0f) {
-                    // Professor Z owns the LEFT of the sky canvas (see `SkySceneLayout.professorZBox`); the
-                    // 2D observer silhouette keeps the classic right slot as the loading placeholder.
-                    val zBox = SkySceneLayout.professorZBox(widthPx = canvasW, heightPx = canvasH)
+                    // Professor Z swaps sides with the language mode (see `SkySceneLayout.professorZBox`):
+                    // English puts him on the RIGHT, Persian (RTL) on the LEFT — always opposite the text column.
+                    val professorOnRight = !isFa
+                    val zBox = SkySceneLayout.professorZBox(
+                        widthPx = canvasW, heightPx = canvasH, figureOnRight = professorOnRight
+                    )
                     val density = LocalDensity.current
                     val boxWidthDp = with(density) { zBox.widthPx.toDp() }
                     val boxHeightDp = with(density) { zBox.heightPx.toDp() }
@@ -537,7 +542,7 @@ fun HeroSkyCanvas(
                         state = ProfessorZSceneState(
                             sunAltitudeDeg = sunHoriz.altitudeDeg,
                             moonGlowIntensity = lightingState.moonGlowIntensity,
-                            figureOnRight = false,
+                            figureOnRight = professorOnRight,
                             persian = isFa,
                             tapCounter = professorZTapCount,
                         ),

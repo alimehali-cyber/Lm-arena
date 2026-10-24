@@ -107,7 +107,7 @@ class ProfessorZRenderer(
     private var sceneState = ProfessorZSceneState(
         sunAltitudeDeg = -18.0,
         moonGlowIntensity = 0.35f,
-        figureOnRight = false, // Professor Z is anchored to the LEFT of the Home Sky canvas.
+        figureOnRight = false, // Placeholder; the real side arrives via ProfessorZSceneState (English right, Persian left).
         persian = false,
         tapCounter = 0,
     )

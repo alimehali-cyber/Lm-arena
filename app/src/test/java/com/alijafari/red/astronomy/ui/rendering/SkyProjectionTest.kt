@@ -165,21 +165,35 @@ class SkyProjectionTest {
     }
 
     @Test
-    fun professorZOwnsTheLeftOfTheSceneAndStaysInsideTheCanvas() {
+    fun professorZSwitchesSidesWithTheLanguageModeAndStaysInsideTheCanvas() {
+        // English mode (figureOnRight = true): RIGHT half. Persian RTL mode (false): LEFT half. Both modes must
+        // keep the whole box inside the canvas on every phone aspect and seat his feet on the grass line.
         for (w in listOf(320f, 412f, 1080f)) {
             for (h in listOf(500f, 900f, 1344f)) {
-                val box = SkySceneLayout.professorZBox(widthPx = w, heightPx = h)
-                assertTrue("box must fit horizontally on ${w}x$h", box.leftPx >= 0f && box.leftPx + box.widthPx <= w)
-                assertTrue("Professor Z must own the left half on ${w}x$h", box.centerX < w * 0.5f)
-                assertTrue("box top must be inside the canvas on ${w}x$h", box.topPx > 0f)
-                val scene = SkySceneLayout.composition(w, h, figureOnRight = true)
-                assertEquals("feet sit on the grass line", scene.figureFeetY, box.feetY, 0.01f)
+                for (onRight in listOf(false, true)) {
+                    val box = SkySceneLayout.professorZBox(widthPx = w, heightPx = h, figureOnRight = onRight)
+                    assertTrue("box must fit horizontally on ${w}x$h right=$onRight",
+                        box.leftPx >= 0f && box.leftPx + box.widthPx <= w)
+                    if (onRight) {
+                        assertTrue("English mode must own the RIGHT half on ${w}x$h", box.centerX > w * 0.5f)
+                    } else {
+                        assertTrue("Persian mode must own the LEFT half on ${w}x$h", box.centerX < w * 0.5f)
+                    }
+                    assertTrue("box top must be inside the canvas on ${w}x$h right=$onRight", box.topPx > 0f)
+                    val scene = SkySceneLayout.composition(w, h, figureOnRight = true)
+                    assertEquals("feet sit on the grass line", scene.figureFeetY, box.feetY, 0.01f)
+                }
             }
         }
-        val box = SkySceneLayout.professorZBox(1080f, 1075f)
-        assertEquals(1075f * SkySceneLayout.PROFESSOR_Z_HEIGHT_FRACTION, box.heightPx, 0.01f)
-        assertEquals(1075f * SkySceneLayout.PROFESSOR_Z_HEIGHT_FRACTION * SkySceneLayout.PROFESSOR_Z_BOX_ASPECT, box.widthPx, 0.01f)
-        assertEquals(1080f * SkySceneLayout.PROFESSOR_Z_CENTER_FRACTION, box.centerX, 0.01f)
+        // On a square canvas no clamping is needed: both sides sit at the exact mirrored fractions and the
+        // two placements are point-symmetric about the vertical centre line.
+        val left = SkySceneLayout.professorZBox(1080f, 1075f, figureOnRight = false)
+        val right = SkySceneLayout.professorZBox(1080f, 1075f, figureOnRight = true)
+        assertEquals(1075f * SkySceneLayout.PROFESSOR_Z_HEIGHT_FRACTION, left.heightPx, 0.01f)
+        assertEquals(1075f * SkySceneLayout.PROFESSOR_Z_HEIGHT_FRACTION * SkySceneLayout.PROFESSOR_Z_BOX_ASPECT, left.widthPx, 0.01f)
+        assertEquals(1080f * SkySceneLayout.PROFESSOR_Z_CENTER_FRACTION, left.centerX, 0.01f)
+        assertEquals(1080f * (1f - SkySceneLayout.PROFESSOR_Z_CENTER_FRACTION), right.centerX, 0.01f)
+        assertEquals(1080f - left.centerX, right.centerX, 0.02f)
     }
 
     @Test
