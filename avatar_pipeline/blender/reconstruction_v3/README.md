@@ -12,6 +12,12 @@ Run order (each stage is idempotent and re-runnable):
    `step_a*` consumes. Added in Iteration-4 so the whole chain is reproducible from a cold cache.
 1. `step_a_surgical_extract.py` — per-view masks over the A0 depth plates.
 2. `step_a2_perfect_plates.py` — PCHIP multi-view Y-correspondence, MediaPipe 478-point FaceMesh on the head crop.
+2b. `step_a4_face_refine.py` — Iteration-5: composites the six-view high-detail head reference
+   (`avatar_pipeline/input/professor_z_face_ref.png`) onto the three plates with a landmark-anchored rigid
+   transform (rotate to the eye-line roll, uniform scale to the pupil separation, translate the eye-midpoint /
+   profile nose-mass / back crown onto their old positions), feathers the blend, unions the silhouette into the
+   masks, carves disconnected hair islands and re-runs DA2 depth. Runs BETWEEN `a2` and `a3`, so every
+   downstream FaceMesh, glasses-ring and inpaint computation refits to the new face automatically.
 3. `step_a3_flawless_plates.py` — surgical razor matting (unmixing from the fitted paper background), elliptical
    eyeglasses-ring fit, watch-free inpainted SIDE plate.
 4. `step_b_*` (v4→v7) — data-driven anatomical splines; sub-mm metric SDF sculpt of head/face/ears/neck,
@@ -69,3 +75,13 @@ re-fetched by bootstrap, gitignored binary).
   brow/lash rejection + wrong-side penalty) drive a rigid similarity correction of all 478 landmarks; on this
   reference the correction measured scale 0.972/rot +0.68°, confirming the historic +30 px offset is gone and
   locking the face registration against future detector wobble.
+
+## Iteration-5 (2026-10-24)
+
+* **Language-aware side swap** — Professor Z stands on the RIGHT in English mode and on the LEFT in Persian
+  (RTL) mode (`SkySceneLayout.professorZBox(figureOnRight=...)`, mirrored idle yaw in
+  `AvatarCameraAndLighting.computeModelMatrix`, tap hit-region follows). Verified headlessly: JVM layout
+  harness + `SkyProjectionTest` (both sides, mirror symmetry, containment, feet seat).
+* **IDENTICAL-face mandate** — new `step_a4_face_refine.py` stage injects the user-supplied 6-view head
+  reference into the reconstruction plates (see 2b above); head SDF, visual hull, hair clumps, glasses
+  rings, inpaint masks, bake and textures are all re-derived from it. Body/garments unchanged.
