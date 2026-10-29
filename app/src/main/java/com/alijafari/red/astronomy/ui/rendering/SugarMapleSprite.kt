@@ -441,24 +441,31 @@ internal class SugarMapleSprite private constructor(
         }
 
         /**
-         * The design's sugar-maple blade: a palmately five-lobed outline with rounded sinuses and
-         * a pointed terminal lobe, drawn in local space with the tip at `(0, -len)`.
+         * The design's sugar-maple blade: the fifteen-point outline the design's `mapleLeaf` draws
+         * for its middle detail tier — three forward lobes, two basal lobes, rounded sinuses and a
+         * pointed terminal lobe — in local space, base at the origin, tip at `(0, -len)`.
          *
-         * The lobe tips are the outline's extreme points, exactly as the design's blade polygon has
-         * them, so the silhouette reads as *Acer saccharum* and not as a generic leaf.
+         * The outline is the design's own table (x across, y up), so the silhouette reads as
+         * *Acer saccharum* and not as a generic leaf: at landscape sizes these five points of the
+         * lobe tips are the whole difference between a maple and a blob.
          */
+        private val LEAF_OUTLINE = floatArrayOf(
+            0.0f, -0.015f, 0.150f, 0.005f, 0.305f, 0.075f, 0.205f, 0.225f,
+            0.520f, 0.540f, 0.285f, 0.590f, 0.205f, 0.785f, 0.0f, 1.0f,
+            -0.205f, 0.785f, -0.285f, 0.590f, -0.520f, 0.540f, -0.205f, 0.225f,
+            -0.305f, 0.075f, -0.150f, 0.005f
+        )
+
         private fun leafPath(len: Float): AndroidPath {
+            val w = len * 1.02f
             val path = AndroidPath()
-            path.moveTo(0f, -len * 0.015f)
-            path.lineTo(0.52f * len * 0.5f, -len * 0.54f)     // right lateral lobe tip
-            path.lineTo(0.285f * len * 0.5f, -len * 0.59f)    // sinus
-            path.lineTo(0.205f * len * 0.5f, -len * 0.785f)
-            path.lineTo(0f, -len)                             // terminal lobe tip
-            path.lineTo(-0.205f * len * 0.5f, -len * 0.785f)
-            path.lineTo(-0.285f * len * 0.5f, -len * 0.59f)
-            path.lineTo(-0.52f * len * 0.5f, -len * 0.54f)
-            path.lineTo(-0.305f * len * 0.5f, -len * 0.075f)
-            path.lineTo(-0.15f * len * 0.5f, -len * 0.005f)
+            var i = 0
+            while (i < LEAF_OUTLINE.size) {
+                val x = LEAF_OUTLINE[i] * w
+                val y = -LEAF_OUTLINE[i + 1] * len
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                i += 2
+            }
             path.close()
             return path
         }
