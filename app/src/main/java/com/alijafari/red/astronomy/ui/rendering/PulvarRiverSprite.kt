@@ -155,6 +155,13 @@ internal class PulvarRiverSprite private constructor(
         private val cache = ArrayList<Entry>(2)
 
         /**
+         * Test seam: receives every mesh [bake] submits to the platform. Null in production, so the
+         * draw path pays one null check; the mesh tests install a collector and then assert on the
+         * exact mesh the real bake fed to `Canvas.drawVertices`.
+         */
+        internal var meshSink: ((VertexMesh) -> Unit)? = null
+
+        /**
          * The river for [frame], in this valley's season.
          *
          * @param seasonMix 0 = spring/summer greens, 1 = autumn/winter straw.
@@ -264,7 +271,7 @@ internal class PulvarRiverSprite private constructor(
         ) {
             val qn = Q_NODES.size
             val cols = TERRAIN_COLUMNS
-            val vertexCount = (cols + 1) * qn
+            val vertexCount = VertexMesh.gridVertexCount(cols, qn)
             val positions = FloatArray(vertexCount * 2)
             val colours = IntArray(vertexCount)
             val p = FloatArray(3)
@@ -314,29 +321,14 @@ internal class PulvarRiverSprite private constructor(
                     v++
                 }
             }
-            val indices = ShortArray(cols * (qn - 1) * 6)
-            var k = 0
-            for (i in 0 until cols) {
-                for (j in 0 until qn - 1) {
-                    val a = (i * qn + j).toShort()
-                    val b = ((i + 1) * qn + j).toShort()
-                    val c = (i * qn + j + 1).toShort()
-                    val d = ((i + 1) * qn + j + 1).toShort()
-                    indices[k++] = a; indices[k++] = b; indices[k++] = c
-                    indices[k++] = c; indices[k++] = b; indices[k++] = d
-                }
-            }
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            // The offset form: the only drawVertices signature on every API level this app ships
-            // to (the short one is API 34+), and the one that takes per-vertex alpha.
-            canvas.drawVertices(
-                AndroidCanvas.VertexMode.TRIANGLES,
-                vertexCount, positions, 0,
-                null, 0,
-                colours, 0,
-                indices, 0, indices.size,
-                paint
-            )
+            // Both meshes go through VertexMesh: it freezes the arrays, proves every index is
+            // inside the vertex count, and is the only caller of Canvas.drawVertices in the app.
+            val mesh = VertexMesh.of(
+                "pulvar.corridor", MeshMode.TRIANGLES, positions, colours,
+                VertexMesh.gridIndices(cols, qn)
+            ) ?: return
+            meshSink?.invoke(mesh)
+            mesh.draw(canvas, Paint(Paint.ANTI_ALIAS_FLAG))
         }
 
         /** Cobbles on the bars, in the shallows and along the banks. */
@@ -475,7 +467,7 @@ internal class PulvarRiverSprite private constructor(
         ) {
             val tn = T_NODES.size
             val cols = WATER_COLUMNS
-            val vertexCount = (cols + 1) * tn
+            val vertexCount = VertexMesh.gridVertexCount(cols, tn)
             val positions = FloatArray(vertexCount * 2)
             val colours = IntArray(vertexCount)
             val p = FloatArray(3)
@@ -530,29 +522,12 @@ internal class PulvarRiverSprite private constructor(
                     v++
                 }
             }
-            val indices = ShortArray(cols * (tn - 1) * 6)
-            var k = 0
-            for (i in 0 until cols) {
-                for (j in 0 until tn - 1) {
-                    val a = (i * tn + j).toShort()
-                    val b = ((i + 1) * tn + j).toShort()
-                    val c = (i * tn + j + 1).toShort()
-                    val d = ((i + 1) * tn + j + 1).toShort()
-                    indices[k++] = a; indices[k++] = b; indices[k++] = c
-                    indices[k++] = c; indices[k++] = b; indices[k++] = d
-                }
-            }
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            // The offset form: the only drawVertices signature on every API level this app ships
-            // to (the short one is API 34+), and the one that takes per-vertex alpha.
-            canvas.drawVertices(
-                AndroidCanvas.VertexMode.TRIANGLES,
-                vertexCount, positions, 0,
-                null, 0,
-                colours, 0,
-                indices, 0, indices.size,
-                paint
-            )
+            val mesh = VertexMesh.of(
+                "pulvar.water", MeshMode.TRIANGLES, positions, colours,
+                VertexMesh.gridIndices(cols, tn)
+            ) ?: return
+            meshSink?.invoke(mesh)
+            mesh.draw(canvas, Paint(Paint.ANTI_ALIAS_FLAG))
         }
 
         /** Reeds on the waterline and grass over the banks, in eight tone buckets. */

@@ -844,11 +844,16 @@ object SceneGroundRenderer {
             riverSeason == PersianCalendar.Season.WINTER
         // One bake per layout and season, then this frame's light as the same per-channel multiply
         // the maples and Paulownias are given — the river sits in the valley's light, not its own.
-        val river = PulvarRiverSprite.forLayout(
-            frame = riverFrame,
-            seasonMix = if (riverAutumn) 1f else 0f,
-            sunSign = sunSign
-        )
+        // A zero-sized layout would divide by the frame's width (Frame.canvasX / worldX) and hand
+        // the mesh NaN coordinates; a bake failure must cost this one layer, not the scene. Both
+        // cases fall through to a frame with no river and everything else drawn.
+        val river = if (width < 2f || height < 2f) null else RenderDiagnostics.attempt("pulvar-river.bake") {
+            PulvarRiverSprite.forLayout(
+                frame = riverFrame,
+                seasonMix = if (riverAutumn) 1f else 0f,
+                sunSign = sunSign
+            )
+        }
         val riverLit = lightLevel.coerceIn(0f, 1f)
         var riverTintColor = lerp(Color(0xFF2C3340), Color.White, riverLit)
         val riverGolden = (1f - sunAlt.coerceIn(0f, 20f) / 20f) * day
@@ -873,14 +878,18 @@ object SceneGroundRenderer {
                 (lighting.moonIlluminationPercent.toFloat() / 100f).coerceIn(0f, 1f)
             glintRgb = 0xFFDCE8FF.toInt()
         }
-        river.draw(
-            drawScope = drawScope,
-            tint = riverTint,
-            sunX = glintX,
-            glint = glintStrength.coerceIn(0f, 1f),
-            glintRgb = glintRgb,
-            lightLevel = lightLevel
-        )
+        if (river != null) {
+            RenderDiagnostics.attempt("pulvar-river.draw") {
+                river.draw(
+                    drawScope = drawScope,
+                    tint = riverTint,
+                    sunX = glintX,
+                    glint = glintStrength.coerceIn(0f, 1f),
+                    glintRgb = glintRgb,
+                    lightLevel = lightLevel
+                )
+            }
+        }
 
         // 11-12. Trees, scrub and steppe grass — baked once per layout, replayed per draw
         //     (see VegetationGeometry for why). Placement and species logic are unchanged
