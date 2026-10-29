@@ -229,7 +229,7 @@ internal object PulvarRiver {
         val n2 = noise2(p[0] * 0.85f - 3f, p[2] * 0.85f + 5f)
         if (aq <= 1.03f && submerged > 0.03f) {
             mix3(BED_PEBBLE, BED_SAND, n1, out)
-            val algae = smooth(0.12f, 0.7f, submerged) * (1f - smooth(1.2f, 2.6f, submerged)) *
+            val algae = smooth(0.12f, 0.7f, submerged) * (1f - smooth(1.2f, 2.6f, submerged)) * 0.5f *
                 (1f - reach.foam * 0.75f)
             // The design lets algae green the bed between 0.12 m and 2.6 m of depth. Seen through
             // this band's transparent water that tint dominates every pool, so it is halved: the
@@ -706,7 +706,9 @@ internal object PulvarRiver {
         viewY: Float, grad: FloatArray, light: Light
     ): Int {
         waterGradient(u, v, speed, turb, grad)
-        val gradScale = 0.18f + 0.42f * turb
+        // At this band's size a full-strength ripple normal turns the water into a quilt of
+        // flat facets; a third of it reads as sheen moving over the surface.
+        val gradScale = 0.10f + 0.20f * turb
         // N = normalize(up + (-grad.x, 0, -grad.y) * gradScale)
         val nx = -grad[0] * gradScale
         var ny = 1f
@@ -751,18 +753,18 @@ internal object PulvarRiver {
         val scR = lerp(0.008f, 0.0008f, deepMix)
         val scG = lerp(0.045f, 0.014f, deepMix)
         val scB = lerp(0.046f, 0.032f, deepMix)
-        val wlR = light.skyAmb[0] * 1.18f + light.groundAmb[0] * 0.34f +
+        val wlR = light.skyAmb[0] * 1.30f + light.groundAmb[0] * 0.34f +
             light.sunCol[0] * max(light.sunDir[1], 0f) * 0.30f + light.moonCol[0] * max(light.moonDir[1], 0f) * 0.30f
-        val wlG = light.skyAmb[1] * 1.18f + light.groundAmb[1] * 0.34f +
+        val wlG = light.skyAmb[1] * 1.30f + light.groundAmb[1] * 0.34f +
             light.sunCol[1] * max(light.sunDir[1], 0f) * 0.30f + light.moonCol[1] * max(light.moonDir[1], 0f) * 0.30f
-        val wlB = light.skyAmb[2] * 1.18f + light.groundAmb[2] * 0.34f +
+        val wlB = light.skyAmb[2] * 1.30f + light.groundAmb[2] * 0.34f +
             light.sunCol[2] * max(light.sunDir[1], 0f) * 0.30f + light.moonCol[2] * max(light.moonDir[1], 0f) * 0.30f
         val bodyR = scR * wlR * 1.22f
         val bodyG = scG * wlG * 1.22f
         val bodyB = scB * wlB * 1.22f
 
         val flowStreak = noise2(u * 0.10f, v * 1.05f) * 0.62f + noise2(u * 0.38f, v * 2.7f) * 0.38f
-        val streakK = 0.96f + 0.08f * flowStreak
+        val streakK = 0.98f + 0.045f * flowStreak
         var colR = (bodyR * (1f - fres) + skyR * fres) * streakK
         var colG = (bodyG * (1f - fres) + skyG * fres) * streakK
         var colB = (bodyB * (1f - fres) + skyB * fres) * streakK
@@ -1125,8 +1127,17 @@ internal object PulvarRiver {
      */
     const val HALF_WIDTH_FRACTION = 0.0280f
 
-    /** Ripple-field scale: the design's wavelengths, stretched to this band's resolution. */
-    const val RIPPLE_SCALE = 0.30f
+    /**
+     * Ripple-field scale: the design's wavelengths, stretched to this band's resolution.
+     *
+     * The design shades its water in a fragment shader at a grazing camera angle, where its 12–14
+     * rad/m ripple field is a metre or two per wave. Here the same field is sampled at 3.1 px/m
+     * (the band's lateral scale), so at the design's frequencies every wave lands inside two
+     * pixels and the interference between them moirés into a diamond lattice. Stretching the field
+     * to 0.14 puts its longest waves at ~3.5 m — sixteen pixels — which is the finest the band can
+     * hold, and leaves the water with broad swells instead of a screen door.
+     */
+    const val RIPPLE_SCALE = 0.14f
 
     /** Standing detail's vertical scale, as a fraction of canvas height per metre (≈4.5 px/m @1260). */
     const val PX_PER_METRE_Y_FRACTION = 0.0036f

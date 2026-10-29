@@ -597,7 +597,7 @@ def shade_water(light, depth, turb, foam_base, ndv, speed):
     trans = tuple(math.exp(-sigma[i] * path) for i in range(3))
     deep = 1.0 - math.exp(-depth * 0.62)
     scatter = mix3((0.008, 0.045, 0.046), (0.0008, 0.014, 0.032), deep)
-    water_light = tuple(light.sky[i] * 1.18 + light.ground[i] * 0.34
+    water_light = tuple(light.sky[i] * 1.30 + light.ground[i] * 0.34
                         + light.sun[i] * max(light.sun_dir[1], 0.0) * 0.30 for i in range(3))
     body = tuple(scatter[i] * water_light[i] * 1.22 for i in range(3))
     col = tuple(body[i] * (1.0 - fres) + sky_ref[i] * fres for i in range(3))
@@ -763,7 +763,7 @@ class Light:
         self.view = (0.0, 0.322, 0.947)
 
 
-RIPPLE_SCALE = 0.30
+RIPPLE_SCALE = 0.14
 
 
 def water_gradient(u, v, speed, turb):
@@ -796,7 +796,7 @@ def water_gradient(u, v, speed, turb):
 
 def shade_water_vert(u, v, depth, foam_base, speed, turb, view_y, light):
     gx, gz = water_gradient(u, v, speed, turb)
-    gs = 0.18 + 0.42 * turb
+    gs = 0.10 + 0.20 * turb
     nx, ny, nz = -gx * gs, 1.0, -gz * gs
     nl = math.sqrt(nx * nx + ny * ny + nz * nz)
     nx, ny, nz = nx / nl, ny / nl, nz / nl
@@ -817,11 +817,11 @@ def shade_water_vert(u, v, depth, foam_base, speed, turb, view_y, light):
     trans = [math.exp(-sig[i] * path) for i in range(3)]
     deep = 1.0 - math.exp(-depth * 0.62)
     sc = (lerp(0.008, 0.0008, deep), lerp(0.045, 0.014, deep), lerp(0.046, 0.032, deep))
-    wl = [light.sky[i] * 1.18 + light.ground[i] * 0.34
+    wl = [light.sky[i] * 1.30 + light.ground[i] * 0.34
           + light.sun[i] * max(light.sun_dir[1], 0.0) * 0.30
           + light.moon[i] * max(light.moon_dir[1], 0.0) * 0.30 for i in range(3)]
     body = [sc[i] * wl[i] * 1.22 for i in range(3)]
-    streak = 0.96 + 0.08 * (noise2(u * 0.10, v * 1.05) * 0.62 + noise2(u * 0.38, v * 2.7) * 0.38)
+    streak = 0.98 + 0.045 * (noise2(u * 0.10, v * 1.05) * 0.62 + noise2(u * 0.38, v * 2.7) * 0.38)
     col = [(body[i] * (1 - fres) + sky[i] * fres) * streak for i in range(3)]
     hs = (light.sun_dir[0], light.sun_dir[1] + view_y, light.sun_dir[2] + vz)
     hl = math.sqrt(sum(c * c for c in hs))
@@ -1016,12 +1016,12 @@ def water_grid_data(frame, light, rocks):
             phase = u * 2.35 - abs(lat) * 0.48 + 1.7 * (noise2(u * 0.11, lat * 0.11) - 0.5)
             crest = clamp((math.sin(phase) - 0.25) * 1.4, 0.0, 1.0)
             foam = reach.foam * (0.08 + 0.25 * crest + 0.12 * surface_speed01(x, tt))
-            foam += (1.0 - smooth(0.03, 0.30, depth)) * 0.09
+            foam += (1.0 - smooth(0.03, 0.30, depth)) * 0.05
             foam += wake[0] * 0.34
             foam *= 0.72 + 0.28 * fbm2(u * 0.20 + 3.0, lat * 0.20, 2)
             sp = surface_speed01(x, tt)
             turb = clamp(reach.foam * 1.15 + sp * 0.35 + wake[0] * 0.20, 0.0, 1.0)
-            view_y = lerp(0.12, 0.60, (tt + 1.0) * 0.5)
+            view_y = lerp(0.07, 0.58, (tt + 1.0) * 0.5)
             r, g, b, a = shade_water_vert(u, lat, depth, clamp(foam, 0.0, 1.0), sp, turb, view_y, light)
             grid[i * len(t) + j, :3] = (r, g, b)
             grid[i * len(t) + j, 3] = a
@@ -1167,10 +1167,11 @@ def draw_rocks(img, frame, light, rocks, sun_sign, oy):
             continue
         moist = 1.0 - smooth(r.water_y - 0.04, r.water_y + 0.40, r.wy)
         sub = max(0.0, r.water_y - r.wy)
-        base = mix3(PAL["ROCK_MID"], PAL["ROCK_LIGHT"], 0.22 + 0.62 * (r.seed % 1.0))
-        base = mix3(base, PAL["ROCK_DARK"], 0.18 * (1.0 - (r.seed % 1.0)))
+        tone = r.seed % 1.0
+        base = mix3(PAL["ROCK_MID"], PAL["ROCK_LIGHT"], 0.10 + 0.80 * tone)
+        base = mix3(base, PAL["ROCK_DARK"], 0.26 * (1.0 - tone))
         if r.wy + r.ry > r.water_y + 0.05:
-            base = mix3(base, PAL["ROCK_MOSS"], 0.22 * (r.seed % 1.0))
+            base = mix3(base, PAL["ROCK_MOSS"], 0.10 + 0.18 * tone)
         lit = shade_opaque_vert(base, (-0.45 * sun_sign, 0.82, 0.35), (r.wx, r.wy + r.ry * 0.6, r.wz),
                                 1, moist * 0.4, sub, light)
         dark = shade_opaque_vert(tuple(c * 0.62 for c in base), (0.5 * sun_sign, 0.25, 0.3),

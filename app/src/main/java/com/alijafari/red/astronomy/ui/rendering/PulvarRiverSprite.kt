@@ -23,6 +23,7 @@ import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -243,7 +244,7 @@ internal class PulvarRiverSprite private constructor(
 
             drawCorridor(canvas, frame, light, seasonMix, scatter)
             drawCobbles(canvas, frame, light, scatter)
-            drawRocks(canvas, frame, light, scatter)
+            drawRocks(canvas, frame, light, scatter, sunSign)
             drawWater(canvas, frame, light, scatter)
             drawPlants(canvas, frame, light, scatter)
 
@@ -377,7 +378,8 @@ internal class PulvarRiverSprite private constructor(
             canvas: AndroidCanvas,
             frame: PulvarRiver.Frame,
             light: PulvarRiver.Light,
-            scatter: PulvarRiver.Scatter
+            scatter: PulvarRiver.Scatter,
+            sunSign: Float
         ) {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
             val scratch = FloatArray(3)
@@ -429,10 +431,13 @@ internal class PulvarRiverSprite private constructor(
                 val submerged = max(0f, r.waterY - r.cy)
                 // Per-stone tone from the design's stream, then the design's moss on the crown
                 // of stones that stand above the water: at ten pixels a stone is its colour.
-                PulvarRiver.mix3(PulvarRiver.ROCK_MID, PulvarRiver.ROCK_LIGHT, 0.22f + 0.62f * (r.seed % 1f), scratch)
-                PulvarRiver.mixInto(scratch, PulvarRiver.ROCK_DARK, 0.18f * (1f - (r.seed % 1f)))
+                // The design's per-stone variation: a tone from its own stream, a darker damp
+                // base, and moss only on stones that stand clear of the water.
+                val tone = (r.seed % 1f)
+                PulvarRiver.mix3(PulvarRiver.ROCK_MID, PulvarRiver.ROCK_LIGHT, 0.10f + 0.80f * tone, scratch)
+                PulvarRiver.mixInto(scratch, PulvarRiver.ROCK_DARK, 0.26f * (1f - tone))
                 if (r.cy + r.ry > r.waterY + 0.05f) {
-                    PulvarRiver.mixInto(scratch, PulvarRiver.ROCK_MOSS, 0.22f * r.seed % 1f)
+                    PulvarRiver.mixInto(scratch, PulvarRiver.ROCK_MOSS, 0.10f + 0.18f * tone)
                 }
                 val lit = PulvarRiver.shadeOpaque(
                     scratch[0], scratch[1], scratch[2], -0.45f * sunSign, 0.82f, 0.35f,
@@ -502,7 +507,7 @@ internal class PulvarRiverSprite private constructor(
                         (sin(phase.toDouble()).toFloat() - 0.25f) * 1.4f, 0f, 1f
                     )
                     var foam = reach.foam * (0.08f + 0.25f * crest + 0.12f * PulvarRiver.surfaceSpeed01(x, t))
-                    foam += (1f - PulvarRiver.smooth(0.03f, 0.30f, depth)) * 0.09f
+                    foam += (1f - PulvarRiver.smooth(0.03f, 0.30f, depth)) * 0.05f
                     // The design's boulder collar is a *ring* around a stone seen in 3D; flattened
                     // into this band the same ring spans the whole cross-section, which painted a
                     // white bar across each riffle. Half strength keeps the bow wave and the
@@ -516,7 +521,7 @@ internal class PulvarRiverSprite private constructor(
                     // View elevation across the band: grazing at the far bank, steeper near —
                     // the design's camera sweep, which is what gives its water its vertical
                     // Fresnel grade instead of one flat sheen.
-                    val viewY = PulvarRiver.lerp(0.12f, 0.60f, (t + 1f) * 0.5f)
+                    val viewY = PulvarRiver.lerp(0.07f, 0.58f, (t + 1f) * 0.5f)
                     colours[v] = PulvarRiver.shadeWater(
                         u, lateral, depth, PulvarRiver.clamp(foam, 0f, 1f), speed, turb, viewY, grad, light
                     )
