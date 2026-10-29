@@ -64,8 +64,17 @@ class ArSkySnapshot(
     val sun: ArBodyState,
     val moon: ArBodyState
 ) {
-    /** Number of stars with positions in this snapshot. */
-    val starCount: Int get() = stars?.size ?: 0
+    /**
+     * Number of stars this snapshot can actually draw.
+     *
+     * The snapshot is computed for one instant and one catalogue, so the arrays and the catalogue
+     * agree by construction ([init] enforces it). This property is what draw code must iterate,
+     * though: it is derived from the arrays themselves, so a snapshot whose star data is missing —
+     * the star pack is parsed on a background thread, and the first snapshots of a cold start are
+     * computed before it arrives — reports zero stars instead of an index into `FloatArray(0)`
+     * (`ArrayIndexOutOfBoundsException: length=0; index=0` in the AR star pass).
+     */
+    val starCount: Int get() = minOf(stars?.size ?: 0, starEnu.size / 3, starMag.size)
 
     init {
         val n = stars?.size ?: 0

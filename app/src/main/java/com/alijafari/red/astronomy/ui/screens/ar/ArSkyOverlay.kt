@@ -248,6 +248,11 @@ object ArSkyOverlay {
         camera: ArCameraModel, stars: ArStarCatalog, glyphs: ArGlyphCache, opts: ArOverlayOptions, w: Float, h: Float
     ) {
         val sprites = glyphs.starSprites
+        // Nothing to draw is a legitimate state, not an error: the star pack is parsed on a
+        // background thread, so the first snapshots of a cold start carry no stars at all, and a
+        // snapshot can only be read as far as its own arrays reach.
+        val count = snapshot.starCount
+        if (count <= 0 || sprites.isEmpty()) return
         val bore = camera.boresightEnu(state.tmp)
         val cosLimit = cos(min(Math.PI / 2, camera.halfDiagonalFovRad() + Math.toRadians(2.0)))
         val e = snapshot.starEnu
@@ -257,8 +262,8 @@ object ArSkyOverlay {
         val margin = 24f * opts.density
         val moon = snapshot.moon.placed.enu
         val moonCos = cos(Math.toRadians(snapshot.moon.angularRadiusDeg))
-        // The snapshot's arrays are indexed by its own catalogue; never iterate past them.
-        val count = min(stars.size, min(e.size / 3, snapshot.starMag.size))
+        // Every array below is indexed by this one count, taken from the snapshot: the catalogue
+        // (its validated size), its ENU triples and its magnitudes.
         for (i in 0 until count) {
             if (!opts.showUnnamedStars && stars.name(i) == null) continue
             val x = e[i * 3].toDouble(); val y = e[i * 3 + 1].toDouble(); val z = e[i * 3 + 2].toDouble()
@@ -315,7 +320,8 @@ object ArSkyOverlay {
             if (obj.type != ObjectType.STAR) continue
             val idx = obj.hdId?.let { stars?.indexOfHd(it) } ?: -1
             val x: Double; val y: Double; val z: Double
-            if (idx >= 0 && idx * 3 + 2 < snapshot.starEnu.size) {
+            // `starCount` is the snapshot's own validated limit (catalogue, ENU triples, magnitudes).
+            if (idx >= 0 && idx < snapshot.starCount) {
                 x = snapshot.starEnu[idx * 3].toDouble(); y = snapshot.starEnu[idx * 3 + 1].toDouble(); z = snapshot.starEnu[idx * 3 + 2].toDouble()
             } else {
                 val pl = snapshot.placementOf(obj.id) ?: continue
