@@ -52,6 +52,8 @@ import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.persepolis.PersepolisFeature
 import com.alijafari.red.astronomy.ui.persepolis.PersepolisLandscape
 import com.alijafari.red.astronomy.ui.rendering.*
+import com.alijafari.red.astronomy.ui.rendering.landscape.PulvarRiver3D
+import com.alijafari.red.astronomy.ui.rendering.landscape.PulvarRiverFraming
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaLayer
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaState
@@ -75,6 +77,24 @@ import kotlinx.coroutines.launch
  * more, and the sky itself is not repainted on this clock (see the three drawing layers below).
  */
 private const val SCENE_MOTION_FRAME_MS = 42L
+
+/**
+ * Bottom band of the full-bleed scene that the 3D Pulvar corridor occupies (see
+ * [PulvarRiver3D] below), as a fraction of the scene height.
+ *
+ * The painted river's highest row is its far wet-bank fringe — the centreline minus 1.18
+ * half-widths, drawn by SceneGroundRenderer's `ribbonPath(1.18f)`. Sampled over the whole canvas
+ * at every scene size Home produces, that fringe never rises above 0.857 of the scene, so the band
+ * starts at 0.825: the GL water covers the painted water completely, with ≈0.03 of the scene (about
+ * 13 dp) of margin for the tallest meander.
+ */
+private const val PULVAR_RIVER_BAND_FRACTION = 0.175f
+
+/** Where SceneGroundRenderer's foot vignette begins, as a fraction of the scene height. */
+private const val PULVAR_RIVER_FOOT_FADE_START = 0.90f
+
+/** The foot vignette's alpha at the bottom edge (black), matching the painted one. */
+private const val PULVAR_RIVER_FOOT_FADE_ALPHA = 0.26f
 
 /**
  * Quantum of the instant the sky MODEL is computed for, in live mode.
@@ -537,6 +557,72 @@ fun HeroSkyCanvas(
                     .fillMaxSize()
                     .testTag("persepolis_landscape")
             )
+        }
+
+        // --- THE PULVAR, IN THREE DIMENSIONS ---
+        // The river in the foreground of the ground band is now the fixed-camera 3D corridor
+        // (PulvarRiver3D): a procedural reach with a real bed under a refracting, Fresnel-lit water
+        // surface, boulders and their wakes, cobbles, point bars, reeds and grass — lit by the same
+        // Sun and Moon this frame computes. It occupies only the band the painted ribbon belongs to:
+        // the band starts above the painted river's own far-edge fringe (PULVAR_RIVER_BAND_FRACTION),
+        // so the GL water covers the paint completely, and everything above it — the plain, the
+        // cultivation, the monuments, the trees — is the untouched painted landscape. The painted
+        // Pulvar stays underneath as the fallback: if this device cannot start the GL context, the
+        // scene simply keeps the 2D river it has always drawn.
+        //
+        // Hosted on a TextureView (see PulvarRiverTextureView) for the same reason as the relief:
+        // it is ordinary window content, so the motion layer, the readout and every overlay composed
+        // after it cover it, and it clips and scrolls with the canvas instead of owning a window-level
+        // surface. Photographic themes only; PersepolisFeature is the gate for the whole realistic
+        // ground.
+        if (isScene && PersepolisFeature.isEnabledFor(uiState.skyCanvasTheme)) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .fillMaxHeight(PULVAR_RIVER_BAND_FRACTION)
+                    .testTag("pulvar_river_3d")
+            ) {
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    // The corridor's fixed camera has to be told where the far bank lands. The band
+                    // is wide and short (≈4–8:1), so the framing is a function of its aspect alone;
+                    // see PulvarRiverFraming for the solved relation.
+                    val bandAspect = constraints.maxWidth.toFloat() /
+                        constraints.maxHeight.toFloat().coerceAtLeast(1f)
+                    PulvarRiver3D(
+                        modifier = Modifier.fillMaxSize(),
+                        sunAzimuthDeg = sunHoriz.azimuthDeg.toFloat(),
+                        sunAltitudeDeg = sunHoriz.altitudeDeg.toFloat(),
+                        moonAzimuthDeg = moonData.azimuthDeg.toFloat(),
+                        moonAltitudeDeg = moonData.altitudeDeg.toFloat(),
+                        moonIllumination = (moonData.illuminationPercent / 100.0)
+                            .toFloat().coerceIn(0f, 1f),
+                        flowSpeed = 1f,
+                        animated = true,
+                        visibleWidthMeters = PulvarRiverFraming.VISIBLE_WIDTH_M,
+                        baseFractionFromTop = PulvarRiverFraming.baseFractionFromTop(bandAspect)
+                    )
+                }
+
+                // The scene's own foot vignette (SceneGroundRenderer.drawBottomFade: transparent to
+                // 26 % black over the last 10 % of the canvas) is painted *under* the GL band, so it
+                // is re-applied here. Without it the corridor would end on a hard line above the
+                // Moon/eclipse cards, breaking the dissolve into the app backdrop.
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val fadeStartFraction = ((PULVAR_RIVER_FOOT_FADE_START - (1f - PULVAR_RIVER_BAND_FRACTION)) /
+                        PULVAR_RIVER_BAND_FRACTION).coerceIn(0f, 1f)
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0.0f to Color.Transparent,
+                            1.0f to Color.Black.copy(alpha = PULVAR_RIVER_FOOT_FADE_ALPHA),
+                            startY = size.height * fadeStartFraction,
+                            endY = size.height
+                        ),
+                        topLeft = Offset(0f, 0f),
+                        size = size
+                    )
+                }
+            }
         }
 
         // --- LAYER 2: SCENE MOTION ---
