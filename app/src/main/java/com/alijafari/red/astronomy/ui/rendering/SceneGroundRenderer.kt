@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -814,295 +815,72 @@ object SceneGroundRenderer {
         // 9. The monuments' own earthworks (aprons, talus, contact shadows, debris).
         drawCombinedLandscapeGrounding(drawScope, composition, palette, lighting, framing)
 
-        // 10. The Pulvar river in the near foreground: the viewer stands on its far bank.
-        // Doubled in width again (v3): the centreline sits a little lower so the far edge
-        // of the wet-bank fringe still clears the Mil slope's front step at every meander.
-        val riverY = (framing.milSlopeFrontYPx + height * 0.062f).coerceIn(height * 0.895f, height * 0.945f)
-        val riverMargin = width * 0.02f
-        fun riverP(x: Float): Float = ((x + riverMargin) / (width + 2f * riverMargin)).coerceIn(0f, 1f)
-        fun riverCenterY(x: Float): Float {
-            val p = riverP(x)
-            return riverY + height * 0.017f * sin(p * 4.6f + 0.7f) +
-                height * 0.008f * LandscapeProfile.fbm(p * 3.1f, 41, octaves = 3) + p * height * 0.014f
-        }
-        fun riverHalfW(x: Float, y: Float): Float {
-            val p = riverP(x)
-            val depth = ((y / height - 0.86f) / 0.12f).coerceIn(0f, 1f)
-            val pool = 1f + 0.45f * maxOf(0f, sin(p * 4.6f + 2.0f))
-            // ~3.8x the original stream (doubled twice): a broad river whose near edge can
-            // run out of the frame's bottom-right pools — the viewer stands in the shallows.
-            return height * (0.021f + 0.025f * depth) * pool
-        }
-        // Meander phase: +1 bulges toward the viewer, -1 away. Drives the thalweg offset
-        // (deep water hugs the outer bank) and the gravel point bars (inner bank).
-        fun riverBend(x: Float): Float = sin(riverP(x) * 4.6f + 0.7f)
-        fun ribbonPath(scale: Float, offset: Float = 0f): Path = Path().apply {
-            val steps = 28
-            for (i in 0..steps) {
-                val x = -riverMargin + (width + 2f * riverMargin) * i / steps
-                val yc = riverCenterY(x)
-                val y = yc + riverBend(x) * offset * riverHalfW(x, yc) - riverHalfW(x, yc) * scale
-                if (i == 0) moveTo(x, y) else lineTo(x, y)
-            }
-            for (i in steps downTo 0) {
-                val x = -riverMargin + (width + 2f * riverMargin) * i / steps
-                val yc = riverCenterY(x)
-                lineTo(x, yc + riverBend(x) * offset * riverHalfW(x, yc) + riverHalfW(x, yc) * scale)
-            }
-            close()
-        }
-        fun bankPath(sign: Float): Path = Path().apply {
-            val steps = 28
-            for (i in 0..steps) {
-                val x = -riverMargin + (width + 2f * riverMargin) * i / steps
-                val y = riverCenterY(x) + sign * riverHalfW(x, riverCenterY(x))
-                if (i == 0) moveTo(x, y) else lineTo(x, y)
-            }
-        }
-        // One ribbon edge at a fractional half-width (inside the true bank line).
-        fun edgePath(scale: Float, offset: Float = 0f): Path = Path().apply {
-            val steps = 28
-            for (i in 0..steps) {
-                val x = -riverMargin + (width + 2f * riverMargin) * i / steps
-                val yc = riverCenterY(x)
-                val y = yc + riverBend(x) * offset * riverHalfW(x, yc) - riverHalfW(x, yc) * scale
-                if (i == 0) moveTo(x, y) else lineTo(x, y)
-            }
-        }
-        val deepWater = lerp(Color(0xFF0A141C), Color(0xFF2E4A52), day)
-        val shallowWater = lerp(Color(0xFF0E1814), Color(0xFF4A5A4C), day) // bed through thin water
-        val wetBank = lerp(Color(0xFF0C0E08), Color(0xFF4C4434), day)      // damp darkened shore
-        val reflection = lerp(lerp(lighting.horizonTone, lighting.skyTone, 0.35f), deepWater, 0.22f)
-        // Layered water, wettest to deepest: damp bank fringe, shallow bed showing at the
-        // edges, the sky's reflection, then the deep thalweg hugging each outer bank.
-        drawScope.drawPath(ribbonPath(1.18f), wetBank.copy(alpha = 0.55f + 0.30f * day))
-        drawScope.drawPath(ribbonPath(1f), shallowWater)
-        // Fresnel-graded reflection (Schlick, F0 ≈ 0.02 in spirit): the far water is
-        // seen at a grazing angle and mirrors the sky almost fully; the near water is
-        // seen steeply, so the bed and deep water show through and the sky's share
-        // falls. A flat 0.90 reflection read as a plastic sheet; the vertical grade
-        // is what makes the same ribbon read as a surface lying in the light.
-        drawScope.drawPath(
-            ribbonPath(0.84f),
-            brush = Brush.verticalGradient(
-                0.0f to reflection.copy(alpha = 0.96f),
-                0.55f to reflection.copy(alpha = 0.82f),
-                1.0f to lerp(reflection, deepWater, 0.55f).copy(alpha = 0.60f),
-                startY = riverY - height * 0.045f,
-                endY = riverY + height * 0.085f
-            )
+        // 10. The Pulvar river: the supplied PulvarRiver3D design, in this landscape's band.
+        //
+        //     The design is a 3D reach with a fixed side camera; this scene is a flat canvas with
+        //     its own horizon, its own Sun and its own planting rules. PulvarRiver keeps every
+        //     hydraulic law, mesh resolution, scatter and shading term of the design and swaps in
+        //     this band's projection (PulvarRiver.Frame), so the reach keeps its pool-riffle-run
+        //     rhythm, its point bars and its boulder wakes while sitting exactly where the valley
+        //     has always had its water. PulvarRiverSprite bakes all of it once — bed, water with the
+        //     design's per-vertex transparency, boulders, cobbles, reeds, grass — and each draw is
+        //     one blit under this frame's light, plus the Sun's or Moon's glitter on the surface.
+        //
+        //     riverCenterY / riverHalfW stay as thin delegates: the whole planting pass
+        //     below (tree exclusion, the near-bank field, the apron gaps) is written against them,
+        //     so the trees, the scrubs and the grass fringe keep their relationship with the water
+        //     without a single call site changing.
+        val riverFrame = PulvarRiver.Frame(
+            widthPx = width,
+            heightPx = height,
+            anchorY = framing.milSlopeFrontYPx + height * 0.062f
         )
-        drawScope.drawPath(ribbonPath(0.22f, offset = 0.45f), deepWater.copy(alpha = 0.60f))
-        // Far-bank waterline: at grazing incidence the waterline itself catches the
-        // sky — a hairline of reflected light just inside the far edge, separating
-        // the water from the bank shadow line drawn later on the true edge.
-        drawScope.drawPath(
-            edgePath(0.93f),
-            reflection.copy(alpha = 0.16f + 0.26f * lightLevel),
-            style = Stroke(width = (height * 0.0012f).coerceIn(0.8f, 2f), cap = StrokeCap.Round)
+        fun riverCenterY(x: Float): Float = riverFrame.centerY(x)
+        fun riverHalfW(x: Float, y: Float): Float = riverFrame.halfWidthPx(x)
+        // The valley's season, from the Persian calendar, exactly as the two tree species read it:
+        // spring and summer keep the reeds green, autumn and winter turn them to straw.
+        val riverSeason = julianDay?.let { PersianCalendar.seasonOf(it) } ?: PersianCalendar.Season.SUMMER
+        val riverAutumn = riverSeason == PersianCalendar.Season.AUTUMN ||
+            riverSeason == PersianCalendar.Season.WINTER
+        // One bake per layout and season, then this frame's light as the same per-channel multiply
+        // the maples and Paulownias are given — the river sits in the valley's light, not its own.
+        val river = PulvarRiverSprite.forLayout(
+            frame = riverFrame,
+            seasonMix = if (riverAutumn) 1f else 0f,
+            sunSign = sunSign
         )
-        for (i in 0 until 8) { // dark slow water breaking the reflection
-            val x = width * LandscapeProfile.hash01(97, i * 11 + 4)
-            val yc = riverCenterY(x)
-            drawSoftPatch(drawScope, x, yc, width * 0.07f, riverHalfW(x, yc) * 1.0f, deepWater, 0.18f, layers = 8)
+        val riverLit = lightLevel.coerceIn(0f, 1f)
+        var riverTintColor = lerp(Color(0xFF2C3340), Color.White, riverLit)
+        val riverGolden = (1f - sunAlt.coerceIn(0f, 20f) / 20f) * day
+        if (riverGolden > 0.01f) {
+            riverTintColor = lerp(riverTintColor, Color(0xFFFFE3B4), 0.30f * riverGolden)
         }
-        // Pale gravel point bars inside the bends, where the current drops its load.
-        for (i in 0..28) {
-            val x = -riverMargin + (width + 2f * riverMargin) * i / 28f
-            val b = riverBend(x)
-            if (abs(b) <= 0.72f) continue
-            val yc = riverCenterY(x)
-            drawSoftPatch(
-                drawScope, x, yc - b * riverHalfW(x, yc) * 0.82f,
-                width * 0.07f, riverHalfW(x, yc) * 0.5f, sand,
-                peakAlpha = 0.10f + 0.20f * day, layers = 8
-            )
+        val riverTint = (0xFF shl 24) or
+            ((riverTintColor.red * 255f).toInt().coerceIn(0, 255) shl 16) or
+            ((riverTintColor.green * 255f).toInt().coerceIn(0, 255) shl 8) or
+            (riverTintColor.blue * 255f).toInt().coerceIn(0, 255)
+        // Glitter: the design's specular column, tracking the real Sun or Moon across the water.
+        var glintX = width * 0.5f
+        var glintStrength = 0f
+        var glintRgb = 0xFFFFE9C4.toInt()
+        if (sunPosPx != null && sunAlt > -2f) {
+            glintX = sunPosPx.x.coerceIn(0f, width)
+            glintStrength = (1f - sunAlt.coerceIn(0f, 38f) / 38f) * 0.9f
+            glintRgb = lerp(Color(0xFFFFE9C4), lighting.horizonTone, 0.35f).toArgb()
+        } else if (moonPosPx != null) {
+            glintX = moonPosPx.x.coerceIn(0f, width)
+            glintStrength = 0.45f *
+                (lighting.moonIlluminationPercent.toFloat() / 100f).coerceIn(0f, 1f)
+            glintRgb = 0xFFDCE8FF.toInt()
         }
-        // Flow ripples: small sky-coloured dashes riding the current.
-        val rippleColor = lerp(lighting.skyTone, Color.White, 0.25f)
-        for (i in 0 until 90) {
-            val x = width * LandscapeProfile.hash01(179, i * 17 + 3)
-            val yc = riverCenterY(x)
-            val y = yc + (LandscapeProfile.hash01(73, i * 7 + 5) - 0.5f) * 1.7f * riverHalfW(x, yc)
-            val len = height * (0.004f + 0.010f * LandscapeProfile.hash01(39, i * 3 + 1))
-            drawScope.drawLine(
-                color = rippleColor.copy(alpha = 0.05f + 0.13f * lightLevel),
-                start = Offset(x, y),
-                end = Offset(x + len, y + len * 0.10f),
-                strokeWidth = (height * 0.0014f).coerceIn(0.8f, 2.5f),
-                cap = StrokeCap.Round
-            )
-        }
-        // Submerged pebbles freckling the near shallows.
-        for (i in 0 until 26) {
-            val x = width * LandscapeProfile.hash01(231, i * 19 + 5)
-            val yc = riverCenterY(x)
-            val y = yc + riverHalfW(x, yc) * (0.62f + 0.3f * LandscapeProfile.hash01(47, i * 3 + 2))
-            val r = height * (0.0012f + 0.0018f * LandscapeProfile.hash01(63, i * 5 + 1))
-            oval(x, y, r * 2f, r, sand.copy(alpha = 0.10f + 0.18f * day))
-        }
-        drawScope.drawPath(
-            bankPath(-1f),
-            canopyDark.copy(alpha = 0.45f),
-            style = Stroke(width = (height * 0.0016f).coerceIn(1f, 3f))
+        river.draw(
+            drawScope = drawScope,
+            tint = riverTint,
+            sunX = glintX,
+            glint = glintStrength.coerceIn(0f, 1f),
+            glintRgb = glintRgb,
+            lightLevel = lightLevel
         )
-        drawScope.drawPath(
-            bankPath(1f),
-            sand.copy(alpha = 0.40f),
-            style = Stroke(width = (height * 0.0016f).coerceIn(1f, 3f))
-        )
-        val riparian = lerp(canopy, Color(0xFF5A7244), 0.4f * day)
-        for (i in 0 until 12) { // greener grass along the far bank
-            val x = width * (i + LandscapeProfile.hash01(51, i * 3 + 1)) / 12f
-            val yc = riverCenterY(x)
-            drawSoftPatch(
-                drawScope, x, yc - riverHalfW(x, yc) - height * 0.004f,
-                width * 0.13f, height * 0.016f, riparian, peakAlpha = 0.06f + 0.14f * day, layers = 10
-            )
-        }
-        // Glitter: broken dashes concentrated in the Sun's (or Moon's) reflection column.
-        val glint: Triple<Float, Float, Color>? = when {
-            sunPosPx != null && sunAlt > -2f -> Triple(
-                sunPosPx.x.coerceIn(0f, width),
-                (1f - sunAlt.coerceIn(0f, 38f) / 38f) * 0.9f,
-                lerp(Color(0xFFFFE9C4), lighting.horizonTone, 0.35f)
-            )
-            moonPosPx != null -> Triple(
-                moonPosPx.x.coerceIn(0f, width),
-                0.45f * (lighting.moonIlluminationPercent.toFloat() / 100f).coerceIn(0f, 1f),
-                Color(0xFFDCE8FF)
-            )
-            else -> null
-        }
-        if (glint != null && glint.second > 0.01f) {
-            val (glintX, glintStrength, glintColor) = glint
-            // Broad Fresnel sheen across the reflection column, under the sparkles.
-            val sheenY = riverCenterY(glintX)
-            drawSoftPatch(
-                drawScope, glintX, sheenY, width * 0.52f, riverHalfW(glintX, sheenY) * 1.7f,
-                glintColor, peakAlpha = 0.10f * glintStrength, layers = 10
-            )
-            drawSoftPatch(
-                drawScope, glintX, sheenY, width * 0.30f, riverHalfW(glintX, sheenY) * 1.5f,
-                glintColor, peakAlpha = 0.20f * glintStrength, layers = 10
-            )
-            // Cox–Munk glitter: a sparkle exists only where a ripple facet happens to
-            // mirror the Sun/Moon to the viewer, so sparkle *density, brightness and
-            // size* all follow the 2D Gaussian falloff in slope space around the
-            // specular point (the sheen's centre) — dense, long and bright at the
-            // heart, sparse and short at the fringes. The old 1D column rained
-            // uniform dashes at any height in the ribbon; this is a point process
-            // thinned by the facet probability itself.
-            for (i in 0 until 72) {
-                val x = width * LandscapeProfile.hash01(137, i * 7 + 2)
-                val dxS = (x - glintX) / (width * 0.17f)
-                if (abs(dxS) > 2.6f) continue // beyond ~2.6σ there are no facets to catch
-                val yc = riverCenterY(x)
-                val hw = riverHalfW(x, yc)
-                val yOff = (LandscapeProfile.hash01(79, i * 5 + 3) - 0.5f) * 1.7f
-                val y = yc + yOff * hw * 0.82f
-                val glitter = LandscapeProfile.sunGlitter(dxS, yOff / 0.55f)
-                if (LandscapeProfile.hash01(193, i * 11 + 8) > 0.10f + 0.90f * glitter) continue
-                val alpha = (glintStrength * glitter *
-                    (0.30f + 0.70f * LandscapeProfile.hash01(31, i * 3 + 1))).coerceIn(0f, 0.92f)
-                if (alpha < 0.02f) continue
-                val len = height * (0.005f + 0.020f * LandscapeProfile.hash01(57, i * 9 + 5)) *
-                    (0.35f + 0.85f * glitter)
-                drawScope.drawLine(
-                    color = glintColor.copy(alpha = alpha),
-                    start = Offset(x, y),
-                    end = Offset(x + len, y),
-                    strokeWidth = ((height * 0.002f) * (0.7f + 0.6f * glitter)).coerceIn(1f, 3.5f),
-                    cap = StrokeCap.Round
-                )
-                // Rare star sparkles at the specular heart.
-                if (glitter > 0.72f && LandscapeProfile.hash01(297, i * 3 + 1) > 0.62f) {
-                    val r = height * (0.002f + 0.002f * LandscapeProfile.hash01(41, i * 7 + 2))
-                    drawScope.drawLine(
-                        color = glintColor.copy(alpha = alpha * 0.5f),
-                        start = Offset(x + len / 2f, y - r),
-                        end = Offset(x + len / 2f, y + r),
-                        strokeWidth = (height * 0.0014f).coerceIn(0.8f, 2.5f),
-                        cap = StrokeCap.Round
-                    )
-                }
-            }
-        }
-        // Broken reflections of the two foreground trees in the near water: ripple-
-        // torn horizontal slices. Deeper slices sit on water that has travelled
-        // farther from the tree, so their wobble grows, their dashes split, and
-        // hash-driven gaps open in them — a reflection is a signal the surface
-        // keeps interrupting, not a stack of neat bars.
-        for ((txFrac, thFrac) in listOf(0.115f to 0.068f, 0.875f to 0.058f)) {
-            val tx = width * txFrac
-            val th = height * thFrac
-            val yc = riverCenterY(tx)
-            val hw = riverHalfW(tx, yc)
-            val bot = yc + hw
-            val seedBase = (txFrac * 1000f).toInt()
-            for (j in 0 until 7) {
-                val y = bot - (j + 0.5f) * (th * 0.55f / 7f)
-                if (y < yc - hw) break
-                // Ripple gaps: some slices are simply missing, more often deeper.
-                if (j > 0 && LandscapeProfile.hash01(277, seedBase + j * 7) < 0.10f + 0.05f * j) continue
-                val wdt = th * 1.1f * (0.55f - 0.045f * j)
-                val wobble = (LandscapeProfile.hash01(77, seedBase + j * 7) - 0.5f) *
-                    height * 0.006f * (0.6f + 0.35f * j)
-                val alpha = 0.30f * (1f - j / 7f) * (0.4f + 0.6f * lightLevel)
-                val strokeW = (height * 0.002f).coerceIn(1f, 3.5f)
-                drawScope.drawLine(
-                    color = canopyDark.copy(alpha = alpha),
-                    start = Offset(tx + wobble - wdt / 2f, y),
-                    end = Offset(tx + wobble + wdt / 2f, y),
-                    strokeWidth = strokeW,
-                    cap = StrokeCap.Round
-                )
-                // A second, shorter fragment torn sideways off the deeper slices.
-                if (j >= 2 && LandscapeProfile.hash01(281, seedBase + j * 11) > 0.45f) {
-                    val fragW = wdt * (0.30f + 0.20f * LandscapeProfile.hash01(283, seedBase + j * 13))
-                    val fragX = tx + wobble * 1.7f +
-                        (LandscapeProfile.hash01(293, seedBase + j * 17) - 0.5f) * wdt * 0.5f
-                    drawScope.drawLine(
-                        color = canopyDark.copy(alpha = alpha * 0.7f),
-                        start = Offset(fragX - fragW / 2f, y + th * 0.028f),
-                        end = Offset(fragX + fragW / 2f, y + th * 0.028f),
-                        strokeWidth = strokeW,
-                        cap = StrokeCap.Round
-                    )
-                }
-            }
-        }
-        // Reed clumps (Phragmites) at the banks: grouped curved stems, feathery plumes.
-        val plumeColor = lerp(Color(0xFF201A10), Color(0xFFB2966E), day)
-        for (ci in 0 until 7) {
-            val p = 0.08f + 0.84f * (ci + LandscapeProfile.hash01(93, ci * 3 + 1)) / 7f
-            val x0 = -riverMargin + (width + 2f * riverMargin) * p
-            val yc = riverCenterY(x0)
-            val side = if (ci % 2 == 0) -1f else 1f
-            val by = yc + side * riverHalfW(x0, yc) * 1.02f
-            for (si in 0 until 8) {
-                val x = x0 + (LandscapeProfile.hash01(31, ci * 31 + si * 7) - 0.5f) * width * 0.018f
-                val bh = height * (0.014f + 0.012f * LandscapeProfile.hash01(17, ci * 17 + si * 3))
-                val lean = (LandscapeProfile.hash01(13, ci * 13 + si * 5) - 0.5f) * bh * 0.35f
-                val stem = Path()
-                for ((k, t) in listOf(0f, 0.33f, 0.66f, 1f).withIndex()) {
-                    val px = x + lean * t.pow(1.6f)
-                    val py = by - bh * t
-                    if (k == 0) stem.moveTo(px, py) else stem.lineTo(px, py)
-                }
-                drawScope.drawPath(
-                    stem, riparian.copy(alpha = 0.45f + 0.25f * day),
-                    style = Stroke(width = (height * 0.0014f).coerceIn(0.8f, 2.5f))
-                )
-                if (si % 3 == 0) {
-                    oval(
-                        x + lean, by - bh - height * 0.0015f,
-                        height * 0.0028f, height * 0.006f,
-                        plumeColor.copy(alpha = 0.35f + 0.30f * day)
-                    )
-                }
-            }
-        }
 
         // 11-12. Trees, scrub and steppe grass — baked once per layout, replayed per draw
         //     (see VegetationGeometry for why). Placement and species logic are unchanged
