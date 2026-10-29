@@ -205,8 +205,8 @@ internal object LandscapeProfile {
      *
      * Species character comes from the self-organizing parameters, all defaulted to the
      * original pistachio behaviour: [vase] pinches the crown envelope at its base and
-     * flares it upward (cherry); [scaffoldSpread] scales the first limbs' angles
-     * (ascending for cherry's vase, wide for oak's decurrent spread — the Borchert–Honda
+     * flares it upward (the vase habit); [scaffoldSpread] scales the first limbs' angles
+     * (ascending for a vase, wide for oak's decurrent spread — the Borchert–Honda
      * apical-control axis); [arch] lets tropism fade with depth so outer branches arc
      * and droop; [gnarl] jitters every growth step (oak's twisted limbs); [occupancy]
      * gives each bud Palubicki's occupancy zone, spacing branches evenly instead of
@@ -250,7 +250,7 @@ internal object LandscapeProfile {
             if (e > 1f) continue
             if (e < 0.14f && rnd() < shellBias) continue // hollow heart: leaves live at the surface
             if (y > cy) y = cy + (y - cy) * topFlatten // flattened umbrella top (pistachio habit)
-            // Vase habit (cherry): the envelope is pinched at the crown's foot and
+            // Vase habit: the envelope is pinched at the crown's foot and
             // flares as it rises, so limbs ascend close together then open outward.
             val vx = if (vase > 0f) {
                 val yn = ((y - crownBase) / crownH).coerceIn(0f, 1f)
@@ -325,7 +325,7 @@ internal object LandscapeProfile {
                 if (nx.size >= MAX_NODES) break
                 var dx = c[0] / c[2]
                 // Phototropism, optionally fading with depth (arch): scaffold limbs
-                // climb, outer twigs arc over and droop — cherry and old-oak habit.
+                // climb, outer twigs arc over and droop — the old-oak habit.
                 var dy = c[1] / c[2] + tropism -
                     if (arch > 0f) arch * 0.055f * (depth[node] - 5).coerceAtLeast(0) else 0f
                 dx += (nx[node] - lean) * 0.10f // gentle outward spread

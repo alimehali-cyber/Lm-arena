@@ -238,51 +238,10 @@ class LandscapeProfileTest {
             assertTrue("oak y in tree (${s.y1})", s.y1 in -0.02f..1.06f)
         }
 
-        // Cherry recipe: the vase — crown terminals spread wider near the top of the
-        // crown than near its foot.
-        val cherry = LandscapeProfile.treeSkeleton(
-            seed = 909, aspect = 1.45f, trunkFraction = 0.36f, attractorCount = 125,
-            vase = 0.55f, scaffoldSpread = 0.60f, arch = 0.8f, gnarl = 0.15f,
-            occupancy = 0.6f, selfPrune = 0.25f, shellBias = 0.35f, topFlatten = 0.95f
-        )
-        assertTrue("cherry has substance (${cherry.size})", cherry.size in 30..440)
-        val terminals = cherry.filter { it.terminal }
-        // Blossom clusters also sit on depth>=6 segments, so terminals need only be
-        // plentiful, not numerous — this seed grows ~14.
-        assertTrue("cherry has terminals for blossom (${terminals.size})", terminals.size >= 10)
-        val low = terminals.filter { it.y1 < 0.55f }
-        val high = terminals.filter { it.y1 > 0.75f }
-        if (low.size >= 3 && high.size >= 3) {
-            val lowSpread = low.maxOf { it.x1 } - low.minOf { it.x1 }
-            val highSpread = high.maxOf { it.x1 } - high.minOf { it.x1 }
-            assertTrue("vase flares upward ($highSpread > $lowSpread)", highSpread > lowSpread)
-        }
-    }
-
-    @Test
-    fun paulowniaSkeletonIsTallUmbrellaAndDeterministic() {
-        // Paulownia recipe (SceneGroundRenderer.PAULOWNIA_SKELETONS): long clear
-        // trunk, broad rounded-umbrella crown, half-open shell for the huge leaves.
-        val paul = LandscapeProfile.treeSkeleton(
-            seed = 1111, aspect = 1.08f, trunkFraction = 0.42f, attractorCount = 120,
-            scaffoldSpread = 0.95f, arch = 0.35f, gnarl = 0.25f, occupancy = 0.65f,
-            selfPrune = 0.35f, shellBias = 0.60f, topFlatten = 0.80f
-        )
-        assertEquals("Paulownia deterministic", paul, LandscapeProfile.treeSkeleton(
-            seed = 1111, aspect = 1.08f, trunkFraction = 0.42f, attractorCount = 120,
-            scaffoldSpread = 0.95f, arch = 0.35f, gnarl = 0.25f, occupancy = 0.65f,
-            selfPrune = 0.35f, shellBias = 0.60f, topFlatten = 0.80f
-        ))
-        assertTrue("Paulownia has substance (${paul.size})", paul.size in 30..440)
-        assertTrue("terminals exist for panicles/leaves", paul.count { it.terminal } >= 8)
-        val crownTop = paul.maxOf { it.y1 }
-        assertTrue("crown reaches up ($crownTop)", crownTop > 0.75f)
-        val spread = paul.maxOf { it.x1 } - paul.minOf { it.x1 }
-        assertTrue("umbrella crown spreads ($spread)", spread > 0.45f)
-        for (seg in paul) {
-            assertTrue("Paulownia pipe model holds", seg.r1 <= seg.r0 * 1.06f + 0.001f)
-            assertTrue("Paulownia y in tree (${seg.y1})", seg.y1 in -0.02f..1.06f)
-        }
+        // The cherry recipe the landscape used to plant (the Somei Yoshino vase) is gone with
+        // the species: `SceneGroundRenderer` no longer grows it, and the valley's flowering tree
+        // is the Paulownia design — see PaulowniaTreeTest. The growth model still supports the
+        // vase habit, so what is asserted above is the oak and pistachio contracts that remain.
     }
 
     @Test

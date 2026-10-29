@@ -242,7 +242,9 @@ object SkySceneRenderer {
                     lighting = lightingState,
                     persepolis = persepolis,
                     sunPosPx = sunPosPx,
-                    moonPosPx = moonPosPx
+                    moonPosPx = moonPosPx,
+                    // The valley's Paulownias wear the season of the instant they are drawn for.
+                    julianDay = frame.jd
                 )
             }
             target.drawsLandscape -> LandscapeRenderer.drawHorizonLandscape(

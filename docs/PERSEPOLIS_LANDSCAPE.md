@@ -214,25 +214,32 @@ paints, back to front:
   broad Fresnel sheen plus stochastically thinned glitter (with rare star sparkles)
   concentrated in the real Sun's reflection column by day (the Moon's, scaled by its
   illumination, at night);
-- a **mixed parkland of 68 space-colonization trees** (riparian gallery, canal line,
-  foothill woodland, scattered plain trees, near-bank foreground trees, the lone tree
-  between the sites): wild pistachio, gnarled decurrent **Zagros oaks** (*Quercus
-  brantii* — the lone tree between the sites and the foreground frame), vase-shaped
-  **flowering cherries** in Somei Yoshino bloom (pale-pink cloud crowns on both
-  riverbanks, petal litter beneath), and tall umbrella-crowned **Paulownia**
-  (*Paulownia tomentosa*) carrying upright lavender terminal panicles over oversized
-  heart-shaped foliage — planted as dedicated groves (+15 Paulownia, +10 cherry, +8 oak,
-  and +3 cherry / +2 oak on the river's near bank) with refuse-and-retry placement so
-  the species counts always hold — plus pistachio
-  scrub and silver-grey *Artemisia* sage. All are grown by 2D space
-  colonization upgraded with the self-organizing tree model (Palubicki et al. 2009:
-  bud occupancy zones, shadow self-pruning, apical-control scaffold spread, arching and
-  gnarl per species) with da Vinci pipe-model branch radii. Foliage is leaf-cluster dabs
+- a **mixed parkland of 68 trees** (riparian gallery, canal line, foothill woodland,
+  scattered plain trees, near-bank foreground trees, the lone tree between the sites):
+  wild pistachio and gnarled decurrent **Zagros oaks** (*Quercus brantii* — the lone tree
+  between the sites and the left of the foreground frame) grown by 2D space colonization
+  upgraded with the self-organizing tree model (Palubicki et al. 2009: bud occupancy
+  zones, shadow self-pruning, apical-control scaffold spread, arching and gnarl per
+  species) with da Vinci pipe-model branch radii, and their foliage as leaf-cluster dabs
   shaded the production-vegetation way — a spherized crown normal dotted with the Sun,
   darkened by crown-depth ambient occlusion — so crowns shade as volumes with lit shells
-  and hollow hearts instead of blob canopies —
-  cached once with height-based LOD, shadowed away from the Sun with a golden-hour backlit
-  rim, never in the worn earth at the monuments' feet. Scrub now grows only in the
+  and hollow hearts instead of blob canopies — cached once with height-based LOD,
+  shadowed away from the Sun with a golden-hour backlit rim, never in the worn earth at
+  the monuments' feet;
+- a **stand of 34 Paulownia** (*Paulownia tomentosa*), and this one species is not grown
+  per tree. It is the supplied `Paulownia.kt` design, grown once and **rendered once**
+  into a small sprite per season, then *projected* at every planting — mirrored where the
+  scene wants variety, faded for the far bank and multiplied by the frame's own light.
+  The design's measured tree (13.8 m, 0.62 m trunk at breast height, root flare, eight
+  hand-placed scaffolds, a 13.4 m crown) keeps its proportions at 25–90 px, and thirty-four
+  plantings cost thirty-four image blits instead of thirty-four trees. The wardrobe follows
+  the month of the instant the sky is drawn for: lilac terminal panicles on bare wood in
+  April–May, heart leaves in summer, splitting tan capsules and felted buds in autumn, bare
+  twig architecture in winter. Placement keeps the old counts (25 in the grove slots the
+  cherry and the umbrella Paulownia held, plus the two near-bank frames, three in the
+  riparian gallery, one on the canal tree line and three more near-bank plantings) with
+  refuse-and-retry, so the parkland's species counts always hold. See
+  [`PAULOWNIA_TREE.md`](PAULOWNIA_TREE.md); scrub still grows only in the
   foothills — the river's near side is kept clean so the scene's bottom can dissolve
   into the app backdrop (see `HOME_SKY_SCENE.md`).
 

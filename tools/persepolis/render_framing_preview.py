@@ -15,6 +15,10 @@ around both footprints, broad layered Pulvar river, space-colonization
 tree parkland, uniform grass field — no individual blades)
 replicated from SceneGroundRenderer — the python profile functions below
 mirror LandscapeProfile.kt and are where the composition was tuned.
+
+The Paulownias are not drawn here at all: like the app, this preview blits
+the single render from tools/paulownia/preview_paulownia.py (which mirrors
+PaulowniaTree.kt + PaulowniaSprite.kt) at every planting, scaled and mirrored.
 It exists so the composition can be eyeballed — Persepolis at half size in
 the left distance against the ranges, open plain, then the tower at the far
 right with its slope cropped by the edge and grounded in its own clearing,
@@ -33,6 +37,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import verify_framing as vf  # noqa: E402
 
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
+
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "paulownia"))
+import preview_paulownia as pw  # noqa: E402  (the one Paulownia render)
 
 W, H, DENSITY = 1080, 1260, 3.0  # phone 360x420dp
 FRAMING = vf.for_scene(W, H, DENSITY)
@@ -824,29 +832,9 @@ def main():
         tree_skeleton(313, aspect=1.80, trunk_fraction=0.32, attractor_count=100, lean=-0.02,
                       scaffold_spread=1.35, arch=0.45, gnarl=0.50, shell_bias=0.82, top_flatten=0.79),
     ]
-    # Flowering cherry (Somei Yoshino vase): ascending limbs opening to a round vase.
-    CHERRY_SKELS = [
-        tree_skeleton(909, aspect=1.45, trunk_fraction=0.36, attractor_count=125, lean=0.02,
-                      vase=0.55, scaffold_spread=0.60, arch=0.8, gnarl=0.15,
-                      shell_bias=0.35, top_flatten=0.95),
-        tree_skeleton(1010, aspect=1.30, trunk_fraction=0.40, attractor_count=115, lean=-0.03,
-                      vase=0.65, scaffold_spread=0.50, arch=0.9, gnarl=0.20,
-                      shell_bias=0.35, top_flatten=0.96),
-        tree_skeleton(1313, aspect=1.38, trunk_fraction=0.38, attractor_count=118, lean=-0.02,
-                      vase=0.60, scaffold_spread=0.55, arch=0.85, gnarl=0.18,
-                      shell_bias=0.35, top_flatten=0.955),
-    ]
-
-    # Paulownia (princess tree): long straight trunk, broad umbrella crown of
-    # huge heart leaves, upright lavender panicles as the leaves expand.
-    PAULOWNIA_SKELS = [
-        tree_skeleton(1111, aspect=1.08, trunk_fraction=0.42, attractor_count=120, lean=0.02,
-                      scaffold_spread=0.95, arch=0.35, gnarl=0.25, shell_bias=0.60, top_flatten=0.80),
-        tree_skeleton(1212, aspect=0.98, trunk_fraction=0.46, attractor_count=110, lean=-0.03,
-                      scaffold_spread=0.90, arch=0.30, gnarl=0.30, shell_bias=0.58, top_flatten=0.82),
-        tree_skeleton(1515, aspect=1.02, trunk_fraction=0.44, attractor_count=115, lean=0.01,
-                      scaffold_spread=0.92, arch=0.32, gnarl=0.28, shell_bias=0.59, top_flatten=0.81),
-    ]
+    # Flowering cherry and the old umbrella-crown Paulownia are gone from the landscape: the
+    # valley's Paulownias are the design's single tree, rasterised once by preview_paulownia.py
+    # (PaulowniaTree.kt + PaulowniaSprite.kt) and blitted at every planting below.
 
     def cluster_poly(cx, cy, r, seed, index, lobes=7, squish=0.78):
         # Irregular lobed leaf-cluster outline (mirror of
@@ -901,8 +889,6 @@ def main():
             "pistachio": ((44, 56, 36), (52, 64, 42), (66, 80, 52), (104, 116, 74)),
             "sage": ((86, 96, 78), (118, 130, 106), (118, 130, 106), (168, 180, 156)),
             "oak": ((34, 46, 26), (46, 62, 34), (84, 106, 58), (140, 158, 102)),
-            "cherry": ((146, 96, 116), (206, 138, 162), (242, 184, 200), (255, 222, 230)),
-            "Paulownia": ((34, 48, 26), (62, 88, 40), (96, 128, 58), (156, 186, 106)),
         }
         base_dark, base_dim, base_bright, base_rim = PALS[kind]
         # Per-tree crown width + ONE jagged dark under-mass spanning the crown
@@ -913,8 +899,8 @@ def main():
             cluster_poly(cx + ccx * hgt, by - ccy * hgt, crx * hgt * 0.84 * crown_wide,
                          seed * 4 + 7, 5, lobes=9, squish=min(max(cry / crx, 0.45), 1.05)),
             fill=(*tuple(int(c * 0.62) for c in base_dark), 235))
-        dabs = 4 if kind in ("oak", "cherry", "Paulownia") else 3
-        min_dep = 6 if kind in ("cherry", "Paulownia") else 7
+        dabs = 4 if kind == "oak" else 3
+        min_dep = 7
         ci = 0
         for x0, y0, x1, y1, r0, r1, dep, term in skel:
             if not term and dep < min_dep:
@@ -929,7 +915,7 @@ def main():
                 continue
             px, py = P(x1, y1)
             px = cx + ccx * hgt + (px - (cx + ccx * hgt)) * crown_wide
-            cr_mul = 1.25 if kind == "oak" else (0.98 if kind == "cherry" else (1.50 if kind == "Paulownia" else 1.0))
+            cr_mul = 1.25 if kind == "oak" else 1.0
             cr = hgt * (0.045 + 0.040 * _hash01(seed * 3.7 + ci * 5.1)) * cr_mul
             tone = 0.85 + 0.3 * _hash01(seed * 5.3 + ci * 7.7)
             light = (0.50 + 0.42 * facing) * (0.42 + 0.58 * r01) * tone
@@ -946,13 +932,11 @@ def main():
                                        seed * 4 + 3, ci * 77 + 1),
                           fill=(*tuple(int(c * 0.55) for c in base_dark), 235))
             for dab in range(dabs):
-                base_r = cr * ((0.38 + 0.30 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3))
-                               if kind == "cherry" else
-                               (0.42 + 0.30 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3)))
+                base_r = cr * (0.42 + 0.30 * _hash01(seed * 8.3 + ci * 4.1 + dab * 1.3))
                 is_core = dab == 0
                 is_edge = dab == dabs - 1 and dabs > 1
                 rim_dab = is_edge and facing > 0.15
-                glow_dab = is_edge and back_shell and kind != "cherry"
+                glow_dab = is_edge and back_shell
                 if is_core:
                     ox = (_hash01(seed * 9.7 + ci * 3.1) - 0.5) * cr * 0.35 + cr * 0.20
                     oy = (_hash01(seed * 8.9 + ci * 3.7) - 0.5) * cr * 0.25 + cr * 0.14
@@ -964,12 +948,7 @@ def main():
                     dist = cr * (0.30 + 0.24 * _hash01(seed * 10.3 + ci * 4.7 + dab * 1.9))
                     ox, oy = math.cos(ang) * dist, -math.sin(ang) * dist * 0.72
                     r = base_r * 0.62
-                if kind == "cherry":
-                    col = base_dark if light < 0.42 + dith * 0.16 else (base_dim if light < 0.72 + dith * 0.16 else base_bright)
-                    if rim_dab:
-                        col = base_rim
-                    alpha = 245
-                elif is_core:
+                if is_core:
                     col = tuple(int(c * tone * 0.72) for c in base_dark)
                     alpha = 235
                 elif rim_dab:
@@ -998,27 +977,6 @@ def main():
                 fx = px + (_hash01(seed * 17.9 + ci * 1.7) - 0.5) * cr * 0.8
                 d.ellipse([fx - fr, py + cr * 0.25 - fr * 0.7, fx + fr, py + cr * 0.25 + fr * 0.7],
                           fill=(200, 164, 104, 200))
-            if kind == "cherry" and _hash01(seed * 13.1 + ci * 0.3) < 0.22:
-                d.ellipse([px - cr * 0.42, py - cr * 0.12, px + cr * 0.42, py + cr * 0.42],
-                          fill=(52, 64, 42, 230))  # emerging leaf among blossom
-            # Paulownia: upright lavender panicles off the outer terminals.
-            if kind == "Paulownia" and term and _hash01(seed * 19.1 + ci * 1.9) < 0.72:
-                fcol = (197, 181, 236, 235) if light >= 0.50 else (126, 110, 168, 225)
-                fw = cr * (0.50 + 0.18 * _hash01(seed * 19.7 + ci * 2.9))
-                fx = px + (_hash01(seed * 19.3 + ci * 2.3) - 0.5) * cr * 0.45
-                fy = py - cr * 0.55
-                d.ellipse([fx - fw / 2, fy - cr * 0.58, fx + fw / 2, fy + cr * 0.58], fill=fcol)
-        if kind == "cherry":  # petal litter + drift
-            for p in range(12):
-                gx = cx + sx * ccx * hgt + (_hash01(seed * 13.9 + p * 0.7) - 0.5) * crx * hgt * 2.1
-                gy = by + hgt * 0.014 * _hash01(seed * 14.9 + p * 1.1)
-                d.ellipse([gx - hgt * 0.010, gy - hgt * 0.003, gx + hgt * 0.010, gy + hgt * 0.003],
-                          fill=(232, 168, 186, 200))
-            for p in range(5):
-                ax = cx + sx * ccx * hgt + (_hash01(seed * 15.1 + p * 1.3) - 0.5) * crx * hgt * 2.3
-                ay = by - hgt * (0.22 + 0.38 * _hash01(seed * 15.7 + p * 1.7))
-                d.ellipse([ax - hgt * 0.006, ay - hgt * 0.004, ax + hgt * 0.006, ay + hgt * 0.004],
-                          fill=(242, 184, 200, 210))
 
     def bush(cx, by, s, idx):
         draw_skeleton(cx, by, s * 2.1, BUSH_SKELS[idx % 3], idx % 2 == 0, 0.62,
@@ -1028,118 +986,187 @@ def main():
         x = W * _hash01(i * 19.7 + 3.3)
         y, s = TOE_Y - H * 0.004 + H * 0.010 * _hash01(i * 3.9), 6 + 5 * _hash01(i * 7.1)
         bush(x, y, s, i)
-    # Lone Zagros oak in the gap; near-bank foreground frame = oak (left) and
-    # flowering cherry (right), bases from the widened river's actual edge.
+    # Lone Zagros oak in the gap; near-bank foreground frame = oak (left) and a Paulownia
+    # (right), bases from the widened river's actual edge.
     def near_bank_y(x):
         return river_at(x) + river_halfw(x, river_at(x)) * 1.35 + H * 0.006
 
-    draw_skeleton((plat_r + slope_l) / 2, TOE_Y + H * 0.020, H * 0.044, OAK_SKELS[0], False, 0.92, seed=7, kind="oak")
-    draw_skeleton(W * 0.115, near_bank_y(W * 0.115), H * 0.072, OAK_SKELS[1], False, 0.95, seed=11, kind="oak")
-    draw_skeleton(W * 0.875, near_bank_y(W * 0.875), H * 0.066, CHERRY_SKELS[0], True, 0.97, seed=13, kind="cherry")
-    # 25 more trees: riparian gallery, canal line, foothill woodland, plain, near bank.
     def in_apron(x, y):
         return ((plat_l - W * 0.030 <= x <= plat_r + W * 0.105 and y < TOE_Y + H * 0.095) or
                 (x > slope_l - W * 0.065 and y < FRAMING["mil_slope_front_y"] + H * 0.095))
 
-    def plant(x, y, hgt, idx, kind="pistachio"):
-        if in_apron(x, y) and y < TOE_Y + H * 0.038:
+    # Trees stand IN the grass field, so they are painted after it — the app's replay order
+    # (field buckets, then shadows, trunks and crowns). Nested so the planting code keeps its
+    # natural place: below the river and the field, above the masonry.
+    def draw_trees():
+        # ONE Paulownia render, projected at every planting below (PaulowniaSprite in the app).
+        PAULOWNIA_SEASON = pw.SUMMER
+        _paulownia_sprite = pw.render(PAULOWNIA_SEASON, 232, sky=None)
+        _paulownia_tint = (214, 218, 214)  # the app multiplies the daylight bake by this frame's Sun
+        _paulownia_count = [0]
+
+        def draw_paulownia(x, y, hgt, flip, aerial=0.0):
+            # One blit of the single render: PaulowniaSprite.draw in the app. The sprite is resized to
+            # treeHeight x spanFraction, offset by its own trunk-foot fractions, mirrored if asked, and
+            # multiplied by this frame's light (and faded toward the haze on the far bank).
+            layer = _paulownia_sprite.at(
+                hgt, flip=flip, tint=_paulownia_tint, alpha=1.0 - 0.20 * aerial
+            )
+            left = int(round(x - layer.width * _paulownia_sprite.base_x_fraction))
+            top = int(round(y - layer.height * _paulownia_sprite.base_y_fraction))
+            target = img
+            if target.mode == "RGBA":
+                target.alpha_composite(layer, (max(0, left), max(0, top)))
+            else:
+                rgba = target.convert("RGBA")
+                rgba.alpha_composite(layer, (max(0, left), max(0, top)))
+                img.paste(rgba.convert("RGB"))
+
+        def plant_paulownia(x, y, hgt, aerial=0.0):
+            if in_apron(x, y) and y < TOE_Y + H * 0.038:
+                return False
+            yc = river_at(x)
+            if abs(y - yc) < river_halfw(x, yc) * 1.15:
+                return False
+            flip = _hash01(_paulownia_count[0] * 4.9 + 9.091) < 0.5
+            draw_paulownia(x, y, hgt, flip, aerial)
+            _paulownia_count[0] += 1
+            return True
+
+        def plant_paulownia_grove(x, y, hgt, aerial=0.0):
+            for dy in (0.0, -H * 0.014, H * 0.014):
+                if plant_paulownia(x, y + dy, hgt, aerial):
+                    return True
             return False
-        yc = river_at(x)
-        if abs(y - yc) < river_halfw(x, yc) * 1.22:
-            return False
-        skels = {"oak": OAK_SKELS, "cherry": CHERRY_SKELS, "Paulownia": PAULOWNIA_SKELS}.get(kind, TREE_SKELS)
-        draw_skeleton(x, y, hgt, skels[idx % len(skels)], idx % 2 == 1,
-                      0.82 + 0.15 * _hash01(idx * 7.01), seed=idx * 7 + 3, kind=kind)
-        return True
 
-    for i in range(9):  # far-bank gallery: cherries + oaks among pistachios
-        x = W * (0.05 + 0.90 * (i + _hash01(i * 3.1 + 6.01)) / 9)
-        y = river_at(x) - river_halfw(x, river_at(x)) * (1.45 + 0.30 * _hash01(i * 5.2 + 6.03))
-        kind = "cherry" if i in (1, 4, 6) else ("oak" if i in (3, 7) else "pistachio")
-        plant(x, y, H * (0.030 + 0.018 * _hash01(i * 7.3 + 6.07)), 100 + i, kind)
-    for i in range(6):
-        x = W * (0.08 + 0.84 * (i + _hash01(i * 3.3 + 6.13)) / 6)
-        y = canal_y - H * 0.004 + (x / W) * H * 0.010
-        plant(x, y, H * (0.020 + 0.012 * _hash01(i * 5.7 + 6.17)), 120 + i,
-              "cherry" if i == 2 else "pistachio")
-    for i in range(6):
-        x = W * _hash01(i * 11.5 + 6.19)
-        y = TOE_Y + H * (0.006 + 0.024 * _hash01(i * 7.2 + 6.31))
-        plant(x, y, H * (0.022 + 0.012 * _hash01(i * 3.3 + 6.33)), 140 + i,
-              "oak" if i == 2 else "pistachio")
-    for i in range(4):
-        x = W * (0.10 + 0.80 * _hash01(i * 13.7 + 6.41))
-        y = H * (0.855 + 0.045 * _hash01(i * 5.3 + 6.43))
-        plant(x, y, H * (0.026 + 0.014 * _hash01(i * 7.7 + 6.47)), 160 + i)
-    for j, xf in enumerate((0.34, 0.63)):  # near bank: cherry + oak
-        x = W * (xf + (_hash01(j * 3.3 + 6.53) - 0.5) * 0.03)
-        plant(x, near_bank_y(x), H * (0.054 + 0.012 * _hash01(j * 5.5 + 6.57)), 180 + j,
-              "cherry" if j == 0 else "oak")
-    # Grove expansion (+33): 15 Paulownia, 10 cherry, 8 oak — waterside
-    # Paulownia, gallery/grove cherry, dry-grove oak; refused spots retry.
-    def far_bank_y(x, mul):
-        return river_at(x) - river_halfw(x, river_at(x)) * mul
+        draw_skeleton((plat_r + slope_l) / 2, TOE_Y + H * 0.020, H * 0.044, OAK_SKELS[0], False, 0.92, seed=7, kind="oak")
+        draw_skeleton(W * 0.115, near_bank_y(W * 0.115), H * 0.072, OAK_SKELS[1], False, 0.95, seed=11, kind="oak")
+        plant_paulownia(W * 0.875, near_bank_y(W * 0.875), H * 0.066)
+        # 25 more trees: riparian gallery, canal line, foothill woodland, plain, near bank.
+        def plant(x, y, hgt, idx, kind="pistachio"):
+            if in_apron(x, y) and y < TOE_Y + H * 0.038:
+                return False
+            yc = river_at(x)
+            if abs(y - yc) < river_halfw(x, yc) * 1.22:
+                return False
+            skels = {"oak": OAK_SKELS}.get(kind, TREE_SKELS)
+            draw_skeleton(x, y, hgt, skels[idx % len(skels)], idx % 2 == 1,
+                          0.82 + 0.15 * _hash01(idx * 7.01), seed=idx * 7 + 3, kind=kind)
+            return True
 
-    def canal_line_y(x):
-        return canal_y - H * 0.004 + (x / W) * H * 0.010
+        for i in range(9):  # far-bank gallery: paulownias + oaks among pistachios
+            x = W * (0.05 + 0.90 * (i + _hash01(i * 3.1 + 6.01)) / 9)
+            y = river_at(x) - river_halfw(x, river_at(x)) * (1.45 + 0.30 * _hash01(i * 5.2 + 6.03))
+            kind = "oak" if i in (3, 7) else "pistachio"
+            hgt = H * (0.030 + 0.018 * _hash01(i * 7.3 + 6.07))
+            if i in (1, 4, 6):
+                plant_paulownia_grove(x, y, hgt, aerial=0.75)
+            else:
+                plant(x, y, hgt, 100 + i, kind)
+        for i in range(6):
+            x = W * (0.08 + 0.84 * (i + _hash01(i * 3.3 + 6.13)) / 6)
+            y = canal_y - H * 0.004 + (x / W) * H * 0.010
+            hgt = H * (0.020 + 0.012 * _hash01(i * 5.7 + 6.17))
+            if i == 2:
+                plant_paulownia_grove(x, y, hgt)
+            else:
+                plant(x, y, hgt, 120 + i, "pistachio")
+        for i in range(6):
+            x = W * _hash01(i * 11.5 + 6.19)
+            y = TOE_Y + H * (0.006 + 0.024 * _hash01(i * 7.2 + 6.31))
+            plant(x, y, H * (0.022 + 0.012 * _hash01(i * 3.3 + 6.33)), 140 + i,
+                  "oak" if i == 2 else "pistachio")
+        for i in range(4):
+            x = W * (0.10 + 0.80 * _hash01(i * 13.7 + 6.41))
+            y = H * (0.855 + 0.045 * _hash01(i * 5.3 + 6.43))
+            plant(x, y, H * (0.026 + 0.014 * _hash01(i * 7.7 + 6.47)), 160 + i)
+        for j, xf in enumerate((0.34, 0.63)):  # near bank: paulownia + oak
+            x = W * (xf + (_hash01(j * 3.3 + 6.53) - 0.5) * 0.03)
+            hgt = H * (0.054 + 0.012 * _hash01(j * 5.5 + 6.57))
+            if j == 0:
+                plant_paulownia_grove(x, near_bank_y(x), hgt)
+            else:
+                plant(x, near_bank_y(x), hgt, 180 + j, "oak")
+        # Grove expansion (+33): 25 Paulownia (15 original slots + the 10 the flowering
+        # cherry held) and 8 oak — waterside Paulownia, dry-grove oak; refused spots retry.
+        def far_bank_y(x, mul):
+            return river_at(x) - river_halfw(x, river_at(x)) * mul
 
-    grove_counts = {"Paulownia": 0, "cherry": 0, "oak": 0}
-    _gi = [200]
+        def canal_line_y(x):
+            return canal_y - H * 0.004 + (x / W) * H * 0.010
 
-    def plant_grove(x, y, hgt, kind):
-        for dy in (0.0, -H * 0.014, H * 0.014):
-            if plant(x, y + dy, hgt, _gi[0], kind):
-                _gi[0] += 1
-                grove_counts[kind] += 1
-                return
-        raise AssertionError(f"grove planting refused: {kind} at {x / W:.2f},{y / H:.3f}")
+        grove_counts = {"oak": 0}
+        grove_paulownia = [0]
+        _gi = [200]
 
-    for j, xf in enumerate((0.09, 0.27, 0.48, 0.69, 0.90)):  # Paulownia far bank x5
-        x = W * xf
-        plant_grove(x, far_bank_y(x, 1.52 + 0.22 * _hash01(j * 3.1 + 12.01)),
-                    H * (0.038 + 0.010 * _hash01(j * 5.1 + 12.03)), "Paulownia")
-    for j, xf in enumerate((0.16, 0.36, 0.58, 0.80)):  # Paulownia canal x4
-        x = W * xf
-        plant_grove(x, canal_line_y(x), H * (0.028 + 0.008 * _hash01(j * 5.3 + 12.07)), "Paulownia")
-    for j, (xf, yf, hf) in enumerate(((0.24, 0.858, 0.044), (0.44, 0.862, 0.040),
-                                      (0.64, 0.856, 0.046), (0.84, 0.864, 0.042))):  # plain x4
-        plant_grove(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.7 + 12.11)), "Paulownia")
-    for j, xf in enumerate((0.20, 0.78)):  # Paulownia near bank x2
-        x = W * xf
-        plant_grove(x, near_bank_y(x), H * (0.056 + 0.008 * _hash01(j * 5.9 + 12.13)), "Paulownia")
-    for j, xf in enumerate((0.18, 0.58, 0.84)):  # cherry far bank x3
-        x = W * xf
-        plant_grove(x, far_bank_y(x, 1.55 + 0.20 * _hash01(j * 3.3 + 12.17)),
-                    H * (0.030 + 0.008 * _hash01(j * 5.11 + 12.19)), "cherry")
-    for j, xf in enumerate((0.26, 0.68)):  # cherry canal x2
-        x = W * xf
-        plant_grove(x, canal_line_y(x), H * (0.024 + 0.006 * _hash01(j * 5.13 + 12.23)), "cherry")
-    for j, (xf, yf, hf) in enumerate(((0.34, 0.852, 0.034), (0.52, 0.858, 0.038),
-                                      (0.74, 0.850, 0.032), (0.42, 0.866, 0.036),
-                                      (0.92, 0.860, 0.034))):  # cherry groves x5
-        plant_grove(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.17 + 12.29)), "cherry")
-    for j, (xf, yf, hf) in enumerate(((0.12, 0.850, 0.028), (0.48, 0.854, 0.030),
-                                      (0.86, 0.866, 0.028))):  # oak groves x3
-        plant_grove(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.19 + 12.31)), "oak")
-    for j, (xf, yf, hf) in enumerate(((0.30, 0.864, 0.036), (0.58, 0.868, 0.038),
-                                      (0.78, 0.860, 0.034))):  # oak plain x3
-        plant_grove(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.23 + 12.37)), "oak")
-    for j, xf in enumerate((0.36, 0.95)):  # oak far bank x2
-        x = W * xf
-        plant_grove(x, far_bank_y(x, 1.58 + 0.18 * _hash01(j * 3.7 + 12.41)),
-                    H * (0.032 + 0.008 * _hash01(j * 5.29 + 12.43)), "oak")
-    assert grove_counts == {"Paulownia": 15, "cherry": 10, "oak": 8}, grove_counts
-    # Near-bank additions: +3 flowering cherry, +2 Zagros oak on the viewer's bank.
-    near_added = {"cherry": 0, "oak": 0}
-    for j, xf in enumerate((0.40, 0.55, 0.70)):
-        x = W * xf
-        if plant(x, near_bank_y(x), H * (0.056 + 0.008 * _hash01(j * 5.17 + 12.53)), 300 + j, "cherry"):
-            near_added["cherry"] += 1
-    for j, xf in enumerate((0.47, 0.66)):
-        x = W * xf
-        if plant(x, near_bank_y(x), H * (0.052 + 0.008 * _hash01(j * 5.23 + 12.57)), 310 + j, "oak"):
-            near_added["oak"] += 1
-    assert near_added == {"cherry": 3, "oak": 2}, near_added
+        def plant_grove(x, y, hgt, kind):
+            for dy in (0.0, -H * 0.014, H * 0.014):
+                if plant(x, y + dy, hgt, _gi[0], kind):
+                    _gi[0] += 1
+                    grove_counts[kind] += 1
+                    return
+            raise AssertionError(f"grove planting refused: {kind} at {x / W:.2f},{y / H:.3f}")
+
+        def plant_paulownia_grove_counted(x, y, hgt, aerial=0.0):
+            # Grove expansion retries a step off the water, so these counts are the counts that stand.
+            for dy in (0.0, -H * 0.014, H * 0.014):
+                if plant_paulownia(x, y + dy, hgt, aerial):
+                    grove_paulownia[0] += 1
+                    return
+            raise AssertionError(f"pauldwnia grove refused at {x / W:.2f},{y / H:.3f}")
+
+        for j, xf in enumerate((0.09, 0.27, 0.48, 0.69, 0.90)):  # Paulownia far bank x5
+            x = W * xf
+            plant_paulownia_grove_counted(x, far_bank_y(x, 1.52 + 0.22 * _hash01(j * 3.1 + 12.01)),
+                                          H * (0.038 + 0.010 * _hash01(j * 5.1 + 12.03)), aerial=0.60)
+        for j, xf in enumerate((0.16, 0.36, 0.58, 0.80)):  # Paulownia canal x4
+            x = W * xf
+            plant_paulownia_grove_counted(x, canal_line_y(x),
+                                          H * (0.028 + 0.008 * _hash01(j * 5.3 + 12.07)), aerial=0.30)
+        for j, (xf, yf, hf) in enumerate(((0.24, 0.858, 0.044), (0.44, 0.862, 0.040),
+                                          (0.64, 0.856, 0.046), (0.84, 0.864, 0.042))):  # plain x4
+            plant_paulownia_grove_counted(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.7 + 12.11)))
+        for j, xf in enumerate((0.20, 0.78)):  # Paulownia near bank x2
+            x = W * xf
+            plant_paulownia_grove_counted(x, near_bank_y(x),
+                                          H * (0.056 + 0.008 * _hash01(j * 5.9 + 12.13)))
+        # The ten grove slots the flowering cherries held: now Paulownia (3 far bank, 2 canal, 5 plain).
+        for j, xf in enumerate((0.18, 0.58, 0.84)):  # far bank x3
+            x = W * xf
+            plant_paulownia_grove_counted(x, far_bank_y(x, 1.55 + 0.20 * _hash01(j * 3.3 + 12.17)),
+                                          H * (0.030 + 0.008 * _hash01(j * 5.11 + 12.19)), aerial=0.60)
+        for j, xf in enumerate((0.26, 0.68)):  # canal x2
+            x = W * xf
+            plant_paulownia_grove_counted(x, canal_line_y(x),
+                                          H * (0.024 + 0.006 * _hash01(j * 5.13 + 12.23)), aerial=0.35)
+        for j, (xf, yf, hf) in enumerate(((0.34, 0.852, 0.034), (0.52, 0.858, 0.038),
+                                          (0.74, 0.850, 0.032), (0.42, 0.866, 0.036),
+                                          (0.92, 0.860, 0.034))):  # plain groves x5
+            plant_paulownia_grove_counted(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.17 + 12.29)))
+        for j, (xf, yf, hf) in enumerate(((0.12, 0.850, 0.028), (0.48, 0.854, 0.030),
+                                          (0.86, 0.866, 0.028))):  # oak groves x3
+            plant_grove(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.19 + 12.31)), "oak")
+        for j, (xf, yf, hf) in enumerate(((0.30, 0.864, 0.036), (0.58, 0.868, 0.038),
+                                          (0.78, 0.860, 0.034))):  # oak plain x3
+            plant_grove(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.23 + 12.37)), "oak")
+        for j, xf in enumerate((0.36, 0.95)):  # oak far bank x2
+            x = W * xf
+            plant_grove(x, far_bank_y(x, 1.58 + 0.18 * _hash01(j * 3.7 + 12.41)),
+                        H * (0.032 + 0.008 * _hash01(j * 5.29 + 12.43)), "oak")
+        assert grove_counts == {"oak": 8}, grove_counts
+        assert grove_paulownia[0] == 25, grove_paulownia
+        # Near-bank additions: +3 Paulownia, +2 Zagros oak on the viewer's bank.
+        near_added = {"paulownia": 0, "oak": 0}
+        for j, xf in enumerate((0.40, 0.55, 0.70)):
+            x = W * xf
+            if plant_paulownia(x, near_bank_y(x), H * (0.056 + 0.008 * _hash01(j * 5.17 + 12.53))):
+                near_added["paulownia"] += 1
+        for j, xf in enumerate((0.47, 0.66)):
+            x = W * xf
+            if plant(x, near_bank_y(x), H * (0.052 + 0.008 * _hash01(j * 5.23 + 12.57)), 310 + j, "oak"):
+                near_added["oak"] += 1
+        assert near_added == {"paulownia": 3, "oak": 2}, near_added
+
 
     # Uniform grass field mirror: NO individual blades. One textured green
     # mass — perspective rows of overlapping tone cells in 8 quantized cool
@@ -1196,6 +1223,8 @@ def main():
                       fill=(*b, 235))
         row_y += row_h * 0.85
         row += 1
+    draw_trees()
+
     # (No corner-shade scrub at the viewer's feet any more: the scene's bottom
     # dissolves into the app backdrop instead — see the merge below.)
 

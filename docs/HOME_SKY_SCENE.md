@@ -115,8 +115,10 @@ earthworks from `PersepolisFraming` (worn apron, talus, contact shadows, debris 
 between the sites, feathered and Sun-following, so neither monument ends on a full-width stripe);
 a broad layered Pulvar river (wet banks, shallows, thalweg, point bars, tree reflections, reed
 clumps) whose sheen and thinned glitter track the real Sun/Moon; a 68-tree space-colonization
-parkland (pistachio, *Quercus brantii* oak, flowering cherry, lavender-panicle Paulownia)
-plus *Artemisia* sage scrub with pipe-model branching and leaf-cluster foliage; low
+parkland (pistachio, *Quercus brantii* oak, and a stand of Paulownia — the supplied
+design's tree, rendered once per season and projected at every planting, so the valley's
+Paulownias are copies of one render rather than their own geometry) plus *Artemisia* sage
+scrub with pipe-model branching and leaf-cluster foliage; low
 whaleback Nurabad ridges at true relief; and a uniform grass field — one textured
 cool-green mass in eight bucketed fills, no individual blades, lush along the near bank.
 All placement is deterministic. See
