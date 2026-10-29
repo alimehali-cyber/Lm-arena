@@ -7,7 +7,7 @@ import android.opengl.EGLConfig
 import android.opengl.EGLContext
 import android.opengl.EGLDisplay
 import android.opengl.EGLSurface
-import android.opengl.GLES20
+import android.opengl.GLES30
 import android.opengl.Matrix
 import android.os.Handler
 import android.os.HandlerThread
@@ -45,7 +45,7 @@ import kotlin.math.sqrt
  * Pulvar River 3D — a fixed side-view river corridor for Android / Compose.
  * ============================================================================
  * Single self-contained Kotlin file. Geometry is generated procedurally into
- * static OpenGL ES 2.0 VBOs; there are no model/texture assets and no
+ * static OpenGL ES 3.0 VBOs; there are no model/texture assets and no
  * WebView/Filament/SceneView dependency. [PulvarRiver3D] is the Jetpack
  * Compose entry point and hosts [PulvarRiverTextureView] through [AndroidView].
  * It deliberately does not depend on the existing 2D [PulvarRiver],
@@ -58,7 +58,7 @@ import kotlin.math.sqrt
  * water surface, wet/dry banks, 88 boulders with baked wakes, 320 cobbles,
  * reeds and grass tufts. Current totals are 182,430 opaque vertices /
  * 164,600 triangles plus 5,778 water vertices / 10,880 triangles, uploaded
- * in <=60k-vertex chunks so 16-bit indices work on plain ES 2.0 devices.
+ * in <=60k-vertex chunks so 16-bit indices stay inside one draw call's range.
  *
  * Water shading is physical in structure: Schlick Fresnel with F0 = 0.02,
  * per-channel Beer-Lambert absorption over the baked local depth and
@@ -1303,14 +1303,14 @@ class PulvarRiverScene {
     private var cachedBaseFraction = Float.NaN
 
     private fun compile(type: Int, src: String): Int {
-        val s = GLES20.glCreateShader(type)
-        GLES20.glShaderSource(s, src)
-        GLES20.glCompileShader(s)
+        val s = GLES30.glCreateShader(type)
+        GLES30.glShaderSource(s, src)
+        GLES30.glCompileShader(s)
         val ok = IntArray(1)
-        GLES20.glGetShaderiv(s, GLES20.GL_COMPILE_STATUS, ok, 0)
+        GLES30.glGetShaderiv(s, GLES30.GL_COMPILE_STATUS, ok, 0)
         if (ok[0] == 0) {
-            val log = GLES20.glGetShaderInfoLog(s)
-            GLES20.glDeleteShader(s)
+            val log = GLES30.glGetShaderInfoLog(s)
+            GLES30.glDeleteShader(s)
             throw RuntimeException("PulvarRiver shader compile failed: $log")
         }
         return s
@@ -1320,31 +1320,31 @@ class PulvarRiverScene {
         ByteBuffer.allocateDirect(data.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { put(data); position(0) }
 
     private fun makeProgram(): Prog {
-        val vs = compile(GLES20.GL_VERTEX_SHADER, PULVAR_VERTEX_SHADER)
-        val fs = compile(GLES20.GL_FRAGMENT_SHADER, PULVAR_FRAGMENT_SHADER)
-        val id = GLES20.glCreateProgram()
-        GLES20.glAttachShader(id, vs)
-        GLES20.glAttachShader(id, fs)
-        GLES20.glBindAttribLocation(id, 0, "aPos")
-        GLES20.glBindAttribLocation(id, 1, "aNormal")
-        GLES20.glBindAttribLocation(id, 2, "aColor")
-        GLES20.glBindAttribLocation(id, 3, "aData")
-        GLES20.glLinkProgram(id)
-        GLES20.glDeleteShader(vs); GLES20.glDeleteShader(fs)
+        val vs = compile(GLES30.GL_VERTEX_SHADER, PULVAR_VERTEX_SHADER)
+        val fs = compile(GLES30.GL_FRAGMENT_SHADER, PULVAR_FRAGMENT_SHADER)
+        val id = GLES30.glCreateProgram()
+        GLES30.glAttachShader(id, vs)
+        GLES30.glAttachShader(id, fs)
+        GLES30.glBindAttribLocation(id, 0, "aPos")
+        GLES30.glBindAttribLocation(id, 1, "aNormal")
+        GLES30.glBindAttribLocation(id, 2, "aColor")
+        GLES30.glBindAttribLocation(id, 3, "aData")
+        GLES30.glLinkProgram(id)
+        GLES30.glDeleteShader(vs); GLES30.glDeleteShader(fs)
         val ok = IntArray(1)
-        GLES20.glGetProgramiv(id, GLES20.GL_LINK_STATUS, ok, 0)
-        if (ok[0] == 0) throw RuntimeException("PulvarRiver program link failed: ${GLES20.glGetProgramInfoLog(id)}")
+        GLES30.glGetProgramiv(id, GLES30.GL_LINK_STATUS, ok, 0)
+        if (ok[0] == 0) throw RuntimeException("PulvarRiver program link failed: ${GLES30.glGetProgramInfoLog(id)}")
         val p = Prog(id)
-        p.uMVP = GLES20.glGetUniformLocation(id, "uMVP")
-        p.uSunDir = GLES20.glGetUniformLocation(id, "uSunDir")
-        p.uSunCol = GLES20.glGetUniformLocation(id, "uSunCol")
-        p.uMoonDir = GLES20.glGetUniformLocation(id, "uMoonDir")
-        p.uMoonCol = GLES20.glGetUniformLocation(id, "uMoonCol")
-        p.uSkyAmb = GLES20.glGetUniformLocation(id, "uSkyAmb")
-        p.uGroundAmb = GLES20.glGetUniformLocation(id, "uGroundAmb")
-        p.uCamPos = GLES20.glGetUniformLocation(id, "uCamPos")
-        p.uTime = GLES20.glGetUniformLocation(id, "uTime")
-        p.uWaterPass = GLES20.glGetUniformLocation(id, "uWaterPass")
+        p.uMVP = GLES30.glGetUniformLocation(id, "uMVP")
+        p.uSunDir = GLES30.glGetUniformLocation(id, "uSunDir")
+        p.uSunCol = GLES30.glGetUniformLocation(id, "uSunCol")
+        p.uMoonDir = GLES30.glGetUniformLocation(id, "uMoonDir")
+        p.uMoonCol = GLES30.glGetUniformLocation(id, "uMoonCol")
+        p.uSkyAmb = GLES30.glGetUniformLocation(id, "uSkyAmb")
+        p.uGroundAmb = GLES30.glGetUniformLocation(id, "uGroundAmb")
+        p.uCamPos = GLES30.glGetUniformLocation(id, "uCamPos")
+        p.uTime = GLES30.glGetUniformLocation(id, "uTime")
+        p.uWaterPass = GLES30.glGetUniformLocation(id, "uWaterPass")
         return p
     }
 
@@ -1360,22 +1360,22 @@ class PulvarRiverScene {
         fun flushChunk() {
             if (cIdx.size == 0) return
             val b = IntArray(5)
-            GLES20.glGenBuffers(5, b, 0)
+            GLES30.glGenBuffers(5, b, 0)
             val p = cPos.toFloatArray(); val n = cNor.toFloatArray(); val c = cCol.toFloatArray(); val d = cDat.toFloatArray()
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, b[0])
-            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, p.size * 4, floatBuffer(p), GLES20.GL_STATIC_DRAW)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, b[1])
-            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, n.size * 4, floatBuffer(n), GLES20.GL_STATIC_DRAW)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, b[2])
-            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, c.size * 4, floatBuffer(c), GLES20.GL_STATIC_DRAW)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, b[3])
-            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, d.size * 4, floatBuffer(d), GLES20.GL_STATIC_DRAW)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, b[0])
+            GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, p.size * 4, floatBuffer(p), GLES30.GL_STATIC_DRAW)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, b[1])
+            GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, n.size * 4, floatBuffer(n), GLES30.GL_STATIC_DRAW)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, b[2])
+            GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, c.size * 4, floatBuffer(c), GLES30.GL_STATIC_DRAW)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, b[3])
+            GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, d.size * 4, floatBuffer(d), GLES30.GL_STATIC_DRAW)
             val ib = cIdx.toIntArray()
             val sb: ShortBuffer = ByteBuffer.allocateDirect(ib.size * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
             for (i in ib) sb.put(i.toShort())
             sb.position(0)
-            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, b[4])
-            GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, ib.size * 2, sb, GLES20.GL_STATIC_DRAW)
+            GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, b[4])
+            GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, ib.size * 2, sb, GLES30.GL_STATIC_DRAW)
             out.add(Chunk(b, ib.size))
             map.clear(); cPos.clear(); cNor.clear(); cCol.clear(); cDat.clear(); cIdx.clear()
         }
@@ -1414,8 +1414,8 @@ class PulvarRiverScene {
         prog = makeProgram()
         ensureUploaded()
         lastFrameNanos = 0L
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
-        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
 
     private fun projectPoint(m: FloatArray, p: FloatArray, out: FloatArray) {
@@ -1475,18 +1475,18 @@ class PulvarRiverScene {
     }
 
     private fun drawChunks(p: Prog, chunks: ArrayList<Chunk>, waterPass: Float) {
-        GLES20.glUniform1f(p.uWaterPass, waterPass)
+        GLES30.glUniform1f(p.uWaterPass, waterPass)
         for (chunk in chunks) {
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, chunk.buffers[0])
-            GLES20.glVertexAttribPointer(0, 3, GLES20.GL_FLOAT, false, 0, 0)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, chunk.buffers[1])
-            GLES20.glVertexAttribPointer(1, 3, GLES20.GL_FLOAT, false, 0, 0)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, chunk.buffers[2])
-            GLES20.glVertexAttribPointer(2, 3, GLES20.GL_FLOAT, false, 0, 0)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, chunk.buffers[3])
-            GLES20.glVertexAttribPointer(3, 4, GLES20.GL_FLOAT, false, 0, 0)
-            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, chunk.buffers[4])
-            GLES20.glDrawElements(GLES20.GL_TRIANGLES, chunk.indexCount, GLES20.GL_UNSIGNED_SHORT, 0)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, chunk.buffers[0])
+            GLES30.glVertexAttribPointer(0, 3, GLES30.GL_FLOAT, false, 0, 0)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, chunk.buffers[1])
+            GLES30.glVertexAttribPointer(1, 3, GLES30.GL_FLOAT, false, 0, 0)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, chunk.buffers[2])
+            GLES30.glVertexAttribPointer(2, 3, GLES30.GL_FLOAT, false, 0, 0)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, chunk.buffers[3])
+            GLES30.glVertexAttribPointer(3, 4, GLES30.GL_FLOAT, false, 0, 0)
+            GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, chunk.buffers[4])
+            GLES30.glDrawElements(GLES30.GL_TRIANGLES, chunk.indexCount, GLES30.GL_UNSIGNED_SHORT, 0)
         }
     }
 
@@ -1509,54 +1509,54 @@ class PulvarRiverScene {
         lastFrameNanos = now
         if (animated) flowTimeSeconds += dt * flowSpeed
 
-        GLES20.glViewport(0, 0, width, height)
+        GLES30.glViewport(0, 0, width, height)
         if (clear) {
-            GLES20.glClearColor(0f, 0f, 0f, 0f)
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+            GLES30.glClearColor(0f, 0f, 0f, 0f)
+            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
         }
-        GLES20.glEnable(GLES20.GL_DEPTH_TEST)
-        GLES20.glEnable(GLES20.GL_CULL_FACE)
-        GLES20.glFrontFace(GLES20.GL_CCW)
+        GLES30.glEnable(GLES30.GL_DEPTH_TEST)
+        GLES30.glEnable(GLES30.GL_CULL_FACE)
+        GLES30.glFrontFace(GLES30.GL_CCW)
 
         computeCamera(width, height)
-        GLES20.glUseProgram(p.id)
-        GLES20.glUniformMatrix4fv(p.uMVP, 1, false, mvp, 0)
+        GLES30.glUseProgram(p.id)
+        GLES30.glUniformMatrix4fv(p.uMVP, 1, false, mvp, 0)
         synchronized(lock) {
-            GLES20.glUniform3fv(p.uSunDir, 1, sunDir, 0)
-            GLES20.glUniform3fv(p.uSunCol, 1, sunColor, 0)
-            GLES20.glUniform3fv(p.uMoonDir, 1, moonDir, 0)
-            GLES20.glUniform3fv(p.uMoonCol, 1, moonColor, 0)
-            GLES20.glUniform3fv(p.uSkyAmb, 1, skyAmb, 0)
-            GLES20.glUniform3fv(p.uGroundAmb, 1, groundAmb, 0)
+            GLES30.glUniform3fv(p.uSunDir, 1, sunDir, 0)
+            GLES30.glUniform3fv(p.uSunCol, 1, sunColor, 0)
+            GLES30.glUniform3fv(p.uMoonDir, 1, moonDir, 0)
+            GLES30.glUniform3fv(p.uMoonCol, 1, moonColor, 0)
+            GLES30.glUniform3fv(p.uSkyAmb, 1, skyAmb, 0)
+            GLES30.glUniform3fv(p.uGroundAmb, 1, groundAmb, 0)
         }
-        GLES20.glUniform3fv(p.uCamPos, 1, cameraEye, 0)
-        GLES20.glUniform1f(p.uTime, flowTimeSeconds)
-        for (i in 0..3) GLES20.glEnableVertexAttribArray(i)
+        GLES30.glUniform3fv(p.uCamPos, 1, cameraEye, 0)
+        GLES30.glUniform1f(p.uTime, flowTimeSeconds)
+        for (i in 0..3) GLES30.glEnableVertexAttribArray(i)
 
-        GLES20.glDisable(GLES20.GL_BLEND)
-        GLES20.glDepthMask(true)
+        GLES30.glDisable(GLES30.GL_BLEND)
+        GLES30.glDepthMask(true)
         drawChunks(p, oc, 0f)
 
-        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES30.glEnable(GLES30.GL_BLEND)
         // ONE, not SRC_ALPHA: the water fragment is already premultiplied (see the shader's
         // main), which is what the window compositor expects of a TextureView.
-        GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-        GLES20.glDepthMask(false)
+        GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE_MINUS_SRC_ALPHA)
+        GLES30.glDepthMask(false)
         drawChunks(p, wc, 1f)
-        GLES20.glDepthMask(true)
-        GLES20.glDisable(GLES20.GL_BLEND)
+        GLES30.glDepthMask(true)
+        GLES30.glDisable(GLES30.GL_BLEND)
 
-        for (i in 0..3) GLES20.glDisableVertexAttribArray(i)
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
-        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        for (i in 0..3) GLES30.glDisableVertexAttribArray(i)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
 
     /** Delete GL resources. Call on the GL thread when the context is lost/finished. */
     fun release() {
-        opaqueChunks?.let { chunks -> for (chunk in chunks) if (chunk.buffers[0] != 0) GLES20.glDeleteBuffers(5, chunk.buffers, 0) }
-        waterChunks?.let { chunks -> for (chunk in chunks) if (chunk.buffers[0] != 0) GLES20.glDeleteBuffers(5, chunk.buffers, 0) }
+        opaqueChunks?.let { chunks -> for (chunk in chunks) if (chunk.buffers[0] != 0) GLES30.glDeleteBuffers(5, chunk.buffers, 0) }
+        waterChunks?.let { chunks -> for (chunk in chunks) if (chunk.buffers[0] != 0) GLES30.glDeleteBuffers(5, chunk.buffers, 0) }
         opaqueChunks = null; waterChunks = null
-        prog?.let { GLES20.glDeleteProgram(it.id) }; prog = null
+        prog?.let { GLES30.glDeleteProgram(it.id) }; prog = null
         cachedWidth = -1; cachedHeight = -1
     }
 }
@@ -1693,7 +1693,7 @@ class PulvarRiverTextureView(context: Context) :
     }
 
     /**
-     * Owns the GLES 2.0 context and the EGL window surface for one attachment of the view.
+     * Owns the GLES 3.0 context and the EGL window surface for one attachment of the view.
      * Every GL and EGL call runs on its dedicated handler thread. While [continuous] the
      * thread draws one frame every [FRAME_INTERVAL_MS]; when it is false (or the view is
      * paused) it draws only on [requestDraw].
@@ -1828,9 +1828,10 @@ class PulvarRiverTextureView(context: Context) :
 
             // The supplied view's config chooser, spelled out: RGBA8888 for alpha compositing
             // plus a 16-bit depth buffer (the banks occlude the water behind them, so depth is
-            // not optional), OpenGL ES 2.0 — the scene is written against GLES20.
+            // not optional), at the app's GL level — the manifest declares ES 3.0 and the
+            // scene's GL calls use the 3.0 entry points.
             val configAttribs = intArrayOf(
-                EGL14.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                EGL14.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
                 EGL14.EGL_SURFACE_TYPE, EGL14.EGL_WINDOW_BIT,
                 EGL14.EGL_RED_SIZE, 8,
                 EGL14.EGL_GREEN_SIZE, 8,
@@ -1844,10 +1845,10 @@ class PulvarRiverTextureView(context: Context) :
             check(
                 EGL14.eglChooseConfig(display, configAttribs, 0, configs, 0, 1, numConfigs, 0) &&
                     numConfigs[0] > 0 && configs[0] != null
-            ) { "No GLES 2.0 EGL config available" }
+            ) { "No ES 3.0 EGL config available" }
             val eglConfig = configs[0]!!
 
-            val contextAttribs = intArrayOf(EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
+            val contextAttribs = intArrayOf(EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE)
             val context = EGL14.eglCreateContext(display, eglConfig, EGL14.EGL_NO_CONTEXT, contextAttribs, 0)
             check(context != EGL14.EGL_NO_CONTEXT) { "eglCreateContext failed (0x${Integer.toHexString(EGL14.eglGetError())})" }
             eglContext = context
@@ -1887,8 +1888,8 @@ class PulvarRiverTextureView(context: Context) :
         }
 
         private companion object {
-            /** EGL_OPENGL_ES2_BIT (0x0004), defined here because EGL14 does not expose it. */
-            const val EGL_OPENGL_ES2_BIT = 0x0004
+            /** EGL_OPENGL_ES3_BIT (0x0040), defined here because EGL14 does not expose it. */
+            const val EGL_OPENGL_ES3_BIT = 0x0040
 
             /** EGL_CONTEXT_CLIENT_VERSION (0x3098). */
             const val EGL_CONTEXT_CLIENT_VERSION = 0x3098
