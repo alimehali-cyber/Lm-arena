@@ -26,25 +26,25 @@ class PaulowniaTreeTest {
 
     @Test
     fun seasonFollowsThePersianCalendar() {
-        // Noon-UT Julian days. Spring begins at Nowruz — 1 Farvardin — not on 1 March, so these
-        // are the dates an Iranian landscape is read against.
+        // Noon-UT Julian days (JD n.0 is noon, JD n.5 is midnight). Spring begins at Nowruz —
+        // 1 Farvardin — not on 1 March, so these are the dates an Iranian landscape is read against.
         // 2024-03-20 was Nowruz 1403: the last day of the Persian winter is the day before.
-        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2460389.5)) // 2024-03-19
-        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2460390.5)) // 2024-03-20
-        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2460415.5)) // 2024-04-14
+        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2_460_389.0)) // 2024-03-19
+        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2_460_390.0)) // 2024-03-20
+        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2_460_415.0)) // 2024-04-14
         // 1 Tir 1403 = 2024-06-21; the day before is still spring.
-        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2460482.5)) // 2024-06-20
-        assertEquals(PaulowniaSeason.SUMMER, PaulowniaSeason.forJulianDay(2460483.5)) // 2024-06-21
+        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2_460_482.0)) // 2024-06-20
+        assertEquals(PaulowniaSeason.SUMMER, PaulowniaSeason.forJulianDay(2_460_483.0)) // 2024-06-21
         // 1 Mehr 1403 = 2024-09-22.
-        assertEquals(PaulowniaSeason.SUMMER, PaulowniaSeason.forJulianDay(2460575.5)) // 2024-09-21
-        assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2460576.5)) // 2024-09-22
+        assertEquals(PaulowniaSeason.SUMMER, PaulowniaSeason.forJulianDay(2_460_575.0)) // 2024-09-21
+        assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2_460_576.0)) // 2024-09-22
         // 1 Dey 1403 = 2024-12-21.
-        assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2460665.5)) // 2024-12-20
-        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2460666.5)) // 2024-12-21
+        assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2_460_665.0)) // 2024-12-20
+        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2_460_666.0)) // 2024-12-21
         // An April that is spring in the Persian calendar is spring for the tree too.
-        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2460405.0)) // 2024-04-04
-        assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2460620.0)) // 2024-11-05
-        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2460677.0)) // 2025-01-01
+        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2_460_405.0)) // 2024-04-04
+        assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2_460_620.0)) // 2024-11-05
+        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2_460_677.0)) // 2025-01-01
     }
 
     @Test

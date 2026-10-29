@@ -114,11 +114,12 @@ fans; a semi-arid steppe/cultivation plain with an irrigation canal; two separat
 earthworks from `PersepolisFraming` (worn apron, talus, contact shadows, debris — ordinary field
 between the sites, feathered and Sun-following, so neither monument ends on a full-width stripe);
 a broad layered Pulvar river (wet banks, shallows, thalweg, point bars, tree reflections, reed
-clumps) whose sheen and thinned glitter track the real Sun/Moon; a 68-tree space-colonization
-parkland (pistachio, *Quercus brantii* oak, and a stand of Paulownia — the supplied
-design's tree, rendered once per season and projected at every planting, so the valley's
-Paulownias are copies of one render rather than their own geometry) plus *Artemisia* sage
-scrub with pipe-model branching and leaf-cluster foliage; low
+clumps) whose sheen and thinned glitter track the real Sun/Moon; a parkland of exactly **two
+species** — the supplied **Paulownia** and **sugar maple** designs, each rendered once per season
+and projected at every planting, so all ~90 trees in the valley are copies of two renders and not
+one vertex of per-tree geometry (the oak, pistachio and *Artemisia* scrub the parkland used to
+carry are gone, every one of their slots now a maple) — with both species' wardrobes read from the
+**Persian calendar**, where spring begins on 1 Farvardin; low
 whaleback Nurabad ridges at true relief; and a uniform grass field — one textured
 cool-green mass in eight bucketed fills, no individual blades, lush along the near bank.
 All placement is deterministic. See

@@ -1208,12 +1208,12 @@ object SceneGroundRenderer {
             // valley, so they read as the woodland's own saplings rather than as a second species.
             for (i in 0 until 7) {
                 val x = width * LandscapeProfile.hash01(197, i * 11 + 3)
-                val y = toeY - height * 0.004f + height * 0.010f * LandscapeProfile.hash01(39, i * 3 + 1)
-                if (!inApron(x, y)) {
-                    plantSugarMaple(
-                        x, y, height * (0.011f + 0.006f * LandscapeProfile.hash01(71, i * 5 + 2))
-                    )
-                }
+                // Just clear of the monuments' worn earth (which refuses a trunk), so the saplings
+                // form the shade line under the toe rather than standing in the apron.
+                val y = toeY + height * (0.042f + 0.030f * LandscapeProfile.hash01(39, i * 3 + 1))
+                plantSugarMaple(
+                    x, y, height * (0.011f + 0.006f * LandscapeProfile.hash01(71, i * 5 + 2))
+                )
             }
 
             // The forest steps with perspective exactly as before: a riparian gallery on the far
@@ -1240,17 +1240,17 @@ object SceneGroundRenderer {
                 if (i == 2) plantPaulowniaGrove(x, y, hgt, aerial = 0.30f)
                 else plantSugarMaple(x, y, hgt, aerial = 0.30f)
             }
-            for (i in 0 until 6) { // foothill open woodland
+            for (i in 0 until 6) { // foothill open woodland, in the shade line below the toe
                 val x = width * LandscapeProfile.hash01(619, i * 11 + 5)
-                val y = toeY + height * (0.006f + 0.024f * LandscapeProfile.hash01(631, i * 7 + 2))
+                val y = toeY + height * (0.050f + 0.040f * LandscapeProfile.hash01(631, i * 7 + 2))
                 plantSugarMaple(
                     x, y, height * (0.022f + 0.012f * LandscapeProfile.hash01(633, i * 3 + 1)),
                     aerial = 0.55f
                 )
             }
-            for (i in 0 until 4) { // scattered plain maples
+            for (i in 0 until 4) { // scattered plain maples, above the river's far edge
                 val x = width * (0.10f + 0.80f * LandscapeProfile.hash01(641, i * 13 + 7))
-                val y = height * (0.855f + 0.045f * LandscapeProfile.hash01(643, i * 5 + 3))
+                val y = height * (0.828f + 0.030f * LandscapeProfile.hash01(643, i * 5 + 3))
                 plantSugarMaple(x, y, height * (0.026f + 0.014f * LandscapeProfile.hash01(647, i * 7 + 2)))
             }
             for ((j, xf) in listOf(0.34f, 0.63f).withIndex()) { // near bank: paulownia + maple
@@ -1374,18 +1374,27 @@ object SceneGroundRenderer {
 
             // ---- seven more sugar maples across the plain --------------------------------
             // The species now carries the valley floor, so it gets a wider spread than the oak's
-            // slots did: three in the open plain between the river and the toe, two on the canal
-            // line, one in the near-bank row and one far in the right-hand field. Heights again
-            // follow perspective, and each lands clear of the river and the ruins' aprons.
+            // slots did: five in the open plain between the canal and the river, one in the shade
+            // line under the foothills and one in the far right-hand field. Heights again follow
+            // perspective, and the plantings land clear of the river, the canal line's own trees
+            // and the worn earth at the monuments' feet.
             for ((j, t) in listOf(
-                Triple(0.15f, 0.898f, 0.046f), Triple(0.31f, 0.906f, 0.042f),
-                Triple(0.53f, 0.900f, 0.048f), Triple(0.71f, 0.912f, 0.044f),
-                Triple(0.88f, 0.902f, 0.046f), Triple(0.24f, 0.872f, 0.038f),
-                Triple(0.80f, 0.878f, 0.040f)
+                Triple(0.13f, 0.030f, 0.036f), Triple(0.31f, 0.044f, 0.032f),
+                Triple(0.49f, 0.034f, 0.038f), Triple(0.67f, 0.048f, 0.034f),
+                Triple(0.88f, 0.036f, 0.040f)
             ).withIndex()) {
+                val x = width * t.first
                 plantMapleGrove(
-                    width * t.first, height * t.second,
-                    height * (t.third + 0.006f * LandscapeProfile.hash01(1261, j * 5 + 2))
+                    x, toeY + height * (t.second + 0.008f * LandscapeProfile.hash01(1261, j * 5 + 2)),
+                    height * (t.third + 0.006f * LandscapeProfile.hash01(1263, j * 7 + 3))
+                )
+            }
+            for ((j, t) in listOf(Triple(0.22f, 0.062f, 0.030f), Triple(0.79f, 0.068f, 0.032f))
+                .withIndex()) {
+                val x = width * t.first
+                plantMapleGrove(
+                    x, toeY + height * (t.second + 0.006f * LandscapeProfile.hash01(1267, j * 5 + 2)),
+                    height * (t.third + 0.004f * LandscapeProfile.hash01(1269, j * 7 + 3))
                 )
             }
 

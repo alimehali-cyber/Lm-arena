@@ -214,41 +214,43 @@ paints, back to front:
   broad Fresnel sheen plus stochastically thinned glitter (with rare star sparkles)
   concentrated in the real Sun's reflection column by day (the Moon's, scaled by its
   illumination, at night);
-- a **mixed parkland of 68 trees** (riparian gallery, canal line, foothill woodland,
-  scattered plain trees, near-bank foreground trees, the lone tree between the sites):
-  wild pistachio and gnarled decurrent **Zagros oaks** (*Quercus brantii* — the lone tree
-  between the sites and the left of the foreground frame) grown by 2D space colonization
-  upgraded with the self-organizing tree model (Palubicki et al. 2009: bud occupancy
-  zones, shadow self-pruning, apical-control scaffold spread, arching and gnarl per
-  species) with da Vinci pipe-model branch radii, and their foliage as leaf-cluster dabs
-  shaded the production-vegetation way — a spherized crown normal dotted with the Sun,
-  darkened by crown-depth ambient occlusion — so crowns shade as volumes with lit shells
-  and hollow hearts instead of blob canopies — cached once with height-based LOD,
-  shadowed away from the Sun with a golden-hour backlit rim, never in the worn earth at
-  the monuments' feet;
-- a **stand of 34 Paulownia** (*Paulownia tomentosa*), and this one species is not grown
-  per tree. It is the supplied `Paulownia.kt` design, grown once and **rendered once**
-  into a small sprite per season, then *projected* at every planting — mirrored where the
-  scene wants variety, faded for the far bank and multiplied by the frame's own light.
-  The design's measured tree (13.8 m, 0.62 m trunk at breast height, root flare, eight
-  hand-placed scaffolds, a 13.4 m crown) keeps its proportions at 25–90 px, and thirty-four
-  plantings cost thirty-four image blits instead of thirty-four trees. The wardrobe follows
-  the month of the instant the sky is drawn for: lilac terminal panicles on bare wood in
-  April–May, heart leaves in summer, splitting tan capsules and felted buds in autumn, bare
-  twig architecture in winter. Placement keeps the old counts (25 in the grove slots the
-  cherry and the umbrella Paulownia held, plus the two near-bank frames, three in the
-  riparian gallery, one on the canal tree line and three more near-bank plantings) with
-  refuse-and-retry, so the parkland's species counts always hold. See
-  [`PAULOWNIA_TREE.md`](PAULOWNIA_TREE.md); scrub still grows only in the
-  foothills — the river's near side is kept clean so the scene's bottom can dissolve
-  into the app backdrop (see `HOME_SKY_SCENE.md`).
+- a **parkland of exactly two species** — the supplied **Paulownia** and **sugar maple** designs,
+  and *neither* is grown per tree. Each is the supplied design's single tree, grown once and
+  **rendered once** into a small sprite per season, then *projected* at every planting: mirrored
+  where the scene wants variety, faded for the far bank and multiplied by the frame's own light.
+  The oak (*Quercus brantii*), the wild pistachio and the *Artemisia* scrub that used to grow here
+  with 2D space colonization, self-organizing-model pruning and da Vinci pipe radii are gone —
+  every one of their slots (riparian gallery, canal line, foothill woodland, scattered plain,
+  groves, near-bank frames, and the lone tree between the two sites) is a sugar maple now, plus
+  seven more across the plain;
+- **the space between Persepolis and Mil-e Azhdaha**, planted with both species in three receding
+  bands of four: the farther back a band sits, the smaller its trees
+  (`H·0.030`, `H·0.041`, `H·0.056` at `toeY + H·0.030/0.060/0.090`), with aerial perspective
+  thinning toward the front. Because both species are projections, that perspective step costs a
+  smaller blit and nothing else;
+- the **sugar maple** (*Acer saccharum*): the supplied `SugarMaple.kt` design — 19.6 m to the crown
+  top, 0.94 m trunk at breast height with a broad root flare, ten hand-placed scaffolds staggered
+  3.35–7.40 m up the leader, a 15 m oval crown `(0, 11.05, 0)` / `(7.55, 7.35, 4.55)`, opposite
+  leaf pairs, interior clusters, paired winged samaras and buds. Its 807k-vertex summer mesh is why
+  it is a sprite and not a mesh here. About fifty plantings cost fifty image blits and two bitmaps.
+  See [`SUGAR_MAPLE_TREE.md`](SUGAR_MAPLE_TREE.md);
+- the **Paulownia** (*Paulownia tomentosa*): the earlier supplied design, 13.8 m, a 0.62 m trunk, a
+  13.4 m crown, lilac terminal panicles on bare wood in spring. See
+  [`PAULOWNIA_TREE.md`](PAULOWNIA_TREE.md).
 
-All of this vegetation is *static geometry cached per layout* (`VegetationGeometry` in
-`SceneGroundRenderer`): branches bucketed by width class, foliage dabs by tone role and
-grass by colour bucket are baked into `Path`s once per canvas size/framing/Sun-side, and
-each draw replays ~30 path draws with live lighting colours. Rebuilding the same ~13k
-draw calls on every 1 Hz tick — and on every frame while scrubbing — is what previously
-made the sky canvas and Home scrolling hitch.
+**Both species are dated by the Persian calendar** (`PersianCalendar`): the valley is drawn for one
+instant, and its foliage is that instant's Persian season — spring from **1 Farvardin** (Nowruz,
+20/21 March), summer from 1 Tir, autumn from 1 Mehr, winter from 1 Dey. The maple is green in
+spring and summer and red-orange in autumn and winter; the Paulownia keeps its four wardrobes.
+Scrub grows only in the foothills (now as maple saplings) — the river's near side is kept clean so
+the scene's bottom can dissolve into the app backdrop (see `HOME_SKY_SCENE.md`).
+
+Everything else in the vegetation is *static geometry cached per layout*
+(`VegetationGeometry` in `SceneGroundRenderer`): the grass field is baked into eight tone-bucketed
+`Path`s once per canvas size/framing/Sun-side, and each draw replays eight fills with live lighting
+colours. The trees are not geometry at all: two baked bitmaps and ~90 blits. Rebuilding ~13k
+individual tree draw calls on every 1 Hz tick — and on every frame while scrubbing — is what
+previously made the sky canvas and Home scrolling hitch.
 
 The composition was tuned visually in `tools/persepolis/render_framing_preview.py`, which mirrors
 the same profile algorithms over the exact framing (the diagram at the top of this file). The

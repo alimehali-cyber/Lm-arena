@@ -119,16 +119,17 @@ class SugarMapleTreeTest {
         assertEquals(SugarMapleLook.AUTUMN, SugarMapleLook.forSeason(PersianCalendar.Season.AUTUMN))
         assertEquals(SugarMapleLook.AUTUMN, SugarMapleLook.forSeason(PersianCalendar.Season.WINTER))
 
-        // And through the calendar: Nowruz turns the valley green, 1 Mehr turns it red.
-        assertEquals(SugarMapleLook.GREEN, SugarMapleLook.forJulianDay(2_460_390.5))  // 1 Farvardin 1403
-        assertEquals(SugarMapleLook.GREEN, SugarMapleLook.forJulianDay(2_460_483.5))  // 1 Tir 1403
-        assertEquals(SugarMapleLook.AUTUMN, SugarMapleLook.forJulianDay(2_460_576.5)) // 1 Mehr 1403
-        assertEquals(SugarMapleLook.AUTUMN, SugarMapleLook.forJulianDay(2_460_666.5)) // 1 Dey 1403
+        // And through the calendar (noon-UT Julian days): Nowruz turns the valley green, 1 Mehr
+        // turns it red.
+        assertEquals(SugarMapleLook.GREEN, SugarMapleLook.forJulianDay(2_460_390.0))  // 1 Farvardin 1403
+        assertEquals(SugarMapleLook.GREEN, SugarMapleLook.forJulianDay(2_460_483.0))  // 1 Tir 1403
+        assertEquals(SugarMapleLook.AUTUMN, SugarMapleLook.forJulianDay(2_460_576.0)) // 1 Mehr 1403
+        assertEquals(SugarMapleLook.AUTUMN, SugarMapleLook.forJulianDay(2_460_666.0)) // 1 Dey 1403
         // The same rule for the Paulownia's four wardrobes: the species differ in wardrobe, never
         // in date.
-        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2_460_390.5))
-        assertEquals(PaulowniaSeason.SUMMER, PaulowniaSeason.forJulianDay(2_460_483.5))
-        assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2_460_576.5))
-        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2_460_666.5))
+        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2_460_390.0))
+        assertEquals(PaulowniaSeason.SUMMER, PaulowniaSeason.forJulianDay(2_460_483.0))
+        assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2_460_576.0))
+        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2_460_666.0))
     }
 }

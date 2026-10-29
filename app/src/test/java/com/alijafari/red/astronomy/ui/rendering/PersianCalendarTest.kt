@@ -11,8 +11,9 @@ import org.junit.Test
  * landscape is Iranian, the sky above it is dated in the Persian calendar, and a tree in April leaf
  * below a sky dated 1 Ordibehesht has to be in the same calendar as the date the user is reading.
  *
- * The Julian days below are noon UT of each civil date, which is how the app hands an instant to the
- * renderer (`_JD` + 0.5 for the observing day).
+ * The Julian days below are **noon UT** of each civil date — whole numbers, because JD n.0 is noon
+ * and JD n.5 is midnight. That is the convention the sky hands the renderer: one instant, and the
+ * civil date it falls on is `floor(jd + 0.5)`.
  */
 class PersianCalendarTest {
 
@@ -44,19 +45,19 @@ class PersianCalendarTest {
     @Test
     fun seasonsSplitTheYearIntoPersianQuarters() {
         // Spring: Farvardin, Ordibehesht, Khordad. It begins at Nowruz, not at an equinox guess.
-        assertEquals(PersianCalendar.Season.WINTER, PersianCalendar.seasonOf(2_460_389.5)) // 19 Mar 2024
-        assertEquals(PersianCalendar.Season.SPRING, PersianCalendar.seasonOf(2_460_390.5)) // 20 Mar 2024
-        assertEquals(PersianCalendar.Season.SPRING, PersianCalendar.seasonOf(2_460_482.5)) // 20 Jun 2024
+        assertEquals(PersianCalendar.Season.WINTER, PersianCalendar.seasonOf(2_460_389.0)) // 19 Mar 2024
+        assertEquals(PersianCalendar.Season.SPRING, PersianCalendar.seasonOf(2_460_390.0)) // 20 Mar 2024
+        assertEquals(PersianCalendar.Season.SPRING, PersianCalendar.seasonOf(2_460_482.0)) // 20 Jun 2024
         // Summer: Tir, Mordad, Shahrivar.
-        assertEquals(PersianCalendar.Season.SUMMER, PersianCalendar.seasonOf(2_460_483.5)) // 21 Jun 2024
-        assertEquals(PersianCalendar.Season.SUMMER, PersianCalendar.seasonOf(2_460_575.5)) // 21 Sep 2024
+        assertEquals(PersianCalendar.Season.SUMMER, PersianCalendar.seasonOf(2_460_483.0)) // 21 Jun 2024
+        assertEquals(PersianCalendar.Season.SUMMER, PersianCalendar.seasonOf(2_460_575.0)) // 21 Sep 2024
         // Autumn: Mehr, Aban, Azar.
-        assertEquals(PersianCalendar.Season.AUTUMN, PersianCalendar.seasonOf(2_460_576.5)) // 22 Sep 2024
-        assertEquals(PersianCalendar.Season.AUTUMN, PersianCalendar.seasonOf(2_460_665.5)) // 20 Dec 2024
+        assertEquals(PersianCalendar.Season.AUTUMN, PersianCalendar.seasonOf(2_460_576.0)) // 22 Sep 2024
+        assertEquals(PersianCalendar.Season.AUTUMN, PersianCalendar.seasonOf(2_460_665.0)) // 20 Dec 2024
         // Winter: Dey, Bahman, Esfand.
-        assertEquals(PersianCalendar.Season.WINTER, PersianCalendar.seasonOf(2_460_666.5)) // 21 Dec 2024
-        assertEquals(PersianCalendar.Season.WINTER, PersianCalendar.seasonOf(2_461_120.5)) // 20 Mar 2026
-        assertEquals(PersianCalendar.Season.SPRING, PersianCalendar.seasonOf(2_461_121.5)) // 21 Mar 2026
+        assertEquals(PersianCalendar.Season.WINTER, PersianCalendar.seasonOf(2_460_666.0)) // 21 Dec 2024
+        assertEquals(PersianCalendar.Season.WINTER, PersianCalendar.seasonOf(2_461_120.0)) // 20 Mar 2026
+        assertEquals(PersianCalendar.Season.SPRING, PersianCalendar.seasonOf(2_461_121.0)) // 21 Mar 2026
     }
 
     @Test
@@ -71,8 +72,12 @@ class PersianCalendarTest {
         )
         var day = 0
         for (month in 1..12) {
-            assertEquals("month $month", month, PersianCalendar.monthOf(nowruz1403 + day + 0.5))
-            assertEquals("month $month season", seasonByMonth[month - 1], PersianCalendar.seasonOf(nowruz1403 + day + 0.5))
+            assertEquals("month $month", month, PersianCalendar.monthOf(nowruz1403 + day.toDouble()))
+            assertEquals(
+                "month $month season",
+                seasonByMonth[month - 1],
+                PersianCalendar.seasonOf(nowruz1403 + day.toDouble())
+            )
             // Walk one day past the last day of this month: 31 through Shahrivar, 30 after, then
             // Esfand's 29/30 (the final month is checked only where the year is not leap).
             day += if (month <= 6) 31 else 30

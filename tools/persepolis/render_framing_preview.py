@@ -16,9 +16,13 @@ tree parkland, uniform grass field — no individual blades)
 replicated from SceneGroundRenderer — the python profile functions below
 mirror LandscapeProfile.kt and are where the composition was tuned.
 
-The Paulownias are not drawn here at all: like the app, this preview blits
-the single render from tools/paulownia/preview_paulownia.py (which mirrors
-PaulowniaTree.kt + PaulowniaSprite.kt) at every planting, scaled and mirrored.
+Neither species is drawn here as geometry: like the app, this preview blits
+each one's single render — tools/paulownia/preview_paulownia.py (PaulowniaTree.kt
++ PaulowniaSprite.kt) and tools/sugarmaple/preview_sugarmaple.py (SugarMapleTree.kt
++ SugarMapleSprite.kt) — at every planting, scaled, mirrored and haze-faded. The
+valley's trees are those two species only: the oak, pistachio and sage scrub the
+parkland used to grow have been replaced by sugar maples, and the Persian
+calendar picks the wardrobe (spring/summer green, autumn/winter red-orange).
 It exists so the composition can be eyeballed — Persepolis at half size in
 the left distance against the ranges, open plain, then the tower at the far
 right with its slope cropped by the edge and grounded in its own clearing,
@@ -41,6 +45,10 @@ from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "paulownia"))
 import preview_paulownia as pw  # noqa: E402  (the one Paulownia render)
+
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sugarmaple"))
+import preview_sugarmaple as sm  # noqa: E402  (the one sugar maple render)
 
 W, H, DENSITY = 1080, 1260, 3.0  # phone 360x420dp
 FRAMING = vf.for_scene(W, H, DENSITY)
@@ -982,10 +990,7 @@ def main():
         draw_skeleton(cx, by, s * 2.1, BUSH_SKELS[idx % 3], idx % 2 == 0, 0.62,
                       seed=idx * 3 + 1, kind=("sage" if idx % 3 == 1 else "pistachio"))
 
-    for i in range(7):  # foothill scrub only — the river's near side stays clean
-        x = W * _hash01(i * 19.7 + 3.3)
-        y, s = TOE_Y - H * 0.004 + H * 0.010 * _hash01(i * 3.9), 6 + 5 * _hash01(i * 7.1)
-        bush(x, y, s, i)
+    # (the foothill scrub is planted as maple saplings below, inside draw_trees)
     # Lone Zagros oak in the gap; near-bank foreground frame = oak (left) and a Paulownia
     # (right), bases from the widened river's actual edge.
     def near_bank_y(x):
@@ -1039,20 +1044,51 @@ def main():
                     return True
             return False
 
-        draw_skeleton((plat_r + slope_l) / 2, TOE_Y + H * 0.020, H * 0.044, OAK_SKELS[0], False, 0.92, seed=7, kind="oak")
-        draw_skeleton(W * 0.115, near_bank_y(W * 0.115), H * 0.072, OAK_SKELS[1], False, 0.95, seed=11, kind="oak")
-        plant_paulownia(W * 0.875, near_bank_y(W * 0.875), H * 0.066)
-        # 25 more trees: riparian gallery, canal line, foothill woodland, plain, near bank.
-        def plant(x, y, hgt, idx, kind="pistachio"):
+        # ONE sugar maple render, projected at every maple planting (SugarMapleSprite in the app).
+        _maple_sprite = sm.render(sm.GREEN, 232, sky=None)
+        _maple_tint = (214, 218, 214)
+        _maple_count = [0]
+
+        def draw_maple(x, y, hgt, flip, aerial=0.0):
+            layer = _maple_sprite.at(
+                hgt, flip=flip, tint=_maple_tint, alpha=1.0 - 0.22 * aerial
+            )
+            left = int(round(x - layer.width * _maple_sprite.base_x_fraction))
+            top = int(round(y - layer.height * _maple_sprite.base_y_fraction))
+            if img.mode == "RGBA":
+                img.alpha_composite(layer, (max(0, left), max(0, top)))
+            else:
+                rgba = img.convert("RGBA")
+                rgba.alpha_composite(layer, (max(0, left), max(0, top)))
+                img.paste(rgba.convert("RGB"))
+
+        def plant_maple(x, y, hgt, aerial=0.0):
             if in_apron(x, y) and y < TOE_Y + H * 0.038:
                 return False
             yc = river_at(x)
             if abs(y - yc) < river_halfw(x, yc) * 1.22:
                 return False
-            skels = {"oak": OAK_SKELS}.get(kind, TREE_SKELS)
-            draw_skeleton(x, y, hgt, skels[idx % len(skels)], idx % 2 == 1,
-                          0.82 + 0.15 * _hash01(idx * 7.01), seed=idx * 7 + 3, kind=kind)
+            flip = _hash01(_maple_count[0] * 4.9 + 9.157) < 0.5
+            draw_maple(x, y, hgt, flip, aerial)
+            _maple_count[0] += 1
             return True
+
+        def plant_maple_grove(x, y, hgt, aerial=0.0):
+            for dy in (0.0, -H * 0.014, H * 0.014):
+                if plant_maple(x, y + dy, hgt, aerial):
+                    return True
+            raise AssertionError(f"maple grove refused at {x / W:.2f},{y / H:.3f}")
+
+        plant_maple(W * 0.115, near_bank_y(W * 0.115), H * 0.072)
+        plant_paulownia(W * 0.875, near_bank_y(W * 0.875), H * 0.066)
+        # The valley's trees are the two projected species and nothing else.
+        def plant(x, y, hgt, idx, kind="maple"):
+            return plant_maple(x, y, hgt)
+
+        for i in range(7):  # foothill scrub: young maples in the shade line under the toe
+            x = W * _hash01(i * 19.7 + 3.3)
+            y = TOE_Y + H * (0.042 + 0.030 * _hash01(i * 3.9))
+            plant_maple(x, y, H * (0.011 + 0.006 * _hash01(i * 7.1)))
 
         for i in range(9):  # far-bank gallery: paulownias + oaks among pistachios
             x = W * (0.05 + 0.90 * (i + _hash01(i * 3.1 + 6.01)) / 9)
@@ -1073,12 +1109,11 @@ def main():
                 plant(x, y, hgt, 120 + i, "pistachio")
         for i in range(6):
             x = W * _hash01(i * 11.5 + 6.19)
-            y = TOE_Y + H * (0.006 + 0.024 * _hash01(i * 7.2 + 6.31))
-            plant(x, y, H * (0.022 + 0.012 * _hash01(i * 3.3 + 6.33)), 140 + i,
-                  "oak" if i == 2 else "pistachio")
+            y = TOE_Y + H * (0.050 + 0.040 * _hash01(i * 7.2 + 6.31))
+            plant(x, y, H * (0.022 + 0.012 * _hash01(i * 3.3 + 6.33)), 140 + i)
         for i in range(4):
             x = W * (0.10 + 0.80 * _hash01(i * 13.7 + 6.41))
-            y = H * (0.855 + 0.045 * _hash01(i * 5.3 + 6.43))
+            y = H * (0.828 + 0.030 * _hash01(i * 5.3 + 6.43))
             plant(x, y, H * (0.026 + 0.014 * _hash01(i * 7.7 + 6.47)), 160 + i)
         for j, xf in enumerate((0.34, 0.63)):  # near bank: paulownia + oak
             x = W * (xf + (_hash01(j * 3.3 + 6.53) - 0.5) * 0.03)
@@ -1095,17 +1130,17 @@ def main():
         def canal_line_y(x):
             return canal_y - H * 0.004 + (x / W) * H * 0.010
 
-        grove_counts = {"oak": 0}
+        grove_maple = [0]
         grove_paulownia = [0]
         _gi = [200]
 
-        def plant_grove(x, y, hgt, kind):
+        def plant_grove(x, y, hgt, kind="maple"):
             for dy in (0.0, -H * 0.014, H * 0.014):
-                if plant(x, y + dy, hgt, _gi[0], kind):
+                if plant_maple(x, y + dy, hgt):
                     _gi[0] += 1
-                    grove_counts[kind] += 1
+                    grove_maple[0] += 1
                     return
-            raise AssertionError(f"grove planting refused: {kind} at {x / W:.2f},{y / H:.3f}")
+            raise AssertionError(f"maple grove refused at {x / W:.2f},{y / H:.3f}")
 
         def plant_paulownia_grove_counted(x, y, hgt, aerial=0.0):
             # Grove expansion retries a step off the water, so these counts are the counts that stand.
@@ -1153,19 +1188,59 @@ def main():
             x = W * xf
             plant_grove(x, far_bank_y(x, 1.58 + 0.18 * _hash01(j * 3.7 + 12.41)),
                         H * (0.032 + 0.008 * _hash01(j * 5.29 + 12.43)), "oak")
-        assert grove_counts == {"oak": 8}, grove_counts
+        assert grove_maple[0] == 8, grove_maple
         assert grove_paulownia[0] == 25, grove_paulownia
-        # Near-bank additions: +3 Paulownia, +2 Zagros oak on the viewer's bank.
-        near_added = {"paulownia": 0, "oak": 0}
+        # Near-bank additions: +3 Paulownia, +2 sugar maple on the viewer's bank.
+        near_added = {"paulownia": 0, "maple": 0}
         for j, xf in enumerate((0.40, 0.55, 0.70)):
             x = W * xf
             if plant_paulownia(x, near_bank_y(x), H * (0.056 + 0.008 * _hash01(j * 5.17 + 12.53))):
                 near_added["paulownia"] += 1
         for j, xf in enumerate((0.47, 0.66)):
             x = W * xf
-            if plant(x, near_bank_y(x), H * (0.052 + 0.008 * _hash01(j * 5.23 + 12.57)), 310 + j, "oak"):
-                near_added["oak"] += 1
-        assert near_added == {"paulownia": 3, "oak": 2}, near_added
+            if plant_maple(x, near_bank_y(x), H * (0.052 + 0.008 * _hash01(j * 5.23 + 12.57))):
+                near_added["maple"] += 1
+
+        # Seven more sugar maples across the plain: the species now carries the valley floor, so
+        # it gets a wider spread than the oak's slots did (five in the open plain between the canal
+        # and the river, two in the shade line under the foothills).
+        extra_maple = [0]
+        for j, (xf, yf, hf) in enumerate(((0.13, 0.030, 0.036), (0.31, 0.044, 0.032),
+                                          (0.49, 0.034, 0.038), (0.67, 0.048, 0.034),
+                                          (0.88, 0.036, 0.040))):
+            plant_maple_grove(W * xf, TOE_Y + H * (yf + 0.008 * _hash01(j * 5.1 + 12.61)),
+                              H * (hf + 0.006 * _hash01(j * 7.3 + 12.63)))
+            extra_maple[0] += 1
+        for j, (xf, yf, hf) in enumerate(((0.22, 0.062, 0.030), (0.79, 0.068, 0.032))):
+            plant_maple_grove(W * xf, TOE_Y + H * (yf + 0.006 * _hash01(j * 5.3 + 12.67)),
+                              H * (hf + 0.004 * _hash01(j * 7.7 + 12.69)))
+            extra_maple[0] += 1
+        assert extra_maple[0] == 7, extra_maple
+
+        # The space between Persepolis and Mil-e Azhdaha: both species in three receding bands of
+        # four. The farther back the band, the smaller its trees — the perspective step the app
+        # takes with the same numbers.
+        def gap_scale(band):
+            return (0.030, 0.041, 0.056)[band]
+
+        def gap_y(band):
+            return TOE_Y + H * (0.030 + 0.030 * band)
+
+        for band in range(3):
+            for k in range(4):
+                slot = (k + 0.5) / 4.0
+                x = W * (0.42 + 0.34 * slot) + (_hash01(band * 17.3 + k * 5.1 + 12.71) - 0.5) * W * 0.030
+                if not (plat_r + W * 0.035 < x < slope_l - W * 0.020):
+                    continue
+                hgt = H * (gap_scale(band) + 0.004 * _hash01(band * 11.7 + k * 7.3 + 12.77))
+                aerial = 0.62 - 0.16 * band
+                if (band + k) % 3 == 1:
+                    plant_paulownia(x, gap_y(band), hgt, aerial)
+                else:
+                    plant_maple(x, gap_y(band), hgt, aerial)
+
+        assert near_added == {"paulownia": 3, "maple": 2}, near_added
+        assert _maple_count[0] >= 40, _maple_count
 
 
     # Uniform grass field mirror: NO individual blades. One textured green
