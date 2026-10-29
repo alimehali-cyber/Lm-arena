@@ -18,7 +18,9 @@ permissions:
 
 jobs:
   startup:
-    runs-on: ubuntu-latest
+    # Pinned: the `ubuntu-latest` label migrates to Ubuntu 26 in October 2026, and the emulator
+    # runner's KVM/AVD setup is image-sensitive (it worked on 24.04, which this project tested on).
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -57,21 +59,28 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
           script: |
-            set -x
-            apk=$(ls app/build/outputs/apk/debug/*.apk | head -1)
-            adb install -r "$apk"
-            adb logcat -c || true
-            adb shell am start -W -n com.alijafari.red.astronomy/.MainActivity
+            set +e
+            adb wait-for-device
+            APK=$(ls app/build/outputs/apk/debug/*.apk 2>/dev/null | head -1)
+            echo "::notice title=smoke::apk=$APK"
+            adb install -r "$APK" > install.txt 2>&1
+            echo "::notice title=smoke::install rc=$? $(tr '\n' ' ' < install.txt | head -c 400)"
+            adb logcat -c > /dev/null 2>&1
+            adb shell am start -W -n com.alijafari.red.astronomy/.MainActivity > start.txt 2>&1
+            echo "::notice title=smoke::start $(tr '\n' ' ' < start.txt | head -c 500)"
             # the first frame bakes the landscape's sprites; give it time to settle (and to ANR)
             sleep 30
-            adb shell screencap -p /sdcard/shot.png || true
-            adb pull /sdcard/shot.png startup-shot.png || true
-            adb shell pidof com.alijafari.red.astronomy > pid.txt || echo dead > pid.txt
-            adb logcat -d -b crash > crash.txt || true
-            adb logcat -d > logcat.txt || true
-            echo "--- pid: $(cat pid.txt)"
-            echo "--- crash buffer ---"
-            cat crash.txt || true
+            adb shell pidof com.alijafari.red.astronomy > pid.txt 2>&1
+            echo "::notice title=smoke::pid=$(cat pid.txt)"
+            adb logcat -d -b crash > crash.txt 2>&1
+            adb logcat -d > logcat.txt 2>&1
+            adb shell screencap -p /sdcard/shot.png > /dev/null 2>&1
+            adb pull /sdcard/shot.png startup-shot.png > /dev/null 2>&1
+            echo "--- crash buffer ($(wc -l < crash.txt) lines) ---"
+            cat crash.txt
+            echo "--- logcat fatal lines ---"
+            grep -n "FATAL EXCEPTION" -A 40 logcat.txt | head -120
+            exit 0
 
       - name: Report the verdict
         if: always()
@@ -128,12 +137,18 @@ jobs:
               "conclusion": "success" if (alive and not crash.strip() and not fatal) else "failure",
               "output": {
                   "title": "app alive" if (alive and not crash.strip()) else "app crashed or died",
-                  "summary": text[:65000],
+                  "summary": text[:60000],
               },
           }
           pathlib.Path("check.json").write_text(json.dumps(payload))
+
+          # Annotations are what the triage tools can actually read: put the head of the crash in
+          # one of them, whole.
+          head = (crash.strip() or "\n".join(fatal))[:2500]
+          if head:
+              print("::error title=CRASH::" + head.replace("\n", " | ")[:2500])
           PY
-          gh api "repos/${{ github.repository }}/check-runs" --method POST --input check.json > /dev/null \
+          gh api "repos/${{ github.repository }}/check-runs" --method POST --input check.json \
             || echo "::warning title=Check run::could not publish"
 
       - name: Fail if the app died
