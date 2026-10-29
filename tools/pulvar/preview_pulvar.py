@@ -1077,7 +1077,12 @@ def raster_band(frame, terr, wtr, top, bottom, bg):
     can[:, :, 3] = 1.0
 
     wat = _sample(wtr, WATER_COLS, T_NODES, frame, rows, weld)
-    wa = wat[:, :, 3:4]
+    # The app draws this as a mesh whose vertices stop at |t| = 1, so its edge is exact. The
+    # bilinear raster here clamps past the last node instead, smearing the water's edge alpha down
+    # the near bank as a pale wash. Mask it to the channel the mesh actually covers.
+    wx = frame.world_x(weld)
+    q = (rows[:, None] - frame.center_y_world(wx)[None, :]) / np.maximum(frame.half_px(weld), 0.5)[None, :]
+    wa = wat[:, :, 3:4] * np.clip((1.02 - np.abs(q)) / 0.05, 0.0, 1.0)[:, :, None]
     can[:, :, :3] = wat[:, :, :3] * wa + can[:, :, :3] * (1 - wa)
 
     out = Image.fromarray(np.clip(can * 255.0, 0, 255).astype(np.uint8), "RGBA")

@@ -207,13 +207,25 @@ paints, back to front:
   the viewer's own near bank, the same field deepened into a lush moisture ribbon
   hugging the water. Never in the water, the canal thread, the clearings or on the
   Mil slope front;
-- a **broad Pulvar river** (≈3.8× the first stream) the viewer stands across from: layered
-  water (damp wet-bank fringe, shallow edges with the bed and pebbles showing, sky
-  reflection, a deep thalweg hugging each outer bank, gravel point bars inside the bends,
-  flow ripples), reed clumps with plumes, broken reflections of the foreground trees — and a
-  broad Fresnel sheen plus stochastically thinned glitter (with rare star sparkles)
-  concentrated in the real Sun's reflection column by day (the Moon's, scaled by its
-  illumination, at night);
+- a **broad Pulvar river** the viewer stands across from — no longer a hand-painted ribbon but
+  the supplied **`PulvarRiver3D.kt`** reach, ported whole into `PulvarRiver` and rendered by
+  `PulvarRiverSprite`. The design is a 224 m pool–riffle–run channel with an asymmetric
+  thalweg, gravel point bars inside its bends, a real bed under genuinely transparent water,
+  boulder and cobble fields, reeds and bank grass, lit by the design's own Sun/Moon and
+  shaded by its own `shadeOpaque`/`shadeWater` — Schlick Fresnel, Beer–Lambert absorption
+  with turbidity, caustics on the submerged bed, and a hydraulic foam mask that carries the
+  riffle crests and each boulder's bow wave and wake. This scene replaces only the design's
+  *projection*: `PulvarRiver.Frame` maps the reach onto the band the valley's planting was
+  always built around, so the meander, the riffle rhythm and the channel's width variation
+  all survive while the trees, the field, the canal and the aprons keep their clearance. The
+  corridor's outer edge fades into the plain and the whole bake is multiplied by this frame's
+  light — the same per-channel tint the maples and Paulownias get — so the water is lit by the
+  scene's Sun, dims with its ambient and takes the Moon's glitter column at night instead of
+  its own. Resolution is the one thing the design's shading cannot survive unchanged: its
+  ripple field is authored for a close 3D camera, so the field is stretched (0.14) and its
+  normals damped to what a 3.1 px/m band can actually resolve. One bake per layout and
+  season, then one blit per frame plus the glitter. See the four-state render
+  [`pulvar-river.png`](pulvar-river.png) and `PulvarRiverTest`;
 - a **parkland of exactly two species** — the supplied **Paulownia** and **sugar maple** designs,
   and *neither* is grown per tree. Each is the supplied design's single tree, grown once and
   **rendered once** into a small sprite per season, then *projected* at every planting: mirrored
