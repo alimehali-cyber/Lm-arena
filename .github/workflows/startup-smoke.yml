@@ -1,0 +1,172 @@
+name: Home startup smoke test
+
+# Launches the real app on an emulator, waits for the Home scene to settle, and fails with the
+# crash buffer if the process dies. The Home screen's landscape paints itself in the draw pass
+# (the river bakes a bitmap there), so a bad frame kills the app before any test can see it —
+# `testDebugUnitTest` never draws a Compose frame, and the APK build never runs the app at all.
+#
+# Every crash line is emitted as a check annotation, because the raw job log is not always
+# reachable from the tools that triage this repo.
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/04aab4df-lm-arena]
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew || true
+          ./gradlew assembleDebug -Pgravity.ci.tests=false --no-daemon
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Launch the Home screen on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 4096M
+          disk-size: 6000M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            set -x
+            apk=$(ls app/build/outputs/apk/debug/*.apk | head -1)
+            adb install -r "$apk"
+            adb logcat -c || true
+            adb shell am start -W -n com.alijafari.red.astronomy/.MainActivity
+            # the first frame bakes the landscape's sprites; give it time to settle (and to ANR)
+            sleep 30
+            adb shell screencap -p /sdcard/shot.png || true
+            adb pull /sdcard/shot.png startup-shot.png || true
+            adb shell pidof com.alijafari.red.astronomy > pid.txt || echo dead > pid.txt
+            adb logcat -d -b crash > crash.txt || true
+            adb logcat -d > logcat.txt || true
+            echo "--- pid: $(cat pid.txt)"
+            echo "--- crash buffer ---"
+            cat crash.txt || true
+
+      - name: Report the verdict
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+
+          def read(name):
+              p = pathlib.Path(name)
+              return p.read_text(errors="replace") if p.exists() else ""
+
+          crash = read("crash.txt")
+          log = read("logcat.txt")
+          pid = read("pid.txt").strip()
+          alive = pid and pid != "dead"
+
+          anrs = [l for l in log.splitlines() if "ANR in com.alijafari.red.astronomy" in l]
+          fatal = [l for l in log.splitlines() if "FATAL EXCEPTION" in l]
+          home_frame = [
+              l for l in log.splitlines()
+              if "SceneGroundRenderer" in l or "PulvarRiver" in l or "PulvarRiverSprite" in l
+          ]
+
+          verdict_lines = [
+              f"process alive after 30 s: {alive} (pid={pid or 'none'})",
+              f"FATAL EXCEPTION lines in logcat: {len(fatal)}",
+              f"ANR lines: {len(anrs)}",
+              f"renderer frames in logcat: {len(home_frame)}",
+          ]
+          summary = [f"## Home startup smoke\n"] + [f"- {v}" for v in verdict_lines]
+
+          if crash.strip():
+              summary += ["\n### Crash buffer", "```", crash.strip()[:12000], "```"]
+          if fatal:
+              excerpt = []
+              grab = False
+              for line in log.splitlines():
+                  if "FATAL EXCEPTION" in line:
+                      grab = True
+                  if grab:
+                      excerpt.append(line)
+                      if len(excerpt) > 120:
+                          break
+              summary += ["\n### Logcat around the crash", "```", "\n".join(excerpt)[:12000], "```"]
+
+          text = "\n".join(summary)
+          print(text)
+
+          # Publish as a check run: long, readable, and reachable through the API.
+          payload = {
+              "name": "Home startup smoke",
+              "head_sha": os.environ.get("GITHUB_SHA", ""),
+              "status": "completed",
+              "conclusion": "success" if (alive and not crash.strip() and not fatal) else "failure",
+              "output": {
+                  "title": "app alive" if (alive and not crash.strip()) else "app crashed or died",
+                  "summary": text[:65000],
+              },
+          }
+          pathlib.Path("check.json").write_text(json.dumps(payload))
+          PY
+          gh api "repos/${{ github.repository }}/check-runs" --method POST --input check.json > /dev/null \
+            || echo "::warning title=Check run::could not publish"
+
+      - name: Fail if the app died
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          crash = pathlib.Path("crash.txt").read_text(errors="replace") if pathlib.Path("crash.txt").exists() else ""
+          pid = pathlib.Path("pid.txt").read_text().strip() if pathlib.Path("pid.txt").exists() else ""
+          log = pathlib.Path("logcat.txt").read_text(errors="replace") if pathlib.Path("logcat.txt").exists() else ""
+          fatal = "FATAL EXCEPTION" in log
+          print(f"alive={pid!r} fatal={fatal} crashbuf={len(crash)}")
+          if not pid or pid == "dead" or fatal or crash.strip():
+              lines = [l for l in (crash + "\n" + log).splitlines() if l.strip()]
+              interesting = []
+              grab = False
+              for line in lines:
+                  if "FATAL EXCEPTION" in line or "AndroidRuntime" in line:
+                      grab = True
+                  if grab:
+                      interesting.append(line)
+              for chunk in [interesting[i:i + 12] for i in range(0, min(len(interesting), 60), 12)]:
+                  print("::error title=startup crash::" + " | ".join(chunk)[:1000])
+              raise SystemExit(1)
+          PY
+
+      - name: Keep the screenshot and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: startup-smoke
+          path: |
+            startup-shot.png
+            logcat.txt
+            crash.txt
+          if-no-files-found: ignore
