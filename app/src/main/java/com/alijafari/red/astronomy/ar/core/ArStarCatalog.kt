@@ -24,46 +24,23 @@ class ArStarCatalog(
     /** IAU / common proper names keyed by HR number. */
     val names: Map<Int, String>
 ) {
-    /**
-     * Number of stars that can be read from **every** parallel array, i.e. the length of the
-     * shortest column.
-     *
-     * These arrays are always indexed together — a star's position, proper motion, magnitude,
-     * colour and spectral class — so the usable catalogue is only as long as its shortest column.
-     * Taking the length from `hr` alone was a crash: a pack with no colour column (or one that was
-     * truncated) was read past the end of `bv`/`spectral`, which is exactly
-     * `ArrayIndexOutOfBoundsException: length=0; index=0` when the star pass asked for star 0's
-     * B−V. Every consumer that iterates stars uses this count, so no reader can ask for a star
-     * that any of the arrays cannot answer for.
-     */
-    val size: Int = minOf(
-        hr.size, hd.size, raDeg.size, decDeg.size, pmRaCosDec.size, pmDec.size,
-        vmag.size, bv.size, spectral.size
-    )
+    val size: Int get() = hr.size
 
-    private val hrIndex: Map<Int, Int> by lazy {
-        hr.withIndex().take(size).associate { it.value to it.index }
-    }
-    private val hdIndex: Map<Int, Int> by lazy {
-        hd.withIndex().take(size).filter { it.value > 0 }.associate { it.value to it.index }
-    }
+    private val hrIndex: Map<Int, Int> by lazy { hr.withIndex().associate { it.value to it.index } }
+    private val hdIndex: Map<Int, Int> by lazy { hd.withIndex().filter { it.value > 0 }.associate { it.value to it.index } }
 
     fun indexOfHr(hrNumber: Int): Int = hrIndex[hrNumber] ?: -1
     fun indexOfHd(hdNumber: Int): Int = hdIndex[hdNumber] ?: -1
 
     /** Colour index to use for display (catalogue B−V or a spectral-class estimate). */
     fun colorIndex(i: Int): Double {
-        if (i !in 0 until size) return SOLAR_BV
         val v = bv[i]
         return if (v.isNaN()) SkyRenderModel.spectralClassToBv(spectral[i]) else v.toDouble()
     }
 
-    fun name(i: Int): String? = if (i in 0 until size) names[hr[i]] else null
+    fun name(i: Int): String? = names[hr[i]]
 
     companion object {
-        /** B−V of a solar-type star: what a star with no colour data is drawn as. */
-        const val SOLAR_BV = 0.6
-
         fun parse(stars: InputStream, names: InputStream? = null): ArStarCatalog {
             val din = DataInputStream(stars.buffered())
             val magic = ByteArray(4)

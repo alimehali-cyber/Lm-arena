@@ -38,8 +38,6 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pulvar"))
-import preview_pulvar as pulvar  # noqa: E402  (the one Pulvar river render)
 import verify_framing as vf  # noqa: E402
 
 from PIL import Image, ImageDraw, ImageFont  # noqa: E402
@@ -558,31 +556,149 @@ def main():
                 width=2,
             )
 
-    # --- The Pulvar foreground: the supplied PulvarRiver3D design ------------
-    # One implementation, two artefacts: `tools/pulvar/preview_pulvar.py` mirrors
-    # PulvarRiver.kt + PulvarRiverSprite.kt (the same reach, scatter and shading, the same
-    # band projection), so this framing preview and the river's own four-up are the same
-    # render. The planting code below still asks for the water's centreline and half-width,
-    # so those stay as thin shims over the same frame — exactly as the app keeps
-    # riverCenterY / riverHalfW as delegates for its own planters.
-    river_frame = pulvar.Frame(W, H, FRAMING["mil_slope_front_y"] + H * 0.062)
+    # --- Pulvar foreground stream + vegetation (prototype) -------------------
+    river_y = min(max(FRAMING["mil_slope_front_y"] + H * 0.062, H * 0.895), H * 0.945)
+    def river_p(x):
+        return min(max((x + 20) / (W + 40), 0.0), 1.0)
 
     def river_at(x):
-        return river_frame.center_y(x)
+        p = river_p(x)
+        return (river_y + H * 0.017 * math.sin(p * 4.6 + 0.7)
+                + H * 0.008 * fbm1(p * 3.1, 41, 3) + p * H * 0.014)
 
-    def river_halfw(x, y=None):
-        return river_frame.half_px(x)
+    def river_halfw(x, y):
+        p = river_p(x)
+        depth = min(max((y / H - 0.86) / 0.12, 0.0), 1.0)
+        pool = 1.0 + 0.45 * max(0.0, math.sin(p * 4.6 + 2.0))  # wider pools at bends
+        return H * (0.021 + 0.025 * depth) * pool  # ~3.8x the original stream (doubled twice)
 
-    def bend(x):
-        return math.sin(pulvar.progress(river_frame.world_x(x)) * 4.6 + 0.7)
+    def bend(x):  # +1 bulging toward viewer (drives thalweg / point bars)
+        return math.sin(river_p(x) * 4.6 + 0.7)
 
-    _river_light = pulvar.Light(205.0, 52.0, sun_sign=1.0)
-    _river_band, _river_top = pulvar.render_river_band(
-        river_frame, _river_light, autumn=False,
-        bg=(0.55, 0.48, 0.36), season_mix=0.0
-    )
-    # paste (not alpha_composite) keeps the ambient ImageDraw bound to the same object
-    img.paste(_river_band.convert("RGB"), (0, _river_top), _river_band.split()[3])
+    def ribbon(scale, offset=0.0):
+        pts = []
+        for i in range(29):
+            x = -20 + (W + 40) * i / 28.0
+            yc = river_at(x)
+            pts.append((x, yc + bend(x) * offset * river_halfw(x, yc) - river_halfw(x, yc) * scale))
+        for i in range(28, -1, -1):
+            x = -20 + (W + 40) * i / 28.0
+            yc = river_at(x)
+            pts.append((x, yc + bend(x) * offset * river_halfw(x, yc) + river_halfw(x, yc) * scale))
+        return pts
+
+    center = [(-20 + (W + 40) * i / 28.0, river_at(-20 + (W + 40) * i / 28.0)) for i in range(29)]
+
+    d.polygon(ribbon(1.18), fill=(52, 52, 40, 200))               # wet bank band
+    d.polygon(ribbon(1.0), fill=(58, 72, 66))                     # shallow edges: bed showing
+    # Fresnel-graded reflection (v4 mirror): three strips across the ribbon —
+    # the far strip mirrors the sunset sky almost fully (grazing view), the
+    # near strip is seen steeply so the deep water takes over.
+    def edge_pts(scale):
+        return [(-20 + (W + 40) * i / 28.0,
+                 river_at(-20 + (W + 40) * i / 28.0)
+                 + river_halfw(-20 + (W + 40) * i / 28.0, river_at(-20 + (W + 40) * i / 28.0)) * scale)
+                for i in range(29)]
+    for s0, s1, fill in [(-0.84, -0.28, (196, 132, 88, 238)),
+                         (-0.28, 0.28, (178, 122, 86, 205)),
+                         (0.28, 0.84, (96, 82, 76, 165))]:
+        d.polygon(edge_pts(s0) + edge_pts(s1)[::-1], fill=fill)
+    # Far-bank waterline: hairline of grazing sky light inside the far edge.
+    d.line(edge_pts(-0.93), fill=(220, 170, 120, 90), width=1)
+    d.polygon(ribbon(0.22, offset=0.45), fill=(30, 44, 52, 140))  # deep thalweg, outer bank
+    for i in range(8):  # dark slow water breaking the reflection
+        x = W * _hash01(i * 9.7 + 4.4)
+        soft_drift(x, river_at(x), W * 0.07, river_halfw(x, river_at(x)) * 1.0,
+                   peak_alpha=0.18, layers=8, rgb=(40, 54, 60))
+    for x, yc in center:  # pale gravel point bars on the inside of bends
+        b = bend(x)
+        if abs(b) > 0.72:
+            soft_drift(x, yc - b * river_halfw(x, yc) * 0.82, W * 0.07,
+                       river_halfw(x, yc) * 0.5, peak_alpha=0.30, layers=8, rgb=(186, 156, 116))
+    for i in range(90):  # flow ripples
+        x = W * _hash01(i * 17.9 + 1.3)
+        yc = river_at(x)
+        y = yc + (_hash01(i * 7.3) - 0.5) * 1.7 * river_halfw(x, yc)
+        ln = H * (0.004 + 0.010 * _hash01(i * 3.9))
+        d.line([(x, y), (x + ln, y + ln * 0.10)], fill=(238, 206, 170, 52), width=2)
+    for i in range(26):  # submerged pebbles in the near shallows
+        x = W * _hash01(i * 23.1 + 5.5)
+        yc = river_at(x)
+        y = yc + river_halfw(x, yc) * (0.62 + 0.3 * _hash01(i * 4.7))
+        r = 2 + 3 * _hash01(i * 6.3)
+        d.ellipse([x - r, y - r * 0.5, x + r, y + r * 0.5], fill=(150, 132, 104, 90))
+    d.line([(x, y - river_halfw(x, y)) for x, y in center], fill=(24, 30, 26, 110), width=2)
+    d.line([(x, y + river_halfw(x, y)) for x, y in center], fill=(172, 144, 106, 100), width=2)
+    for i in range(12):  # riparian green along the far bank
+        x = W * (i + _hash01(i * 5.1)) / 12
+        soft_drift(x, river_at(x) - river_halfw(x, river_at(x)) - H * 0.004,
+                   W * 0.13, H * 0.016, peak_alpha=0.20, layers=10, rgb=(56, 72, 44))
+    # Glitter: broad sheen in the sun column + stochastic sparkles + rare stars.
+    soft_drift(SUN_X, river_at(SUN_X), W * 0.52, river_halfw(SUN_X, river_at(SUN_X)) * 1.7,
+               peak_alpha=0.10, layers=10, rgb=(255, 210, 150))
+    soft_drift(SUN_X, river_at(SUN_X), W * 0.30, river_halfw(SUN_X, river_at(SUN_X)) * 1.5,
+               peak_alpha=0.20, layers=10, rgb=(255, 218, 154))
+    for i in range(72):
+        # Cox-Munk glitter (v4 mirror): 2D Gaussian in slope space around the
+        # specular point — density, brightness and size all follow the falloff.
+        x = W * _hash01(i * 13.7 + 2.2)
+        dxs = (x - SUN_X) / (W * 0.17)
+        if abs(dxs) > 2.6:
+            continue
+        yc = river_at(x)
+        hw = river_halfw(x, yc)
+        yoff = (_hash01(i * 7.9) - 0.5) * 1.7
+        g = math.exp(-(dxs ** 2 + (yoff / 0.55) ** 2))
+        if _hash01(i * 19.3 + 8.8) > 0.10 + 0.90 * g:  # facet-probability thinning
+            continue
+        y = yc + yoff * hw * 0.82
+        a = int(235 * g * (0.30 + 0.70 * _hash01(i * 3.1)))
+        if a < 5:
+            continue
+        ln = (8 + 30 * _hash01(i * 5.7)) * (0.35 + 0.85 * g)
+        d.line([(x, y), (x + ln, y)], fill=(255, 220, 160, a), width=3 if g > 0.5 else 2)
+        if g > 0.72 and _hash01(i * 29.7) > 0.62:  # star sparkle at the specular heart
+            r = 3 + 3 * _hash01(i * 4.1)
+            d.line([(x + ln / 2, y - r), (x + ln / 2, y + r)],
+                   fill=(255, 230, 180, int(a * 0.5)), width=2)
+    # Broken reflections of the two foreground trees (drawn below): ripple-torn
+    # slices — deeper slices wobble more, split, and drop out entirely (v4 mirror).
+    for tx, th in [(W * 0.115, H * 0.068), (W * 0.875, H * 0.058)]:
+        yc = river_at(tx)
+        bot = yc + river_halfw(tx, yc)
+        seed_base = int(tx * 1000)
+        for j in range(7):
+            y = bot - (j + 0.5) * (th * 0.55 / 7)
+            if y < yc - river_halfw(tx, yc):
+                break
+            if j > 0 and _hash01(seed_base + j * 7 + 2.77) < 0.10 + 0.05 * j:
+                continue  # ripple gap
+            wdt = th * 1.1 * (0.55 - 0.045 * j)
+            xo = (_hash01(j * 7.7 + tx) - 0.5) * 8 * (0.6 + 0.35 * j)
+            a = int(80 * (1 - j / 7))
+            d.line([(tx + xo - wdt / 2, y), (tx + xo + wdt / 2, y)],
+                   fill=(30, 40, 30, a), width=3)
+            if j >= 2 and _hash01(seed_base + j * 11 + 2.81) > 0.45:  # torn fragment
+                fw = wdt * 0.4
+                fx = tx + xo * 1.7 + (_hash01(seed_base + j * 17 + 2.93) - 0.5) * wdt * 0.5
+                d.line([(fx - fw / 2, y + th * 0.028), (fx + fw / 2, y + th * 0.028)],
+                       fill=(30, 40, 30, int(a * 0.7)), width=3)
+    # Reed clumps (Phragmites) at the banks: curved stems, feathery plumes.
+    for ci in range(7):
+        p = 0.08 + 0.84 * (ci + _hash01(ci * 9.3)) / 7
+        x0 = -20 + (W + 40) * p
+        yc = river_at(x0)
+        side = -1 if ci % 2 == 0 else 1
+        by = yc + side * river_halfw(x0, yc) * 1.02
+        for si in range(8):
+            x = x0 + (_hash01(ci * 31 + si * 7) - 0.5) * W * 0.018
+            bh = H * (0.014 + 0.012 * _hash01(ci * 17 + si * 3))
+            lean = (_hash01(ci * 13 + si * 5) - 0.5) * bh * 0.35
+            pts = [(x + lean * (t ** 1.6), by - bh * t) for t in (0, .33, .66, 1.0)]
+            d.line(pts, fill=(72, 88, 54, 190), width=2)
+            if si % 3 == 0:
+                d.ellipse([x + lean - 2, by - bh - 6, x + lean + 2, by - bh + 2],
+                          fill=(178, 150, 110, 160))
 
     # The valley's trees are the two projected species only — the oak, pistachio and sage
     # skeletons the parkland used to grow are gone, every one of their slots a sugar maple. The

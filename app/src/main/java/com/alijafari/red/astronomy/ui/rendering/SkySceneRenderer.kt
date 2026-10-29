@@ -235,22 +235,17 @@ object SkySceneRenderer {
                         readoutClearancePx = with(drawScope) { PersepolisFraming.READOUT_CLEARANCE_DP.dp.toPx() }
                     )
                 } else null
-                // The ground is decoration: one malformed layer must cost that layer, never the
-                // frame. The guard reports the fault with its stats and leaves the sky already
-                // drawn underneath standing.
-                RenderDiagnostics.attempt("scene-ground") {
-                    SceneGroundRenderer.draw(
-                        drawScope = drawScope,
-                        composition = composition,
-                        theme = theme,
-                        lighting = lightingState,
-                        persepolis = persepolis,
-                        sunPosPx = sunPosPx,
-                        moonPosPx = moonPosPx,
-                        // The valley's Paulownias wear the season of the instant they are drawn for.
-                        julianDay = frame.jd
-                    )
-                }
+                SceneGroundRenderer.draw(
+                    drawScope = drawScope,
+                    composition = composition,
+                    theme = theme,
+                    lighting = lightingState,
+                    persepolis = persepolis,
+                    sunPosPx = sunPosPx,
+                    moonPosPx = moonPosPx,
+                    // The valley's Paulownias wear the season of the instant they are drawn for.
+                    julianDay = frame.jd
+                )
             }
             target.drawsLandscape -> LandscapeRenderer.drawHorizonLandscape(
                 drawScope = drawScope,
