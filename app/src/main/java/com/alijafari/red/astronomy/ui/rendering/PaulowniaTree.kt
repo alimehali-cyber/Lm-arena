@@ -39,35 +39,22 @@ enum class PaulowniaSeason {
     companion object {
 
         /**
-         * The season of the instant [jd] is drawn for.
+         * The season of the instant [jd] is drawn for — the **Persian** calendar's, not Gregorian.
          *
-         * Months, not solar terms: the design ships four seasonal meshes and these are the four
-         * edges. Northern-hemisphere (the app's Iranian landscapes and its European observers both
-         * read the same tree), so the mapping never depends on the observer's latitude.
+         * The valley below the sky is dated with the sky. Spring begins on **1 Farvardin**
+         * (Nowruz, 20/21 March), so the tree in flower below a mid-Ordibehesht sky is in flower for
+         * the Persian spring, and the same tree below a Gregorian March sky is still in its winter
+         * wood — which is what an Iranian landscape should do. [PersianCalendar] is the single
+         * source of that mapping for both species.
          */
-        fun forJulianDay(jd: Double): PaulowniaSeason = when (monthForJulianDay(jd)) {
-            4, 5 -> SPRING
-            6, 7, 8, 9 -> SUMMER
-            10, 11 -> AUTUMN
-            else -> WINTER
-        }
+        fun forJulianDay(jd: Double): PaulowniaSeason = forSeason(PersianCalendar.seasonOf(jd))
 
-        /**
-         * Gregorian month of the civil date containing [jd], 1..12.
-         *
-         * Integer Julian-day conversion (Meeus): no Calendar, no locale, no time zone and no
-         * allocation, so the season of an instant is a pure function that can be asserted in a JVM
-         * test. [jd] is the astronomical Julian date the sky is drawn for (JD 2451545.0 is
-         * 2000-01-01 12:00 UT).
-         */
-        fun monthForJulianDay(jd: Double): Int {
-            // Meeus, *Astronomical Algorithms* ch. 7 (Gregorian calendar), month only.
-            val jdn = floor(jd + 0.5).toLong()
-            val f = jdn + 1401L + ((4L * jdn + 274277L) / 146097L) * 3L / 4L - 38L
-            val e = 4L * f + 3L
-            val g = (e % 1461L) / 4L
-            val h = 5L * g + 2L
-            return (((h / 153L) + 2L) % 12L + 1L).toInt().coerceIn(1, 12)
+        /** This species' wardrobe for a Persian season. */
+        fun forSeason(season: PersianCalendar.Season): PaulowniaSeason = when (season) {
+            PersianCalendar.Season.SPRING -> SPRING
+            PersianCalendar.Season.SUMMER -> SUMMER
+            PersianCalendar.Season.AUTUMN -> AUTUMN
+            PersianCalendar.Season.WINTER -> WINTER
         }
     }
 }

@@ -32,11 +32,13 @@ import kotlin.math.sqrt
  *    alluvial fans, a semi-arid steppe/cultivation plain with an irrigation canal, the
  *    monuments' own earthworks, a broad foreground Pulvar river (wet banks, shallow
  *    bed, deep thalweg, point bars, sheen/stochastic glitter tracking the real Sun or
- *    Moon, tree reflections, reed clumps), a parkland of space-colonization pistachio and
- *    Zagros oak with Artemisia sage scrub, a stand of Paulownia — the supplied design's
- *    single tree, rasterised once and projected at every planting ([PaulowniaSprite]) —
- *    and a uniform grass *field*: one textured green mass rendered as a few bucketed fills,
- *    never individual blades, lush and cool-toned, richest along the river banks.
+ *    Moon, tree reflections, reed clumps), a parkland of exactly two species — **Paulownia**
+ *    ([PaulowniaSprite]) and **sugar maple** ([SugarMapleSprite]), each the supplied design's
+ *    single tree rasterised once per season and projected at every planting, with the maples
+ *    filling every slot the oak, pistachio and sage scrub used to hold — and a uniform grass
+ *    *field*: one textured green mass rendered as a few bucketed fills, never individual
+ *    blades, lush and cool-toned, richest along the river banks. Both species' wardrobes come
+ *    from the **Persian** calendar, so the valley's spring begins on 1 Farvardin.
  *    The monuments' backdrop is the Nurabad (Mamasani) country the Mil-e Azhdaha tower
  *    actually stands in: the folded Zagros whalebacks, the rocky Dimeh-Mil ridge and
  *    the wide gorge (Tang-e Farakh / Tang-e Kalleh) cut through it — art-directed to
@@ -64,94 +66,24 @@ object SceneGroundRenderer {
     )
     private val FOOTHILL_ENVELOPE = floatArrayOf(0f, 0.7f, 0.5f, 1f, 1f, 0.5f)
 
-    // Space-colonization tree skeletons (LandscapeProfile.treeSkeleton), grown once on
-    // first use and cached for the process — wild pistachio/almond forms in unit space.
-    // Generation is bounded (<= 420 nodes each) and happens off the draw hot path; the
-    // per-frame cost is only strokes into the cached geometry.
-    private val TREE_SKELETONS: List<List<LandscapeProfile.BranchSegment>> by lazy {
-        listOf(
-            LandscapeProfile.treeSkeleton(
-                seed = 101, aspect = 1.30f, trunkFraction = 0.36f, attractorCount = 110, lean = 0.03f
-            ).sortedByDescending { it.r0 },
-            LandscapeProfile.treeSkeleton(
-                seed = 202, aspect = 1.15f, trunkFraction = 0.40f, attractorCount = 100, lean = -0.02f
-            ).sortedByDescending { it.r0 },
-            LandscapeProfile.treeSkeleton(
-                seed = 303, aspect = 1.45f, trunkFraction = 0.30f, attractorCount = 85, lean = 0.05f
-            ).sortedByDescending { it.r0 },
-            LandscapeProfile.treeSkeleton(
-                seed = 505, aspect = 1.05f, trunkFraction = 0.44f, attractorCount = 90, lean = 0.08f
-            ).sortedByDescending { it.r0 },
-            LandscapeProfile.treeSkeleton(
-                seed = 606, aspect = 1.55f, trunkFraction = 0.26f, attractorCount = 95, lean = -0.06f
-            ).sortedByDescending { it.r0 },
-            LandscapeProfile.treeSkeleton(
-                seed = 151, aspect = 1.22f, trunkFraction = 0.38f, attractorCount = 105, lean = -0.04f
-            ).sortedByDescending { it.r0 },
-            LandscapeProfile.treeSkeleton(
-                seed = 252, aspect = 1.38f, trunkFraction = 0.33f, attractorCount = 92, lean = 0.01f
-            ).sortedByDescending { it.r0 }
-        )
-    }
-    private val BUSH_SKELETONS: List<List<LandscapeProfile.BranchSegment>> by lazy {
-        (0 until 3).map { k ->
-            LandscapeProfile.treeSkeleton(
-                seed = 404 + k * 77, aspect = 1.5f, trunkFraction = 0.12f, attractorCount = 46
-            ).sortedByDescending { it.r0 }
-        }
-    }
-
-    /**
-     * The woody species of the valley floor, each with its own growth + foliage recipe.
-     *
-     * Paulownia is deliberately *not* one of them. The valley's Paulownias are one render projected
-     * at thirty plantings ([PaulowniaSprite]); growing them here as per-tree path geometry is what
-     * this class used to do, and it is what the design replaced.
-     */
-    private enum class TreeKind { PISTACHIO, OAK, SAGE }
-
-    // Zagros oak (Quercus brantii): strongly decurrent — a short gnarled trunk losing
-    // itself into wide, twisted, self-pruned limbs under a broad flattened crown.
-    private val OAK_SKELETONS: List<List<LandscapeProfile.BranchSegment>> by lazy {
-        listOf(
-            LandscapeProfile.treeSkeleton(
-                seed = 707, aspect = 1.75f, trunkFraction = 0.30f, attractorCount = 115,
-                lean = 0.02f, scaffoldSpread = 1.30f, arch = 0.5f, gnarl = 0.55f,
-                occupancy = 0.8f, selfPrune = 0.5f, shellBias = 0.80f, topFlatten = 0.78f
-            ).sortedByDescending { it.r0 },
-            LandscapeProfile.treeSkeleton(
-                seed = 808, aspect = 1.60f, trunkFraction = 0.26f, attractorCount = 105,
-                lean = -0.04f, scaffoldSpread = 1.20f, arch = 0.6f, gnarl = 0.65f,
-                occupancy = 0.8f, selfPrune = 0.6f, shellBias = 0.80f, topFlatten = 0.76f
-            ).sortedByDescending { it.r0 },
-            LandscapeProfile.treeSkeleton(
-                seed = 111, aspect = 1.68f, trunkFraction = 0.28f, attractorCount = 110,
-                lean = 0.03f, scaffoldSpread = 1.25f, arch = 0.55f, gnarl = 0.60f,
-                occupancy = 0.8f, selfPrune = 0.55f, shellBias = 0.80f, topFlatten = 0.77f
-            ).sortedByDescending { it.r0 },
-            LandscapeProfile.treeSkeleton(
-                seed = 313, aspect = 1.80f, trunkFraction = 0.32f, attractorCount = 100,
-                lean = -0.02f, scaffoldSpread = 1.35f, arch = 0.45f, gnarl = 0.50f,
-                occupancy = 0.8f, selfPrune = 0.45f, shellBias = 0.82f, topFlatten = 0.79f
-            ).sortedByDescending { it.r0 }
-        )
-    }
-
-    // Paulownia used to live here as two more space-colonization recipes (a cherry-shaped vase and
-    // a tall umbrella crown), grown per planting into the shared foliage buckets. It is now
-    // [PaulowniaTree] + [PaulowniaSprite]: the supplied design's single tree, rasterised once per
-    // season and projected at every planting — see [PaulowniaPlanting] below.
+    // Both species are now *one render, projected everywhere*. Paulownia used to live here as two
+    // space-colonization recipes (a cherry-shaped vase and a tall umbrella crown) and the oak /
+    // pistachio / sage scrub as three more; all of them grew per planting into shared foliage
+    // buckets. The valley is [PaulowniaTree] + [PaulowniaSprite] and [SugarMapleTree] +
+    // [SugarMapleSprite] now: each design's single tree rasterised once per season and blitted at
+    // every planting — see [PaulowniaPlanting] and [SugarMaplePlanting] below. The skeleton-tree
+    // machinery (species recipes, branch width buckets, foliage tone buckets, oak acorns, twig
+    // tips) is gone with them, which is also why the frame no longer replays a dozen canopy paths.
 
     /**
      * Static vegetation geometry for one landscape layout, cached across draws.
      *
-     * Trees, scrub and grass never move — the valley is still air by design — yet their
-     * geometry used to be rebuilt as ~13k individual draw calls on EVERY canvas draw:
-     * once a second when idle and on every frame while scrubbing or while a selection
-     * is shown. That rebuild is what made the sky canvas (and Home scrolling under it)
-     * hitch. Instead everything is baked once per layout into bucketed [Path]s —
-     * branches by width class × bark pass, foliage dabs by tone role, grass by colour
-     * bucket — and each draw replays ~30 path draws with the current lighting colours.
+     * The valley is still air by design, so nothing in it moves; only the light does. The
+     * grass field is baked once per layout into eight tone-bucketed [Path]s and each draw
+     * replays eight fills with the current lighting colours. The trees are not geometry at
+     * all any more: each species is one bitmap ([PaulowniaSprite], [SugarMapleSprite]) and
+     * every planting is a blit, so the vegetation's per-frame cost is ~90 image quads and
+     * eight paths — no per-tree rebuild, no canopy path replay.
      * Because the same Path instances are reused untouched, the hardware renderer's
      * path cache keeps their tessellation between frames as well. The key captures
      * everything placement depends on (canvas size, ground anchors, the framing the
@@ -173,35 +105,16 @@ object SceneGroundRenderer {
     /** One tree's ground shadow, drawn per draw so its length still tracks the Sun. */
     private class TreeShadowSpec(val cx: Float, val by: Float, val hgt: Float)
 
-    /** All branch segments of one width class: anti-sun shadow pass + lit pass. */
-    private class BranchBucket(val widthPx: Float, val shadowP: Path, val litP: Path)
-
     private class VegetationGeometry(
         val key: VegetationKey,
         val treeShadows: List<TreeShadowSpec>,
-        val branchBuckets: List<BranchBucket>,
-        val leafDarkP: Path,
-        val leafAltP: Path,
-        val leafBodyDimP: Path,
-        val leafBodyBrightP: Path,
-        val leafRimP: Path,
-        val leafGlowP: Path,
-        val silverDarkP: Path,
-        val silverBodyP: Path,
-        val silverRimP: Path,
-        val silverGlowP: Path,
-        val oakDarkP: Path,
-        val oakAltP: Path,
-        val oakDimP: Path,
-        val oakBrightP: Path,
-        val oakRimP: Path,
-        val oakGlowP: Path,
-        val oakFruitP: Path,
-        val twigP: Path,
         /** Every Paulownia planting, far bank first: one sprite, projected at each of these. */
         val paulownias: List<PaulowniaPlanting>,
-        /** The tallest planting, in scene pixels: what the single render is baked at. */
+        /** Every sugar maple planting, back of the valley first: another single projected render. */
+        val sugarMaples: List<SugarMaplePlanting>,
+        /** The tallest planting of each species, in scene pixels: what its render is baked at. */
         val paulowniaTallestPx: Float,
+        val sugarMapleTallestPx: Float,
         val fieldBuckets: List<Path>,
         val nearBankFieldP: Path
     )
@@ -225,6 +138,21 @@ object SceneGroundRenderer {
         val aerial: Float
     )
 
+    /**
+     * One sugar maple in the landscape: a blit of [SugarMapleSprite]'s single render.
+     *
+     * [treeHeightPx] is the design's 19.6 m in scene pixels, so [SugarMapleSprite] projection keeps
+     * the caller's perspective scale — a maple between the two monuments is drawn smaller than one
+     * on the near bank because its planting says so, not because the render differs.
+     */
+    private class SugarMaplePlanting(
+        val x: Float,
+        val y: Float,
+        val treeHeightPx: Float,
+        val flip: Boolean,
+        val aerial: Float
+    )
+
     /** Last built layout's vegetation; replaced whenever the key changes. Main-thread only. */
     private var vegetationCache: VegetationGeometry? = null
 
@@ -238,10 +166,11 @@ object SceneGroundRenderer {
      * @param sunPosPx the Sun's projected screen position this frame, or null when far below
      * the horizon — it aims the mountain facet light, the cast shadows and the river glitter.
      * @param moonPosPx the Moon's projected screen position, for the night glitter.
-     * @param julianDay the instant the scene is drawn for. The only use is the valley's single
-     * Paulownia render: its four seasonal wardrobes are chosen by the month of this date, so the
-     * trees below a spring sky are in flower and the trees below a winter sky are bare wood. Null
-     * (no instant supplied) falls back to the full summer crown rather than guessing a month.
+     * @param julianDay the instant the scene is drawn for. The only use is the trees' season, read
+     * from the **Persian** calendar ([PersianCalendar]): spring starts on 1 Farvardin (Nowruz), so
+     * the valley below a mid-Ordibehesht sky is in spring leaf, below a Mehr sky in autumn colour,
+     * and the two species disagree only in wardrobe, never in date. Null (no instant supplied)
+     * falls back to summer rather than guessing a month.
      */
     fun draw(
         drawScope: DrawScope,
@@ -543,7 +472,7 @@ object SceneGroundRenderer {
         framing: PersepolisFraming.Result,
         sunPosPx: Offset?,
         moonPosPx: Offset?,
-        /** The instant, for the Paulownia stand's season (see [PaulowniaSeason]). */
+        /** The instant, for both species' season (see [PersianCalendar] and the two sprite files). */
         julianDay: Double? = null
     ) {
         val width = composition.widthPx
@@ -1189,14 +1118,8 @@ object SceneGroundRenderer {
         )
         fun buildVegetation(): VegetationGeometry {
             val treeShadows = mutableListOf<TreeShadowSpec>()
-            val branchBuckets = listOf(1.1f, 1.8f, 2.8f, 4.2f, 6.2f, 9f, 13f, 19f, 27f)
-                .map { BranchBucket(it, Path(), Path()) }
-            val leafDarkP = Path(); val leafAltP = Path(); val leafBodyDimP = Path(); val leafBodyBrightP = Path(); val leafRimP = Path()
-            val leafGlowP = Path()
-            val silverDarkP = Path(); val silverBodyP = Path(); val silverRimP = Path(); val silverGlowP = Path()
-            val oakDarkP = Path(); val oakAltP = Path(); val oakDimP = Path(); val oakBrightP = Path(); val oakRimP = Path()
-            val oakGlowP = Path(); val oakFruitP = Path(); val twigP = Path()
-            val paulownias = ArrayList<PaulowniaPlanting>(34)
+            val paulownias = ArrayList<PaulowniaPlanting>(40)
+            val sugarMaples = ArrayList<SugarMaplePlanting>(56)
             val fieldBuckets = List(8) { Path() }
             val nearBankFieldP = Path()
 
@@ -1205,326 +1128,20 @@ object SceneGroundRenderer {
                     androidx.compose.ui.geometry.Rect(cx - w / 2f, cy - h / 2f, cx + w / 2f, cy + h / 2f)
                 )
             }
-            // One leaf cluster as an irregular lobed polygon (LandscapeProfile
-            // .clusterPolygon) instead of an oval: the perimeter alternates lobes
-            // and notches, so crowns fray like foliage instead of scalloping like
-            // cotton balls. Same bake-once path cost class as the oval it replaces.
-            fun addClusterTo(
-                path: Path, cx: Float, cy: Float, r: Float, seed: Int, index: Int,
-                squish: Float = 0.78f, lobes: Int = 7
-            ) {
-                val pts = LandscapeProfile.clusterPolygon(r, squish, seed, index, lobes)
-                path.moveTo(cx + pts[0], cy + pts[1])
-                var k = 2
-                while (k < pts.size) {
-                    path.lineTo(cx + pts[k], cy + pts[k + 1])
-                    k += 2
-                }
-                path.close()
-            }
-            // One skeleton planted at (cx, by) with total height [hgt]: pipe-model woody
-            // structure bucketed by width class (shadow pass offset anti-sun for
-            // roundness on near trees), then foliage as *leaf-cluster dabs* at the
-            // branch terminals bucketed by tone role — the 2D analogue of the
-            // leaf-cluster cards real-time vegetation (SpeedTree & co.) is built from.
-            // Two of that world's shading rules do the realism work here: each cluster
-            // is lit by a *spherized crown normal* (the direction from crown centre to
-            // cluster dotted with the Sun — crowns shade as volumes, not as noise), and
-            // darkened by *crown-depth ambient occlusion* (interior clusters sit in the
-            // crown's own shade; the shell carries the light). Species ([kind]) change
-            // cluster size/density/placement and the colour buckets: pistachio scrub,
-            // silver Artemisia sage and dense terminal-tufted oak. (The Paulownias are not
-            // grown here at all any more — they are [PaulowniaSprite] renders, projected.)
-            // Small/distant instances drop
-            // the second bark pass and use fewer dabs (LOD by height).
-            fun buildSkeletonTree(
-                cx: Float,
-                by: Float,
-                hgt: Float,
-                skeleton: List<LandscapeProfile.BranchSegment>,
-                flip: Boolean,
-                foliage: Float,
-                seed: Int,
-                kind: TreeKind = TreeKind.PISTACHIO
-            ) {
-                val sx = if (flip) -1f else 1f
-                val detail = hgt > height * 0.034f
-                treeShadows += TreeShadowSpec(cx, by, hgt)
-                for (seg in skeleton) {
-                    val wdt = ((seg.r0 + seg.r1) * hgt).coerceIn(0.8f, (hgt * 0.09f).coerceAtLeast(1f))
-                    val bIdx = branchBuckets.indexOfFirst { it.widthPx >= wdt }
-                        .let { if (it < 0) branchBuckets.lastIndex else it }
-                    val bucket = branchBuckets[bIdx]
-                    val x0 = cx + sx * seg.x0 * hgt
-                    val y0 = by - seg.y0 * hgt
-                    val x1 = cx + sx * seg.x1 * hgt
-                    val y1 = by - seg.y1 * hgt
-                    // Branches are not ruler-straight: each segment bows a little
-                    // (Sapling/MTree curvature + straightness lesson), the bow
-                    // hashed from the segment itself so it is stable per layout.
-                    // Trunk segments bow least; twigs wander most.
-                    val segLen = sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)).coerceAtLeast(1f)
-                    val bowKey = ((seg.x0 + seg.y0) * 10000f).toInt() + seg.depth * 131
-                    val bowAmt = (LandscapeProfile.hash01(seed * 337 + 7, bowKey) - 0.5f) *
-                        segLen * if (seg.depth < 2) 0.05f else 0.16f
-                    val perpX = -(y1 - y0) / segLen
-                    val perpY = (x1 - x0) / segLen
-                    val ctrlX = (x0 + x1) / 2f + perpX * bowAmt
-                    val ctrlY = (y0 + y1) / 2f + perpY * bowAmt
-                    if (detail) {
-                        bucket.shadowP.moveTo(x0 - sunSign * wdt * 0.22f, y0)
-                        bucket.shadowP.lineTo(x1 - sunSign * wdt * 0.22f, y1)
-                    }
-                    bucket.litP.moveTo(x0, y0)
-                    bucket.litP.quadraticBezierTo(ctrlX, ctrlY, x1, y1)
-                    // Trunk taper read: the lowest segments are re-stroked one
-                    // width class up, so the base flares into its limbs instead
-                    // of ending in a uniform pole (Sapling root-flare lesson).
-                    if (seg.depth <= 1) {
-                        branchBuckets.getOrNull(bIdx + 1)?.let { wider ->
-                            wider.litP.moveTo(x0, y0)
-                            wider.litP.quadraticBezierTo(ctrlX, ctrlY, x1, y1)
-                        }
-                    }
-                }
-                // Crown envelope in flipped unit space, for the volume shading below.
-                var minUx = Float.MAX_VALUE; var maxUx = -Float.MAX_VALUE
-                var topUy = 0f; var lowUy = Float.MAX_VALUE
-                for (seg in skeleton) {
-                    val ux = sx * seg.x1
-                    if (ux < minUx) minUx = ux
-                    if (ux > maxUx) maxUx = ux
-                    if (seg.y1 > topUy) topUy = seg.y1
-                    if (seg.depth >= 3 && seg.y1 < lowUy) lowUy = seg.y1
-                }
-                if (lowUy == Float.MAX_VALUE) lowUy = topUy * 0.4f
-                val ccx = (minUx + maxUx) / 2f
-                val ccy = (topUy + lowUy) / 2f
-                val crx = ((maxUx - minUx) / 2f).coerceAtLeast(0.05f)
-                val cry = ((topUy - lowUy) / 2f).coerceAtLeast(0.05f)
-
-                // Per-instance crown proportions: the same skeleton carries a
-                // narrower or broader leaf mass per planted tree (its woody
-                // structure unchanged), so neighbours stop sharing one outline.
-                val crownWide = 0.88f + 0.24f * LandscapeProfile.hash01(seed * 613 + 9, 7)
-                // Painterly under-mass: ONE jagged dark polygon spanning the
-                // crown envelope, laid down before any cluster. It fills the
-                // gaps between terminals with shaded interior foliage, so the
-                // crown reads as one cohesive leaf mass that the lit clusters
-                // then break up — instead of separate dotted blobs with the
-                // field showing through. One polygon per tree, at any range.
-                run {
-                    val massBucket = when (kind) {
-                        TreeKind.SAGE -> silverDarkP
-                        TreeKind.OAK -> oakDarkP
-                        else -> leafDarkP
-                    }
-                    addClusterTo(
-                        massBucket,
-                        cx + ccx * hgt, by - ccy * hgt,
-                        crx * hgt * 0.84f * crownWide, seed * 419 + 7, 5,
-                        squish = (cry / crx).coerceIn(0.45f, 1.05f), lobes = 9
-                    )
-                }
-                // Per-instance foliage variation: each planted tree leans a
-                // hashed share of its body clusters into the variant-tone bucket,
-                // so no two crowns of a species share quite the same green
-                // (Sapling seed-variation lesson, at bucket granularity).
-                val altFrac = LandscapeProfile.hash01(seed * 771 + 5, 3) * 0.50f
-                val dabs = when (kind) {
-                    TreeKind.OAK -> if (detail) 5 else 3
-                    else -> if (detail) 4 else 2
-                }
-                val minDepth = 7
-                var ci = 0
-                for (seg in skeleton) {
-                    if (!seg.terminal && seg.depth < minDepth) continue
-                    ci++
-                    val ux = sx * seg.x1
-                    val ex = ((ux - ccx) / crx).coerceIn(-1f, 1f)
-                    val ey = ((seg.y1 - ccy) / cry).coerceIn(-1f, 1f)
-                    val r01 = sqrt(ex * ex + ey * ey).coerceIn(0f, 1f) // 1 = crown shell
-                    val facing = ex * sunSign * 0.85f + ey * 0.55f
-                    // Oak leafs in tufts at the shell; its shaded interior stays woody.
-                    val accept = if (kind == TreeKind.OAK) foliage * (0.55f + 0.45f * r01) else foliage
-                    if (LandscapeProfile.hash01(seed * 71 + 13, ci * 3 + 1) > accept) continue
-                    // Cluster position: branch tip, with its offset from the
-                    // crown centre scaled by this tree's crown-width variation.
-                    val px = cx + ccx * hgt + (sx * seg.x1 - ccx) * hgt * crownWide
-                    val py = by - seg.y1 * hgt
-                    val crMul = when (kind) {
-                        TreeKind.OAK -> 1.25f
-                        else -> 1f
-                    }
-                    val cr = hgt * (0.045f + 0.040f * LandscapeProfile.hash01(seed * 37 + 7, ci * 5 + 2)) * crMul
-                    // Depth layering under every lit cluster: a darker, slightly
-                    // larger jagged underlay dropped down/anti-sun. This is what
-                    // stops a crown reading as one flat cut-out — clusters sit IN
-                    // shade of their neighbours like real leaf masses.
-                    if (detail) {
-                        val under = when (kind) {
-                            TreeKind.SAGE -> silverDarkP
-                            TreeKind.OAK -> oakDarkP
-                            else -> leafDarkP
-                        }
-                        addClusterTo(
-                            under, px + sunSign * cr * 0.05f, py + cr * 0.14f,
-                            cr * 0.85f, seed * 409 + 3, ci * 77 + 1
-                        )
-                    }
-                    val tone = 0.85f + 0.3f * LandscapeProfile.hash01(seed * 53 + 3, ci * 7 + 4)
-                    // Spherized-normal light × crown-depth AO × per-cluster variation.
-                    val light = (0.50f + 0.42f * facing) * (0.42f + 0.58f * r01) * tone
-                    // Ordered-dither offset for the tone thresholds below: bucket
-                    // boundaries are crossed at hashed light values, so the
-                    // dim->bright transition grades across the crown instead of
-                    // splitting it into two flat zones with spotty contrast.
-                    val dith = (LandscapeProfile.hash01(seed * 59 + 3, ci * 31 + 7) - 0.5f)
-                    // Cluster-of-clusters (the SpeedTree leaf-card lesson, in 2D): one
-                    // smooth oval reads as a lollipop. A dark core, body satellites
-                    // orbited around it at ~0.4·cr, and one small edge dab pushed out
-                    // along the crown normal give a scalloped, lacey silhouette with
-                    // real gaps between clusters — at the same oval budget as before.
-                    // The edge dab is also where the light model splits three ways:
-                    // sun-facing shell → rim catch-light; anti-sun shell → the glow
-                    // bucket (leaf translucency: thin leaves transmit low sun, Habel
-                    // et al. — coloured warm at replay when the tree is backlit);
-                    // anywhere else it is ordinary body foliage.
-                    val backShell = facing < -0.25f && r01 > 0.55f
-                    for (d in 0 until dabs) {
-                        val baseR = cr * (0.42f + 0.30f * LandscapeProfile.hash01(seed * 83 + 9, ci * 41 + d * 13))
-                        val isCore = d == 0
-                        val isEdge = d == dabs - 1 && dabs > 1
-                        val rimDab = isEdge && detail && facing > 0.15f
-                        val glowDab = isEdge && detail && backShell
-                        val ox: Float
-                        val oy: Float
-                        val r: Float
-                        when {
-                            isCore -> {
-                                ox = (LandscapeProfile.hash01(seed * 97 + 3, ci * 31 + d * 7) - 0.5f) * cr * 0.35f -
-                                    sunSign * cr * 0.20f
-                                oy = (LandscapeProfile.hash01(seed * 89 + 5, ci * 37 + d * 11) - 0.5f) * cr * 0.25f +
-                                    cr * 0.14f + if (kind == TreeKind.OAK) cr * 0.08f else 0f
-                                r = baseR
-                            }
-                            isEdge -> {
-                                // Out along the crown normal (screen y is flipped).
-                                ox = ex * cr * 0.52f + sunSign * cr * 0.10f
-                                oy = -ey * cr * 0.40f + if (kind == TreeKind.OAK) cr * 0.06f else 0f
-                                r = baseR * 0.52f
-                            }
-                            else -> {
-                                val ang = LandscapeProfile.hash01(seed * 101 + 7, ci * 43 + d * 17) * 2f * PI.toFloat()
-                                val dist = cr * (0.30f + 0.24f * LandscapeProfile.hash01(seed * 103 + 11, ci * 47 + d * 19))
-                                ox = cos(ang) * dist
-                                oy = -sin(ang) * dist * 0.72f +
-                                    if (kind == TreeKind.OAK) cr * 0.08f else 0f // oak tufts settle downward
-                                r = baseR * 0.62f
-                            }
-                        }
-                        val target = when (kind) {
-                            TreeKind.SAGE -> when {
-                                isCore -> silverDarkP
-                                rimDab -> silverRimP
-                                glowDab -> silverGlowP
-                                else -> silverBodyP
-                            }
-                            TreeKind.OAK -> when {
-                                isCore -> oakDarkP
-                                rimDab -> oakRimP
-                                glowDab -> oakGlowP
-                                light < 0.55f + dith * 0.28f -> oakDimP
-                                LandscapeProfile.hash01(seed * 211 + 17, ci * 29 + d) < altFrac -> oakAltP
-                                else -> oakBrightP
-                            }
-                            else -> when {
-                                isCore -> leafDarkP
-                                rimDab -> leafRimP
-                                glowDab -> leafGlowP
-                                light < 0.55f + dith * 0.28f -> leafBodyDimP
-                                LandscapeProfile.hash01(seed * 211 + 17, ci * 29 + d) < altFrac -> leafAltP
-                                else -> leafBodyBrightP
-                            }
-                        }
-                        // Shell clusters shrink and fray; interior clusters
-                        // swell — the crown's edge goes lacey while its heart
-                        // stays dense (leaf cards do the same by distribution).
-                        val shellGrade = when {
-                            r01 > 0.80f -> 0.82f
-                            r01 < 0.35f -> 1.10f
-                            else -> 1f
-                        }
-                        addClusterTo(target, px + ox, py + oy, r * shellGrade, seed * 401 + 11, ci * 101 + d * 13)
-                    }
-                    // Fine twig tips poking just past the leaf shell — the lace on the
-                    // crown's lit edge. Without them every crown ends in a smooth
-                    // leaf wall; with them the silhouette frays like a real tree's.
-                    if (detail && seg.terminal && r01 > 0.70f &&
-                        LandscapeProfile.hash01(seed * 163 + 11, ci * 7 + 2) < 0.45f
-                    ) {
-                        val tl = cr * (0.35f + 0.30f * LandscapeProfile.hash01(seed * 167 + 13, ci * 11 + 3))
-                        twigP.moveTo(px, py)
-                        twigP.lineTo(px + ex * tl, py - ey * tl - cr * 0.08f)
-                    }
-                    // Oak fruit: pale acorn cups catching the light inside the shell —
-                    // the field mark of Quercus brantii at reading distance.
-                    if (kind == TreeKind.OAK && detail && light > 0.55f &&
-                        LandscapeProfile.hash01(seed * 173 + 17, ci * 13 + 5) < 0.55f
-                    ) {
-                        val fr = hgt * 0.0055f
-                        addOvalTo(
-                            oakFruitP,
-                            px + (LandscapeProfile.hash01(seed * 179 + 19, ci * 17 + 7) - 0.5f) * cr * 0.8f,
-                            py + cr * 0.25f, fr * 2f, fr * 1.4f
-                        )
-                    }
-                }
-            }
-            fun bush(cx: Float, by: Float, s: Float, idx: Int) {
-                // Two shrub species share the foothills: olive pistachio scrub and
-                // silver-grey Artemisia sage (every third bush).
-                buildSkeletonTree(
-                    cx, by, s * 2.1f, BUSH_SKELETONS[idx % 3], idx % 2 == 0, 0.62f,
-                    seed = idx * 3 + 1, kind = if (idx % 3 == 1) TreeKind.SAGE else TreeKind.PISTACHIO
-                )
-            }
             val persepolisApronL = framing.platformLeftXPx - width * 0.030f
             val persepolisApronR = framing.platformRightXPx + width * 0.105f
             val slopeApronL = framing.milSlopeLeftXPx - width * 0.065f
             fun inApron(x: Float, y: Float): Boolean =
                 (x in persepolisApronL..persepolisApronR && y < toeY + height * 0.095f) ||
                     (x > slopeApronL && y < framing.milSlopeFrontYPx + height * 0.095f)
-            // Foothill shrubs only — nothing shrubby on the river's near side any more.
-            for (i in 0 until 7) {
-                val x = width * LandscapeProfile.hash01(197, i * 11 + 3)
-                val y = toeY - height * 0.004f + height * 0.010f * LandscapeProfile.hash01(39, i * 3 + 1)
-                if (!inApron(x, y)) {
-                    bush(x, y, height * (0.005f + 0.004f * LandscapeProfile.hash01(71, i * 5 + 2)), i)
-                }
-            }
-            // Lone Zagros oak between the sites; the near-bank foreground frame is an
-            // oak at the left and a Paulownia at the right (bases set from the widened
-            // river's actual edge, not a fixed offset) — real trees doing the foreground's
-            // work, where a fringe of generic grass spikes used to.
+            // The valley's two species, both *one render projected at every planting*:
+            // [PaulowniaSprite] and [SugarMapleSprite] have each rasterised their design's single
+            // tree once, and every planting below is one mirrored, faded, light-multiplied blit.
+            // Nothing here grows a tree.
             fun nearBankY(x: Float): Float {
                 val yc = riverCenterY(x)
                 return yc + riverHalfW(x, yc) * 1.35f + height * 0.006f
             }
-            buildSkeletonTree(
-                (framing.platformRightXPx + framing.milSlopeLeftXPx) / 2f, toeY + height * 0.020f,
-                height * 0.044f, OAK_SKELETONS[0], flip = false, foliage = 0.92f, seed = 7,
-                kind = TreeKind.OAK
-            )
-            buildSkeletonTree(
-                width * 0.115f, nearBankY(width * 0.115f),
-                height * 0.072f, OAK_SKELETONS[1], flip = false, foliage = 0.95f, seed = 11,
-                kind = TreeKind.OAK
-            )
-            // The valley's Paulownias: one render, projected at every planting. Placement is the
-            // same deterministic geometry the other species use (riparian gallery, canal line,
-            // plain groves, near-bank frame), so the forest still steps with perspective. Only the
-            // drawing changed: from per-tree path geometry to a blit of the design's single tree.
             var paulowniaIdx = 0
             fun plantPaulownia(x: Float, y: Float, hgt: Float, aerial: Float = 0f): Boolean {
                 if (inApron(x, y) && y < toeY + height * 0.038f) return false
@@ -1549,33 +1166,61 @@ object SceneGroundRenderer {
                 if (plantPaulownia(x, y - height * 0.014f, hgt, aerial)) return
                 plantPaulownia(x, y + height * 0.014f, hgt, aerial)
             }
-            // The foreground frame's right-hand tree: a Paulownia where the cherry stood.
-            plantPaulownia(width * 0.875f, nearBankY(width * 0.875f), height * 0.066f)
-            // 27 deterministic plantings (clearings and open water refuse a couple,
-            // which reads as natural gaps): a riparian gallery on the far bank, an open
-            // woodland along the canal and foothills, scattered plain pistachios and two
-            // more near-bank trees — the Zagros oak/pistachio parkland this plain has.
-            fun plantTree(x: Float, y: Float, hgt: Float, idx: Int, kind: TreeKind = TreeKind.PISTACHIO): Boolean {
-                // Trees are refused only in the worn earth right at the stone's feet; the
-                // aprons' faint forward tails are ordinary foreground field where the
-                // riparian and canal trees belong.
+            var mapleIdx = 0
+            fun plantSugarMaple(x: Float, y: Float, hgt: Float, aerial: Float = 0f): Boolean {
+                // Maples take the same ground rules the other species did: no trunk in the worn
+                // earth at the stone's feet, none standing in the river.
                 if (inApron(x, y) && y < toeY + height * 0.038f) return false
                 val ycHere = riverCenterY(x)
                 if (abs(y - ycHere) < riverHalfW(x, ycHere) * 1.22f) return false
-                val skeleton = when (kind) {
-                    TreeKind.OAK -> OAK_SKELETONS[idx % OAK_SKELETONS.size]
-                    else -> TREE_SKELETONS[idx % TREE_SKELETONS.size]
-                }
-                buildSkeletonTree(
-                    x, y, hgt, skeleton,
-                    flip = idx % 2 == 1,
-                    foliage = 0.82f + 0.15f * LandscapeProfile.hash01(701, idx * 3 + 1),
-                    seed = idx * 7 + 3,
-                    kind = kind
+                treeShadows += TreeShadowSpec(x, y, hgt)
+                sugarMaples += SugarMaplePlanting(
+                    x = x,
+                    y = y,
+                    treeHeightPx = hgt,
+                    // Same trick as the Paulownias: a mirrored copy is a second tree for free.
+                    flip = LandscapeProfile.hash01(9157, mapleIdx * 5 + 3) < 0.5f,
+                    aerial = aerial
                 )
+                mapleIdx++
                 return true
             }
-            for (i in 0 until 9) { // riparian gallery, far bank — paulownias among the pistachios
+            fun plantMapleGrove(x: Float, y: Float, hgt: Float, aerial: Float = 0f) {
+                if (plantSugarMaple(x, y, hgt, aerial)) return
+                if (plantSugarMaple(x, y - height * 0.014f, hgt, aerial)) return
+                plantSugarMaple(x, y + height * 0.014f, hgt, aerial)
+            }
+            fun farBankY(x: Float, mul: Float): Float {
+                val yc = riverCenterY(x)
+                return yc - riverHalfW(x, yc) * mul
+            }
+            fun canalLineY(x: Float): Float =
+                canalY - height * 0.004f + (x / width) * height * 0.010f
+
+            // The foreground frame: a sugar maple at the left of the bank and a Paulownia at the
+            // right (bases set from the widened river's actual edge, not a fixed offset) — real
+            // trees doing the foreground's work, where a fringe of generic grass spikes used to.
+            plantSugarMaple(width * 0.115f, nearBankY(width * 0.115f), height * 0.072f)
+            plantPaulownia(width * 0.875f, nearBankY(width * 0.875f), height * 0.066f)
+
+            // Foothill scrub: young maples at the toe of the range, where the oak scrub and the
+            // Artemisia stood. Perspective does the rest — these are the smallest trees in the
+            // valley, so they read as the woodland's own saplings rather than as a second species.
+            for (i in 0 until 7) {
+                val x = width * LandscapeProfile.hash01(197, i * 11 + 3)
+                val y = toeY - height * 0.004f + height * 0.010f * LandscapeProfile.hash01(39, i * 3 + 1)
+                if (!inApron(x, y)) {
+                    plantSugarMaple(
+                        x, y, height * (0.011f + 0.006f * LandscapeProfile.hash01(71, i * 5 + 2))
+                    )
+                }
+            }
+
+            // The forest steps with perspective exactly as before: a riparian gallery on the far
+            // bank, an open woodland along the canal and foothills, scattered plain trees and the
+            // near-bank frame. Every species slot the oak and the pistachio held is a sugar maple
+            // now; the Paulownia slots are unchanged.
+            for (i in 0 until 9) { // riparian gallery, far bank — paulownias among the maples
                 val x = width * (0.05f + 0.90f * (i + LandscapeProfile.hash01(601, i * 3 + 1)) / 9f)
                 val yc = riverCenterY(x)
                 val y = yc - riverHalfW(x, yc) * (1.45f + 0.30f * LandscapeProfile.hash01(603, i * 5 + 2))
@@ -1585,59 +1230,41 @@ object SceneGroundRenderer {
                     // render takes the haze there.
                     plantPaulowniaGrove(x, y, hgt, aerial = 0.75f)
                 } else {
-                    plantTree(x, y, hgt, 100 + i, if (i == 3 || i == 7) TreeKind.OAK else TreeKind.PISTACHIO)
+                    plantSugarMaple(x, y, hgt, aerial = 0.75f)
                 }
             }
             for (i in 0 until 6) { // canal tree line, among the canopy dots
                 val x = width * (0.08f + 0.84f * (i + LandscapeProfile.hash01(613, i * 3 + 1)) / 6f)
-                val y = canalY - height * 0.004f + (x / width) * height * 0.010f
+                val y = canalLineY(x)
                 val hgt = height * (0.020f + 0.012f * LandscapeProfile.hash01(617, i * 5 + 2))
-                if (i == 2) plantPaulowniaGrove(x, y, hgt) else plantTree(x, y, hgt, 120 + i)
+                if (i == 2) plantPaulowniaGrove(x, y, hgt, aerial = 0.30f)
+                else plantSugarMaple(x, y, hgt, aerial = 0.30f)
             }
             for (i in 0 until 6) { // foothill open woodland
                 val x = width * LandscapeProfile.hash01(619, i * 11 + 5)
                 val y = toeY + height * (0.006f + 0.024f * LandscapeProfile.hash01(631, i * 7 + 2))
-                plantTree(
-                    x, y, height * (0.022f + 0.012f * LandscapeProfile.hash01(633, i * 3 + 1)), 140 + i,
-                    kind = if (i == 2) TreeKind.OAK else TreeKind.PISTACHIO
+                plantSugarMaple(
+                    x, y, height * (0.022f + 0.012f * LandscapeProfile.hash01(633, i * 3 + 1)),
+                    aerial = 0.55f
                 )
             }
-            for (i in 0 until 4) { // scattered plain pistachios
+            for (i in 0 until 4) { // scattered plain maples
                 val x = width * (0.10f + 0.80f * LandscapeProfile.hash01(641, i * 13 + 7))
                 val y = height * (0.855f + 0.045f * LandscapeProfile.hash01(643, i * 5 + 3))
-                plantTree(x, y, height * (0.026f + 0.014f * LandscapeProfile.hash01(647, i * 7 + 2)), 160 + i)
+                plantSugarMaple(x, y, height * (0.026f + 0.014f * LandscapeProfile.hash01(647, i * 7 + 2)))
             }
-            for ((j, xf) in listOf(0.34f, 0.63f).withIndex()) { // near bank: paulownia + oak
+            for ((j, xf) in listOf(0.34f, 0.63f).withIndex()) { // near bank: paulownia + maple
                 val x = width * (xf + (LandscapeProfile.hash01(653, j * 3 + 1) - 0.5f) * 0.03f)
                 val hgt = height * (0.054f + 0.012f * LandscapeProfile.hash01(657, j * 5 + 2))
                 if (j == 0) plantPaulowniaGrove(x, nearBankY(x), hgt)
-                else plantTree(x, nearBankY(x), hgt, 180 + j, TreeKind.OAK)
+                else plantSugarMaple(x, nearBankY(x), hgt)
             }
 
             // Grove expansion (+33 trees): the Paulownias are the species that carries the moist
             // ground along the river and canal (it is a waterside tree wherever it grows), planted
-            // where the cherry once stood and where the old umbrella-crown Paulownia stood before
-            // it, so the counts of the parkland are unchanged: 25 Paulownia, 8 Zagros oak. Heights
-            // follow perspective — small at the foothills, largest on the near bank. A refused spot
-            // retries a step away from the water, so these counts are the counts that stand.
-            fun farBankY(x: Float, mul: Float): Float {
-                val yc = riverCenterY(x)
-                return yc - riverHalfW(x, yc) * mul
-            }
-            fun canalLineY(x: Float): Float =
-                canalY - height * 0.004f + (x / width) * height * 0.010f
-            var groveIdx = 200
-            fun plantGrove(x: Float, y: Float, hgt: Float, kind: TreeKind) {
-                if (plantTree(x, y, hgt, groveIdx, kind)) {
-                    groveIdx++
-                    return
-                }
-                if (plantTree(x, y - height * 0.014f, hgt, groveIdx, kind)) {
-                    groveIdx++
-                    return
-                }
-                if (plantTree(x, y + height * 0.014f, hgt, groveIdx, kind)) groveIdx++
-            }
+            // where the cherry once stood. Heights follow perspective — small at the foothills,
+            // largest on the near bank. A refused spot retries a step away from the water, so
+            // these counts are the counts that stand.
             // Paulownia x15: 5 far bank, 4 canal, 4 plain grove, 2 near-bank frame.
             for ((j, xf) in listOf(0.09f, 0.27f, 0.48f, 0.69f, 0.90f).withIndex()) {
                 val x = width * xf
@@ -1700,39 +1327,36 @@ object SceneGroundRenderer {
                     height * (t.third + 0.006f * LandscapeProfile.hash01(1229, j * 5 + 2))
                 )
             }
-            // Zagros oak x8: 3 dry groves, 3 scattered plain, 2 far bank.
+            // Sugar maple x8 from the oak's slots: 3 dry groves, 3 scattered plain, 2 far bank.
             for ((j, t) in listOf(
                 Triple(0.12f, 0.850f, 0.028f), Triple(0.48f, 0.854f, 0.030f),
                 Triple(0.86f, 0.866f, 0.028f)
             ).withIndex()) {
-                plantGrove(
+                plantMapleGrove(
                     width * t.first, height * t.second,
-                    height * (t.third + 0.006f * LandscapeProfile.hash01(1231, j * 5 + 2)),
-                    TreeKind.OAK
+                    height * (t.third + 0.006f * LandscapeProfile.hash01(1231, j * 5 + 2))
                 )
             }
             for ((j, t) in listOf(
                 Triple(0.30f, 0.864f, 0.036f), Triple(0.58f, 0.868f, 0.038f),
                 Triple(0.78f, 0.860f, 0.034f)
             ).withIndex()) {
-                plantGrove(
+                plantMapleGrove(
                     width * t.first, height * t.second,
-                    height * (t.third + 0.006f * LandscapeProfile.hash01(1237, j * 5 + 2)),
-                    TreeKind.OAK
+                    height * (t.third + 0.006f * LandscapeProfile.hash01(1237, j * 5 + 2))
                 )
             }
             for ((j, xf) in listOf(0.36f, 0.95f).withIndex()) {
                 val x = width * xf
-                plantGrove(
+                plantMapleGrove(
                     x, farBankY(x, 1.58f + 0.18f * LandscapeProfile.hash01(1241, j * 3 + 1)),
                     height * (0.032f + 0.008f * LandscapeProfile.hash01(1243, j * 5 + 2)),
-                    TreeKind.OAK
+                    aerial = 0.55f
                 )
             }
 
-            // Near-bank additions (+5): three more Paulownias and two more Zagros oaks along the
-            // viewer's own bank, filling the riparian grove between the near-bank frames — the
-            // Paulownias' crowns and the oaks' shade over the water.
+            // Near-bank additions: three more Paulownias and two more maples along the viewer's own
+            // bank, filling the riparian grove between the near-bank frames.
             for ((j, xf) in listOf(0.40f, 0.55f, 0.70f).withIndex()) {
                 val x = width * xf
                 plantPaulowniaGrove(
@@ -1742,11 +1366,60 @@ object SceneGroundRenderer {
             }
             for ((j, xf) in listOf(0.47f, 0.66f).withIndex()) {
                 val x = width * xf
-                plantGrove(
+                plantMapleGrove(
                     x, nearBankY(x),
-                    height * (0.052f + 0.008f * LandscapeProfile.hash01(1257, j * 5 + 2)),
-                    TreeKind.OAK
+                    height * (0.052f + 0.008f * LandscapeProfile.hash01(1257, j * 5 + 2))
                 )
+            }
+
+            // ---- seven more sugar maples across the plain --------------------------------
+            // The species now carries the valley floor, so it gets a wider spread than the oak's
+            // slots did: three in the open plain between the river and the toe, two on the canal
+            // line, one in the near-bank row and one far in the right-hand field. Heights again
+            // follow perspective, and each lands clear of the river and the ruins' aprons.
+            for ((j, t) in listOf(
+                Triple(0.15f, 0.898f, 0.046f), Triple(0.31f, 0.906f, 0.042f),
+                Triple(0.53f, 0.900f, 0.048f), Triple(0.71f, 0.912f, 0.044f),
+                Triple(0.88f, 0.902f, 0.046f), Triple(0.24f, 0.872f, 0.038f),
+                Triple(0.80f, 0.878f, 0.040f)
+            ).withIndex()) {
+                plantMapleGrove(
+                    width * t.first, height * t.second,
+                    height * (t.third + 0.006f * LandscapeProfile.hash01(1261, j * 5 + 2))
+                )
+            }
+
+            // ---- the space between Persepolis and Mil-e Azhdaha ----------------------------
+            // Persepolis stands in the left distance and Mil-e Azhdaha far right; the plain
+            // between them is ordinary field, and it is deep — a tree at the back of that gap is
+            // half the height of one at its front. Both species are planted up the gap in three
+            // receding bands, and [band] does the perspective: the farther back a band sits (the
+            // higher on the canvas), the smaller every tree in it is drawn. Because both species
+            // are projections, that depth step costs nothing but a smaller blit.
+            val gapLeft = framing.platformRightXPx + width * 0.035f
+            val gapRight = framing.milSlopeLeftXPx - width * 0.020f
+            fun inGap(x: Float): Boolean = x > gapLeft && x < gapRight
+            fun gapY(band: Int): Float = toeY + height * (0.030f + 0.030f * band)
+            fun gapScale(band: Int): Float = when (band) {
+                0 -> 0.030f
+                1 -> 0.041f
+                else -> 0.056f
+            }
+            for (band in 0 until 3) {
+                for (k in 0 until 4) {
+                    val slot = (k + 0.5f) / 4f
+                    val x = width * (0.42f + 0.34f * slot) +
+                        (LandscapeProfile.hash01(1271, band * 17 + k * 5 + 1) - 0.5f) * width * 0.030f
+                    if (!inGap(x)) continue
+                    val hgt = height * (gapScale(band) +
+                        0.004f * LandscapeProfile.hash01(1277, band * 11 + k * 7 + 3))
+                    // Alternate the species within a band, so neither reads as a plantation.
+                    if ((band + k) % 3 == 1) {
+                        plantPaulownia(x, gapY(band), hgt, aerial = 0.62f - 0.16f * band)
+                    } else {
+                        plantSugarMaple(x, gapY(band), hgt, aerial = 0.62f - 0.16f * band)
+                    }
+                }
             }
 
             // Uniform grass field — the researched distant-grass solution (the
@@ -1826,27 +1499,10 @@ object SceneGroundRenderer {
             return VegetationGeometry(
                 key = vegKey,
                 treeShadows = treeShadows,
-                branchBuckets = branchBuckets,
-                leafDarkP = leafDarkP,
-                leafAltP = leafAltP,
-                leafBodyDimP = leafBodyDimP,
-                leafBodyBrightP = leafBodyBrightP,
-                leafRimP = leafRimP,
-                leafGlowP = leafGlowP,
-                silverDarkP = silverDarkP,
-                silverBodyP = silverBodyP,
-                silverRimP = silverRimP,
-                silverGlowP = silverGlowP,
-                oakDarkP = oakDarkP,
-                oakAltP = oakAltP,
-                oakDimP = oakDimP,
-                oakBrightP = oakBrightP,
-                oakRimP = oakRimP,
-                oakGlowP = oakGlowP,
-                oakFruitP = oakFruitP,
-                twigP = twigP,
                 paulownias = paulownias.sortedBy { it.y },
+                sugarMaples = sugarMaples.sortedBy { it.y },
                 paulowniaTallestPx = paulownias.maxOfOrNull { it.treeHeightPx } ?: 0f,
+                sugarMapleTallestPx = sugarMaples.maxOfOrNull { it.treeHeightPx } ?: 0f,
                 fieldBuckets = fieldBuckets,
                 nearBankFieldP = nearBankFieldP
             )
@@ -1881,92 +1537,43 @@ object SceneGroundRenderer {
                 s.hgt * (0.7f + 0.6f * shadowLen), s.hgt * 0.085f, shadowColor
             )
         }
-        val barkDark = lerp(Color(0xFF0A0806), Color(0xFF35271A), lightLevel)
-        val barkLit = lerp(Color(0xFF14100C), Color(0xFF5A4430), lightLevel)
-        for (bucket in veg.branchBuckets) {
-            val style = Stroke(width = bucket.widthPx, cap = StrokeCap.Round)
-            drawScope.drawPath(bucket.shadowP, barkDark, style = style)
-            drawScope.drawPath(bucket.litP, barkLit, style = style)
-        }
-        val silverLeaf = lerp(Color(0xFF0E120E), Color(0xFF8E9C84), lightLevel)
-        val silverDark = silverLeaf.scaled(0.55f)
-        val silverRim = lerp(silverLeaf, Color.White, 0.22f * lightLevel)
-        val backlit = sunAlt in -1f..9f && day > 0.05f
-        val rimColor = if (backlit) lerp(canopyLight, lighting.horizonTone, 0.45f) else canopyLight
-        val silverRimCol = if (backlit) lerp(silverRim, lighting.horizonTone, 0.45f) else silverRim
-        // Leaf translucency (Habel): anti-sun shell clusters are thin leaves with
-        // low sun behind them — they transmit, glowing warm and saturated, instead
-        // of shading like the sun-side shell. At any other hour they are just dim
-        // body foliage. This is the single strongest "alive tree" cue at golden hour.
-        val transmit = if (backlit) 1f else 0f
-        val leafGlowCol = lerp(
-            canopy.scaled(0.78f),
-            lerp(canopy, Color(0xFFC2D96A), 0.55f * lightLevel).let {
-                lerp(it, lighting.horizonTone, 0.30f)
-            },
-            transmit
-        )
-        val silverGlowCol = lerp(
-            silverLeaf.scaled(0.78f),
-            lerp(silverLeaf, Color(0xFFE4E8C8), 0.45f * lightLevel),
-            transmit
-        )
-        drawScope.drawPath(veg.leafDarkP, canopyDark)
-        drawScope.drawPath(veg.leafBodyDimP, canopy.scaled(0.92f))
-        drawScope.drawPath(veg.leafBodyBrightP, canopy.scaled(1.10f))
-        drawScope.drawPath(veg.leafAltP, lerp(canopy, Color(0xFF9DBE6E), 0.32f * lightLevel))
-        drawScope.drawPath(veg.leafRimP, rimColor.copy(alpha = 0.55f))
-        drawScope.drawPath(veg.leafGlowP, leafGlowCol.copy(alpha = 0.85f))
-        drawScope.drawPath(veg.silverDarkP, silverDark)
-        drawScope.drawPath(veg.silverBodyP, silverLeaf)
-        drawScope.drawPath(veg.silverRimP, silverRimCol.copy(alpha = 0.55f))
-        drawScope.drawPath(veg.silverGlowP, silverGlowCol.copy(alpha = 0.85f))
-        // Oak: deep olive, darker-hearted than pistachio, sun-warmed shell.
-        val oakBody = lerp(Color(0xFF0B120A), Color(0xFF3A5228), lightLevel)
-        val oakRimBase = lerp(oakBody, Color(0xFFB9CD8E), 0.45f * lightLevel)
-        val oakRimCol = if (backlit) lerp(oakRimBase, lighting.horizonTone, 0.45f) else oakRimBase
-        val oakGlowCol = lerp(
-            oakBody.scaled(0.78f),
-            lerp(oakBody, Color(0xFFA8BF62), 0.55f * lightLevel).let {
-                lerp(it, lighting.horizonTone, 0.30f)
-            },
-            transmit
-        )
-        drawScope.drawPath(veg.oakDarkP, oakBody.scaled(0.55f))
-        drawScope.drawPath(veg.oakDimP, oakBody.scaled(0.85f))
-        drawScope.drawPath(veg.oakBrightP, lerp(oakBody, Color(0xFF7FA05A), 0.38f * lightLevel))
-        drawScope.drawPath(veg.oakAltP, lerp(oakBody, Color(0xFF8FA653), 0.34f * lightLevel))
-        drawScope.drawPath(veg.oakRimP, oakRimCol.copy(alpha = 0.55f))
-        drawScope.drawPath(veg.oakGlowP, oakGlowCol.copy(alpha = 0.85f))
-        // Acorn cups: pale tan specks in the lit shell.
-        drawScope.drawPath(
-            veg.oakFruitP,
-            lerp(Color(0xFF241A0E), Color(0xFFC8A468), lightLevel).copy(alpha = 0.80f)
-        )
-        // Twig tips fraying the crown edge, over the foliage they poke out of.
-        drawScope.drawPath(
-            veg.twigP, barkLit.copy(alpha = 0.55f),
-            style = Stroke(width = (height * 0.0011f).coerceIn(0.8f, 1.6f), cap = StrokeCap.Round)
-        )
-        // Paulownia: one render, projected at every planting.
+        // The two species, one render each, projected at every planting.
         //
-        // This is where the design's tree enters the landscape. [PaulowniaSprite] has already
-        // rasterised it once — the trunk flare and bark plates, the eight scaffolds and their forks,
-        // the crown's organ mass, the season's panicles / heart leaves / capsules / buds — into a
-        // single small bitmap. Every planting below is one blit of that bitmap: mirrored where the
-        // planting calls for it, faded by its apex's distance, and multiplied by this frame's light.
-        // Nothing is re-grown, re-projected or re-drawn per tree, so the valley can carry this many
-        // Paulownias for the cost of a few dozen textured quads.
+        // This is where the designs enter the landscape. [PaulowniaSprite] and [SugarMapleSprite]
+        // have each rasterised their tree once — trunk flare and bark plates, the scaffold limbs,
+        // the crown's organ mass, and this season's wardrobe — into a single small bitmap per
+        // species, season and display size. Every planting is one blit of that bitmap: mirrored
+        // where the planting calls for it, faded by its own aerial perspective, and multiplied by
+        // this frame's light. Nothing is re-grown, re-projected or re-drawn per tree, so the valley
+        // carries ~90 trees for the cost of ~90 textured quads and two bitmaps.
         //
-        // Last, deliberately: the blits cannot be interleaved with the path replay, and a sprite's
-        // footprint rises from its base, so a sprite can only cover wood that stands behind it —
-        // the 15 pairs closer than a couple of pixels in a 1260 px scene are the same near-bank row
-        // and read as depth ties either way.
-        if (veg.paulownias.isNotEmpty() && veg.paulowniaTallestPx > 0f) {
-            val sprite = PaulowniaSprite.forLayout(
-                season = julianDay?.let { PaulowniaSeason.forJulianDay(it) } ?: PaulowniaSeason.SUMMER,
-                tallestTreePx = veg.paulowniaTallestPx
-            )
+        // Both species share one back-to-front pass (the two plantings lists are already sorted by
+        // y), because sprites overlap where the groves are dense and a maple in front of a Paulownia
+        // must paint over it.
+        if (veg.paulowniaTallestPx > 0f || veg.sugarMapleTallestPx > 0f) {
+            // One season for the whole valley, from the Persian calendar: 1 Farvardin is the first
+            // day of spring, so the trees below a sky shown on 15 Ordibehesht are in spring leaf and
+            // on 5 Aban are in autumn colour. A null instant means the caller has no date: the
+            // valley keeps the summer wardrobe rather than drifting to a November one.
+            val season = julianDay?.let { PersianCalendar.seasonOf(it) } ?: PersianCalendar.Season.SUMMER
+            val paulowniaSprite = if (veg.paulownias.isNotEmpty() && veg.paulowniaTallestPx > 0f) {
+                PaulowniaSprite.forLayout(
+                    season = PaulowniaSeason.forSeason(season),
+                    tallestTreePx = veg.paulowniaTallestPx
+                )
+            } else {
+                null
+            }
+            // The maple is told two looks, not four: spring and summer are the green crown,
+            // autumn and winter the red-orange one.
+            val mapleSprite = if (veg.sugarMaples.isNotEmpty() && veg.sugarMapleTallestPx > 0f) {
+                SugarMapleSprite.forLayout(
+                    look = SugarMapleLook.forSeason(season),
+                    tallestTreePx = veg.sugarMapleTallestPx
+                )
+            } else {
+                null
+            }
             // The light is a per-channel multiply over the freshly lit daylight bake: near-black
             // and cool at astronomical night (the same fall the other crowns take), warm at
             // golden hour, untouched at noon.
@@ -1978,16 +1585,37 @@ object SceneGroundRenderer {
                 ((tintColor.red * 255f).toInt().coerceIn(0, 255) shl 16) or
                 ((tintColor.green * 255f).toInt().coerceIn(0, 255) shl 8) or
                 (tintColor.blue * 255f).toInt().coerceIn(0, 255)
-            for (planting in veg.paulownias) {
-                sprite.draw(
-                    drawScope = drawScope,
-                    baseX = planting.x,
-                    baseY = planting.y,
-                    treeHeightPx = planting.treeHeightPx,
-                    flip = planting.flip,
-                    tint = tint,
-                    alpha = 1f - 0.20f * planting.aerial.coerceIn(0f, 1f)
-                )
+            // A two-pointer merge over the y-sorted lists: no per-frame allocation, and each
+            // species keeps its own bake, its own perspective scale and its own aerials.
+            var pi = 0
+            var mi = 0
+            while (pi < veg.paulownias.size || mi < veg.sugarMaples.size) {
+                val p = veg.paulownias.getOrNull(pi)
+                val m = veg.sugarMaples.getOrNull(mi)
+                val takePaulownia = p != null && (m == null || p.y <= m.y)
+                if (takePaulownia && p != null) {
+                    pi++
+                    paulowniaSprite?.draw(
+                        drawScope = drawScope,
+                        baseX = p.x,
+                        baseY = p.y,
+                        treeHeightPx = p.treeHeightPx,
+                        flip = p.flip,
+                        tint = tint,
+                        alpha = 1f - 0.20f * p.aerial.coerceIn(0f, 1f)
+                    )
+                } else if (m != null) {
+                    mi++
+                    mapleSprite?.draw(
+                        drawScope = drawScope,
+                        baseX = m.x,
+                        baseY = m.y,
+                        treeHeightPx = m.treeHeightPx,
+                        flip = m.flip,
+                        tint = tint,
+                        alpha = 1f - 0.22f * m.aerial.coerceIn(0f, 1f)
+                    )
+                }
             }
         }
     }

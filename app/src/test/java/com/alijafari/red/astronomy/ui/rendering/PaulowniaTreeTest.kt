@@ -25,27 +25,26 @@ import kotlin.math.abs
 class PaulowniaTreeTest {
 
     @Test
-    fun seasonFollowsTheMonthOfTheInstant() {
-        // JD vectors are noon UT (or midnight, where noted) from the Gregorian calendar.
-        assertEquals("2000-01-01 12:00 UT", 1, PaulowniaSeason.monthForJulianDay(2451545.0))
-        assertEquals("2024-04-15 00:00 UT", 4, PaulowniaSeason.monthForJulianDay(2460415.5))
-        assertEquals("2024-07-04 12:00 UT", 7, PaulowniaSeason.monthForJulianDay(2460496.0))
-        assertEquals("2024-10-29 12:00 UT", 10, PaulowniaSeason.monthForJulianDay(2460613.0))
-        assertEquals("2024-11-05 12:00 UT", 11, PaulowniaSeason.monthForJulianDay(2460620.0))
-        // The year end: 2024-12-31 23:00 UT and 2025-01-01 12:00 UT straddle it.
-        assertEquals("2024-12-31 23:00 UT", 12, PaulowniaSeason.monthForJulianDay(2460676.4583))
-        assertEquals("2025-01-01 12:00 UT", 1, PaulowniaSeason.monthForJulianDay(2460677.0))
-
-        // The wardrobes, in the order the design builds its four meshes.
-        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2460415.5))
-        assertEquals(PaulowniaSeason.SUMMER, PaulowniaSeason.forJulianDay(2460496.0))
-        assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2460613.0))
-        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2460677.0))
-        // The shoulder months: flowering on bare wood in April, ripe capsules in November.
+    fun seasonFollowsThePersianCalendar() {
+        // Noon-UT Julian days. Spring begins at Nowruz — 1 Farvardin — not on 1 March, so these
+        // are the dates an Iranian landscape is read against.
+        // 2024-03-20 was Nowruz 1403: the last day of the Persian winter is the day before.
+        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2460389.5)) // 2024-03-19
+        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2460390.5)) // 2024-03-20
+        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2460415.5)) // 2024-04-14
+        // 1 Tir 1403 = 2024-06-21; the day before is still spring.
+        assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2460482.5)) // 2024-06-20
+        assertEquals(PaulowniaSeason.SUMMER, PaulowniaSeason.forJulianDay(2460483.5)) // 2024-06-21
+        // 1 Mehr 1403 = 2024-09-22.
+        assertEquals(PaulowniaSeason.SUMMER, PaulowniaSeason.forJulianDay(2460575.5)) // 2024-09-21
+        assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2460576.5)) // 2024-09-22
+        // 1 Dey 1403 = 2024-12-21.
+        assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2460665.5)) // 2024-12-20
+        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2460666.5)) // 2024-12-21
+        // An April that is spring in the Persian calendar is spring for the tree too.
         assertEquals(PaulowniaSeason.SPRING, PaulowniaSeason.forJulianDay(2460405.0)) // 2024-04-04
         assertEquals(PaulowniaSeason.AUTUMN, PaulowniaSeason.forJulianDay(2460620.0)) // 2024-11-05
-        // The far shoulder: December is the design's winter mesh, not late autumn.
-        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2460650.0)) // 2024-12-05
+        assertEquals(PaulowniaSeason.WINTER, PaulowniaSeason.forJulianDay(2460677.0)) // 2025-01-01
     }
 
     @Test
