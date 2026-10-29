@@ -222,7 +222,13 @@ internal class VertexMesh private constructor(
                 )
                 return null
             }
-            return VertexMesh(label, mode, frozenPositions, frozenColors, sanitised, dropped, nonFinite)
+            val mesh = VertexMesh(label, mode, frozenPositions, frozenColors, sanitised, dropped, nonFinite)
+            // The invariant every tombstone in this area comes down to, printed on demand so it can
+            // be watched on a device: the largest index handed to Skia is always < vertexCount.
+            RenderDiagnostics.debug(label) {
+                "vertexCount=${mesh.vertexCount} indexCount=${mesh.indexCount} maxIndex=${mesh.maxIndex}"
+            }
+            return mesh
         }
 
         private fun usable(index: Int, vertexCount: Int, finite: BooleanArray): Boolean {

@@ -23,6 +23,21 @@ internal object RenderDiagnostics {
     }
 
     /**
+     * Logs [message] when this tag is at debug level, i.e. when it has been raised on the device:
+     *
+     * ```
+     * adb shell setprop log.tag.ZIG/render DEBUG     # then launch, or toggle the app
+     * adb logcat -s ZIG/render                        # every mesh: vertexCount / indexCount / maxIndex
+     * adb shell setprop log.tag.ZIG/render INFO       # back to warnings only
+     * ```
+     *
+     * [message] is a lambda so a release build pays one `isLoggable` call and nothing else.
+     */
+    fun debug(label: String, message: () -> String) {
+        if (Log.isLoggable(TAG, Log.DEBUG)) Log.d(TAG, "$label: ${message()}")
+    }
+
+    /**
      * Runs [block], reporting and swallowing a recoverable failure so the rest of the scene keeps
      * drawing.
      *
