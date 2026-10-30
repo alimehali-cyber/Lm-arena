@@ -464,16 +464,16 @@ private fun pulvarCenterDzDx(x: Float): Float {
         5f * 9.3f * cos(p * 9.3f - 1.15f) +
         1.8f * 17.7f * cos(p * 17.7f + 2.1f)) / PULVAR_LEN
 }
-private fun pulvarHalfWidth(x: Float): Float {
+internal fun pulvarHalfWidth(x: Float): Float {
     val p = pulvarProgress(x)
     val reach = pulvarReachAt(x)
     val base = 11.3f + 1.5f * sin(p * 3.1f - 0.4f) + 0.8f * sin(p * 7.7f + 1.8f)
     return pulvarClamp(base * reach.width, 8.2f, 15.9f)
 }
-private fun pulvarWaterY(x: Float): Float = pulvarReachAt(x).waterY
+internal fun pulvarWaterY(x: Float): Float = pulvarReachAt(x).waterY
 private fun pulvarThalwegT(x: Float): Float =
     0.46f * pulvarBendPhase(x) + 0.08f * sin(pulvarProgress(x) * 11f + 0.4f)
-private fun pulvarChannelPointXZ(x: Float, lateralMetres: Float): FloatArray {
+internal fun pulvarChannelPointXZ(x: Float, lateralMetres: Float): FloatArray {
     val m = pulvarCenterDzDx(x)
     val inv = 1f / sqrt(1f + m * m)
     return floatArrayOf(x - m * inv * lateralMetres, pulvarCenterZ(x) + inv * lateralMetres)
@@ -1401,13 +1401,8 @@ class PulvarRiverScene {
             GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, ib.size * 2, sb, GLES30.GL_STATIC_DRAW)
             val layout = FloatArray(p.size / 3 * 4)
             for (i in 0 until p.size / 3) {
-                val x = p[i * 3]
-                val progress = pulvarProgress(x)
-                layout[i * 4] = progress
-                layout[i * 4 + 1] = 0.017f * sin(progress * 4.6f + 0.7f) +
-                    0.008f * LandscapeProfile.fbm(progress * 3.1f, 41, octaves = 3) + progress * 0.014f
-                layout[i * 4 + 2] = (p[i * 3 + 2] - pulvarCenterZ(x)) / pulvarHalfWidth(x)
-                layout[i * 4 + 3] = p[i * 3 + 1] - pulvarWaterY(x)
+                val vertex = pulvarLandscapeVertex(p[i * 3], p[i * 3 + 1], p[i * 3 + 2])
+                vertex.copyInto(layout, i * 4)
             }
             GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, b[5])
             GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, layout.size * 4, floatBuffer(layout), GLES30.GL_STATIC_DRAW)
@@ -2076,3 +2071,21 @@ fun PulvarRiver3D(
 
 /** CPU-only geometry validation, without an EGL context. */
 internal fun pulvarGeometryCounts(): PulvarRiverCounts = buildPulvarRiverScene().counts
+
+/** Channel-relative coordinates. Undo the bend-normal offset before mapping to the landscape:
+ * using raw world X would widen outer bends and put existing trees in the water. */
+internal fun pulvarLandscapeVertex(worldX: Float, worldY: Float, worldZ: Float): FloatArray {
+    var x = worldX
+    repeat(10) {
+        val slope = pulvarCenterDzDx(x)
+        val residual = (x - worldX) + (pulvarCenterZ(x) - worldZ) * slope
+        x -= residual / (1f + slope * slope)
+    }
+    val slope = pulvarCenterDzDx(x)
+    val lateral = (worldZ - pulvarCenterZ(x) - slope * (worldX - x)) / sqrt(1f + slope * slope)
+    val progress = pulvarProgress(x)
+    return floatArrayOf(progress,
+        0.017f * sin(progress * 4.6f + 0.7f) +
+            0.008f * LandscapeProfile.fbm(progress * 3.1f, 41, octaves = 3) + progress * 0.014f,
+        lateral / pulvarHalfWidth(x), worldY - pulvarWaterY(x))
+}
