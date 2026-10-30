@@ -28,7 +28,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -580,8 +579,10 @@ fun HeroSkyCanvas(
                     skyFrame.jd, sunPosition != null && sunPosition.x >= size.width * 0.5f)
                 // Meet the existing scene tail's exact edge colour, even where the
                 // near bank or a pool reaches the bottom of the viewport.
-                val edgeColor = lerp(scenePalette(uiState.skyCanvasTheme,
-                    skyFrame.lightingState).groundBottom, Color.Black, 0.26f)
+                val edgeColor = scenePalette(
+                    uiState.skyCanvasTheme,
+                    skyFrame.lightingState
+                ).groundBottom
                 drawRect(Brush.verticalGradient(
                     0f to Color.Transparent, 1f to edgeColor,
                     startY = size.height * 0.97f, endY = size.height
@@ -672,14 +673,13 @@ fun HeroSkyCanvas(
         // into it. The GL monuments composite above this layer, but their stone ends
         // far above the canvas's bottom, so the tail never has stone to fade.
         if (isScene && bottomTailHeight > 0.dp) {
-            // The exact colour of the canvas's bottom row: the ground gradient's last
-            // stop, darkened by the ground renderer's foot fade (black at 0.26) — so
-            // the seam at the canvas edge is colour-continuous before the dissolve.
-            val tailColor = lerp(
-                scenePalette(uiState.skyCanvasTheme, skyFrame.lightingState).groundBottom,
-                Color.Black,
-                0.26f
-            )
+            // The exact colour at the ground's bottom edge. The foot fade is now
+            // colour-neutral, so only alpha changes below the canvas and every theme
+            // dissolves seamlessly into the actual app backdrop without a black cast.
+            val tailColor = scenePalette(
+                uiState.skyCanvasTheme,
+                skyFrame.lightingState
+            ).groundBottom
             Canvas(
                 modifier = Modifier
                     .align(Alignment.BottomStart)

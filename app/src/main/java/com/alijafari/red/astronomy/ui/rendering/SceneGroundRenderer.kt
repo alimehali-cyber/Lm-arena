@@ -194,7 +194,7 @@ object SceneGroundRenderer {
             drawMarvdashtLandscape(
                 drawScope, composition, palette, lighting, persepolis, sunPosPx, moonPosPx, julianDay, drawVegetation, replaceMountains
             )
-            drawBottomFade(drawScope, width, height)
+            drawBottomFade(drawScope, width, height, palette.groundBottom)
             return
         }
 
@@ -266,19 +266,22 @@ object SceneGroundRenderer {
         }
 
         // 7. A soft vignette at the foot of the scene.
-        drawBottomFade(drawScope, width, height)
+        drawBottomFade(drawScope, width, height, palette.groundBottom)
     }
 
     /**
      * The shared foot vignette: depth on any theme background, and it stops the ground from
      * ending on a flat line where the feed begins.
      */
-    private fun drawBottomFade(drawScope: DrawScope, width: Float, height: Float) {
+    private fun drawBottomFade(drawScope: DrawScope, width: Float, height: Float, edgeColor: Color) {
         val fadeTop = height * 0.90f
         drawScope.drawRect(
             brush = Brush.verticalGradient(
                 0.0f to Color.Transparent,
-                1.0f to Color.Black.copy(alpha = 0.26f),
+                // The ground already reaches this colour at the canvas edge. Keep the
+                // foot vignette colour-neutral so the scene can dissolve into any app
+                // backdrop without introducing a black cast or a colour seam.
+                1.0f to edgeColor,
                 startY = fadeTop,
                 endY = height
             ),
@@ -1153,11 +1156,13 @@ object SceneGroundRenderer {
                 return yc + riverHalfW(x, yc) * 1.35f + height * 0.006f
             }
             var paulowniaIdx = 0
-            fun plantPaulownia(x: Float, y: Float, hgt: Float, aerial: Float = 0f): Boolean {
+            fun plantPaulownia(
+                x: Float, y: Float, hgt: Float, aerial: Float = 0f, castShadow: Boolean = true
+            ): Boolean {
                 if (inApron(x, y) && y < toeY + height * 0.038f) return false
                 val ycHere = riverCenterY(x)
                 if (abs(y - ycHere) < riverHalfW(x, ycHere) * 1.15f) return false
-                treeShadows += TreeShadowSpec(x, y, hgt)
+                if (castShadow) treeShadows += TreeShadowSpec(x, y, hgt)
                 paulownias += PaulowniaPlanting(
                     x = x,
                     y = y,
@@ -1177,13 +1182,15 @@ object SceneGroundRenderer {
                 plantPaulownia(x, y + height * 0.014f, hgt, aerial)
             }
             var mapleIdx = 0
-            fun plantSugarMaple(x: Float, y: Float, hgt: Float, aerial: Float = 0f): Boolean {
+            fun plantSugarMaple(
+                x: Float, y: Float, hgt: Float, aerial: Float = 0f, castShadow: Boolean = true
+            ): Boolean {
                 // Maples take the same ground rules the other species did: no trunk in the worn
                 // earth at the stone's feet, none standing in the river.
                 if (inApron(x, y) && y < toeY + height * 0.038f) return false
                 val ycHere = riverCenterY(x)
                 if (abs(y - ycHere) < riverHalfW(x, ycHere) * 1.22f) return false
-                treeShadows += TreeShadowSpec(x, y, hgt)
+                if (castShadow) treeShadows += TreeShadowSpec(x, y, hgt)
                 sugarMaples += SugarMaplePlanting(
                     x = x,
                     y = y,
@@ -1203,6 +1210,14 @@ object SceneGroundRenderer {
             fun farBankY(x: Float, mul: Float): Float {
                 val yc = riverCenterY(x)
                 return yc - riverHalfW(x, yc) * mul
+            }
+            fun backGroveY(x: Float, mul: Float): Float {
+                val yc = riverCenterY(x)
+                val halfWidth = riverHalfW(x, yc)
+                // Keep the row behind the existing bank trees, but outside the river and
+                // just below the monument-apron exclusion line so all 40 slots can stand.
+                val preferred = maxOf(farBankY(x, mul), toeY + height * 0.041f)
+                return minOf(preferred, yc - halfWidth * 1.24f)
             }
             fun canalLineY(x: Float): Float =
                 canalY - height * 0.004f + (x / width) * height * 0.010f
@@ -1374,11 +1389,13 @@ object SceneGroundRenderer {
                     height * (0.056f + 0.008f * LandscapeProfile.hash01(1253, j * 5 + 2))
                 )
             }
-            for ((j, xf) in listOf(0.47f, 0.66f).withIndex()) {
-                val x = width * xf
+            // Keep the x=0.66 maple; the x=0.47 planting was the seventh near-bank
+            // tree from the right and is intentionally omitted from the foreground.
+            run {
+                val x = width * 0.66f
                 plantMapleGrove(
                     x, nearBankY(x),
-                    height * (0.052f + 0.008f * LandscapeProfile.hash01(1257, j * 5 + 2))
+                    height * (0.052f + 0.008f * LandscapeProfile.hash01(1257, 1 * 5 + 2))
                 )
             }
 
@@ -1439,6 +1456,29 @@ object SceneGroundRenderer {
                         plantSugarMaple(x, gapY(band), hgt, aerial = 0.62f - 0.16f * band)
                     }
                 }
+            }
+
+            // The far-back riparian rows sit behind the existing far-bank trees,
+            // framing Persepolis and Mil-e Azhdaha from the plain. These are small,
+            // haze-softened instances of the same cached seasonal sprites; their layout
+            // is baked into VegetationGeometry and they add no shadow-path replay.
+            // The paired 20-slot rows alternate species, yielding exactly 20 new
+            // Paulownias and 20 new sugar maples without per-frame tree construction.
+            for (i in 0 until 20) {
+                val x = width * (0.055f + 0.89f * (i + 0.5f) / 20f +
+                    (LandscapeProfile.hash01(1283, i * 7 + 1) - 0.5f) * 0.012f)
+                val y = backGroveY(x, 2.02f + 0.16f * LandscapeProfile.hash01(1289, i * 5 + 3))
+                val hgt = height * (0.015f + 0.008f * LandscapeProfile.hash01(1291, i * 11 + 5))
+                if (i % 2 == 0) plantPaulownia(x, y, hgt, aerial = 0.88f, castShadow = false)
+                else plantSugarMaple(x, y, hgt, aerial = 0.88f, castShadow = false)
+            }
+            for (i in 0 until 20) {
+                val x = width * (0.055f + 0.89f * (i + 0.5f) / 20f +
+                    (LandscapeProfile.hash01(1301, i * 7 + 1) - 0.5f) * 0.012f)
+                val y = backGroveY(x, 2.28f + 0.15f * LandscapeProfile.hash01(1303, i * 5 + 3))
+                val hgt = height * (0.014f + 0.007f * LandscapeProfile.hash01(1307, i * 11 + 5))
+                if (i % 2 == 0) plantPaulownia(x, y, hgt, aerial = 0.94f, castShadow = false)
+                else plantSugarMaple(x, y, hgt, aerial = 0.94f, castShadow = false)
             }
 
             // Uniform grass field — the researched distant-grass solution (the
