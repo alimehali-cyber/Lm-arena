@@ -82,7 +82,7 @@ object SceneGroundRenderer {
      * grass field is baked once per layout into eight tone-bucketed [Path]s and each draw
      * replays eight fills with the current lighting colours. The trees are not geometry at
      * all any more: each species is one bitmap ([PaulowniaSprite], [SugarMapleSprite]) and
-     * every planting is a blit, so the vegetation's per-frame cost is ~90 image quads and
+     * every planting is a blit, so the vegetation's per-frame cost is ~130 image quads and
      * eight paths — no per-tree rebuild, no canopy path replay.
      * Because the same Path instances are reused untouched, the hardware renderer's
      * path cache keeps their tessellation between frames as well. The key captures
@@ -190,11 +190,15 @@ object SceneGroundRenderer {
         val horizonY = composition.horizonY
         val papercraft = theme == SkyCanvasTheme.PAPERCRAFT_DIORAMA
 
+        // The colour this frame's bottom row is painted (see [bottomEdgeColor]); the foot vignette
+        // ends on it opaque, so the canvas and the tail below it share one exact colour.
+        val footColor = bottomEdgeColor(theme, lighting, marvdasht = persepolis != null)
+
         if (persepolis != null) {
             drawMarvdashtLandscape(
                 drawScope, composition, palette, lighting, persepolis, sunPosPx, moonPosPx, julianDay, drawVegetation, replaceMountains
             )
-            drawBottomFade(drawScope, width, height, palette.groundBottom)
+            drawBottomFade(drawScope, width, height, footColor)
             return
         }
 
@@ -266,21 +270,73 @@ object SceneGroundRenderer {
         }
 
         // 7. A soft vignette at the foot of the scene.
-        drawBottomFade(drawScope, width, height, palette.groundBottom)
+        drawBottomFade(drawScope, width, height, footColor)
     }
+
+    /**
+     * The exact colour this frame paints on the canvas's bottom row — the colour the tail below the
+     * canvas continues from, so the scene dissolves into whatever app backdrop is behind it (theme
+     * background, Live Sky, a photo backdrop) without a seam or a black cast.
+     *
+     * This is not an approximation of the bottom row: [drawBottomFade] paints this colour at full
+     * opacity over everything else on the last pixel row, so the canvas *always* ends on exactly
+     * this value — whatever the theme, the season, the Sun altitude, the Moon phase, the river's
+     * meander or the grass field's noise happened to be. One source of truth for both sides of the
+     * seam, which is what makes the blend hold at any time of day and in any colour.
+     *
+     * The two art paths end differently, on purpose:
+     *  - **Photographic themes** carry the Marvdasht valley's grass to the foot of the frame, so the
+     *    bottom row is the field's own tone — the same two colours the field buckets are mixed from —
+     *    settled toward the theme's ground and deepened a little for the foot vignette. Before this,
+     *    the foot was forced to `groundBottom` (near-black in every theme), so a daylight valley
+     *    ended in a black band that then faded into the app backdrop: the "black colours" under the
+     *    Moon and eclipse cards.
+     *  - **Stylised themes** have no field; their ground gradient's last stop *is* their bottom row
+     *    by design, so they keep it.
+     *
+     * @param marvdasht true when [draw] is painting the full Marvdasht landscape (the photographic
+     *   themes with the Persepolis + Mil-e Azhdaha relief), false for the stylised ground band.
+     */
+    fun bottomEdgeColor(theme: SkyCanvasTheme, lighting: LightingState, marvdasht: Boolean): Color {
+        if (!marvdasht) return scenePalette(theme, lighting).groundBottom
+        val day = lighting.ambientBrightness.coerceIn(0f, 1f)
+        // The field's own tone at the foot of the frame: its two ends, halfway. The cells above the
+        // vignette span deep..lit, so the middle is what the eye averages the last rows to.
+        val fieldMid = lerp(fieldDeepColor(day), fieldLitColor(day), 0.5f)
+        // Keep the field's hue; take a little depth from the theme's ground — enough that the foot
+        // still belongs to this palette and still darkens at night — and then a little more from
+        // the vignette itself, so the last rows read as the near edge of the field and not as a
+        // brighter strip under it. Deliberately small steps: this is the landscape's colour
+        // continuing into the app backdrop, so it has to stay recognisably the field's.
+        val themed = lerp(fieldMid, scenePalette(theme, lighting).groundBottom, 0.22f)
+        return lerp(themed, Color.Black, 0.14f).copy(alpha = 1f)
+    }
+
+    /** The grass field's deep end for this frame — one of the two colours its buckets are mixed from. */
+    private fun fieldDeepColor(day: Float): Color = lerp(Color(0xFF0A1610), Color(0xFF38663A), day)
+
+    /** The grass field's lit end for this frame. */
+    private fun fieldLitColor(day: Float): Color = lerp(Color(0xFF101F14), Color(0xFF74A460), day)
 
     /**
      * The shared foot vignette: depth on any theme background, and it stops the ground from
      * ending on a flat line where the feed begins.
+     *
+     * It is one colour's *alpha* ramp, never a wash toward black: the scene's own foot colour
+     * ([edgeColor]) is faded in from nothing to fully opaque on the last pixel row. That keeps the
+     * hue constant through the vignette and hands the tail an exact colour to continue from, so a
+     * bright field deepens into a darker grass instead of turning grey, and the dissolve into the
+     * app backdrop stays colour-true at every hour.
      */
     private fun drawBottomFade(drawScope: DrawScope, width: Float, height: Float, edgeColor: Color) {
         val fadeTop = height * 0.90f
         drawScope.drawRect(
             brush = Brush.verticalGradient(
-                0.0f to Color.Transparent,
-                // The ground already reaches this colour at the canvas edge. Keep the
-                // foot vignette colour-neutral so the scene can dissolve into any app
-                // backdrop without introducing a black cast or a colour seam.
+                // Same RGB throughout: only alpha climbs (eased, so the band never shows an edge).
+                0.0f to edgeColor.copy(alpha = 0f),
+                0.45f to edgeColor.copy(alpha = 0.42f),
+                0.72f to edgeColor.copy(alpha = 0.72f),
+                0.90f to edgeColor.copy(alpha = 0.92f),
                 1.0f to edgeColor,
                 startY = fadeTop,
                 endY = height
@@ -1131,8 +1187,10 @@ object SceneGroundRenderer {
         )
         fun buildVegetation(): VegetationGeometry {
             val treeShadows = mutableListOf<TreeShadowSpec>()
-            val paulownias = ArrayList<PaulowniaPlanting>(40)
-            val sugarMaples = ArrayList<SugarMaplePlanting>(56)
+            // Sized for the valley as planted (the near bank, gallery, canal, plain groves and the
+            // 20-slot far-bank back grove), so the one build allocates no growth copies.
+            val paulownias = ArrayList<PaulowniaPlanting>(64)
+            val sugarMaples = ArrayList<SugarMaplePlanting>(80)
             val fieldBuckets = List(8) { Path() }
             val nearBankFieldP = Path()
 
@@ -1157,9 +1215,14 @@ object SceneGroundRenderer {
             }
             var paulowniaIdx = 0
             fun plantPaulownia(
-                x: Float, y: Float, hgt: Float, aerial: Float = 0f, castShadow: Boolean = true
+                x: Float,
+                y: Float,
+                hgt: Float,
+                aerial: Float = 0f,
+                castShadow: Boolean = true,
+                skipApron: Boolean = false
             ): Boolean {
-                if (inApron(x, y) && y < toeY + height * 0.038f) return false
+                if (!skipApron && inApron(x, y) && y < toeY + height * 0.038f) return false
                 val ycHere = riverCenterY(x)
                 if (abs(y - ycHere) < riverHalfW(x, ycHere) * 1.15f) return false
                 if (castShadow) treeShadows += TreeShadowSpec(x, y, hgt)
@@ -1183,11 +1246,16 @@ object SceneGroundRenderer {
             }
             var mapleIdx = 0
             fun plantSugarMaple(
-                x: Float, y: Float, hgt: Float, aerial: Float = 0f, castShadow: Boolean = true
+                x: Float,
+                y: Float,
+                hgt: Float,
+                aerial: Float = 0f,
+                castShadow: Boolean = true,
+                skipApron: Boolean = false
             ): Boolean {
                 // Maples take the same ground rules the other species did: no trunk in the worn
                 // earth at the stone's feet, none standing in the river.
-                if (inApron(x, y) && y < toeY + height * 0.038f) return false
+                if (!skipApron && inApron(x, y) && y < toeY + height * 0.038f) return false
                 val ycHere = riverCenterY(x)
                 if (abs(y - ycHere) < riverHalfW(x, ycHere) * 1.22f) return false
                 if (castShadow) treeShadows += TreeShadowSpec(x, y, hgt)
@@ -1211,13 +1279,20 @@ object SceneGroundRenderer {
                 val yc = riverCenterY(x)
                 return yc - riverHalfW(x, yc) * mul
             }
-            fun backGroveY(x: Float, mul: Float): Float {
+            /**
+             * A back-grove slot's foot line: behind the existing far-bank trees, and never in the
+             * river.
+             *
+             * [toeOffset] is the row's depth below the monuments' toe as a fraction of the scene
+             * height, so the nearer row sits lower. The river clamp then lifts a slot further back
+             * (higher on the canvas) wherever wide water would otherwise sit under it, which is what
+             * keeps the grove on the far bank at every aspect ratio rather than only on the canvas
+             * the framing was tuned against.
+             */
+            fun backGroveY(x: Float, toeOffset: Float): Float {
                 val yc = riverCenterY(x)
-                val halfWidth = riverHalfW(x, yc)
-                // Keep the row behind the existing bank trees, but outside the river and
-                // just below the monument-apron exclusion line so all 40 slots can stand.
-                val preferred = maxOf(farBankY(x, mul), toeY + height * 0.041f)
-                return minOf(preferred, yc - halfWidth * 1.24f)
+                val clearOfWater = yc - riverHalfW(x, yc) * 1.30f
+                return minOf(toeY + height * toeOffset, clearOfWater)
             }
             fun canalLineY(x: Float): Float =
                 canalY - height * 0.004f + (x / width) * height * 0.010f
@@ -1389,8 +1464,17 @@ object SceneGroundRenderer {
                     height * (0.056f + 0.008f * LandscapeProfile.hash01(1253, j * 5 + 2))
                 )
             }
-            // Keep the x=0.66 maple; the x=0.47 planting was the seventh near-bank
-            // tree from the right and is intentionally omitted from the foreground.
+            // One of the two maple additions stands; the other does not.
+            //
+            // Counted right to left along the river's near bank, the row is
+            //   1 · 0.875 Paulownia (foreground frame)  2 · 0.78 Paulownia  3 · 0.70 Paulownia
+            //   4 · 0.66 sugar maple                   5 · 0.63 sugar maple 6 · 0.55 Paulownia
+            //   7 · 0.47 sugar maple                   8 · 0.40 Paulownia   9 · 0.34 Paulownia
+            //  10 · 0.20 Paulownia  11 · 0.115 sugar maple (foreground frame)
+            // so the seventh tree from the right is the sugar maple at x = 0.47, and that is the
+            // planting the foreground is specified without. It is simply not planted; nothing else
+            // in the valley moves, and the grove's own deterministic jitter is unchanged, so every
+            // other near-bank tree keeps its exact position and its exact mirrored copy.
             run {
                 val x = width * 0.66f
                 plantMapleGrove(
@@ -1458,27 +1542,30 @@ object SceneGroundRenderer {
                 }
             }
 
-            // The far-back riparian rows sit behind the existing far-bank trees,
-            // framing Persepolis and Mil-e Azhdaha from the plain. These are small,
-            // haze-softened instances of the same cached seasonal sprites; their layout
-            // is baked into VegetationGeometry and they add no shadow-path replay.
-            // The paired 20-slot rows alternate species, yielding exactly 20 new
-            // Paulownias and 20 new sugar maples without per-frame tree construction.
-            for (i in 0 until 20) {
-                val x = width * (0.055f + 0.89f * (i + 0.5f) / 20f +
-                    (LandscapeProfile.hash01(1283, i * 7 + 1) - 0.5f) * 0.012f)
-                val y = backGroveY(x, 2.02f + 0.16f * LandscapeProfile.hash01(1289, i * 5 + 3))
-                val hgt = height * (0.015f + 0.008f * LandscapeProfile.hash01(1291, i * 11 + 5))
-                if (i % 2 == 0) plantPaulownia(x, y, hgt, aerial = 0.88f, castShadow = false)
-                else plantSugarMaple(x, y, hgt, aerial = 0.88f, castShadow = false)
-            }
-            for (i in 0 until 20) {
-                val x = width * (0.055f + 0.89f * (i + 0.5f) / 20f +
-                    (LandscapeProfile.hash01(1301, i * 7 + 1) - 0.5f) * 0.012f)
-                val y = backGroveY(x, 2.28f + 0.15f * LandscapeProfile.hash01(1303, i * 5 + 3))
-                val hgt = height * (0.014f + 0.007f * LandscapeProfile.hash01(1307, i * 11 + 5))
-                if (i % 2 == 0) plantPaulownia(x, y, hgt, aerial = 0.94f, castShadow = false)
-                else plantSugarMaple(x, y, hgt, aerial = 0.94f, castShadow = false)
+            // The far-bank back grove (see [LandscapeBackGrove]): 20 more Paulownias and 20 more
+            // sugar maples behind every other tree on the far bank, framing Persepolis on the left
+            // and Mil-e Azhdaha on the right. Each slot is one blit of the species' existing
+            // cached sprite at this frame's light — the same pipeline, the same two bitmaps — and
+            // no slot asks for a cast shadow, so the grove adds forty small image draws to the
+            // replay that already runs and nothing to the shadow pass.
+            for (slot in LandscapeBackGrove.slots) {
+                val x = width * slot.xFraction
+                val y = backGroveY(x, slot.toeOffset)
+                val hgt = height * slot.heightFraction
+                // No cast shadow, and no apron refusal either: the far rows stand in the painted
+                // earth of the distant plain (not on stone), and at a very wide canvas the gap
+                // between the monuments' toe and the water's edge can close to nothing — the grove
+                // takes the river rule, which is the one that would actually look wrong, and keeps
+                // all forty slots standing at every aspect ratio.
+                if (slot.paulownia) {
+                    plantPaulownia(
+                        x, y, hgt, aerial = slot.aerial, castShadow = false, skipApron = true
+                    )
+                } else {
+                    plantSugarMaple(
+                        x, y, hgt, aerial = slot.aerial, castShadow = false, skipApron = true
+                    )
+                }
             }
 
             // Uniform grass field — the researched distant-grass solution (the
@@ -1574,8 +1661,9 @@ object SceneGroundRenderer {
         // tree shadows, trunks and crowns all stand *in* it. Cool lively greens,
         // deep in shade to sunlit at the bucket tops; at night the same buckets
         // collapse toward the dark ground tone.
-        val fieldDeep = lerp(Color(0xFF0A1610), Color(0xFF38663A), day)
-        val fieldLit = lerp(Color(0xFF101F14), Color(0xFF74A460), day)
+        // The same two ends [bottomEdgeColor] reads, so the field and the foot can never drift apart.
+        val fieldDeep = fieldDeepColor(day)
+        val fieldLit = fieldLitColor(day)
         for (i in veg.fieldBuckets.indices) {
             val t = (i + 0.5f) / veg.fieldBuckets.size
             drawScope.drawPath(veg.fieldBuckets[i], lerp(fieldDeep, fieldLit, t).copy(alpha = 0.94f))
@@ -1623,7 +1711,7 @@ object SceneGroundRenderer {
         // species, season and display size. Every planting is one blit of that bitmap: mirrored
         // where the planting calls for it, faded by its own aerial perspective, and multiplied by
         // this frame's light. Nothing is re-grown, re-projected or re-drawn per tree, so the valley
-        // carries ~90 trees for the cost of ~90 textured quads and two bitmaps.
+        // carries ~130 trees for the cost of ~130 textured quads and two bitmaps.
         //
         // Both species share one back-to-front pass (the two plantings lists are already sorted by
         // y), because sprites overlap where the groves are dense and a maple in front of a Paulownia

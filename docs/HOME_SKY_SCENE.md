@@ -98,7 +98,7 @@ photographic themes, the Persepolis GL layer between the first two:
 ### Ground — `SceneGroundRenderer`
 
 Two art paths. The **stylised themes** keep the original band — far ridge → mid ridge →
-solid ground gradient → horizon catch-light → grass tufts → bottom fade — with summed-sine ridges
+solid ground gradient → grass tufts → foot vignette — with summed-sine ridges
 sampled through quadratics and deterministic grass (Papercraft keeps hard cardstock edges and skips
 the strokes). (The old full-width horizon "mist shelf" was removed from both paths: it read as a
 white band across the canvas at the readout's day/date line.)
@@ -176,16 +176,27 @@ and that the ground band sits below the horizon.
   stays visible.
 - Cloud presence per theme: `ScenePalette.cloudStrength`.
 - Motion cost: `SCENE_MOTION_FRAME_MS` in `HeroSkyCanvas` (42 ms ≈ 24 fps).
-- Scene tail: the scene does not end at the canvas's bottom edge. The ground's own bottom
+- Scene tail: the scene does not end at the canvas's bottom edge. The canvas's own bottom
   colour continues *below* the canvas and dissolves in alpha to full transparency over
   `bottomTailHeight` (Home passes `cardSize + RedSpacing.md`, the card row's height), so
   the tail passes underneath the Moon and eclipse cards. Fading in alpha rather than to a
   colour is what makes it backdrop-agnostic: it merges into the theme background, the
-  live-sky backdrop render (`LiveSkyBackdrop`), or any other app backdrop unchanged. The
-  canvas itself stays crisp to its edge — nothing fades upward into it. (See "SCENE TAIL"
-  in `HeroSkyCanvas`; the scene root is deliberately unclipped so the tail can paint
-  there.) Static landscape geometry is cached per layout — see `VegetationGeometry` in
-  `SceneGroundRenderer`.
+  live-sky backdrop render (`LiveSkyBackdrop`), a photo backdrop, or any other app
+  backdrop unchanged. The canvas itself stays crisp to its edge — nothing fades upward
+  into it. (See "SCENE TAIL" in `HeroSkyCanvas`; the scene root is deliberately unclipped
+  so the tail can paint there.) Static landscape geometry is cached per layout — see
+  `VegetationGeometry` in `SceneGroundRenderer`.
+- **One foot colour, shared by the canvas and the tail.** `SceneGroundRenderer.bottomEdgeColor`
+  computes the colour the canvas's bottom row is painted at this frame's theme and lighting, and
+  `drawBottomFade` paints that colour's alpha ramp from nothing to fully opaque on the last pixel
+  row. The tail starts from the same value, so the seam is a continuation rather than a blend, and
+  the whole ramp is one colour losing alpha. On the photographic themes the value is the grass
+  field's own tone at the foot of the frame (settled toward the theme's ground and deepened for the
+  vignette), not the palette's near-black `groundBottom` — a daylight valley now ends in its field
+  green, golden hour in warm earth, and astronomical night in near-black. The river overlay's
+  bottom edge in `HeroSkyCanvas` uses the same value, so the GL water corridor can never tint the
+  last rows away from it. `SceneFootColorTest` holds the contract (opaque in every theme and light,
+  green at noon, monotone along the Sun's arc, dark at night).
 - Horizon bands are banned: any full-width pale rect with a straight edge at the horizon
   (the old mist shelf, then the "horizon catch-light" wash in both ground paths) reads as
   a white band across the scene at the readout's day/date line, flaring while scrubbing

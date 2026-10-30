@@ -116,8 +116,18 @@ species split changed, because two species left:
 | 8 oak | 8 oak (unchanged) |
 
 Each planting is a `PaulowniaPlanting(x, y, treeHeightPx, flip, aerial)` on the cached vegetation
-geometry — no paths are added to the bake, so the ground's per-frame replay costs 34 more images and
-nothing else. `aerial` thins the far-bank copies toward the haze; the tree shadow each planting
+geometry — no paths are added to the bake, so the ground's per-frame replay costs the plantings'
+images and nothing else.
+
+### The far-bank back grove
+
+Forty more trees stand behind the far-bank gallery, framing Persepolis on the left and Mil-e Azhdaha
+on the right: **20 Paulownias and 20 sugar maples**, two staggered rows alternating species
+(`LandscapeBackGrove.slots`). They are the same two sprites at a smaller size — one blit each, no
+second bake, no new geometry, no GL work — and they ask for no cast shadow, so the shadow pass keeps
+its old length. The rows sit at `toeY + H·(0.026, 0.036)` and are clamped behind the water's edge
+from the river's own centreline, so the counts hold on any aspect ratio rather than only on the
+canvas the framing was tuned against. `aerial` thins the far-bank copies toward the haze; the tree shadow each planting
 throws is the same `TreeShadowSpec` row every other tree uses, so shadow length still tracks the Sun.
 
 ## 5. Tuning

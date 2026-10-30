@@ -721,6 +721,8 @@ def main():
         _paulownia_tint = (214, 218, 214)  # the app multiplies the daylight bake by this frame's Sun
         _paulownia_count = [0]
 
+        planted = []  # (x fraction, y fraction, species): what actually stands, for the asserts
+
         def draw_paulownia(x, y, hgt, flip, aerial=0.0):
             # One blit of the single render: PaulowniaSprite.draw in the app. The sprite is resized to
             # treeHeight x spanFraction, offset by its own trunk-foot fractions, mirrored if asked, and
@@ -728,6 +730,7 @@ def main():
             layer = _paulownia_sprite.at(
                 hgt, flip=flip, tint=_paulownia_tint, alpha=1.0 - 0.20 * aerial
             )
+            planted.append((x / W, y / H, "paulownia"))
             left = int(round(x - layer.width * _paulownia_sprite.base_x_fraction))
             top = int(round(y - layer.height * _paulownia_sprite.base_y_fraction))
             target = img
@@ -738,8 +741,8 @@ def main():
                 rgba.alpha_composite(layer, (max(0, left), max(0, top)))
                 img.paste(rgba.convert("RGB"))
 
-        def plant_paulownia(x, y, hgt, aerial=0.0):
-            if in_apron(x, y) and y < TOE_Y + H * 0.038:
+        def plant_paulownia(x, y, hgt, aerial=0.0, skip_apron=False):
+            if not skip_apron and in_apron(x, y) and y < TOE_Y + H * 0.038:
                 return False
             yc = river_at(x)
             if abs(y - yc) < river_halfw(x, yc) * 1.15:
@@ -764,6 +767,7 @@ def main():
             layer = _maple_sprite.at(
                 hgt, flip=flip, tint=_maple_tint, alpha=1.0 - 0.22 * aerial
             )
+            planted.append((x / W, y / H, "maple"))
             left = int(round(x - layer.width * _maple_sprite.base_x_fraction))
             top = int(round(y - layer.height * _maple_sprite.base_y_fraction))
             if img.mode == "RGBA":
@@ -773,8 +777,8 @@ def main():
                 rgba.alpha_composite(layer, (max(0, left), max(0, top)))
                 img.paste(rgba.convert("RGB"))
 
-        def plant_maple(x, y, hgt, aerial=0.0):
-            if in_apron(x, y) and y < TOE_Y + H * 0.038:
+        def plant_maple(x, y, hgt, aerial=0.0, skip_apron=False):
+            if not skip_apron and in_apron(x, y) and y < TOE_Y + H * 0.038:
                 return False
             yc = river_at(x)
             if abs(y - yc) < river_halfw(x, yc) * 1.22:
@@ -800,6 +804,37 @@ def main():
             x = W * _hash01(i * 19.7 + 3.3)
             y = TOE_Y + H * (0.042 + 0.030 * _hash01(i * 3.9))
             plant_maple(x, y, H * (0.011 + 0.006 * _hash01(i * 7.1)))
+
+        # The far-bank back grove (LandscapeBackGrove in the app): 20 more Paulownia + 20 more
+        # sugar maples behind every other far-bank tree, framing Persepolis (left) and Mil-e
+        # Azhdaha (right). Two staggered rows, alternating species, no cast shadow, and each slot
+        # is one blit of the sprite already baked above — the same pipeline the rest of the valley
+        # uses. It is painted here, before the gallery, because the gallery stands in front of it.
+        def back_grove_y(x, toe_offset):
+            yc = river_at(x)
+            # Behind the bank trees and never in the water, at any canvas aspect (see backGroveY).
+            return min(TOE_Y + H * toe_offset, yc - river_halfw(x, yc) * 1.30)
+
+        BACK_GROVE_ROWS = (
+            # (x seed, height seed, aerial, toe offset, base height, height spread), back row first
+            (1283, 1291, 0.94, 0.026, 0.014, 0.007),
+            (1301, 1307, 0.88, 0.036, 0.015, 0.008),
+        )
+        back_grove = {"paulownia": 0, "maple": 0}
+        for row, (xseed, hseed, aerial, toe_off, base_h, spread_h) in enumerate(BACK_GROVE_ROWS):
+            for i in range(20):
+                # Half-slot stagger on the nearer row: its trunks stand in the back row's gaps.
+                slot = (i + 0.5 + 0.5 * row) / 20
+                x = W * (0.055 + 0.89 * slot + (_hash01(xseed + i * 7.1) - 0.5) * 0.012)
+                y = back_grove_y(x, toe_off)
+                hgt = H * (base_h + spread_h * _hash01(hseed + i * 11.3))
+                if (i + row) % 2 == 0:
+                    assert plant_paulownia(x, y, hgt, aerial, skip_apron=True)
+                    back_grove["paulownia"] += 1
+                else:
+                    assert plant_maple(x, y, hgt, aerial, skip_apron=True)
+                    back_grove["maple"] += 1
+        assert back_grove == {"paulownia": 20, "maple": 20}, back_grove
 
         for i in range(9):  # far-bank gallery: paulownias + oaks among pistachios
             x = W * (0.05 + 0.90 * (i + _hash01(i * 3.1 + 6.01)) / 9)
@@ -907,9 +942,14 @@ def main():
             x = W * xf
             if plant_paulownia(x, near_bank_y(x), H * (0.056 + 0.008 * _hash01(j * 5.17 + 12.53))):
                 near_added["paulownia"] += 1
-        for j, xf in enumerate((0.47, 0.66)):
+        # One of the two maple additions stands. Counted right to left along the near bank — 0.875
+        # Paulownia, 0.78 Paulownia, 0.70 Paulownia, 0.66 maple, 0.63 maple, 0.55 Paulownia,
+        # 0.47 maple — the seventh tree from the right is the sugar maple at x = 0.47, and the
+        # foreground is specified without it: it is simply not planted (SceneGroundRenderer keeps
+        # the same single slot, with the same hash index, so the 0.66 maple does not move).
+        for xf, hash_j in ((0.66, 1),):
             x = W * xf
-            if plant_maple(x, near_bank_y(x), H * (0.052 + 0.008 * _hash01(j * 5.23 + 12.57))):
+            if plant_maple(x, near_bank_y(x), H * (0.052 + 0.008 * _hash01(hash_j * 5.23 + 12.57))):
                 near_added["maple"] += 1
 
         # Seven more sugar maples across the plain: the species now carries the valley floor, so
@@ -950,7 +990,17 @@ def main():
                 else:
                     plant_maple(x, gap_y(band), hgt, aerial)
 
-        assert near_added == {"paulownia": 3, "maple": 2}, near_added
+        assert near_added == {"paulownia": 3, "maple": 1}, near_added
+
+        # What actually stands on the viewer's own bank, right to left. The removed planting must be
+        # absent (that is the whole point), the row must otherwise be intact, and every near-bank
+        # tree must be one of the two species' projected renders.
+        near_bank = sorted((p for p in planted if p[1] > 0.90), key=lambda p: -p[0])
+        assert all(abs(xf - 0.47) > 0.01 for xf, _, _ in near_bank), near_bank
+        assert len(near_bank) == 10, near_bank
+        assert {kind for _, _, kind in near_bank} == {"paulownia", "maple"}, near_bank
+        print("near bank, right to left: " +
+              ", ".join(f"{xf:.3f} {kind}" for xf, _, kind in near_bank))
         assert _maple_count[0] >= 40, _maple_count
 
 
@@ -1010,6 +1060,31 @@ def main():
         row_y += row_h * 0.85
         row += 1
     draw_trees()
+
+    # The scene's foot vignette — SceneGroundRenderer.drawBottomFade with bottomEdgeColor in the
+    # app. It is ONE colour's alpha ramp, ending fully opaque on the last pixel row, and the colour
+    # is the grass field's own tone (its two ends, halfway, settled 22 % toward the theme's ground
+    # bottom and deepened 14 % for the vignette) rather than the palette's near-black groundBottom a
+    # daylight valley used to end on. Because the last row is exactly this colour, the tail below
+    # starts from the canvas's actual bottom colour: a continuation, not a blend.
+    FIELD_FOOT = lerp(lerp(FIELD_DEEP, FIELD_LIT, 0.5), (12, 26, 19), 0.22)
+    FIELD_FOOT = tuple(int(round(c * 0.86)) for c in FIELD_FOOT)
+    FOOT_STOPS = ((0.00, 0.00), (0.45, 0.42), (0.72, 0.72), (0.90, 0.92), (1.00, 1.00))
+
+    def _ramp(t, stops):
+        for k in range(1, len(stops)):
+            if t <= stops[k][0]:
+                t0, a0 = stops[k - 1]
+                t1, a1 = stops[k]
+                f = 0.0 if t1 <= t0 else (t - t0) / (t1 - t0)
+                return a0 + (a1 - a0) * f
+        return stops[-1][1]
+
+    foot_top = int(H * 0.90)
+    for yy in range(foot_top, H):
+        t = (yy - foot_top) / max(1, H - 1 - foot_top)
+        d.line([(0, yy), (W, yy)],
+               fill=(*FIELD_FOOT, int(round(255 * _ramp(min(t, 1.0), FOOT_STOPS)))))
 
     # (No corner-shade scrub at the viewer's feet any more: the scene's bottom
     # dissolves into the app backdrop instead — see the merge below.)
@@ -1102,14 +1177,19 @@ def main():
     # HeroSkyCanvas's SCENE TAIL. The diagram grows a strip under the scene to show
     # it; the scene itself is untouched (nothing fades upward into it).
     TAIL = int(H * 0.16)
-    extended = Image.new("RGB", (W, H + TAIL), (13, 15, 20))  # backdrop stand-in
+    BACKDROP = (13, 15, 20)  # backdrop stand-in
+    extended = Image.new("RGB", (W, H + TAIL), BACKDROP)
     bottom_px = [img.getpixel((x, H - 1)) for x in range(0, W, 16)]
     tail_rgb = tuple(sum(c[i] for c in bottom_px) // len(bottom_px) for i in range(3))
-    grad = Image.new("L", (1, TAIL), 0)
-    gpx = grad.load()
+    # The app's own eased alpha decay (HeroSkyCanvas SCENE TAIL), so the diagram shows the ramp the
+    # device draws: the canvas's bottom colour at alpha 1 easing to nothing over the card row.
+    TAIL_STOPS = ((0.00, 1.00), (0.08, 0.95), (0.18, 0.84), (0.30, 0.68), (0.44, 0.50),
+                  (0.58, 0.33), (0.72, 0.19), (0.85, 0.08), (1.00, 0.00))
+    tail_d = ImageDraw.Draw(extended)
     for yy in range(TAIL):
-        gpx[0, yy] = int(255 * (1.0 - yy / TAIL) ** 1.5)
-    extended.paste(Image.new("RGB", (W, TAIL), tail_rgb), (0, H), grad.resize((W, TAIL)))
+        a = _ramp(yy / max(1, TAIL - 1), TAIL_STOPS)
+        tail_d.line([(0, H + yy), (W, H + yy)],
+                    fill=tuple(int(round(tail_rgb[i] * a + BACKDROP[i] * (1 - a))) for i in range(3)))
     extended.paste(img, (0, 0))
     img = extended
     d = ImageDraw.Draw(img, "RGBA")

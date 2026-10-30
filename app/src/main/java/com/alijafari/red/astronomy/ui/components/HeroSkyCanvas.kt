@@ -577,14 +577,17 @@ fun HeroSkyCanvas(
                 } else null
                 SceneGroundRenderer.drawRiverVegetation(this, skyFrame.lightingState,
                     skyFrame.jd, sunPosition != null && sunPosition.x >= size.width * 0.5f)
-                // Meet the existing scene tail's exact edge colour, even where the
-                // near bank or a pool reaches the bottom of the viewport.
-                val edgeColor = scenePalette(
-                    uiState.skyCanvasTheme,
-                    skyFrame.lightingState
-                ).groundBottom
+                // Meet the scene tail's exact edge colour, even where the near bank or a
+                // pool reaches the bottom of the viewport. This is the same value the sky
+                // pass's foot vignette ends on and the tail below the canvas starts from,
+                // so all three agree on the canvas's last pixel row at every instant.
+                val edgeColor = SceneGroundRenderer.bottomEdgeColor(
+                    theme = uiState.skyCanvasTheme,
+                    lighting = skyFrame.lightingState,
+                    marvdasht = true // this overlay only exists for the Marvdasht scene
+                )
                 drawRect(Brush.verticalGradient(
-                    0f to Color.Transparent, 1f to edgeColor,
+                    0f to edgeColor.copy(alpha = 0f), 1f to edgeColor,
                     startY = size.height * 0.97f, endY = size.height
                 ), topLeft = Offset(0f, size.height * 0.97f),
                     size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.03f))
@@ -668,18 +671,23 @@ fun HeroSkyCanvas(
         // that follows the canvas on Home, so the tail passes underneath those cards.
         // Because it fades in alpha rather than toward any colour, it merges into
         // whatever backdrop is actually behind the screen — the theme background, the
-        // live-sky backdrop render, or any other app backdrop — with nothing per-case
-        // to adapt. The canvas itself stays crisp to its edge; nothing fades upward
-        // into it. The GL monuments composite above this layer, but their stone ends
-        // far above the canvas's bottom, so the tail never has stone to fade.
+        // live-sky backdrop render, a photo backdrop, or any other app backdrop — with
+        // nothing per-case to adapt. The canvas itself stays crisp to its edge; nothing
+        // fades upward into it. The GL monuments composite above this layer, but their
+        // stone ends far above the canvas's bottom, so the tail never has stone to fade.
         if (isScene && bottomTailHeight > 0.dp) {
-            // The exact colour at the ground's bottom edge. The foot fade is now
-            // colour-neutral, so only alpha changes below the canvas and every theme
-            // dissolves seamlessly into the actual app backdrop without a black cast.
-            val tailColor = scenePalette(
-                uiState.skyCanvasTheme,
-                skyFrame.lightingState
-            ).groundBottom
+            // The colour the canvas's own bottom row is painted with, computed from this
+            // frame's theme and lighting by the renderer that painted it. The foot vignette
+            // ends on it fully opaque, so the first row of the tail is colour-identical to
+            // the last row of the canvas, and the whole ramp is one colour losing alpha.
+            // It therefore follows the scene at any time of day — a daylight valley's green
+            // field, golden hour's warm earth, astronomical night's near-black — instead of
+            // ending every frame on the same black band.
+            val tailColor = SceneGroundRenderer.bottomEdgeColor(
+                theme = uiState.skyCanvasTheme,
+                lighting = skyFrame.lightingState,
+                marvdasht = persepolisFraming != null
+            )
             Canvas(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -689,10 +697,17 @@ fun HeroSkyCanvas(
             ) {
                 drawRect(
                     brush = Brush.verticalGradient(
-                        0.0f to tailColor,
-                        0.35f to tailColor.copy(alpha = 0.55f),
-                        0.7f to tailColor.copy(alpha = 0.22f),
-                        1.0f to tailColor.copy(alpha = 0f)
+                        // An eased alpha decay: no straight-line ramp, and no stop close
+                        // enough to its neighbour to band on a 10-bit display.
+                        0.00f to tailColor,
+                        0.08f to tailColor.copy(alpha = 0.95f),
+                        0.18f to tailColor.copy(alpha = 0.84f),
+                        0.30f to tailColor.copy(alpha = 0.68f),
+                        0.44f to tailColor.copy(alpha = 0.50f),
+                        0.58f to tailColor.copy(alpha = 0.33f),
+                        0.72f to tailColor.copy(alpha = 0.19f),
+                        0.85f to tailColor.copy(alpha = 0.08f),
+                        1.00f to tailColor.copy(alpha = 0f)
                     ),
                     size = size
                 )

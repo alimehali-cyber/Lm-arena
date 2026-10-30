@@ -84,16 +84,30 @@ plain, plus both species in the space between the monuments:
 
 - the foreground frame — a maple on the left bank, a Paulownia on the right;
 - foothill saplings (7), the open woodland (6), the canal line (5) and the far-bank gallery (6);
-- scattered plain maples (4), drained oak groves (8), near-bank additions (2) and the seven new
-  plantings in the plain between the river and the toe;
+- scattered plain maples (4), drained oak groves (8), near-bank additions (**1**, see below) and the
+  seven new plantings in the plain between the river and the toe;
 - **between Persepolis and Mil-e Azhdaha**: three receding bands of four, both species alternating,
   at `toeY + H·(0.030, 0.060, 0.090)` with heights `H·(0.030, 0.041, 0.056)` — the farther back a
   band sits, the smaller every tree in it, and aerials rising toward the front, exactly the
-  perspective the rest of the valley follows.
+  perspective the rest of the valley follows;
+- **the far-bank back grove**: 20 sugar maples in two staggered rows behind every other far-bank
+  tree, at `toeY + H·(0.026, 0.036)`, heights `H·(0.014…0.022)`, aerials 0.94 / 0.88, alternating
+  with 20 Paulownias across the whole width so the band frames both monuments. See
+  `LandscapeBackGrove` and [`PAULOWNIA_TREE.md`](PAULOWNIA_TREE.md) §4.
 
 Counts are what stands after refusals: a planting is declined only in the worn earth at the
 monuments' feet and in open water, and every grove planting retries one step away from the water
-before giving up.
+before giving up. The back grove is the one band exempt from the apron rule (its trunks stand in the
+distant painted plain, not on stone) — it takes only the river rule, so all forty slots stand at
+every aspect ratio.
+
+### The foreground's seventh tree from the right
+
+Counted right to left along the river's near bank, the row is: 0.875 Paulownia (the foreground
+frame), 0.78 Paulownia, 0.70 Paulownia, 0.66 sugar maple, 0.63 sugar maple, 0.55 Paulownia,
+**0.47 sugar maple**, 0.40 Paulownia, 0.34 Paulownia, 0.20 Paulownia, 0.115 sugar maple (the left
+foreground frame). The seventh from the right is the sugar maple at `x = 0.47`, and it is not
+planted. The other maple addition at 0.66 keeps its own hash index, so no surviving tree moves.
 
 ## Files
 
