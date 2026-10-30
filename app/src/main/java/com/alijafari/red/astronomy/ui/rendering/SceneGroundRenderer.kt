@@ -1455,8 +1455,8 @@ object SceneGroundRenderer {
                 )
             }
 
-            // Near-bank additions: three more Paulownias and two more maples along the viewer's own
-            // bank, filling the riparian grove between the near-bank frames.
+            // Near-bank additions: three more Paulownias — and one more maple, not two — along the
+            // viewer's own bank, filling the riparian grove between the near-bank frames.
             for ((j, xf) in listOf(0.40f, 0.55f, 0.70f).withIndex()) {
                 val x = width * xf
                 plantPaulowniaGrove(
@@ -1473,15 +1473,13 @@ object SceneGroundRenderer {
             //  10 · 0.20 Paulownia  11 · 0.115 sugar maple (foreground frame)
             // so the seventh tree from the right is the sugar maple at x = 0.47, and that is the
             // planting the foreground is specified without. It is simply not planted; nothing else
-            // in the valley moves, and the grove's own deterministic jitter is unchanged, so every
-            // other near-bank tree keeps its exact position and its exact mirrored copy.
-            run {
-                val x = width * 0.66f
-                plantMapleGrove(
-                    x, nearBankY(x),
-                    height * (0.052f + 0.008f * LandscapeProfile.hash01(1257, 1 * 5 + 2))
-                )
-            }
+            // in the valley moves. The surviving addition keeps the hash index it had in the pair
+            // (j = 1), so its height — and with it its cropped sprite rect — is unchanged too.
+            val nearBankMapleX = width * 0.66f
+            plantMapleGrove(
+                nearBankMapleX, nearBankY(nearBankMapleX),
+                height * (0.052f + 0.008f * LandscapeProfile.hash01(1257, 1 * 5 + 2))
+            )
 
             // ---- seven more sugar maples across the plain --------------------------------
             // The species now carries the valley floor, so it gets a wider spread than the oak's
