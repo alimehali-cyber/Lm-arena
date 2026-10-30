@@ -60,7 +60,8 @@ object SkySceneRenderer {
         target: SkyRenderTarget = SkyRenderTarget.HOME_HERO,
         moonSprites: SkyMoonSprites? = null,
         bortle: Int = 3,
-        foregroundVegetationInOverlay: Boolean = false
+        foregroundVegetationInOverlay: Boolean = false,
+        replaceSceneMountains: Boolean = false
     ) {
         val canvasW = drawScope.size.width
         val canvasH = drawScope.size.height
@@ -246,7 +247,8 @@ object SkySceneRenderer {
                     moonPosPx = moonPosPx,
                     // The valley's Paulownias wear the season of the instant they are drawn for.
                     julianDay = frame.jd,
-                    drawVegetation = !foregroundVegetationInOverlay
+                    drawVegetation = !foregroundVegetationInOverlay,
+                    replaceMountains = replaceSceneMountains
                 )
             }
             target.drawsLandscape -> LandscapeRenderer.drawHorizonLandscape(

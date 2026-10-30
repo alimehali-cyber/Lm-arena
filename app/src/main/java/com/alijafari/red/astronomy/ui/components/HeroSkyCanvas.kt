@@ -49,6 +49,7 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.domain.TimeMachineMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.mountain.HomeMountain
 import com.alijafari.red.astronomy.ui.persepolis.PersepolisFeature
 import com.alijafari.red.astronomy.ui.persepolis.PersepolisLandscape
 import com.alijafari.red.astronomy.ui.rendering.*
@@ -516,7 +517,19 @@ fun HeroSkyCanvas(
                 target = renderTarget,
                 moonSprites = moonSprites,
                 bortle = uiState.bortleClass,
-                foregroundVegetationInOverlay = persepolisFraming != null
+                foregroundVegetationInOverlay = persepolisFraming != null,
+                replaceSceneMountains = persepolisFraming != null
+            )
+        }
+
+        // The supplied massif is part of the photographic Home scene, behind both ruins.
+        // Its foot blends into the painted field rather than covering the river and trees.
+        if (persepolisFraming != null) {
+            val sceneHeight = with(LocalDensity.current) { maxHeight.toPx() }.coerceAtLeast(1f)
+            HomeMountain(
+                frame = skyFrame,
+                toeFraction = persepolisFraming.toeYPx / sceneHeight,
+                modifier = Modifier.fillMaxSize().testTag("home_mountain")
             )
         }
 

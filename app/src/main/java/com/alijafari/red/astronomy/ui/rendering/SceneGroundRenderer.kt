@@ -181,7 +181,8 @@ object SceneGroundRenderer {
         sunPosPx: Offset? = null,
         moonPosPx: Offset? = null,
         julianDay: Double? = null,
-        drawVegetation: Boolean = true
+        drawVegetation: Boolean = true,
+        replaceMountains: Boolean = false
     ) {
         val palette = scenePalette(theme, lighting)
         val width = composition.widthPx
@@ -191,7 +192,7 @@ object SceneGroundRenderer {
 
         if (persepolis != null) {
             drawMarvdashtLandscape(
-                drawScope, composition, palette, lighting, persepolis, sunPosPx, moonPosPx, julianDay, drawVegetation
+                drawScope, composition, palette, lighting, persepolis, sunPosPx, moonPosPx, julianDay, drawVegetation, replaceMountains
             )
             drawBottomFade(drawScope, width, height)
             return
@@ -475,7 +476,8 @@ object SceneGroundRenderer {
         moonPosPx: Offset?,
         /** The instant, for both species' season (see [PersianCalendar] and the two sprite files). */
         julianDay: Double? = null,
-        drawVegetation: Boolean = true
+        drawVegetation: Boolean = true,
+        replaceMountains: Boolean = false
     ) {
         val width = composition.widthPx
         val height = composition.heightPx
@@ -501,6 +503,7 @@ object SceneGroundRenderer {
             )
         }
 
+        if (!replaceMountains) {
         // 1. Far Zagros range: the encircling mountains, deep in aerial perspective. Its
         //    strips fill down to the plain so no sky sliver survives under the range.
         val farBase = groundTopY + height * 0.006f
@@ -549,6 +552,8 @@ object SceneGroundRenderer {
         // shelf stacked into a white band across the canvas at the readout's day/date line.
         // The range's own haze dissolve supplies the aerial perspective by itself.)
 
+        }
+
         // 3. The plain: a lively cool-green field floor, darkening toward the viewer.
         //    (The old dry olive-straw base read yellowy and half-dead under the new
         //    green field; the whole floor now lives in the same cool green family.)
@@ -569,6 +574,7 @@ object SceneGroundRenderer {
         // edge at groundTopY was the white band visible across the scene at the
         // readout's day/date line, strongest while scrubbing through daytime.)
 
+        if (!replaceMountains) {
         // 4. The Dimeh-Mil massif: the rocky, relatively green limestone ridge the
         //    Mil-e Azhdaha tower stands against west of Nurabad (Kuh-e Shirmard /
         //    Tang-e Kalleh). Nearer, paler and more strongly faceted than the far
@@ -726,6 +732,8 @@ object SceneGroundRenderer {
         }
         // (No haze-pooling wash at the massif foot: another full-width pale rect, and
         // one more contributor to the horizontal white band. Banned like the rest.)
+
+        }
 
         // 5. Piedmont foothills: one low eroded undulation in front of the massif foot.
         val footBase = toeY + height * 0.028f
