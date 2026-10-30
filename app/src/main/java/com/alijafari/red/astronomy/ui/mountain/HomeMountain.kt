@@ -62,6 +62,7 @@ fun HomeMountain(frame: SkySceneFrame, toeFraction: Float, modifier: Modifier = 
     AndroidView(
         factory = { context ->
             MountainTextureView(context).apply {
+                setRenderScale(HOME_MOUNTAIN_RENDER_SCALE)
                 setSeason(season)
                 setSun(sunAz, sunAlt)
                 setMoon(moonAz, moonAlt, moonIntensity)

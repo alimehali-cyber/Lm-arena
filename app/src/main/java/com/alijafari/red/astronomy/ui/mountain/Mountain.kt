@@ -1,4 +1,3 @@
-// Change this package to your app's package.
 package com.alijafari.red.astronomy.ui.mountain
 
 import android.opengl.GLES30
@@ -36,11 +35,12 @@ import kotlin.math.sqrt
  * front escarpment crest carries the vertically fluted cliff band; below it
  * a concave talus/apron cross-section (steep at the cliff foot, flattening
  * to the base) falls to scrub foothills. The massif is 4,800 m wide and
- * ≈1,000 m high: a 560×220 heightfield with domain-warped fractal relief,
+ * ≈1,000 m high: a 400×160 heightfield with domain-warped fractal relief,
  * downslope ribs displaced in depth as well as height, a hand-placed gully
  * network, broad diagonal drainage basins between spurs, two thermal
- * (talus) relaxation passes, edge skirts, 430 talus boulders and 1,100 scrub
- * domes — 150,731 vertices / 261,280 triangles in five ≤60k-vertex chunks.
+ * (talus) relaxation passes, edge skirts and 220 talus boulders. Scrub is
+ * shader/photo detail rather than geometry. The mesh has 75,051 vertices /
+ * 132,880 triangles in five chunks, each using 16-bit indices.
  *
  * All three seasons share this one mesh (season is a shader uniform, so the
  * silhouette is identical): green scrub over the aprons, the same cover
@@ -56,19 +56,14 @@ import kotlin.math.sqrt
  * framing solve: there is intentionally no orbit or zoom. Astronomical
  * azimuth 0°=N, 90°=E, 180°=S, 270°=W.
  *
- * The companion `mountain_preview.html` contains the same builders and GLSL
- * ported to WebGL — what you see there is what this file draws.
- *
  * INTEGRATION
  * -----------
- *   Mountain(
- *       season = MountainSeason.GREEN,
- *       sunAzimuthDeg = 180f, sunAltitudeDeg = 52f,
- *       modifier = Modifier.fillMaxSize(),
- *   )
- * Place it over your sky in a Box; drive season from the date and Sun/Moon
- * from your ephemeris. First build is a substantial procedural generation
- * (~150k vertices), done once per GL context on the GL thread.
+ * [HomeMountain] drives seasons, Sun/Moon lighting and framing from the sky
+ * frame. [MountainTextureView] builds and uploads the mesh once per GL
+ * context on its render thread, then draws only when scene inputs change.
+ * The supplied mobile optimizations use primitive mesh arrays, a smaller
+ * heightfield and cheaper fragment noise without changing the ridge profile,
+ * photo material fields or shared seasonal mesh.
  */
 
 // Deterministic RNG / value-noise / indexed mesh builder — a 1:1 port of
@@ -85,7 +80,7 @@ private fun mtnGauss(x: Float, c: Float, w: Float): Float {
     return exp((-(d * d)).toDouble()).toFloat()
 }
 
-private class MountainRNG(seed: Int) {
+internal class MountainRNG(seed: Int) {
     private var s: Int = if (seed == 0) 0x6d2b79f5 else seed
     fun next(): Float {
         var x = s
@@ -160,23 +155,39 @@ private const val MAT_BOULDER = 5f
 private const val MAT_SHRUB = 6f
 private const val MAT_SKIRT = 7f
 
-private class MountainMeshBuilder {
-    val pos = ArrayList<Float>()
-    val nor = ArrayList<Float>()
-    val col = ArrayList<Float>()
-    val dat = ArrayList<Float>()
-    val idx = ArrayList<Int>()
-    val vcount: Int get() = pos.size / 3
-    val tcount: Int get() = idx.size / 3
+// Primitive growable arrays (no boxed Floats): the scene stores ~1M
+// floats, and ArrayList<Float> boxing dominated build memory/GC on device.
+internal class MountainMeshBuilder {
+    var pos = FloatArray(1 shl 15); var posN = 0
+    var nor = FloatArray(1 shl 15)
+    var col = FloatArray(1 shl 15)
+    var dat = FloatArray(1 shl 15); var datN = 0
+    var idx = IntArray(1 shl 15); var idxN = 0
+    val vcount: Int get() = posN / 3
+    val tcount: Int get() = idxN / 3
+
+    fun posArray(): FloatArray = pos.copyOf(posN)
+    fun norArray(): FloatArray = nor.copyOf(posN)
+    fun colArray(): FloatArray = col.copyOf(posN)
+    fun datArray(): FloatArray = dat.copyOf(datN)
+    fun idxArray(): IntArray = idx.copyOf(idxN)
 
     fun vertex(px: Float, py: Float, pz: Float, nx: Float, ny: Float, nz: Float, c: FloatArray, d: FloatArray): Int {
-        pos.add(px); pos.add(py); pos.add(pz)
-        nor.add(nx); nor.add(ny); nor.add(nz)
-        col.add(c[0]); col.add(c[1]); col.add(c[2])
-        dat.add(d[0]); dat.add(d[1]); dat.add(d[2]); dat.add(d[3])
+        if (posN + 3 > pos.size) {
+            val cap = max(posN + 3, pos.size * 2)
+            pos = pos.copyOf(cap); nor = nor.copyOf(cap); col = col.copyOf(cap)
+        }
+        if (datN + 4 > dat.size) dat = dat.copyOf(max(datN + 4, dat.size * 2))
+        pos[posN] = px; nor[posN] = nx; col[posN] = c[0]; posN++
+        pos[posN] = py; nor[posN] = ny; col[posN] = c[1]; posN++
+        pos[posN] = pz; nor[posN] = nz; col[posN] = c[2]; posN++
+        dat[datN++] = d[0]; dat[datN++] = d[1]; dat[datN++] = d[2]; dat[datN++] = d[3]
         return vcount - 1
     }
-    fun tri(a: Int, b: Int, c: Int) { idx.add(a); idx.add(b); idx.add(c) }
+    fun tri(a: Int, b: Int, c: Int) {
+        if (idxN + 3 > idx.size) idx = idx.copyOf(max(idxN + 3, idx.size * 2))
+        idx[idxN++] = a; idx[idxN++] = b; idx[idxN++] = c
+    }
 
     // Flat-shaded triangle from three [x,y,z] points.
     fun face(p1: FloatArray, p2: FloatArray, p3: FloatArray, c: FloatArray, d: FloatArray) {
@@ -1531,8 +1542,10 @@ private const val MTN_HALF_W = 2400f
 private const val MTN_Z_BACK = -1500f
 private const val MTN_Z_FRONT = 1100f
 private const val MTN_PEAK = 1000f
-private const val MTN_NX = 560
-private const val MTN_NZ = 220
+// 400x160: over 3x the sample count of the 192x96 photo fields, ~half the
+// triangles of the original 560x220 grid; fine detail is shader-borne.
+private const val MTN_NX = 400
+private const val MTN_NZ = 160
 
 // Back-crest skyline from the green photo sky-mask scan: (724 - ridgeY) / 539.
 private val MTN_BACK_CTRL = floatArrayOf(0.8280f,0.8275f,0.8219f,0.8182f,0.8208f,0.8237f,0.8256f,0.8200f,0.8163f,0.8163f,0.8193f,0.8256f,0.8275f,0.8330f,0.8430f,0.8471f,0.8497f,0.8534f,0.8512f,0.8497f,0.8434f,0.8293f,0.8293f,0.8301f,0.8323f,0.8293f,0.8263f,0.8293f,0.8375f,0.8471f,0.8460f,0.8382f,0.8278f,0.8219f,0.8219f,0.8319f,0.8297f,0.8360f,0.8367f,0.8404f,0.8471f,0.8553f,0.8627f,0.8716f,0.8672f,0.8720f,0.8742f,0.8824f,0.8994f,0.9043f,0.9221f,0.9295f,0.9440f,0.9633f,0.9770f,0.9755f,0.9551f,0.9369f,0.9180f,0.9043f,0.8924f,0.8779f,0.8642f,0.8516f,0.8553f,0.8501f,0.8367f,0.8312f,0.8289f,0.8327f,0.8349f,0.8378f,0.8853f,0.9239f,0.9581f,0.9744f,0.9863f,0.9852f,0.9718f,0.9647f,0.9751f,0.9896f,0.9885f,0.9759f,0.9800f,0.9889f,0.9814f,1.0015f,0.9944f,0.9655f,0.9417f,0.9280f,0.9265f,0.9191f,0.9032f,0.8868f,0.8738f)
@@ -1681,9 +1694,9 @@ private fun mtnTerrainSample(x: Float, z: Float, out: FloatArray) {
 
 /** Geometry totals for the mountain mesh (diagnostics). */
 data class MountainCounts(val rocks: Int, val shrubs: Int, val chunks: Int, val verts: Int, val tris: Int)
-private class MountainSceneData(val builders: List<MountainMeshBuilder>, val counts: MountainCounts)
+internal class MountainSceneData(val builders: List<MountainMeshBuilder>, val counts: MountainCounts)
 
-private fun buildMountainScene(): MountainSceneData {
+internal fun buildMountainScene(): MountainSceneData {
     val gx = MTN_NX + 1; val gz = MTN_NZ + 1
     val dx = 2f * MTN_HALF_W / MTN_NX; val dz = (MTN_Z_FRONT - MTN_Z_BACK) / MTN_NZ
     val H = FloatArray(gx * gz); val GU = FloatArray(gx * gz)
@@ -1722,7 +1735,8 @@ private fun buildMountainScene(): MountainSceneData {
 
     val builders = ArrayList<MountainMeshBuilder>()
     val ph = FloatArray(6)
-    val bands = arrayOf(intArrayOf(0, 187), intArrayOf(187, 374), intArrayOf(374, MTN_NX))
+    val bnd1 = MTN_NX / 3; val bnd2 = 2 * MTN_NX / 3
+    val bands = arrayOf(intArrayOf(0, bnd1), intArrayOf(bnd1, bnd2), intArrayOf(bnd2, MTN_NX))
     for (band in bands) {
         val b = MountainMeshBuilder()
         val i0 = band[0]; val i1 = band[1]
@@ -1886,7 +1900,13 @@ uniform vec3 uMoonDir; uniform vec3 uMoonCol;
 uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uCamPos;
 uniform float uSeason;
 
-float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453123); }
+// Sin-free hash (Hoskins): sin() is disproportionately expensive on
+// mobile GPUs and this shader hashes ~150x per pixel.
+float hash(vec2 p){
+  vec3 p3=fract(vec3(p.xyx)*0.1031);
+  p3+=dot(p3,p3.yzx+33.33);
+  return fract((p3.x+p3.y)*p3.z);
+}
 float vnoise(vec2 p){
   vec2 i=floor(p), f=fract(p);
   vec2 u=f*f*(3.0-2.0*f);
@@ -1897,6 +1917,16 @@ float fbm(vec2 p){
   float s=0.0, a=0.5;
   for(int i=0;i<4;i++){ s+=a*vnoise(p); p=p*2.03+vec2(17.3,9.1); a*=0.5; }
   return s/0.9375;
+}
+float fbm3(vec2 p){
+  float s=0.0, a=0.5;
+  for(int i=0;i<3;i++){ s+=a*vnoise(p); p=p*2.03+vec2(17.3,9.1); a*=0.5; }
+  return s/0.875;
+}
+float fbm2(vec2 p){
+  float s=0.0, a=0.5;
+  for(int i=0;i<2;i++){ s+=a*vnoise(p); p=p*2.03+vec2(17.3,9.1); a*=0.5; }
+  return s/0.75;
 }
 // Rounded cellular blobs: scrub crowns / scree stones.
 float blob(vec2 p){
@@ -1911,9 +1941,9 @@ float blob(vec2 p){
 }
 float detailHeight(vec2 q, float vegF){
   float rockH=0.0;
-  if(vegF<0.98) rockH=fbm(q*0.075)*0.62+fbm(q*0.018+4.7)*0.38;
+  if(vegF<0.98) rockH=fbm3(q*0.075)*0.70+vnoise(q*0.018+4.7)*0.30;
   float vegH=0.0;
-  if(vegF>0.02) vegH=blob(q*0.14)*0.62+blob(q*0.035+7.0)*0.38;
+  if(vegF>0.02) vegH=blob(q*0.14)*0.75+vnoise(q*0.035+7.0)*0.25;
   return mix(rockH, vegH, vegF);
 }
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0); }
@@ -1937,10 +1967,20 @@ void main(){
   else if(an.z>=an.x){ duv=p.xy; tang=vec3(1.0,0.0,0.0); bitan=vec3(0.0,1.0,0.0); }
   else { duv=p.zy; tang=vec3(0.0,0.0,1.0); bitan=vec3(0.0,1.0,0.0); }
 
-  float macro=fbm(p.xz*0.0024+3.1);
+  float macro=fbm3(p.xz*0.0024+3.1);
   float med=fbm(duv*0.018+7.7);
   float fine=fbm(duv*0.085+1.3);
-  float micro=vnoise(duv*0.33);
+
+  // Vegetation structure first: rock detail below is skipped where scrub
+  // fully covers the surface.
+  float patch=fbm3(duv*0.012+5.5);
+  float dry=fbm2(duv*0.005+9.9);
+  float canopy=blob(duv*0.14)*0.72+fine*0.28;
+  float leafSpeck=hash(floor(duv*1.35));
+  float steep=1.0-n.y;
+  float vegF=clamp(veg*1.18+(patch-0.5)*0.22,0.0,1.0);
+  vegF*=1.0-smoothstep(0.55,0.82,steep)*0.82;
+  if(isShrub) vegF=1.0;
 
   // --- Rock: broken strata, diagonal fluting, stains, cracks ---
   vec3 rock=vCol;
@@ -1949,23 +1989,20 @@ void main(){
   rock*=1.16;
   float rockLum=dot(rock,vec3(0.333));
   rock=mix(rock, vec3(rockLum), 0.16);                       // grey weathered faces
-  float strata=0.94+0.11*sin(p.y*0.055+fbm(p.xy*0.006)*10.0+med*3.0);
-  float flute=0.90+0.20*fbm(vec2(p.x*0.040+p.y*0.012,p.y*0.004)+2.2);
-  float stain=0.86+0.26*fbm(vec2(p.x*0.023,p.y*0.0016)+6.4); // vertical weathering streaks
-  float crack1=smoothstep(0.040,0.0,abs(fbm(duv*0.050+11.0)-0.5));
-  float crack2=smoothstep(0.030,0.0,abs(fbm(duv*0.013+3.3)-0.5));
-  rock*=strata*flute*stain*(0.62+0.55*med)*(0.78+0.38*fine)*(1.0-0.42*crack1)*(1.0-0.30*crack2);
+  if(vegF<0.985){
+    float strata=0.94+0.11*sin(p.y*0.055+fbm2(p.xy*0.006)*10.0+med*3.0);
+    float flute=0.90+0.20*fbm3(vec2(p.x*0.040+p.y*0.012,p.y*0.004)+2.2);
+    float stain=0.86+0.26*fbm2(vec2(p.x*0.023,p.y*0.0016)+6.4); // vertical weathering streaks
+    float crack1=smoothstep(0.040,0.0,abs(fbm3(duv*0.050+11.0)-0.5));
+    float crack2=smoothstep(0.030,0.0,abs(fbm2(duv*0.013+3.3)-0.5));
+    rock*=strata*flute*stain*(1.0-0.42*crack1)*(1.0-0.30*crack2);
+  }
+  rock*=(0.62+0.55*med)*(0.78+0.38*fine);
 
-  float stone=blob(duv*0.20);
-  vec3 scree=mix(rock, vec3(0.52,0.46,0.38), 0.40)*(0.76+0.40*fine)*(0.84+0.30*stone)*(0.88+0.20*micro);
   vec3 soil=mix(vec3(0.32,0.25,0.16), rock, 0.32)*(0.78+0.36*med)*(0.88+0.22*fine);
   if(!isShrub) soil=mix(soil, vCol, 0.45);
 
   // --- Seasonal scrub with crown-scale structure ---
-  float patch=fbm(duv*0.012+5.5);
-  float dry=fbm(duv*0.005+9.9);
-  float canopy=blob(duv*0.14)*0.62+blob(duv*0.035+7.0)*0.38;
-  float leafSpeck=hash(floor(duv*1.35));
   vec3 vegCol;
   if(uSeason<0.5){
     vegCol=mix(vec3(0.070,0.145,0.050), vec3(0.195,0.335,0.125), patch);
@@ -1986,14 +2023,14 @@ void main(){
   vegCol*=(0.82+0.24*canopy)*(0.90+0.18*fine)*(0.96+0.06*leafSpeck);
   if(uSeason<0.5){ float vegLum=dot(vegCol,vec3(0.333)); vegCol=mix(vegCol,vec3(vegLum),0.14)*0.88; }
 
-  float steep=1.0-n.y;
-  float vegF=clamp(veg*1.18+(patch-0.5)*0.22,0.0,1.0);
-  vegF*=1.0-smoothstep(0.55,0.82,steep)*0.82;
-  if(isShrub) vegF=1.0;
-
   vec3 albedo=soil;
   albedo=mix(albedo, vegCol, vegF);
-  if(isScree) albedo=mix(scree, vegCol, vegF*0.45);
+  if(isScree){
+    float stone=blob(duv*0.20);
+    float micro=vnoise(duv*0.33);
+    vec3 scree=mix(rock, vec3(0.52,0.46,0.38), 0.40)*(0.76+0.40*fine)*(0.84+0.30*stone)*(0.88+0.20*micro);
+    albedo=mix(scree, vegCol, vegF*0.45);
+  }
   if(isCliff) albedo=mix(rock, vegCol, vegF*0.75);
   if(isGully){
     vec3 g=mix(rock*0.70, soil*0.78, 0.45);
@@ -2218,17 +2255,18 @@ class MountainScene {
         require(mesh.vcount < 65536) { "Mountain chunk too large for 16-bit indices: ${mesh.vcount}" }
         val b = IntArray(5)
         GLES30.glGenBuffers(5, b, 0)
-        val arrays = arrayOf(mesh.pos.toFloatArray(), mesh.nor.toFloatArray(), mesh.col.toFloatArray(), mesh.dat.toFloatArray())
+        val arrays = arrayOf(mesh.posArray(), mesh.norArray(), mesh.colArray(), mesh.datArray())
+        val indices = mesh.idxArray()
         for (i in 0..3) {
             GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, b[i])
             GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, arrays[i].size * 4, floatBuffer(arrays[i]), GLES30.GL_STATIC_DRAW)
         }
-        val sb: ShortBuffer = ByteBuffer.allocateDirect(mesh.idx.size * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
-        for (i in mesh.idx) sb.put(i.toShort())   // bit pattern preserved; read back as UNSIGNED_SHORT
+        val sb: ShortBuffer = ByteBuffer.allocateDirect(indices.size * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
+        for (i in indices) sb.put(i.toShort())   // bit pattern preserved; read back as UNSIGNED_SHORT
         sb.position(0)
         GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, b[4])
-        GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, mesh.idx.size * 2, sb, GLES30.GL_STATIC_DRAW)
-        return Chunk(b, mesh.idx.size)
+        GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, indices.size * 2, sb, GLES30.GL_STATIC_DRAW)
+        return Chunk(b, indices.size)
     }
 
     private fun ensureUploaded(): ArrayList<Chunk> {
@@ -2323,4 +2361,3 @@ class MountainScene {
         prog?.let { GLES30.glDeleteProgram(it.id) }; prog = null
     }
 }
-

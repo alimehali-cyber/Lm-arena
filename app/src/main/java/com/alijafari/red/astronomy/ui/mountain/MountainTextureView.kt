@@ -22,6 +22,7 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
     val scene = MountainScene()
 
     private var renderer: Renderer? = null
+    private var renderScale = 1f
 
     /** Main thread. Set by [release]; once true, no callback may restart rendering. */
     private var released = false
@@ -62,6 +63,16 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
         renderer?.requestDraw()
     }
 
+    /** Main thread. Scale only the mountain's backing buffer, never its layout/framing.
+     *  0.7f shades about half as many pixels; 1f restores native resolution. Changing the
+     *  scale reuses the EGL context and static mesh. */
+    fun setRenderScale(scale: Float) {
+        val clamped = clampMountainRenderScale(scale)
+        if (renderScale == clamped) return
+        renderScale = clamped
+        renderer?.setViewport(width, height, renderScale)
+    }
+
     /** Lifecycle, forwarded by the Compose host: resume drawing (and repaint once). The
      *  EGL context is kept across pauses — the static VBOs never re-upload just because the
      *  Activity backgrounded (same intent as the old preserve-on-pause flag). */
@@ -90,12 +101,11 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
         if (released) return
         val owner = Renderer(scene)
         renderer = owner
-        owner.attach(surface, width, height)
-        if (paused) owner.setPaused(true)
+        owner.attach(surface, width, height, renderScale, paused)
     }
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
-        renderer?.setViewport(width, height)
+        renderer?.setViewport(width, height, renderScale)
     }
 
     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
@@ -127,6 +137,7 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
 
         // ---- GL-thread-only state -------------------------------------------------------
         private var eglDisplay: EGLDisplay = EGL14.EGL_NO_DISPLAY
+        private var eglConfig: EGLConfig? = null
         private var eglContext: EGLContext = EGL14.EGL_NO_CONTEXT
         private var eglSurface: EGLSurface = EGL14.EGL_NO_SURFACE
         private var surfaceTexture: SurfaceTexture? = null
@@ -138,11 +149,17 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
         /** Creates EGL + the scene's GL resources for [surface], then draws the first frame.
          *  Any state already pushed into the scene (sun/moon/framing set before the surface
          *  existed) is picked up by that frame. */
-        fun attach(surface: SurfaceTexture, width: Int, height: Int) = handler.post {
+        fun attach(
+            surface: SurfaceTexture,
+            width: Int,
+            height: Int,
+            renderScale: Float,
+            initiallyPaused: Boolean,
+        ) = handler.post {
             surfaceTexture = surface
-            viewportWidth = width
-            viewportHeight = height
+            paused = initiallyPaused
             try {
+                resizeBuffer(width, height, renderScale)
                 initEgl(surface)
                 scene.init()
                 drawFrame()
@@ -154,10 +171,39 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
             }
         }
 
-        fun setViewport(width: Int, height: Int) = handler.post {
-            viewportWidth = width
-            viewportHeight = height
-            drawFrame()
+        fun setViewport(width: Int, height: Int, renderScale: Float) = handler.post {
+            if (failed || surfaceTexture == null) return@post
+            try {
+                resizeBuffer(width, height, renderScale)
+                drawFrame()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Mountain GL resize failed", t)
+                failed = true
+                releaseSceneQuietly()
+                releaseGl()
+            }
+        }
+
+        /** The EGL drawable AND glViewport must use the scaled size. Reducing just the
+         *  viewport would leave a small image in a full-size buffer rather than upscale it.
+         *  TextureView resets the default buffer size on layout changes. SurfaceTexture's
+         *  GLES contract requires recreating the EGLSurface to guarantee a new default size
+         *  takes effect; keep the context, shader and static VBOs alive across that change. */
+        private fun resizeBuffer(width: Int, height: Int, renderScale: Float) {
+            val surface = surfaceTexture ?: return
+            val size = mountainRenderSize(width, height, renderScale)
+            val recreateSurface = eglSurface != EGL14.EGL_NO_SURFACE
+            if (recreateSurface) {
+                check(EGL14.eglMakeCurrent(eglDisplay, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_SURFACE, EGL14.EGL_NO_CONTEXT)) {
+                    "eglMakeCurrent failed before resize"
+                }
+                check(EGL14.eglDestroySurface(eglDisplay, eglSurface)) { "eglDestroySurface failed during resize" }
+                eglSurface = EGL14.EGL_NO_SURFACE
+            }
+            surface.setDefaultBufferSize(size.width, size.height)
+            viewportWidth = size.width
+            viewportHeight = size.height
+            if (recreateSurface) createWindowSurface(surface)
         }
 
         fun setPaused(value: Boolean) = handler.post {
@@ -213,8 +259,8 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
             eglDisplay = display
 
             // Same config the original overlay view asked its config chooser for:
-            // RGBA8888 for alpha compositing + 16-bit depth (the scene depth-tests the
-            // tower against the facade, so the buffer is not optional).
+            // RGBA8888 for alpha compositing + 16-bit depth (the terrain and boulders
+            // must occlude one another correctly, so the depth buffer is not optional).
             val configAttribs = intArrayOf(
                 EGL14.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
                 EGL14.EGL_SURFACE_TYPE, EGL14.EGL_WINDOW_BIT,
@@ -231,18 +277,23 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
                 EGL14.eglChooseConfig(display, configAttribs, 0, configs, 0, 1, numConfigs, 0) &&
                     numConfigs[0] > 0 && configs[0] != null
             ) { "No GLES 3.0 EGL config available" }
-            val eglConfig = configs[0]!!
+            val config = configs[0]!!
+            eglConfig = config
 
             val contextAttribs = intArrayOf(EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE)
-            val context = EGL14.eglCreateContext(display, eglConfig, EGL14.EGL_NO_CONTEXT, contextAttribs, 0)
+            val context = EGL14.eglCreateContext(display, config, EGL14.EGL_NO_CONTEXT, contextAttribs, 0)
             check(context != EGL14.EGL_NO_CONTEXT) { "eglCreateContext failed (0x${Integer.toHexString(EGL14.eglGetError())})" }
             eglContext = context
+            createWindowSurface(surface)
+        }
 
-            val windowSurface = EGL14.eglCreateWindowSurface(display, eglConfig, surface, intArrayOf(EGL14.EGL_NONE), 0)
+        /** Connect a new drawable to the existing context; no mesh rebuild/upload. */
+        private fun createWindowSurface(surface: SurfaceTexture) {
+            val config = checkNotNull(eglConfig) { "Missing EGL config" }
+            val windowSurface = EGL14.eglCreateWindowSurface(eglDisplay, config, surface, intArrayOf(EGL14.EGL_NONE), 0)
             check(windowSurface != EGL14.EGL_NO_SURFACE) { "eglCreateWindowSurface failed" }
             eglSurface = windowSurface
-
-            check(EGL14.eglMakeCurrent(display, eglSurface, eglSurface, eglContext)) { "eglMakeCurrent failed" }
+            check(EGL14.eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext)) { "eglMakeCurrent failed" }
         }
 
         /** GL thread. Deletes the scene's programs/buffers; only while a context exists —
@@ -270,6 +321,7 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
             surfaceTexture = null
             eglSurface = EGL14.EGL_NO_SURFACE
             eglContext = EGL14.EGL_NO_CONTEXT
+            eglConfig = null
             eglDisplay = EGL14.EGL_NO_DISPLAY
         }
 
