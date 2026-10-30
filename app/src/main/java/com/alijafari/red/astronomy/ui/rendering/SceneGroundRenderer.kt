@@ -180,7 +180,8 @@ object SceneGroundRenderer {
         persepolis: PersepolisFraming.Result? = null,
         sunPosPx: Offset? = null,
         moonPosPx: Offset? = null,
-        julianDay: Double? = null
+        julianDay: Double? = null,
+        drawVegetation: Boolean = true
     ) {
         val palette = scenePalette(theme, lighting)
         val width = composition.widthPx
@@ -190,7 +191,7 @@ object SceneGroundRenderer {
 
         if (persepolis != null) {
             drawMarvdashtLandscape(
-                drawScope, composition, palette, lighting, persepolis, sunPosPx, moonPosPx, julianDay
+                drawScope, composition, palette, lighting, persepolis, sunPosPx, moonPosPx, julianDay, drawVegetation
             )
             drawBottomFade(drawScope, width, height)
             return
@@ -473,7 +474,8 @@ object SceneGroundRenderer {
         sunPosPx: Offset?,
         moonPosPx: Offset?,
         /** The instant, for both species' season (see [PersianCalendar] and the two sprite files). */
-        julianDay: Double? = null
+        julianDay: Double? = null,
+        drawVegetation: Boolean = true
     ) {
         val width = composition.widthPx
         val height = composition.heightPx
@@ -1535,7 +1537,7 @@ object SceneGroundRenderer {
             lerp(lerp(Color(0xFF0A1610), Color(0xFF3E7038), day), fieldLit, 0.25f).copy(alpha = 0.95f)
         )
 
-        replayVegetation(drawScope, veg, lighting, julianDay, sunSign > 0f)
+        if (drawVegetation) replayVegetation(drawScope, veg, lighting, julianDay, sunSign > 0f)
 
     }
 

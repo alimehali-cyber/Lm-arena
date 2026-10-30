@@ -515,7 +515,8 @@ fun HeroSkyCanvas(
                 panoramaActive = panoramaActive,
                 target = renderTarget,
                 moonSprites = moonSprites,
-                bortle = uiState.bortleClass
+                bortle = uiState.bortleClass,
+                foregroundVegetationInOverlay = persepolisFraming != null
             )
         }
 
@@ -556,8 +557,14 @@ fun HeroSkyCanvas(
             )
             Canvas(modifier = Modifier.fillMaxSize()) {
                 // Preserve both existing species and their Persian-calendar seasons.
+                val sunPosition = if (skyFrame.sunHoriz.altitudeDeg > -18.0) {
+                    renderTarget.projectionFor(skyFrame).project(
+                        skyFrame.sunHoriz.azimuthDeg, skyFrame.sunHoriz.altitudeDeg,
+                        size.width, size.height, skyFrame.latitudeDeg
+                    )
+                } else null
                 SceneGroundRenderer.drawRiverVegetation(this, skyFrame.lightingState,
-                    skyFrame.jd, skyFrame.sunHoriz.azimuthDeg < 180.0)
+                    skyFrame.jd, sunPosition != null && sunPosition.x >= size.width * 0.5f)
             }
         }
 
