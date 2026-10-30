@@ -105,26 +105,16 @@ import kotlin.math.sqrt
  * ---------------------------------------------------------------------------
  * Hosting inside ZIG (this copy)
  * ---------------------------------------------------------------------------
- * The scene, the geometry builder, the palette, the camera solve and the shading
- * are the supplied file's, unchanged. Two host-level adaptations were needed to
- * seat the river in the Home sky canvas, and both are marked in place:
+ * The supplied procedural mesh, palette and water-lighting model are retained.
+ * A TextureView replaces the original window-level GLSurfaceView so the river
+ * clips, scrolls and dims with Compose, below the readout and search UI. Output
+ * is premultiplied for Android's compositor.
  *
- *  1. **TextureView instead of a window-level GLSurfaceView.** The original
- *     window-level view called setZOrderOnTop(true), which composites above the
- *     whole activity window: the scene readout, the sky-search scrim and the
- *     card row could never cover it, and the sky canvas's clip/scroll would not
- *     apply to it. [PulvarRiverTextureView] rasterises the same frames into a
- *     TextureView — ordinary window content, like every painted layer around
- *     it — following PersepolisTextureView in this app. The render loop runs at
- *     the sky scene's motion cadence while resumed, and on demand when frozen.
- *  2. **Premultiplied water output.** A TextureView is blended into the window
- *     assuming premultiplied alpha, so the water fragment multiplies its colour
- *     by its alpha at the end and the blend is (ONE, ONE_MINUS_SRC_ALPHA).
- *     Straight alpha would brighten every soft water edge over the landscape.
- *     The shading itself is byte-identical to the preview.
- *
- * [PulvarRiverFraming] carries the one number the Home band needs (where the
- * far bank must land for a given viewport aspect); see its documentation.
+ * When landscapeRiverY is positive, a channel-relative vertex stream fits the
+ * corridor to the existing landscape's centerline and planting exclusions.
+ * Outer dry banks feather into the plain; wet banks and bed remain opaque.
+ * With landscapeRiverY zero the supplied standalone camera is used instead.
+ * See docs/PULVAR_RIVER_3D.md for integration details.
  */
 
 // ============================================================================
@@ -886,7 +876,7 @@ private fun buildPulvarRiverScene(): PulvarRiverGeometry {
     )
 }
 // ============================================================================
-// Shaders — byte-identical to pulvar_river_preview.html.
+// Supplied physical shaders, with landscape projection and premultiplied bank coverage.
 // ============================================================================
 
 private const val PULVAR_VERTEX_SHADER = """
@@ -1937,49 +1927,12 @@ class PulvarRiverTextureView(context: Context) :
 }
 
 // ============================================================================
-// Framing for the Home scene's foreground band.
-//
-// The camera is not free: the scene solves its distance so seven corridor
-// reference points fit the viewport (computeCamera), and [PulvarRiverScene.baseFractionFromTop]
-// then pins the near-foreground reference point (11, 1.8, 24.8) to a given
-// fraction of the view height. What the caller must choose is where the *far
-// bank* lands, because on Home the corridor is painted into a wide, short band
-// at the bottom of the sky canvas: the band must be filled edge to edge, with
-// no transparent strip at its top that would let the painted 2D river show
-// through.
-//
-// The numbers below were solved against that exact camera: for a viewport
-// aspect a, projecting the corridor's highest bank vertex back to the top edge
-// of the viewport gives
-//
-//     baseFractionFromTop ≈ 0.048 + 0.141 · a          (2.0 ≤ a ≤ 9.0)
-//
-// solved at a = 2.86, 3.85, 4.44, 4.76, 5.00, 5.63 and 6.67, each to within
-// ±0.01 of the band height. The result puts the far-bank crest on the band's
-// top edge and the water surface ≈12–14 % of the band below it, with the near
-// floodplain running off the bottom — the preview's own composition, cropped to
-// the band. The 104 m default visible width reproduces the preview's lateral
-// scale and keeps the reach's ends (and so the mesh's transparent ends) outside
-// the frame; smaller widths pull the camera in until near-side geometry crosses
-// the near plane, so it is not a free parameter.
+// Defaults for the optional standalone preview camera. Sky Canvas instead uses
+// landscapeRiverY and the existing landscape's channel-relative projection.
 // ============================================================================
-
-object PulvarRiverFraming {
-
-    /** Nominal world width framed by the corridor: the preview's 104 m. */
+private object PulvarRiverFraming {
     const val VISIBLE_WIDTH_M: Float = 104f
-
-    /** The preview's own vertical framing, for a full-canvas viewport. */
     const val PREVIEW_BASE_FRACTION_FROM_TOP: Float = 1.01f
-
-    /**
-     * [PulvarRiverScene.baseFractionFromTop] that puts the corridor's far-bank crest on the
-     * viewport's top edge for a viewport of [viewportAspect] (width / height, both in pixels).
-     */
-    fun baseFractionFromTop(viewportAspect: Float): Float {
-        val a = viewportAspect.coerceIn(2f, 9f)
-        return (0.048f + 0.141f * a).coerceIn(0.24f, 1.32f)
-    }
 }
 
 // ============================================================================

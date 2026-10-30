@@ -22,3 +22,10 @@ photographic landscape themes. Other themes keep their stylised ground.
 - Sun/Moon positions and lunar illuminated fraction come directly from SkySceneFrame.
 
 The original standalone camera remains available when `landscapeRiverY` is zero.
+
+## Verification
+
+JVM regression tests build the procedural mesh and check both banks' inverse channel
+mapping across the reach. The vertex and fragment shaders also pass standalone
+`glslangValidator -l` compilation/link validation. The GitHub Android workflow runs the
+full unit suite before building and verifying the permanently signed release APK.

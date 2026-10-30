@@ -565,6 +565,15 @@ fun HeroSkyCanvas(
                 } else null
                 SceneGroundRenderer.drawRiverVegetation(this, skyFrame.lightingState,
                     skyFrame.jd, sunPosition != null && sunPosition.x >= size.width * 0.5f)
+                // Meet the existing scene tail's exact edge colour, even where the
+                // near bank or a pool reaches the bottom of the viewport.
+                val edgeColor = lerp(scenePalette(uiState.skyCanvasTheme,
+                    skyFrame.lightingState).groundBottom, Color.Black, 0.26f)
+                drawRect(Brush.verticalGradient(
+                    0f to Color.Transparent, 1f to edgeColor,
+                    startY = size.height * 0.97f, endY = size.height
+                ), topLeft = Offset(0f, size.height * 0.97f),
+                    size = androidx.compose.ui.geometry.Size(size.width, size.height * 0.03f))
             }
         }
 
