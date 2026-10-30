@@ -574,13 +574,13 @@ object SceneGroundRenderer {
         // edge at groundTopY was the white band visible across the scene at the
         // readout's day/date line, strongest while scrubbing through daytime.)
 
+        val massifBase = toeY - height * 0.004f
         if (!replaceMountains) {
         // 4. The Dimeh-Mil massif: the rocky, relatively green limestone ridge the
         //    Mil-e Azhdaha tower stands against west of Nurabad (Kuh-e Shirmard /
         //    Tang-e Kalleh). Nearer, paler and more strongly faceted than the far
         //    folds, with folded strata, gullies — and the wide gorge (Tang-e Farakh)
         //    cut through its crest, the spring at its mouth feeding the green below.
-        val massifBase = toeY - height * 0.004f
         val massifHeights = LandscapeProfile.mountainHeights(
             210, height * 0.145f, DIMEH_MIL_ENVELOPE, seed = 29,
             benchAmp = 0.16f, benchStep = 0.13f,
