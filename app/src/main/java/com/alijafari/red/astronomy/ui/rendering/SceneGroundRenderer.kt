@@ -1535,6 +1535,25 @@ object SceneGroundRenderer {
             lerp(lerp(Color(0xFF0A1610), Color(0xFF3E7038), day), fieldLit, 0.25f).copy(alpha = 0.95f)
         )
 
+        replayVegetation(drawScope, veg, lighting, julianDay, sunSign > 0f)
+
+    }
+
+    /** Replays the existing trees above the river texture; never regenerates the landscape. */
+    fun drawRiverVegetation(drawScope: DrawScope, lighting: LightingState, julianDay: Double?, sunOnRight: Boolean) {
+        val veg = vegetationCache ?: return
+        replayVegetation(drawScope, veg, lighting, julianDay, sunOnRight)
+    }
+
+    private fun replayVegetation(drawScope: DrawScope, veg: VegetationGeometry, lighting: LightingState,
+                                 julianDay: Double?, sunOnRight: Boolean) {
+        val day = lighting.ambientBrightness.coerceIn(0f, 1f)
+        val lightLevel = maxOf(day, lighting.moonGlowIntensity.coerceIn(0f, 1f) * 0.35f)
+        val sunAlt = lighting.sunAltitudeDeg.toFloat()
+        val sunSign = if (sunOnRight) 1f else -1f
+        fun oval(cx: Float, cy: Float, w: Float, h: Float, color: Color) {
+            drawScope.drawOval(color, Offset(cx - w / 2f, cy - h / 2f), androidx.compose.ui.geometry.Size(w, h))
+        }
         // Replay with live colours: ground shadows (length still tracks the Sun),
         // bark buckets dark-then-lit, foliage by tone role, the soft carpet/AO
         // patches, then the grass buckets dark -> light with the bright bits last.
@@ -1628,6 +1647,7 @@ object SceneGroundRenderer {
             }
         }
     }
+
 
     /**
      * The earth the distant GL ruins stand in, painted only around their own footprints.

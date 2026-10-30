@@ -52,6 +52,7 @@ import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.persepolis.PersepolisFeature
 import com.alijafari.red.astronomy.ui.persepolis.PersepolisLandscape
 import com.alijafari.red.astronomy.ui.rendering.*
+import com.alijafari.red.astronomy.ui.rendering.landscape.PulvarRiver3D
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaLayer
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaState
@@ -537,6 +538,27 @@ fun HeroSkyCanvas(
                     .fillMaxSize()
                     .testTag("persepolis_landscape")
             )
+        }
+
+        // The procedural corridor shares the painted river's exact centerline/width.
+        // Its outer banks feather into the plain rather than covering a rectangular band.
+        if (persepolisFraming != null) {
+            val h = with(LocalDensity.current) { maxHeight.toPx() }
+            val riverY = (persepolisFraming.milSlopeFrontYPx / h + 0.062f).coerceIn(0.895f, 0.945f)
+            PulvarRiver3D(
+                modifier = Modifier.fillMaxSize().testTag("pulvar_river_3d"),
+                sunAzimuthDeg = skyFrame.sunHoriz.azimuthDeg.toFloat(),
+                sunAltitudeDeg = skyFrame.sunHoriz.altitudeDeg.toFloat(),
+                moonAzimuthDeg = skyFrame.moonData.azimuthDeg.toFloat(),
+                moonAltitudeDeg = skyFrame.moonData.altitudeDeg.toFloat(),
+                moonIllumination = (skyFrame.moonData.illuminationPercent / 100.0).toFloat().coerceIn(0f, 1f),
+                landscapeRiverY = riverY
+            )
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                // Preserve both existing species and their Persian-calendar seasons.
+                SceneGroundRenderer.drawRiverVegetation(this, skyFrame.lightingState,
+                    skyFrame.jd, skyFrame.sunHoriz.azimuthDeg < 180.0)
+            }
         }
 
         // --- LAYER 2: SCENE MOTION ---
