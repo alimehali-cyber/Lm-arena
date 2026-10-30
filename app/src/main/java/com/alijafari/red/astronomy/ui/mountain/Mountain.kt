@@ -1,7 +1,7 @@
 // Change this package to your app's package.
 package com.alijafari.red.astronomy.ui.mountain
 
-import android.opengl.GLES20
+import android.opengl.GLES30
 import android.opengl.Matrix
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -24,7 +24,7 @@ import kotlin.math.sqrt
  * green / autumn / snow seasons, for Android / Jetpack Compose.
  * ============================================================================
  * Single self-contained Kotlin file. Geometry is generated procedurally into
- * static OpenGL ES 2.0 VBOs; there are no model/texture assets and no
+ * static OpenGL ES 3.0 VBOs; there are no model/texture assets and no
  * WebView/Filament/SceneView dependency. [MountainScene] is hosted by an in-window TextureView on Home.
  *
  * MODEL
@@ -2170,14 +2170,14 @@ class MountainScene {
     private val mvp = FloatArray(16)
 
     private fun compile(type: Int, src: String): Int {
-        val s = GLES20.glCreateShader(type)
-        GLES20.glShaderSource(s, src)
-        GLES20.glCompileShader(s)
+        val s = GLES30.glCreateShader(type)
+        GLES30.glShaderSource(s, src)
+        GLES30.glCompileShader(s)
         val ok = IntArray(1)
-        GLES20.glGetShaderiv(s, GLES20.GL_COMPILE_STATUS, ok, 0)
+        GLES30.glGetShaderiv(s, GLES30.GL_COMPILE_STATUS, ok, 0)
         if (ok[0] == 0) {
-            val log = GLES20.glGetShaderInfoLog(s)
-            GLES20.glDeleteShader(s)
+            val log = GLES30.glGetShaderInfoLog(s)
+            GLES30.glDeleteShader(s)
             throw RuntimeException("Mountain shader compile failed: $log")
         }
         return s
@@ -2187,47 +2187,47 @@ class MountainScene {
         ByteBuffer.allocateDirect(data.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().apply { put(data); position(0) }
 
     private fun makeProgram(): Prog {
-        val vs = compile(GLES20.GL_VERTEX_SHADER, MOUNTAIN_VERTEX_SHADER)
-        val fs = compile(GLES20.GL_FRAGMENT_SHADER, MOUNTAIN_FRAGMENT_SHADER)
-        val id = GLES20.glCreateProgram()
-        GLES20.glAttachShader(id, vs)
-        GLES20.glAttachShader(id, fs)
-        GLES20.glBindAttribLocation(id, 0, "aPos")
-        GLES20.glBindAttribLocation(id, 1, "aNormal")
-        GLES20.glBindAttribLocation(id, 2, "aColor")
-        GLES20.glBindAttribLocation(id, 3, "aData")
-        GLES20.glLinkProgram(id)
-        GLES20.glDeleteShader(vs); GLES20.glDeleteShader(fs)
+        val vs = compile(GLES30.GL_VERTEX_SHADER, MOUNTAIN_VERTEX_SHADER)
+        val fs = compile(GLES30.GL_FRAGMENT_SHADER, MOUNTAIN_FRAGMENT_SHADER)
+        val id = GLES30.glCreateProgram()
+        GLES30.glAttachShader(id, vs)
+        GLES30.glAttachShader(id, fs)
+        GLES30.glBindAttribLocation(id, 0, "aPos")
+        GLES30.glBindAttribLocation(id, 1, "aNormal")
+        GLES30.glBindAttribLocation(id, 2, "aColor")
+        GLES30.glBindAttribLocation(id, 3, "aData")
+        GLES30.glLinkProgram(id)
+        GLES30.glDeleteShader(vs); GLES30.glDeleteShader(fs)
         val ok = IntArray(1)
-        GLES20.glGetProgramiv(id, GLES20.GL_LINK_STATUS, ok, 0)
-        if (ok[0] == 0) throw RuntimeException("Mountain program link failed: ${GLES20.glGetProgramInfoLog(id)}")
+        GLES30.glGetProgramiv(id, GLES30.GL_LINK_STATUS, ok, 0)
+        if (ok[0] == 0) throw RuntimeException("Mountain program link failed: ${GLES30.glGetProgramInfoLog(id)}")
         val p = Prog(id)
-        p.uMVP = GLES20.glGetUniformLocation(id, "uMVP")
-        p.uSunDir = GLES20.glGetUniformLocation(id, "uSunDir")
-        p.uSunCol = GLES20.glGetUniformLocation(id, "uSunCol")
-        p.uMoonDir = GLES20.glGetUniformLocation(id, "uMoonDir")
-        p.uMoonCol = GLES20.glGetUniformLocation(id, "uMoonCol")
-        p.uSky = GLES20.glGetUniformLocation(id, "uSky")
-        p.uGround = GLES20.glGetUniformLocation(id, "uGround")
-        p.uCamPos = GLES20.glGetUniformLocation(id, "uCamPos")
-        p.uSeason = GLES20.glGetUniformLocation(id, "uSeason")
+        p.uMVP = GLES30.glGetUniformLocation(id, "uMVP")
+        p.uSunDir = GLES30.glGetUniformLocation(id, "uSunDir")
+        p.uSunCol = GLES30.glGetUniformLocation(id, "uSunCol")
+        p.uMoonDir = GLES30.glGetUniformLocation(id, "uMoonDir")
+        p.uMoonCol = GLES30.glGetUniformLocation(id, "uMoonCol")
+        p.uSky = GLES30.glGetUniformLocation(id, "uSky")
+        p.uGround = GLES30.glGetUniformLocation(id, "uGround")
+        p.uCamPos = GLES30.glGetUniformLocation(id, "uCamPos")
+        p.uSeason = GLES30.glGetUniformLocation(id, "uSeason")
         return p
     }
 
     private fun upload(mesh: MountainMeshBuilder): Chunk {
         require(mesh.vcount < 65536) { "Mountain chunk too large for 16-bit indices: ${mesh.vcount}" }
         val b = IntArray(5)
-        GLES20.glGenBuffers(5, b, 0)
+        GLES30.glGenBuffers(5, b, 0)
         val arrays = arrayOf(mesh.pos.toFloatArray(), mesh.nor.toFloatArray(), mesh.col.toFloatArray(), mesh.dat.toFloatArray())
         for (i in 0..3) {
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, b[i])
-            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, arrays[i].size * 4, floatBuffer(arrays[i]), GLES20.GL_STATIC_DRAW)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, b[i])
+            GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, arrays[i].size * 4, floatBuffer(arrays[i]), GLES30.GL_STATIC_DRAW)
         }
         val sb: ShortBuffer = ByteBuffer.allocateDirect(mesh.idx.size * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
         for (i in mesh.idx) sb.put(i.toShort())   // bit pattern preserved; read back as UNSIGNED_SHORT
         sb.position(0)
-        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, b[4])
-        GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, mesh.idx.size * 2, sb, GLES20.GL_STATIC_DRAW)
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, b[4])
+        GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, mesh.idx.size * 2, sb, GLES30.GL_STATIC_DRAW)
         return Chunk(b, mesh.idx.size)
     }
 
@@ -2245,37 +2245,37 @@ class MountainScene {
     fun init() {
         prog = makeProgram()
         ensureUploaded()
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
-        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
 
     private fun drawMesh(p: Prog, list: ArrayList<Chunk>, eye: FloatArray) {
-        GLES20.glUseProgram(p.id)
-        GLES20.glUniformMatrix4fv(p.uMVP, 1, false, mvp, 0)
+        GLES30.glUseProgram(p.id)
+        GLES30.glUniformMatrix4fv(p.uMVP, 1, false, mvp, 0)
         synchronized(lock) {
-            GLES20.glUniform3fv(p.uSunDir, 1, sunDir, 0)
-            GLES20.glUniform3fv(p.uSunCol, 1, sunColor, 0)
-            GLES20.glUniform3fv(p.uMoonDir, 1, moonDir, 0)
-            GLES20.glUniform3fv(p.uMoonCol, 1, moonColor, 0)
-            GLES20.glUniform3fv(p.uSky, 1, skyAmb, 0)
-            GLES20.glUniform3fv(p.uGround, 1, groundAmb, 0)
+            GLES30.glUniform3fv(p.uSunDir, 1, sunDir, 0)
+            GLES30.glUniform3fv(p.uSunCol, 1, sunColor, 0)
+            GLES30.glUniform3fv(p.uMoonDir, 1, moonDir, 0)
+            GLES30.glUniform3fv(p.uMoonCol, 1, moonColor, 0)
+            GLES30.glUniform3fv(p.uSky, 1, skyAmb, 0)
+            GLES30.glUniform3fv(p.uGround, 1, groundAmb, 0)
         }
-        GLES20.glUniform3fv(p.uCamPos, 1, eye, 0)
-        GLES20.glUniform1f(p.uSeason, season.ordinal.toFloat())
-        for (a in 0..3) GLES20.glEnableVertexAttribArray(a)
+        GLES30.glUniform3fv(p.uCamPos, 1, eye, 0)
+        GLES30.glUniform1f(p.uSeason, season.ordinal.toFloat())
+        for (a in 0..3) GLES30.glEnableVertexAttribArray(a)
         for (chunk in list) {
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, chunk.buffers[0])
-            GLES20.glVertexAttribPointer(0, 3, GLES20.GL_FLOAT, false, 0, 0)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, chunk.buffers[1])
-            GLES20.glVertexAttribPointer(1, 3, GLES20.GL_FLOAT, false, 0, 0)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, chunk.buffers[2])
-            GLES20.glVertexAttribPointer(2, 3, GLES20.GL_FLOAT, false, 0, 0)
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, chunk.buffers[3])
-            GLES20.glVertexAttribPointer(3, 4, GLES20.GL_FLOAT, false, 0, 0)
-            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, chunk.buffers[4])
-            GLES20.glDrawElements(GLES20.GL_TRIANGLES, chunk.indexCount, GLES20.GL_UNSIGNED_SHORT, 0)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, chunk.buffers[0])
+            GLES30.glVertexAttribPointer(0, 3, GLES30.GL_FLOAT, false, 0, 0)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, chunk.buffers[1])
+            GLES30.glVertexAttribPointer(1, 3, GLES30.GL_FLOAT, false, 0, 0)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, chunk.buffers[2])
+            GLES30.glVertexAttribPointer(2, 3, GLES30.GL_FLOAT, false, 0, 0)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, chunk.buffers[3])
+            GLES30.glVertexAttribPointer(3, 4, GLES30.GL_FLOAT, false, 0, 0)
+            GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, chunk.buffers[4])
+            GLES30.glDrawElements(GLES30.GL_TRIANGLES, chunk.indexCount, GLES30.GL_UNSIGNED_SHORT, 0)
         }
-        for (a in 0..3) GLES20.glDisableVertexAttribArray(a)
+        for (a in 0..3) GLES30.glDisableVertexAttribArray(a)
     }
 
     /** Draw one frame. Does not clear colour unless [clear] is true (for a
@@ -2284,13 +2284,13 @@ class MountainScene {
         val p = prog ?: return
         if (width <= 0 || height <= 0) return
         val list = ensureUploaded()
-        GLES20.glViewport(0, 0, width, height)
+        GLES30.glViewport(0, 0, width, height)
         if (clear) {
-            GLES20.glClearColor(0f, 0f, 0f, 0f)
-            GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
+            GLES30.glClearColor(0f, 0f, 0f, 0f)
+            GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT or GLES30.GL_DEPTH_BUFFER_BIT)
         }
-        GLES20.glEnable(GLES20.GL_DEPTH_TEST)
-        GLES20.glDisable(GLES20.GL_CULL_FACE)   // skirts/edges stay correct from the one fixed view
+        GLES30.glEnable(GLES30.GL_DEPTH_TEST)
+        GLES30.glDisable(GLES30.GL_CULL_FACE)   // skirts/edges stay correct from the one fixed view
 
         val aspect = width.toFloat() / height.toFloat()
         var visW = visibleWidthMeters
@@ -2312,15 +2312,15 @@ class MountainScene {
         Matrix.multiplyMM(mvp, 0, proj, 0, view, 0)
         drawMesh(p, list, eye)
 
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
-        GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
 
     /** Delete GL resources. Call on the GL thread when the context ends. */
     fun release() {
-        chunks?.let { for (chunk in it) if (chunk.buffers[0] != 0) GLES20.glDeleteBuffers(5, chunk.buffers, 0) }
+        chunks?.let { for (chunk in it) if (chunk.buffers[0] != 0) GLES30.glDeleteBuffers(5, chunk.buffers, 0) }
         chunks = null
-        prog?.let { GLES20.glDeleteProgram(it.id) }; prog = null
+        prog?.let { GLES30.glDeleteProgram(it.id) }; prog = null
     }
 }
 

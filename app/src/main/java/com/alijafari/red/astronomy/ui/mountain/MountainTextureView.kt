@@ -113,7 +113,7 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
     }
 
     /**
-     * Owns the GLES 2.0 context and the EGL window surface for one attachment of the view.
+     * Owns the GLES 3.0 context and the EGL window surface for one attachment of the view.
      * Every GL and EGL call runs on its dedicated handler thread. The scene draws on demand
      * only: after attach, after a viewport change, after resume, and after a light/framing
      * change posted through [requestDraw] (coalesced, so a scrub that posts faster than the
@@ -216,7 +216,7 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
             // RGBA8888 for alpha compositing + 16-bit depth (the scene depth-tests the
             // tower against the facade, so the buffer is not optional).
             val configAttribs = intArrayOf(
-                EGL14.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                EGL14.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
                 EGL14.EGL_SURFACE_TYPE, EGL14.EGL_WINDOW_BIT,
                 EGL14.EGL_RED_SIZE, 8,
                 EGL14.EGL_GREEN_SIZE, 8,
@@ -230,10 +230,10 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
             check(
                 EGL14.eglChooseConfig(display, configAttribs, 0, configs, 0, 1, numConfigs, 0) &&
                     numConfigs[0] > 0 && configs[0] != null
-            ) { "No GLES 2.0 EGL config available" }
+            ) { "No GLES 3.0 EGL config available" }
             val eglConfig = configs[0]!!
 
-            val contextAttribs = intArrayOf(EGL_CONTEXT_CLIENT_VERSION, 2, EGL14.EGL_NONE)
+            val contextAttribs = intArrayOf(EGL_CONTEXT_CLIENT_VERSION, 3, EGL14.EGL_NONE)
             val context = EGL14.eglCreateContext(display, eglConfig, EGL14.EGL_NO_CONTEXT, contextAttribs, 0)
             check(context != EGL14.EGL_NO_CONTEXT) { "eglCreateContext failed (0x${Integer.toHexString(EGL14.eglGetError())})" }
             eglContext = context
@@ -274,8 +274,8 @@ class MountainTextureView(context: Context) : TextureView(context), TextureView.
         }
 
         private companion object {
-            /** EGL_OPENGL_ES2_BIT (0x0004), defined here because EGL14 does not expose it. */
-            const val EGL_OPENGL_ES2_BIT = 0x0004
+            /** EGL_OPENGL_ES3_BIT (0x0040), defined here because EGL14 does not expose it. */
+            const val EGL_OPENGL_ES3_BIT = 0x0040
             /** EGL_CONTEXT_CLIENT_VERSION (0x3098). */
             const val EGL_CONTEXT_CLIENT_VERSION = 0x3098
         }
