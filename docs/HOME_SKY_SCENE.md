@@ -3,9 +3,10 @@
 **Scope:** Home only. The sky canvas stopped being a card and became the top of the screen: one
 edge-to-edge scene that runs behind the status bar and carries the header, the location pill and the sky
 viewer affordance — and nothing else. No clock, no date, no condition is written on the sky any more.
-Directly beneath it sit two wide glass cards, one per subject: the Moon in the square it has always
-occupied with the readout (clock, condition, date, Moon) beside it, and, under that, the next eclipse in a
-card of its own — its plate at the card's far left and that eclipse's circumstances to the right of it.
+Directly beneath it sit two wide glass cards, the same width and the same height, one per subject: the
+Moon with the readout (clock, condition, date, Moon) beside it, and, under that, the next eclipse in a card
+of its own — its plate at the card's far left and that eclipse's circumstances to the right of it. Both
+pictures are drawn in the same size of square, one card height.
 Everything else on Home starts below them.
 
 No weather data was added. Every number and every layer is derived from what ZIG already computes:
@@ -65,19 +66,23 @@ computes the card's geometry (`HeroCardMetrics` in `HomeScreen`):
 
 | Part | Value | Meaning |
 |---|---|---|
-| `moonSquare` | half the feed width − the two gutters − the gap, clamped 132–210 dp | the square the Moon card has always been |
-| `width` | `moonSquare × 2 + gap` | exactly the width the two square tiles used to share — both cards are this wide |
-| `eclipseStrip` | `moonSquare × 0.5`, clamped 64–100 dp | the height of the eclipse card |
-| `moonCardHeight` / `eclipseCardHeight` | `moonSquare` / `eclipseStrip` | one height per card |
+| `square` | half the feed width − the two gutters − the gap, clamped 132–210 dp | the unit the width is built from |
+| `width` | `square × 2 + gap` | exactly the width the two square tiles used to share — both cards are this wide |
+| `cardHeight` | `square × 0.75`, clamped 112–152 dp | **one height, both cards** |
+| `moonCardHeight` / `eclipseCardHeight` | `cardHeight` / `cardHeight` | aliases, so the pair cannot drift apart |
+| `renderSquare` | `cardHeight` | the square each card's picture is inscribed in |
 
-Both cards are **extended horizontally only**, and neither stretches what is inside it. The Moon card is
-one Moon square tall and the eclipse card is one eclipse strip tall; the gap between them, above them and
-below them is the feed's own `RedSpacing.md`.
+The two cards are **one sheet twice**: same width, same height. That is the point of the pair — they used to
+be a tall Moon square over a thin eclipse band, so the two pictures under the sky were different sizes for
+no reason anyone could read. One height settles it, and it is taken *between* the two old sizes: the Moon
+comes down from a full square (`square`), the eclipse grows up out of its band (`0.5 × square`), and both end
+up with a picture the same size as the other's. The stack is `2 × cardHeight + gap` — the same total height
+the square-plus-strip pair had, so the sky band above it is untouched. The gap between the cards, above them
+and below them is the feed's own `RedSpacing.md`.
 
-The Moon's square starts exactly where the sky ends and sits on the same gutters as before, so on every
-screen the Moon is drawn in exactly the same place at exactly the same size it was in the square card:
-same x, same y, same diameter, same 8 dp inset inside its square, same `MoonPhaseRender` call. That is the
-constraint this layout exists to hold.
+The Moon's square is still a square on the same gutters as before, and the render is still inscribed in it
+with the same 8 dp inset and the same `MoonPhaseRender` call — it is simply the shared square now, so the
+Moon and the eclipse plate are drawn at one size.
 
 ### Card 1 — the Moon
 
@@ -94,7 +99,7 @@ readout fills the other column, so the eye reads *where* on one side and *when* 
 
 | Part | Shows | Gesture |
 |---|---|---|
-| Plate | `EclipseRender` in a square the size the eclipse has always been, pinned to the card's **far left** in either language | tap anywhere on the card opens the Eclipses window |
+| Plate | `EclipseRender` in the same square the Moon is drawn in (`cardHeight`, `.aspectRatio(1f)`), pinned to the card's **far left** in either language | tap anywhere on the card opens the Eclipses window |
 | Details | what this eclipse is, its date and countdown, its local peak time, how much of the disc is covered and how good the view is — all of it read from the same `EclipseEngine.EclipseResult` the window shows | — |
 
 The eclipse card is composed left-to-right on purpose (`LocalLayoutDirection provides LayoutDirection.Ltr`
@@ -171,7 +176,9 @@ photographic themes, the Persepolis GL layer between the first two:
    Repaints on the 1 Hz shared clock, or per frame while the finger scrubs time.
 1b. **Persepolis + Mil-e Azhdaha** (`PersepolisLandscape`, photographic scene only) — the Apadana
    relief at half its first linear size in the left distance and the Mil-e Azhdaha tower on its
-   limestone slope at the far right, both lit by the same ephemeris and rendered on demand. See
+   limestone slope at the far right, both lit by the same ephemeris and rendered on demand. At night a
+   small fire burns in the tower's ruined top (lit from −2° of Sun altitude, out by daylight) and warms
+   the stone around it; it is the one thing that keeps that layer redrawing after dark. See
    [`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
 2. **Motion** (`SkySceneRenderer.drawSceneMotion`, scene only) — the drifting cloud veils.
    ~24 fps while idle. Separate node, so the astronomy is never repainted for a drifting cloud.
@@ -265,9 +272,10 @@ and that the ground band sits below the horizon.
 
 - Taller / shorter scene: `HomeSkyHero` (0.52) and the 312–560 dp clamp in `HomeScreen`.
 - Sky-to-ground balance: `SkySceneLayout.HORIZON_FRACTION`.
-- Size of the cards: `HeroCardMetrics.forWidth` in `HomeScreen`. The Moon's square is the invariant — it
-  is the Moon tile's old size, and the Moon render is inscribed in it — while `eclipseStrip` sets the height
-  of the eclipse card. Neither card overlaps the canvas, so the whole ground band stays visible.
+- Size of the cards: `HeroCardMetrics.forWidth` in `HomeScreen`. One `cardHeight` sets both cards and both
+  pictures (`renderSquare`), derived as `0.75 × square` so the Moon shrinks and the eclipse grows to meet in
+  the middle; the stack height is unchanged. Neither card overlaps the canvas, so the whole ground band
+  stays visible.
 - The pill and the viewer affordance ride in one row just above the Moon card, inset by the feed's
   gutters: the location on the start side (the Moon's side), the viewer on the end side.
 - Height of the plate's shadow: `elevationDp` on `EclipseRender` (10 dp on the Home card, 8 dp in the

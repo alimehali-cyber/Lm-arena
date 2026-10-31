@@ -326,10 +326,10 @@ fun HomeScreen(
     // LazyColumn item is measured with an unbounded height, so the height has to be decided out here.
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val sceneHeight = (maxHeight * 0.52f).coerceIn(312.dp, 560.dp)
-        // One wide card under the sky, exactly as wide as the two square tiles it replaces. The Moon keeps
-        // its old square inside it, so widening the card changes nothing about the render; see
-        // [HeroCardMetrics]. When the clamp bites — a very narrow phone, a tablet — the square stays square
-        // and the card stays on the same gutters instead of stretching.
+        // Two cards under the sky, both exactly as wide as the two square tiles they replace and both the
+        // same height, so the Moon's picture and the eclipse's are drawn at one size; see [HeroCardMetrics].
+        // When the clamp bites — a very narrow phone, a tablet — the cards stay on the same gutters instead
+        // of stretching, and the two pictures stay square.
         val heroCard = remember(maxWidth) { HeroCardMetrics.forWidth(maxWidth) }
 
         LazyColumn(
@@ -873,24 +873,29 @@ private fun TonightEventRow(
 /**
  * The measured geometry of the two Home hero cards.
  *
- * [moonSquare] is the square the Moon card has always been, and the Moon render is laid out inside it with
- * the same inset it always had — so no amount of work on the cards can change the Moon by a pixel.
- * [eclipseStrip] is the height the eclipse plate has always had. Both cards are **one card wide**: they are
- * extended horizontally, exactly as the Moon card was, and nothing inside them is resized by that.
+ * The Moon card and the eclipse card are **the same sheet twice**: [width] shared, [cardHeight] shared. That
+ * is the whole point of the pair — the Moon used to own a tall square and the eclipse a thin band, so the two
+ * pictures under the sky were different sizes for no reason anyone could read. One height settles it.
+ *
+ * [renderSquare] is the square of card that each picture lives in, at the card's start edge: the Moon on the
+ * Moon card, the eclipse plate on the eclipse card. It is one card height, so the two renders come out the
+ * same size — neither is cropped, neither is stretched, and the inset inside the square is identical on both.
  */
 private data class HeroCardMetrics(
     val width: Dp,
-    val moonSquare: Dp,
-    val eclipseStrip: Dp
+    val cardHeight: Dp
 ) {
-    /** The Moon card: one Moon square tall. */
-    val moonCardHeight: Dp get() = moonSquare
+    /** The Moon card: one card height. */
+    val moonCardHeight: Dp get() = cardHeight
 
-    /** The eclipse card: one eclipse strip tall. */
-    val eclipseCardHeight: Dp get() = eclipseStrip
+    /** The eclipse card: the same one card height. */
+    val eclipseCardHeight: Dp get() = cardHeight
+
+    /** The square each card's picture is inscribed in: the same size on both cards. */
+    val renderSquare: Dp get() = cardHeight
 
     /** Both cards plus the gap between them. */
-    val stackHeight: Dp get() = moonSquare + eclipseStrip + gap
+    val stackHeight: Dp get() = cardHeight * 2 + gap
 
     companion object {
         /** The feed's card gap: between the two cards, and around them. */
@@ -901,9 +906,11 @@ private data class HeroCardMetrics(
             val square = ((available - RedSpacing.lg * 2 - gap) * 0.5f).coerceIn(132.dp, 210.dp)
             // Both cards are the width the two squares used to share, so they sit on the feed's gutters.
             val width = (square * 2 + gap).coerceAtMost((available - RedSpacing.lg * 2).coerceAtLeast(square))
-            // The eclipse strip: tall enough for the plate to read, short enough to stay a band.
-            val strip = (square * 0.5f).coerceIn(64.dp, 100.dp)
-            return HeroCardMetrics(width = width, moonSquare = square, eclipseStrip = strip)
+            // One height for both cards, between the two sizes the pair used to have: three quarters of the
+            // old Moon square — the Moon comes down from a full square, the eclipse grows out of its band, and
+            // both end up with a picture the same size as the other's.
+            val height = (square * 0.75f).coerceIn(112.dp, 152.dp).coerceAtMost(width)
+            return HeroCardMetrics(width = width, cardHeight = height)
         }
     }
 }
@@ -920,9 +927,9 @@ private data class HeroCardMetrics(
  * layered ground band and drifting cloud veils. Nothing is written on the sky: the instant, the date, the
  * condition and the Moon's state live on the Moon card.
  *
- * The two cards are the same width and stacked, each in its own sheet:
- *  - **[MoonCard]** — the Moon in the square it has always occupied, with the readout (clock, condition,
- *    date, Moon) filling the rest of the sheet;
+ * The two cards are the same width and the same height, stacked, each in its own sheet — and each carries its
+ * picture in the same size of square:
+ *  - **[MoonCard]** — the Moon, with the readout (clock, condition, date, Moon) filling the rest of the sheet;
  *  - **[EclipseCard]** — the next eclipse of *either* family directly beneath it, its plate pinned to the
  *    card's far left and that specific eclipse's circumstances filling the space to the right of it.
  *
@@ -1121,7 +1128,7 @@ private fun HomeSkyHero(
             viewModel = viewModel,
             isFa = isFa,
             instantMs = instantMs,
-            moonSquare = card.moonSquare,
+            renderSquare = card.renderSquare,
             moonData = moonData,
             sunHoriz = sunHoriz,
             onScrubDays = onScrubDays,
@@ -1203,9 +1210,9 @@ private fun HomeLocationPill(
 /**
  * The Moon card: one wide glass sheet carrying the Moon and, beside it, the instant it is drawn for.
  *
- * The Moon keeps the square — and the 8 dp inset inside it — that the square card had, on the card's start
- * side (the right in Persian, the left in English), so the render itself is untouched by the card being
- * widened. Drag it to scrub days (the same ±30-day gesture the Moon screen had) and tap it to open the Moon
+ * The Moon sits in a square of one card height on the card's start side (the right in Persian, the left in
+ * English), which is exactly the square the eclipse plate gets on the card below — the two pictures are the
+ * same size. Drag it to scrub days (the same ±30-day gesture the Moon screen had) and tap it to open the Moon
  * window with everything else.
  *
  * The render's dark side is transparent, so no black disc sits behind the Moon; the card's glass shows
@@ -1217,7 +1224,7 @@ private fun MoonCard(
     viewModel: MainViewModel,
     isFa: Boolean,
     instantMs: Long,
-    moonSquare: Dp,
+    renderSquare: Dp,
     moonData: MoonEngine.MoonData,
     sunHoriz: CoordinateEngine.Horizontal,
     onScrubDays: (Float) -> Unit,
@@ -1233,7 +1240,7 @@ private fun MoonCard(
             modifier = Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.spacedBy(HeroCardMetrics.gap)
         ) {
-            // The Moon's square, exactly as it was: same size, same inset, same render.
+            // The Moon's square: one card height, the exact square the eclipse plate gets below.
             MoonCardMoon(
                 uiState = uiState,
                 moonData = moonData,
@@ -1241,7 +1248,7 @@ private fun MoonCard(
                 onScrubDays = onScrubDays,
                 onOpen = { viewModel.setShowMoonWindow(true) },
                 modifier = Modifier
-                    .width(moonSquare)
+                    .width(renderSquare)
                     .fillMaxHeight()
             )
 
@@ -1261,11 +1268,11 @@ private fun MoonCard(
 }
 
 /**
- * The Moon, exactly where it has always been and exactly as large.
+ * The Moon, in the square that matches the eclipse card's plate.
  *
- * The square handed in here is the old Moon card's size, and the render is inset by [RedSpacing.sm] inside
- * it, so the disc is inscribed in the same square it was before the cards were widened — the render itself
- * is untouched. Drag it to scrub days and tap it to open the Moon window.
+ * The square handed in here is one card height, and the render is inset by [RedSpacing.sm] inside it, so the
+ * disc is inscribed in a square of exactly the size the eclipse plate is drawn in on the card below. Drag it
+ * to scrub days and tap it to open the Moon window.
  */
 @Composable
 private fun MoonCardMoon(
@@ -1311,10 +1318,10 @@ private fun MoonCardMoon(
  * The eclipse card: the next eclipse — the soonest of *either* family at this location — in its own glass
  * card directly beneath the Moon's.
  *
- * The card is extended horizontally like the Moon card, and nothing inside it is rescaled by that: the plate
- * keeps the size it has always had, pinned to the card's **far left**, and everything that makes this
- * particular eclipse *this* eclipse — what it will look like from here, when, how much of the disc is
- * covered and how good a view it is — fills the space to its right.
+ * The card is the Moon card's twin: same width, same height, and the plate is inscribed in the same
+ * one-card-height square the Moon is, pinned to the card's **far left**, so the two pictures under the sky
+ * read at one size. Everything that makes this particular eclipse *this* eclipse — what it will look like
+ * from here, when, how much of the disc is covered and how good a view it is — fills the space to its right.
  *
  * Two things make that text trustworthy:
  *  - the plate is chosen from [EclipseEngine.EclipseResult.localType], never from the catalogue type, so a
@@ -1356,7 +1363,7 @@ private fun EclipseCard(
                 // Resolved here, in RowScope, so it can be handed through the direction provider below.
                 val detailsWeight = Modifier.weight(1f)
 
-                // The plate: the same square, the same 8 dp inset, one size only.
+                // The plate: the same square as the Moon's, the same 8 dp inset, one size only.
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()

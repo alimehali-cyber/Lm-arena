@@ -33,9 +33,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * The scene itself is untouched: [PersepolisMilAzhdahaScene.init] / `draw` / `release` stay
  * the only GL calls. [PersepolisMilAzhdahaScene.draw] does not swap, so this host swaps
- * explicitly after each rendered frame. Rendering stays strictly on demand — one frame per
+ * explicitly after each rendered frame. Rendering stays on demand — one frame per
  * Sun/Moon/framing change, one per surface (re)creation or resume — exactly the cadence the
- * old render-when-dirty surface had.
+ * old render-when-dirty surface had, with one exception: while the fire in the tower's
+ * ruined top is burning ([PersepolisMilAzhdahaScene.fireLit], which is night by the same
+ * Sun altitude that lights the scene) the host keeps a slow tick going so the flame can
+ * flicker. It stops by itself the moment the fire is out, on pause, and on teardown.
  *
  * The view is non-clickable and non-focusable and consumes no touches, so tap-to-identify
  * and finger time travel on the surrounding canvas are unaffected.
@@ -147,6 +150,9 @@ class PersepolisTextureView(context: Context) : TextureView(context), TextureVie
         private val handler = Handler(thread.looper)
         private val drawPending = AtomicBoolean(false)
 
+        /** The flame's tick: ≈11 fps, and only ever posted while the fire burns. */
+        private val fireTick = Runnable { drawFrame() }
+
         // ---- GL-thread-only state -------------------------------------------------------
         private var eglDisplay: EGLDisplay = EGL14.EGL_NO_DISPLAY
         private var eglContext: EGLContext = EGL14.EGL_NO_CONTEXT
@@ -184,7 +190,7 @@ class PersepolisTextureView(context: Context) : TextureView(context), TextureVie
 
         fun setPaused(value: Boolean) = handler.post {
             paused = value
-            if (!paused) drawFrame()
+            if (paused) handler.removeCallbacks(fireTick) else drawFrame()
         }
 
         /** Posts one draw; concurrent requests collapse into the queued one. */
@@ -201,6 +207,7 @@ class PersepolisTextureView(context: Context) : TextureView(context), TextureVie
          *  EGL and stops the thread. The renderer cannot be reused afterwards. */
         fun detachAndStop() {
             handler.post {
+                handler.removeCallbacks(fireTick)
                 releaseSceneQuietly()
                 releaseGl()
                 thread.quitSafely()
@@ -208,6 +215,7 @@ class PersepolisTextureView(context: Context) : TextureView(context), TextureVie
         }
 
         private fun drawFrame() {
+            handler.removeCallbacks(fireTick)   // this frame supersedes any pending tick
             if (failed || paused || eglSurface == EGL14.EGL_NO_SURFACE) return
             if (viewportWidth <= 0 || viewportHeight <= 0) return
             try {
@@ -217,6 +225,9 @@ class PersepolisTextureView(context: Context) : TextureView(context), TextureVie
                 if (!EGL14.eglSwapBuffers(eglDisplay, eglSurface)) {
                     Log.w(TAG, "eglSwapBuffers failed: 0x${Integer.toHexString(EGL14.eglGetError())}")
                 }
+                // The fire is the one thing in this scene that moves on its own: keep the
+                // flame alive while it burns, and let the tick die with it.
+                if (!failed && !paused && scene.fireLit) handler.postDelayed(fireTick, FIRE_TICK_MS)
             } catch (t: Throwable) {
                 // A GL failure must never take Home down: drop the layer and keep the
                 // painted landscape underneath (the app's other GL hosts do the same).
@@ -296,6 +307,8 @@ class PersepolisTextureView(context: Context) : TextureView(context), TextureVie
         }
 
         private companion object {
+            /** The flame's redraw interval while the fire burns, ms (≈11 fps). */
+            const val FIRE_TICK_MS = 90L
             /** EGL_OPENGL_ES3_BIT (0x0040), defined here because EGL14 does not expose it. */
             const val EGL_OPENGL_ES3_BIT = 0x0040
             /** EGL_CONTEXT_CLIENT_VERSION (0x3098). */

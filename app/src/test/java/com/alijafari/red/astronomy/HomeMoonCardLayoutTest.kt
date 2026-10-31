@@ -6,14 +6,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Source-level guards for the Home hero: **two** cards under the sky, both extended horizontally, neither
- * changing the picture inside it.
+ * Source-level guards for the Home hero: **two** cards under the sky, the same width, the same height, and
+ * the same size of picture inside each.
  *
  * The Moon card grew sideways first and the eclipse card followed it — its own glass card, directly beneath
- * the Moon's, the plate pinned to the card's far left and that eclipse's circumstances to its right. What
- * must not move or change is the Moon, and what must not be stretched is the eclipse plate. These
- * assertions hold that shape of the code, because a screenshot test cannot: the Home screen is a
- * LazyColumn over a GL landscape.
+ * the Moon's, the plate pinned to the card's far left and that eclipse's circumstances to its right. The pair
+ * used to be a tall Moon square over a thin eclipse band; the Moon has since come down and the eclipse grown
+ * up until the two pictures are drawn in equal squares. These assertions hold that shape of the code,
+ * because a screenshot test cannot: the Home screen is a LazyColumn over a GL landscape.
  */
 class HomeMoonCardLayoutTest {
 
@@ -30,11 +30,29 @@ class HomeMoonCardLayoutTest {
     @Test
     fun theMoonKeepsItsOwnSquareSoItsRenderCannotChange() {
         assertTrue("the geometry is one measured value", home.contains("private data class HeroCardMetrics("))
-        assertTrue("the Moon column is exactly the old square wide", home.contains(".width(moonSquare)"))
+        assertTrue("the Moon column is exactly the shared square wide", home.contains(".width(renderSquare)"))
         assertTrue("the render still fills that square", home.contains("MoonPhaseRender("))
         assertTrue("the Moon keeps drag-to-scrub", home.contains("detectHorizontalDragGestures {"))
         assertTrue("the Moon still opens the Moon window", home.contains("viewModel.setShowMoonWindow(true)"))
         assertTrue("the Moon has its own card", home.contains(".testTag(\"home_moon_card\")"))
+    }
+
+    @Test
+    fun theTwoCardsAndTheirRendersAreTheSameSize() {
+        // One height for both cards: the pair used to be a Moon square over an eclipse strip, and the two
+        // ranges are now one value. The two heights are aliases of it, so they cannot drift apart.
+        assertTrue("the cards share one height", home.contains("val cardHeight: Dp"))
+        assertTrue("the Moon card is that height", home.contains("val moonCardHeight: Dp get() = cardHeight"))
+        assertTrue("the eclipse card is that height", home.contains("val eclipseCardHeight: Dp get() = cardHeight"))
+        assertTrue("the stack is two of that height", home.contains("val stackHeight: Dp get() = cardHeight * 2 + gap"))
+        assertFalse("the old Moon square is gone", home.contains("moonSquare"))
+        assertFalse("the old eclipse strip is gone", home.contains("eclipseStrip"))
+        // One square for both pictures: the Moon is laid out in it and the eclipse plate is inscribed in it.
+        assertTrue("one square size for both pictures", home.contains("val renderSquare: Dp get() = cardHeight"))
+        assertTrue("the Moon card hands that square to the Moon", home.contains("renderSquare = card.renderSquare,"))
+        assertTrue("the eclipse plate fills the same height", home.contains(".fillMaxHeight()\n                        .aspectRatio(1f)"))
+        // The size is *between* the two old sizes: the Moon shrinks, the eclipse grows.
+        assertTrue("the shared height is derived from the old square", home.contains("(square * 0.75f)"))
     }
 
     @Test
@@ -47,7 +65,7 @@ class HomeMoonCardLayoutTest {
         assertTrue("the eclipse card is anchored under the Moon", home.contains("padding(bottom = eclipseCardBottom)"))
         assertTrue("the Moon card sits above it", home.contains("padding(bottom = moonCardBottom)"))
         assertTrue(
-            "both cards are the same width",
+            "both cards are the same width and the same height",
             home.contains(".width(card.width)\n                .height(card.moonCardHeight)") &&
                 home.contains(".width(card.width)\n                .height(card.eclipseCardHeight)")
         )

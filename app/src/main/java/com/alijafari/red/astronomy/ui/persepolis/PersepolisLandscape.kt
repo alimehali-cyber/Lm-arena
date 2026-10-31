@@ -74,6 +74,14 @@ internal fun persepolisMoonIntensity(illuminationPercent: Double): Float =
  * The view itself is non-clickable and non-focusable and consumes no touches, so tap-to-identify and
  * finger time travel on the surrounding canvas are unaffected. Lifecycle is forwarded from the
  * composition's [androidx.lifecycle.LifecycleOwner], as the host's render thread requires.
+ *
+ * One thing in the scene moves on its own: the small fire in Mil-e Azhdaha's ruined top. There is no
+ * switch for it here on purpose — the scene derives it from the same [SkySceneFrame.sunHoriz] altitude
+ * this composable already feeds to [PersepolisTextureView.setSun] (dark from −2° down to −10°), so the
+ * fire lights at dusk and goes out by daylight on the very sky that is being drawn, including while the
+ * finger scrubs through time, and no host can forget to switch it off. See
+ * [com.alijafari.red.astronomy.ui.persepolis.PersepolisMilAzhdahaScene.fireLit] for the render cadence
+ * that follows from it.
  */
 @Composable
 fun PersepolisLandscape(

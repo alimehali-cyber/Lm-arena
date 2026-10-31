@@ -4,7 +4,7 @@ package com.alijafari.red.astronomy.ui.persepolis
 // ZIG INTEGRATION NOTE (the only changes from the file as supplied)
 // ----------------------------------------------------------------------------
 // This combined Persepolis + Mil-e Azhdaha file preserves the supplied
-// procedural geometry, fixed camera and lighting model, with eight changes:
+// procedural geometry, fixed camera and lighting model, with nine changes:
 //
 //  1. The package line above (as the original first line instructed).
 //  2. [PersepolisMilAzhdahaScene.init] first drops GL resource names left
@@ -58,6 +58,18 @@ package com.alijafari.red.astronomy.ui.persepolis
 //     app. Scene, shaders and the render-on-demand cadence are unchanged;
 //     only the host moved.
 //
+// 10. A small fire burns in the chamber mouth on Mil-e Azhdaha's ruined top
+//     at night (see the FIRE_* block and [drawFire]). It is placed in the
+//     tower's own local metres, so it sits in the same hole the masonry
+//     built; it is lit by the Sun's altitude through [setSun]
+//     (fireNightFactor: dark from −2° to −10°), so it can never be seen in
+//     daylight; the flame is a procedural, depth-tested billboard that the
+//     piers and the lintel cut, so it reads as burning *inside* the opening;
+//     and it lights the stone around it with a point-source term added to
+//     both stone shaders (uFirePos/uFireColor/uFireRange) that dies out over
+//     a couple of metres. Nothing about the monuments, the camera or the
+//     supplied lighting changed.
+//
 // Hosting, framing and the Sun/Moon feed live outside this file: see
 // PersepolisLandscape (Compose host) and
 // com.alijafari.red.astronomy.ui.rendering.PersepolisFraming (placement
@@ -66,6 +78,7 @@ package com.alijafari.red.astronomy.ui.persepolis
 
 import android.opengl.GLES30
 import android.opengl.Matrix
+import android.util.Log
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
@@ -1968,6 +1981,10 @@ uniform vec3 uSunDir;   uniform vec3 uSunColor;    // direction TO sun, colour*i
 uniform vec3 uMoonDir;  uniform vec3 uMoonColor;
 uniform vec3 uSkyAmb;   uniform vec3 uGroundAmb;   // hemisphere ambient
 uniform vec3 uCamPos;
+// The fire in the tower's ruined top (see FIRE_* below). uFireColor is already
+// multiplied by the night gate and the flicker, so by day it is exactly zero
+// and this whole term vanishes; uFireRange is the metre scale of its reach.
+uniform vec3 uFirePos;  uniform vec3 uFireColor;  uniform float uFireRange;
 varying vec3 vN; varying vec3 vC; varying vec3 vW;
 float hash13(vec3 p){ return fract(sin(dot(p, vec3(127.1,311.7,74.7)))*43758.5453); }
 float vnoise(vec3 p){
@@ -2028,6 +2045,16 @@ void main(){
   col += albedo * uSunColor * ds;
   float dm = max(dot(N, normalize(uMoonDir)), 0.0);
   col += albedo * uMoonColor * dm;
+  // The fire: a real point source in the chamber mouth, so it is an inverse-
+  // square-ish term that dies out over a couple of metres of stone, not a
+  // lamp on the whole tower. The small wrap term is the light the flame's own
+  // air scatters sideways: the reason a fire lights the face of a wall it is
+  // standing in front of, and the reason the burnished wall head reads warm.
+  vec3 Lf = uFirePos - vW;
+  float fd2 = dot(Lf, Lf);
+  float fatt = 1.0 / (1.0 + fd2 / (uFireRange * uFireRange));
+  vec3 Lfd = Lf * inversesqrt(max(fd2, 1e-4));
+  col += albedo * uFireColor * fatt * (max(dot(N, Lfd), 0.0) + 0.22 * (dot(N, Lfd) * 0.5 + 0.5));
   vec3 V = normalize(uCamPos - vW);
   vec3 H = normalize(normalize(uSunDir) + V);
   col += uSunColor * pow(max(dot(N,H),0.0), 24.0) * 0.030;   // faint stone sheen
@@ -2049,6 +2076,10 @@ uniform vec3 uSunDir;   uniform vec3 uSunColor;    // direction TO sun, colour*i
 uniform vec3 uMoonDir;  uniform vec3 uMoonColor;
 uniform vec3 uSkyAmb;   uniform vec3 uGroundAmb;   // hemisphere ambient
 uniform vec3 uCamPos;
+// The fire in the tower's ruined top (see FIRE_* below). uFireColor is already
+// multiplied by the night gate and the flicker, so by day it is exactly zero
+// and this whole term vanishes; uFireRange is the metre scale of its reach.
+uniform vec3 uFirePos;  uniform vec3 uFireColor;  uniform float uFireRange;
 varying vec3 vN; varying vec3 vC; varying vec3 vW;
 float hash13(vec3 p){ return fract(sin(dot(p, vec3(127.1,311.7,74.7)))*43758.5453); }
 float vnoise(vec3 p){
@@ -2108,6 +2139,16 @@ void main(){
   col += albedo * uSunColor * ds;
   float dm = max(dot(N, normalize(uMoonDir)), 0.0);
   col += albedo * uMoonColor * dm;
+  // The fire: a real point source in the chamber mouth, so it is an inverse-
+  // square-ish term that dies out over a couple of metres of stone, not a
+  // lamp on the whole tower. The small wrap term is the light the flame's own
+  // air scatters sideways: the reason a fire lights the face of a wall it is
+  // standing in front of, and the reason the burnished wall head reads warm.
+  vec3 Lf = uFirePos - vW;
+  float fd2 = dot(Lf, Lf);
+  float fatt = 1.0 / (1.0 + fd2 / (uFireRange * uFireRange));
+  vec3 Lfd = Lf * inversesqrt(max(fd2, 1e-4));
+  col += albedo * uFireColor * fatt * (max(dot(N, Lfd), 0.0) + 0.22 * (dot(N, Lfd) * 0.5 + 0.5));
   vec3 V = normalize(uCamPos - vW);
   vec3 H = normalize(normalize(uSunDir) + V);
   col += uSunColor * pow(max(dot(N,H),0.0), 32.0) * 0.06;   // faint stone sheen
@@ -2117,6 +2158,171 @@ void main(){
   col = pow(col, vec3(0.4545));                               // linear → sRGB-ish
   gl_FragColor = vec4(col, 1.0);
 }"""
+
+// ============================================================================
+// The fire in Mil-e Azhdaha's ruined top
+// ============================================================================
+// On the tower's broken summit there is one opening that leads into the old
+// chamber: the mouth between the piers on the south face, with the unlit
+// chamber wall behind it. At night a small fire burns in it. These constants
+// put it there, in the same Mil-local metres the tower itself is built in — so
+// it inherits the group's bake exactly as the masonry does and can never drift
+// off the hole it is meant to be burning in.
+
+/** The chamber mouth's centre, Mil-local metres (x, z). The opening is ≈0.9 m
+ *  wide by ≈0.47 m tall, between the piers at −0.87/−0.50 and +0.78 and under
+ *  the lintel tier, so the flame is drawn in the middle of it and the stone
+ *  does the framing: anything that leaves the hole is depth-clipped away. */
+private const val FIRE_LOCAL_X = 0.11f
+
+/** The mouth's floor, Mil-local: `topY` (the top course) + a couple of
+ *  centimetres, so the flame stands on the sill of the opening. */
+private const val FIRE_LOCAL_Y = 5.70f + 0.02f
+
+/** Mid-wall through the opening: behind the south face's dressed plane
+ *  (z ≈ 1.90 local) and in front of the dark chamber wall (z ≈ 0.92), so the
+ *  flame hangs in the hole and the depth buffer cuts its edges against the
+ *  piers and the lintel instead of pasting it on the wall. */
+private const val FIRE_LOCAL_Z = 1.55f
+
+/** The flame quad, world metres. The mouth is ≈1.9 × 0.95 world metres after
+ *  the group's 2.04× bake, so this fills the hole with a little to spare: the
+ *  part that would reach past the lintel is clipped by it, exactly as the real
+ *  thing would be, and the fire stays a fire in a window rather than a flare. */
+private const val FIRE_FLAME_W_M = 1.05f
+private const val FIRE_FLAME_H_M = 1.10f
+
+/** The scattering halo around it, world metres (radius). A fire is not a
+ *  sprite: the air it burns in glows with it, which is why a real light source
+ *  seen at this distance reads as a soft ball of warmth with a hot centre. */
+private const val FIRE_HALO_INNER_R_M = 0.95f
+private const val FIRE_HALO_OUTER_R_M = 2.40f
+
+/** Reach of the fire's light on the stone, world metres: the wall head, the
+ *  piers and the cap slabs above it, gone before it can climb down the shaft. */
+private const val FIRE_LIGHT_RANGE_M = 3.20f
+
+/** The fire's light, colour × intensity at full night: the warm end of a
+ *  wood flame (≈1900 K blackbody), bright enough to beat the Moon on the stone
+ *  it reaches and nothing more. */
+private val FIRE_LIGHT_COLOR = floatArrayOf(2.25f, 1.10f, 0.38f)
+
+/** The halo's colour: the same flame seen through its own smoke — warmer and
+ *  redder than the light it throws, which is why the glow and the pool of
+ *  light under it are never quite the same hue. */
+private val FIRE_HALO_TINT = floatArrayOf(1.00f, 0.50f, 0.15f)
+
+/**
+ * How lit the fire is, from the Sun's true altitude (degrees): 0 in daylight or
+ * above the −2° of civil twilight, 1 from −10° down. A fire is lit at dusk and
+ * is the only thing left burning by the time the sky is properly dark, so the
+ * ramp is the twilight itself rather than a clock time — it follows the sky
+ * the app is drawing, including while the finger scrubs through time.
+ */
+internal fun fireNightFactor(sunAltitudeDeg: Float): Float {
+    val t = ((-sunAltitudeDeg) - 2f) / 8f
+    val c = t.coerceIn(0f, 1f)
+    return c * c * (3f - 2f * c)     // smoothstep: no pop, no step at −2°
+}
+
+/**
+ * The flame's flicker, 0.67…1.05: three incommensurate sines standing in for
+ * the gusting of the air (a fire this size is never steady, and a steady one
+ * reads immediately as a sprite).
+ */
+internal fun fireFlicker(timeSeconds: Float): Float =
+    0.86f + 0.10f * sin(timeSeconds * 7.3f) +
+        0.05f * sin(timeSeconds * 17.1f + 1.7f) +
+        0.04f * sin(timeSeconds * 31.7f + 0.4f)
+
+/**
+ * The billboard's shader: the flame and its halo from one tiny program. The
+ * quad is a camera-facing rectangle sized in world metres; everything that
+ * makes it a flame — the teardrop profile, the sway, the ragged edge, the
+ * white-hot core over an orange body — is procedural, so there is no texture
+ * and nothing to go soft at the size this is drawn.
+ */
+private const val FRAGMENT_SHADER_FIRE = """
+precision mediump float;
+uniform float uTime;    // seconds, for the flicker and the sway
+uniform float uAlpha;   // night gate * flicker
+uniform float uHalo;    // 0 = the flame, 1 = the scattering halo
+uniform vec3 uTint;     // the halo's colour
+varying highp vec2 vUV; // x -1..1 across, y 0 at the base to 1 at the tip
+float h11(float n){ return fract(sin(n*127.1)*43758.5453); }
+float n1(float x){ float i=floor(x), f=fract(x); f=f*f*(3.0-2.0*f); return mix(h11(i),h11(i+1.0),f); }
+float fbm1(float x){ return 0.55*n1(x)+0.28*n1(x*2.3)+0.17*n1(x*5.7); }
+void main(){
+  if (uHalo > 0.5) {
+    // Scattering halo: a hot centre with a long soft tail, the way a fire's
+    // light looks through its own smoke and the air around it.
+    vec2 q = vUV * 2.0 - 1.0;
+    float r = length(q);
+    float g = exp(-r*r*3.2) * (1.0 - smoothstep(0.55, 1.0, r));
+    float a = clamp(g * uAlpha, 0.0, 1.0);
+    gl_FragColor = vec4(uTint * a, a);
+    return;
+  }
+  float y = clamp(vUV.y, 0.0, 1.0);
+  float x = vUV.x;
+  // The tip leans with the gusting air; the base does not move at all.
+  float sway = (fbm1(uTime*1.7 + 4.0) - 0.5) * 1.15 * y * y;
+  // A flame is widest just above its base and drawn to a point: this is that
+  // profile, with a ragged edge cut into it by the noise along its height.
+  float w = 0.52 * pow(max(1.0 - y, 0.0), 0.52) + 0.055;
+  float ragged = 0.74 + 0.42 * fbm1(y*5.3 - uTime*3.4);
+  float d = abs(x - sway) / w;
+  float body = 1.0 - smoothstep(0.32*ragged, ragged, d);
+  body *= smoothstep(0.0, 0.07, y) * (1.0 - smoothstep(0.42, 1.0, y));
+  // Heat ladder: white-yellow at the base, orange through the body, deep red
+  // only where the flame is thin. Blue at the very root, as a wood fire is.
+  float hot = (1.0 - smoothstep(0.0, 0.62, d)) * (1.0 - smoothstep(0.03, 0.55, y));
+  vec3 col = mix(vec3(0.95, 0.28, 0.045), vec3(1.0, 0.60, 0.16), body);
+  col = mix(col, vec3(1.0, 0.93, 0.72), hot*hot);
+  col = mix(col, vec3(0.55, 0.66, 1.0), (1.0 - smoothstep(0.0, 0.10, y)) * 0.35);
+  float a = clamp(body*0.95 + hot*0.30, 0.0, 1.0) * uAlpha;
+  gl_FragColor = vec4(col * a, a);
+}"""
+
+private const val VERTEX_SHADER_FIRE = """
+attribute vec2 aCorner;   // (-1,-1)..(1,1)
+uniform mat4 uMVP;
+uniform vec3 uCenter;
+uniform vec3 uRight;      // camera right, world
+uniform vec3 uUp;         // camera up, world
+uniform vec2 uSize;       // metres: across, tall
+varying highp vec2 vUV;
+void main(){
+  vec3 w = uCenter + uRight * (aCorner.x * uSize.x * 0.5) + uUp * (aCorner.y * uSize.y * 0.5);
+  vUV = vec2(aCorner.x, aCorner.y * 0.5 + 0.5);
+  gl_Position = uMVP * vec4(w, 1.0);
+}"""
+
+/** Mil-local metres → world metres, mirroring [transformMesh]'s bake exactly
+ *  (2.04× scale, −0.20 rad yaw, the group translation). */
+private fun milLocalToWorld(mx: Float, my: Float, mz: Float): FloatArray {
+    val x = mx * MIL_GROUP_SCALE
+    val y = my * MIL_GROUP_SCALE
+    val z = mz * MIL_GROUP_SCALE
+    val c = cos(MIL_GROUP_ROTY)
+    val sn = sin(MIL_GROUP_ROTY)
+    return floatArrayOf(
+        x * c + z * sn + MIL_GROUP_X + MIL_HOME_RIGHT_SHIFT_M,
+        y + MIL_GROUP_Y,
+        -x * sn + z * c + MIL_GROUP_Z,
+    )
+}
+
+private fun cross3(a: FloatArray, b: FloatArray) = floatArrayOf(
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+)
+
+private fun normalize3(v: FloatArray): FloatArray {
+    val l = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).coerceAtLeast(1e-6f)
+    return floatArrayOf(v[0] / l, v[1] / l, v[2] / l)
+}
 
 private fun dirFromAzAlt(azimuthDeg: Float, altitudeDeg: Float): FloatArray {
     val az = Math.toRadians(azimuthDeg.toDouble())
@@ -2168,6 +2374,9 @@ class PersepolisMilAzhdahaScene {
     private var moonColor = floatArrayOf(0f, 0f, 0f)
     private var skyAmb = floatArrayOf(0.055f, 0.065f, 0.095f)
     private var groundAmb = floatArrayOf(0.03f, 0.03f, 0.035f)
+    /** How lit the fire in the ruined top is: 0 by day, 1 in full darkness.
+     *  Derived from the Sun's altitude in [setSun], so no host can forget it. */
+    @Volatile private var fireVisible = 0f
 
     init { setSun(267.8f, 2.5f) }   // sunset, as in the reference photograph
 
@@ -2181,6 +2390,10 @@ class PersepolisMilAzhdahaScene {
     fun setSun(azimuthDeg: Float, altitudeDeg: Float) {
         synchronized(lock) {
             sunDir = dirFromAzAlt(azimuthDeg, altitudeDeg)
+            // The fire is lit at dusk and out by daylight: the gate is the
+            // Sun's altitude, so it follows the sky (and the time scrub) with
+            // no separate clock to keep in step.
+            fireVisible = fireNightFactor(altitudeDeg)
             if (altitudeDeg > -0.833f) {
                 val alt = max(altitudeDeg, 0f)
                 val warm = (1.0 - min(alt / 28f, 1f)).pow(1.35).toFloat()
@@ -2240,6 +2453,14 @@ class PersepolisMilAzhdahaScene {
         var uMVP = -1; var uSunDir = -1; var uSunColor = -1
         var uMoonDir = -1; var uMoonColor = -1
         var uSkyAmb = -1; var uGroundAmb = -1; var uCamPos = -1
+        // The fire in the ruined top: one point light per stone program.
+        var uFirePos = -1; var uFireColor = -1; var uFireRange = -1
+    }
+
+    /** The flame/halo billboard's uniforms (see [FRAGMENT_SHADER_FIRE]). */
+    private class FireProg(val id: Int) {
+        var uMVP = -1; var uCenter = -1; var uRight = -1; var uUp = -1
+        var uSize = -1; var uTime = -1; var uAlpha = -1; var uHalo = -1; var uTint = -1
     }
 
     /** A built mesh as plain arrays — memoised once per process (see companion). */
@@ -2251,8 +2472,20 @@ class PersepolisMilAzhdahaScene {
     )
     private var progP: Prog? = null        // Persepolis
     private var progM: Prog? = null        // Mil-e Azhdaha
+    private var progFire: FireProg? = null // the fire in the ruined top
+    private var fireVbo = 0                // the billboard quad, two triangles
     private val chunksP = ArrayList<Chunk>()
     private val chunksM = ArrayList<Chunk>()
+
+    /** GL-thread only: the fire's own clock, advanced once per drawn frame.
+     *  It is what makes the flame move — the draw cadence at night comes from
+     *  [PersepolisTextureView], which keeps ticking while [fireLit]. */
+    private var fireTimeS = 0f
+    private var lastFireNanos = 0L
+
+    /** True while the fire in the ruined top is burning (night, per [setSun]).
+     *  The host reads this to decide whether to keep redrawing for the flicker. */
+    val fireLit: Boolean get() = synchronized(lock) { fireVisible > 0.001f }
 
     private val proj = FloatArray(16)
     private val view = FloatArray(16)
@@ -2298,6 +2531,34 @@ class PersepolisMilAzhdahaScene {
         p.uSkyAmb = GLES30.glGetUniformLocation(id, "uSkyAmb")
         p.uGroundAmb = GLES30.glGetUniformLocation(id, "uGroundAmb")
         p.uCamPos = GLES30.glGetUniformLocation(id, "uCamPos")
+        p.uFirePos = GLES30.glGetUniformLocation(id, "uFirePos")
+        p.uFireColor = GLES30.glGetUniformLocation(id, "uFireColor")
+        p.uFireRange = GLES30.glGetUniformLocation(id, "uFireRange")
+        return p
+    }
+
+    private fun makeFireProgram(): FireProg {
+        val vs = compile(GLES30.GL_VERTEX_SHADER, VERTEX_SHADER_FIRE)
+        val fs = compile(GLES30.GL_FRAGMENT_SHADER, FRAGMENT_SHADER_FIRE)
+        val id = GLES30.glCreateProgram()
+        GLES30.glAttachShader(id, vs)
+        GLES30.glAttachShader(id, fs)
+        GLES30.glBindAttribLocation(id, 0, "aCorner")
+        GLES30.glLinkProgram(id)
+        GLES30.glDeleteShader(vs); GLES30.glDeleteShader(fs)
+        val ok = IntArray(1)
+        GLES30.glGetProgramiv(id, GLES30.GL_LINK_STATUS, ok, 0)
+        if (ok[0] == 0) throw RuntimeException("PersepolisMilAzhdaha fire program link failed: ${GLES30.glGetProgramInfoLog(id)}")
+        val p = FireProg(id)
+        p.uMVP = GLES30.glGetUniformLocation(id, "uMVP")
+        p.uCenter = GLES30.glGetUniformLocation(id, "uCenter")
+        p.uRight = GLES30.glGetUniformLocation(id, "uRight")
+        p.uUp = GLES30.glGetUniformLocation(id, "uUp")
+        p.uSize = GLES30.glGetUniformLocation(id, "uSize")
+        p.uTime = GLES30.glGetUniformLocation(id, "uTime")
+        p.uAlpha = GLES30.glGetUniformLocation(id, "uAlpha")
+        p.uHalo = GLES30.glGetUniformLocation(id, "uHalo")
+        p.uTint = GLES30.glGetUniformLocation(id, "uTint")
         return p
     }
 
@@ -2361,9 +2622,26 @@ class PersepolisMilAzhdahaScene {
         // names may be recycled — so drop every stale handle before
         // rebuilding. The arrays themselves are memoised (see companion):
         // both builders are deterministic, so a rebuild is bit-identical.
-        if (progP != null || progM != null || chunksP.isNotEmpty() || chunksM.isNotEmpty()) release()
+        if (progP != null || progM != null || progFire != null || chunksP.isNotEmpty() || chunksM.isNotEmpty()) release()
         progP = makeProgram(FRAGMENT_SHADER_P)
         progM = makeProgram(FRAGMENT_SHADER_M)
+        // The fire is an addition to the supplied scene, so a driver that cannot
+        // build its little billboard program must cost the fire and nothing
+        // else: the monuments still draw, the flame simply never appears.
+        progFire = try {
+            makeFireProgram()
+        } catch (t: Throwable) {
+            Log.w(TAG, "PersepolisMilAzhdaha fire program unavailable", t)
+            null
+        }
+        if (fireVbo == 0) {
+            val vbo = IntArray(1)
+            GLES30.glGenBuffers(1, vbo, 0)
+            fireVbo = vbo[0]
+            val quad = floatArrayOf(-1f, -1f, 1f, -1f, 1f, 1f, -1f, -1f, 1f, 1f, -1f, 1f)
+            GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, fireVbo)
+            GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, quad.size * 4, floatBuffer(quad), GLES30.GL_STATIC_DRAW)
+        }
         upload(persepolisMeshArrays, chunksP)
         upload(milMeshArrays, chunksM)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, 0)
@@ -2382,6 +2660,23 @@ class PersepolisMilAzhdahaScene {
             GLES30.glUniform3fv(p.uGroundAmb, 1, groundAmb, 0)
         }
         GLES30.glUniform3fv(p.uCamPos, 1, CAM, 0)
+        // The fire's point light. It rides on both stone programs for
+        // consistency; at Persepolis, a hundred metres away, the falloff has
+        // already taken it to nothing. By day the colour is zero.
+        // Position and reach are always set (a zero range would be a divide by
+        // zero in the falloff); only the colour carries the gate. With no flame
+        // program there is nothing to see the light come from, so it goes out
+        // with it rather than glowing on its own.
+        val fv = if (progFire != null) fireVisible else 0f
+        val flick = if (fv > 0.001f) fireFlicker(fireTimeS) * fv else 0f
+        GLES30.glUniform3fv(p.uFirePos, 1, FIRE_WORLD_BASE, 0)
+        GLES30.glUniform1f(p.uFireRange, FIRE_LIGHT_RANGE_M)
+        GLES30.glUniform3f(
+            p.uFireColor,
+            FIRE_LIGHT_COLOR[0] * flick,
+            FIRE_LIGHT_COLOR[1] * flick,
+            FIRE_LIGHT_COLOR[2] * flick,
+        )
         GLES30.glEnableVertexAttribArray(0)
         GLES30.glEnableVertexAttribArray(1)
         GLES30.glEnableVertexAttribArray(2)
@@ -2395,6 +2690,92 @@ class PersepolisMilAzhdahaScene {
             GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, chunk.buffers[3])
             GLES30.glDrawElements(GLES30.GL_TRIANGLES, chunk.indexCount, GLES30.GL_UNSIGNED_SHORT, 0)
         }
+    }
+
+    /** GL thread. One tick of the fire's own clock; it only moves when a frame
+     *  is actually drawn, and a frame arriving after a pause must not make the
+     *  flame jump, so any gap longer than a quarter second is clipped. */
+    private fun advanceFireClock() {
+        val now = System.nanoTime()
+        if (lastFireNanos == 0L) lastFireNanos = now
+        val dt = ((now - lastFireNanos) / 1.0e9f).coerceIn(0f, 0.25f)
+        lastFireNanos = now
+        fireTimeS += dt
+        if (fireTimeS > 1000f) fireTimeS -= 1000f
+    }
+
+    /**
+     * The fire in the ruined top: the flame, then its scattering halo.
+     *
+     * One camera-facing quad drawn three times, all additive. The **flame** is
+     * depth-tested against the masonry, so the piers and the lintel cut it: the
+     * fire is *in* the hole, and only the part of it visible through the
+     * opening is drawn. The **halo** is not depth-tested — the air in front of
+     * the stone carries the fire's light too, which is what a real light source
+     * looks like at this distance — but it is weak, because a distant fire is a
+     * point of warmth, not a flare.
+     *
+     * Blending is additive in colour and "over" in alpha, so the flame adds
+     * light to the stone behind it and to the sky, the way light does, instead
+     * of replacing either with a sprite.
+     */
+    private fun drawFire() {
+        val fv = fireVisible
+        if (fv <= 0.001f) return
+        val p = progFire ?: return
+        if (fireVbo == 0) return
+        val flick = fireFlicker(fireTimeS)
+        val up = CAM_UP
+        val base = FIRE_WORLD_BASE
+
+        GLES30.glUseProgram(p.id)
+        GLES30.glUniformMatrix4fv(p.uMVP, 1, false, mvp, 0)
+        GLES30.glUniform3fv(p.uRight, 1, CAM_RIGHT, 0)
+        GLES30.glUniform3fv(p.uUp, 1, up, 0)
+        GLES30.glUniform3fv(p.uTint, 1, FIRE_HALO_TINT, 0)
+        GLES30.glUniform1f(p.uTime, fireTimeS)
+        GLES30.glEnable(GLES30.GL_BLEND)
+        GLES30.glBlendFuncSeparate(
+            GLES30.GL_ONE, GLES30.GL_ONE, GLES30.GL_ONE, GLES30.GL_ONE_MINUS_SRC_ALPHA
+        )
+        GLES30.glDepthMask(false)
+        GLES30.glDisable(GLES30.GL_CULL_FACE)   // a billboard has no front face
+        GLES30.glEnableVertexAttribArray(0)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, fireVbo)
+        GLES30.glVertexAttribPointer(0, 2, GLES30.GL_FLOAT, false, 0, 0)
+
+        // 1. The flame, standing on the sill of the mouth and rising into it.
+        val halfH = FIRE_FLAME_H_M * 0.5f
+        GLES30.glUniform1f(p.uHalo, 0f)
+        GLES30.glUniform1f(p.uAlpha, (0.80f + 0.20f * flick) * fv)
+        GLES30.glUniform3f(
+            p.uCenter,
+            base[0] + up[0] * halfH, base[1] + up[1] * halfH, base[2] + up[2] * halfH
+        )
+        GLES30.glUniform2f(p.uSize, FIRE_FLAME_W_M, FIRE_FLAME_H_M)
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 6)
+
+        // 2. The light scattered in the air around it. No depth test: this is
+        //    the air between the eye and the wall, and the wall is behind it.
+        GLES30.glDisable(GLES30.GL_DEPTH_TEST)
+        GLES30.glUniform1f(p.uHalo, 1f)
+        val midH = FIRE_FLAME_H_M * 0.42f
+        GLES30.glUniform3f(
+            p.uCenter,
+            base[0] + up[0] * midH, base[1] + up[1] * midH, base[2] + up[2] * midH
+        )
+        GLES30.glUniform1f(p.uAlpha, 0.38f * fv * flick)
+        GLES30.glUniform2f(p.uSize, FIRE_HALO_INNER_R_M * 2f, FIRE_HALO_INNER_R_M * 2f)
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 6)
+        GLES30.glUniform1f(p.uAlpha, 0.10f * fv * (0.55f + 0.45f * flick))
+        GLES30.glUniform2f(p.uSize, FIRE_HALO_OUTER_R_M * 2f, FIRE_HALO_OUTER_R_M * 2f)
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 6)
+
+        // Leave the pipeline exactly as the stone pass expects to find it.
+        GLES30.glEnable(GLES30.GL_DEPTH_TEST)
+        GLES30.glDepthMask(true)
+        GLES30.glEnable(GLES30.GL_CULL_FACE)
+        GLES30.glDisable(GLES30.GL_BLEND)
     }
 
     /**
@@ -2437,8 +2818,10 @@ class PersepolisMilAzhdahaScene {
         val centreY = cv[1] + (2f * baseFractionFromTop - 1f) * visH / 2f
         Matrix.orthoM(proj, 0, centreX - visW / 2f, centreX + visW / 2f, centreY - visH / 2f, centreY + visH / 2f, 10f, 300f)
         Matrix.multiplyMM(mvp, 0, proj, 0, view, 0)
+        advanceFireClock()
         drawMesh(pP, chunksP)   // Persepolis first…
         drawMesh(pM, chunksM)   // …then the tower group standing in front of it
+        drawFire()              // …and the fire burning in its ruined top, last
 
         GLES30.glDisableVertexAttribArray(0)
         GLES30.glDisableVertexAttribArray(1)
@@ -2453,14 +2836,37 @@ class PersepolisMilAzhdahaScene {
         chunksP.clear(); chunksM.clear()
         progP?.let { GLES30.glDeleteProgram(it.id) }; progP = null
         progM?.let { GLES30.glDeleteProgram(it.id) }; progM = null
+        progFire?.let { GLES30.glDeleteProgram(it.id) }; progFire = null
+        if (fireVbo != 0) {
+            GLES30.glDeleteBuffers(1, intArrayOf(fireVbo), 0)
+            fireVbo = 0
+        }
     }
 
     companion object {
+        private const val TAG = "PersepolisMilAzhdaha"
+
         // Fixed camera (metres): south-east of the façade, ≈9° off-axis and
         // slightly above, so floor planes, column rows and wall thicknesses
         // read in depth. Still one fixed view — no orbit, no zoom.
         private val CAM = floatArrayOf(-17f, 15.5f, 110f)
         private const val CAM_TARGET_Y = 9.0f
+
+        // The fire's world position: the mouth's sill through the same bake the
+        // masonry gets, so the flame and the hole it burns in cannot separate.
+        private val FIRE_WORLD_BASE = milLocalToWorld(FIRE_LOCAL_X, FIRE_LOCAL_Y, FIRE_LOCAL_Z)
+
+        // The billboard's axes. The camera never moves, so these are constants:
+        // the flame is a picture held square to the eye, which is what a flame
+        // is at any distance you cannot walk to.
+        private val CAM_RIGHT: FloatArray = run {
+            val f = normalize3(floatArrayOf(-CAM[0], CAM_TARGET_Y - CAM[1], -CAM[2]))
+            normalize3(cross3(f, floatArrayOf(0f, 1f, 0f)))
+        }
+        private val CAM_UP: FloatArray = run {
+            val f = normalize3(floatArrayOf(-CAM[0], CAM_TARGET_Y - CAM[1], -CAM[2]))
+            cross3(CAM_RIGHT, f)
+        }
 
         // The deterministic builders run once per process, in the order below;
         // only the VBO uploads repeat per GL context (see [init]).
