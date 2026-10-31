@@ -83,12 +83,16 @@ class MilAzhdahaFireTest {
         val src = sceneSource()
         // A second opening, a second position — not a second effect.
         assertTrue("the doorway fire is its own position", src.contains("DOOR_FIRE_LOCAL_X = 0.20f"))
-        assertTrue("it stands on the door's sill", src.contains("DOOR_FIRE_LOCAL_Y = 3.58f + 0.02f"))
+        assertTrue("it stands on the door's sill", src.contains("DOOR_FIRE_LOCAL_Y = 4.06f + 0.08f"))
         assertTrue("and hangs just inside the opening", src.contains("DOOR_FIRE_LOCAL_Z = 1.62f"))
-        // The door's sill really is where the tower builds it: socle top 1.00 + courses 0..5.
+        // The door's sill really is where the tower builds it: `sillY` is taken at shaft course 6,
+        // i.e. socle top 1.00 + courses 0..5, and the flame stands on the proud sill block's top
+        // face (a 0.11 m block centred at sillY + 0.02, so its top is 0.075 m up).
         val courses = courseHeights(src)
         val sillY = 1.00f + courses.take(6).sum()
-        assertEquals("the door sill is the top of shaft course 6", 3.58f, sillY, 0.005f)
+        assertEquals("the door sill is the top of shaft course 6", 4.06f, sillY, 0.005f)
+        assertTrue("the door's proud sill is built on it", src.contains("b.box(MIL_DCX, sillY + 0.02f"))
+        assertEquals("the flame stands on that block's top face", sillY + 0.075f, 4.14f, 0.01f)
         // One draw path, one shader, one night gate: `drawOneFire` is called once per opening.
         assertTrue("one renderer draws every fire", src.contains("for (f in FIRES) drawOneFire(p, f, fv, flick, up)"))
         assertTrue("the fires are a short list, not a second pipeline", src.contains("private val FIRES: Array<FireSpec> = arrayOf("))

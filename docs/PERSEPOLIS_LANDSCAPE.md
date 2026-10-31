@@ -126,8 +126,10 @@ second pipeline.
   Mil-local metres like every block in `milTower`, put through the same 2.04× / −0.20 rad /
   translation bake (`milLocalToWorld`), so each flame sits in the hole the masonry built: the summit
   fire centred in the mouth's ≈0.9 × 0.47 m on its sill, mid-wall between the south face (z ≈ 1.90
-  local) and the dark chamber wall (z ≈ 0.92); the doorway fire on the door sill (top of shaft course
-  6, 3.58 m up) at the door's own centre, just inside the opening (z ≈ 1.62 local).
+  local) and the dark chamber wall (z ≈ 0.92); the doorway fire on the door's proud sill (the top of
+  shaft course 6, 4.06 m up, plus the sill block's 0.075 m top face) at the door's own centre, just
+  inside the opening (z ≈ 1.62 local), its flame reaching 4.68 local — well under the door head at
+  5.10.
 - **They are only lit at night, and by the same Sun as everything else.** `setSun` sets
   `fireVisible = fireNightFactor(altitude)` — 0 down to −2° of altitude, ramping through
   smoothstep to 1 at −10°. There is no separate clock or switch for a host to forget, and the gate

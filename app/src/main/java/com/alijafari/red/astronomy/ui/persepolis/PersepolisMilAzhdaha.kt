@@ -2212,11 +2212,13 @@ private const val FIRE_LOCAL_Y = 5.70f + 0.02f
 private const val FIRE_LOCAL_Z = 1.55f
 
 /** The doorway's centre, Mil-local: the door is built at `MIL_DCX` (0.20) with
- *  its sill a hair above the top of shaft course 6 (sillY = 3.58 m) and its
- *  head at the top of course 7 (4.14 m), so the fire stands on the sill at
- *  x = 0.20 and burns up into the opening. */
+ *  its sill on the top of shaft course 6 (`sillY` = socle top 1.00 + the first
+ *  six courses = 4.06 m) and its unlit depth panel rising 1.04 m above that, so
+ *  the fire stands on the proud sill block's top face (sillY + 0.075) at
+ *  x = 0.20 and burns up into the opening — its flame reaching 4.68 local,
+ *  well under the head at 5.10. */
 private const val DOOR_FIRE_LOCAL_X = 0.20f
-private const val DOOR_FIRE_LOCAL_Y = 3.58f + 0.02f
+private const val DOOR_FIRE_LOCAL_Y = 4.06f + 0.08f
 
 /** Just inside the doorway: the face's dressed plane is at ≈1.90 local, the
  *  dark "unlit doorway depth" panel at ≈1.31, the stair treads behind that, so
