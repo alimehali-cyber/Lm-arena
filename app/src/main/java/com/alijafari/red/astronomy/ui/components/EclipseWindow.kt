@@ -361,9 +361,11 @@ private fun EclipseListRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
         ) {
-            // The picture of *this* eclipse, not of eclipses in general.
+            // The picture of *this* eclipse as it appears from the user's location — localType, not the
+            // catalogue type: a total solar eclipse seen as a deep partial over Iran must not be drawn as
+            // a totality, and a total lunar eclipse that sets mid-totality is a partial one here.
             EclipseThumbnail(
-                type = eclipse.event.type,
+                type = eclipse.localType,
                 size = 72.dp,
                 modifier = Modifier.testTag("eclipse_row_render_${eclipse.event.id}")
             )
@@ -516,20 +518,25 @@ private val EclipseEngine.EclipseType.isSolarFamily: Boolean
 /**
  * A small tile used where a screen needs the eclipse's picture without its words.
  *
- * There is deliberately no chip or rounded frame behind it: [EclipseRender] already fades its plate out
- * to a soft circle, so the eclipse sits on the row's own glass exactly as it sits on the Home tile. A
- * second rounded rectangle here would only add a rectangle whose corners the picture does not share.
+ * There is deliberately no chip or rounded frame behind it: [EclipseRender] clips its plate to a crisp
+ * circle and lifts it off the surface with a shadow, so the eclipse sits on the row's own glass exactly as
+ * it sits on the Home card. A second rounded rectangle here would only add a rectangle whose corners the
+ * picture does not share.
+ *
+ * Pass [EclipseEngine.EclipseResult.localType] rather than the catalogue `event.type`: the picture must be
+ * of the eclipse as it appears from the observer's location.
  */
 @Composable
 fun EclipseThumbnail(
     type: EclipseEngine.EclipseType,
     size: Dp,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    elevationDp: Dp = 8.dp
 ) {
     Box(
         modifier = modifier.size(size),
         contentAlignment = Alignment.Center
     ) {
-        EclipseRender(type = type)
+        EclipseRender(type = type, elevationDp = elevationDp)
     }
 }

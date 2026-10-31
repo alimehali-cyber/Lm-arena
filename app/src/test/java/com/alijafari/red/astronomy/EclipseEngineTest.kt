@@ -109,12 +109,24 @@ class EclipseEngineTest {
         val luxorEval = engine.evaluateEclipse(solar2027, 25.6872, 32.6396, 80.0, 1810000000000L)
         assertTrue("Luxor must see 2027-08-02 eclipse", luxorEval.isLocallyVisible)
         assertEquals(100, luxorEval.localObscurationPercent)
+        // …and the picture of it must be a totality, because that is what Luxor sees.
+        assertEquals(
+            "Luxor sees a total solar eclipse, not the catalogue type in the abstract",
+            EclipseEngine.EclipseType.TOTAL_SOLAR,
+            luxorEval.localType
+        )
 
         // In Nurabad, Iran (30.1141N, 51.5217E), 2027-08-02 is a deep Partial Solar Eclipse (~58% linear mag, ~49% area obscuration)
         val nurabadEval = engine.evaluateEclipse(solar2027, 30.1141, 51.5217, 940.0, 1810000000000L)
         assertTrue("Nurabad must see 2027-08-02 partial eclipse", nurabadEval.isLocallyVisible)
         assertTrue("Nurabad area obscuration should be between 45% and 60%", nurabadEval.localObscurationPercent in 45..60)
         assertTrue("Nurabad linear magnitude should be between 0.50 and 0.65", nurabadEval.localMagnitude in 0.50..0.65)
+        // The same eclipse, drawn for Nurabad, must be a PARTIAL — never the global totality.
+        assertEquals(
+            "Nurabad sees 2027-08-02 as a partial eclipse",
+            EclipseEngine.EclipseType.PARTIAL_SOLAR,
+            nurabadEval.localType
+        )
 
         // 2028-12-31 Total Lunar Eclipse (16:52 UTC = 1861894320000L) is completely visible across Iran
         val lunar2028 = engine.findNextLunarEclipse(1860000000000L)!!
@@ -122,6 +134,11 @@ class EclipseEngineTest {
         val iranLunar2028 = engine.evaluateEclipse(lunar2028, 30.1141, 51.5217, 940.0, 1860000000000L)
         assertTrue("2028-12-31 Total Lunar Eclipse must be visible in Iran", iranLunar2028.isLocallyVisible)
         assertEquals(100, iranLunar2028.localObscurationPercent)
+        assertEquals(
+            "Iran sees the whole of 2028-12-31's totality, so the picture is a total lunar eclipse",
+            EclipseEngine.EclipseType.TOTAL_LUNAR,
+            iranLunar2028.localType
+        )
     }
 
     @Test

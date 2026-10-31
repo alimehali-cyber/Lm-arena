@@ -205,6 +205,22 @@ class EclipseEngine {
         val event: EclipseEvent,
         val localNameEn: String,
         val localNameFa: String,
+        /**
+         * The eclipse as it actually looks **from the observer's location**, which is not always the
+         * catalogue type: the 2027-08-02 total solar eclipse is a deep partial over Iran, and a total lunar
+         * eclipse whose totality is cut short by moonset is only a partial one here.
+         *
+         * This is what any picture of the event must be drawn from — the Home eclipse card picks its plate
+         * from this, not from [EclipseEvent.type] — so the icon can never promise a totality the observer
+         * will not see. When nothing of the event rises above the horizon the catalogue type is kept (there
+         * is no local phase to describe) and [isLocallyVisible] is false, which the UI states in words.
+         *
+         * Local type is derived from the local geometry, never guessed from the name:
+         *  - solar: local totality/annularity from the topocentric discs (`isLocalTotal`/`isLocalAnnular` in
+         *    evaluateSolarEclipseLocal), otherwise a partial at the local obscuration;
+         *  - lunar: the umbral magnitude at the local peak, so a total that sets mid-totality is partial.
+         */
+        val localType: EclipseType,
         val isLocallyVisible: Boolean,
         val localObscurationPercent: Int,
         val localMagnitude: Double,
@@ -2088,6 +2104,14 @@ class EclipseEngine {
             peakSunAz = maxEval.sunAzDeg
         }
 
+        // What the observer actually sees, as an enum rather than as prose (see EclipseResult.localType).
+        val localType = when {
+            !isVisible -> event.type
+            isLocalTotal -> EclipseType.TOTAL_SOLAR
+            isLocalAnnular -> EclipseType.ANNULAR_SOLAR
+            else -> EclipseType.PARTIAL_SOLAR
+        }
+
         val localTypeStrEn: String
         val localTypeStrFa: String
         if (isVisible) {
@@ -2140,6 +2164,7 @@ class EclipseEngine {
             event = event,
             localNameEn = localTypeStrEn,
             localNameFa = localTypeStrFa,
+            localType = localType,
             isLocallyVisible = isVisible,
             localObscurationPercent = obscurationPercent,
             localMagnitude = if (isVisible) maxMagnitude else 0.0,
@@ -2353,10 +2378,22 @@ class EclipseEngine {
         val refPeakMs = if (isVisibleAtAnyTime) localPeakMs else event.maximumMs
         val daysRemaining = max(0, ((refPeakMs - nowMs) / 86400000.0).roundToInt())
 
+        // What the observer actually sees. A total eclipse only reads as total here if the Moon is still
+        // fully inside the umbra at the local peak — if it sets (or rises) mid-totality it is a partial one
+        // from this location, and the picture must say so.
+        val localType = when {
+            !isVisibleAtAnyTime -> event.type
+            event.type == EclipseType.PENUMBRAL_LUNAR -> EclipseType.PENUMBRAL_LUNAR
+            localMag >= 1.0 -> EclipseType.TOTAL_LUNAR
+            localMag > 0.0 -> EclipseType.PARTIAL_LUNAR
+            else -> event.type
+        }
+
         return EclipseResult(
             event = event,
             localNameEn = if (isVisibleAtAnyTime) event.nameEn else "Not Visible Locally (${event.nameEn})",
             localNameFa = if (isVisibleAtAnyTime) event.nameFa else "عدم رویت در موقعیت شما (${event.nameFa})",
+            localType = localType,
             isLocallyVisible = isVisibleAtAnyTime,
             localObscurationPercent = obscurationPercent,
             localMagnitude = localMag,

@@ -3,9 +3,10 @@
 **Scope:** Home only. The sky canvas stopped being a card and became the top of the screen: one
 edge-to-edge scene that runs behind the status bar and carries the header, the location pill and the sky
 viewer affordance — and nothing else. No clock, no date, no condition is written on the sky any more.
-Directly beneath it sits one wide glass card: the Moon in the square it has always occupied, the next
-eclipse at its bottom, and the readout (clock, condition, date, Moon) beside them. Everything else on
-Home starts below it.
+Directly beneath it sit two wide glass cards, one per subject: the Moon in the square it has always
+occupied with the readout (clock, condition, date, Moon) beside it, and, under that, the next eclipse in a
+card of its own — its plate at the card's far left and that eclipse's circumstances to the right of it.
+Everything else on Home starts below them.
 
 No weather data was added. Every number and every layer is derived from what ZIG already computes:
 `SkySceneFrame` (Sun, Moon, planets, stars, Milky Way), `LightingState` (Sun altitude, star visibility,
@@ -13,10 +14,11 @@ moon glow) and the scene clock.
 
 ![Home sky scene, night and daylight](home-sky-scene.png)
 
-*The same composition at astronomical night and at noon, rendered from the constants below: the same
-edge-to-edge scene with the sky completely bare, and one wide squircle card underneath it — Moon over the
-next eclipse on one side, the readout on the other. The clouds and the mist follow the theme; the Sun
-altitude drives the light.*
+*The illustration above predates the two-card split — the Moon and the next eclipse used to be two square
+tiles side by side, and the readout was still printed on the sky. §1 is the current composition: the same
+edge-to-edge scene with the sky completely bare, and two wide squircle cards underneath it (the Moon with
+its readout, then the next eclipse with its circumstances). The clouds and the mist follow the theme; the
+Sun altitude drives the light.*
 
 ---
 
@@ -32,18 +34,20 @@ altitude drives the light.*
 ├──────────────────────────────────────────┤ ← horizon  (0.70 × scene)
 │  distant ridge                           │
 │  grass line + tufts            ⤢         │ ← expand affordance
-│  ◉ Tehran                                │ ← location pill, over the
-└──────────────────────────────────────────┘   Moon card's side
-  ╭────────────────────────────────────────────╮  one wide card on the feed's
-  │  22:41      │                              │  gutters. The Moon keeps
-  │  ─────      │             ◗                │  its old square, so the
-  │  sky state  │   the Moon, the same disc,   │  render is unchanged;
-  │  2 Aban     │   the same place             │
-  │  Moon 64%   │                              │
-  │  (readout)  │  ──────────────────────────  │
-  │             │             ◐                │
-  │             │   the next eclipse           │  the eclipse moves to
-  ╰────────────────────────────────────────────╯  the card's bottom
+│  ◉ Tehran                                │ ← location pill, Moon's side
+└──────────────────────────────────────────┘
+  ╭────────────────────────────────────────────╮  card 1: the Moon
+  │  22:41      │             ◗                │  the Moon keeps its old
+  │  ─────      │   the Moon as it is now      │  square and inset, so the
+  │  sky state  │                              │  render is unchanged
+  │  2 Aban     │                              │
+  │  Moon 64%   │                              │  readout on the far side
+  ╰────────────────────────────────────────────╯
+  ╭────────────────────────────────────────────╮  card 2: the next eclipse
+  │   ◐        │  Partial Solar Eclipse       │  plate pinned far left,
+  │ corona     │  17 Feb 1405 · in 112 days   │  circumstances to its right
+  │            │  48% covered · peak 13:20 ·  │
+  ╰────────────────────────────────────────────╯
    What's Up Tonight …                      feed
 ```
 
@@ -62,47 +66,87 @@ computes the card's geometry (`HeroCardMetrics` in `HomeScreen`):
 | Part | Value | Meaning |
 |---|---|---|
 | `moonSquare` | half the feed width − the two gutters − the gap, clamped 132–210 dp | the square the Moon card has always been |
-| `width` | `moonSquare × 2 + gap` | exactly the width the two square tiles used to share |
-| `eclipseStrip` | `moonSquare × 0.5`, clamped 64–100 dp | the band under the Moon that holds the eclipse |
-| `height` | `moonSquare + gap + eclipseStrip` | the Moon square, a hairline gap, the eclipse strip |
+| `width` | `moonSquare × 2 + gap` | exactly the width the two square tiles used to share — both cards are this wide |
+| `eclipseStrip` | `moonSquare × 0.5`, clamped 64–100 dp | the height of the eclipse card |
+| `moonCardHeight` / `eclipseCardHeight` | `moonSquare` / `eclipseStrip` | one height per card |
 
-The card is therefore **the Moon's square, plus air, plus the eclipse** — it grew sideways into the space
-the eclipse used to occupy beside the Moon, and downward only by the eclipse it took in. The Moon's square
-starts exactly where the sky ends and sits on the same gutters as before, so on every screen the Moon is
-drawn in exactly the same place at exactly the same size as it was in the square card: same x, same y,
-same diameter, same 8 dp inset inside its square, same `MoonPhaseRender` call. That is the constraint this
-layout exists to hold.
+Both cards are **extended horizontally only**, and neither stretches what is inside it. The Moon card is
+one Moon square tall and the eclipse card is one eclipse strip tall; the gap between them, above them and
+below them is the feed's own `RedSpacing.md`.
 
-### One card, three parts
+The Moon's square starts exactly where the sky ends and sits on the same gutters as before, so on every
+screen the Moon is drawn in exactly the same place at exactly the same size it was in the square card:
+same x, same y, same diameter, same 8 dp inset inside its square, same `MoonPhaseRender` call. That is the
+constraint this layout exists to hold.
+
+### Card 1 — the Moon
 
 | Part | Shows | Gesture |
 |---|---|---|
 | Moon | `MoonPhaseRender` in its old square and nothing else — no phase name, no percentage, no date | drag scrubs ±30 days (shared with the Moon window); tap opens the Moon window |
-| Eclipse | `EclipseRender`, drawn for the type of the *next* eclipse at this location, in a square centred in the strip at the card's bottom | tap opens the eclipse window for that eclipse |
-| Readout | clock, condition, date and the Moon's state, on the card's other side | none — it is a caption |
+| Readout | clock, condition, date and the Moon's state, on the card's end side | none — it is a caption |
 
-The whole card is one `squircleShape(RedCornerRadius.window)` `LiquidGlassSurface`. The Moon and the
-eclipse are one column on the card's start side — the right in Persian, the left in English, the same side
-the Moon card has always been on — and a single hairline separates them instead of a second card. The
-readout fills the other column, so the eye reads *where* on the start side and *when* on the end side.
+The card is one `squircleShape(RedCornerRadius.window)` `LiquidGlassSurface`; the Moon keeps the start side
+— the right in Persian, the left in English, the same side the Moon tile has always been on — and the
+readout fills the other column, so the eye reads *where* on one side and *when* on the other.
 
-`EclipseRender` gets a square, not the full strip: it crops its plate with `ContentScale.Crop` and masks
-it with a radial gradient sized from `minDimension`, so a wide box would slice the corona.
+### Card 2 — the next eclipse
 
-The eclipse tile stands for the soonest eclipse of **either** family, not for the family the "Upcoming
-Eclipses" list below happens to be showing. A hero tile that changed when a chip further down the feed
-was tapped would be a surprise; the next eclipse is a fact about the sky, not about the list.
+| Part | Shows | Gesture |
+|---|---|---|
+| Plate | `EclipseRender` in a square the size the eclipse has always been, pinned to the card's **far left** in either language | tap anywhere on the card opens the Eclipses window |
+| Details | what this eclipse is, its date and countdown, its local peak time, how much of the disc is covered and how good the view is — all of it read from the same `EclipseEngine.EclipseResult` the window shows | — |
 
-`EclipseRender` draws the two families differently, because they are two different physical pictures:
+The eclipse card is composed left-to-right on purpose (`LocalLayoutDirection provides LayoutDirection.Ltr`
+around its `Row`) so the plate is at the physical left edge whatever the language does to the rest of the
+screen; the details column restores the app's own direction inside, so Persian reads right-to-left. The
+plate keeps `aspectRatio(1f)` — it is never stretched to the card's width, because `EclipseRender` crops its
+plate with `ContentScale.Crop` and clips it to a circle, so a wide box would slice the corona.
 
-- **solar** — drawn, because the subject is light, not a surface: a limb-brightened corona with ~44
-  deterministic streamers of varying length and width, the chromosphere ring, and a diamond ring at one
-  point of the limb for totality; a ring of fire with Baily's beads for annularity; two overlapping discs
-  for a partial.
-- **lunar** — the app's real Moon photograph, shaded by a radial gradient applied with `BlendMode.Multiply`
-  inside an offscreen layer. Multiplying keeps the maria visible (it darkens the photograph instead of
-  painting over it), and where the gradient is centred is what makes totality read as a copper disc with
-  a bright limb while a partial eclipse keeps one limb in full sunlight.
+The card stands for the soonest eclipse of **either** family, not for the family the "Upcoming Eclipses"
+list below happens to be showing. A hero tile that changed when a chip further down the feed was tapped
+would be a surprise; the next eclipse is a fact about the sky, not about the list.
+
+#### The plate is the eclipse the observer will actually see
+
+`EclipseRender` is given `EclipseResult.localType`, never `EclipseEvent.type`. The two differ more often
+than not, and the difference is the whole point of the picture:
+
+- the 2027-08-02 total solar eclipse is **total over Luxor and a deep partial over Iran**, so Iran's card
+  shows the bitten Sun it will actually see;
+- a total lunar eclipse that sets mid-totality is a **partial** one for that observer;
+- a penumbral lunar eclipse has its **own plate** — an almost-full Moon with one limb faintly dimmed. It
+  used to borrow the partial plate and therefore showed an umbra bite that a penumbral eclipse never has.
+
+`localType` is computed from the local geometry in `EclipseEngine` (`evaluateSolarEclipseLocal` knows the
+topocentric discs, `evaluateLunarEclipseLocal` the umbral magnitude at the local peak) and pinned by
+`EclipseLocalTypeTest` against real catalogue events at real coordinates. When nothing of an eclipse rises
+above the observer's horizon there is no local phase to describe, so the catalogue type is kept and
+`isLocallyVisible` is false — which the details line states in words.
+
+#### Six plates, and no softening
+
+| Type | Plate |
+|---|---|
+| total / hybrid solar | totality — corona, chromosphere, diamond ring |
+| annular solar | the ring of fire |
+| partial solar | a bitten solar disc with its glare |
+| total lunar | the copper "blood moon" disc |
+| partial lunar | the Moon with the umbra biting into one limb |
+| penumbral lunar | an almost-full Moon with one limb faintly dimmed |
+
+All six are 1024 px photoreal renders in `drawable-nodpi` (WebP, 21–82 KB), so no density scaling is
+applied to an image that is already at the right resolution. `EclipseRender` itself adds nothing:
+
+- **no `DstIn` mask.** The plate used to be cut with a radial `DstIn` gradient, which faded its edges into
+  the card and washed out the corona's outermost streamers and the sharp limb. It is now clipped to a hard
+  circle at full opacity — a crisp limb against the glass — and the penumbral case no longer leans on that
+  mask, because it has a plate of its own;
+- **no per-type alpha.** The penumbral plate used to be drawn at 72 % opacity to fake a shallow eclipse; the
+  eclipse is in the picture now, so the picture is drawn at full strength;
+- **a shadow instead.** The plate is lifted off the surface by `elevationDp` (10 dp on the Home card, 8 dp in
+  the Eclipses window's rows, `Modifier.shadow` on a `CircleShape`), so it reads as a disc resting in front
+  of the card rather than a smudge printed on it.
 
 ### The location pill
 
@@ -221,17 +265,19 @@ and that the ground band sits below the horizon.
 
 - Taller / shorter scene: `HomeSkyHero` (0.52) and the 312–560 dp clamp in `HomeScreen`.
 - Sky-to-ground balance: `SkySceneLayout.HORIZON_FRACTION`.
-- Size of the card: `HeroCardMetrics.forWidth` in `HomeScreen`. The Moon's square is the invariant — it
-  is the Moon card's old size, and the Moon render is inscribed in it — while `eclipseStrip` sets how much
-  of the card the eclipse gets. The card never overlaps the canvas, so the whole ground band stays visible.
-- The pill and the viewer affordance ride in one row just above the card, inset by the feed's gutters:
-  the location on the start side (the Moon's side), the viewer on the end side.
+- Size of the cards: `HeroCardMetrics.forWidth` in `HomeScreen`. The Moon's square is the invariant — it
+  is the Moon tile's old size, and the Moon render is inscribed in it — while `eclipseStrip` sets the height
+  of the eclipse card. Neither card overlaps the canvas, so the whole ground band stays visible.
+- The pill and the viewer affordance ride in one row just above the Moon card, inset by the feed's
+  gutters: the location on the start side (the Moon's side), the viewer on the end side.
+- Height of the plate's shadow: `elevationDp` on `EclipseRender` (10 dp on the Home card, 8 dp in the
+  Eclipses window's rows).
 - Cloud presence per theme: `ScenePalette.cloudStrength`.
 - Motion cost: `SCENE_MOTION_FRAME_MS` in `HeroSkyCanvas` (42 ms ≈ 24 fps).
 - Scene tail: the scene does not end at the canvas's bottom edge. The canvas's own bottom
   colour continues *below* the canvas and dissolves in alpha to full transparency over
-  `bottomTailHeight` (Home passes the card's height plus the gap, the whole block below the sky), so
-  the tail passes underneath the wide card. Fading in alpha rather than to a
+  `bottomTailHeight` (Home passes the whole block below the sky — both cards, the pill row and every gap —
+  so the tail passes underneath the wide cards). Fading in alpha rather than to a
   colour is what makes it backdrop-agnostic: it merges into the theme background, the
   live-sky backdrop render (`LiveSkyBackdrop`), a photo backdrop, or any other app
   backdrop unchanged. The canvas itself stays crisp to its edge — nothing fades upward

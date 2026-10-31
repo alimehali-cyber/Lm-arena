@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -869,60 +871,63 @@ private fun TonightEventRow(
 // ------------------------------------------------------------------------------------------------
 
 /**
- * The measured geometry of the Home hero card — the Moon card, grown sideways into the width the two
- * square tiles used to share.
+ * The measured geometry of the two Home hero cards.
  *
  * [moonSquare] is the square the Moon card has always been, and the Moon render is laid out inside it with
- * the same inset it always had, so widening the card cannot change the Moon by a pixel: the same disc,
- * inscribed in the same square, on the same side of the screen. The eclipse sits directly beneath the Moon
- * inside the same card — the only place this block spends more height than it used to.
+ * the same inset it always had — so no amount of work on the cards can change the Moon by a pixel.
+ * [eclipseStrip] is the height the eclipse plate has always had. Both cards are **one card wide**: they are
+ * extended horizontally, exactly as the Moon card was, and nothing inside them is resized by that.
  */
 private data class HeroCardMetrics(
     val width: Dp,
-    val height: Dp,
     val moonSquare: Dp,
     val eclipseStrip: Dp
 ) {
+    /** The Moon card: one Moon square tall. */
+    val moonCardHeight: Dp get() = moonSquare
+
+    /** The eclipse card: one eclipse strip tall. */
+    val eclipseCardHeight: Dp get() = eclipseStrip
+
+    /** Both cards plus the gap between them. */
+    val stackHeight: Dp get() = moonSquare + eclipseStrip + gap
+
     companion object {
-        /** The feed's card gap: around the card, and between its Moon column and its readout column. */
+        /** The feed's card gap: between the two cards, and around them. */
         val gap: Dp = RedSpacing.md
 
         fun forWidth(available: Dp): HeroCardMetrics {
             // Half the feed width, minus the outer gutters and the gap: the size the Moon tile always had.
             val square = ((available - RedSpacing.lg * 2 - gap) * 0.5f).coerceIn(132.dp, 210.dp)
-            // The wide card is exactly the pair of squares it replaces, so it sits on the same gutters.
-            val width = (square * 2 + gap)
-                .coerceAtMost((available - RedSpacing.lg * 2).coerceAtLeast(square))
-            // The eclipse strip. It is a band, but the eclipse itself is rendered in a square inside it
-            // (EclipseRender masks and crops to `minDimension`, so a wide box would cut the corona away).
+            // Both cards are the width the two squares used to share, so they sit on the feed's gutters.
+            val width = (square * 2 + gap).coerceAtMost((available - RedSpacing.lg * 2).coerceAtLeast(square))
+            // The eclipse strip: tall enough for the plate to read, short enough to stay a band.
             val strip = (square * 0.5f).coerceIn(64.dp, 100.dp)
-            return HeroCardMetrics(
-                width = width,
-                height = square + gap + strip,
-                moonSquare = square,
-                eclipseStrip = strip
-            )
+            return HeroCardMetrics(width = width, moonSquare = square, eclipseStrip = strip)
         }
     }
 }
 
 /**
  * The full-bleed Home scene: the sky canvas, the header that rides on it, the location pill and the sky
- * viewer affordance, and the one wide card underneath them.
+ * viewer affordance, and the two cards that sit underneath them.
  *
  * This is the screen's whole top band. It is edge to edge — no horizontal padding, no rounded corners, and
  * it starts at y = 0 so the sky runs under the status bar — which is what makes it read as a place rather
  * than as a card. The feed begins underneath it (see the LazyColumn in [HomeScreen]).
  *
  * The scene's own layers live in [HeroSkyCanvas] with [SkyCanvasPresentation.SCENE]: a low horizon, the
- * layered ground band and drifting cloud veils. Nothing is written on the sky any more: the instant, the
- * date, the condition and the Moon's state moved down into the card, so the canvas is only the sky.
+ * layered ground band and drifting cloud veils. Nothing is written on the sky: the instant, the date, the
+ * condition and the Moon's state live on the Moon card.
  *
- * Beneath the canvas sits one wide glass card ([LiquidGlassSurface]): the Moon in the square it has always
- * occupied, the next eclipse directly beneath it, and the readout — clock, condition, date, Moon — on the
- * card's other side, which is the left on Persian and the right on English. Neither picture carries a
- * caption. The card starts exactly where the canvas ends rather than overlapping it: the sky is the subject
- * of this screen and nothing is allowed to cover it.
+ * The two cards are the same width and stacked, each in its own sheet:
+ *  - **[MoonCard]** — the Moon in the square it has always occupied, with the readout (clock, condition,
+ *    date, Moon) filling the rest of the sheet;
+ *  - **[EclipseCard]** — the next eclipse of *either* family directly beneath it, its plate pinned to the
+ *    card's far left and that specific eclipse's circumstances filling the space to the right of it.
+ *
+ * Neither card overlaps the canvas: the sky is the subject of this screen and nothing is allowed to cover
+ * it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -941,8 +946,13 @@ private fun HomeSkyHero(
     onOpenSearch: () -> Unit
 ) {
     val scrim = Color.Black
-    // The band between the sky and the card, where the location pill and the sky viewer affordance sit.
-    val controlsBottom = card.height + HeroCardMetrics.gap
+    // Everything below the sky: the pill row, both cards and the gaps between them. The heap is anchored to
+    // the bottom, so each piece is placed by its own distance from that edge.
+    val pillRowHeight = 38.dp
+    val eclipseCardBottom = HeroCardMetrics.gap
+    val moonCardBottom = eclipseCardBottom + card.eclipseCardHeight + HeroCardMetrics.gap
+    val pillRowBottom = moonCardBottom + card.moonCardHeight + HeroCardMetrics.gap
+    val controlsBottom = pillRowBottom + pillRowHeight
 
     Box(
         modifier = Modifier
@@ -958,7 +968,7 @@ private fun HomeSkyHero(
                 .height(sceneHeight),
             presentation = SkyCanvasPresentation.SCENE,
             // The ground's dissolved tail reaches exactly to this hero's bottom edge — the full height of
-            // the card below the canvas — so it passes underneath the card and into the backdrop behind it.
+            // the two cards below the canvas — so it passes underneath them and into the backdrop behind.
             bottomTailHeight = controlsBottom
         )
 
@@ -1055,7 +1065,7 @@ private fun HomeSkyHero(
             }
         }
 
-        // --- JUST ABOVE THE CARD: the location on one side, the sky viewer on the other ----------
+        // --- JUST ABOVE THE MOON CARD: the location on one side, the sky viewer on the other -------
         //
         // The selector sits over the Moon card's own side of the screen — the right in Persian, the left in
         // English — because that is the corner of the card the Moon occupies, and the render on the card is
@@ -1067,8 +1077,9 @@ private fun HomeSkyHero(
                 .padding(
                     start = RedSpacing.lg,
                     end = RedSpacing.lg,
-                    bottom = controlsBottom + RedSpacing.sm
-                ),
+                    bottom = pillRowBottom
+                )
+                .height(pillRowHeight),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1104,79 +1115,35 @@ private fun HomeSkyHero(
             }
         }
 
-        // --- THE CARD: the Moon, the eclipse beneath it, and the readout beside them --------------
-        LiquidGlassSurface(
+        // --- CARD 1: the Moon, with the readout beside it ----------------------------------------
+        MoonCard(
+            uiState = uiState,
+            viewModel = viewModel,
+            isFa = isFa,
+            instantMs = instantMs,
+            moonSquare = card.moonSquare,
+            moonData = moonData,
+            sunHoriz = sunHoriz,
+            onScrubDays = onScrubDays,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = HeroCardMetrics.gap)
+                .padding(bottom = moonCardBottom)
                 .width(card.width)
-                .height(card.height)
-                .testTag("home_moon_card"),
-            shape = squircleShape(RedCornerRadius.window),
-            style = LiquidGlassDefaults.Card,
-            fallbackColor = RedTheme.colors.surfaceElevated
-        ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(HeroCardMetrics.gap)
-            ) {
-                // The Moon keeps its square and the eclipse goes straight under it.
-                Column(
-                    modifier = Modifier
-                        .width(card.moonSquare)
-                        .fillMaxHeight()
-                ) {
-                    MoonCardMoon(
-                        uiState = uiState,
-                        moonData = moonData,
-                        sunHoriz = sunHoriz,
-                        onScrubDays = onScrubDays,
-                        onOpen = { viewModel.setShowMoonWindow(true) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(card.moonSquare)
-                    )
+                .height(card.moonCardHeight)
+        )
 
-                    // A hairline rather than a second card: the eclipse is part of this sheet, and one rule
-                    // is enough to keep the two bodies from reading as a single picture.
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(HeroCardMetrics.gap),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = RedSpacing.sm)
-                                .height(0.5.dp)
-                                .background(RedTheme.colors.border.copy(alpha = 0.55f))
-                        )
-                    }
-
-                    EclipseCard(
-                        eclipse = nextEclipse,
-                        isFa = isFa,
-                        onClick = onOpenEclipses,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    )
-                }
-
-                MoonCardReadout(
-                    uiState = uiState,
-                    viewModel = viewModel,
-                    isFa = isFa,
-                    instantMs = instantMs,
-                    moonData = moonData,
-                    sunHoriz = sunHoriz,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                )
-            }
-        }
+        // --- CARD 2: the next eclipse, in its own card, directly under the Moon -------------------
+        EclipseCard(
+            eclipse = nextEclipse,
+            isFa = isFa,
+            timezoneId = uiState.userLocation.timezoneId,
+            onClick = onOpenEclipses,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = eclipseCardBottom)
+                .width(card.width)
+                .height(card.eclipseCardHeight)
+        )
     }
 }
 
@@ -1234,15 +1201,71 @@ private fun HomeLocationPill(
 }
 
 /**
- * The Moon, exactly where it has always been and exactly as large.
+ * The Moon card: one wide glass sheet carrying the Moon and, beside it, the instant it is drawn for.
  *
- * The square handed in here is the old Moon card's size, and the render is inset by [RedSpacing.sm] inside
- * it, so the disc is inscribed in the same square it was before the card was widened — the render itself is
- * untouched. Drag it to scrub days (the same ±30-day gesture the Moon screen had) and tap it to open the
- * Moon window with everything else.
+ * The Moon keeps the square — and the 8 dp inset inside it — that the square card had, on the card's start
+ * side (the right in Persian, the left in English), so the render itself is untouched by the card being
+ * widened. Drag it to scrub days (the same ±30-day gesture the Moon screen had) and tap it to open the Moon
+ * window with everything else.
  *
  * The render's dark side is transparent, so no black disc sits behind the Moon; the card's glass shows
  * straight through it and the Moon appears to float on the sky.
+ */
+@Composable
+private fun MoonCard(
+    uiState: MainUiState,
+    viewModel: MainViewModel,
+    isFa: Boolean,
+    instantMs: Long,
+    moonSquare: Dp,
+    moonData: MoonEngine.MoonData,
+    sunHoriz: CoordinateEngine.Horizontal,
+    onScrubDays: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LiquidGlassSurface(
+        modifier = modifier.testTag("home_moon_card"),
+        shape = squircleShape(RedCornerRadius.window),
+        style = LiquidGlassDefaults.Card,
+        fallbackColor = RedTheme.colors.surfaceElevated
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(HeroCardMetrics.gap)
+        ) {
+            // The Moon's square, exactly as it was: same size, same inset, same render.
+            MoonCardMoon(
+                uiState = uiState,
+                moonData = moonData,
+                sunHoriz = sunHoriz,
+                onScrubDays = onScrubDays,
+                onOpen = { viewModel.setShowMoonWindow(true) },
+                modifier = Modifier
+                    .width(moonSquare)
+                    .fillMaxHeight()
+            )
+
+            MoonCardReadout(
+                uiState = uiState,
+                viewModel = viewModel,
+                isFa = isFa,
+                instantMs = instantMs,
+                moonData = moonData,
+                sunHoriz = sunHoriz,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
+        }
+    }
+}
+
+/**
+ * The Moon, exactly where it has always been and exactly as large.
+ *
+ * The square handed in here is the old Moon card's size, and the render is inset by [RedSpacing.sm] inside
+ * it, so the disc is inscribed in the same square it was before the cards were widened — the render itself
+ * is untouched. Drag it to scrub days and tap it to open the Moon window.
  */
 @Composable
 private fun MoonCardMoon(
@@ -1285,62 +1308,202 @@ private fun MoonCardMoon(
 }
 
 /**
- * The eclipse, now at the bottom of the Moon card rather than beside it.
+ * The eclipse card: the next eclipse — the soonest of *either* family at this location — in its own glass
+ * card directly beneath the Moon's.
  *
- * Tapping it opens the Eclipses screen ([EclipseWindow]) — both families, the next three of each, and the
- * full window for any single eclipse. The tile is the way in; the screen is where you decide which one you
- * care about. When the ephemeris has no eclipse to offer, the tile still renders (a total solar eclipse —
- * the phenomenon the family is named for) but stops being clickable, so it can never open an empty screen.
+ * The card is extended horizontally like the Moon card, and nothing inside it is rescaled by that: the plate
+ * keeps the size it has always had, pinned to the card's **far left**, and everything that makes this
+ * particular eclipse *this* eclipse — what it will look like from here, when, how much of the disc is
+ * covered and how good a view it is — fills the space to its right.
+ *
+ * Two things make that text trustworthy:
+ *  - the plate is chosen from [EclipseEngine.EclipseResult.localType], never from the catalogue type, so a
+ *    total solar eclipse that is a deep partial over the observer's city is drawn as the partial they will
+ *    actually see (see [EclipseEngine.EclipseResult.localType]);
+ *  - every number comes from the same [EclipseEngine.EclipseResult] the Eclipses window reads, so the card
+ *    and the window can never disagree.
+ *
+ * When the ephemeris has no eclipse to offer, the card still renders (a total solar eclipse — the
+ * phenomenon the family is named for) but stops being clickable, so it can never open an empty screen.
  */
 @Composable
 private fun EclipseCard(
     eclipse: EclipseEngine.EclipseResult?,
     isFa: Boolean,
+    timezoneId: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val type = eclipse?.event?.type ?: EclipseEngine.EclipseType.TOTAL_SOLAR
-    val description = when {
+    val type = eclipse?.localType ?: EclipseEngine.EclipseType.TOTAL_SOLAR
+    val name = when {
         eclipse != null -> if (isFa) eclipse.localNameFa else eclipse.localNameEn
         isFa -> "خورشیدگرفتگی"
         else -> "Solar eclipse"
     }
 
-    Box(
-        modifier = modifier
-            .clickable(
-                enabled = eclipse != null,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .testTag("home_eclipse_card"),
-        contentAlignment = Alignment.Center
+    LiquidGlassSurface(
+        modifier = modifier.testTag("home_eclipse_card"),
+        shape = squircleShape(RedCornerRadius.window),
+        style = LiquidGlassDefaults.Card,
+        fallbackColor = RedTheme.colors.surfaceElevated,
+        onClick = if (eclipse != null) onClick else null
     ) {
-        // A square, centred in the strip: EclipseRender crops the plate to `ContentScale.Crop` and cuts it
-        // with a radial mask sized from `minDimension`, so it needs an aspect ratio of 1 to show the whole
-        // corona instead of a slice of it.
-        EclipseRender(
-            type = type,
-            contentDescription = description,
-            modifier = Modifier
-                .fillMaxHeight()
-                .aspectRatio(1f)
-                .padding(RedSpacing.sm)
-                .testTag("home_eclipse_card_render")
+        // The card was grown from the left edge, so that is where the plate stays, in either language. The
+        // row is composed left-to-right on purpose; the details inside it restore the app's own direction.
+        val appDirection = LocalLayoutDirection.current
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                // Resolved here, in RowScope, so it can be handed through the direction provider below.
+                val detailsWeight = Modifier.weight(1f)
+
+                // The plate: the same square, the same 8 dp inset, one size only.
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(1f)
+                        .padding(RedSpacing.sm)
+                        .testTag("home_eclipse_card_render"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EclipseRender(
+                        type = type,
+                        contentDescription = name,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                CompositionLocalProvider(LocalLayoutDirection provides appDirection) {
+                    EclipseCardDetails(
+                        eclipse = eclipse,
+                        name = name,
+                        isFa = isFa,
+                        timezoneId = timezoneId,
+                        modifier = detailsWeight
+                            .fillMaxHeight()
+                            .padding(start = RedSpacing.xs, end = RedSpacing.md)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The circumstances of one eclipse, on the right of its plate: what it is, when it happens, what to look for
+ * and how good the view is from here.
+ *
+ * Three lines, at caption scale, in the same voice as the Moon card's readout — the card is a tile, not a
+ * table, and the full window is one tap away.
+ */
+@Composable
+private fun EclipseCardDetails(
+    eclipse: EclipseEngine.EclipseResult?,
+    name: String,
+    isFa: Boolean,
+    timezoneId: String,
+    modifier: Modifier = Modifier
+) {
+    if (eclipse == null) {
+        Column(
+            modifier = modifier.testTag("home_eclipse_card_details"),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = name,
+                style = RedTypographyTokens.bodySecondary.copy(fontWeight = FontWeight.SemiBold),
+                color = RedTheme.colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = if (isFa) "گرفتگی بعدی به‌زودی" else "The next eclipse is being computed",
+                style = RedTypographyTokens.caption,
+                color = RedTheme.colors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        return
+    }
+
+    // The location's timezone, exactly as the Eclipses window formats the same eclipse.
+    val userTimeZone = remember(timezoneId) { TimeEngine.resolveTimeZone(timezoneId) }
+    val dateText = if (isFa) eclipse.formattedDateFa else eclipse.formattedDateEn
+    val days = eclipse.daysRemaining
+    val countdown = when {
+        days <= 0 -> if (isFa) "امروز" else "Today"
+        days == 1 -> if (isFa) "فردا" else "Tomorrow"
+        isFa -> "${days.toString().toPersianDigits()} روز دیگر"
+        else -> "in $days days"
+    }
+    val peakTime = remember(eclipse.localPeakTimeMs, isFa, userTimeZone) {
+        TimeEngine.formatTime24h(eclipse.localPeakTimeMs, isFa, userTimeZone)
+    }
+    val magnitudeText = remember(eclipse) {
+        val isSolar = eclipse.event.isSolar
+        if (isSolar) {
+            val pct = eclipse.localObscurationPercent
+            if (isFa) "${pct.toString().toPersianDigits()}٪ پوشش" else "$pct% covered"
+        } else {
+            val mag = String.format(java.util.Locale.US, "%.2f", eclipse.localMagnitude)
+            if (isFa) "بزرگی ${mag.toPersianDigits()}" else "magnitude $mag"
+        }
+    }
+    val grade = if (isFa) eclipse.visibility.grade.labelFa else eclipse.visibility.grade.labelEn
+    val isGoodView = eclipse.visibility.isObservable
+    val accent = if (isGoodView) RedTheme.colors.statusSuccess else RedTheme.colors.statusWarning
+
+    Column(
+        modifier = modifier.testTag("home_eclipse_card_details"),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.Start
+    ) {
+        Text(
+            text = name,
+            style = RedTypographyTokens.bodySecondary.copy(
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.5.sp,
+                lineHeight = 16.sp
+            ),
+            color = RedTheme.colors.textPrimary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Text(
+            text = "$dateText · $countdown",
+            style = RedTypographyTokens.caption,
+            color = RedTheme.colors.textSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Text(
+            text = if (isFa) {
+                "$magnitudeText · اوج ${peakTime.toPersianDigits()} · $grade"
+            } else {
+                "$magnitudeText · peak $peakTime · $grade"
+            },
+            style = RedTypographyTokens.caption.copy(fontSize = 10.5.sp),
+            color = accent,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
 
 /**
- * The instant and the sky's own state, moved off the sky and onto the card's other side.
+ * The instant and the sky's own state, on the Moon card beside the Moon.
  *
  * It reads the same instant the sky is drawn for — the Time Machine instant in simulation mode, the shared
  * clock otherwise, plus the canvas' finger time-travel offset, which [MainViewModel.skyDragOffsetHours]
  * publishes — so scrubbing the sky moves these numbers with it. The offset is collected here rather than in
  * [HomeScreen] so a per-frame drag recomposes this caption and nothing else.
  *
- * Everything comes from the state the card is drawn from, so the clock and the Moon above it can never
+ * Everything comes from the state the card is drawn from, so the clock and the Moon beside it can never
  * disagree.
  */
 @Composable
