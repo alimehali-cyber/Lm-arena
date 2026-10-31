@@ -93,7 +93,7 @@ class MilAzhdahaFireTest {
         // Both stone programs get the term (Persepolis is out of range; the shader is shared).
         assertTrue(
             "both stone shaders carry the term",
-            Regex("uFireRange \* uFireRange").findAll(src).count() == 2
+            src.split("uFireRange * uFireRange").size == 3
         )
     }
 

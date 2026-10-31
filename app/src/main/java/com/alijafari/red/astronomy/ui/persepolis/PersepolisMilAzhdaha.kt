@@ -2265,8 +2265,9 @@ void main(){
   }
   float y = clamp(vUV.y, 0.0, 1.0);
   float x = vUV.x;
-  // The tip leans with the gusting air; the base does not move at all.
-  float sway = (fbm1(uTime*1.7 + 4.0) - 0.5) * 1.15 * y * y;
+  // The flame leans with the gusting air, and the lean grows with height:
+  // the base is pinned to the sill, the tip wanders.
+  float sway = (fbm1(y*3.1 + uTime*1.6) - 0.5) * 0.85 * (0.25 + y);
   // A flame is widest just above its base and drawn to a point: this is that
   // profile, with a ragged edge cut into it by the noise along its height.
   float w = 0.52 * pow(max(1.0 - y, 0.0), 0.52) + 0.055;
