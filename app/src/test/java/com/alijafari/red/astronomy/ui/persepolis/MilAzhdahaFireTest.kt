@@ -72,28 +72,65 @@ class MilAzhdahaFireTest {
         assertTrue("it hangs in the opening, not on the wall", mouthFloorLocalZ < 1.90f && mouthFloorLocalZ > 0.96f)
         assertTrue("the fire's z is that mid-wall value", src.contains("FIRE_LOCAL_Z = 1.55f"))
         // The tower's top course really is 5.70 local metres up: socle top 1.00 + the nine courses.
-        val courses = Regex("val courseH = floatArrayOf\\(([^)]*)\\)")
-            .find(src)?.groupValues?.get(1)
-            ?.split(',')?.mapNotNull { it.trim().removeSuffix("f").toFloatOrNull() }
-            ?: error("courseH not found in the tower builder")
+        val courses = courseHeights(src)
         assertTrue("nine shaft courses", courses.size == 9)
         val topY = 1.00f + courses.sum()
         assertEquals("the fire stands on the top course", topY + 0.02f, 5.72f, 0.005f)
     }
 
     @Test
+    fun theDoorwayBurnsTooFromTheSameRenderer() {
+        val src = sceneSource()
+        // A second opening, a second position — not a second effect.
+        assertTrue("the doorway fire is its own position", src.contains("DOOR_FIRE_LOCAL_X = 0.20f"))
+        assertTrue("it stands on the door's sill", src.contains("DOOR_FIRE_LOCAL_Y = 3.58f + 0.02f"))
+        assertTrue("and hangs just inside the opening", src.contains("DOOR_FIRE_LOCAL_Z = 1.62f"))
+        // The door's sill really is where the tower builds it: socle top 1.00 + courses 0..5.
+        val courses = courseHeights(src)
+        val sillY = 1.00f + courses.take(6).sum()
+        assertEquals("the door sill is the top of shaft course 6", 3.58f, sillY, 0.005f)
+        // One draw path, one shader, one night gate: `drawOneFire` is called once per opening.
+        assertTrue("one renderer draws every fire", src.contains("for (f in FIRES) drawOneFire(p, f, fv, flick, up)"))
+        assertTrue("the fires are a short list, not a second pipeline", src.contains("private val FIRES: Array<FireSpec> = arrayOf("))
+        assertEquals("exactly two openings burn", 2, "FireSpec(".toRegex().findAll(src).count() - 1)
+        // The doorway is a narrower hole than the summit mouth, so only its width differs.
+        assertTrue("the doorway flame is narrower", src.contains("DOOR_FIRE_FLAME_W_M = 0.86f"))
+        assertTrue("its width reaches the draw call", src.contains("GLES30.glUniform2f(p.uSize, f.flameWidthM, FIRE_FLAME_H_M)"))
+    }
+
+    @Test
     fun theLightIsAPointSourceThatDiesOutOverTheNearbyStone() {
         val src = sceneSource()
-        // One point light, a metre-scale reach and a real falloff: not a flood on the tower.
-        assertTrue("the stone shaders take a fire point light", src.contains("uniform vec3 uFirePos;"))
-        assertTrue("with a reach in metres", src.contains("uniform float uFireRange;"))
+        // A point light per fire, a metre-scale reach and a real falloff: not a flood on the tower.
+        assertTrue("the stone shaders take an array of fire point lights", src.contains("uniform vec3 uFirePos[2];"))
+        assertTrue("each with its own colour", src.contains("uniform vec3 uFireColor[2];"))
+        assertTrue("and one reach in metres", src.contains("uniform float uFireRange;"))
         assertTrue("and a falloff", src.contains("1.0 / (1.0 + fd2 / (uFireRange * uFireRange))"))
         assertTrue("the reach is a few metres of stone, not the sky", src.contains("FIRE_LIGHT_RANGE_M = 3.20f"))
-        assertTrue("the light travels with the group's bake", src.contains("milLocalToWorld(FIRE_LOCAL_X, FIRE_LOCAL_Y, FIRE_LOCAL_Z)"))
+        assertTrue("a fire travels with the group's bake", src.contains("val worldBase: FloatArray = milLocalToWorld("))
         // Both stone programs get the term (Persepolis is out of range; the shader is shared).
         assertTrue(
             "both stone shaders carry the term",
             src.split("uFireRange * uFireRange").size == 3
+        )
+        // Both lights are uploaded together, in one call each, from the same list.
+        assertTrue("both positions in one upload", src.contains("GLES30.glUniform3fv(p.uFirePos, 2, FIRE_WORLD_POSITIONS, 0)"))
+        assertTrue("both colours in one upload", src.contains("GLES30.glUniform3fv(p.uFireColor, 2, fireLightScratch, 0)"))
+    }
+
+    @Test
+    fun theTwoFiresDoNotDriftApartFromTheirOpenings() {
+        // Each fire's light sits on its own flame's sill: one list feeds both the
+        // billboards and the stone shader, so a fire can never glow where it burns not.
+        val src = sceneSource()
+        assertTrue("one list of openings", src.contains("private val FIRES: Array<FireSpec>"))
+        assertTrue(
+            "the light positions come from that list",
+            src.contains("FIRES.forEachIndexed { i, f -> out[i * 3] = f.worldBase[0]")
+        )
+        assertTrue(
+            "and so do the billboards",
+            src.contains("for (f in FIRES) drawOneFire(p, f, fv, flick, up)")
         )
     }
 
@@ -131,6 +168,13 @@ class MilAzhdahaFireTest {
     }
 
     private fun sceneSource(): String = readMain("java/com/alijafari/red/astronomy/ui/persepolis/PersepolisMilAzhdaha.kt")
+
+    /** The tower's own course heights, read out of the builder rather than restated. */
+    private fun courseHeights(src: String): List<Float> =
+        Regex("val courseH = floatArrayOf\\(([^)]*)\\)")
+            .find(src)?.groupValues?.get(1)
+            ?.split(',')?.mapNotNull { it.trim().removeSuffix("f").toFloatOrNull() }
+            ?: error("courseH not found in the tower builder")
 
     private fun readMain(relative: String): String {
         val f = File(mainDir(), relative)

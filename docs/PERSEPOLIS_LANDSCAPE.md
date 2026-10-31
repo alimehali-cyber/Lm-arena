@@ -112,40 +112,47 @@ sky-model change**: every 15 s bucket at idle (zero cost between), per frame whi
 scrubs time (the light visibly sweeps across both ruins with the sky), and on location or theme
 change. The 24 fps cloud clock never touches it — with one deliberate exception, below.
 
-### The fire in the ruined top
+### The fires in the tower's openings
 
-Mil-e Azhdaha's summit keeps one opening into its old chamber: the mouth between the piers on the
-south face, the "hole on the top" the transcription calls the unlit chamber behind the mouth (see
-`FIRE_*` in `PersepolisMilAzhdaha.kt`). At night a small fire burns in it.
+Mil-e Azhdaha has two dark holes in it, and at night a small fire burns in each: the **doorway**
+part-way up the shaft (the transcribed two-course opening with the unlit doorway depth behind it), and
+the **chamber mouth on the ruined summit** — the "hole on the top" the transcription calls the unlit
+chamber behind the mouth (see `FIRE_*` in `PersepolisMilAzhdaha.kt`). One renderer draws both: one
+program, one quad, three additive layers per opening, a position per opening. The second fire therefore
+costs four more quads and one extra light in the stone shader's loop — not a second effect, and not a
+second pipeline.
 
-- **It is placed in the model's own metres.** `FIRE_LOCAL_X/Y/Z` are Mil-local metres like every
-  block in `milTower`, put through the same 2.04× / −0.20 rad / translation bake
-  (`milLocalToWorld`), so the flame sits in the hole the masonry built — centred in the opening's
-  ≈0.9 × 0.47 m, on its sill, mid-wall between the south face (z ≈ 1.90 local) and the dark
-  chamber wall (z ≈ 0.92 local).
-- **It is only lit at night, and by the same Sun as everything else.** `setSun` sets
+- **They are placed in the model's own metres.** `FIRE_LOCAL_X/Y/Z` and `DOOR_FIRE_LOCAL_X/Y/Z` are
+  Mil-local metres like every block in `milTower`, put through the same 2.04× / −0.20 rad /
+  translation bake (`milLocalToWorld`), so each flame sits in the hole the masonry built: the summit
+  fire centred in the mouth's ≈0.9 × 0.47 m on its sill, mid-wall between the south face (z ≈ 1.90
+  local) and the dark chamber wall (z ≈ 0.92); the doorway fire on the door sill (top of shaft course
+  6, 3.58 m up) at the door's own centre, just inside the opening (z ≈ 1.62 local).
+- **They are only lit at night, and by the same Sun as everything else.** `setSun` sets
   `fireVisible = fireNightFactor(altitude)` — 0 down to −2° of altitude, ramping through
   smoothstep to 1 at −10°. There is no separate clock or switch for a host to forget, and the gate
   follows the sky while the finger scrubs through time: the fire lights at dusk and is out before
   the Sun is back up.
-- **It is small, and it looks like a fire, not a sprite.** The flame is a procedural,
-  camera-facing billboard, 1.05 × 1.10 world metres, drawn *with* depth testing, so the piers and
-  the lintel cut it exactly as they would cut the real thing: only the part visible through the
-  opening is drawn. Its teardrop profile, sway, ragged edge and heat ladder (blue root, white-hot
-  base, orange body) are evaluated in the fragment shader from noise and the frame's own clock —
-  no texture, so nothing goes soft at the couple of pixels this occupies on a phone. Around it two
-  weak additive halo quads stand in for the air the fire lights, drawn without depth testing,
-  because that light is in front of the wall rather than behind it.
-- **It lights the stone it can reach.** Both stone shaders take one extra point light —
-  `uFirePos`, `uFireColor` (already night-gated and flickering), `uFireRange` (3.20 world metres)
-  — with a `1 / (1 + d² / r²)` falloff and an N·L term plus a small wrap term for the light the
-  flame's own air scatters sideways. The wall head, the piers and the cap slabs above it warm up;
-  the shaft below is already out of range, so it never becomes a lamp on the whole tower. On
-  Persepolis, a hundred metres away, the falloff takes it to nothing — the uniforms ride on both
-  programs only because the term is shared code.
+- **They are small, and they look like fires, not sprites.** Each flame is the same procedural,
+  camera-facing billboard, 1.10 world metres tall, drawn *with* depth testing, so the jambs, the
+  lintels and the sills cut it exactly as they would cut the real thing: only the part visible through
+  the opening is drawn. Only the width differs — 1.05 m at the summit, 0.86 m in the narrower
+  doorway — because the holes differ. Each flame's teardrop profile, sway, ragged edge and heat ladder
+  (blue root, white-hot base, orange body) are evaluated in the fragment shader from noise and the
+  frame's own clock — no texture, so nothing goes soft at the couple of pixels this occupies on a
+  phone. Around each, two weak additive halo quads stand in for the air the fire lights, drawn
+  without depth testing, because that light is in front of the wall rather than behind it.
+- **Each lights the stone it can reach.** Both stone shaders loop over two point lights —
+  `uFirePos[2]`, `uFireColor[2]` (already night-gated and flickering), `uFireRange` (3.20 world
+  metres) — with a `1 / (1 + d² / r²)` falloff and an N·L term plus a small wrap term for the light
+  the flame's own air scatters sideways. At the summit the wall head, the piers and the cap slabs warm
+  up; at the doorway the sill, the jambs and the course above the door do, and the two pools of light
+  are four metres apart on the shaft, so neither becomes a lamp on the whole tower. On Persepolis, a
+  hundred metres away, the falloff takes both to nothing — the uniforms ride on both programs only
+  because the term is shared code.
 - **The flicker costs one slow tick.** `drawFrame` in `PersepolisTextureView` re-posts itself
   every 90 ms **only while** `scene.fireLit` and the host is resumed, and the tick dies with the
-  fire, on pause and on teardown. Daylight and every other theme therefore still cost exactly one
+  fires, on pause and on teardown. Daylight and every other theme therefore still cost exactly one
   frame per sky-model change.
 
 ## 3. Framing — `PersepolisFraming`
@@ -367,10 +374,11 @@ both sites back into the living plain.
   protected-readout rules, cut-back platform and Mil slope/tower footprint ordering over six scene
   sizes, the theme gate, and the moonlight scaling.
 - `MilAzhdahaFireTest` (JVM): the night gate (`fireNightFactor` is 0 at −2° and above, 1 from
-  −10°, monotone through the dusk), the flicker's range and mean, the fire's placement on the top
-  course (recomputed from the tower's own course heights), the point light's uniforms and falloff
-  in both stone shaders, and the source-level guarantees that the flame is drawn depth-tested
-  after the stone and that the host only ticks while the fire is lit.
+  −10°, monotone through the dusk), the flicker's range and mean, both fires' placements recomputed
+  from the tower's own course heights (the summit on the top course, the doorway on the door sill),
+  that one renderer draws every opening from one list, the point-light arrays and falloff in both
+  stone shaders, and the source-level guarantees that the flame is drawn depth-tested after the
+  stone and that the host only ticks while a fire is lit.
 - `tools/persepolis/verify_framing.py` (stdlib): replicates `Matrix.setLookAtM`/`orthoM` and
   `PersepolisMilAzhdahaScene.draw`'s centre-solving (including the 0.30 horizontal offset),
   projects the toe, anchor, forecourt edge, platform top/corners, tall columns, doorway, façade
@@ -395,7 +403,8 @@ both sites back into the living plain.
   `SceneGroundRenderer.drawCombinedLandscapeGrounding`.
 - Monument transforms and light character: inside `PersepolisMilAzhdaha.kt` — changing these
   changes the supplied model, so prefer the host-side knobs above.
-- The night fire: `FIRE_LOCAL_*` (where it burns, in Mil-local metres), `FIRE_FLAME_W_M/H_M` and
-  `FIRE_HALO_*_R_M` (how big it reads), `FIRE_LIGHT_COLOR` and `FIRE_LIGHT_RANGE_M` (how far and
-  how warm its light is on the stone), `fireNightFactor` (when it is lit) and `fireFlicker` (how
-  it moves).
+- The night fires: `FIRE_LOCAL_*` / `DOOR_FIRE_LOCAL_*` (where each burns, in Mil-local metres),
+  `FIRE_FLAME_W_M/H_M` and `DOOR_FIRE_FLAME_W_M` (how big each reads), `FIRE_HALO_*_R_M`,
+  `FIRE_LIGHT_COLOR` and `FIRE_LIGHT_RANGE_M` (how far and how warm their light is on the stone),
+  the `FIRES` list (one entry per burning opening), `fireNightFactor` (when they are lit) and
+  `fireFlicker` (how they move).

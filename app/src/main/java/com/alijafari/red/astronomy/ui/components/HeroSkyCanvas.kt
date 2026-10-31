@@ -24,6 +24,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -37,6 +38,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -714,16 +720,24 @@ fun HeroSkyCanvas(
             }
         }
 
-        // --- FLOATING SELECTED CELESTIAL OBJECT NAME PILL ---
-        // Present in both Home and fullscreen: this is the affordance that turns identify into detail.
+        // --- THE SELECTION CARD (identify → detail) ---
+        // Present in both Home and fullscreen: this is the affordance that turns a tap on the sky into
+        // that object's page.
+        //
+        // It is a small, quiet card that sits *over its own subject* and points at it — not a pill
+        // floating somewhere below-left of the tap. It is centred on the object's projected position, it
+        // flips under the object when there is no room above it, and the wedge on its edge is aimed at the
+        // object and clamped inside the card's own width, so the pointer can never drift off the contact
+        // point it is supposed to mark. Dark glass, one hairline, no accent ring: the sky is the loud
+        // thing here, and the only colour in the card is the object's own dot.
         AnimatedVisibility(
             visible = selectedCelestial != null,
-            enter = fadeIn(tween(180)) + scaleIn(
-                initialScale = 0.82f,
-                animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMediumLow)
-            ) + slideInVertically(tween(220, easing = FastOutSlowInEasing)) { it / 5 },
-            exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.94f, animationSpec = tween(140)) +
-                slideOutVertically(tween(140)) { -it / 8 }
+            enter = fadeIn(tween(150)) + scaleIn(
+                initialScale = 0.90f,
+                transformOrigin = TransformOrigin(0.5f, 0.5f),
+                animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
+            ),
+            exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.96f, animationSpec = tween(120))
         ) {
             selectedCelestial?.let { sel ->
                 val canvasW = constraints.maxWidth.toFloat()
@@ -743,11 +757,6 @@ fun HeroSkyCanvas(
                         } ?: sel.position
                     }
                 }
-                val xDp = with(LocalDensity.current) { livePos.x.toDp() }
-                val yDp = with(LocalDensity.current) { livePos.y.toDp() }
-                val bubbleMaxWidth = (maxWidth - 24.dp).coerceAtMost(240.dp)
-                val maxPillX = (maxWidth - bubbleMaxWidth).coerceAtLeast(12.dp)
-                val maxPillY = (maxHeight - 72.dp).coerceAtLeast(12.dp)
                 val accent = when (uiState.skyCanvasTheme) {
                     SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
                     SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFF38BDF8)
@@ -757,69 +766,22 @@ fun HeroSkyCanvas(
                     SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE07A5F)
                 }
 
-                Surface(
-                    onClick = {
+                SelectionCallout(
+                    name = sel.name,
+                    detail = sel.typeName ?: if (isFa) "مشاهده اطلاعات" else "View details",
+                    accent = accent,
+                    pinX = livePos.x,
+                    pinY = livePos.y,
+                    canvasWidth = canvasW,
+                    canvasHeight = canvasH,
+                    onOpen = {
                         val idToOpen = sel.id
                         selectedCelestial = null
                         if (idToOpen.isNotEmpty()) {
                             viewModel.openObjectDetailById(idToOpen, simulatedTimeMs)
                         }
-                    },
-                    shape = RedShapes.capsule,
-                    color = Color(0xE6101727),
-                    border = BorderStroke(1.dp, accent.copy(alpha = 0.72f)),
-                    shadowElevation = 14.dp,
-                    modifier = Modifier
-                        .widthIn(max = bubbleMaxWidth)
-                        .offset(
-                            x = (xDp - 74.dp).coerceIn(12.dp, maxPillX),
-                            y = (yDp - 56.dp).coerceIn(12.dp, maxPillY)
-                        )
-                        .testTag("selected_celestial_pill")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(start = 13.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(accent)
-                        )
-                        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                            Text(
-                                text = sel.name,
-                                style = TextStyle(
-                                    fontFamily = LocalAppFontFamily.current,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp,
-                                    color = Color.White
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = sel.typeName ?: if (isFa) "مشاهده اطلاعات" else "View details",
-                                style = TextStyle(
-                                    fontFamily = LocalAppFontFamily.current,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 10.sp,
-                                    letterSpacing = if (isFa) 0.sp else 0.3.sp,
-                                    color = Color.White.copy(alpha = 0.66f)
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Text(
-                            text = if (isFa) "‹" else "›",
-                            style = TextStyle(fontSize = 22.sp, lineHeight = 22.sp, color = accent),
-                            modifier = Modifier.padding(start = 2.dp)
-                        )
                     }
-                }
+                )
             }
         }
 
@@ -975,3 +937,146 @@ fun HeroSkyCanvas(
     }
 }
 
+
+/**
+ * The card that names a tapped object and opens it — the only piece of chrome the sky canvas shows.
+ *
+ * Why it is built this way:
+ *  - **it belongs to the object, not to the tap.** The card is centred on the object's projected
+ *    position and the wedge on its edge points *at* the object. The old pill was offset a fixed
+ *    74 × 56 dp from the object, so its arrow — such as it was — pointed at nothing, and read as a
+ *    label that had slid off the thing it labelled;
+ *  - **it flips.** There is more sky above a low object than above a high one, so the card sits above
+ *    the object with its wedge pointing down, and below it pointing up when the object is too near the
+ *    top edge. Either way the wedge marks the contact point;
+ *  - **it is quiet.** One dark surface at a fixed radius, one hairline, no accent-coloured ring, no
+ *    arrow glyph inside. The name, a muted line saying what the object is, and the object's own colour
+ *    as a 6 dp dot. The whole card is the tap target;
+ *  - **it never jumps.** Its position is resolved from the card's measured size, clamped to the canvas,
+ *    so a long name near an edge stays fully on screen and the pointer stays inside the card.
+ */
+@Composable
+private fun SelectionCallout(
+    name: String,
+    detail: String,
+    accent: Color,
+    pinX: Float,
+    pinY: Float,
+    canvasWidth: Float,
+    canvasHeight: Float,
+    onOpen: () -> Unit
+) {
+    val density = LocalDensity.current
+    var cardSize by remember { mutableStateOf(IntSize.Zero) }
+    val wedgeH = with(density) { 7.dp.toPx() }
+    val wedgeW = with(density) { 18.dp.toPx() }
+    val lift = with(density) { 13.dp.toPx() }        // gap between the wedge's tip and the object
+    val edge = with(density) { 8.dp.toPx() }         // keep the card off the canvas edge
+    val strokeW = with(density) { 0.7.dp.toPx() }
+
+    val fill = Color(0xF20B0E15)
+    val hairline = Color.White.copy(alpha = 0.16f)
+
+    val w = cardSize.width.toFloat()
+    val h = cardSize.height.toFloat()
+    // Room above the object for the whole card plus its wedge?
+    val placeAbove = pinY - lift - wedgeH - h >= edge || pinY > canvasHeight * 0.55f
+    val x = (pinX - w / 2f).coerceIn(edge, (canvasWidth - edge - w).coerceAtLeast(edge))
+    val y = if (placeAbove) {
+        (pinY - lift - wedgeH - h).coerceIn(edge, (canvasHeight - edge - h).coerceAtLeast(edge))
+    } else {
+        (pinY + lift + wedgeH).coerceIn(edge, (canvasHeight - edge - h - wedgeH).coerceAtLeast(edge))
+    }
+    // The pointer marks the object: its centre tracks the object's x, held inside the card's corners.
+    val tipX = (pinX - x).coerceIn(with(density) { 14.dp.toPx() }, (w - with(density) { 14.dp.toPx() }).coerceAtLeast(with(density) { 14.dp.toPx() }))
+
+    // Until the card has been measured its position is a guess, so it is held invisible for the single
+    // frame it takes to measure — never drawn at a guessed offset.
+    val measured = cardSize.width > 0
+
+    Box(modifier = Modifier.fillMaxSize().alpha(if (measured) 1f else 0f)) {
+        // The wedge first, so the card's own edge covers its base and the two read as one shape.
+        Canvas(
+            modifier = Modifier
+                .offset {
+                    IntOffset(
+                        (x + tipX - wedgeW / 2f).roundToInt(),
+                        (if (placeAbove) y + h else y - wedgeH).roundToInt()
+                    )
+                }
+                .size(with(density) { wedgeW.toDp() }, with(density) { wedgeH.toDp() })
+        ) {
+            val path = Path().apply {
+                moveTo(0f, if (placeAbove) 0f else size.height)
+                lineTo(size.width / 2f, if (placeAbove) size.height else 0f)
+                lineTo(size.width, if (placeAbove) 0f else size.height)
+                close()
+            }
+            drawPath(path, color = fill)
+            // Only the two exposed sides get the hairline.
+            drawLine(
+                color = hairline,
+                start = Offset(0f, if (placeAbove) 0f else size.height),
+                end = Offset(size.width / 2f, if (placeAbove) size.height else 0f),
+                strokeWidth = strokeW
+            )
+            drawLine(
+                color = hairline,
+                start = Offset(size.width / 2f, if (placeAbove) size.height else 0f),
+                end = Offset(size.width, if (placeAbove) 0f else size.height),
+                strokeWidth = strokeW
+            )
+        }
+
+        Surface(
+            onClick = onOpen,
+            shape = squircleShape(RedCornerRadius.md),
+            color = fill,
+            border = BorderStroke(0.7.dp, hairline),
+            shadowElevation = 10.dp,
+            modifier = Modifier
+                .offset { IntOffset(x.roundToInt(), y.roundToInt()) }
+                .widthIn(max = with(density) { 210.dp })
+                .onSizeChanged { cardSize = it }
+                .testTag("selected_celestial_pill")
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 11.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(accent)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text(
+                        text = name,
+                        style = TextStyle(
+                            fontFamily = LocalAppFontFamily.current,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            letterSpacing = 0.1.sp,
+                            color = Color(0xFFF4F7FC)
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = detail,
+                        style = TextStyle(
+                            fontFamily = LocalAppFontFamily.current,
+                            fontWeight = FontWeight.Normal,
+                            fontSize = 10.5.sp,
+                            color = Color.White.copy(alpha = 0.58f)
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}

@@ -185,14 +185,6 @@ private fun ArSmartPill(
     }
 }
 
-private data class ArEdgeIndicator(
-    val obj: CelestialObject,
-    val xPx: Float,
-    val yPx: Float,
-    val angleDeg: Float,
-    val priority: Double
-)
-
 private enum class ArHealthLevel { GREEN, AMBER, RED, GRAY }
 
 private data class ArSubsystemHealth(
@@ -1136,63 +1128,6 @@ fun CompassARScreen(
         label = "ControlsAlpha"
     )
 
-    // Off-screen indicators: notable objects outside the real field of view (from the exact camera
-    // model), in screen-space direction so they are right for any roll.
-    val edgeIndicators = run {
-        val cam = composeCameraModel
-        val snap = skySnapshot
-        val width = arViewportSize.width.toFloat()
-        val height = arViewportSize.height.toFloat()
-        val margin = 28f * currentDensity
-        if (cam == null || snap == null || width <= 2f * margin || height <= 2f * margin || !isControlsVisible || isAlignmentMode) {
-            emptyList()
-        } else {
-            val centerX = width / 2f
-            val centerY = height / 2f
-            val bore = cam.boresightEnu()
-            val c = DoubleArray(2)
-            val p = FloatArray(2)
-            allCatalog.mapNotNull { obj ->
-                if (selectedTarget?.id == obj.id) return@mapNotNull null
-                if (!isVisibleByArFilter(obj, filterStars, filterSun, filterMoons, filterPlanets, filterSatellites, filterDeepSky, filterMeteorShowers)) return@mapNotNull null
-                val interesting = when {
-                    obj.type == ObjectType.SUN || obj.id == "moon" || obj.type == ObjectType.PLANET -> true
-                    obj.type == ObjectType.SATELLITE -> obj.id == "sat_25544" || obj.id.contains("iss", ignoreCase = true)
-                    obj.type == ObjectType.STAR -> obj.magnitude <= 1.5
-                    else -> false
-                }
-                if (!interesting) return@mapNotNull null
-                val placed = placementOf(obj) ?: return@mapNotNull null
-                if (placed.altDeg <= 0.0) return@mapNotNull null
-                val sep = Math.toDegrees(V3.angleBetween(bore, placed.enu))
-                if (sep > 100.0) return@mapNotNull null
-                if (cam.project(placed.enu[0], placed.enu[1], placed.enu[2], p) &&
-                    p[0] in 0f..width && p[1] in 0f..height
-                ) return@mapNotNull null
-                if (!cam.screenDirection(placed.enu[0], placed.enu[1], placed.enu[2], c)) return@mapNotNull null
-                val vx = c[0].toFloat()
-                val vy = c[1].toFloat()
-                val norm = hypot(vx, vy).coerceAtLeast(1e-6f)
-                val ux = vx / norm
-                val uy = vy / norm
-                val tX = if (ux > 0f) (centerX - margin) / ux else if (ux < 0f) -(centerX - margin) / ux else Float.POSITIVE_INFINITY
-                val tY = if (uy > 0f) (centerY - margin) / uy else if (uy < 0f) -(centerY - margin) / uy else Float.POSITIVE_INFINITY
-                val t = min(tX, tY).takeIf { it.isFinite() && it > 0f } ?: 1f
-                val x = (centerX + ux * t).coerceIn(margin, width - margin)
-                val y = (centerY + uy * t).coerceIn(margin, height - margin)
-                val angle = Math.toDegrees(atan2(uy.toDouble(), ux.toDouble())).toFloat() + 90f
-                val body = snap.bodies.firstOrNull { it.id == obj.id }
-                val priority = when {
-                    obj.type == ObjectType.SUN || obj.id == "moon" -> 0.0
-                    obj.type == ObjectType.PLANET -> 1.0 + (body?.magnitude ?: obj.magnitude) * 0.2
-                    obj.type == ObjectType.SATELLITE -> 1.5
-                    else -> 10.0 + obj.magnitude
-                }
-                ArEdgeIndicator(obj, x, y, angle, priority)
-            }.sortedBy { it.priority }.take(8)
-        }
-    }
-
     // The GL sky (camera off) and its availability.
     var glSkyReady by remember { mutableStateOf(false) }
     var glSkyFailed by remember { mutableStateOf(false) }
@@ -1507,21 +1442,6 @@ fun CompassARScreen(
                     .statusBarsPadding()
                     .padding(top = 176.dp, start = 16.dp, end = 16.dp)
             )
-        }
-
-        // Off-screen mini-radar indicators for nearby notable objects outside the current FOV.
-        if (edgeIndicators.isNotEmpty() && !isAlignmentMode) {
-            edgeIndicators.forEach { indicator ->
-                EdgeIndicatorChip(
-                    indicator = indicator,
-                    isFa = isFa,
-                    onClick = {
-                        selectedTarget = indicator.obj
-                        hasVibratedForArrival = false
-                        resetControlsTimer()
-                    }
-                )
-            }
         }
 
         // Auto-Hide Restoration Pill
@@ -2885,46 +2805,6 @@ fun CompassARScreen(
     }
 }
 
-@Composable
-private fun EdgeIndicatorChip(
-    indicator: ArEdgeIndicator,
-    isFa: Boolean,
-    onClick: () -> Unit
-) {
-    val density = LocalDensity.current
-    val x = with(density) { indicator.xPx.toDp() }
-    val y = with(density) { indicator.yPx.toDp() }
-    Surface(
-        modifier = Modifier
-            .offset(x = x - 42.dp, y = y - 18.dp)
-            .clickable(onClick = onClick),
-        shape = CircleShape,
-        color = Color.Black.copy(alpha = 0.76f),
-        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.65f)),
-        shadowElevation = 8.dp
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.ArrowUpward,
-                contentDescription = null,
-                tint = AccentPrimary,
-                modifier = Modifier
-                    .size(15.dp)
-                    .rotate(indicator.angleDeg)
-            )
-            Text(
-                text = if (isFa) indicator.obj.nameFa else indicator.obj.nameEn,
-                maxLines = 1,
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.White
-            )
-        }
-    }
-}
 
 
 @Composable

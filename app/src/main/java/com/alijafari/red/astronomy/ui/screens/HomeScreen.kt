@@ -377,7 +377,12 @@ fun HomeScreen(
                         .padding(horizontal = RedSpacing.lg),
                     verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                 ) {
-                    RedSectionHeader(
+                    // The feed scrolls over whatever the user has behind the app — the theme's own
+                    // background, the live sky, or a photographic backdrop — so a section title cannot be
+                    // bare ink on an unknown picture. It carries its own surface, taken from the theme,
+                    // which is the same surface the theme measured this text's contrast against; that is
+                    // what makes it legible on every backdrop instead of only on the dark one.
+                    HomeSectionHeader(
                         title = if (isFa) "امشب در آسمان" else "What's Up Tonight",
                         subtitle = if (isFa) "رویدادهای شاخص نجومی برای مختصات شما"
                         else "Key celestial events for your coordinates"
@@ -608,11 +613,17 @@ private fun SkySearchOverlay(
                         },
                         singleLine = true,
                         shape = squircleShape(RedCornerRadius.lg),
+                        // No outline at all. The field sits inside the search card, which is already a
+                        // surface with an edge: a second, accent-red ring drawn inside it read as a
+                        // rectangle pasted on the card (and turned red the moment the field had focus).
+                        // Its cursor and its placeholder are the affordances; the card is the container.
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = RedTheme.colors.accentRed,
-                            unfocusedBorderColor = RedTheme.colors.border,
-                            focusedContainerColor = RedTheme.colors.surfaceElevated,
-                            unfocusedContainerColor = RedTheme.colors.surfaceElevated
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            disabledBorderColor = Color.Transparent,
+                            errorBorderColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent
                         )
                     )
 
@@ -911,6 +922,49 @@ private data class HeroCardMetrics(
             // both end up with a picture the same size as the other's.
             val height = (square * 0.75f).coerceIn(112.dp, 152.dp).coerceAtMost(width)
             return HeroCardMetrics(width = width, cardHeight = height)
+        }
+    }
+}
+
+/**
+ * A Home section title that survives its backdrop.
+ *
+ * Home is the one screen that scrolls over content the app does not own: the theme background, the live
+ * sky, or a photographic backdrop. Plain ink on that is unreadable the moment the picture behind it is
+ * bright, which is exactly what happened to "What's Up Tonight". The title therefore carries its own
+ * surface — `surfaceElevated`, the surface the theme resolved `textPrimary`/`textSecondary` against — so
+ * the contrast the theme guarantees applies here too, in every theme, over every backdrop. It is
+ * wrap-content and sits on the start side: a label, not a banner.
+ */
+@Composable
+private fun HomeSectionHeader(
+    title: String,
+    subtitle: String?,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(squircleShape(RedCornerRadius.md))
+            .background(RedTheme.colors.surfaceElevated.copy(alpha = 0.92f))
+            .border(0.6.dp, RedTheme.colors.border, squircleShape(RedCornerRadius.md))
+            .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
+        verticalArrangement = Arrangement.spacedBy(1.dp)
+    ) {
+        Text(
+            text = title,
+            style = RedTypographyTokens.sectionTitle,
+            color = RedTheme.colors.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = RedTypographyTokens.caption,
+                color = RedTheme.colors.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -1363,7 +1417,8 @@ private fun EclipseCard(
                 // Resolved here, in RowScope, so it can be handed through the direction provider below.
                 val detailsWeight = Modifier.weight(1f)
 
-                // The plate: the same square as the Moon's, the same 8 dp inset, one size only.
+                // The plate: the same square as the Moon's, the same 8 dp inset, one size only — and now
+                // one *drawn* size too: the plate's own alpha ends on the same circle the Moon's limb does.
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
@@ -1385,9 +1440,12 @@ private fun EclipseCard(
                         name = name,
                         isFa = isFa,
                         timezoneId = timezoneId,
+                        // The plate is a square on the card's left and the card is much wider than the
+                        // two of them need: the circumstances start right beside the plate (2 dp, not a
+                        // gutter) and get the rest of the sheet, ending on the card's own inner margin.
                         modifier = detailsWeight
                             .fillMaxHeight()
-                            .padding(start = RedSpacing.xs, end = RedSpacing.md)
+                            .padding(start = RedSpacing.xxs, end = RedSpacing.sm)
                     )
                 }
             }

@@ -8,7 +8,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -34,14 +33,26 @@ import com.alijafari.red.astronomy.astro_engine.EclipseEngine
  * | partial lunar | the Moon with the umbra biting into one limb |
  * | penumbral lunar | an almost-full Moon with one limb faintly dimmed — which is all a penumbral eclipse is |
  *
- * They are 1024 px renders generated for this app, shipped as WebP (21–82 KB each) in `drawable-nodpi` so
- * no density scaling is applied to an image that is already the right resolution.
+ * They are 1024 px renders generated for this app, shipped as WebP in `drawable-nodpi` so no density
+ * scaling is applied to an image that is already the right resolution.
  *
- * **Nothing is softened here.** The plate used to be cut with a `DstIn` radial mask, which faded its edges
+ * **The sky is not part of the picture.** Every plate carries its own alpha channel, keyed from the
+ * photograph: the lunar discs are cut to their limb, and on the solar plates the occluding disc and the
+ * photosphere stay solid (that black bite *is* the eclipse) while the corona and the glare survive by their
+ * own luminance and fade out well before the edge. So the plate is a Moon or an eclipse floating on the
+ * card — there is no disc of black sky behind it, and therefore no black ring around it in either theme.
+ * (That dark surround was the "ring": it was the photograph's background, cropped to a circle.)
+ *
+ * **Nothing is softened.** The plates used to be cut with a `DstIn` radial mask, which faded their edges
  * into the card and washed out the corona's outermost streamers and the sharp limb; the penumbral case
- * leaned on the same mask instead of having a plate of its own. The picture is now clipped to a hard circle
- * at full opacity — a crisp limb against the glass — and lifted off the card by [elevationDp] of shadow, so
- * it reads as a disc resting in front of the surface rather than a smudge printed on it.
+ * leaned on the same mask instead of having a plate of its own. The picture is clipped to a hard circle at
+ * full opacity — a crisp limb against the glass — and lifted off the card by [elevationDp] of a soft shadow, so it
+ * reads as a disc resting in front of the surface rather than a smudge printed on it.
+ *
+ * **One size.** Each plate is scaled so the phenomenon it shows fills its square exactly like the Moon card's
+ * Moon does: the lunar discs are drawn at the same diameter as [MoonPhaseRender]'s disc (their alpha ends on
+ * the same circle the Moon's limb does, so the pair read as one size in the two cards), and the solar plates
+ * are scaled to their corona's own outer falloff rather than to a disc of leftover sky.
  *
  * Nothing is animated and nothing is random: one image, one clip, so a recomposition cannot make an eclipse
  * flicker.
@@ -68,12 +79,14 @@ fun EclipseRender(
 
     Box(
         modifier = semanticsModifier
+            // The lift is a shadow *under* the disc, not a ring drawn around it: a soft, mostly-ambient
+            // black at a fraction of full opacity, so a bright corona never gains a dark halo.
             .shadow(
                 elevation = elevationDp,
                 shape = CircleShape,
                 clip = false,
-                ambientColor = shadowColor,
-                spotColor = shadowColor
+                ambientColor = shadowColor.copy(alpha = 0.55f),
+                spotColor = shadowColor.copy(alpha = 0.45f)
             )
             .clip(CircleShape),
         contentAlignment = Alignment.Center
@@ -81,12 +94,11 @@ fun EclipseRender(
         Image(
             painter = painterResource(id = plate),
             contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxSize()
-                // A hair of overscan so the crop can never leave a seam at the limb and the plate's own dark
-                // sky always reaches the clip edge.
-                .scale(1.02f)
+            // The plate's own alpha is the shape now, so the image is never cropped into a disc: Fit keeps
+            // the whole phenomenon inside the square (the corona must not be trimmed) and the transparent
+            // sky around it simply does not draw.
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize()
         )
     }
 }

@@ -102,11 +102,15 @@ readout fills the other column, so the eye reads *where* on one side and *when* 
 | Plate | `EclipseRender` in the same square the Moon is drawn in (`cardHeight`, `.aspectRatio(1f)`), pinned to the card's **far left** in either language | tap anywhere on the card opens the Eclipses window |
 | Details | what this eclipse is, its date and countdown, its local peak time, how much of the disc is covered and how good the view is — all of it read from the same `EclipseEngine.EclipseResult` the window shows | — |
 
+The circumstances use the space the card actually has: they start 2 dp from the plate (not behind a gutter)
+and end on the card's own inner margin, so the free width beside the square is all text instead of text plus
+two empty pads.
+
 The eclipse card is composed left-to-right on purpose (`LocalLayoutDirection provides LayoutDirection.Ltr`
 around its `Row`) so the plate is at the physical left edge whatever the language does to the rest of the
 screen; the details column restores the app's own direction inside, so Persian reads right-to-left. The
-plate keeps `aspectRatio(1f)` — it is never stretched to the card's width, because `EclipseRender` crops its
-plate with `ContentScale.Crop` and clips it to a circle, so a wide box would slice the corona.
+plate keeps `aspectRatio(1f)` — it is never stretched to the card's width, and since each plate is scaled for
+its own square (see §"Six plates"), a wide box would simply leave the picture centred rather than slice it.
 
 The card stands for the soonest eclipse of **either** family, not for the family the "Upcoming Eclipses"
 list below happens to be showing. A hero tile that changed when a chip further down the feed was tapped
@@ -140,9 +144,21 @@ above the observer's horizon there is no local phase to describe, so the catalog
 | partial lunar | the Moon with the umbra biting into one limb |
 | penumbral lunar | an almost-full Moon with one limb faintly dimmed |
 
-All six are 1024 px photoreal renders in `drawable-nodpi` (WebP, 21–82 KB), so no density scaling is
-applied to an image that is already at the right resolution. `EclipseRender` itself adds nothing:
+All six are 1024 px photoreal renders in `drawable-nodpi` (WebP), so no density scaling is applied to an
+image that is already at the right resolution. `EclipseRender` itself adds nothing:
 
+- **no disc of sky.** Every plate carries its own alpha, keyed from the photograph: the lunar discs are cut
+  to their limb, and on the solar plates the covered disc and the photosphere stay solid (that black bite
+  *is* the eclipse) while the corona and the glare survive by their own luminance and are vignetted out well
+  before the edge. That alpha channel is what removed the **black ring** — the surround the plates carried
+  was the photograph's own night sky, cropped to a circle, and it read as a dark halo on the card in either
+  theme. `EclipseRender` draws the plate with `ContentScale.Fit` (nothing is cropped into a disc, so a
+  corona is never trimmed square) and its shape is the plate's own;
+- **one size.** Each plate is scaled so the phenomenon fills its square the way the Moon card's Moon does.
+  The lunar discs end on the same circle as `MoonPhaseRender`'s limb — both at 1.03 × the half-size — so the
+  two cards' pictures are literally the same diameter. The solar plates are laid out on the Sun's own limb
+  rather than on the photograph's frame (0.72 of the half-size for totality, 0.78 for the ring and for the
+  bitten disc), so the three show one Sun;
 - **no `DstIn` mask.** The plate used to be cut with a radial `DstIn` gradient, which faded its edges into
   the card and washed out the corona's outermost streamers and the sharp limb. It is now clipped to a hard
   circle at full opacity — a crisp limb against the glass — and the penumbral case no longer leans on that
@@ -150,8 +166,9 @@ applied to an image that is already at the right resolution. `EclipseRender` its
 - **no per-type alpha.** The penumbral plate used to be drawn at 72 % opacity to fake a shallow eclipse; the
   eclipse is in the picture now, so the picture is drawn at full strength;
 - **a shadow instead.** The plate is lifted off the surface by `elevationDp` (10 dp on the Home card, 8 dp in
-  the Eclipses window's rows, `Modifier.shadow` on a `CircleShape`), so it reads as a disc resting in front
-  of the card rather than a smudge printed on it.
+  the Eclipses window's rows, `Modifier.shadow` on a `CircleShape`) in *translucent* ink (55 % ambient, 45 %
+  spot), so it reads as a disc resting in front of the card rather than a smudge printed on it — and never
+  as a hard dark rim around a bright corona.
 
 ### The location pill
 
@@ -177,8 +194,9 @@ photographic themes, the Persepolis GL layer between the first two:
 1b. **Persepolis + Mil-e Azhdaha** (`PersepolisLandscape`, photographic scene only) — the Apadana
    relief at half its first linear size in the left distance and the Mil-e Azhdaha tower on its
    limestone slope at the far right, both lit by the same ephemeris and rendered on demand. At night a
-   small fire burns in the tower's ruined top (lit from −2° of Sun altitude, out by daylight) and warms
-   the stone around it; it is the one thing that keeps that layer redrawing after dark. See
+   small fires burn in the tower's doorway and its ruined top (lit from −2° of Sun altitude, out by
+   daylight), each warming the stone around it; they are the one thing that keeps that layer redrawing
+   after dark. See
    [`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
 2. **Motion** (`SkySceneRenderer.drawSceneMotion`, scene only) — the drifting cloud veils.
    ~24 fps while idle. Separate node, so the astronomy is never repainted for a drifting cloud.
@@ -251,6 +269,26 @@ comment says so. The fullscreen viewer keeps its own time and date pills, which 
 nominal guard rather than a protected caption: it keeps the relief and the tower where they have always
 been. See [`PERSEPOLIS_LANDSCAPE.md`](PERSEPOLIS_LANDSCAPE.md).
 
+### The selection card — the only chrome on the sky
+
+Tapping an object in either presentation raises one small card naming it, and tapping the card opens that
+object's page (`viewModel.openObjectDetailById`). It is the only thing the canvas ever draws over its own
+pixels, so it is built to belong to the sky rather than to sit on top of it (`SelectionCallout` in
+`HeroSkyCanvas`):
+
+- **it is anchored to the object.** The card is centred on the object's projected position and a 7 dp
+  wedge on its edge is aimed at the object, its tip clamped inside the card's own width. The card it
+  replaced was offset a fixed 74 × 56 dp from the object and drew an arrow *glyph* inside its text — so it
+  pointed at nothing, which is exactly what it looked like;
+- **it flips.** Above the object with the wedge pointing down, and below it with the wedge pointing up when
+  the object is near the top edge, so the pointer always marks the contact point;
+- **it never jumps.** Its offset is resolved from the card's measured size (the card is held invisible for
+  the single frame that measurement takes) and clamped inside the canvas, so a long name near an edge stays
+  on screen;
+- **it is quiet:** one dark surface at `RedCornerRadius.md`, one 0.7 dp hairline, no accent-coloured ring,
+  no chevron. A 6 dp dot in the object's own accent, the name at 13 sp, one muted 10.5 sp line saying what
+  the object is. The whole card is the tap target, and it still auto-dismisses after four seconds.
+
 ## 3. Projection
 
 `SkyRenderTarget.HOME_SCENE` uses `SceneProjection(SkySceneLayout.HORIZON_FRACTION)` — the same
@@ -281,6 +319,10 @@ and that the ground band sits below the horizon.
 - Height of the plate's shadow: `elevationDp` on `EclipseRender` (10 dp on the Home card, 8 dp in the
   Eclipses window's rows).
 - Cloud presence per theme: `ScenePalette.cloudStrength`.
+- Section titles outside the hero (the feed): `HomeSectionHeader` in `HomeScreen`. It is deliberately not a
+  bare `RedSectionHeader`, because the feed scrolls over whatever the user has chosen behind the app; the
+  header carries `surfaceElevated` (the surface the theme measured its text tokens against) so it stays
+  legible over the theme background, the live sky and both photographic backdrops.
 - Motion cost: `SCENE_MOTION_FRAME_MS` in `HeroSkyCanvas` (42 ms ≈ 24 fps).
 - Scene tail: the scene does not end at the canvas's bottom edge. The canvas's own bottom
   colour continues *below* the canvas and dissolves in alpha to full transparency over

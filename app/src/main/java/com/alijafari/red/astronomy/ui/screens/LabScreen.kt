@@ -125,63 +125,20 @@ fun LabScreen(
             contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
         ) {
-            // Lab Header Banner
+            // The screen's title, and nothing else: no banner card introducing a list of tools that
+            // already name and describe themselves. It is plain text on the screen's own surface, in the
+            // theme's own ink, so it reads in every theme and over every backdrop instead of sitting in a
+            // panel that exists only to repeat the word "Lab" above a list of Lab tools.
             item {
-                RedElevatedCard(
+                Text(
+                    text = if (isFa) "آزمایشگاه اخترفیزیک" else "Astrophysics Lab",
+                    style = RedTypographyTokens.sectionHeading,
+                    color = RedTheme.colors.textPrimary,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("lab_header_card"),
-                    shape = squircleShape(RedCornerRadius.xl),
-                    backgroundColor = RedTheme.colors.surfaceElevated,
-                    borderColor = RedTheme.colors.border,
-                    contentPadding = PaddingValues(RedSpacing.lg)
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(RedTheme.colors.accentRed.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Science,
-                                    contentDescription = null,
-                                    tint = RedTheme.colors.accentRed,
-                                    modifier = Modifier.size(RedIconSize.lg)
-                                )
-                            }
-
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(
-                                    text = if (isFa) "آزمایشگاه نجومی و فیزیک" else "Astrophysics Lab",
-                                    style = RedTypographyTokens.sectionHeading,
-                                    color = RedTheme.colors.textPrimary
-                                )
-                                Text(
-                                    text = if (isFa) "مجموعه ابزارهای علمی و محاسبه‌گرهای نجومی" else "Scientific tools & computational simulators",
-                                    style = RedTypographyTokens.caption,
-                                    color = RedTheme.colors.textSecondary
-                                )
-                            }
-                        }
-
-                        Text(
-                            text = if (isFa)
-                                "آزمایشگاه نجومی محیطی برای آزمایش فرضیه‌ها، محاسبات نسبیتی، مکانیک سماوی و شبیه‌سازی‌های پیشرفته است."
-                            else
-                                "An expandable suite of advanced computational astrophysics tools and relativistic physics simulators.",
-                            style = RedTypographyTokens.bodySecondary,
-                            color = RedTheme.colors.textSecondary
-                        )
-                    }
-                }
+                        .padding(horizontal = RedSpacing.xs, vertical = RedSpacing.xs)
+                        .testTag("lab_title")
+                )
             }
 
             // Section Title
