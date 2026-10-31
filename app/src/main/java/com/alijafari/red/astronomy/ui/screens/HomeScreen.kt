@@ -1064,7 +1064,11 @@ private fun HomeSkyHero(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = RedSpacing.lg, bottom = controlsBottom + RedSpacing.sm),
+                .padding(
+                    start = RedSpacing.lg,
+                    end = RedSpacing.lg,
+                    bottom = controlsBottom + RedSpacing.sm
+                ),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
