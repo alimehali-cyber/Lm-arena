@@ -62,6 +62,12 @@ data class MainUiState(
     val favoriteLocations: List<GeoCity> = emptyList(),
     val locationSearchQuery: String = "",
     val isGpsLocating: Boolean = false,
+    /**
+     * True when [userLocation] came from the device's own fix ("Use Live GPS Location") rather than from a
+     * city the user picked. The Home location pill reads it to name the location "Live GPS" instead of the
+     * nearest city's name, which is only an approximation of where the observer actually is.
+     */
+    val isLiveGpsLocation: Boolean = false,
     val observationLogs: List<ObservationLogEntity> = emptyList(),
     val userOccasions: List<UserOccasionEntity> = emptyList(),
     val timeMachineState: TimeMachineState = TimeMachineState(),
@@ -135,6 +141,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ThemeMode.DARK
             },
             bortleClass = prefs.getInt("bortle_class", 3),
+            isLiveGpsLocation = prefs.getBoolean("user_location_is_live_gps", false),
             userLocation = run {
                 val savedCityEn = prefs.getString("user_city_name_en", null)
                 val savedCityFa = prefs.getString("user_city_name_fa", null)
@@ -327,7 +334,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         timezoneId: String = "Asia/Tehran",
         countryCode: String = "IR",
         provinceEn: String = "",
-        provinceFa: String = ""
+        provinceFa: String = "",
+        // True only for MainViewModel.setGpsLocation: the observer is on the device's own fix, so the
+        // Home location pill names it "Live GPS" instead of the nearest city.
+        fromLiveGps: Boolean = false
     ) {
         val newLoc = UserLocation(
             cityNameEn = cityEn,
@@ -354,6 +364,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .putString("user_country_code", countryCode)
             .putString("user_province_en", provinceEn)
             .putString("user_province_fa", provinceFa)
+            .putBoolean("user_location_is_live_gps", fromLiveGps)
             .apply()
 
         // Also persist to astro_prefs for notification and background workers
@@ -365,7 +376,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .putFloat("user_lon", lon.toFloat())
             .apply()
 
-        _uiState.update { it.copy(userLocation = newLoc, showLocationSelector = false) }
+        _uiState.update {
+            it.copy(
+                userLocation = newLoc,
+                isLiveGpsLocation = fromLiveGps,
+                showLocationSelector = false
+            )
+        }
         com.alijafari.red.astronomy.notification.AstroNotificationManager.handleLocationChanged(getApplication(), newLoc)
     }
 
@@ -405,7 +422,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     timezoneId = initialLoc.timezoneId,
                     countryCode = initialLoc.countryCode,
                     provinceEn = initialLoc.provinceEn,
-                    provinceFa = initialLoc.provinceFa
+                    provinceFa = initialLoc.provinceFa,
+                    fromLiveGps = true
                 )
                 _uiState.update { it.copy(isGpsLocating = false) }
             }
@@ -432,7 +450,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                         timezoneId = nearest.timezoneId,
                                         countryCode = addr.countryCode ?: if (isIran) "IR" else "GLOBAL",
                                         provinceEn = addr.adminArea ?: nearest.provinceEn,
-                                        provinceFa = addr.adminArea ?: nearest.provinceFa
+                                        provinceFa = addr.adminArea ?: nearest.provinceFa,
+                                        fromLiveGps = true
                                     )
                                 }
                             }
@@ -459,7 +478,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     timezoneId = nearest.timezoneId,
                                     countryCode = addr.countryCode ?: if (isIran) "IR" else "GLOBAL",
                                     provinceEn = addr.adminArea ?: nearest.provinceEn,
-                                    provinceFa = addr.adminArea ?: nearest.provinceFa
+                                    provinceFa = addr.adminArea ?: nearest.provinceFa,
+                                    fromLiveGps = true
                                 )
                             }
                         }

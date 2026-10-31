@@ -29,7 +29,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -110,8 +109,9 @@ enum class SkyCanvasPresentation {
 
     /**
      * The full-bleed Home scene: edge to edge, no rounded corners, a low horizon, the ground band, the
-     * cloud veils, the observer and the typographic readout on the sky. This is the surface that reads
-     * like a weather app's hero, with the sky drawn by ZIG's own astronomy.
+     * cloud veils and the observer. Nothing is written on it — the instant, the date, the condition and
+     * the Moon's state live on the card beneath the sky — so this is the surface that reads like a
+     * weather app's hero with the numbers below the picture, drawn by ZIG's own astronomy.
      */
     SCENE,
 
@@ -541,8 +541,8 @@ fun HeroSkyCanvas(
         // this frame's real Sun and Moon and render on demand (per sky-model change), never on the
         // motion clock. Photographic themes only — PersepolisFeature is the gate. The relief is
         // hosted on a TextureView (see PersepolisTextureView), so it is ordinary window content:
-        // layers composed after it — motion veils, the readout, in-window overlays such as the
-        // sky search — cover and dim it like the painted layers, and it scrolls with the feed.
+        // layers composed after it — motion veils, in-window overlays such as the sky search —
+        // cover and dim it like the painted layers, and it scrolls with the feed.
         if (persepolisFraming != null) {
             PersepolisLandscape(
                 frame = skyFrame,
@@ -710,118 +710,6 @@ fun HeroSkyCanvas(
                         1.00f to tailColor.copy(alpha = 0f)
                     ),
                     size = size
-                )
-            }
-        }
-
-        // --- SCENE READOUT ---
-        // Caption scale, on purpose. The scene is the product; the instant it is drawn for is the
-        // caption. The clock is still the first thing the eye finds, but it sits at reading size with an
-        // editorial hairline between it and the sky's own state, so the frame stays the sky's. The
-        // numbers come from the same state the sky is drawn from, so they can never disagree with it.
-        if (isScene) {
-            val timeText = TimeEngine.formatTime24h(simulatedTimeMs, isFa, userTimeZone)
-                .let { if (isFa) it.toPersianDigits() else it }
-            val dateText = TimeEngine.formatDate(simulatedTimeMs, uiState.calendarSystem, isFa, userTimeZone)
-                .let { if (isFa) it.toPersianDigits() else it }
-            val conditionText = skyConditionLabel(sunHoriz.altitudeDeg, isFa)
-            val moonPercent = moonData.illuminationPercent.roundToInt()
-            val moonText = if (moonData.altitudeDeg > 0.0) {
-                if (isFa) "ماه $moonPercent٪ بالای افق" else "Moon $moonPercent% up"
-            } else {
-                if (isFa) "ماه زیر افق" else "Moon below horizon"
-            }.let { if (isFa) it.toPersianDigits() else it }
-
-            // True while the finger is travelling in time: the dot says so instead of a caption nobody
-            // reads mid-gesture.
-            val isReadingSimulatedInstant = isDragging || abs(currentOffsetHours) > 0.05f
-            val readoutAccent = when (uiState.skyCanvasTheme) {
-                SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
-                SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFFFBBF24)
-                SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunHoriz.altitudeDeg > 0.0) Color(0xFF18181B) else Color.White
-                SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
-                SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
-                SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE07A5F)
-            }
-
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(
-                        start = 20.dp,
-                        end = 20.dp,
-                        bottom = (maxHeight * (1f - horizonFraction)) + 12.dp
-                    )
-                    .widthIn(max = maxWidth * 0.72f)
-                    .testTag("home_sky_readout"),
-                horizontalAlignment = Alignment.Start
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = timeText,
-                        style = TextStyle(
-                            fontFamily = LocalAppFontFamily.current,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 26.sp,
-                            lineHeight = 28.sp,
-                            letterSpacing = if (isFa) 0.sp else 0.5.sp,
-                            color = Color.White,
-                            shadow = Shadow(Color.Black.copy(alpha = 0.38f), Offset(0f, 1f), 6f)
-                        ),
-                        maxLines = 1
-                    )
-
-                    // The hairline that separates "when" from "what". One device pixel wide, the height
-                    // of the clock's cap height, so it reads as a rule in a table rather than as a chip.
-                    Spacer(modifier = Modifier.width(9.dp))
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(17.dp)
-                            .background(Color.White.copy(alpha = 0.30f))
-                    )
-                    Spacer(modifier = Modifier.width(9.dp))
-
-                    if (isReadingSimulatedInstant) {
-                        Box(
-                            modifier = Modifier
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(readoutAccent)
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                    }
-
-                    Text(
-                        text = conditionText,
-                        style = TextStyle(
-                            fontFamily = LocalAppFontFamily.current,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 11.sp,
-                            lineHeight = 13.sp,
-                            letterSpacing = if (isFa) 0.sp else 0.2.sp,
-                            color = Color.White.copy(alpha = 0.92f),
-                            shadow = Shadow(Color.Black.copy(alpha = 0.34f), Offset(0f, 1f), 5f)
-                        ),
-                        maxLines = 1
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Text(
-                    text = "$dateText  ·  $moonText",
-                    style = TextStyle(
-                        fontFamily = LocalAppFontFamily.current,
-                        fontWeight = FontWeight.Normal,
-                        fontSize = 10.sp,
-                        lineHeight = 13.sp,
-                        letterSpacing = if (isFa) 0.sp else 0.15.sp,
-                        color = Color.White.copy(alpha = 0.66f),
-                        shadow = Shadow(Color.Black.copy(alpha = 0.30f), Offset(0f, 1f), 4f)
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -1087,20 +975,3 @@ fun HeroSkyCanvas(
     }
 }
 
-
-
-
-/**
- * The astronomical phase of the day, as a short label for the scene readout.
- *
- * These are the standard twilight bands, read straight from the Sun altitude the scene is drawn for — not
- * a forecast and not a weather condition.
- */
-private fun skyConditionLabel(sunAltitudeDeg: Double, isFa: Boolean): String = when {
-    sunAltitudeDeg > 6.0 -> if (isFa) "روز" else "Daylight"
-    sunAltitudeDeg > 0.0 -> if (isFa) "ساعت طلایی" else "Golden hour"
-    sunAltitudeDeg > -6.0 -> if (isFa) "شفق مدنی" else "Civil twilight"
-    sunAltitudeDeg > -12.0 -> if (isFa) "شفق دریایی" else "Nautical twilight"
-    sunAltitudeDeg > -18.0 -> if (isFa) "شفق نجومی" else "Astronomical twilight"
-    else -> if (isFa) "شب نجومی" else "Astronomical night"
-}

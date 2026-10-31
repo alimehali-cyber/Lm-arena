@@ -72,10 +72,12 @@ import com.alijafari.red.astronomy.ui.components.EclipseWindow
 import com.alijafari.red.astronomy.ui.components.HeroSkyCanvas
 import com.alijafari.red.astronomy.ui.components.MoonPhaseRender
 import com.alijafari.red.astronomy.ui.components.SkyCanvasPresentation
+import com.alijafari.red.astronomy.ui.rendering.SkyTimeModel
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 // ------------------------------------------------------------------------------------------------
@@ -322,10 +324,11 @@ fun HomeScreen(
     // LazyColumn item is measured with an unbounded height, so the height has to be decided out here.
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val sceneHeight = (maxHeight * 0.52f).coerceIn(312.dp, 560.dp)
-        // The two hero cards are square: half the feed width each, minus the outer gutters and the gap
-        // between them. When the clamp bites — a very narrow phone at the bottom, a tablet at the top —
-        // the pair stays square and is centred on the same gutters instead of stretching.
-        val heroCardSize = ((maxWidth - RedSpacing.lg * 2 - RedSpacing.md) * 0.5f).coerceIn(132.dp, 210.dp)
+        // One wide card under the sky, exactly as wide as the two square tiles it replaces. The Moon keeps
+        // its old square inside it, so widening the card changes nothing about the render; see
+        // [HeroCardMetrics]. When the clamp bites — a very narrow phone, a tablet — the square stays square
+        // and the card stays on the same gutters instead of stretching.
+        val heroCard = remember(maxWidth) { HeroCardMetrics.forWidth(maxWidth) }
 
         LazyColumn(
             modifier = Modifier
@@ -335,15 +338,17 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
         ) {
             // 0. THE SKY — the full-bleed scene. It starts at the very top of the window, runs behind the
-            //    status bar, carries the header and the readout, and the Moon card overlaps its bottom edge.
-            //    Everything else on Home starts below it.
+            //    status bar, carries the header, the location pill and the sky viewer affordance, and the one
+            //    wide card sits directly beneath it: the Moon, the next eclipse under it, and the readout.
+            //    Everything else on Home starts below them.
             item {
                 HomeSkyHero(
                     uiState = uiState,
                     viewModel = viewModel,
                     isFa = isFa,
                     sceneHeight = sceneHeight,
-                    cardSize = heroCardSize,
+                    card = heroCard,
+                    instantMs = activeTimeMs,
                     moonData = moonCardData,
                     sunHoriz = moonCardSunHoriz,
                     nextEclipse = heroEclipse,
@@ -859,23 +864,65 @@ private fun TonightEventRow(
 }
 
 
+// ------------------------------------------------------------------------------------------------
+// The Home hero block
+// ------------------------------------------------------------------------------------------------
+
 /**
- * The full-bleed Home scene: the sky canvas, the header that rides on it, the expand affordance, and the
- * pair of cards that sit underneath it.
+ * The measured geometry of the Home hero card — the Moon card, grown sideways into the width the two
+ * square tiles used to share.
+ *
+ * [moonSquare] is the square the Moon card has always been, and the Moon render is laid out inside it with
+ * the same inset it always had, so widening the card cannot change the Moon by a pixel: the same disc,
+ * inscribed in the same square, on the same side of the screen. The eclipse sits directly beneath the Moon
+ * inside the same card — the only place this block spends more height than it used to.
+ */
+private data class HeroCardMetrics(
+    val width: Dp,
+    val height: Dp,
+    val moonSquare: Dp,
+    val eclipseStrip: Dp
+) {
+    companion object {
+        /** The feed's card gap: around the card, and between its Moon column and its readout column. */
+        val gap: Dp = RedSpacing.md
+
+        fun forWidth(available: Dp): HeroCardMetrics {
+            // Half the feed width, minus the outer gutters and the gap: the size the Moon tile always had.
+            val square = ((available - RedSpacing.lg * 2 - gap) * 0.5f).coerceIn(132.dp, 210.dp)
+            // The wide card is exactly the pair of squares it replaces, so it sits on the same gutters.
+            val width = (square * 2 + gap)
+                .coerceAtMost((available - RedSpacing.lg * 2).coerceAtLeast(square))
+            // The eclipse strip. It is a band, but the eclipse itself is rendered in a square inside it
+            // (EclipseRender masks and crops to `minDimension`, so a wide box would cut the corona away).
+            val strip = (square * 0.5f).coerceIn(64.dp, 100.dp)
+            return HeroCardMetrics(
+                width = width,
+                height = square + gap + strip,
+                moonSquare = square,
+                eclipseStrip = strip
+            )
+        }
+    }
+}
+
+/**
+ * The full-bleed Home scene: the sky canvas, the header that rides on it, the location pill and the sky
+ * viewer affordance, and the one wide card underneath them.
  *
  * This is the screen's whole top band. It is edge to edge — no horizontal padding, no rounded corners, and
  * it starts at y = 0 so the sky runs under the status bar — which is what makes it read as a place rather
  * than as a card. The feed begins underneath it (see the LazyColumn in [HomeScreen]).
  *
  * The scene's own layers live in [HeroSkyCanvas] with [SkyCanvasPresentation.SCENE]: a low horizon, the
- * layered ground band, drifting cloud veils, and the time/condition readout. The header here is only the
- * app chrome: brand, actions, location.
+ * layered ground band and drifting cloud veils. Nothing is written on the sky any more: the instant, the
+ * date, the condition and the Moon's state moved down into the card, so the canvas is only the sky.
  *
- * Beneath the canvas sit two square glass cards, side by side and the same size: the Moon as it is right
- * now ([MoonPhaseCard]) and the next eclipse ([EclipseHeroCard]). Neither carries a caption. They are
- * pictures, not rows — the numbers belong to the readout on the sky above them and to the windows the
- * cards open. The cards start exactly where the canvas ends rather than overlapping it: the sky is the
- * subject of this screen and nothing is allowed to cover it.
+ * Beneath the canvas sits one wide glass card ([LiquidGlassSurface]): the Moon in the square it has always
+ * occupied, the next eclipse directly beneath it, and the readout — clock, condition, date, Moon — on the
+ * card's other side, which is the left on Persian and the right on English. Neither picture carries a
+ * caption. The card starts exactly where the canvas ends rather than overlapping it: the sky is the subject
+ * of this screen and nothing is allowed to cover it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -884,7 +931,8 @@ private fun HomeSkyHero(
     viewModel: MainViewModel,
     isFa: Boolean,
     sceneHeight: Dp,
-    cardSize: Dp,
+    card: HeroCardMetrics,
+    instantMs: Long,
     moonData: MoonEngine.MoonData,
     sunHoriz: CoordinateEngine.Horizontal,
     nextEclipse: EclipseEngine.EclipseResult?,
@@ -892,30 +940,14 @@ private fun HomeSkyHero(
     onOpenEclipses: () -> Unit,
     onOpenSearch: () -> Unit
 ) {
-    // The gap between the two cards. The pair is inset by the same gutter as the rest of the feed, so the
-    // two tiles read as members of the same column of cards below them.
-    val cardGap = RedSpacing.md
-
-    val locationName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
-    val coordsText = remember(uiState.userLocation, isFa) {
-        val latHem = if (uiState.userLocation.latitude >= 0.0) "N" else "S"
-        val lonHem = if (uiState.userLocation.longitude >= 0.0) "E" else "W"
-        val raw = String.format(
-            java.util.Locale.US,
-            "%.2f°%s, %.2f°%s",
-            kotlin.math.abs(uiState.userLocation.latitude),
-            latHem,
-            kotlin.math.abs(uiState.userLocation.longitude),
-            lonHem
-        )
-        if (isFa) raw.toPersianDigits() else raw
-    }
     val scrim = Color.Black
+    // The band between the sky and the card, where the location pill and the sky viewer affordance sit.
+    val controlsBottom = card.height + HeroCardMetrics.gap
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(sceneHeight + cardSize + RedSpacing.md)
+            .height(sceneHeight + controlsBottom)
             .testTag("home_sky_scene")
     ) {
         HeroSkyCanvas(
@@ -925,10 +957,9 @@ private fun HomeSkyHero(
                 .fillMaxWidth()
                 .height(sceneHeight),
             presentation = SkyCanvasPresentation.SCENE,
-            // The ground's dissolved tail reaches exactly to this hero's bottom edge —
-            // the full height of the card row below the canvas — so it passes
-            // underneath the Moon and eclipse cards and into the backdrop behind them.
-            bottomTailHeight = cardSize + RedSpacing.md
+            // The ground's dissolved tail reaches exactly to this hero's bottom edge — the full height of
+            // the card below the canvas — so it passes underneath the card and into the backdrop behind it.
+            bottomTailHeight = controlsBottom
         )
 
         // The top scrim. Clouds drift under this band, so the status bar and the header keep their contrast
@@ -947,7 +978,7 @@ private fun HomeSkyHero(
                 )
         )
 
-        // --- HEADER: brand, actions, location ------------------------------------------------
+        // --- HEADER: brand and actions ----------------------------------------------------------
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1022,141 +1053,209 @@ private fun HomeSkyHero(
                     }
                 }
             }
-
-            // Location sits under the brand, on the sky, the way a weather app puts the city above the
-            // temperature — the readout itself is drawn by the canvas, just above the horizon.
-            Surface(
-                onClick = { viewModel.setShowLocationSelector(true) },
-                shape = RedShapes.capsule,
-                color = scrim.copy(alpha = 0.26f),
-                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.30f)),
-                modifier = Modifier.testTag("home_location_selector_button")
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = RedSpacing.md, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.LocationOn,
-                        contentDescription = "Location",
-                        tint = Color.White,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = locationName,
-                        style = RedTypographyTokens.bodySecondary.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp
-                        ),
-                        color = Color.White
-                    )
-                    Text(
-                        text = "•",
-                        style = RedTypographyTokens.caption,
-                        color = Color.White.copy(alpha = 0.55f)
-                    )
-                    Text(
-                        text = coordsText,
-                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                        color = Color.White.copy(alpha = 0.72f)
-                    )
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Change Location",
-                        tint = Color.White.copy(alpha = 0.75f),
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
         }
 
-        // --- EXPAND: open the fullscreen landscape sky viewer --------------------------------
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = RedSpacing.lg, bottom = cardSize + RedSpacing.md * 2)
-                .size(38.dp)
-                .liquidGlass(
-                    shape = CircleShape,
-                    style = LiquidGlassDefaults.Pill,
-                    clearGlass = true,
-                    fallbackColor = Color.Black.copy(alpha = 0.38f),
-                    fallbackBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f)),
-                    glassBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
-                )
-                .clickable { viewModel.setShowSkyViewer(true) }
-                .testTag("home_sky_expand_button"),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.FitScreen,
-                contentDescription = if (isFa) "نمایش تمام‌صفحه آسمان" else "Open the sky fullscreen",
-                tint = Color(0xFFF8FAFF),
-                modifier = Modifier.size(17.dp)
-            )
-        }
-
-        // --- THE PAIR: two square cards directly beneath the sky -----------------------------
+        // --- JUST ABOVE THE CARD: the location on one side, the sky viewer on the other ----------
+        //
+        // The selector sits over the Moon card's own side of the screen — the right in Persian, the left in
+        // English — because that is the corner of the card the Moon occupies, and the render on the card is
+        // drawn for that city. The viewer affordance keeps the opposite corner.
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = RedSpacing.md)
-                .width(cardSize * 2 + cardGap)
-                .height(cardSize),
-            horizontalArrangement = Arrangement.spacedBy(cardGap)
+                .fillMaxWidth()
+                .padding(horizontal = RedSpacing.lg, bottom = controlsBottom + RedSpacing.sm),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // The Moon, and only the Moon: dragging it scrubs days, tapping opens the Moon window.
-            MoonPhaseCard(
-                uiState = uiState,
-                viewModel = viewModel,
-                moonData = moonData,
-                sunHoriz = sunHoriz,
-                onScrubDays = onScrubDays,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
+            HomeLocationPill(
+                isFa = isFa,
+                isLiveGps = uiState.isLiveGpsLocation,
+                cityName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn,
+                onClick = { viewModel.setShowLocationSelector(true) },
+                modifier = Modifier.weight(1f, fill = false)
             )
 
-            // The next eclipse, rendered for its own type; tapping opens the Eclipses screen.
-            EclipseHeroCard(
-                eclipse = nextEclipse,
-                isFa = isFa,
-                onClick = onOpenEclipses,
+            Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
+                    .size(38.dp)
+                    .liquidGlass(
+                        shape = CircleShape,
+                        style = LiquidGlassDefaults.Pill,
+                        clearGlass = true,
+                        fallbackColor = Color.Black.copy(alpha = 0.38f),
+                        fallbackBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f)),
+                        glassBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
+                    )
+                    .clickable { viewModel.setShowSkyViewer(true) }
+                    .testTag("home_sky_expand_button"),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.FitScreen,
+                    contentDescription = if (isFa) "نمایش تمام‌صفحه آسمان" else "Open the sky fullscreen",
+                    tint = Color(0xFFF8FAFF),
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+        }
+
+        // --- THE CARD: the Moon, the eclipse beneath it, and the readout beside them --------------
+        LiquidGlassSurface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = HeroCardMetrics.gap)
+                .width(card.width)
+                .height(card.height)
+                .testTag("home_moon_card"),
+            shape = squircleShape(RedCornerRadius.window),
+            style = LiquidGlassDefaults.Card,
+            fallbackColor = RedTheme.colors.surfaceElevated
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(HeroCardMetrics.gap)
+            ) {
+                // The Moon keeps its square and the eclipse goes straight under it.
+                Column(
+                    modifier = Modifier
+                        .width(card.moonSquare)
+                        .fillMaxHeight()
+                ) {
+                    MoonCardMoon(
+                        uiState = uiState,
+                        moonData = moonData,
+                        sunHoriz = sunHoriz,
+                        onScrubDays = onScrubDays,
+                        onOpen = { viewModel.setShowMoonWindow(true) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(card.moonSquare)
+                    )
+
+                    // A hairline rather than a second card: the eclipse is part of this sheet, and one rule
+                    // is enough to keep the two bodies from reading as a single picture.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(HeroCardMetrics.gap),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = RedSpacing.sm)
+                                .height(0.5.dp)
+                                .background(RedTheme.colors.border.copy(alpha = 0.55f))
+                        )
+                    }
+
+                    EclipseCard(
+                        eclipse = nextEclipse,
+                        isFa = isFa,
+                        onClick = onOpenEclipses,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    )
+                }
+
+                MoonCardReadout(
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    isFa = isFa,
+                    instantMs = instantMs,
+                    moonData = moonData,
+                    sunHoriz = sunHoriz,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The location selector: the name of the selected city, or "Live GPS" while the app is on the device's own
+ * fix. Nothing else — no coordinates, no chevron.
+ *
+ * The pill sits directly over the Moon card, so the only thing worth its width is where the sky above is
+ * being drawn for. It is a capsule on the glass of a moving sky, hence the fixed dark tint and white type
+ * rather than theme tokens.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeLocationPill(
+    isFa: Boolean,
+    isLiveGps: Boolean,
+    cityName: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        shape = RedShapes.capsule,
+        color = Color.Black.copy(alpha = 0.30f),
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.30f)),
+        modifier = modifier.testTag("home_location_selector_button")
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 11.dp, end = 13.dp, top = 5.dp, bottom = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = if (isLiveGps) Icons.Default.MyLocation else Icons.Outlined.LocationOn,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(13.dp)
+            )
+            Text(
+                text = if (isLiveGps) {
+                    if (isFa) "GPS زنده" else "Live GPS"
+                } else {
+                    cityName
+                },
+                style = RedTypographyTokens.bodySecondary.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp
+                ),
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
 
 /**
- * The Moon card: one square glass tile carrying nothing but the Moon as it is at the app's instant.
+ * The Moon, exactly where it has always been and exactly as large.
  *
- * Drag it to scrub days — the same ±30 day gesture the Moon screen had — and tap it to open the Moon
- * window with everything else. Deliberately caption-free: phase name, illumination and date are one tap
- * away in that window, and the readout on the sky directly above the card already carries the night's
- * time and condition. A label here would put text on top of the only thing worth looking at.
+ * The square handed in here is the old Moon card's size, and the render is inset by [RedSpacing.sm] inside
+ * it, so the disc is inscribed in the same square it was before the card was widened — the render itself is
+ * untouched. Drag it to scrub days (the same ±30-day gesture the Moon screen had) and tap it to open the
+ * Moon window with everything else.
  *
  * The render's dark side is transparent, so no black disc sits behind the Moon; the card's glass shows
  * straight through it and the Moon appears to float on the sky.
  */
 @Composable
-private fun MoonPhaseCard(
+private fun MoonCardMoon(
     uiState: MainUiState,
-    viewModel: MainViewModel,
     moonData: MoonEngine.MoonData,
     sunHoriz: CoordinateEngine.Horizontal,
     onScrubDays: (Float) -> Unit,
+    onOpen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LiquidGlassSurface(
-        modifier = modifier.testTag("home_moon_card"),
-        shape = squircleShape(RedCornerRadius.window),
-        style = LiquidGlassDefaults.Card,
-        fallbackColor = RedTheme.colors.surfaceElevated,
-        onClick = { viewModel.setShowMoonWindow(true) }
+    Box(
+        modifier = modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onOpen
+        ),
+        contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
@@ -1182,17 +1281,15 @@ private fun MoonPhaseCard(
 }
 
 /**
- * The eclipse card: the next eclipse, rendered for whichever kind it is, on the same square glass tile
- * as the Moon beside it.
+ * The eclipse, now at the bottom of the Moon card rather than beside it.
  *
- * Tapping it opens the Eclipses screen ([EclipseWindow]) — both families, the next three of each, and
- * the full window for any single eclipse. The tile is the way in; the screen is where you decide which
- * one you care about. When the ephemeris has no eclipse to offer, the tile still renders (a total solar
- * eclipse — the phenomenon the family is named for) but stops being clickable, so it can never open an
- * empty screen.
+ * Tapping it opens the Eclipses screen ([EclipseWindow]) — both families, the next three of each, and the
+ * full window for any single eclipse. The tile is the way in; the screen is where you decide which one you
+ * care about. When the ephemeris has no eclipse to offer, the tile still renders (a total solar eclipse —
+ * the phenomenon the family is named for) but stops being clickable, so it can never open an empty screen.
  */
 @Composable
-private fun EclipseHeroCard(
+private fun EclipseCard(
     eclipse: EclipseEngine.EclipseResult?,
     isFa: Boolean,
     onClick: () -> Unit,
@@ -1205,22 +1302,178 @@ private fun EclipseHeroCard(
         else -> "Solar eclipse"
     }
 
-    LiquidGlassSurface(
-        modifier = modifier.testTag("home_eclipse_card"),
-        shape = squircleShape(RedCornerRadius.window),
-        style = LiquidGlassDefaults.Card,
-        fallbackColor = RedTheme.colors.surfaceElevated,
-        onClick = if (eclipse != null) onClick else null
+    Box(
+        modifier = modifier
+            .clickable(
+                enabled = eclipse != null,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .testTag("home_eclipse_card"),
+        contentAlignment = Alignment.Center
     ) {
+        // A square, centred in the strip: EclipseRender crops the plate to `ContentScale.Crop` and cuts it
+        // with a radial mask sized from `minDimension`, so it needs an aspect ratio of 1 to show the whole
+        // corona instead of a slice of it.
         EclipseRender(
             type = type,
             contentDescription = description,
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
+                .aspectRatio(1f)
                 .padding(RedSpacing.sm)
                 .testTag("home_eclipse_card_render")
         )
     }
+}
+
+/**
+ * The instant and the sky's own state, moved off the sky and onto the card's other side.
+ *
+ * It reads the same instant the sky is drawn for — the Time Machine instant in simulation mode, the shared
+ * clock otherwise, plus the canvas' finger time-travel offset, which [MainViewModel.skyDragOffsetHours]
+ * publishes — so scrubbing the sky moves these numbers with it. The offset is collected here rather than in
+ * [HomeScreen] so a per-frame drag recomposes this caption and nothing else.
+ *
+ * Everything comes from the state the card is drawn from, so the clock and the Moon above it can never
+ * disagree.
+ */
+@Composable
+private fun MoonCardReadout(
+    uiState: MainUiState,
+    viewModel: MainViewModel,
+    isFa: Boolean,
+    instantMs: Long,
+    moonData: MoonEngine.MoonData,
+    sunHoriz: CoordinateEngine.Horizontal,
+    modifier: Modifier = Modifier
+) {
+    val dragOffsetHours by viewModel.skyDragOffsetHours.collectAsState()
+    val userTimeZone = remember(uiState.userLocation.timezoneId) {
+        TimeEngine.resolveTimeZone(uiState.userLocation.timezoneId)
+    }
+    val shownMs = remember(instantMs, dragOffsetHours) {
+        TimeEngine.getTimestampFromJulianDate(SkyTimeModel.effectiveJd(instantMs, dragOffsetHours))
+    }
+    val timeText = remember(shownMs, isFa, userTimeZone) {
+        TimeEngine.formatTime24h(shownMs, isFa, userTimeZone)
+    }
+    val dateText = remember(shownMs, isFa, userTimeZone, uiState.calendarSystem) {
+        TimeEngine.formatDate(shownMs, uiState.calendarSystem, isFa, userTimeZone)
+    }
+    val conditionText = skyConditionLabel(sunHoriz.altitudeDeg, isFa)
+    val moonText = remember(moonData, isFa) {
+        val percent = moonData.illuminationPercent.roundToInt()
+        if (moonData.altitudeDeg > 0.0) {
+            if (isFa) "ماه $percent٪ بالای افق" else "Moon $percent% up"
+        } else {
+            if (isFa) "ماه زیر افق" else "Moon below horizon"
+        }
+    }
+
+    // True while the sky is being scrubbed in time: the dot says so instead of a caption nobody reads
+    // mid-gesture.
+    val isReadingSimulatedInstant = abs(dragOffsetHours) > 0.05f
+    val accent = readoutAccentColor(uiState.skyCanvasTheme, sunHoriz.altitudeDeg)
+
+    Column(
+        modifier = modifier
+            .padding(horizontal = RedSpacing.md)
+            .testTag("home_moon_card_readout"),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.Start
+    ) {
+        Text(
+            text = timeText,
+            style = TextStyle(
+                fontFamily = LocalAppFontFamily.current,
+                fontWeight = FontWeight.Medium,
+                fontSize = 26.sp,
+                lineHeight = 28.sp,
+                letterSpacing = if (isFa) 0.sp else 0.5.sp,
+                color = RedTheme.colors.textPrimary
+            ),
+            maxLines = 1
+        )
+
+        // The hairline that separates "when" from "what", laid horizontal now that the block is a column.
+        Spacer(modifier = Modifier.height(RedSpacing.sm))
+        Box(
+            modifier = Modifier
+                .width(20.dp)
+                .height(1.dp)
+                .background(RedTheme.colors.textSecondary.copy(alpha = 0.35f))
+        )
+        Spacer(modifier = Modifier.height(RedSpacing.sm))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            if (isReadingSimulatedInstant) {
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .clip(CircleShape)
+                        .background(accent)
+                )
+            }
+            Text(
+                text = conditionText,
+                style = RedTypographyTokens.bodySecondary.copy(
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.5.sp,
+                    lineHeight = 15.sp
+                ),
+                color = RedTheme.colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Spacer(modifier = Modifier.height(3.dp))
+
+        Text(
+            text = dateText,
+            style = RedTypographyTokens.caption,
+            color = RedTheme.colors.textSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = moonText,
+            style = RedTypographyTokens.caption,
+            color = RedTheme.colors.textSecondary.copy(alpha = 0.85f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/**
+ * The astronomical phase of the day, as a short label for the card's readout.
+ *
+ * These are the standard twilight bands, read straight from the Sun altitude the sky is drawn for — not a
+ * forecast and not a weather condition.
+ */
+private fun skyConditionLabel(sunAltitudeDeg: Double, isFa: Boolean): String = when {
+    sunAltitudeDeg > 6.0 -> if (isFa) "روز" else "Daylight"
+    sunAltitudeDeg > 0.0 -> if (isFa) "ساعت طلایی" else "Golden hour"
+    sunAltitudeDeg > -6.0 -> if (isFa) "شفق مدنی" else "Civil twilight"
+    sunAltitudeDeg > -12.0 -> if (isFa) "شفق دریایی" else "Nautical twilight"
+    sunAltitudeDeg > -18.0 -> if (isFa) "شفق نجومی" else "Astronomical twilight"
+    else -> if (isFa) "شب نجومی" else "Astronomical night"
+}
+
+/** The accent the readout uses to mark a scrubbed instant, per sky theme. */
+private fun readoutAccentColor(theme: SkyCanvasTheme, sunAltitudeDeg: Double): Color = when (theme) {
+    SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
+    SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFFFBBF24)
+    SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (sunAltitudeDeg > 0.0) Color(0xFF18181B) else Color.White
+    SkyCanvasTheme.KIDS_WATERCOLOR -> Color(0xFFFF85A1)
+    SkyCanvasTheme.OBSERVATORY -> Color(0xFFEF4444)
+    SkyCanvasTheme.PAPERCRAFT_DIORAMA -> Color(0xFFE07A5F)
 }
 
 /**
