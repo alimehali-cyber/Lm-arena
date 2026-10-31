@@ -96,8 +96,10 @@ class MilAzhdahaFireTest {
         // One draw path, one shader, one night gate: `drawOneFire` is called once per opening.
         assertTrue("one renderer draws every fire", src.contains("for (f in FIRES) drawOneFire(p, f, fv, flick, up)"))
         assertTrue("the fires are a short list, not a second pipeline", src.contains("private val FIRES: Array<FireSpec> = arrayOf("))
-        // Counted with a literal split: the class declaration plus one call per opening.
-        assertEquals("exactly two openings burn", 2, src.split("FireSpec(").size - 1)
+        // Counted with a literal split (no pattern, so the parenthesis is just a character):
+        // `FireSpec(` appears once in the class declaration and once per fire.
+        val mentions = src.split("FireSpec(").size - 1
+        assertEquals("exactly two openings burn", 2, mentions - 1)
         // The doorway is a narrower hole than the summit mouth, so only its width differs.
         assertTrue("the doorway flame is narrower", src.contains("DOOR_FIRE_FLAME_W_M = 0.86f"))
         assertTrue("its width reaches the draw call", src.contains("GLES30.glUniform2f(p.uSize, f.flameWidthM, FIRE_FLAME_H_M)"))
