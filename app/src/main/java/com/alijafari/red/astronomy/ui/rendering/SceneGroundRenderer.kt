@@ -66,6 +66,29 @@ object SceneGroundRenderer {
     )
     private val FOOTHILL_ENVELOPE = floatArrayOf(0f, 0.7f, 0.5f, 1f, 1f, 0.5f)
 
+    /**
+     * Every tree in the valley is drawn at this multiple of its base height.
+     *
+     * Applied once, where a planting is recorded ([plantPaulownia], [plantSugarMaple]), so the
+     * planting's own height, its cast shadow and the sprite bake's tallest-tree sizing all agree —
+     * there is nothing to keep in step anywhere else. 1.10 is the landscape's global "10 % bigger".
+     */
+    internal const val TREE_HEIGHT_SCALE = 1.10f
+
+    /**
+     * The two near-bank positions the foreground was re-arranged into (fractions of the width).
+     *
+     * The maple that framed the left edge at 0.115 W and the Paulownia that stood at 0.20 W were
+     * moved right, first beside one another and then beside the Paulownia at 0.34 W, so the three
+     * form one cluster: [NEAR_BANK_MAPLE_X] (maple) < [NEAR_BANK_PAULOWNIA_MID_X] (Paulownia) <
+     * 0.34 (Paulownia). Exposed so the landscape preview and the tests can hold the arrangement.
+     */
+    internal const val NEAR_BANK_MAPLE_X = 0.285f
+    internal const val NEAR_BANK_PAULOWNIA_MID_X = 0.312f
+
+    /** The far-right near-bank tree: the Paulownia that used to stand second from the right. */
+    internal const val NEAR_BANK_RIGHT_X = 0.955f
+
     // Both species are now *one render, projected everywhere*. Paulownia used to live here as two
     // space-colonization recipes (a cherry-shaped vase and a tall umbrella crown) and the oak /
     // pistachio / sage scrub as three more; all of them grew per planting into shared foliage
@@ -1102,7 +1125,7 @@ object SceneGroundRenderer {
         // farther from the tree, so their wobble grows, their dashes split, and
         // hash-driven gaps open in them — a reflection is a signal the surface
         // keeps interrupting, not a stack of neat bars.
-        for ((txFrac, thFrac) in listOf(0.115f to 0.068f, 0.875f to 0.058f)) {
+        for ((txFrac, thFrac) in listOf(NEAR_BANK_MAPLE_X to 0.068f, 0.875f to 0.058f)) {
             val tx = width * txFrac
             val th = height * thFrac
             val yc = riverCenterY(tx)
@@ -1225,11 +1248,14 @@ object SceneGroundRenderer {
                 if (!skipApron && inApron(x, y) && y < toeY + height * 0.038f) return false
                 val ycHere = riverCenterY(x)
                 if (abs(y - ycHere) < riverHalfW(x, ycHere) * 1.15f) return false
-                if (castShadow) treeShadows += TreeShadowSpec(x, y, hgt)
+                // The landscape's global tree scale, applied here so the planting, its shadow and
+                // the sprite bake can never disagree about how tall this tree is.
+                val hgtPx = hgt * TREE_HEIGHT_SCALE
+                if (castShadow) treeShadows += TreeShadowSpec(x, y, hgtPx)
                 paulownias += PaulowniaPlanting(
                     x = x,
                     y = y,
-                    treeHeightPx = hgt,
+                    treeHeightPx = hgtPx,
                     // Mirroring is free on a bitmap, and the flipped render reads as a different
                     // tree in a row of them — the per-instance variation the old path system got
                     // from three skeleton recipes.
@@ -1258,11 +1284,12 @@ object SceneGroundRenderer {
                 if (!skipApron && inApron(x, y) && y < toeY + height * 0.038f) return false
                 val ycHere = riverCenterY(x)
                 if (abs(y - ycHere) < riverHalfW(x, ycHere) * 1.22f) return false
-                if (castShadow) treeShadows += TreeShadowSpec(x, y, hgt)
+                val hgtPx = hgt * TREE_HEIGHT_SCALE
+                if (castShadow) treeShadows += TreeShadowSpec(x, y, hgtPx)
                 sugarMaples += SugarMaplePlanting(
                     x = x,
                     y = y,
-                    treeHeightPx = hgt,
+                    treeHeightPx = hgtPx,
                     // Same trick as the Paulownias: a mirrored copy is a second tree for free.
                     flip = LandscapeProfile.hash01(9157, mapleIdx * 5 + 3) < 0.5f,
                     aerial = aerial
@@ -1294,13 +1321,31 @@ object SceneGroundRenderer {
                 val clearOfWater = yc - riverHalfW(x, yc) * 1.30f
                 return minOf(toeY + height * toeOffset, clearOfWater)
             }
+            /**
+             * The same rule for the six big trees at the back of the forest, held one tree-foot
+             * above the nearest grove row.
+             *
+             * On a wide canvas the water's edge can sit above the toe, which pulls every grove row
+             * up to the same line; without this step the "deep" row would be planted *in front of*
+             * the grove there. They are behind it on every aspect ratio now.
+             */
+            fun deepGroveY(x: Float, toeOffset: Float): Float {
+                val rows = LandscapeBackGrove.rowToeOffsets
+                val nearestRowY = backGroveY(x, rows.maxOrNull() ?: 0.036f)
+                return minOf(backGroveY(x, toeOffset), nearestRowY - height * 0.006f)
+            }
             fun canalLineY(x: Float): Float =
                 canalY - height * 0.004f + (x / width) * height * 0.010f
 
-            // The foreground frame: a sugar maple at the left of the bank and a Paulownia at the
-            // right (bases set from the widened river's actual edge, not a fixed offset) — real
+            // The foreground frame: a sugar maple toward the left of the bank and a Paulownia at
+            // the right (bases set from the widened river's actual edge, not a fixed offset) — real
             // trees doing the foreground's work, where a fringe of generic grass spikes used to.
-            plantSugarMaple(width * 0.115f, nearBankY(width * 0.115f), height * 0.072f)
+            //
+            // The maple used to stand at 0.115 W, alone at the left edge. It has been moved right,
+            // first beside the Paulownia that was at 0.20 W, and then the pair of them further right
+            // again so they stand next to the Paulownia at 0.34 W — the three now read as one
+            // cluster on that stretch of bank. See the near-bank inventory comment below.
+            plantSugarMaple(width * NEAR_BANK_MAPLE_X, nearBankY(width * NEAR_BANK_MAPLE_X), height * 0.072f)
             plantPaulownia(width * 0.875f, nearBankY(width * 0.875f), height * 0.066f)
 
             // Foothill scrub: young maples at the toe of the range, where the oak scrub and the
@@ -1392,7 +1437,15 @@ object SceneGroundRenderer {
                     height * (t.third + 0.006f * LandscapeProfile.hash01(1211, j * 5 + 2))
                 )
             }
-            for ((j, xf) in listOf(0.20f, 0.78f).withIndex()) {
+            // The two near-bank Paulownias this loop has always planted, re-aimed:
+            //  - the one that stood second from the right (0.78 W) is now the rightmost tree of the
+            //    near bank, at the far right of the screen;
+            //  - the one that stood second from the left (0.20 W) is now the second tree of the
+            //    cluster described above, just right of the maple and just left of the 0.34 W
+            //    Paulownia.
+            // Only the x values change; each keeps its own hash index, so each keeps the height it
+            // had and neither pairing shifts for the trees around them.
+            for ((j, xf) in listOf(NEAR_BANK_PAULOWNIA_MID_X, NEAR_BANK_RIGHT_X).withIndex()) {
                 val x = width * xf
                 plantPaulowniaGrove(
                     x, nearBankY(x),
@@ -1467,14 +1520,16 @@ object SceneGroundRenderer {
             // One of the two maple additions stands; the other does not.
             //
             // Counted right to left along the river's near bank, the row is
-            //   1 · 0.875 Paulownia (foreground frame)  2 · 0.78 Paulownia  3 · 0.70 Paulownia
-            //   4 · 0.66 sugar maple                   5 · 0.63 sugar maple 6 · 0.55 Paulownia
-            //   7 · 0.47 sugar maple                   8 · 0.40 Paulownia   9 · 0.34 Paulownia
-            //  10 · 0.20 Paulownia  11 · 0.115 sugar maple (foreground frame)
-            // so the seventh tree from the right is the sugar maple at x = 0.47, and that is the
-            // planting the foreground is specified without. It is simply not planted; nothing else
-            // in the valley moves. The surviving addition keeps the hash index it had in the pair
-            // (j = 1), so its height — and with it its cropped sprite rect — is unchanged too.
+            //   1 · 0.955 Paulownia (moved here: was second from the right)
+            //   2 · 0.875 Paulownia (foreground frame)  3 · 0.70 Paulownia
+            //   4 · 0.66 sugar maple  5 · 0.63 sugar maple  6 · 0.55 Paulownia
+            //   7 · 0.40 Paulownia    8 · 0.34 Paulownia
+            //   9 · 0.312 Paulownia (moved here: was second from the left)
+            //  10 · 0.285 sugar maple (moved here: was the left frame at 0.115)
+            // The sugar maple the row used to hold at 0.47 is not planted: that was the seventh
+            // tree from the right, and the foreground is specified without it. Nothing else in the
+            // valley moves for its absence; the surviving addition keeps the hash index it had in
+            // the pair (j = 1), so its height — and with it its cropped sprite rect — is unchanged.
             val nearBankMapleX = width * 0.66f
             plantMapleGrove(
                 nearBankMapleX, nearBankY(nearBankMapleX),
@@ -1564,6 +1619,20 @@ object SceneGroundRenderer {
                         x, y, hgt, aerial = slot.aerial, castShadow = false, skipApron = true
                     )
                 }
+            }
+
+            // Six big Paulownias deeper still, at the back of that forest: the tallest trees on the
+            // far side, standing behind both grove rows so their crowns rise over the whole band —
+            // the big trees of the far-bank woodland rather than more saplings at its edge. Same
+            // two sprites, one blit each, still no cast shadow, so nothing is added to the shadow
+            // pass or to the per-frame work beyond six more images.
+            for (slot in LandscapeBackGrove.deepSlots) {
+                val x = width * slot.xFraction
+                val y = deepGroveY(x, slot.toeOffset)
+                plantPaulownia(
+                    x, y, height * slot.heightFraction,
+                    aerial = slot.aerial, castShadow = false, skipApron = true
+                )
             }
 
             // Uniform grass field — the researched distant-grass solution (the

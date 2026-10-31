@@ -57,6 +57,10 @@ PROJECT, _ = vf.projector(
     FRAMING["center_fraction_from_left"],
 )
 HORIZON_Y = H * vf.HORIZON_FRACTION
+# SceneGroundRenderer's near-bank re-arrangement (fractions of the width).
+NEAR_BANK_MAPLE_X = 0.285
+NEAR_BANK_PAULOWNIA_MID_X = 0.312
+NEAR_BANK_RIGHT_X = 0.955
 GROUND_TOP = HORIZON_Y + H * 0.052
 TOE_Y = FRAMING["toe_y"]
 
@@ -663,7 +667,7 @@ def main():
                    fill=(255, 230, 180, int(a * 0.5)), width=2)
     # Broken reflections of the two foreground trees (drawn below): ripple-torn
     # slices — deeper slices wobble more, split, and drop out entirely (v4 mirror).
-    for tx, th in [(W * 0.115, H * 0.068), (W * 0.875, H * 0.058)]:
+    for tx, th in [(W * NEAR_BANK_MAPLE_X, H * 0.068), (W * 0.875, H * 0.058)]:
         yc = river_at(tx)
         bot = yc + river_halfw(tx, yc)
         seed_base = int(tx * 1000)
@@ -741,12 +745,15 @@ def main():
                 rgba.alpha_composite(layer, (max(0, left), max(0, top)))
                 img.paste(rgba.convert("RGB"))
 
+        TREE_SCALE = 1.10  # SceneGroundRenderer.TREE_HEIGHT_SCALE: every tree 10 % bigger
+
         def plant_paulownia(x, y, hgt, aerial=0.0, skip_apron=False):
             if not skip_apron and in_apron(x, y) and y < TOE_Y + H * 0.038:
                 return False
             yc = river_at(x)
             if abs(y - yc) < river_halfw(x, yc) * 1.15:
                 return False
+            hgt *= TREE_SCALE
             flip = _hash01(_paulownia_count[0] * 4.9 + 9.091) < 0.5
             draw_paulownia(x, y, hgt, flip, aerial)
             _paulownia_count[0] += 1
@@ -783,6 +790,7 @@ def main():
             yc = river_at(x)
             if abs(y - yc) < river_halfw(x, yc) * 1.22:
                 return False
+            hgt *= TREE_SCALE
             flip = _hash01(_maple_count[0] * 4.9 + 9.157) < 0.5
             draw_maple(x, y, hgt, flip, aerial)
             _maple_count[0] += 1
@@ -794,7 +802,10 @@ def main():
                     return True
             raise AssertionError(f"maple grove refused at {x / W:.2f},{y / H:.3f}")
 
-        plant_maple(W * 0.115, near_bank_y(W * 0.115), H * 0.072)
+        # The maple that framed the left edge at 0.115 W was moved right, first beside the Paulownia
+        # that stood at 0.20 W, and then the pair of them right again beside the Paulownia at
+        # 0.34 W — one cluster, as specified. See NEAR_BANK_MAPLE_X / NEAR_BANK_PAULOWNIA_MID_X.
+        plant_maple(W * NEAR_BANK_MAPLE_X, near_bank_y(W * NEAR_BANK_MAPLE_X), H * 0.072)
         plant_paulownia(W * 0.875, near_bank_y(W * 0.875), H * 0.066)
         # The valley's trees are the two projected species and nothing else.
         def plant(x, y, hgt, idx, kind="maple"):
@@ -816,9 +827,11 @@ def main():
             return min(TOE_Y + H * toe_offset, yc - river_halfw(x, yc) * 1.30)
 
         BACK_GROVE_ROWS = (
-            # (x seed, height seed, aerial, toe offset, base height, height spread), back row first
-            (1283, 1291, 0.94, 0.026, 0.014, 0.007),
-            (1301, 1307, 0.88, 0.036, 0.015, 0.008),
+            # (x seed, height seed, aerial, toe offset, base height, height spread), back row first.
+            # The row nearer the river (row 1) was too small to read beside the gallery; it is now
+            # 0.030-0.040 h against the back row's 0.020-0.026 h (before the global 10 %).
+            (1283, 1291, 0.92, 0.026, 0.020, 0.006),
+            (1301, 1307, 0.84, 0.036, 0.030, 0.010),
         )
         back_grove = {"paulownia": 0, "maple": 0}
         for row, (xseed, hseed, aerial, toe_off, base_h, spread_h) in enumerate(BACK_GROVE_ROWS):
@@ -835,6 +848,22 @@ def main():
                     assert plant_maple(x, y, hgt, aerial, skip_apron=True)
                     back_grove["maple"] += 1
         assert back_grove == {"paulownia": 20, "maple": 20}, back_grove
+
+        # Six big Paulownias deeper than both rows ("deep into the forest"), held one tree-foot
+        # above the nearest row so they stay behind it at any aspect ratio (deepGroveY in the app).
+        DEEP_PAULOWNIA = 6
+        deep = []
+        for i in range(DEEP_PAULOWNIA):
+            x = W * (0.12 + 0.76 * (i + 0.5) / DEEP_PAULOWNIA + (_hash01(1319.3 + i * 7.1) - 0.5) * 0.030)
+            toe = 0.014 + 0.010 * _hash01(1327.7 + i * 5.3)
+            hgt = H * (0.048 + 0.010 * _hash01(1321.9 + i * 11.7))
+            # One tree-foot above the nearest grove row, so they stay behind it (deepGroveY).
+            y = min(back_grove_y(x, toe), back_grove_y(x, BACK_GROVE_ROWS[1][3]) - H * 0.006)
+            assert plant_paulownia(x, y, hgt, 0.90, skip_apron=True), (x, y)
+            deep.append((x / W, y / H, hgt / H))
+        assert len(deep) == 6, deep
+        print("deep Paulownias: " +
+              ", ".join(f"x={x:.2f} y={y:.3f} h={h:.3f}" for x, y, h in deep))
 
         for i in range(9):  # far-bank gallery: paulownias + oaks among pistachios
             x = W * (0.05 + 0.90 * (i + _hash01(i * 3.1 + 6.01)) / 9)
@@ -907,7 +936,11 @@ def main():
         for j, (xf, yf, hf) in enumerate(((0.24, 0.858, 0.044), (0.44, 0.862, 0.040),
                                           (0.64, 0.856, 0.046), (0.84, 0.864, 0.042))):  # plain x4
             plant_paulownia_grove_counted(W * xf, H * yf, H * (hf + 0.006 * _hash01(j * 5.7 + 12.11)))
-        for j, xf in enumerate((0.20, 0.78)):  # Paulownia near bank x2
+        # The two near-bank Paulownias, re-aimed: the one that stood second from the right (0.78 W)
+        # is now the rightmost tree of the bank, at the far right of the screen; the one that stood
+        # second from the left (0.20 W) is now the middle tree of the new cluster. Each keeps its own
+        # hash index, so each keeps the height it had.
+        for j, xf in enumerate((NEAR_BANK_PAULOWNIA_MID_X, NEAR_BANK_RIGHT_X)):  # near bank x2
             x = W * xf
             plant_paulownia_grove_counted(x, near_bank_y(x),
                                           H * (0.056 + 0.008 * _hash01(j * 5.9 + 12.13)))
@@ -993,12 +1026,22 @@ def main():
         assert near_added == {"paulownia": 3, "maple": 1}, near_added
 
         # What actually stands on the viewer's own bank, right to left. The removed planting must be
-        # absent (that is the whole point), the row must otherwise be intact, and every near-bank
-        # tree must be one of the two species' projected renders.
+        # absent (that is the whole point), the row must otherwise be intact, the two moved trees
+        # must be where they were sent, and every near-bank tree must be one of the two species'
+        # projected renders.
         near_bank = sorted((p for p in planted if p[1] > 0.90), key=lambda p: -p[0])
         assert all(abs(xf - 0.47) > 0.01 for xf, _, _ in near_bank), near_bank
         assert len(near_bank) == 10, near_bank
         assert {kind for _, _, kind in near_bank} == {"paulownia", "maple"}, near_bank
+        # The far right of the screen is the rightmost near-bank tree.
+        assert abs(near_bank[0][0] - NEAR_BANK_RIGHT_X) < 0.01, near_bank[0]
+        assert near_bank[0][2] == "paulownia", near_bank[0]
+        # ...and the re-arranged cluster: maple < Paulownia < the Paulownia at 0.34.
+        cluster = sorted((p for p in near_bank if p[0] < 0.36 and p[0] > 0.27), key=lambda p: p[0])
+        assert len(cluster) == 3, cluster
+        assert cluster[0][2] == "maple" and abs(cluster[0][0] - NEAR_BANK_MAPLE_X) < 0.01, cluster
+        assert abs(cluster[1][0] - NEAR_BANK_PAULOWNIA_MID_X) < 0.01, cluster
+        assert abs(cluster[2][0] - 0.34) < 0.01, cluster
         print("near bank, right to left: " +
               ", ".join(f"{xf:.3f} {kind}" for xf, _, kind in near_bank))
         assert _maple_count[0] >= 40, _maple_count

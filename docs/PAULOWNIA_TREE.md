@@ -123,11 +123,15 @@ images and nothing else.
 
 Forty more trees stand behind the far-bank gallery, framing Persepolis on the left and Mil-e Azhdaha
 on the right: **20 Paulownias and 20 sugar maples**, two staggered rows alternating species
-(`LandscapeBackGrove.slots`). They are the same two sprites at a smaller size — one blit each, no
-second bake, no new geometry, no GL work — and they ask for no cast shadow, so the shadow pass keeps
-its old length. The rows sit at `toeY + H·(0.026, 0.036)` and are clamped behind the water's edge
-from the river's own centreline, so the counts hold on any aspect ratio rather than only on the
-canvas the framing was tuned against. `aerial` thins the far-bank copies toward the haze; the tree shadow each planting
+(`LandscapeBackGrove.slots`), plus **six big Paulownias deeper still** (`deepSlots`) — the tall trees
+at the back of that woodland, 0.048–0.058 h before the global tree scale, against the grove's
+0.020–0.040 h. They are the same two sprites at a smaller size — one blit each, no second bake, no
+new geometry, no GL work — and they ask for no cast shadow, so the shadow pass keeps its old length.
+The rows sit at `toeY + H·(0.026, 0.036)` — the row nearer the river at the taller 0.030–0.040 h,
+because it was reading as scrub — and the deep row is held one tree-foot above the nearest row, so
+it stays behind it on any canvas shape. Everything is clamped behind the water's edge from the
+river's own centreline, so the counts hold on any aspect ratio rather than only on the canvas the
+framing was tuned against. `aerial` thins the far-bank copies toward the haze; the tree shadow each planting
 throws is the same `TreeShadowSpec` row every other tree uses, so shadow length still tracks the Sun.
 
 ## 5. Tuning

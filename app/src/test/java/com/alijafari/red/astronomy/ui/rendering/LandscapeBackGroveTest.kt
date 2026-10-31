@@ -77,12 +77,61 @@ class LandscapeBackGroveTest {
     }
 
     @Test
-    fun groveTreesAreSmallPerspectiveScaleTrees() {
-        // These are the farthest trees in the valley: 1.4–2.3 % of the scene height, i.e. smaller
-        // than the plain maples (2.6–4.0 %) and far below the near-bank frames (6.6–7.2 %).
+    fun groveTreesScaleWithTheBankTheyStandOn() {
+        // The rows are no longer scrub beside the gallery. The back row is 2.0–2.6 % of the scene
+        // height and the row nearer the river — the one that used to read as too small — is
+        // 3.0–4.0 %, the riparian gallery's own band (3.0–4.8 %), still below the near-bank frames
+        // (6.6–7.2 %). Heights here are pre-scale; SceneGroundRenderer applies the landscape's
+        // global 10 %.
+        val offsets = LandscapeBackGrove.slots.map { it.toeOffset }.distinct().sorted()
         LandscapeBackGrove.slots.forEach {
-            assertTrue("height (${it.heightFraction})", it.heightFraction in 0.013f..0.024f)
+            val range = if (it.toeOffset == offsets.first()) 0.020f..0.026f else 0.030f..0.040f
+            assertTrue("height (${it.heightFraction}) in $range", it.heightFraction in range)
             assertTrue("aerial (${it.aerial})", it.aerial in 0.80f..1.0f)
+        }
+        // Nothing in the grove is as tall as a near-bank frame tree, or the depth order inverts.
+        assertTrue(
+            "tallest grove tree",
+            LandscapeBackGrove.slots.maxOf { it.heightFraction } < 0.066f
+        )
+    }
+
+    @Test
+    fun deepPaulowniasAreTheBigTreesAtTheBackOfTheForest() {
+        val deep = LandscapeBackGrove.deepSlots
+        assertEquals("count", 6, deep.size)
+        assertEquals("count constant", LandscapeBackGrove.DEEP_PAULOWNIA, deep.size)
+        assertTrue("all Paulownia", deep.all { it.paulownia })
+        // Deeper than the nearest grove row, on every row: they stand behind the grove.
+        val nearestRowDepth = LandscapeBackGrove.slots.maxOf { it.toeOffset }
+        deep.forEach {
+            assertTrue("depth (${it.toeOffset}) behind $nearestRowDepth", it.toeOffset < nearestRowDepth)
+        }
+        // ...and big: taller than anything in the grove, in the near-bank frames' order of size.
+        val groveTallest = LandscapeBackGrove.slots.maxOf { it.heightFraction }
+        deep.forEach {
+            assertTrue("height (${it.heightFraction}) > grove $groveTallest", it.heightFraction > groveTallest)
+            assertTrue("height (${it.heightFraction}) is big", it.heightFraction >= 0.045f)
+        }
+        // Spread across the bank rather than clumped at one end.
+        val xs = deep.map { it.xFraction }
+        assertTrue("left of centre", xs.min() < 0.30f)
+        assertTrue("right of centre", xs.max() > 0.70f)
+        xs.sorted().let { sorted ->
+            for (i in 1 until sorted.size) assertTrue("gap at $i", sorted[i] - sorted[i - 1] > 0.05f)
+        }
+    }
+
+    @Test
+    fun deepRowIsDeterministic() {
+        val a = LandscapeBackGrove.deepSlots
+        val b = LandscapeBackGrove.deepSlots
+        assertEquals("size", a.size, b.size)
+        for (i in a.indices) {
+            assertEquals("x $i", a[i].xFraction, b[i].xFraction, 0f)
+            assertEquals("height $i", a[i].heightFraction, b[i].heightFraction, 0f)
+            assertEquals("depth $i", a[i].toeOffset, b[i].toeOffset, 0f)
+            assertEquals("aerial $i", a[i].aerial, b[i].aerial, 0f)
         }
     }
 

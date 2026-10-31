@@ -91,9 +91,14 @@ plain, plus both species in the space between the monuments:
   band sits, the smaller every tree in it, and aerials rising toward the front, exactly the
   perspective the rest of the valley follows;
 - **the far-bank back grove**: 20 sugar maples in two staggered rows behind every other far-bank
-  tree, at `toeY + H·(0.026, 0.036)`, heights `H·(0.014…0.022)`, aerials 0.94 / 0.88, alternating
-  with 20 Paulownias across the whole width so the band frames both monuments. See
-  `LandscapeBackGrove` and [`PAULOWNIA_TREE.md`](PAULOWNIA_TREE.md) §4.
+  tree, at `toeY + H·(0.026, 0.036)`, heights `H·(0.020…0.026)` in the back row and
+  `H·(0.030…0.040)` in the row nearer the river (the gallery's own band — this row used to be
+  scrub-small), aerials 0.92 / 0.84, alternating with 20 Paulownias across the whole width so the
+  band frames both monuments. Six **big** Paulownias stand deeper still. See `LandscapeBackGrove`
+  and [`PAULOWNIA_TREE.md`](PAULOWNIA_TREE.md) §4.
+- **every tree in the valley is drawn 10 % bigger than its base height**
+  (`SceneGroundRenderer.TREE_HEIGHT_SCALE`), applied once inside the two planters so a planting's
+  height, its cast shadow and the sprite bake's tallest-tree sizing cannot disagree.
 
 Counts are what stands after refusals: a planting is declined only in the worn earth at the
 monuments' feet and in open water, and every grove planting retries one step away from the water
@@ -101,13 +106,27 @@ before giving up. The back grove is the one band exempt from the apron rule (its
 distant painted plain, not on stone) — it takes only the river rule, so all forty slots stand at
 every aspect ratio.
 
-### The foreground's seventh tree from the right
+### The near bank, right to left
 
-Counted right to left along the river's near bank, the row is: 0.875 Paulownia (the foreground
-frame), 0.78 Paulownia, 0.70 Paulownia, 0.66 sugar maple, 0.63 sugar maple, 0.55 Paulownia,
-**0.47 sugar maple**, 0.40 Paulownia, 0.34 Paulownia, 0.20 Paulownia, 0.115 sugar maple (the left
-foreground frame). The seventh from the right is the sugar maple at `x = 0.47`, and it is not
-planted. The other maple addition at 0.66 keeps its own hash index, so no surviving tree moves.
+The row is hand-placed, and it has been re-arranged twice:
+
+1. 0.955 **Paulownia** — the far right of the screen (it used to be second from the right, at 0.78);
+2. 0.875 Paulownia (the right foreground frame);
+3. 0.70 Paulownia;
+4. 0.66 sugar maple;
+5. 0.63 sugar maple;
+6. 0.55 Paulownia;
+7. 0.40 Paulownia;
+8. 0.34 Paulownia;
+9. 0.312 **Paulownia** (it used to be second from the left, at 0.20);
+10. 0.285 **sugar maple** (it used to frame the left edge at 0.115 — it was moved right, first
+    beside the Paulownia at 0.20, then the pair of them right again, so 0.285 / 0.312 / 0.34 now
+    stand as one cluster).
+
+The sugar maple the row also used to hold at 0.47 is not planted: that was the seventh tree from
+the right, and the foreground is specified without it. The 0.66 maple keeps its own hash index, so
+no surviving tree moved for its absence, and the two re-aimed Paulownias keep theirs, so they keep
+the heights they had.
 
 ## Files
 
