@@ -1,6 +1,7 @@
 package com.alijafari.red.astronomy
 
 import com.alijafari.red.astronomy.astro_engine.EclipseEngine
+import com.alijafari.red.astronomy.astro_engine.EclipseEngine.EclipseType as T
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -30,8 +31,6 @@ class EclipseLocalTypeTest {
     private fun lunar(epochMs: Long, lat: Double, lon: Double, elev: Double = 0.0) =
         engine.evaluateEclipse(lunarAt(epochMs), lat, lon, elev, epochMs)
 
-    private val E = EclipseEngine.EclipseType
-
     @Test
     fun `a global total is drawn as the partial the observer actually sees`() {
         // 2027-08-02: total over Luxor, deep partial over Iran. Same event, two different pictures.
@@ -40,9 +39,9 @@ class EclipseLocalTypeTest {
         val nurabad = solar(epoch, 30.1141, 51.5217, 940.0)
         val tehran = solar(epoch, 35.6892, 51.3890, 1190.0)
 
-        assertEquals(E.TOTAL_SOLAR, luxor.localType)
-        assertEquals(E.PARTIAL_SOLAR, nurabad.localType)
-        assertEquals(E.PARTIAL_SOLAR, tehran.localType)
+        assertEquals(T.TOTAL_SOLAR, luxor.localType)
+        assertEquals(T.PARTIAL_SOLAR, nurabad.localType)
+        assertEquals(T.PARTIAL_SOLAR, tehran.localType)
 
         // The catalogue type is the same for all three — which is exactly the bug this guards.
         assertEquals(luxor.event.type, tehran.event.type)
@@ -55,13 +54,13 @@ class EclipseLocalTypeTest {
         // partial one.
         val epoch = 1770000000000L // 2026-02-02, before the event
         val event = solarAt(epoch)
-        assertEquals("the catalogue event is annular", E.ANNULAR_SOLAR, event.type)
+        assertEquals("the catalogue event is annular", T.ANNULAR_SOLAR, event.type)
 
         val tehran = engine.evaluateEclipse(event, 35.6892, 51.3890, 1190.0, epoch)
         if (tehran.isLocallyVisible) {
             assertTrue(
                 "if Iran sees it at all, it is a partial: the ring is thousands of km south",
-                tehran.localType == E.PARTIAL_SOLAR
+                tehran.localType == T.PARTIAL_SOLAR
             )
         }
     }
@@ -70,15 +69,15 @@ class EclipseLocalTypeTest {
     fun `lunar local type follows the umbral magnitude at the local peak`() {
         // 2028-12-31 total lunar eclipse, entirely visible from Iran: total locally.
         val iran = lunar(1860000000000L, 30.1141, 51.5217, 940.0)
-        assertEquals(E.TOTAL_LUNAR, iran.localType)
+        assertEquals(T.TOTAL_LUNAR, iran.localType)
         assertTrue(iran.localMagnitude >= 1.0)
 
         // 2026-08-28 partial lunar eclipse: the umbra only bites one limb, so the picture is partial.
         val partial = lunar(1787000000000L, 30.1141, 51.5217, 940.0) // 2026-08-15, before the event
-        assertEquals(E.PARTIAL_LUNAR, partial.event.type)
+        assertEquals(T.PARTIAL_LUNAR, partial.event.type)
         assertTrue(
             "a partial lunar eclipse can never be drawn as a total one",
-            partial.localType == E.PARTIAL_LUNAR || partial.localType == E.PENUMBRAL_LUNAR
+            partial.localType == T.PARTIAL_LUNAR || partial.localType == T.PENUMBRAL_LUNAR
         )
     }
 
@@ -89,11 +88,11 @@ class EclipseLocalTypeTest {
         assertNotNull(penumbral)
         assertTrue(
             "the catalogue event is penumbral",
-            penumbral.event.type == E.PENUMBRAL_LUNAR || penumbral.event.type == E.PARTIAL_LUNAR
+            penumbral.event.type == T.PENUMBRAL_LUNAR || penumbral.event.type == T.PARTIAL_LUNAR
         )
         // Wherever it is visible, a penumbral eclipse must stay penumbral: there is no umbra to bite.
-        if (penumbral.event.type == E.PENUMBRAL_LUNAR) {
-            assertEquals(E.PENUMBRAL_LUNAR, penumbral.localType)
+        if (penumbral.event.type == T.PENUMBRAL_LUNAR) {
+            assertEquals(T.PENUMBRAL_LUNAR, penumbral.localType)
             assertFalse("a penumbral eclipse never reaches full umbral magnitude", penumbral.localMagnitude >= 1.0)
         }
     }
