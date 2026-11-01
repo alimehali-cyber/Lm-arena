@@ -30,6 +30,7 @@ data class MainUiState(
     val language: AppLanguage = AppLanguage.PERSIAN,
     val calendarSystem: CalendarSystem = CalendarSystem.SOLAR_HIJRI,
     val themeMode: ThemeMode = ThemeMode.DARK,
+    val uiStyle: AppUiStyle = AppUiStyle.DEFAULT,
     val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.REAL_SKY,
     val userLocation: UserLocation = UserLocation(),
     val selectedTab: Int = 4,
@@ -119,6 +120,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.DARK.name) ?: ThemeMode.DARK.name)
             } catch (e: Exception) {
                 ThemeMode.DARK
+            },
+            uiStyle = try {
+                AppUiStyle.valueOf(prefs.getString("app_ui_style", AppUiStyle.DEFAULT.name) ?: AppUiStyle.DEFAULT.name)
+            } catch (e: Exception) {
+                AppUiStyle.DEFAULT
             },
             bortleClass = prefs.getInt("bortle_class", 3),
             isLiveGpsLocation = prefs.getBoolean("user_location_is_live_gps", false),
@@ -239,6 +245,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setThemeMode(themeMode: ThemeMode) {
         prefs.edit().putString("theme_mode", themeMode.name).apply()
         _uiState.update { it.copy(themeMode = themeMode) }
+    }
+
+    fun setUiStyle(uiStyle: AppUiStyle) {
+        prefs.edit().putString("app_ui_style", uiStyle.name).apply()
+        _uiState.update { it.copy(uiStyle = uiStyle) }
     }
 
     fun setLiveSkyBackdropEnabled(enabled: Boolean) {

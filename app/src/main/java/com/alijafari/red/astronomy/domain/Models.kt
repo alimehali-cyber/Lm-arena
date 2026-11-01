@@ -99,6 +99,17 @@ enum class ThemeMode {
     DARK
 }
 
+/**
+ * Selectable application interface design language.
+ * - [DEFAULT]: Classic ZIG restrained flat & high-contrast interface.
+ * - [SPATIAL]: VisionOS Spatial Glassmorphism, organic desert/dreamscape atmosphere,
+ *   modular squircle bento widgets, mesh gradient pills, neon glow controls, and dot-matrix gauges.
+ */
+enum class AppUiStyle {
+    DEFAULT,
+    SPATIAL
+}
+
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {
     REAL_SKY("Real Sky", "آسمان واقعی"),
     ATMOSPHERIC_SKY("Atmospheric Sky", "آسمان جوی (اتمسفریک)"),

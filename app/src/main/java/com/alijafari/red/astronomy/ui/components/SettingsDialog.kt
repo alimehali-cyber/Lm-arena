@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.domain.AppLanguage
+import com.alijafari.red.astronomy.domain.AppUiStyle
 import com.alijafari.red.astronomy.domain.CalendarSystem
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.domain.ThemeMode
@@ -133,6 +134,7 @@ fun SettingsDialog(
     val isFa = uiState.language == AppLanguage.PERSIAN
 
     // Expandable section states (all collapsed by default, tapped to expand/collapse)
+    var isUiStyleExpanded by remember { mutableStateOf(false) }
     var isLanguageExpanded by remember { mutableStateOf(false) }
     var isCalendarExpanded by remember { mutableStateOf(false) }
     var isAppThemeExpanded by remember { mutableStateOf(false) }
@@ -141,6 +143,11 @@ fun SettingsDialog(
     var isBortleExpanded by remember { mutableStateOf(false) }
 
     // Formatted collapsed labels
+    val uiStyleLabel = when (uiState.uiStyle) {
+        AppUiStyle.DEFAULT -> stringResource(R.string.ui_style_default)
+        AppUiStyle.SPATIAL -> stringResource(R.string.ui_style_spatial)
+    }
+
     val languageLabel = when (uiState.language) {
         AppLanguage.PERSIAN -> if (isFa) "فارسی" else "Persian"
         AppLanguage.ENGLISH -> if (isFa) "انگلیسی" else "English"
@@ -215,6 +222,31 @@ fun SettingsDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(RedSpacing.sm + 2.dp)
             ) {
+                // 0. UI Style Dropdown Section (Default UI vs Spatial UI)
+                ExpandableSettingsSection(
+                    title = stringResource(R.string.ui_style_title),
+                    currentValueLabel = uiStyleLabel,
+                    icon = Icons.Outlined.Widgets,
+                    isExpanded = isUiStyleExpanded,
+                    onToggle = { isUiStyleExpanded = !isUiStyleExpanded },
+                    testTag = "settings_section_ui_style"
+                ) {
+                    SettingsOptionRow(
+                        title = stringResource(R.string.ui_style_default),
+                        subtitle = stringResource(R.string.ui_style_default_desc),
+                        isSelected = uiState.uiStyle == AppUiStyle.DEFAULT,
+                        onClick = { viewModel.setUiStyle(AppUiStyle.DEFAULT) },
+                        modifier = Modifier.testTag("settings_ui_style_default")
+                    )
+                    SettingsOptionRow(
+                        title = stringResource(R.string.ui_style_spatial),
+                        subtitle = stringResource(R.string.ui_style_spatial_desc),
+                        isSelected = uiState.uiStyle == AppUiStyle.SPATIAL,
+                        onClick = { viewModel.setUiStyle(AppUiStyle.SPATIAL) },
+                        modifier = Modifier.testTag("settings_ui_style_spatial")
+                    )
+                }
+
                 // 1. Language Dropdown Section
                 ExpandableSettingsSection(
                     title = stringResource(R.string.application_language),

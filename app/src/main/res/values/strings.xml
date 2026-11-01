@@ -89,6 +89,11 @@
     <string name="backdrop_cepheus_setting">Cepheus</string>
     <string name="backdrop_cepheus_desc">Spitzer infrared photograph of Cepheus B and C, cropped to fill the screen at full resolution.</string>
     <string name="backdrop_off_desc">Solid theme background. Choose Live Sky or a photograph as a full-screen backdrop.</string>
+    <string name="ui_style_title">Interface Style</string>
+    <string name="ui_style_default">Default UI</string>
+    <string name="ui_style_default_desc">Classic ZIG flat &amp; high-contrast interface</string>
+    <string name="ui_style_spatial">Spatial UI</string>
+    <string name="ui_style_spatial_desc">VisionOS spatial frost, bento widgets &amp; dot-matrix gauges</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>
