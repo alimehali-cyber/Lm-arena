@@ -384,8 +384,8 @@ internal fun ChalInterface(params: ChalSimulationParams, snapshot: ChalRenderer.
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(if (isPersian) "مشکل رندر" else "Rendering problem", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 ChalCaption(if (!backend.graphicsSupported) {
-                    if (isPersian) "این دستگاه از OpenGL ES 3.0 لازم برای حالت سازگار پشتیبانی نمی‌کند. با دکمهٔ بازگشت به آزمایشگاه برگردید."
-                    else "This device does not support the OpenGL ES 3.0 required for compatibility mode. Use Back to return to Lab."
+                    if (isPersian) "این دستگاه از OpenGL ES 3.0 لازم برای حالت سازگار پشتیبانی نمی‌کند. برای بازگشت به آزمایشگاه از دکمهٔ بازگشت سیستم استفاده کنید."
+                    else "This device does not support the OpenGL ES 3.0 required for compatibility mode. Use the system back gesture to return to Lab."
                 } else if (snapshot.lastWorkingFeatures != null && snapshot.lastWorkingFeatures != params.features) {
                     if (isPersian) "برخی گزینه‌ها اعمال نشدند؛ آخرین تصویر سالم حفظ شده است. می‌توانید رندر را بازسازی کنید یا گزینه‌های سالم را برگردانید."
                     else "Some options could not be applied; the last working image was kept. Retry rendering or restore the working options."

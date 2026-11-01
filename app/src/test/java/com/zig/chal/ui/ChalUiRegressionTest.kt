@@ -44,13 +44,18 @@ class ChalUiRegressionTest {
         actualRenderScale = 0.63)
     private fun edit(native: Boolean, change: ChalSimulationParams.() -> ChalSimulationParams) { params = ChalRenderPolicy.normalize(params.change(), native) }
 
-    private fun panel(native: Boolean = false, persian: Boolean = false) {
+    private fun panel(
+        native: Boolean = false,
+        persian: Boolean = false,
+        compatibilityReason: ChalCompatibilityReason? = null
+    ) {
         rule.setContent { REDTheme {
             CompositionLocalProvider(LocalLayoutDirection provides if (persian) LayoutDirection.Rtl else LayoutDirection.Ltr) {
                 ChalControlPanel(params, persian, false, native, tab, { tab = it }, { params = it.applyTo(params) },
                     { edit(native, it) }, { edit(native) { copy(features = ChalFeatures.getPreset(it)) } },
                     { quality -> edit(native) { copy(features = features.copy(rayTracingQuality = quality)) } },
-                    {}, {}, {}, {}, {}, {}, false, null, 0.0, emptyList(), null, 0.63, true, 600.dp)
+                    {}, {}, {}, {}, {}, {}, false, null, 0.0, emptyList(), null, 0.63, true, 600.dp,
+                    compatibilityReason = compatibilityReason)
             }
         } }
     }
@@ -128,18 +133,35 @@ class ChalUiRegressionTest {
     }
     @Test fun hidingInterfaceRemovesAllChalChromeAndCanBeReversed() {
         interfaceScreen()
-        rule.onNodeWithTag("chal_hide_ui").performClick()
+        // Part 6 removed the band this header used to be — no "CHAL" title and no back button exist in
+        // either state now, so what identifies the chrome is the controls themselves: the hide affordance,
+        // the command rail's pause and the live readouts.
         rule.onNodeWithText("CHAL").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Back to Lab").assertDoesNotExist()
+        rule.onNodeWithTag("chal_telemetry").assertIsDisplayed()
+        rule.onNodeWithTag("chal_hide_ui").performClick()
+        rule.onNodeWithTag("chal_hide_ui").assertDoesNotExist()
+        rule.onNodeWithTag("chal_telemetry").assertDoesNotExist()
         rule.onNodeWithTag("chal_pause").assertDoesNotExist()
         rule.onNodeWithTag("chal_show_ui").assertIsDisplayed().performClick()
-        rule.onNodeWithText("CHAL").assertIsDisplayed()
+        rule.onNodeWithTag("chal_hide_ui").assertIsDisplayed()
         rule.onNodeWithTag("chal_pause").assertIsDisplayed()
     }
     @Test fun normalCompatibilityIsNotAnErrorOverTheScene() {
+        // The fallback is a mode, not a failure: it runs, it keeps its chrome, and it reports *why* on the
+        // panel's System tab (checked below) instead of painting a band over the scene — the band is gone.
         interfaceScreen(backend = ChalBackendUiState(false, compatibilityReason = ChalCompatibilityReason.ABI))
         rule.onNodeWithTag("chal_render_error").assertDoesNotExist()
-        rule.onNodeWithText("Approximate · OpenGL").assertIsDisplayed()
+        rule.onNodeWithTag("chal_hide_ui").assertIsDisplayed()
         rule.onRoot().captureRoboImage(filePath = "build/chal-ui/english-phone.png")
+    }
+
+    @Test fun compatibilityFallbackExplainsItselfOnTheSystemTab() {
+        tab = ChalPanelTab.SYSTEM
+        panel(compatibilityReason = ChalCompatibilityReason.ABI)
+        rule.onNodeWithText(
+            "Native rendering requires an ARM64 processor. OpenGL compatibility mode is active."
+        ).performScrollTo().assertIsDisplayed()
     }
     @Test fun nativePauseButtonIsRemovedNotLeftInert() {
         interfaceScreen(native = true)
@@ -148,8 +170,10 @@ class ChalUiRegressionTest {
     }
     @Test fun unsupportedGraphicsDoesNotOfferAnInertRetryButton() {
         interfaceScreen(backend = ChalBackendUiState(false, graphicsSupported = false, error = "no GLES3"))
+        // A device that cannot render at all gets the explanation and no button that would do nothing.
+        rule.onNodeWithTag("chal_render_error").assertIsDisplayed()
         rule.onNodeWithText("Retry renderer").assertDoesNotExist()
-        rule.onNodeWithContentDescription("Back to Lab").assertIsDisplayed()
+        rule.onNodeWithText("Use the system back gesture to return to Lab.", substring = true).assertIsDisplayed()
     }
     @Test @Config(qualifiers = "w320dp-h568dp-port-xxhdpi", sdk = [36])
     fun smallPersianPhoneAndLargeTextUseScrollableControlsSheet() {

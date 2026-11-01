@@ -182,19 +182,21 @@ class Part6ScreenChromeTest {
     @Test
     fun everyGlassSettingIsPersistedAndRestored() {
         listOf(
-            "liquid_glass_tint_hue_a",
-            "liquid_glass_tint_hue_b",
-            "liquid_glass_tint_mix",
-            "liquid_glass_tint_saturation",
-            "liquid_glass_shader_profile",
-            "liquid_glass_sheen",
-            "liquid_glass_sheen_strength",
-            "liquid_glass_edge_smoothing"
-        ).forEach { key ->
-            assertTrue("$key is written", viewModel.contains(".putFloat(\"$key\"") ||
-                viewModel.contains(".putString(\"$key\""))
-            assertTrue("$key is read back", viewModel.contains("prefs.getFloat(\"$key\"") ||
-                viewModel.contains("prefs.getString(\"$key\""))
+            Pair("liquid_glass_tint_hue_a", "putFloat"),
+            Pair("liquid_glass_tint_hue_b", "putFloat"),
+            Pair("liquid_glass_tint_mix", "putFloat"),
+            Pair("liquid_glass_tint_saturation", "putFloat"),
+            Pair("liquid_glass_shader_profile", "putString"),
+            Pair("liquid_glass_sheen", "putString"),
+            Pair("liquid_glass_sheen_strength", "putFloat"),
+            Pair("liquid_glass_edge_smoothing", "putFloat")
+        ).forEach { (key, writer) ->
+            // Matched with a pattern rather than a literal because a long argument list wraps: the key and
+            // its reader must be the same call, wherever the line break falls.
+            val written = Regex("\\." + writer + "\\(\\s*\"" + Regex.escape(key) + "\"")
+            val readBack = Regex("prefs\\.get" + writer.drop(3) + "\\(\\s*\"" + Regex.escape(key) + "\"")
+            assertTrue("$key is written", written.containsMatchIn(viewModel))
+            assertTrue("$key is read back", readBack.containsMatchIn(viewModel))
         }
         assertTrue("a preset writes the same numbers the sliders do", viewModel.contains("fun applyGlassFilmPreset("))
     }

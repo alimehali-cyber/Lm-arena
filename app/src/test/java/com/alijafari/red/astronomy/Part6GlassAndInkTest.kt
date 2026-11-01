@@ -65,24 +65,42 @@ class Part6GlassAndInkTest {
                 wcagContrast(ink.primary, grey(l)) >= 4.5f
             )
         }
-        // The crossover is where the two inks actually swap, not a hand-picked threshold: just either
-        // side of it, the better of the two inks is still the one that was chosen.
-        val atCrossover = backdropInkFor(0.35f)
-        val grey35 = grey(0.35f)
-        assertTrue(
-            "the chosen ink is the better one at the crossover",
-            wcagContrast(atCrossover.primary, grey35) >=
-                wcagContrast(Color.White, grey35) - 0.001f ||
-                wcagContrast(atCrossover.primary, grey35) >=
-                wcagContrast(Color(0.03f, 0.04f, 0.07f, 1f), grey35) - 0.001f
-        )
+        // The crossover is where the two inks actually swap — about 0.5 in sRGB grey, which is 0.18 in
+        // linear luminance — and not a hand-picked threshold. At every brightness, including both sides of
+        // it, the ink that was chosen is the one with the higher measured ratio of the two.
+        val nearBlack = Color(8f / 255f, 10f / 255f, 18f / 255f, 1f)
+        listOf(0.02f, 0.2f, 0.35f, 0.4f, 0.5f, 0.6f, 0.8f, 0.98f).forEach { l ->
+            val ink = backdropInkFor(l)
+            val backdrop = grey(l)
+            val chosen = wcagContrast(ink.primary, backdrop)
+            val bestOfTheTwo = maxOf(
+                wcagContrast(Color.White, backdrop),
+                wcagContrast(nearBlack, backdrop)
+            )
+            assertTrue(
+                "at $l the chosen ink is the better of the two ($chosen vs $bestOfTheTwo)",
+                chosen >= bestOfTheTwo - 0.02f
+            )
+            assertEquals(
+                "and it says which one it is",
+                ink.isDarkInk,
+                wcagContrast(nearBlack, backdrop) >= wcagContrast(Color.White, backdrop)
+            )
+        }
     }
 
     @Test
     fun theHaloOnlyAppearsWhereItIsNeeded() {
         assertEquals("no halo on a black backdrop", 0f, backdropInkFor(0f).halo.alpha, 0.001f)
         assertEquals("none on a white one", 0f, backdropInkFor(1f).halo.alpha, 0.001f)
-        assertTrue("but there is one at dusk", backdropInkFor(0.35f).halo.alpha > 0.1f)
+        // Dusk is the ambiguous middle: a mid grey — about 0.5 in sRGB, where white and black are equally
+        // poor — is where the halo is strongest, and it is already fading at 0.4.
+        assertTrue("but there is one at dusk", backdropInkFor(0.5f).halo.alpha > 0.15f)
+        assertTrue(
+            "and it fades as the winner gets comfortable",
+            backdropInkFor(0.5f).halo.alpha > backdropInkFor(0.4f).halo.alpha &&
+                backdropInkFor(0.4f).halo.alpha > backdropInkFor(0.2f).halo.alpha
+        )
         assertTrue("and it is the opposite ink", backdropInkFor(0.05f).halo.red > 0.5f)
     }
 
