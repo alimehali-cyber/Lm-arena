@@ -275,7 +275,15 @@ class Part6ScreenChromeTest {
         assertTrue("earthshine with a cold cast", moonRender.contains("MoonEarthshineTint"))
         assertTrue("a limb that darkens before the edge", moonRender.contains("0.93f to MoonNightColor.copy(alpha = 0.26f)"))
         assertTrue("a specular catch on the sunward rim", moonRender.contains("MoonSpecularAlpha"))
-        assertTrue("and a libration parallax", moonRender.contains("val parallaxX = (moonData.librationLonDeg / 8.0)"))
+        // Libration is a Double from the engine and the layer's translation is a Float, so the resolved
+        // fraction is converted where it is computed — asserting both halves keeps the two from drifting
+        // apart again (CI 41299691462 caught exactly that).
+        assertTrue(
+            "a libration parallax",
+            moonRender.contains("val parallaxX =") &&
+                moonRender.contains("moonData.librationLonDeg / 8.0")
+        )
+        assertTrue("resolved in Float", moonRender.contains("MoonParallaxMaxFraction).toFloat()"))
         // The disc contract other tests and the AR overlay depend on is untouched.
         assertTrue("the plate zoom is unchanged", moonRender.contains("1.03f / MoonPlateDiscFraction"))
         assertTrue("so is the phase cut-out", moonRender.contains("if (ill < 0.98) {"))
