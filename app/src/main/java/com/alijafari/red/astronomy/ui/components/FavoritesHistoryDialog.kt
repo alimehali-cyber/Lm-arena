@@ -20,10 +20,9 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.theme.AccentPrimary
-import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
-import com.alijafari.red.astronomy.ui.theme.LiquidGlassSurface
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedElevation
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 @Composable
@@ -84,11 +83,10 @@ fun FavoritesHistoryDialog(
                             modifier = Modifier.fillMaxSize()
                         ) {
                             items(favoriteObjects) { obj ->
-                                LiquidGlassSurface(
+                                RedSurface(
                                     shape = squircleShape(RedCornerRadius.window),
-                                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    style = LiquidGlassDefaults.Card,
-                                    fallbackShadowElevation = RedElevation.none,
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    elevation = RedElevation.none,
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -162,11 +160,10 @@ fun FavoritesHistoryDialog(
                             modifier = Modifier.fillMaxSize()
                         ) {
                             items(uiState.observationLogs) { log ->
-                                LiquidGlassSurface(
+                                RedSurface(
                                     shape = squircleShape(RedCornerRadius.window),
-                                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    style = LiquidGlassDefaults.Card,
-                                    fallbackShadowElevation = RedElevation.none,
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    elevation = RedElevation.none,
                                 ) {
                                     Row(
                                         modifier = Modifier

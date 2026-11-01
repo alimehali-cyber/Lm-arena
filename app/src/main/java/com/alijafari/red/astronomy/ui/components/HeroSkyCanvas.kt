@@ -28,22 +28,22 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
-import kotlin.math.roundToInt
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
@@ -62,16 +62,15 @@ import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaFeature
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaLayer
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaState
 import com.alijafari.red.astronomy.ui.skypanorama.SkyPanoramaStatus
-import androidx.compose.ui.graphics.Brush
-import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
 import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedShapes
-import com.alijafari.red.astronomy.ui.theme.liquidGlass
+import com.alijafari.red.astronomy.ui.theme.solidSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Locale
 import kotlin.math.*
+import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -728,7 +727,7 @@ fun HeroSkyCanvas(
         // floating somewhere below-left of the tap. It is centred on the object's projected position, it
         // flips under the object when there is no room above it, and the wedge on its edge is aimed at the
         // object and clamped inside the card's own width, so the pointer can never drift off the contact
-        // point it is supposed to mark. Dark glass, one hairline, no accent ring: the sky is the loud
+        // point it is supposed to mark. Dark fill, one hairline, no accent ring: the sky is the loud
         // thing here, and the only colour in the card is the object's own dot.
         AnimatedVisibility(
             visible = selectedCelestial != null,
@@ -912,15 +911,12 @@ fun HeroSkyCanvas(
                     .align(Alignment.TopEnd)
                     .padding(10.dp)
                     .size(34.dp)
-                    // Clear glass over a dark scrim: the affordance has to read on a noon sky and on a
+                    // A dark scrim: the affordance has to read on a noon sky and on a
                     // moonless one alike, so it never takes the white card tint.
-                    .liquidGlass(
+                    .solidSurface(
                         shape = CircleShape,
-                        style = LiquidGlassDefaults.Pill,
-                        clearGlass = true,
-                        fallbackColor = Color.Black.copy(alpha = 0.38f),
-                        fallbackBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f)),
-                        glassBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
+                        color = Color.Black.copy(alpha = 0.38f),
+                        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
                     )
                     .clickable(onClick = onExpand)
                     .testTag("sky_canvas_expand_button"),

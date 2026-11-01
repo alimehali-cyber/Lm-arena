@@ -12,24 +12,6 @@ import kotlin.math.pow
 import com.alijafari.red.astronomy.domain.ThemeMode
 
 // Material 3 Color Schemes
-private val SpaceColorScheme = darkColorScheme(
-    primary = RedAccentVermilion,
-    onPrimary = Color.White,
-    primaryContainer = RedAccentSubtle,
-    onPrimaryContainer = TextPrimary,
-    secondary = RedCelestialGold,
-    onSecondary = Color.White,
-    tertiary = RedCelestialBlue,
-    onTertiary = Color.White,
-    background = BackgroundPrimary,
-    onBackground = TextPrimary,
-    surface = BackgroundCard,
-    onSurface = TextPrimary,
-    surfaceVariant = Color(0xFF171824),
-    onSurfaceVariant = TextSecondary,
-    outline = CardBorder
-)
-
 private val OledSpaceColorScheme = darkColorScheme(
     primary = RedAccentVermilion,
     onPrimary = Color.White,
@@ -96,7 +78,7 @@ private fun lerpColor(c1: Color, c2: Color, fraction: Float): Color {
 
 /**
  * WCAG relative luminance of a color, with the sRGB transfer function applied (the plain 0.299/0.587/
- * 0.114 weighting used for the glass ink is a brightness estimate, not a contrast measure).
+ * 0.114 weighting used for surface ink is a brightness estimate, not a contrast measure).
  */
 private fun relativeLuminance(color: Color): Float {
     fun linear(channel: Float): Float =
@@ -333,13 +315,11 @@ fun REDTheme(
     }
 
     val colorScheme = when (themeMode) {
-        ThemeMode.GLASS -> SpaceColorScheme
         ThemeMode.LIGHT -> LightSpaceColorScheme
         ThemeMode.DARK -> OledSpaceColorScheme
     }
 
     val redColorTokens = when (themeMode) {
-        ThemeMode.GLASS -> RedDarkColorTokens
         ThemeMode.LIGHT -> RedLightColorTokens
         ThemeMode.DARK -> RedDarkColorTokens.copy(
             background = Color.Black,

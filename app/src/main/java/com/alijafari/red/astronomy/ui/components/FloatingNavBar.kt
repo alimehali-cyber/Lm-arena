@@ -32,8 +32,8 @@ import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
-import com.kyant.backdrop.Backdrop
 
 data class NavItem(
     val titleRes: Int,
@@ -45,7 +45,6 @@ data class NavItem(
 
 @Composable
 fun FloatingBottomBar(
-    backdrop: Backdrop? = null,
     selectedTab: Int,
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
@@ -57,7 +56,7 @@ fun FloatingBottomBar(
         NavItem(R.string.nav_lab, Icons.Outlined.Science, Icons.Outlined.Science, 0, "nav_item_lab")
     )
 
-    // The glass platter wears the same 34 dp window radius as every other container in the app.
+    // The floating platter wears the same 34 dp window radius as every other container in the app.
     val navShape = squircleShape(RedCornerRadius.window)
 
     Box(
@@ -67,19 +66,16 @@ fun FloatingBottomBar(
             .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
             .testTag("main_bottom_navigation")
     ) {
-        // Continuous native Liquid Glass floating bar surface across the entire bottom navigation
-        LiquidGlassSurface(
+        // One floating platter across the entire bottom navigation
+        RedSurface(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
-                .testTag("main_bottom_navigation_glass_surface"),
-            backdrop = backdrop,
+                .testTag("main_bottom_navigation_surface"),
             shape = navShape,
-            style = LiquidGlassDefaults.NavigationBar,
-            fallbackColor = RedTheme.colors.surfaceElevated,
-            fallbackBorder = androidx.compose.foundation.BorderStroke(1.dp, RedTheme.colors.border),
-            fallbackShadowElevation = RedElevation.floating,
-            glassBorder = androidx.compose.foundation.BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.4f))
+            color = RedTheme.colors.surfaceElevated,
+            border = androidx.compose.foundation.BorderStroke(1.dp, RedTheme.colors.border),
+            elevation = RedElevation.floating,
         ) {
             Row(
                 modifier = Modifier

@@ -25,6 +25,7 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 enum class LabFeatureType(
@@ -179,20 +180,19 @@ private fun LabFeatureCard(
     isFa: Boolean,
     onClick: () -> Unit
 ) {
-    LiquidGlassSurface(
+    RedSurface(
         modifier = Modifier
             .fillMaxWidth()
             .clip(squircleShape(RedCornerRadius.xl))
             .clickable(enabled = feature.isAvailable, onClick = onClick)
             .testTag("lab_feature_card_${feature.name.lowercase()}"),
         shape = squircleShape(RedCornerRadius.xl),
-        fallbackColor = if (feature.isAvailable) RedTheme.colors.surfaceElevated else RedTheme.colors.surfaceGrouped,
-        fallbackBorder = BorderStroke(
+        color = if (feature.isAvailable) RedTheme.colors.surfaceElevated else RedTheme.colors.surfaceGrouped,
+        border = BorderStroke(
             width = 1.dp,
             color = if (feature.isAvailable) RedTheme.colors.border else RedTheme.colors.border.copy(alpha = 0.5f)
         ),
-        style = LiquidGlassDefaults.Card,
-        fallbackShadowElevation = RedElevation.none,
+        elevation = RedElevation.none,
     ) {
         Row(
             modifier = Modifier.padding(RedSpacing.lg),

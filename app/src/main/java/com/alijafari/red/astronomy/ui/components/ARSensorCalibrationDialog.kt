@@ -60,10 +60,9 @@ import com.alijafari.red.astronomy.ar.core.HeadingFusion
 import com.alijafari.red.astronomy.astro_engine.ArSensorStatus
 import com.alijafari.red.astronomy.astro_engine.CalibrationState
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
-import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
-import com.alijafari.red.astronomy.ui.theme.LiquidGlassSurface
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedElevation
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.RedTheme
 import com.alijafari.red.astronomy.ui.theme.StatusGood
 import com.alijafari.red.astronomy.ui.theme.squircleShape
@@ -112,7 +111,7 @@ fun ARSensorCalibrationDialog(
             .testTag("ar_sensor_calibration_dialog_scrim"),
         contentAlignment = Alignment.Center
     ) {
-        LiquidGlassSurface(
+        RedSurface(
             modifier = Modifier
                 .fillMaxWidth(0.94f)
                 .heightIn(max = 720.dp)
@@ -123,10 +122,9 @@ fun ARSensorCalibrationDialog(
                 )
                 .testTag("ar_sensor_calibration_dialog"),
             shape = squircleShape(RedCornerRadius.xxl),
-            fallbackColor = RedTheme.colors.surfaceElevated.copy(alpha = 0.97f),
-            fallbackBorder = BorderStroke(1.dp, accent.copy(alpha = 0.55f)),
-            fallbackShadowElevation = 16.dp,
-            style = LiquidGlassDefaults.Card,
+            color = RedTheme.colors.surfaceElevated.copy(alpha = 0.97f),
+            border = BorderStroke(1.dp, accent.copy(alpha = 0.55f)),
+            elevation = 16.dp,
         ) {
             Column(
                 modifier = Modifier
@@ -246,13 +244,12 @@ fun ARSensorCalibrationDialog(
 @Composable
 private fun LiveStatusCard(status: ArSensorStatus, state: CalibrationState, isFa: Boolean) {
     val f = status.fusion
-    LiquidGlassSurface(
+    RedSurface(
         shape = squircleShape(RedCornerRadius.window),
-        fallbackColor = RedTheme.colors.surfaceGrouped.copy(alpha = 0.55f),
-        fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border.copy(alpha = 0.6f)),
+        color = RedTheme.colors.surfaceGrouped.copy(alpha = 0.55f),
+        border = BorderStroke(1.dp, RedTheme.colors.border.copy(alpha = 0.6f)),
         modifier = Modifier.fillMaxWidth().testTag("ar_sensor_calibration_status_badge"),
-        style = LiquidGlassDefaults.Card,
-        fallbackShadowElevation = RedElevation.none,
+        elevation = RedElevation.none,
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(

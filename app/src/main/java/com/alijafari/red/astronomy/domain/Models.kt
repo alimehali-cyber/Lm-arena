@@ -95,7 +95,6 @@ enum class CalendarSystem {
 }
 
 enum class ThemeMode {
-    GLASS,
     LIGHT,
     DARK
 }

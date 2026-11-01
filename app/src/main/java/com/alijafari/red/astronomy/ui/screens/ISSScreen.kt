@@ -55,6 +55,7 @@ import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.text.SimpleDateFormat
@@ -140,24 +141,6 @@ fun ISSScreen(
 
     val mapPalette = remember(activeThemeMode, celestialLighting) {
         when (activeThemeMode) {
-            ThemeMode.GLASS -> {
-                val isDark = celestialLighting.isDark
-                SatelliteMapPalette(
-                    oceanColor = celestialLighting.backgroundColor,
-                    landColor = celestialLighting.surfaceColor,
-                    landStroke = celestialLighting.outlineColor,
-                    gridColor = celestialLighting.outlineColor.copy(alpha = if (isDark) 0.22f else 0.35f),
-                    equatorColor = celestialLighting.primaryAccent.copy(alpha = 0.75f),
-                    nightShadowColor = if (isDark) Color(0xCC050814) else Color(0x550F172A),
-                    cityLightColor = Color(0xFFFBBF24),
-                    orbitTrackColor = celestialLighting.primaryAccent,
-                    userPinColor = celestialLighting.primaryAccent,
-                    userTextColor = celestialLighting.textPrimaryColor,
-                    containerBg = celestialLighting.surfaceVariantColor,
-                    containerBorder = celestialLighting.outlineColor,
-                    isDarkBackground = isDark
-                )
-            }
             ThemeMode.LIGHT -> {
                 SatelliteMapPalette(
                     oceanColor = SoftCreamVariant,
@@ -884,13 +867,12 @@ fun ISSScreen(
                 }
             }
 
-            // 3. COMPACT TIME SCRUBBER (-12h to +12h) — Liquid Glass Surface
-            LiquidGlassSurface(
+            // 3. COMPACT TIME SCRUBBER (-12h to +12h)
+            RedSurface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("satellite_time_scrubber_card"),
-                shape = squircleShape(RedCornerRadius.lg),
-                style = LiquidGlassDefaults.Card
+                shape = squircleShape(RedCornerRadius.lg)
             ) {
                 Column(
                     modifier = Modifier.padding(RedSpacing.lg),

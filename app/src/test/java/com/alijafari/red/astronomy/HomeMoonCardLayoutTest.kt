@@ -9,7 +9,7 @@ import org.junit.Test
  * Source-level guards for the Home hero: **two** cards under the sky, the same width, the same height, and
  * the same size of picture inside each.
  *
- * The Moon card grew sideways first and the eclipse card followed it — its own glass card, directly beneath
+ * The Moon card grew sideways first and the eclipse card followed it — its own card, directly beneath
  * the Moon's, the plate pinned to the card's far left and that eclipse's circumstances to its right. The pair
  * used to be a tall Moon square over a thin eclipse band; the Moon has since come down and the eclipse grown
  * up until the two pictures are drawn in equal squares. These assertions hold that shape of the code,
@@ -57,10 +57,10 @@ class HomeMoonCardLayoutTest {
 
     @Test
     fun theEclipseHasItsOwnCardUnderTheMoon() {
-        assertTrue("the eclipse is its own glass card", home.contains("private fun EclipseCard("))
+        assertTrue("the eclipse is its own card", home.contains("private fun EclipseCard("))
         assertTrue("the eclipse card keeps its test tag", home.contains(".testTag(\"home_eclipse_card\")"))
         assertTrue("its plate keeps its test tag", home.contains(".testTag(\"home_eclipse_card_render\")"))
-        assertTrue("it is a separate LiquidGlassSurface", home.contains("private fun MoonCard("))
+        assertTrue("the Moon is a card of its own", home.contains("private fun MoonCard("))
         // The eclipse card is placed below the Moon card, not inside it.
         assertTrue("the eclipse card is anchored under the Moon", home.contains("padding(bottom = eclipseCardBottom)"))
         assertTrue("the Moon card sits above it", home.contains("padding(bottom = moonCardBottom)"))

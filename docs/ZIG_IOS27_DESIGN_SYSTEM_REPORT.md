@@ -1,3 +1,10 @@
+> **Status: superseded in part.** The `GLASS` (`iOS 27` Liquid Glass) theme and the whole glass material
+> have since been removed from the app: `ThemeMode` is `LIGHT` / `DARK` only, every surface is drawn by
+> `RedSurface` (`ui/theme/Surface.kt`), and the `io.github.kyant0:backdrop` dependency is gone. The token
+> measurements below — colours, spacing, radii, typography — are still the ones the app ships, so this
+> document remains the record of where those numbers came from. Read decision 1 as "two themes" and
+> decisions 2–3 as history.
+
 # ZIG iOS 27 Design System — Research & Overhaul Plan
 
 **Repository:** `alimehali-cyber/Lm-arena` (branch `arena/b93bf689-lm-arena`)  

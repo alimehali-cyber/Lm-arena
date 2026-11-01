@@ -91,7 +91,7 @@ Moon and the eclipse plate are drawn at one size.
 | Moon | `MoonPhaseRender` in its old square and nothing else — no phase name, no percentage, no date | drag scrubs ±30 days (shared with the Moon window); tap opens the Moon window |
 | Readout | clock, condition, date and the Moon's state, on the card's end side | none — it is a caption |
 
-The card is one `squircleShape(RedCornerRadius.window)` `LiquidGlassSurface`; the Moon keeps the start side
+The card is one `squircleShape(RedCornerRadius.window)` `RedSurface`; the Moon keeps the start side
 — the right in Persian, the left in English, the same side the Moon tile has always been on — and the
 readout fills the other column, so the eye reads *where* on one side and *when* on the other.
 
@@ -258,7 +258,7 @@ sky is the product and the instant it is drawn for is the caption:
 
 It reads the same instant the sky is drawn for: `SkyTimeModel.effectiveJd(instant, skyDragOffsetHours)`.
 The drag offset is collected inside `MoonCardReadout`, not in `HomeScreen`, so a per-frame scrub recomposes
-this caption and nothing else. The ink comes from `RedTheme.colors`, which `LiquidGlassSurface` resolves
+this caption and nothing else. The ink comes from `RedTheme.colors`, which `RedSurface` resolves
 against the glass it hands down, so the numbers stay legible on every theme. And every value comes from the
 same state the card is drawn from, so the numbers and the sky can never disagree.
 

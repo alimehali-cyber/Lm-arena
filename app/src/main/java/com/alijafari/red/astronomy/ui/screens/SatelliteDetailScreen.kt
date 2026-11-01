@@ -36,6 +36,7 @@ import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.text.SimpleDateFormat
@@ -193,13 +194,12 @@ fun SatelliteDetailScreen(
             }
 
             // 1. Hero Status Card
-            LiquidGlassSurface(
+            RedSurface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = squircleShape(RedCornerRadius.window),
-                fallbackColor = Color(0xFF0F172A),
-                fallbackBorder = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                style = LiquidGlassDefaults.Card,
-                fallbackShadowElevation = RedElevation.none,
+                color = Color(0xFF0F172A),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                elevation = RedElevation.none,
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
@@ -276,13 +276,12 @@ fun SatelliteDetailScreen(
 
             val currentPasses = passes
             if (currentPasses == null) {
-                LiquidGlassSurface(
+                RedSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = squircleShape(RedCornerRadius.window),
-                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                    style = LiquidGlassDefaults.Card,
-                    fallbackShadowElevation = RedElevation.none,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                    elevation = RedElevation.none,
                 ) {
                     Text(
                         text = if (isFa) "در حال محاسبه گذرهای ماهواره..." else "Calculating satellite passes...",
@@ -292,13 +291,12 @@ fun SatelliteDetailScreen(
                     )
                 }
             } else if (currentPasses.isEmpty()) {
-                LiquidGlassSurface(
+                RedSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = squircleShape(RedCornerRadius.window),
-                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                    style = LiquidGlassDefaults.Card,
-                    fallbackShadowElevation = RedElevation.none,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                    elevation = RedElevation.none,
                 ) {
                     Text(
                         text = if (isFa) "هیچ گذر قابل مشهودی مطابق با معیار علمی برای موقعیت شما در ۷ روز آینده یافت نشد."
@@ -353,13 +351,12 @@ fun SatelliteDetailScreen(
 
             val launchText = if (satelliteItem.launchDate.isNotBlank()) satelliteItem.launchDate else "1998"
 
-            LiquidGlassSurface(
+            RedSurface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = squircleShape(RedCornerRadius.window),
-                fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                style = LiquidGlassDefaults.Card,
-                fallbackShadowElevation = RedElevation.none,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                elevation = RedElevation.none,
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -462,13 +459,12 @@ fun SatelliteDetailScreen(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            LiquidGlassSurface(
+            RedSurface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = squircleShape(RedCornerRadius.window),
-                fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.25f)),
-                style = LiquidGlassDefaults.Card,
-                fallbackShadowElevation = RedElevation.none,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.25f)),
+                elevation = RedElevation.none,
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -547,13 +543,12 @@ private fun NextPassTimelineProgressBar(
         else -> 1f
     }
 
-    LiquidGlassSurface(
+    RedSurface(
         modifier = Modifier.fillMaxWidth(),
         shape = squircleShape(RedCornerRadius.window),
-        fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        fallbackBorder = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.35f)),
-        style = LiquidGlassDefaults.Card,
-        fallbackShadowElevation = RedElevation.none,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.35f)),
+        elevation = RedElevation.none,
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -713,13 +708,12 @@ fun DetailedVisiblePassCard(
     val magStr = String.format(Locale.US, "%.1f", pass.estimatedMagnitude)
     val maxElevStr = String.format(Locale.US, "%.0f°", pass.maxElevationDeg)
 
-    LiquidGlassSurface(
+    RedSurface(
         modifier = Modifier.fillMaxWidth(),
         shape = squircleShape(RedCornerRadius.window),
-        fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        fallbackBorder = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.4f)),
-        style = LiquidGlassDefaults.Card,
-        fallbackShadowElevation = RedElevation.none,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.4f)),
+        elevation = RedElevation.none,
     ) {
         Column(
             modifier = Modifier.padding(14.dp),

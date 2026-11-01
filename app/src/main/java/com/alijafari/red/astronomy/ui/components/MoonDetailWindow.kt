@@ -38,9 +38,9 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
-import com.kyant.backdrop.Backdrop
 import kotlin.math.roundToInt
 
 /**
@@ -50,12 +50,10 @@ import kotlin.math.roundToInt
  * timing ephemeris, the physical/libration block and the upcoming phase schedule — all of it. The scrub
  * state lives in [MainUiState.moonDayOffset], so the card and this window always show the same instant.
  *
- * It is a root-level sibling in MainActivity (not a child of the Crossfade), which is what lets it sample
- * the live backdrop and render real liquid glass.
+ * It is a root-level sibling in MainActivity (not a child of the Crossfade), so it draws above every screen.
  */
 @Composable
 fun MoonDetailWindow(
-    backdrop: Backdrop?,
     baseTimeMs: Long,
     uiState: MainUiState,
     viewModel: MainViewModel,
@@ -111,11 +109,9 @@ fun MoonDetailWindow(
                     .testTag("moon_window_scrim")
             )
 
-            LiquidGlassSurface(
-                backdrop = backdrop,
-                style = LiquidGlassDefaults.Window,
+            RedSurface(
                 shape = squircleShape(RedCornerRadius.window),
-                fallbackColor = RedTheme.colors.surfaceElevated,
+                color = RedTheme.colors.surfaceElevated,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .statusBarsPadding()

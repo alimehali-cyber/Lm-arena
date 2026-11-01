@@ -11,16 +11,16 @@ import org.junit.Test
  *
  * Every item in this round is either chrome that has to be *absent*, or a piece of plumbing that has to
  * be *present* in the one place that makes it work. Neither can be asserted from a screenshot — the
- * screens are Compose over a GL landscape, and the glass is a shader — so the shape of the code is the
- * guard, alongside the arithmetic in [Part6GlassAndInkTest].
+ * screens are Compose over a GL landscape — so the shape of the code is the guard, alongside the
+ * arithmetic in [Part6InkAndSurfaceTest].
  *
  * 1. "What's Up Tonight" has no plate and adapts its ink (see [SkyUiPolishTest] as well);
  * 2. the eclipse card's text sits 8 mm further out;
  * 3. the fire is at the same place on every screen and 20 % brighter;
  * 4. the Moon render is 2.5D;
  * 5. the Moon card's text sits 1.5 cm further out;
- * 6. Home / Lab / Satellite cards get the real glass and the real backdrop;
- * 7. the glass has colour mixing, shader design and smooth-edge controls;
+ * 6. Home / Lab / Satellite cards are drawn by the one flat surface, over nothing;
+ * 7. the glass material, its settings and its theme are gone;
  * 8. no top band, no "Lab"/"Satellites" title and no back button on those screens or their sub-screens.
  */
 class Part6ScreenChromeTest {
@@ -36,7 +36,13 @@ class Part6ScreenChromeTest {
     private val moonRender by lazy { source("com/alijafari/red/astronomy/ui/components/MoonPhaseRender.kt") }
     private val settings by lazy { source("com/alijafari/red/astronomy/ui/components/SettingsDialog.kt") }
     private val viewModel by lazy { source("com/alijafari/red/astronomy/ui/MainViewModel.kt") }
-    private val glass by lazy { source("com/alijafari/red/astronomy/ui/theme/LiquidGlass.kt") }
+    private val lab by lazy { source("com/alijafari/red/astronomy/ui/screens/LabScreen.kt") }
+    private val iss by lazy { source("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt") }
+    private val surface by lazy { source("com/alijafari/red/astronomy/ui/theme/Surface.kt") }
+    private val buildScript by lazy {
+        listOf(File("build.gradle.kts"), File("app/build.gradle.kts"))
+            .firstOrNull { it.exists() }?.readText().orEmpty()
+    }
     private val scene by lazy { source("com/alijafari/red/astronomy/ui/persepolis/PersepolisMilAzhdaha.kt") }
     private val framing by lazy { source("com/alijafari/red/astronomy/ui/rendering/PersepolisFraming.kt") }
 
@@ -99,116 +105,87 @@ class Part6ScreenChromeTest {
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Item 6 — the cards get real glass over the real backdrop
+    // Item 6 — the cards are drawn by the one flat surface, and nothing samples what is behind them
     // ---------------------------------------------------------------------------------------------
 
     @Test
-    fun theCardsSampleTheAppBackdropInsteadOfNullingIt() {
-        assertFalse(
-            "nothing nulls the backdrop for the content tree any more",
-            activity.contains("LocalLiquidGlassBackdrop provides null")
-        )
+    fun everyCardIsDrawnByTheOneSurface() {
+        assertTrue("the surface exists", surface.contains("fun RedSurface("))
+        assertTrue("it paints a fill", surface.contains(".background(color, shape)"))
+        assertTrue("a border", surface.contains("Modifier.border(border, shape)"))
+        assertTrue("and a clip", surface.contains(".clip(shape)"))
+        assertTrue("it is tappable", surface.contains("Modifier.clickable("))
         assertTrue(
-            "the content tree is handed the recorded app backdrop",
-            activity.contains("LocalLiquidGlassBackdrop provides glassBackdrop")
+            "it hands the ink it resolved to everything inside it",
+            surface.contains("LocalRedColors provides surfaceColors")
         )
-        assertTrue(
-            "which is its own layer over the backdrop only",
-            activity.contains("Modifier.layerBackdrop(glassBackdrop)")
-        )
-        // Two layers: one the overlays sample (content), one the cards sample (backdrop). Sampling the
-        // content layer from inside it is the Kyant assertion, so the split is the fix, not a refactor.
-        assertTrue(
-            "two layers, two jobs",
-            activity.split("rememberLayerBackdrop()").size - 1 >= 2
-        )
-        assertTrue(
-            "the backdrop layer includes the theme's own surface",
-            activity.contains(".background(com.alijafari.red.astronomy.ui.theme.RedTheme.colors.background)")
-        )
-    }
-
-    @Test
-    fun theCardsAreStillGlassSurfaces() {
-        // The plumbing only matters if the cards still ask for glass; a fallback-only card would render
-        // its own surface no matter what the backdrop does.
-        val lab = source("com/alijafari/red/astronomy/ui/screens/LabScreen.kt")
-        assertTrue("Lab's tool cards are glass", lab.contains("LiquidGlassSurface("))
-        val iss = source("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt")
-        assertTrue("the satellite cards are glass", iss.contains("LiquidGlassSurface("))
-        assertTrue("Home's cards are glass", home.contains("private fun MoonCard("))
+        assertTrue("Lab's tool cards use it", lab.contains("RedSurface("))
+        assertTrue("the satellite cards use it", iss.contains("RedSurface("))
+        assertTrue("Home's cards use it", home.contains("private fun MoonCard("))
         assertTrue("including the eclipse card", home.contains("private fun EclipseCard("))
-    }
-
-    // ---------------------------------------------------------------------------------------------
-    // Item 7 — the controls exist, are wired, and persist
-    // ---------------------------------------------------------------------------------------------
-
-    @Test
-    fun theGlassRecipeControlsExistInSettings() {
-        val tags = listOf(
-            "liquid_glass_hue_a_slider",
-            "liquid_glass_hue_b_slider",
-            "liquid_glass_mix_slider",
-            "liquid_glass_saturation_slider",
-            "liquid_glass_sheen_strength_slider",
-            "liquid_glass_edge_smoothing_slider",
-            "liquid_glass_swatch"
-        )
-        tags.forEach { tag ->
-            assertTrue("Settings exposes $tag", settings.contains(tag))
-        }
-        // The chips are generated from the enums, so their tags are templates over every entry — one
-        // chip per profile, per sheen and per named recipe, with no option that can be added to the enum
-        // and forgotten in the dialog.
         assertTrue(
-            "one chip per shader profile",
-            settings.contains("GlassShaderProfile.entries.forEach { profile ->") &&
-                settings.contains("liquid_glass_profile_\${profile.name.lowercase()}")
+            "the small sky buttons are filled, bordered and clipped without a material",
+            home.contains(".solidSurface(")
         )
-        assertTrue(
-            "one chip per sheen",
-            settings.contains("GlassSheen.entries.forEach { sheen ->") &&
-                settings.contains("liquid_glass_sheen_\${sheen.name.lowercase()}")
-        )
-        assertTrue(
-            "one chip per named film",
-            settings.contains("liquid_glass_preset_\${preset.name.lowercase()}")
-        )
-        assertTrue("the swatch is the live film, not a lookalike", settings.contains("val film = glassFilmColor(glassConfig)"))
-        assertTrue("every control writes the config", settings.contains("viewModel.updateLiquidGlassConfig(glassConfig.copy("))
     }
 
     @Test
-    fun everyGlassSettingIsPersistedAndRestored() {
+    fun nothingSamplesWhatIsBehindIt() {
+        // The whole point of the flat surface: a card's fill and its ink are known before it is painted,
+        // so nothing in the app reads the pixels underneath it — and no dependency exists to let it.
         listOf(
-            Pair("liquid_glass_tint_hue_a", "putFloat"),
-            Pair("liquid_glass_tint_hue_b", "putFloat"),
-            Pair("liquid_glass_tint_mix", "putFloat"),
-            Pair("liquid_glass_tint_saturation", "putFloat"),
-            Pair("liquid_glass_shader_profile", "putString"),
-            Pair("liquid_glass_sheen", "putString"),
-            Pair("liquid_glass_sheen_strength", "putFloat"),
-            Pair("liquid_glass_edge_smoothing", "putFloat")
-        ).forEach { (key, writer) ->
-            // Matched with a pattern rather than a literal because a long argument list wraps: the key and
-            // its reader must be the same call, wherever the line break falls.
-            val written = Regex("\\." + writer + "\\(\\s*\"" + Regex.escape(key) + "\"")
-            val readBack = Regex("prefs\\.get" + writer.drop(3) + "\\(\\s*\"" + Regex.escape(key) + "\"")
-            assertTrue("$key is written", written.containsMatchIn(viewModel))
-            assertTrue("$key is read back", readBack.containsMatchIn(viewModel))
+            "com/alijafari/red/astronomy/MainActivity.kt" to activity,
+            "com/alijafari/red/astronomy/ui/screens/HomeScreen.kt" to home,
+            "com/alijafari/red/astronomy/ui/screens/LabScreen.kt" to lab,
+            "com/alijafari/red/astronomy/ui/screens/ISSScreen.kt" to iss,
+            "com/alijafari/red/astronomy/ui/components/SettingsDialog.kt" to settings
+        ).forEach { (name, text) ->
+            assertFalse("$name samples no backdrop", text.contains("layerBackdrop"))
+            assertFalse("$name asks no material for glass", text.contains("LiquidGlassSurface("))
+            assertFalse("$name has no optical modifier", text.contains(".liquidGlass("))
         }
-        assertTrue("a preset writes the same numbers the sliders do", viewModel.contains("fun applyGlassFilmPreset("))
+        val themeDir = File("src/main/java/com/alijafari/red/astronomy/ui/theme")
+            .takeIf { it.exists() }
+            ?: File("app/src/main/java/com/alijafari/red/astronomy/ui/theme")
+        assertFalse("the glass material is deleted", File(themeDir, "LiquidGlass.kt").exists())
+        assertFalse("and the corner dial it drove", File(themeDir, "CornerSmoothness.kt").exists())
+        themeDir.listFiles().orEmpty().filter { it.isFile }.forEach { file ->
+            val text = file.readText()
+            assertFalse("${file.name} imports no glass library", text.contains("com.kyant"))
+            assertFalse("${file.name} names no glass material", text.contains("LiquidGlassConfig"))
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Item 7 — the glass settings and the glass theme are gone
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun theGlassControlsAreGoneFromSettings() {
+        assertFalse("no glass section", settings.contains("settings_section_liquid_glass"))
+        assertFalse("no glass switch", settings.contains("settings_liquid_glass_switch"))
+        assertFalse("no dial tags", settings.contains("liquid_glass_"))
+        assertFalse("no shader presets", settings.contains("GlassShaderProfile"))
+        assertFalse("no sheen", settings.contains("GlassSheen"))
+        assertFalse("no film presets", settings.contains("GlassFilmPreset"))
+        assertFalse("nothing left to expand", settings.contains("isLiquidGlassExpanded"))
+        assertTrue("the app backdrop section is still there", settings.contains("settings_section_app_backdrop"))
+        assertTrue("and the theme picker still picks", settings.contains("onClick = { viewModel.setThemeMode("))
     }
 
     @Test
-    fun theGlassModifierUsesEveryOneOfThem() {
-        assertTrue("the film is the mixed colour", glass.contains("tintColor = glassFilmColor(config)"))
-        assertTrue("the shader profile scales the blur", glass.contains("* profile.blurScale"))
-        assertTrue("and the refraction", glass.contains("* profile.refractionScale"))
-        assertTrue("the sheen is drawn under the content", glass.contains("val sheenModifier = if (config.sheen != GlassSheen.NONE"))
-        assertTrue("the corner dial reaches the shape", glass.contains("shape.withCornerSmoothing(config.edgeSmoothing)"))
-        assertTrue("and the outline is the one clipped and refracts", glass.contains("clip(effectiveShape)"))
+    fun theGlassThemeIsGoneEverywhere() {
+        assertFalse("no theme value for it", viewModel.contains("ThemeMode.GLASS"))
+        assertFalse("no setting for it", viewModel.contains("liquid_glass_"))
+        assertFalse("no glass state to hold", viewModel.contains("LiquidGlassConfig"))
+        listOf(
+            "com/alijafari/red/astronomy/ui/components/SettingsDialog.kt" to settings,
+            "com/alijafari/red/astronomy/MainActivity.kt" to activity
+        ).forEach { (name, text) ->
+            assertFalse("$name offers no iOS 27 theme", text.contains("ThemeMode.GLASS"))
+            assertFalse("$name names no iOS 27 theme", text.contains("iOS 27"))
+        }
+        assertFalse("and no dependency remains", buildScript.contains("libs.backdrop"))
     }
 
     // ---------------------------------------------------------------------------------------------

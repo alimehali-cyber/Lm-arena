@@ -77,6 +77,8 @@ import com.alijafari.red.astronomy.ui.components.SkyCanvasPresentation
 import com.alijafari.red.astronomy.ui.rendering.SkyTimeModel
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.RedSurface
+import com.alijafari.red.astronomy.ui.theme.solidSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
 import kotlin.math.abs
@@ -389,13 +391,12 @@ fun HomeScreen(
                     )
 
                     if (tonightEvents.isEmpty()) {
-                        LiquidGlassSurface(
+                        RedSurface(
                             shape = squircleShape(RedCornerRadius.lg),
-                            fallbackColor = RedTheme.colors.surfaceElevated,
-                            fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
+                            color = RedTheme.colors.surfaceElevated,
+                            border = BorderStroke(0.75.dp, RedTheme.colors.border),
                             modifier = Modifier.fillMaxWidth(),
-                            style = LiquidGlassDefaults.Card,
-                            fallbackShadowElevation = RedElevation.none,
+                            elevation = RedElevation.none,
                         ) {
                             Text(
                                 text = if (isFa) "امشب رویداد شاخصی ثبت نشده است." else "No major celestial events tonight.",
@@ -405,15 +406,14 @@ fun HomeScreen(
                             )
                         }
                     } else {
-                        LiquidGlassSurface(
+                        RedSurface(
                             shape = squircleShape(RedCornerRadius.xl),
-                            fallbackColor = RedTheme.colors.surfaceElevated,
-                            fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
+                            color = RedTheme.colors.surfaceElevated,
+                            border = BorderStroke(0.75.dp, RedTheme.colors.border),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("home_highlights_card"),
-                            style = LiquidGlassDefaults.Card,
-                            fallbackShadowElevation = RedElevation.none,
+                            elevation = RedElevation.none,
                         ) {
                             Column(modifier = Modifier.padding(vertical = RedSpacing.xs)) {
                                 tonightEvents.take(5).forEachIndexed { idx, event ->
@@ -554,10 +554,9 @@ private fun SkySearchOverlay(
                 .imePadding(),
             contentAlignment = Alignment.TopCenter
         ) {
-            LiquidGlassSurface(
+            RedSurface(
                 shape = squircleShape(RedCornerRadius.window),
-                style = LiquidGlassDefaults.Window,
-                fallbackColor = RedTheme.colors.surfaceElevated,
+                color = RedTheme.colors.surfaceElevated,
                 modifier = Modifier
                     .statusBarsPadding()
                     .padding(RedSpacing.md)
@@ -1165,13 +1164,10 @@ private fun HomeSkyHero(
             Box(
                 modifier = Modifier
                     .size(38.dp)
-                    .liquidGlass(
+                    .solidSurface(
                         shape = CircleShape,
-                        style = LiquidGlassDefaults.Pill,
-                        clearGlass = true,
-                        fallbackColor = Color.Black.copy(alpha = 0.38f),
-                        fallbackBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f)),
-                        glassBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
+                        color = Color.Black.copy(alpha = 0.38f),
+                        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
                     )
                     .clickable { viewModel.setShowSkyViewer(true) }
                     .testTag("home_sky_expand_button"),
@@ -1223,7 +1219,7 @@ private fun HomeSkyHero(
  * fix. Nothing else — no coordinates, no chevron.
  *
  * The pill sits directly over the Moon card, so the only thing worth its width is where the sky above is
- * being drawn for. It is a capsule on the glass of a moving sky, hence the fixed dark tint and white type
+ * being drawn for. It is a capsule over a moving sky, hence the fixed dark tint and white type
  * rather than theme tokens.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1272,14 +1268,14 @@ private fun HomeLocationPill(
 }
 
 /**
- * The Moon card: one wide glass sheet carrying the Moon and, beside it, the instant it is drawn for.
+ * The Moon card: one wide sheet carrying the Moon and, beside it, the instant it is drawn for.
  *
  * The Moon sits in a square of one card height on the card's start side (the right in Persian, the left in
  * English), which is exactly the square the eclipse plate gets on the card below — the two pictures are the
  * same size. Drag it to scrub days (the same ±30-day gesture the Moon screen had) and tap it to open the Moon
  * window with everything else.
  *
- * The render's dark side is transparent, so no black disc sits behind the Moon; the card's glass shows
+ * The render's dark side is transparent, so no black disc sits behind the Moon; the card's fill shows
  * straight through it and the Moon appears to float on the sky.
  */
 @Composable
@@ -1294,11 +1290,10 @@ private fun MoonCard(
     onScrubDays: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LiquidGlassSurface(
+    RedSurface(
         modifier = modifier.testTag("home_moon_card"),
         shape = squircleShape(RedCornerRadius.window),
-        style = LiquidGlassDefaults.Card,
-        fallbackColor = RedTheme.colors.surfaceElevated
+        color = RedTheme.colors.surfaceElevated
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -1379,7 +1374,7 @@ private fun MoonCardMoon(
 }
 
 /**
- * The eclipse card: the next eclipse — the soonest of *either* family at this location — in its own glass
+ * The eclipse card: the next eclipse — the soonest of *either* family at this location — in its own
  * card directly beneath the Moon's.
  *
  * The card is the Moon card's twin: same width, same height, and the plate is inscribed in the same
@@ -1412,11 +1407,10 @@ private fun EclipseCard(
         else -> "Solar eclipse"
     }
 
-    LiquidGlassSurface(
+    RedSurface(
         modifier = modifier.testTag("home_eclipse_card"),
         shape = squircleShape(RedCornerRadius.window),
-        style = LiquidGlassDefaults.Card,
-        fallbackColor = RedTheme.colors.surfaceElevated,
+        color = RedTheme.colors.surfaceElevated,
         onClick = if (eclipse != null) onClick else null
     ) {
         // The card was grown from the left edge, so that is where the plate stays, in either language. The
@@ -1828,13 +1822,10 @@ private fun FullscreenSkyViewer(
                     .statusBarsPadding()
                     .padding(RedSpacing.md)
                     .size(38.dp)
-                    .liquidGlass(
+                    .solidSurface(
                         shape = CircleShape,
-                        style = LiquidGlassDefaults.Pill,
-                        clearGlass = true,
-                        fallbackColor = Color.Black.copy(alpha = 0.38f),
-                        fallbackBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.25f)),
-                        glassBorder = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
+                        color = Color.Black.copy(alpha = 0.38f),
+                        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.32f))
                     )
                     .clickable(onClick = onDismiss)
                     .testTag("sky_canvas_fullscreen_close"),

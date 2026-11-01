@@ -39,6 +39,7 @@ import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.util.Locale
@@ -264,13 +265,12 @@ fun TimeDilationCalculatorScreen(
 
                         // Distance Card with Unit Selector Carousel
                         val distRes = journeyResult.distance
-                        LiquidGlassSurface(
+                        RedSurface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = squircleShape(RedCornerRadius.lg),
-                            fallbackColor = RedTheme.colors.surfaceElevated,
-                            fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
-                            style = LiquidGlassDefaults.Card,
-                            fallbackShadowElevation = RedElevation.none,
+                            color = RedTheme.colors.surfaceElevated,
+                            border = BorderStroke(1.dp, RedTheme.colors.border),
+                            elevation = RedElevation.none,
                         ) {
                             Column(
                                 modifier = Modifier.padding(RedSpacing.md),
@@ -411,7 +411,7 @@ fun TimeDilationCalculatorScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             items(speedPresets) { preset ->
-                                LiquidGlassSurface(
+                                RedSurface(
                                     onClick = {
                                         when (speedUnit) {
                                             SpeedUnit.PERCENT_C -> {
@@ -428,10 +428,9 @@ fun TimeDilationCalculatorScreen(
                                         }
                                     },
                                     shape = squircleShape(RedCornerRadius.window),
-                                    fallbackColor = RedTheme.colors.surfaceElevated,
-                                    fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
-                                    style = LiquidGlassDefaults.Card,
-                                    fallbackShadowElevation = RedElevation.none,
+                                    color = RedTheme.colors.surfaceElevated,
+                                    border = BorderStroke(1.dp, RedTheme.colors.border),
+                                    elevation = RedElevation.none,
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -477,12 +476,11 @@ fun TimeDilationCalculatorScreen(
 
                         // Superluminal / Light Speed Warnings
                         if (journeyResult.isSuperluminal) {
-                            LiquidGlassSurface(
+                            RedSurface(
                                 shape = squircleShape(RedCornerRadius.window),
-                                fallbackColor = RedTheme.colors.accentRed.copy(alpha = 0.12f),
-                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed),
-                                style = LiquidGlassDefaults.Card,
-                                fallbackShadowElevation = RedElevation.none,
+                                color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, RedTheme.colors.accentRed),
+                                elevation = RedElevation.none,
                             ) {
                                 Row(
                                     modifier = Modifier.padding(RedSpacing.md),
@@ -503,12 +501,11 @@ fun TimeDilationCalculatorScreen(
                                 }
                             }
                         } else if (journeyResult.isSpeedOfLight) {
-                            LiquidGlassSurface(
+                            RedSurface(
                                 shape = squircleShape(RedCornerRadius.window),
-                                fallbackColor = RedTheme.colors.accentRed.copy(alpha = 0.12f),
-                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.accentRed),
-                                style = LiquidGlassDefaults.Card,
-                                fallbackShadowElevation = RedElevation.none,
+                                color = RedTheme.colors.accentRed.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, RedTheme.colors.accentRed),
+                                elevation = RedElevation.none,
                             ) {
                                 Row(
                                     modifier = Modifier.padding(RedSpacing.md),
@@ -602,13 +599,12 @@ fun TimeDilationCalculatorScreen(
                             )
 
                             // Acceleration breakdown display
-                            LiquidGlassSurface(
+                            RedSurface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = squircleShape(RedCornerRadius.window),
-                                fallbackColor = RedTheme.colors.surfaceElevated,
-                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
-                                style = LiquidGlassDefaults.Card,
-                                fallbackShadowElevation = RedElevation.none,
+                                color = RedTheme.colors.surfaceElevated,
+                                border = BorderStroke(1.dp, RedTheme.colors.border),
+                                elevation = RedElevation.none,
                             ) {
                                 Column(
                                     modifier = Modifier.padding(RedSpacing.md),
@@ -754,13 +750,12 @@ fun TimeDilationCalculatorScreen(
                             }
 
                             // Summary metrics grid
-                            LiquidGlassSurface(
+                            RedSurface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = squircleShape(RedCornerRadius.window),
-                                fallbackColor = RedTheme.colors.surfaceElevated,
-                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
-                                style = LiquidGlassDefaults.Card,
-                                fallbackShadowElevation = RedElevation.none,
+                                color = RedTheme.colors.surfaceElevated,
+                                border = BorderStroke(1.dp, RedTheme.colors.border),
+                                elevation = RedElevation.none,
                             ) {
                                 Column(
                                     modifier = Modifier.padding(RedSpacing.md),
@@ -892,12 +887,11 @@ fun TimeDilationCalculatorScreen(
                         color = RedTheme.colors.textSecondary
                     )
 
-                    LiquidGlassSurface(
+                    RedSurface(
                         shape = squircleShape(RedCornerRadius.window),
-                        fallbackColor = RedTheme.colors.surfaceElevated,
-                        fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
-                        style = LiquidGlassDefaults.Card,
-                        fallbackShadowElevation = RedElevation.none,
+                        color = RedTheme.colors.surfaceElevated,
+                        border = BorderStroke(1.dp, RedTheme.colors.border),
+                        elevation = RedElevation.none,
                     ) {
                         Text(
                             text = if (isFa) "فرمول عامل لورنتس:\nγ = 1 / √(1 - v²/c²)\n\nزمان ناظر ساکن (زمین):\nt = γ × τ"
@@ -931,16 +925,15 @@ private fun ObjectSelectionChip(
     onClick: () -> Unit,
     testTag: String
 ) {
-    LiquidGlassSurface(
+    RedSurface(
         modifier = modifier
             .clip(squircleShape(RedCornerRadius.lg))
             .clickable(onClick = onClick)
             .testTag(testTag),
         shape = squircleShape(RedCornerRadius.lg),
-        fallbackColor = RedTheme.colors.surfaceElevated,
-        fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
-        style = LiquidGlassDefaults.Card,
-        fallbackShadowElevation = RedElevation.none,
+        color = RedTheme.colors.surfaceElevated,
+        border = BorderStroke(1.dp, RedTheme.colors.border),
+        elevation = RedElevation.none,
     ) {
         Column(
             modifier = Modifier.padding(RedSpacing.md),
@@ -979,13 +972,12 @@ private fun ResultComparisonTile(
     badgeText: String,
     isAccent: Boolean
 ) {
-    LiquidGlassSurface(
+    RedSurface(
         modifier = modifier,
         shape = squircleShape(RedCornerRadius.lg),
-        fallbackColor = if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.12f) else RedTheme.colors.surfaceElevated,
-        fallbackBorder = BorderStroke(1.dp, if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border),
-        style = LiquidGlassDefaults.Card,
-        fallbackShadowElevation = RedElevation.none,
+        color = if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.12f) else RedTheme.colors.surfaceElevated,
+        border = BorderStroke(1.dp, if (isAccent) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border),
+        elevation = RedElevation.none,
     ) {
         Column(
             modifier = Modifier.padding(RedSpacing.md),
@@ -1108,16 +1100,15 @@ private fun ObjectSearchModal(
                 verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
             ) {
                 items(filtered) { obj ->
-                    LiquidGlassSurface(
+                    RedSurface(
                         onClick = { onObjectSelected(obj) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("search_dialog_item_${obj.id}"),
                         shape = squircleShape(RedCornerRadius.window),
-                        fallbackColor = RedTheme.colors.surfaceElevated,
-                        fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
-                        style = LiquidGlassDefaults.Card,
-                        fallbackShadowElevation = RedElevation.none,
+                        color = RedTheme.colors.surfaceElevated,
+                        border = BorderStroke(1.dp, RedTheme.colors.border),
+                        elevation = RedElevation.none,
                     ) {
                         Row(
                             modifier = Modifier.padding(RedSpacing.md),

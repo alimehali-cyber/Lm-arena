@@ -28,11 +28,10 @@ import androidx.compose.ui.window.DialogProperties
 import com.alijafari.red.astronomy.astro_engine.EclipseEngine
 import com.alijafari.red.astronomy.astro_engine.EclipseVisibility
 import com.alijafari.red.astronomy.domain.AppLanguage
-import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
-import com.alijafari.red.astronomy.ui.theme.LiquidGlassSurface
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedElevation
 import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.StatusExcellent
 import com.alijafari.red.astronomy.ui.theme.StatusGood
 import com.alijafari.red.astronomy.ui.theme.StatusWarning
@@ -86,7 +85,7 @@ fun EclipseDetailContent(
     val event = detailedInfo.event
     val result = detailedInfo.result
 
-    LiquidGlassSurface(
+    RedSurface(
         modifier = modifier
             .clip(squircleShape(RedCornerRadius.window))
             .border(
@@ -95,9 +94,8 @@ fun EclipseDetailContent(
                 shape = squircleShape(RedCornerRadius.window)
             )
             .testTag("eclipse_detail_dialog"),
-        fallbackColor = MaterialTheme.colorScheme.surface,
-        style = LiquidGlassDefaults.Card,
-        fallbackShadowElevation = RedElevation.none,
+        color = MaterialTheme.colorScheme.surface,
+        elevation = RedElevation.none,
     ) {
         Column(
             modifier = Modifier
@@ -167,14 +165,13 @@ fun EclipseDetailContent(
             val bannerBorder = if (result.isLocallyVisible) StatusExcellent.copy(alpha = 0.5f) else StatusWarning.copy(alpha = 0.5f)
             val bannerTextColor = if (result.isLocallyVisible) StatusExcellent else StatusWarning
 
-            LiquidGlassSurface(
+            RedSurface(
                 shape = squircleShape(RedCornerRadius.window),
-                fallbackColor = bannerBg,
+                color = bannerBg,
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(1.dp, bannerBorder, squircleShape(RedCornerRadius.window)),
-                style = LiquidGlassDefaults.Card,
-                fallbackShadowElevation = RedElevation.none,
+                elevation = RedElevation.none,
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
@@ -301,12 +298,11 @@ fun EclipseDetailContent(
             val peakDisplay = if (isFa) detailedInfo.localPeakTimeStr.toPersianDigits() else detailedInfo.localPeakTimeStr
             val endDisplay = if (isFa) detailedInfo.localEndTimeStr.toPersianDigits() else detailedInfo.localEndTimeStr
 
-            LiquidGlassSurface(
+            RedSurface(
                 shape = squircleShape(RedCornerRadius.window),
-                fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.fillMaxWidth(),
-                style = LiquidGlassDefaults.Card,
-                fallbackShadowElevation = RedElevation.none,
+                elevation = RedElevation.none,
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
@@ -470,12 +466,11 @@ fun EclipseDetailContent(
             val displayPercent = if (isPenumbralLunar) penumbralPercent else detailedInfo.obscurationPercent
             val barColor = if (isPenumbralLunar) StatusGood else MaterialTheme.colorScheme.primary
 
-            LiquidGlassSurface(
+            RedSurface(
                 shape = squircleShape(RedCornerRadius.window),
-                fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.fillMaxWidth(),
-                style = LiquidGlassDefaults.Card,
-                fallbackShadowElevation = RedElevation.none,
+                elevation = RedElevation.none,
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
@@ -700,12 +695,11 @@ fun EclipseDetailContent(
             )
 
             // Safety Guidelines
-            LiquidGlassSurface(
+            RedSurface(
                 shape = squircleShape(RedCornerRadius.window),
-                fallbackColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                 modifier = Modifier.fillMaxWidth(),
-                style = LiquidGlassDefaults.Card,
-                fallbackShadowElevation = RedElevation.none,
+                elevation = RedElevation.none,
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),

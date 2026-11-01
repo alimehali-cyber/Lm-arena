@@ -20,11 +20,6 @@ import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.backdrop.LiveSkyPolicy
 import com.alijafari.red.astronomy.ui.backdrop.SkyLiveClock
-import com.alijafari.red.astronomy.ui.theme.CornerSmoothness
-import com.alijafari.red.astronomy.ui.theme.GlassFilmPreset
-import com.alijafari.red.astronomy.ui.theme.GlassShaderProfile
-import com.alijafari.red.astronomy.ui.theme.GlassSheen
-import com.alijafari.red.astronomy.ui.theme.LiquidGlassConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -77,8 +72,6 @@ data class MainUiState(
     val timeMachineState: TimeMachineState = TimeMachineState(),
     val selectedTargetObject: CelestialObject? = null,
     val selectedSatelliteId: String? = null,
-    val isLiquidGlassEnabled: Boolean = true,
-    val liquidGlassConfig: LiquidGlassConfig = LiquidGlassConfig(),
     /** Live Sky app backdrop preference. Default OFF. Eligibility per screen is decided by [LiveSkyPolicy]. */
     val liveSkyBackdropEnabled: Boolean = LiveSkyPolicy.DEFAULT_ENABLED,
     /** Mutually exclusive full-window backdrop. [liveSkyBackdropEnabled] is true only for [AppBackdropMode.LIVE_SKY]. */
@@ -107,37 +100,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(
         MainUiState(
-            isLiquidGlassEnabled = prefs.getBoolean("liquid_glass_enabled", true),
-            liveSkyBackdropEnabled = LiveSkyPolicy.loadEnabled(prefs),
-            appBackdropMode = AppBackdropMode.fromPrefs(prefs),
-            liquidGlassConfig = LiquidGlassConfig(
-                enabled = prefs.getBoolean("liquid_glass_enabled", true),
-                clarity = prefs.getFloat("liquid_glass_clarity", 1.0f),
-                blurRadiusDp = prefs.getFloat("liquid_glass_blur", 0.0f),
-                refractionHeightDp = prefs.getFloat("liquid_glass_refraction_height", 28.0f),
-                refractionAmountDp = prefs.getFloat("liquid_glass_refraction_amount", 28.0f),
-                chromaticAberration = prefs.getBoolean("liquid_glass_chromatic_aberration", true),
-                hasHighlight = prefs.getBoolean("liquid_glass_highlight", true),
-                hasShadow = prefs.getBoolean("liquid_glass_shadow", true),
-                tintAlpha = prefs.getFloat(
-                    "liquid_glass_tint_alpha",
-                    LiquidGlassConfig.DEFAULT_TINT_ALPHA
-                ),
-                tintHueA = prefs.getFloat("liquid_glass_tint_hue_a", LiquidGlassConfig.DEFAULT_HUE_A),
-                tintHueB = prefs.getFloat("liquid_glass_tint_hue_b", LiquidGlassConfig.DEFAULT_HUE_B),
-                tintMix = prefs.getFloat("liquid_glass_tint_mix", 0f),
-                tintSaturation = prefs.getFloat("liquid_glass_tint_saturation", 0f),
-                shaderProfile = enumPref(
-                    prefs.getString("liquid_glass_shader_profile", null),
-                    GlassShaderProfile.BALANCED
-                ),
-                sheen = enumPref(prefs.getString("liquid_glass_sheen", null), GlassSheen.TOP),
-                sheenStrength = prefs.getFloat(
-                    "liquid_glass_sheen_strength",
-                    LiquidGlassConfig.DEFAULT_SHEEN_STRENGTH
-                ),
-                edgeSmoothing = prefs.getFloat("liquid_glass_edge_smoothing", CornerSmoothness.DEFAULT)
-            ),
             language = try {
                 AppLanguage.valueOf(prefs.getString("app_language", AppLanguage.PERSIAN.name) ?: AppLanguage.PERSIAN.name)
             } catch (e: Exception) {
@@ -292,61 +254,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
     }
-
-    fun setLiquidGlassEnabled(enabled: Boolean) {
-        val updated = _uiState.value.liquidGlassConfig.copy(enabled = enabled)
-        updateLiquidGlassConfig(updated)
-    }
-
-    fun updateLiquidGlassConfig(config: LiquidGlassConfig) {
-        prefs.edit()
-            .putBoolean("liquid_glass_enabled", config.enabled)
-            .putFloat("liquid_glass_clarity", config.clarity)
-            .putFloat("liquid_glass_blur", config.blurRadiusDp)
-            .putFloat("liquid_glass_refraction_height", config.refractionHeightDp)
-            .putFloat("liquid_glass_refraction_amount", config.refractionAmountDp)
-            .putBoolean("liquid_glass_chromatic_aberration", config.chromaticAberration)
-            .putBoolean("liquid_glass_highlight", config.hasHighlight)
-            .putBoolean("liquid_glass_shadow", config.hasShadow)
-            .putFloat("liquid_glass_tint_alpha", config.tintAlpha)
-            .putFloat("liquid_glass_tint_hue_a", config.tintHueA)
-            .putFloat("liquid_glass_tint_hue_b", config.tintHueB)
-            .putFloat("liquid_glass_tint_mix", config.tintMix)
-            .putFloat("liquid_glass_tint_saturation", config.tintSaturation)
-            .putString("liquid_glass_shader_profile", config.shaderProfile.name)
-            .putString("liquid_glass_sheen", config.sheen.name)
-            .putFloat("liquid_glass_sheen_strength", config.sheenStrength)
-            .putFloat("liquid_glass_edge_smoothing", config.edgeSmoothing)
-            .apply()
-        _uiState.update { it.copy(liquidGlassConfig = config, isLiquidGlassEnabled = config.enabled) }
-    }
-
-    fun resetLiquidGlassConfig() {
-        val defaultConfig = LiquidGlassConfig()
-        updateLiquidGlassConfig(defaultConfig)
-    }
-
-    /**
-     * Applies a named film recipe (the colour-mixing presets in Settings) in one write.
-     *
-     * The preset and the sliders write the same four numbers, so picking a preset and then dragging a
-     * slider never fights a hidden state: the preset *is* a slider position.
-     */
-    fun applyGlassFilmPreset(preset: GlassFilmPreset) {
-        updateLiquidGlassConfig(
-            _uiState.value.liquidGlassConfig.copy(
-                tintHueA = preset.hueA,
-                tintHueB = preset.hueB,
-                tintMix = preset.mix,
-                tintSaturation = preset.saturation,
-                tintAlpha = preset.alpha
-            )
-        )
-    }
-
-    /** Forgiving enum read: a value written by a newer build falls back instead of throwing. */
-    private inline fun <reified T : Enum<T>> enumPref(stored: String?, fallback: T): T =
-        if (stored == null) fallback else enumValues<T>().firstOrNull { it.name == stored } ?: fallback
 
     fun setSkyCanvasTheme(theme: SkyCanvasTheme) {
         prefs.edit().putString("sky_canvas_theme", theme.name).apply()

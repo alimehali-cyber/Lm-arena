@@ -43,7 +43,7 @@ val OldMoneyNavy = Color(0xFF182238)             // Deep Luxury Navy
 // ==========================================
 val BackgroundPrimary = Color(0xFF090A0F)      // Deep Celestial Void
 val BackgroundCard = Color(0xFF12131C)         // Deep Slate Card Surface
-val CardSurface = Color(0x12FFFFFF)            // Light glass overlay
+val CardSurface = Color(0x12FFFFFF)            // Light translucent card overlay
 val CardBorder = Color(0x1AFFFFFF)             // Subtle light border
 
 // Mars Crimson. Deliberately a mid-tone: #9F1239 measured 2.1:1 on the dark card surface and

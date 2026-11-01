@@ -74,10 +74,11 @@ class LiveSkyIsolationTest {
     }
 
     @Test
-    fun backdropIsMountedInTheSharedLayerAndSettingsHasTheSwitch() {
+    fun backdropIsMountedBehindTheScreensAndSettingsHasTheSwitch() {
         val main = source("com/alijafari/red/astronomy/MainActivity.kt")
         assertTrue("MainActivity must mount LiveSkyBackdrop", main.contains("LiveSkyBackdrop("))
-        assertTrue("MainActivity must keep the glass layer", main.contains("Modifier.layerBackdrop(backdrop)"))
+        assertTrue("MainActivity must mount PhotoBackdrop", main.contains("PhotoBackdrop("))
+        assertFalse("and nothing samples it through a material", main.contains("Modifier.layerBackdrop("))
 
         val settings = source("com/alijafari/red/astronomy/ui/components/SettingsDialog.kt")
         assertTrue("Settings must expose the Live Sky switch", settings.contains("settings_live_sky_switch"))

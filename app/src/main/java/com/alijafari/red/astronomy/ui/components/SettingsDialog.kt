@@ -41,6 +41,7 @@ import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import kotlin.math.roundToInt
 
@@ -136,7 +137,6 @@ fun SettingsDialog(
     var isCalendarExpanded by remember { mutableStateOf(false) }
     var isAppThemeExpanded by remember { mutableStateOf(false) }
     var isSkyCanvasThemeExpanded by remember { mutableStateOf(false) }
-    var isLiquidGlassExpanded by remember { mutableStateOf(false) }
     var isAppBackdropExpanded by remember { mutableStateOf(false) }
     var isBortleExpanded by remember { mutableStateOf(false) }
 
@@ -152,7 +152,6 @@ fun SettingsDialog(
     }
 
     val appThemeLabel = when (uiState.themeMode) {
-        ThemeMode.GLASS -> if (isFa) "شیشه‌ای (iOS 27)" else "Glass (iOS 27)"
         ThemeMode.LIGHT -> if (isFa) "روشن" else "Light"
         ThemeMode.DARK -> if (isFa) "تاریک (OLED)" else "Dark (OLED)"
     }
@@ -164,12 +163,6 @@ fun SettingsDialog(
         SkyCanvasTheme.KIDS_WATERCOLOR -> if (isFa) "آبرنگ" else "WaterColor"
         SkyCanvasTheme.OBSERVATORY -> if (isFa) "رصدخانه" else "Observatory"
         SkyCanvasTheme.PAPERCRAFT_DIORAMA -> if (isFa) "دیوراما کاغذ برجسته" else "Papercraft"
-    }
-
-    val liquidGlassStatusLabel = if (uiState.isLiquidGlassEnabled) {
-        if (isFa) "فعال" else "On"
-    } else {
-        if (isFa) "خاموش" else "Off"
     }
 
     val liveSkyStatusLabel = when (uiState.appBackdropMode) {
@@ -278,11 +271,6 @@ fun SettingsDialog(
                     testTag = "settings_section_app_theme"
                 ) {
                     SettingsOptionRow(
-                        title = if (isFa) "شیشه‌ای (iOS 27)" else "Glass (iOS 27)",
-                        isSelected = uiState.themeMode == ThemeMode.GLASS,
-                        onClick = { viewModel.setThemeMode(ThemeMode.GLASS) }
-                    )
-                    SettingsOptionRow(
                         title = if (isFa) "روشن" else "Light",
                         isSelected = uiState.themeMode == ThemeMode.LIGHT,
                         onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) }
@@ -335,504 +323,7 @@ fun SettingsDialog(
                     )
                 }
 
-                // 5. Liquid Glass Dedicated Section
-                ExpandableSettingsSection(
-                    title = if (isFa) "Liquid Glass / شیشه مایع" else "Liquid Glass / شیشه مایع",
-                    currentValueLabel = liquidGlassStatusLabel,
-                    icon = Icons.Default.BlurOn,
-                    isExpanded = isLiquidGlassExpanded,
-                    onToggle = { isLiquidGlassExpanded = !isLiquidGlassExpanded },
-                    statusColor = if (uiState.isLiquidGlassEnabled) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
-                    testTag = "settings_section_liquid_glass"
-                ) {
-                    // Switch Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(end = RedSpacing.sm)
-                        ) {
-                            Text(
-                                text = if (isFa) "شیشه مایع و فیزیک اپتیکی" else stringResource(R.string.liquid_glass_setting),
-                                style = RedTypographyTokens.bodySecondary.copy(fontWeight = FontWeight.SemiBold),
-                                color = RedTheme.colors.textPrimary
-                            )
-                            Text(
-                                text = if (isFa) "شکست نور، کژی فیزیکی، بازتاب و شفافیت شیشه‌ای (اندروید ۱۳+)" else stringResource(R.string.liquid_glass_desc),
-                                style = RedTypographyTokens.caption,
-                                color = RedTheme.colors.textSecondary
-                            )
-                        }
-                        Switch(
-                            checked = uiState.isLiquidGlassEnabled,
-                            onCheckedChange = { viewModel.setLiquidGlassEnabled(it) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = RedTheme.colors.accentRed,
-                                uncheckedThumbColor = RedTheme.colors.textSecondary,
-                                uncheckedTrackColor = RedTheme.colors.border
-                            ),
-                            modifier = Modifier.testTag("settings_liquid_glass_switch")
-                        )
-                    }
-
-                    // Liquid Glass Fine-Tuning Controls (when enabled)
-                    if (uiState.isLiquidGlassEnabled) {
-                        val glassConfig = uiState.liquidGlassConfig
-
-                        HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.5f), thickness = 0.5.dp)
-
-                        // Section Header & Reset
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (isFa) "شخصی‌سازی اپتیک شیشه" else "Optical Parameters",
-                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                                color = RedTheme.colors.textPrimary
-                            )
-                            TextButton(
-                                onClick = { viewModel.resetLiquidGlassConfig() },
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                            ) {
-                                Text(
-                                    text = if (isFa) "بازنشانی" else "Reset",
-                                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                                    color = RedTheme.colors.accentRed
-                                )
-                            }
-                        }
-
-                        // 1. Clarity
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = if (isFa) "شفافیت و زلالی لنز (Clarity)" else "Lens Clarity",
-                                    style = RedTypographyTokens.caption,
-                                    color = RedTheme.colors.textPrimary
-                                )
-                                Text(
-                                    text = "${(glassConfig.clarity * 100).toInt()}%",
-                                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                                    color = RedTheme.colors.accentRed
-                                )
-                            }
-                            RedSlider(
-                                value = glassConfig.clarity,
-                                onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(clarity = it)) },
-                                valueRange = 0.0f..1.0f,
-                                modifier = Modifier.testTag("liquid_glass_clarity_slider")
-                            )
-                        }
-
-                        // 2. Glass Tint — the soft white film every glass card wears.
-                        //    The Sky Canvas card is exempt: it stays optically pure at any setting.
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = if (isFa) "ته‌رنگ سفید شیشه (Glass Tint)" else "Glass Tint",
-                                    style = RedTypographyTokens.caption,
-                                    color = RedTheme.colors.textPrimary
-                                )
-                                Text(
-                                    text = "${(glassConfig.tintAlpha * 100).toInt()}%",
-                                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                                    color = RedTheme.colors.accentRed
-                                )
-                            }
-                            RedSlider(
-                                value = glassConfig.tintAlpha,
-                                onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(tintAlpha = it)) },
-                                valueRange = 0.0f..0.4f,
-                                modifier = Modifier.testTag("liquid_glass_tint_slider")
-                            )
-                            Text(
-                                text = if (isFa) "یک لایه سفید بسیار ملایم روی کارت‌های شیشه‌ای؛ کارت آسمان همیشه شفاف می‌ماند."
-                                else "A very soft white film on the glass cards. The Sky Canvas card always stays clear.",
-                                style = RedTypographyTokens.caption.copy(fontSize = 10.sp),
-                                color = RedTheme.colors.textTertiary
-                            )
-                        }
-
-                        // 3. Refraction Depth
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = if (isFa) "عمق شکست فیزیکی (Refraction Depth)" else "Refraction Depth",
-                                    style = RedTypographyTokens.caption,
-                                    color = RedTheme.colors.textPrimary
-                                )
-                                Text(
-                                    text = "${glassConfig.refractionHeightDp.toInt()} dp",
-                                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                                    color = RedTheme.colors.accentRed
-                                )
-                            }
-                            RedSlider(
-                                value = glassConfig.refractionHeightDp,
-                                onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(refractionHeightDp = it)) },
-                                valueRange = 0f..60f,
-                                modifier = Modifier.testTag("liquid_glass_refraction_slider")
-                            )
-                        }
-
-                        // 4. Refraction Warping ("خمش و پراش نور" wording)
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = if (isFa) "خمش و پراش نور (Refraction Warping)" else "Refraction Warping",
-                                    style = RedTypographyTokens.caption,
-                                    color = RedTheme.colors.textPrimary
-                                )
-                                Text(
-                                    text = "${glassConfig.refractionAmountDp.toInt()} dp",
-                                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                                    color = RedTheme.colors.accentRed
-                                )
-                            }
-                            RedSlider(
-                                value = glassConfig.refractionAmountDp,
-                                onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(refractionAmountDp = it)) },
-                                valueRange = 0f..60f,
-                                modifier = Modifier.testTag("liquid_glass_warping_slider")
-                            )
-                        }
-
-                        // 5. Gaussian Blur Radius
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = if (isFa) "میزان تاری پس‌زمینه (Blur)" else "Background Blur",
-                                    style = RedTypographyTokens.caption,
-                                    color = RedTheme.colors.textPrimary
-                                )
-                                Text(
-                                    text = "${glassConfig.blurRadiusDp.toInt()} dp",
-                                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                                    color = RedTheme.colors.accentRed
-                                )
-                            }
-                            RedSlider(
-                                value = glassConfig.blurRadiusDp,
-                                onValueChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(blurRadiusDp = it)) },
-                                valueRange = 0f..24f,
-                                modifier = Modifier.testTag("liquid_glass_blur_slider")
-                            )
-                        }
-
-                        HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.5f), thickness = 0.5.dp)
-
-                        // Optical Toggles Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            FilterChip(
-                                selected = glassConfig.chromaticAberration,
-                                onClick = { viewModel.updateLiquidGlassConfig(glassConfig.copy(chromaticAberration = !glassConfig.chromaticAberration)) },
-                                label = { Text(text = if (isFa) "شکست رنگی" else "Chromatic", fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RedTheme.colors.accentRed,
-                                    selectedLabelColor = Color.White
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-                            FilterChip(
-                                selected = glassConfig.hasHighlight,
-                                onClick = { viewModel.updateLiquidGlassConfig(glassConfig.copy(hasHighlight = !glassConfig.hasHighlight)) },
-                                label = { Text(text = if (isFa) "هایلایت لبه" else "Highlights", fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RedTheme.colors.accentRed,
-                                    selectedLabelColor = Color.White
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-                            FilterChip(
-                                selected = glassConfig.hasShadow,
-                                onClick = { viewModel.updateLiquidGlassConfig(glassConfig.copy(hasShadow = !glassConfig.hasShadow)) },
-                                label = { Text(text = if (isFa) "سایه عمق" else "Shadow", fontSize = 11.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RedTheme.colors.accentRed,
-                                    selectedLabelColor = Color.White
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-
-                // ------------------------------------------------------------------------------------
-                // 5a. GLASS RECIPE — colour mixing, shader design and edge smoothness.
-                //
-                // Everything here writes the same `LiquidGlassConfig` the cards read, and nothing here is
-                // a preview of a different code path: the swatch below is `glassFilmColor` of the live
-                // config, which is literally the colour the cards are given.
-                // ------------------------------------------------------------------------------------
-                if (uiState.isLiquidGlassEnabled) {
-                    val glassConfig = uiState.liquidGlassConfig
-
-                    Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
-
-                        HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.5f), thickness = 0.5.dp)
-
-                        Text(
-                            text = if (isFa) "ترکیب رنگ شیشه" else "Glass Colour Mixing",
-                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                            color = RedTheme.colors.textPrimary
-                        )
-
-                        // The live swatch: the film over a neutral chip and over a bright one, so the
-                        // effect of the mix is visible on both a dark card and a light one.
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val film = glassFilmColor(glassConfig)
-                            listOf(Color(0xFF10131C), RedTheme.colors.surfaceElevated).forEach { base ->
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(34.dp)
-                                        .clip(squircleShape(RedCornerRadius.sm))
-                                        .background(base)
-                                        .then(
-                                            if (film.alpha > 0.001f) {
-                                                Modifier.background(film)
-                                            } else {
-                                                Modifier
-                                            }
-                                        )
-                                        .border(0.6.dp, RedTheme.colors.border, squircleShape(RedCornerRadius.sm))
-                                        .testTag("liquid_glass_swatch")
-                                )
-                            }
-                            Text(
-                                text = "${(glassConfig.tintAlpha * 100).roundToInt()}% · " +
-                                    "${mixHue(glassConfig.tintHueA, glassConfig.tintHueB, glassConfig.tintMix).roundToInt()}°",
-                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                                color = RedTheme.colors.accentRed
-                            )
-                        }
-
-                        // 1. Named recipes. Same numbers the sliders below set.
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            GlassFilmPreset.entries.take(3).forEach { preset ->
-                                FilterChip(
-                                    selected = glassConfig.matches(preset),
-                                    onClick = { viewModel.applyGlassFilmPreset(preset) },
-                                    label = {
-                                        Text(
-                                            text = if (isFa) preset.labelFa else preset.labelEn,
-                                            fontSize = 10.sp,
-                                            maxLines = 1
-                                        )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = RedTheme.colors.accentRed,
-                                        selectedLabelColor = Color.White
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("liquid_glass_preset_${preset.name.lowercase()}")
-                                )
-                            }
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            GlassFilmPreset.entries.drop(3).forEach { preset ->
-                                FilterChip(
-                                    selected = glassConfig.matches(preset),
-                                    onClick = { viewModel.applyGlassFilmPreset(preset) },
-                                    label = {
-                                        Text(
-                                            text = if (isFa) preset.labelFa else preset.labelEn,
-                                            fontSize = 10.sp,
-                                            maxLines = 1
-                                        )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = RedTheme.colors.accentRed,
-                                        selectedLabelColor = Color.White
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("liquid_glass_preset_${preset.name.lowercase()}")
-                                )
-                            }
-                        }
-
-                        // 2. The mix itself: two hues and how far the film leans between them.
-                        GlassDial(
-                            title = if (isFa) "رنگ اول (Hue A)" else "First hue",
-                            value = "${glassConfig.tintHueA.roundToInt()}°",
-                            sliderValue = glassConfig.tintHueA,
-                            range = 0f..360f,
-                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(tintHueA = it)) },
-                            tag = "liquid_glass_hue_a_slider"
-                        )
-                        GlassDial(
-                            title = if (isFa) "رنگ دوم (Hue B)" else "Second hue",
-                            value = "${glassConfig.tintHueB.roundToInt()}°",
-                            sliderValue = glassConfig.tintHueB,
-                            range = 0f..360f,
-                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(tintHueB = it)) },
-                            tag = "liquid_glass_hue_b_slider"
-                        )
-                        GlassDial(
-                            title = if (isFa) "آمیزه دو رنگ (Mix)" else "Mix between the two",
-                            value = "${(glassConfig.tintMix * 100).roundToInt()}%",
-                            sliderValue = glassConfig.tintMix,
-                            range = 0f..1f,
-                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(tintMix = it)) },
-                            tag = "liquid_glass_mix_slider"
-                        )
-                        GlassDial(
-                            title = if (isFa) "اشباع رنگ (Saturation)" else "Saturation",
-                            value = "${(glassConfig.tintSaturation * 100).roundToInt()}%",
-                            sliderValue = glassConfig.tintSaturation,
-                            range = 0f..1f,
-                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(tintSaturation = it)) },
-                            tag = "liquid_glass_saturation_slider"
-                        )
-                        Text(
-                            text = if (isFa) {
-                                "اشباع صفر یعنی لایه سفید خنثی؛ هرچه بیشتر شود شیشه رنگ دو پرده بالا را می‌گیرد."
-                            } else {
-                                "At zero saturation the film is the neutral white; turn it up and the glass takes the two hues above."
-                            },
-                            style = RedTypographyTokens.caption.copy(fontSize = 10.sp),
-                            color = RedTheme.colors.textTertiary
-                        )
-
-                        HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.5f), thickness = 0.5.dp)
-
-                        Text(
-                            text = if (isFa) "طراحی شیدر" else "Shader Design",
-                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                            color = RedTheme.colors.textPrimary
-                        )
-
-                        // 3. Refraction recipe.
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            GlassShaderProfile.entries.forEach { profile ->
-                                FilterChip(
-                                    selected = glassConfig.shaderProfile == profile,
-                                    onClick = {
-                                        viewModel.updateLiquidGlassConfig(glassConfig.copy(shaderProfile = profile))
-                                    },
-                                    label = {
-                                        Text(
-                                            text = if (isFa) profile.labelFa else profile.labelEn,
-                                            fontSize = 10.sp,
-                                            maxLines = 1
-                                        )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = RedTheme.colors.accentRed,
-                                        selectedLabelColor = Color.White
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("liquid_glass_profile_${profile.name.lowercase()}")
-                                )
-                            }
-                        }
-
-                        // 4. Where the light lies.
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            GlassSheen.entries.forEach { sheen ->
-                                FilterChip(
-                                    selected = glassConfig.sheen == sheen,
-                                    onClick = {
-                                        viewModel.updateLiquidGlassConfig(glassConfig.copy(sheen = sheen))
-                                    },
-                                    label = {
-                                        Text(
-                                            text = if (isFa) sheen.labelFa else sheen.labelEn,
-                                            fontSize = 9.sp,
-                                            maxLines = 1
-                                        )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = RedTheme.colors.accentRed,
-                                        selectedLabelColor = Color.White
-                                    ),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .testTag("liquid_glass_sheen_${sheen.name.lowercase()}")
-                                )
-                            }
-                        }
-                        GlassDial(
-                            title = if (isFa) "شدت بازتاب (Sheen)" else "Sheen strength",
-                            value = "${(glassConfig.sheenStrength * 100).roundToInt()}%",
-                            sliderValue = glassConfig.sheenStrength,
-                            range = 0f..1f,
-                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(sheenStrength = it)) },
-                            tag = "liquid_glass_sheen_strength_slider"
-                        )
-
-                        HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.5f), thickness = 0.5.dp)
-
-                        Text(
-                            text = if (isFa) "نرمی لبه‌ها" else "Edge Smoothness",
-                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                            color = RedTheme.colors.textPrimary
-                        )
-                        GlassDial(
-                            title = if (isFa) "گوشه دایره‌ای ← پیوسته" else "Circular corner ← continuous corner",
-                            value = "${(glassConfig.edgeSmoothing * 100).roundToInt()}%",
-                            sliderValue = glassConfig.edgeSmoothing,
-                            range = 0f..1f,
-                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(edgeSmoothing = it)) },
-                            tag = "liquid_glass_edge_smoothing_slider"
-                        )
-                        Text(
-                            text = if (isFa) {
-                                "۰٪ گوشه کاملاً دایره‌ای (مثل مستطیل گرد) و ۱۰۰٪ گوشه پیوستهٔ خود اپلیکیشن است؛ شیشه دقیقاً به همین شکل بریده و شکسته می‌شود."
-                            } else {
-                                "0% is an exactly circular corner (a plain rounded rectangle), 100% is the app's own continuous corner. The glass is clipped and refracts to this outline."
-                            },
-                            style = RedTypographyTokens.caption.copy(fontSize = 10.sp),
-                            color = RedTheme.colors.textTertiary
-                        )
-                    }
-                }
-
-                // 5b. App Backdrop Section. Single option, Live Sky, default OFF.
+                // 5. App Backdrop Section. One live option, default OFF.
                 ExpandableSettingsSection(
                     title = stringResource(R.string.app_backdrop_title),
                     currentValueLabel = liveSkyStatusLabel,
@@ -962,18 +453,17 @@ fun SettingsDialog(
                     ) {
                         BORTLE_CLASSES.forEach { info ->
                             val isSelected = uiState.bortleClass == info.classNumber
-                            LiquidGlassSurface(
+                            RedSurface(
                                 shape = squircleShape(RedCornerRadius.window),
-                                fallbackColor = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.15f) else Color.Transparent,
-                                fallbackBorder = BorderStroke(
+                                color = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.15f) else Color.Transparent,
+                                border = BorderStroke(
                                     0.5.dp,
                                     if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border.copy(alpha = 0.2f)
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { viewModel.setBortleClass(info.classNumber) },
-                                style = LiquidGlassDefaults.Card,
-                                fallbackShadowElevation = RedElevation.none,
+                                elevation = RedElevation.none,
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -1021,15 +511,14 @@ fun SettingsDialog(
                     }
                 }
 
-                // 7. Developer Credit Card — Liquid Glass with Premium Fallback
-                LiquidGlassSurface(
+                // 7. Developer Credit Card
+                RedSurface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = RedSpacing.xs)
                         .testTag("developer_credit_card"),
                     shape = squircleShape(RedCornerRadius.lg),
-                    style = LiquidGlassDefaults.Card,
-                    fallbackColor = RedTheme.colors.surfaceGrouped
+                    color = RedTheme.colors.surfaceGrouped
                 ) {
                     Row(
                         modifier = Modifier
@@ -1080,7 +569,7 @@ fun SettingsDialog(
 
                             Spacer(modifier = Modifier.height(2.dp))
 
-                            // Telegram Glass Badge
+                            // Telegram badge
                             val intentContext = context
                             Surface(
                                 shape = squircleShape(RedCornerRadius.xs),
@@ -1156,18 +645,17 @@ private fun ExpandableSettingsSection(
         label = "expand_rotation"
     )
 
-    LiquidGlassSurface(
+    RedSurface(
         shape = squircleShape(RedCornerRadius.window),
-        fallbackColor = RedTheme.colors.surfaceGrouped,
-        fallbackBorder = BorderStroke(
+        color = RedTheme.colors.surfaceGrouped,
+        border = BorderStroke(
             1.dp,
             if (isExpanded) RedTheme.colors.accentRed.copy(alpha = 0.35f) else RedTheme.colors.border
         ),
         modifier = modifier
             .fillMaxWidth()
             .testTag(testTag),
-        style = LiquidGlassDefaults.Card,
-        fallbackShadowElevation = RedElevation.none,
+        elevation = RedElevation.none,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Header Row (Clickable)
@@ -1257,18 +745,17 @@ private fun SettingsOptionRow(
     modifier: Modifier = Modifier,
     subtitle: String? = null
 ) {
-    LiquidGlassSurface(
+    RedSurface(
         shape = squircleShape(RedCornerRadius.window),
-        fallbackColor = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.12f) else Color.Transparent,
-        fallbackBorder = BorderStroke(
+        color = if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.12f) else Color.Transparent,
+        border = BorderStroke(
             0.5.dp,
             if (isSelected) RedTheme.colors.accentRed.copy(alpha = 0.4f) else RedTheme.colors.border.copy(alpha = 0.2f)
         ),
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        style = LiquidGlassDefaults.Card,
-        fallbackShadowElevation = RedElevation.none,
+        elevation = RedElevation.none,
     ) {
         Row(
             modifier = Modifier
@@ -1306,42 +793,3 @@ private fun SettingsOptionRow(
     }
 }
 
-/**
- * One labelled dial in the glass recipe: a name, the value it is currently at, and the slider.
- *
- * Factored out because the colour-mixing, shader and edge sections are nine dials of the same shape;
- * nine copies of the same five lines is how the labels drift apart from the values.
- */
-@Composable
-private fun GlassDial(
-    title: String,
-    value: String,
-    sliderValue: Float,
-    range: ClosedFloatingPointRange<Float>,
-    onChange: (Float) -> Unit,
-    tag: String
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = title,
-                style = RedTypographyTokens.caption,
-                color = RedTheme.colors.textPrimary
-            )
-            Text(
-                text = value,
-                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
-                color = RedTheme.colors.accentRed
-            )
-        }
-        RedSlider(
-            value = sliderValue,
-            onValueChange = onChange,
-            valueRange = range,
-            modifier = Modifier.testTag(tag)
-        )
-    }
-}

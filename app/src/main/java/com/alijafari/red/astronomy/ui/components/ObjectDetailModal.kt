@@ -35,6 +35,7 @@ import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
 import com.alijafari.red.astronomy.ui.*
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import java.util.Locale
 import kotlin.math.tan
@@ -392,13 +393,12 @@ fun ObjectDetailModal(
 
             // Observability Badge Banner
             item {
-                LiquidGlassSurface(
+                RedSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = squircleShape(RedCornerRadius.window),
-                    fallbackColor = obs.level.color.copy(alpha = 0.15f),
-                    fallbackBorder = BorderStroke(1.dp, obs.level.color.copy(alpha = 0.3f)),
-                    style = LiquidGlassDefaults.Card,
-                    fallbackShadowElevation = RedElevation.none,
+                    color = obs.level.color.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, obs.level.color.copy(alpha = 0.3f)),
+                    elevation = RedElevation.none,
                 ) {
                     Row(
                         modifier = Modifier
@@ -471,13 +471,12 @@ fun ObjectDetailModal(
 
             // MATHEMATICALLY DERIVED PHYSICAL PROPERTIES CARD
             item {
-                LiquidGlassSurface(
+                RedSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = squircleShape(RedCornerRadius.window),
-                    fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    style = LiquidGlassDefaults.Card,
-                    fallbackShadowElevation = RedElevation.none,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    elevation = RedElevation.none,
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
@@ -566,13 +565,12 @@ fun ObjectDetailModal(
 
             if (isDeepSkyDetail) {
                 item {
-                    LiquidGlassSurface(
+                    RedSurface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = squircleShape(RedCornerRadius.window),
-                        fallbackBorder = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.24f)),
-                        fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        style = LiquidGlassDefaults.Card,
-                        fallbackShadowElevation = RedElevation.none,
+                        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.24f)),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        elevation = RedElevation.none,
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -700,13 +698,12 @@ fun ObjectDetailModal(
 
             // Rise, Transit, Set Schedule Card
             item {
-                LiquidGlassSurface(
+                RedSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = squircleShape(RedCornerRadius.window),
-                    fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    style = LiquidGlassDefaults.Card,
-                    fallbackShadowElevation = RedElevation.none,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    elevation = RedElevation.none,
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
@@ -846,13 +843,12 @@ fun ObjectDetailModal(
             // Optional verified / authored facts. Omitted when no facts are available.
             if (coolFacts.isNotEmpty()) {
                 item {
-                    LiquidGlassSurface(
+                    RedSurface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = squircleShape(RedCornerRadius.window),
-                        fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
-                        fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                        style = LiquidGlassDefaults.Card,
-                        fallbackShadowElevation = RedElevation.none,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        elevation = RedElevation.none,
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -957,13 +953,12 @@ fun ObjectDetailModal(
 
             // Scientific Coordinates (Collapsible Section - Hidden by default)
             item {
-                LiquidGlassSurface(
+                RedSurface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = squircleShape(RedCornerRadius.window),
-                    fallbackBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
-                    fallbackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                    style = LiquidGlassDefaults.Card,
-                    fallbackShadowElevation = RedElevation.none,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                    elevation = RedElevation.none,
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(

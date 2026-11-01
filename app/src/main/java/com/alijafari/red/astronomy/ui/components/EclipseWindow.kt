@@ -2,9 +2,9 @@ package com.alijafari.red.astronomy.ui.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -14,10 +14,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -50,11 +50,10 @@ import androidx.compose.ui.window.DialogProperties
 import com.alijafari.red.astronomy.astro_engine.EclipseEngine
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.UserLocation
-import com.alijafari.red.astronomy.ui.theme.LiquidGlassDefaults
-import com.alijafari.red.astronomy.ui.theme.LiquidGlassSurface
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedElevation
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.RedTheme
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
@@ -276,17 +275,15 @@ private fun FamilyTab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    LiquidGlassSurface(
+    RedSurface(
         modifier = modifier,
         shape = squircleShape(RedCornerRadius.lg),
-        style = LiquidGlassDefaults.Pill,
-        clearGlass = selected,
-        fallbackColor = if (selected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
-        fallbackBorder = BorderStroke(
+        color = if (selected) RedTheme.colors.accentRed else RedTheme.colors.surfaceElevated,
+        border = BorderStroke(
             0.75.dp,
             if (selected) RedTheme.colors.accentRed else RedTheme.colors.border
         ),
-        fallbackShadowElevation = RedElevation.none,
+        elevation = RedElevation.none,
         onClick = onClick
     ) {
         Row(
@@ -345,15 +342,14 @@ private fun EclipseListRow(
     }
     val visibleColor = if (eclipse.isLocallyVisible) RedTheme.colors.statusSuccess else RedTheme.colors.statusWarning
 
-    LiquidGlassSurface(
+    RedSurface(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("eclipse_row_${eclipse.event.id}"),
         shape = squircleShape(RedCornerRadius.window),
-        style = LiquidGlassDefaults.Card,
-        fallbackColor = RedTheme.colors.surfaceElevated,
-        fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
-        fallbackShadowElevation = RedElevation.none,
+        color = RedTheme.colors.surfaceElevated,
+        border = BorderStroke(0.75.dp, RedTheme.colors.border),
+        elevation = RedElevation.none,
         onClick = onClick
     ) {
         Row(
@@ -409,13 +405,12 @@ private fun EclipseListRow(
 
 @Composable
 private fun EmptyFamily(isFa: Boolean, isSolar: Boolean, modifier: Modifier = Modifier) {
-    LiquidGlassSurface(
+    RedSurface(
         modifier = modifier.fillMaxWidth(),
         shape = squircleShape(RedCornerRadius.window),
-        fallbackColor = RedTheme.colors.surfaceElevated,
-        fallbackBorder = BorderStroke(0.75.dp, RedTheme.colors.border),
-        style = LiquidGlassDefaults.Card,
-        fallbackShadowElevation = RedElevation.none
+        color = RedTheme.colors.surfaceElevated,
+        border = BorderStroke(0.75.dp, RedTheme.colors.border),
+        elevation = RedElevation.none
     ) {
         Text(
             text = when {
@@ -519,7 +514,7 @@ private val EclipseEngine.EclipseType.isSolarFamily: Boolean
  * A small tile used where a screen needs the eclipse's picture without its words.
  *
  * There is deliberately no chip or rounded frame behind it: [EclipseRender] clips its plate to a crisp
- * circle and lifts it off the surface with a shadow, so the eclipse sits on the row's own glass exactly as
+ * circle and lifts it off the surface with a shadow, so the eclipse sits on the row's own fill exactly as
  * it sits on the Home card. A second rounded rectangle here would only add a rectangle whose corners the
  * picture does not share.
  *

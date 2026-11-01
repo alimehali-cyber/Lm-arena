@@ -46,7 +46,7 @@ import com.alijafari.red.astronomy.astro_engine.EclipseEngine
  * **Nothing is softened.** The plates used to be cut with a `DstIn` radial mask, which faded their edges
  * into the card and washed out the corona's outermost streamers and the sharp limb; the penumbral case
  * leaned on the same mask instead of having a plate of its own. The picture is clipped to a hard circle at
- * full opacity — a crisp limb against the glass — and lifted off the card by [elevationDp] of a soft shadow, so it
+ * full opacity — a crisp limb against the card — and lifted off it by [elevationDp] of a soft shadow, so it
  * reads as a disc resting in front of the surface rather than a smudge printed on it.
  *
  * **One size.** Each plate is scaled so the phenomenon it shows fills its square exactly like the Moon card's
@@ -64,7 +64,7 @@ fun EclipseRender(
     contentDescription: String? = null,
     /** Height of the plate's shadow, in dp. 0 leaves it flat on the surface. */
     elevationDp: Dp = 10.dp,
-    /** Shadow ink. Default black reads correctly on both the dark and the light theme's glass. */
+    /** Shadow ink. Default black reads correctly on both the dark and the light theme's card. */
     shadowColor: Color = Color.Black
 ) {
     // Held in a local so the semantics lambda cannot capture the receiver's own property name.

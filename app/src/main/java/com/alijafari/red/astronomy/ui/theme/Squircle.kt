@@ -197,10 +197,9 @@ class SquircleShape(
      * The single radius this shape was created with, when it was created by [squircleShape] with one
      * radius on all four corners, and `null` otherwise.
      *
-     * The geometry itself does not need it — the outline is built from the resolved corner sizes. It
-     * exists so the corner-smoothness dial (see [withCornerSmoothing]) can rebuild *this* corner as a
-     * [SmoothCornerShape] without having to reverse-engineer a [CornerSize] back into a `Dp`, which
-     * Compose deliberately does not let callers do.
+     * The geometry itself does not need it — the outline is built from the resolved corner sizes. It is
+     * kept because flattening a [CornerSize] back into a `Dp` is something Compose deliberately does not
+     * let callers do, and a one-radius squircle is asked for it.
      */
     val uniformRadius: Dp? = null
 ) : CornerBasedShape(topStart, topEnd, bottomEnd, bottomStart) {

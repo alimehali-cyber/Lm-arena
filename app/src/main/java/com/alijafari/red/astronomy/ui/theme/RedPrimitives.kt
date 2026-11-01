@@ -70,16 +70,14 @@ fun RedCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    // Both card primitives are liquid glass. They render through the same fallback path as every other
-    // card when no backdrop is reachable, so a `RedCard` call site gets the glass material, the user's
-    // tint and the contrast-safe ink without knowing any of it exists.
-    LiquidGlassSurface(
+    // Both card primitives are flat surfaces, drawn by the same composable every other card uses, so a
+    // `RedCard` call site gets the theme's fill and the contrast-safe ink without knowing any of it exists.
+    RedSurface(
         modifier = modifier,
         shape = shape,
-        style = LiquidGlassDefaults.Card,
-        fallbackColor = backgroundColor,
-        fallbackBorder = BorderStroke(borderWidth, borderColor),
-        fallbackShadowElevation = RedElevation.none,
+        color = backgroundColor,
+        border = BorderStroke(borderWidth, borderColor),
+        elevation = RedElevation.none,
         onClick = onClick
     ) {
         Column(
@@ -104,13 +102,12 @@ fun RedElevatedCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    LiquidGlassSurface(
+    RedSurface(
         modifier = modifier,
         shape = shape,
-        style = LiquidGlassDefaults.Card,
-        fallbackColor = backgroundColor,
-        fallbackBorder = BorderStroke(borderWidth, borderColor),
-        fallbackShadowElevation = shadowElevation,
+        color = backgroundColor,
+        border = BorderStroke(borderWidth, borderColor),
+        elevation = shadowElevation,
         onClick = onClick
     ) {
         Column(

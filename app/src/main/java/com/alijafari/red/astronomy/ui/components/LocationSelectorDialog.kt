@@ -47,14 +47,13 @@ import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.theme.*
+import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
-import com.kyant.backdrop.Backdrop
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationSelectorDialog(
-    backdrop: Backdrop? = null,
     uiState: MainUiState,
     onDismiss: () -> Unit,
     onSelectLocation: (GeoCity) -> Unit,
@@ -123,8 +122,8 @@ fun LocationSelectorDialog(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            // LOCATION SELECTION WINDOW BACKDROP → Liquid Glass (blur strength: 1 / 24)
-            LiquidGlassSurface(
+            // The location sheet
+            RedSurface(
                 modifier = Modifier
                     .fillMaxWidth(0.94f)
                     .fillMaxHeight(0.88f)
@@ -133,15 +132,12 @@ fun LocationSelectorDialog(
                         indication = null,
                         onClick = {} // Intercept clicks so window doesn't dismiss
                     )
-                    .testTag("location_selector_glass_window"),
-                backdrop = backdrop,
+                    .testTag("location_selector_window"),
                 shape = squircleShape(RedCornerRadius.xxl),
-                style = LiquidGlassDefaults.Window,
-                glassTint = RedTheme.colors.surfaceElevated.copy(alpha = if (RedTheme.colors.isDark) 0.65f else 0.75f),
-                glassBorder = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.5f)),
-                fallbackColor = RedTheme.colors.surfaceElevated,
-                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
-                fallbackShadowElevation = RedElevation.modal
+                tint = RedTheme.colors.surfaceElevated.copy(alpha = if (RedTheme.colors.isDark) 0.65f else 0.75f),
+                color = RedTheme.colors.surfaceElevated,
+                border = BorderStroke(1.dp, RedTheme.colors.border),
+                elevation = RedElevation.modal
             ) {
                 Column(
                     modifier = Modifier
@@ -253,13 +249,12 @@ fun LocationSelectorDialog(
                         contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.xs),
                         verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                     ) {
-                        // 2. GPS / LIVE DEVICE LOCATION CARD (Liquid Glass: 12 / 24)
+                        // 2. GPS / LIVE DEVICE LOCATION CARD
                         item(key = "gps_device_location") {
-                            LiquidGlassSurface(
+                            RedSurface(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("gps_location_card"),
-                                backdrop = backdrop,
                                 onClick = {
                                     val fineGranted = ContextCompat.checkSelfPermission(
                                         context,
@@ -291,12 +286,10 @@ fun LocationSelectorDialog(
                                     }
                                 },
                                 shape = squircleShape(RedCornerRadius.window),
-                                style = LiquidGlassDefaults.LocationCard,
-                                glassTint = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.40f else 0.50f),
-                                glassBorder = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.35f)),
-                                fallbackColor = RedTheme.colors.surfaceElevated,
-                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
-                                fallbackShadowElevation = RedElevation.card
+                                tint = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.40f else 0.50f),
+                                color = RedTheme.colors.surfaceElevated,
+                                border = BorderStroke(1.dp, RedTheme.colors.border),
+                                elevation = RedElevation.card
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -392,7 +385,6 @@ fun LocationSelectorDialog(
                                     isSelected = isSelected,
                                     isFavorite = true,
                                     isFa = isFa,
-                                    backdrop = backdrop,
                                     onSelect = { onSelectLocation(favCity) },
                                     onToggleFavorite = { onRemoveFavorite(favCity.id) }
                                 )
@@ -444,7 +436,6 @@ fun LocationSelectorDialog(
                                     isSelected = isSelected,
                                     isFavorite = isFav,
                                     isFa = isFa,
-                                    backdrop = backdrop,
                                     onSelect = { onSelectLocation(city) },
                                     onToggleFavorite = { onToggleFavorite(city) }
                                 )
@@ -453,18 +444,15 @@ fun LocationSelectorDialog(
 
                         // 5. MANUAL COORDINATES (EXPANDABLE CARD AT BOTTOM)
                         item(key = "manual_coordinates_section") {
-                            LiquidGlassSurface(
+                            RedSurface(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("manual_coordinates_card"),
-                                backdrop = backdrop,
                                 shape = squircleShape(RedCornerRadius.window),
-                                style = LiquidGlassDefaults.LocationCard,
-                                glassTint = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.35f else 0.45f),
-                                glassBorder = BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.35f)),
-                                fallbackColor = RedTheme.colors.surfaceElevated,
-                                fallbackBorder = BorderStroke(1.dp, RedTheme.colors.border),
-                                fallbackShadowElevation = RedElevation.card
+                                tint = RedTheme.colors.surfaceGrouped.copy(alpha = if (RedTheme.colors.isDark) 0.35f else 0.45f),
+                                color = RedTheme.colors.surfaceElevated,
+                                border = BorderStroke(1.dp, RedTheme.colors.border),
+                                elevation = RedElevation.card
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -662,8 +650,7 @@ fun LocationSelectorDialog(
 }
 
 /**
- * Individual Location Item Card rendered with Liquid Glass (12 / 24 blur strength)
- * and special dynamic contrast-aware royal treatment for Nurabad (NC).
+ * Individual Location Item Card, with the dynamic contrast-aware royal treatment for Nurabad (NC).
  */
 @Composable
 private fun CityItemCard(
@@ -671,7 +658,6 @@ private fun CityItemCard(
     isSelected: Boolean,
     isFavorite: Boolean,
     isFa: Boolean,
-    backdrop: Backdrop? = null,
     onSelect: () -> Unit,
     onToggleFavorite: () -> Unit
 ) {
@@ -706,7 +692,7 @@ private fun CityItemCard(
         BorderStroke(0.75.dp, RedTheme.colors.border.copy(alpha = 0.35f))
     }
 
-    val cardGlassTint = when {
+    val cardTint = when {
         isSelected -> RedTheme.colors.accentRedSubtle.copy(alpha = if (isDark) 0.22f else 0.15f)
         isNurabad -> if (isDark) RedTheme.colors.accentGold.copy(alpha = 0.08f) else Color(0xFF7A1C30).copy(alpha = 0.05f)
         else -> RedTheme.colors.surfaceGrouped.copy(alpha = if (isDark) 0.40f else 0.50f)
@@ -718,19 +704,16 @@ private fun CityItemCard(
         else -> RedTheme.colors.surfaceElevated
     }
 
-    LiquidGlassSurface(
+    RedSurface(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("city_card_${city.id}"),
-        backdrop = backdrop,
         onClick = onSelect,
         shape = squircleShape(RedCornerRadius.window),
-        style = LiquidGlassDefaults.LocationCard,
-        glassTint = cardGlassTint,
-        glassBorder = cardBorder,
-        fallbackColor = cardFallbackColor,
-        fallbackBorder = cardBorder,
-        fallbackShadowElevation = RedElevation.card
+        tint = cardTint,
+        color = cardFallbackColor,
+        border = cardBorder,
+        elevation = RedElevation.card
     ) {
         Row(
             modifier = Modifier
