@@ -155,16 +155,49 @@ class MainActivity : ComponentActivity() {
                     // Activity. Save this one-shot state across that recreation so the intro never reappears.
                     var showSplashScreen by rememberSaveable { mutableStateOf(true) }
                     val isGlassActive = uiState.liquidGlassConfig.enabled && com.alijafari.red.astronomy.ui.theme.isLiquidGlassSupported()
-                    val backdrop = if (isGlassActive) {
+
+                    // TWO layers, for two different jobs. Both are only recorded when real glass is on.
+                    //
+                    //  - `backdrop` records the whole content area. The floating bar and every dialog are
+                    //    siblings *outside* that subtree, so they can sample it safely.
+                    //  - `glassBackdrop` records only what is genuinely behind the cards: the theme
+                    //    background, the live sky and the photo. Content cards live outside it and sample
+                    //    it, which is what makes Home, Lab and Satellite cards real glass (Part 6) without
+                    //    ever re-entering a recording pass on their own subtree — the fatal
+                    //    "Can not perform this action inside of drawBackdrop!" case.
+                    //
+                    // The sky is nevertheless drawn once: its layer is a child of the content layer, so
+                    // recording the content blits the already-recorded sky into it.
+                    val backdrop = if (isGlassActive) rememberLayerBackdrop() else null
+                    val glassBackdrop = if (isGlassActive && uiState.selectedTab != 3) {
                         rememberLayerBackdrop()
                     } else {
                         null
                     }
 
+                    // How bright the thing behind the app actually is, resolved from what the backdrop
+                    // *is* rather than from the theme (Part 6, item 1). Text with no surface under it —
+                    // the Home feed titles — asks this for its ink.
+                    val themeBackgroundColor = com.alijafari.red.astronomy.ui.theme.RedTheme.colors.background
+                    val backdropLuminance = remember(
+                        uiState.appBackdropMode,
+                        uiState.skyCanvasTheme,
+                        themeBackgroundColor,
+                        sunAltitudeDeg
+                    ) {
+                        com.alijafari.red.astronomy.ui.theme.appBackdropLuminance(
+                            mode = uiState.appBackdropMode,
+                            themeBackground = themeBackgroundColor,
+                            sunAltitudeDeg = sunAltitudeDeg,
+                            skyTheme = uiState.skyCanvasTheme
+                        )
+                    }
+
                     CompositionLocalProvider(
                         com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassEnabled provides (uiState.liquidGlassConfig.enabled && com.alijafari.red.astronomy.ui.theme.isLiquidGlassSupported()),
                         com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassConfig provides uiState.liquidGlassConfig,
-                        com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassBackdrop provides backdrop
+                        com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassBackdrop provides glassBackdrop,
+                        com.alijafari.red.astronomy.ui.theme.LocalBackdropLuminance provides backdropLuminance
                     ) {
                     Box(
                         modifier = Modifier
@@ -177,57 +210,11 @@ class MainActivity : ComponentActivity() {
                             .testTag("main_scaffold"),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-                        topBar = {
-                            if (uiState.selectedTab != 4 && uiState.selectedTab != 3 &&
-                                !(uiState.selectedTab == 0 && com.zig.chal.ui.ChalAppChrome.ownsHeader)) {
-                                val isFa = uiState.language == com.alijafari.red.astronomy.domain.AppLanguage.PERSIAN
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .statusBarsPadding()
-                                        .padding(horizontal = com.alijafari.red.astronomy.ui.theme.RedSpacing.lg, vertical = com.alijafari.red.astronomy.ui.theme.RedSpacing.sm),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    IconButton(
-                                        onClick = { viewModel.selectTab(4) },
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(CircleShape)
-                                            .background(com.alijafari.red.astronomy.ui.theme.RedTheme.colors.surfaceElevated.copy(alpha = 0.7f))
-                                            .border(0.5.dp, com.alijafari.red.astronomy.ui.theme.RedTheme.colors.border.copy(alpha = 0.4f), CircleShape)
-                                            .testTag("tab_top_back_button")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                            contentDescription = "Back",
-                                            tint = com.alijafari.red.astronomy.ui.theme.RedTheme.colors.textPrimary,
-                                            modifier = Modifier.size(com.alijafari.red.astronomy.ui.theme.RedIconSize.sm)
-                                        )
-                                    }
 
-                                    val pageTitle = when (uiState.selectedTab) {
-                                        0 -> if (isFa) "آزمایشگاه" else "Lab"
-                                        1 -> if (isFa) "ماهواره‌ها" else "Satellites"
-                                        else -> ""
-                                    }
-
-                                    Text(
-                                        text = pageTitle,
-                                        style = com.alijafari.red.astronomy.ui.theme.RedTypographyTokens.sectionHeading,
-                                        color = com.alijafari.red.astronomy.ui.theme.RedTheme.colors.textPrimary
-                                    )
-
-                                    Spacer(modifier = Modifier.size(36.dp))
-                                }
-                            }
-                        }
                     ) { innerPadding ->
-                        // Live Sky ON: the layer spans the whole window, so the sky sits behind the status bar and
-                        // Liquid Glass samples it. The content keeps the same top inset. Live Sky OFF: this is the
-                        // pre-feature layout, unchanged.
-                        val liveSkyLayout = uiState.appBackdropMode != AppBackdropMode.NONE
-                        val contentTopPadding = innerPadding.calculateTopPadding()
+                        // The scaffold has no top band any more (Part 6, item 8), so its inner padding is
+                        // zero: each screen owns its own status-bar inset. The backdrop layer still spans
+                        // the whole window, which is what lets the sky run under the status bar.
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -238,61 +225,70 @@ class MainActivity : ComponentActivity() {
                                         Modifier
                                     }
                                 )
-                                .padding(top = if (liveSkyLayout) 0.dp else contentTopPadding)
                         ) {
-                            // Always composed. It emits nothing unless Live Sky is eligible for the current screen.
-                            LiveSkyBackdrop(
-                                enabled = uiState.appBackdropMode == AppBackdropMode.LIVE_SKY,
-                                selectedTab = uiState.selectedTab,
-                                isSimulation = uiState.timeMachineState.mode == com.alijafari.red.astronomy.domain.TimeMachineMode.SIMULATION,
-                                simulationTimeMs = uiState.timeMachineState.simulationTimeMs,
-                                latitudeDeg = uiState.userLocation.latitude,
-                                longitudeDeg = uiState.userLocation.longitude,
-                                elevationM = uiState.userLocation.elevationMeters,
-                                theme = uiState.skyCanvasTheme,
-                                liveTimeMs = viewModel.skyLiveClock.timeMs,
-                                dragOffsetHours = viewModel.skyDragOffsetHours,
-                                modifier = Modifier.fillMaxSize(),
-                                bortleClass = uiState.bortleClass
-                            )
-                            PhotoBackdrop(
-                                mode = uiState.appBackdropMode,
-                                selectedTab = uiState.selectedTab,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                            // The app backdrop, recorded on its own layer so the cards can sample it. This
+                            // subtree contains nothing but the backdrop — the theme's own surface, the live
+                            // sky and the photograph — so a card drawing this layer is never reading a
+                            // recording that contains itself.
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(top = if (liveSkyLayout) contentTopPadding else 0.dp)
-                            ) {
-                                CompositionLocalProvider(
-                                    com.alijafari.red.astronomy.ui.theme.LocalLiquidGlassBackdrop provides null
-                                ) {
-                                    Crossfade(
-                                        targetState = uiState.selectedTab,
-                                        label = "TabSwitch"
-                                    ) { tab ->
-                                        when (tab) {
-                                            // Root tab 2 is retired: the Moon screen became a card on Home.
-                                            0 -> LabScreen(
-                                                uiState = uiState,
-                                                viewModel = viewModel
-                                            )
-                                            1 -> ISSScreen(
-                                                uiState = uiState,
-                                                viewModel = viewModel
-                                            )
-                                            3 -> CompassARScreen(
-                                                uiState = uiState,
-                                                viewModel = viewModel
-                                            )
-                                            4 -> HomeScreen(
-                                                uiState = uiState,
-                                                viewModel = viewModel,
-                                                onNavigateToTab = { viewModel.selectTab(it) }
-                                            )
+                                    .background(com.alijafari.red.astronomy.ui.theme.RedTheme.colors.background)
+                                    .then(
+                                        if (glassBackdrop != null) {
+                                            Modifier.layerBackdrop(glassBackdrop)
+                                        } else {
+                                            Modifier
                                         }
-                                    }
+                                    )
+                            ) {
+                                // Always composed. It emits nothing unless Live Sky is eligible for the current screen.
+                                LiveSkyBackdrop(
+                                    enabled = uiState.appBackdropMode == AppBackdropMode.LIVE_SKY,
+                                    selectedTab = uiState.selectedTab,
+                                    isSimulation = uiState.timeMachineState.mode == com.alijafari.red.astronomy.domain.TimeMachineMode.SIMULATION,
+                                    simulationTimeMs = uiState.timeMachineState.simulationTimeMs,
+                                    latitudeDeg = uiState.userLocation.latitude,
+                                    longitudeDeg = uiState.userLocation.longitude,
+                                    elevationM = uiState.userLocation.elevationMeters,
+                                    theme = uiState.skyCanvasTheme,
+                                    liveTimeMs = viewModel.skyLiveClock.timeMs,
+                                    dragOffsetHours = viewModel.skyDragOffsetHours,
+                                    modifier = Modifier.fillMaxSize(),
+                                    bortleClass = uiState.bortleClass
+                                )
+                                PhotoBackdrop(
+                                    mode = uiState.appBackdropMode,
+                                    selectedTab = uiState.selectedTab,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            // The screens. Deliberately NOT wrapped in a null-backdrop provider any more:
+                            // `LocalLiquidGlassBackdrop` carries the app backdrop resolved above, so every
+                            // card that used to fall back to its own surface now samples the real thing.
+                            Crossfade(
+                                targetState = uiState.selectedTab,
+                                label = "TabSwitch"
+                            ) { tab ->
+                                when (tab) {
+                                    // Root tab 2 is retired: the Moon screen became a card on Home.
+                                    0 -> LabScreen(
+                                        uiState = uiState,
+                                        viewModel = viewModel
+                                    )
+                                    1 -> ISSScreen(
+                                        uiState = uiState,
+                                        viewModel = viewModel
+                                    )
+                                    3 -> CompassARScreen(
+                                        uiState = uiState,
+                                        viewModel = viewModel
+                                    )
+                                    4 -> HomeScreen(
+                                        uiState = uiState,
+                                        viewModel = viewModel,
+                                        onNavigateToTab = { viewModel.selectTab(it) }
+                                    )
                                 }
                             }
                         }

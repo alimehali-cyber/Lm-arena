@@ -192,7 +192,17 @@ class SquircleShape(
     topStart: CornerSize = CornerSize(0.dp),
     topEnd: CornerSize = CornerSize(0.dp),
     bottomEnd: CornerSize = CornerSize(0.dp),
-    bottomStart: CornerSize = CornerSize(0.dp)
+    bottomStart: CornerSize = CornerSize(0.dp),
+    /**
+     * The single radius this shape was created with, when it was created by [squircleShape] with one
+     * radius on all four corners, and `null` otherwise.
+     *
+     * The geometry itself does not need it — the outline is built from the resolved corner sizes. It
+     * exists so the corner-smoothness dial (see [withCornerSmoothing]) can rebuild *this* corner as a
+     * [SmoothCornerShape] without having to reverse-engineer a [CornerSize] back into a `Dp`, which
+     * Compose deliberately does not let callers do.
+     */
+    val uniformRadius: Dp? = null
 ) : CornerBasedShape(topStart, topEnd, bottomEnd, bottomStart) {
 
     override fun createOutline(
@@ -386,7 +396,8 @@ fun squircleShape(radius: Dp): SquircleShape =
         topStart = CornerSize(radius),
         topEnd = CornerSize(radius),
         bottomEnd = CornerSize(radius),
-        bottomStart = CornerSize(radius)
+        bottomStart = CornerSize(radius),
+        uniformRadius = radius
     )
 
 /** A squircle with independent corner radii. */

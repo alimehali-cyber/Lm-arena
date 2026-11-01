@@ -42,6 +42,7 @@ import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.squircleShape
+import kotlin.math.roundToInt
 
 /**
  * Data structure for the Bortle Dark-Sky scale reference guide.
@@ -581,6 +582,256 @@ fun SettingsDialog(
                     }
                 }
 
+                // ------------------------------------------------------------------------------------
+                // 5a. GLASS RECIPE — colour mixing, shader design and edge smoothness.
+                //
+                // Everything here writes the same `LiquidGlassConfig` the cards read, and nothing here is
+                // a preview of a different code path: the swatch below is `glassFilmColor` of the live
+                // config, which is literally the colour the cards are given.
+                // ------------------------------------------------------------------------------------
+                if (uiState.isLiquidGlassEnabled) {
+                    val glassConfig = uiState.liquidGlassConfig
+
+                    Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
+
+                        HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                        Text(
+                            text = if (isFa) "ترکیب رنگ شیشه" else "Glass Colour Mixing",
+                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                            color = RedTheme.colors.textPrimary
+                        )
+
+                        // The live swatch: the film over a neutral chip and over a bright one, so the
+                        // effect of the mix is visible on both a dark card and a light one.
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val film = glassFilmColor(glassConfig)
+                            listOf(Color(0xFF10131C), RedTheme.colors.surfaceElevated).forEach { base ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(34.dp)
+                                        .clip(squircleShape(RedCornerRadius.sm))
+                                        .background(base)
+                                        .then(
+                                            if (film.alpha > 0.001f) {
+                                                Modifier.background(film)
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
+                                        .border(0.6.dp, RedTheme.colors.border, squircleShape(RedCornerRadius.sm))
+                                        .testTag("liquid_glass_swatch")
+                                )
+                            }
+                            Text(
+                                text = "${(glassConfig.tintAlpha * 100).roundToInt()}% · " +
+                                    "${mixHue(glassConfig.tintHueA, glassConfig.tintHueB, glassConfig.tintMix).roundToInt()}°",
+                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                                color = RedTheme.colors.accentRed
+                            )
+                        }
+
+                        // 1. Named recipes. Same numbers the sliders below set.
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            GlassFilmPreset.entries.take(3).forEach { preset ->
+                                FilterChip(
+                                    selected = glassConfig.matches(preset),
+                                    onClick = { viewModel.applyGlassFilmPreset(preset) },
+                                    label = {
+                                        Text(
+                                            text = if (isFa) preset.labelFa else preset.labelEn,
+                                            fontSize = 10.sp,
+                                            maxLines = 1
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = RedTheme.colors.accentRed,
+                                        selectedLabelColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("liquid_glass_preset_${preset.name.lowercase()}")
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            GlassFilmPreset.entries.drop(3).forEach { preset ->
+                                FilterChip(
+                                    selected = glassConfig.matches(preset),
+                                    onClick = { viewModel.applyGlassFilmPreset(preset) },
+                                    label = {
+                                        Text(
+                                            text = if (isFa) preset.labelFa else preset.labelEn,
+                                            fontSize = 10.sp,
+                                            maxLines = 1
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = RedTheme.colors.accentRed,
+                                        selectedLabelColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("liquid_glass_preset_${preset.name.lowercase()}")
+                                )
+                            }
+                        }
+
+                        // 2. The mix itself: two hues and how far the film leans between them.
+                        GlassDial(
+                            title = if (isFa) "رنگ اول (Hue A)" else "First hue",
+                            value = "${glassConfig.tintHueA.roundToInt()}°",
+                            sliderValue = glassConfig.tintHueA,
+                            range = 0f..360f,
+                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(tintHueA = it)) },
+                            tag = "liquid_glass_hue_a_slider"
+                        )
+                        GlassDial(
+                            title = if (isFa) "رنگ دوم (Hue B)" else "Second hue",
+                            value = "${glassConfig.tintHueB.roundToInt()}°",
+                            sliderValue = glassConfig.tintHueB,
+                            range = 0f..360f,
+                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(tintHueB = it)) },
+                            tag = "liquid_glass_hue_b_slider"
+                        )
+                        GlassDial(
+                            title = if (isFa) "آمیزه دو رنگ (Mix)" else "Mix between the two",
+                            value = "${(glassConfig.tintMix * 100).roundToInt()}%",
+                            sliderValue = glassConfig.tintMix,
+                            range = 0f..1f,
+                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(tintMix = it)) },
+                            tag = "liquid_glass_mix_slider"
+                        )
+                        GlassDial(
+                            title = if (isFa) "اشباع رنگ (Saturation)" else "Saturation",
+                            value = "${(glassConfig.tintSaturation * 100).roundToInt()}%",
+                            sliderValue = glassConfig.tintSaturation,
+                            range = 0f..1f,
+                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(tintSaturation = it)) },
+                            tag = "liquid_glass_saturation_slider"
+                        )
+                        Text(
+                            text = if (isFa) {
+                                "اشباع صفر یعنی لایه سفید خنثی؛ هرچه بیشتر شود شیشه رنگ دو پرده بالا را می‌گیرد."
+                            } else {
+                                "At zero saturation the film is the neutral white; turn it up and the glass takes the two hues above."
+                            },
+                            style = RedTypographyTokens.caption.copy(fontSize = 10.sp),
+                            color = RedTheme.colors.textTertiary
+                        )
+
+                        HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                        Text(
+                            text = if (isFa) "طراحی شیدر" else "Shader Design",
+                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                            color = RedTheme.colors.textPrimary
+                        )
+
+                        // 3. Refraction recipe.
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            GlassShaderProfile.entries.forEach { profile ->
+                                FilterChip(
+                                    selected = glassConfig.shaderProfile == profile,
+                                    onClick = {
+                                        viewModel.updateLiquidGlassConfig(glassConfig.copy(shaderProfile = profile))
+                                    },
+                                    label = {
+                                        Text(
+                                            text = if (isFa) profile.labelFa else profile.labelEn,
+                                            fontSize = 10.sp,
+                                            maxLines = 1
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = RedTheme.colors.accentRed,
+                                        selectedLabelColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("liquid_glass_profile_${profile.name.lowercase()}")
+                                )
+                            }
+                        }
+
+                        // 4. Where the light lies.
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            GlassSheen.entries.forEach { sheen ->
+                                FilterChip(
+                                    selected = glassConfig.sheen == sheen,
+                                    onClick = {
+                                        viewModel.updateLiquidGlassConfig(glassConfig.copy(sheen = sheen))
+                                    },
+                                    label = {
+                                        Text(
+                                            text = if (isFa) sheen.labelFa else sheen.labelEn,
+                                            fontSize = 9.sp,
+                                            maxLines = 1
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = RedTheme.colors.accentRed,
+                                        selectedLabelColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("liquid_glass_sheen_${sheen.name.lowercase()}")
+                                )
+                            }
+                        }
+                        GlassDial(
+                            title = if (isFa) "شدت بازتاب (Sheen)" else "Sheen strength",
+                            value = "${(glassConfig.sheenStrength * 100).roundToInt()}%",
+                            sliderValue = glassConfig.sheenStrength,
+                            range = 0f..1f,
+                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(sheenStrength = it)) },
+                            tag = "liquid_glass_sheen_strength_slider"
+                        )
+
+                        HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.5f), thickness = 0.5.dp)
+
+                        Text(
+                            text = if (isFa) "نرمی لبه‌ها" else "Edge Smoothness",
+                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                            color = RedTheme.colors.textPrimary
+                        )
+                        GlassDial(
+                            title = if (isFa) "گوشه دایره‌ای ← پیوسته" else "Circular corner ← continuous corner",
+                            value = "${(glassConfig.edgeSmoothing * 100).roundToInt()}%",
+                            sliderValue = glassConfig.edgeSmoothing,
+                            range = 0f..1f,
+                            onChange = { viewModel.updateLiquidGlassConfig(glassConfig.copy(edgeSmoothing = it)) },
+                            tag = "liquid_glass_edge_smoothing_slider"
+                        )
+                        Text(
+                            text = if (isFa) {
+                                "۰٪ گوشه کاملاً دایره‌ای (مثل مستطیل گرد) و ۱۰۰٪ گوشه پیوستهٔ خود اپلیکیشن است؛ شیشه دقیقاً به همین شکل بریده و شکسته می‌شود."
+                            } else {
+                                "0% is an exactly circular corner (a plain rounded rectangle), 100% is the app's own continuous corner. The glass is clipped and refracts to this outline."
+                            },
+                            style = RedTypographyTokens.caption.copy(fontSize = 10.sp),
+                            color = RedTheme.colors.textTertiary
+                        )
+                    }
+                }
+
                 // 5b. App Backdrop Section. Single option, Live Sky, default OFF.
                 ExpandableSettingsSection(
                     title = stringResource(R.string.app_backdrop_title),
@@ -1052,5 +1303,45 @@ private fun SettingsOptionRow(
                 )
             }
         }
+    }
+}
+
+/**
+ * One labelled dial in the glass recipe: a name, the value it is currently at, and the slider.
+ *
+ * Factored out because the colour-mixing, shader and edge sections are nine dials of the same shape;
+ * nine copies of the same five lines is how the labels drift apart from the values.
+ */
+@Composable
+private fun GlassDial(
+    title: String,
+    value: String,
+    sliderValue: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onChange: (Float) -> Unit,
+    tag: String
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = title,
+                style = RedTypographyTokens.caption,
+                color = RedTheme.colors.textPrimary
+            )
+            Text(
+                text = value,
+                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                color = RedTheme.colors.accentRed
+            )
+        }
+        RedSlider(
+            value = sliderValue,
+            onValueChange = onChange,
+            valueRange = range,
+            modifier = Modifier.testTag(tag)
+        )
     }
 }

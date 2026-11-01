@@ -147,72 +147,14 @@ fun TimeDilationCalculatorScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag("time_dilation_screen"),
-        containerColor = Color.Transparent,
-        topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
-                ) {
-                    IconButton(
-                        onClick = onBackToLab,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(RedTheme.colors.surfaceElevated.copy(alpha = 0.7f))
-                            .border(0.5.dp, RedTheme.colors.border.copy(alpha = 0.4f), CircleShape)
-                            .testTag("time_dilation_back_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back to Lab",
-                            tint = RedTheme.colors.textPrimary,
-                            modifier = Modifier.size(RedIconSize.sm)
-                        )
-                    }
-
-                    Column {
-                        Text(
-                            text = if (isFa) "محاسبه‌گر انقباض زمان" else "Time Dilation Calculator",
-                            style = RedTypographyTokens.sectionHeading,
-                            color = RedTheme.colors.textPrimary
-                        )
-                        Text(
-                            text = if (isFa) "سفر بین‌ستاره‌ای با نسبیت خاص" else "Relativistic Journey Simulator",
-                            style = RedTypographyTokens.caption,
-                            color = RedTheme.colors.textSecondary
-                        )
-                    }
-                }
-
-                IconButton(
-                    onClick = { showHowItWorksDialog = true },
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(RedTheme.colors.accentRed.copy(alpha = 0.12f))
-                        .border(0.5.dp, RedTheme.colors.accentRed.copy(alpha = 0.3f), CircleShape)
-                        .testTag("time_dilation_info_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.HelpOutline,
-                        contentDescription = "How it works",
-                        tint = RedTheme.colors.accentRed,
-                        modifier = Modifier.size(RedIconSize.sm)
-                    )
-                }
-            }
-        }
+        containerColor = Color.Transparent
     ) { innerPadding ->
         LazyColumn(
+            // No top band any more (Part 6, item 8): the screen carries the status-bar inset itself,
+            // and the help affordance moved into the first card instead of a title row.
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(innerPadding),
             contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.md),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
@@ -226,8 +168,28 @@ fun TimeDilationCalculatorScreen(
                         modifier = Modifier.padding(RedSpacing.lg),
                         verticalArrangement = Arrangement.spacedBy(RedSpacing.md)
                     ) {
+                        // The old top band's one useful control, without the band: the explanation of how
+                        // the numbers are produced, next to the numbers.
                         RedSectionHeader(
-                            title = if (isFa) "۱. انتخاب مبدأ و مقصد سفر" else "1. Select Route (Origin & Destination)"
+                            title = if (isFa) "۱. انتخاب مبدأ و مقصد سفر" else "1. Select Route (Origin & Destination)",
+                            action = {
+                                IconButton(
+                                    onClick = { showHowItWorksDialog = true },
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(RedTheme.colors.accentRed.copy(alpha = 0.12f))
+                                        .border(0.5.dp, RedTheme.colors.accentRed.copy(alpha = 0.3f), CircleShape)
+                                        .testTag("time_dilation_info_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.HelpOutline,
+                                        contentDescription = "How it works",
+                                        tint = RedTheme.colors.accentRed,
+                                        modifier = Modifier.size(RedIconSize.sm)
+                                    )
+                                }
+                            }
                         )
 
                         Row(

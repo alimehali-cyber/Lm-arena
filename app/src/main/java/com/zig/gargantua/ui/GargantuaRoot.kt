@@ -95,38 +95,9 @@ private fun GargantuaUnsupportedScreen(
             .background(Color(0xFF0A0C14))
             .testTag("gargantua_unsupported_root")
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            GargantuaIconButton(
-                onClick = onBack,
-                contentDescription = if (isPersian) "بازگشت" else "Back",
-                modifier = Modifier.testTag("gargantua_back_button")
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (isPersian) "گارگانتوا" else "Gargantua",
-                    color = Color.White,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = if (isPersian) "عدم پشتیبانی سخت‌افزاری" else "Hardware Not Supported",
-                    color = Color(0xFFEF9A9A),
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    softWrap = false
-                )
-            }
-        }
+        // The unsupported state used to announce itself in a title band with a back button. Both are
+        // gone (Part 6, item 8); the message in the middle of the screen says what happened and offers
+        // the way out, and the system back gesture always works.
 
         Box(
             modifier = Modifier
@@ -262,12 +233,25 @@ private fun GargantuaRendererScreen(
                 .testTag("gargantua_gl_surface")
         )
 
-        GargantuaTopBar(
-            isPersian = isPersian,
-            onBack = onBack,
-            onReset = { surfaceViewRef?.resetCamera() },
-            modifier = Modifier.align(Alignment.TopCenter)
-        )
+        // No title band and no back button (Part 6, item 8): the laboratory is the screen. Two things
+        // from that strip still earn their place — the camera reset, which is a control, and the status
+        // line below, which is data. Leaving is the system back gesture (`BackHandler` above).
+        GargantuaIconButton(
+            onClick = { surfaceViewRef?.resetCamera() },
+            contentDescription = if (isPersian) "بازنشانی دوربین" else "Reset camera",
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 6.dp, end = 12.dp)
+                .testTag("gargantua_reset_camera_button")
+        ) {
+            Icon(
+                imageVector = Icons.Default.Refresh,
+                contentDescription = if (isPersian) "بازنشانی دوربین" else "Reset camera",
+                tint = Color(0xFF90CAF9),
+                modifier = Modifier.size(19.dp)
+            )
+        }
 
         Text(
             text = statusLine(telemetry, isPersian),
@@ -335,59 +319,6 @@ private fun GargantuaRendererScreen(
                 .heightIn(min = 56.dp)
                 .testTag("gargantua_three_button_dock")
         )
-    }
-}
-
-@Composable
-private fun GargantuaTopBar(
-    isPersian: Boolean,
-    onBack: () -> Unit,
-    onReset: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        GargantuaIconButton(
-            onClick = onBack,
-            contentDescription = if (isPersian) "بازگشت" else "Back",
-            modifier = Modifier.testTag("gargantua_back_button")
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = if (isPersian) "گارگانتوا" else "Gargantua",
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = if (isPersian) "شبیه‌سازی کر" else "Kerr spacetime",
-                color = Color(0xFF8FA3BD),
-                fontSize = 10.sp,
-                maxLines = 1,
-                softWrap = false
-            )
-        }
-        GargantuaIconButton(
-            onClick = onReset,
-            contentDescription = if (isPersian) "بازنشانی دوربین" else "Reset camera",
-            modifier = Modifier.testTag("gargantua_reset_camera_button")
-        ) {
-            Icon(
-                imageVector = Icons.Default.Refresh,
-                contentDescription = if (isPersian) "بازنشانی دوربین" else "Reset camera",
-                tint = Color(0xFF90CAF9),
-                modifier = Modifier.size(19.dp)
-            )
-        }
     }
 }
 

@@ -6,14 +6,15 @@ package com.alijafari.red.astronomy.ui.theme
  * ============================================================================
  *
  * 1. WHERE DOES A COMPONENT BELONG?
- *    - Inside Crossfade (Tabs / Screens / Content Cards):
- *      Any screen or card inside `Crossfade(targetState = uiState.selectedTab)`
- *      in MainActivity is wrapped in `Modifier.layerBackdrop(backdrop)` and
- *      scoped to `CompositionLocalProvider(LocalLiquidGlassBackdrop provides null)`.
- *      These components MUST NOT attempt to call `drawBackdrop()` on that same root
- *      `backdrop` instance (doing so causes the fatal Kyant assertion:
- *      "Can not perform this action inside of drawBackdrop!"). They safely render
- *      high-contrast premium RED design tokens via their `fallbackColor`/`fallbackBorder`.
+ *    - Inside Crossfade (Tabs / Screens / Content Cards) — since Part 6:
+ *      Cards *do* render real glass. What they must never do is sample a backdrop that is
+ *      currently recording their own subtree: `drawBackdrop()` inside a `layerBackdrop()` of the
+ *      same instance throws the fatal Kyant assertion "Can not perform this action inside of
+ *      drawBackdrop!". MainActivity therefore records **two** layers: the app backdrop (theme
+ *      background + live sky + photograph), which is what content cards sample through
+ *      `LocalLiquidGlassBackdrop`, and the content layer, which only the root-level overlays
+ *      (`FloatingBottomBar`, dialogs) sample because they sit outside the content tree. A card that
+ *      samples the backdrop layer is reading a sibling that was already drawn, never itself.
  *    - Root-Level Sibling Overlays (Floating Bars, Modals, Full-Screen Dialogs):
  *      Components that should render real Liquid Glass optical effects (sampling the
  *      live, animated screen content beneath them) MUST sit OUTSIDE the Crossfade tree
@@ -63,6 +64,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
@@ -75,6 +78,8 @@ import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 val LocalLiquidGlassEnabled = staticCompositionLocalOf { true }
 val LocalLiquidGlassBackdrop = staticCompositionLocalOf<Backdrop?> { null }
@@ -104,12 +109,130 @@ data class LiquidGlassConfig(
      * The default is deliberately faint: it lifts a card off the sky without hiding it.
      * Surfaces that must stay optically pure opt out through `clearGlass`.
      */
-    val tintAlpha: Float = DEFAULT_TINT_ALPHA
+    val tintAlpha: Float = DEFAULT_TINT_ALPHA,
+
+    // ---------------------------------------------------------------------------------------
+    // 6. COLOR MIXING — the film the glass wears is a two-colour recipe, not a fixed white.
+    // ---------------------------------------------------------------------------------------
+    /**
+     * Hue of the first film colour, degrees on the colour wheel.
+     *
+     * The film is mixed in HSV, so one hue dial plus one saturation dial describes every tinted glass
+     * there is: leave saturation at 0 and the hue does nothing (white film, the shipped look), push it
+     * up and the glass takes that hue at [tintAlpha].
+     */
+    val tintHueA: Float = DEFAULT_HUE_A,
+    /** Hue of the second film colour: the other end of the mix. */
+    val tintHueB: Float = DEFAULT_HUE_B,
+    /** How far the film leans from [tintHueA] to [tintHueB], 0..1, along the shorter way round. */
+    val tintMix: Float = 0f,
+    /** How coloured the film is, 0 (neutral white) to 1 (fully saturated at the mixed hue). */
+    val tintSaturation: Float = 0f,
+
+    // ---------------------------------------------------------------------------------------
+    // 7. SHADER DESIGN — how the glass refracts, and how the light lies on it.
+    // ---------------------------------------------------------------------------------------
+    /** Which refraction recipe the glass uses (see [GlassShaderProfile]). */
+    val shaderProfile: GlassShaderProfile = GlassShaderProfile.BALANCED,
+    /** Where the specular sheen is drawn on the glass (see [GlassSheen]). */
+    val sheen: GlassSheen = GlassSheen.TOP,
+    /** How bright that sheen is, 0 (none) to 1 (strongest the design allows). */
+    val sheenStrength: Float = DEFAULT_SHEEN_STRENGTH,
+
+    // ---------------------------------------------------------------------------------------
+    // 8. SMOOTH EDGES — the corner geometry the glass is clipped to.
+    // ---------------------------------------------------------------------------------------
+    /**
+     * Corner smoothness, 0 (a circular corner: an exact rounded rectangle) to 1 (the app's squircle).
+     * See [CornerSmoothness] — this is the shape itself, not a blur pretending to be one.
+     */
+    val edgeSmoothing: Float = CornerSmoothness.DEFAULT
 ) {
     companion object {
         /** The "very soft, slight white tint" the design system ships with. */
         const val DEFAULT_TINT_ALPHA: Float = 0.07f
+
+        /** Two cool hues, far enough apart that the mix dial is visible when it is moved. */
+        const val DEFAULT_HUE_A: Float = 205f
+        const val DEFAULT_HUE_B: Float = 285f
+
+        /** A sheen you can see, without the card looking wet. */
+        const val DEFAULT_SHEEN_STRENGTH: Float = 0.34f
     }
+}
+
+/**
+ * The refraction recipe: how much blur the glass diffuses with and how hard it bends the backdrop.
+ *
+ * These are not cosmetic labels. Each profile multiplies the blur and refraction the style asks for, so
+ * a [CRYSTAL] card genuinely resolves finer detail behind it and a [FROSTED] one genuinely blurs more;
+ * the difference is the shader, not a colour.
+ */
+enum class GlassShaderProfile(
+    val labelEn: String,
+    val labelFa: String,
+    val blurScale: Float,
+    val refractionScale: Float
+) {
+    /** Sharp, thin, strongly bent: closest to polished crystal, least forgiving of a busy backdrop. */
+    CRYSTAL("Crystal", "کریستال", blurScale = 0.45f, refractionScale = 1.30f),
+
+    /** The shipped balance of diffusion and bend. */
+    BALANCED("Balanced", "متعادل", blurScale = 1.00f, refractionScale = 1.00f),
+
+    /** Deep diffusion, gentle bend: frosted glass, the most legible over a photograph. */
+    FROSTED("Frosted", "مات", blurScale = 1.90f, refractionScale = 0.55f)
+}
+
+/**
+ * Where the specular sheen lies on the glass.
+ *
+ * Drawn by the app, inside the glass clip and under the content — it is the light that tells the eye a
+ * surface has a surface, which is the part a pure refraction pass cannot do on its own.
+ */
+enum class GlassSheen(val labelEn: String, val labelFa: String) {
+    /** No sheen: the most neutral, and the flattest. */
+    NONE("None", "بدون"),
+
+    /** Light entering from the top edge, fading down. */
+    TOP("Top light", "نور از بالا"),
+
+    /** Light raking across the card from the top-start corner to the bottom-end corner. */
+    DIAGONAL("Diagonal", "قطری"),
+
+    /** Light catching both side rims and leaving the middle clear — reads as a thicker slab. */
+    RIM("Rim light", "لبه‌روشن")
+}
+
+/**
+ * Named film recipes for the colour-mixing dials.
+ *
+ * The point of the presets is that the three numbers behind them are the *same* three the sliders set —
+ * so a user can start from one and keep turning, and the preview and the card are always in agreement.
+ */
+enum class GlassFilmPreset(
+    val labelEn: String,
+    val labelFa: String,
+    val hueA: Float,
+    val hueB: Float,
+    val mix: Float,
+    val saturation: Float,
+    val alpha: Float
+) {
+    /** The shipped look: a faint neutral white film that lifts the card off the sky. */
+    NEUTRAL("Neutral", "خنثی", 205f, 285f, 0f, 0f, 0.07f),
+
+    /** Cold sea green moving toward blue. */
+    SEA_GLASS("Sea glass", "شیشه دریا", 170f, 215f, 0.45f, 0.55f, 0.14f),
+
+    /** Warm pink into violet. */
+    ROSE_QUARTZ("Rose quartz", "کوارتز صورتی", 335f, 292f, 0.5f, 0.45f, 0.13f),
+
+    /** Cream into pale gold: the warmest of the set. */
+    MOONSTONE("Moonstone", "سنگ ماه", 45f, 20f, 0.55f, 0.30f, 0.12f),
+
+    /** Deep indigo at low alpha: glass at night, dark enough to sit on a bright photograph. */
+    OBSIDIAN("Obsidian", "ابسیدین", 250f, 225f, 0.35f, 0.70f, 0.22f)
 }
 
 val LocalLiquidGlassConfig = staticCompositionLocalOf { LiquidGlassConfig() }
@@ -123,9 +246,128 @@ val LocalLiquidGlassConfig = staticCompositionLocalOf { LiquidGlassConfig() }
 fun liquidGlassTintColor(
     alphaOverride: Float? = null,
     config: LiquidGlassConfig = LocalLiquidGlassConfig.current
-): Color {
+): Color = glassFilmColor(config, alphaOverride)
+
+/**
+ * The two-colour film recipe in HSV, resolved to a colour.
+ *
+ * Pure, non-composable and shared by the modifier, the text-contrast resolver and the settings preview,
+ * so the swatch in Settings is literally the value the cards are given rather than a lookalike.
+ */
+fun glassFilmColor(config: LiquidGlassConfig, alphaOverride: Float? = null): Color {
     val alpha = (alphaOverride ?: config.tintAlpha).coerceIn(0f, 1f)
-    return if (alpha <= 0.001f) Color.Transparent else Color.White.copy(alpha = alpha)
+    if (alpha <= 0.001f) return Color.Transparent
+    return hsvColor(
+        hueDeg = mixHue(config.tintHueA, config.tintHueB, config.tintMix),
+        saturation = config.tintSaturation,
+        value = 1f,
+        alpha = alpha
+    )
+}
+
+/**
+ * Mixes two hues the short way round the wheel.
+ *
+ * `350° → 10°` must pass through red, not through the whole colour wheel on the way; taking the signed
+ * difference into `[-180°, 180°)` is what makes a hue slider feel like a dial instead of a number line.
+ */
+fun mixHue(hueA: Float, hueB: Float, t: Float): Float {
+    val a = (hueA % 360f + 360f) % 360f
+    val b = (hueB % 360f + 360f) % 360f
+    val delta = ((b - a + 540f) % 360f) - 180f
+    val mixed = a + delta * t.coerceIn(0f, 1f)
+    return (mixed % 360f + 360f) % 360f
+}
+
+/**
+ * HSV → sRGB.
+ *
+ * Written out rather than delegated so the same function can run on a plain JVM in the unit tests that
+ * pin the film recipe; Compose's `Color.hsv` is an Android-backed helper and the colour maths is the
+ * part worth testing.
+ */
+fun hsvColor(hueDeg: Float, saturation: Float, value: Float, alpha: Float = 1f): Color {
+    val h = (hueDeg % 360f + 360f) % 360f
+    val s = saturation.coerceIn(0f, 1f)
+    val v = value.coerceIn(0f, 1f)
+    val c = v * s
+    val x = c * (1f - abs((h / 60f) % 2f - 1f))
+    val m = v - c
+    val sector = (h / 60f).toInt() % 6
+    val r: Float
+    val g: Float
+    val b: Float
+    when (sector) {
+        0 -> { r = c; g = x; b = 0f }
+        1 -> { r = x; g = c; b = 0f }
+        2 -> { r = 0f; g = c; b = x }
+        3 -> { r = 0f; g = x; b = c }
+        4 -> { r = x; g = 0f; b = c }
+        else -> { r = c; g = 0f; b = x }
+    }
+    return Color(r + m, g + m, b + m, alpha.coerceIn(0f, 1f))
+}
+
+/**
+ * The sheen brush for a glass surface of [size], or `null` when the design has none.
+ *
+ * Returned as a brush so the caller stays a single `drawBehind`; the shapes are deliberately simple
+ * linear/edge gradients — a specular reflection is a gradient, and anything more elaborate reads as a
+ * picture of a reflection rather than as one.
+ */
+internal fun sheenBrush(
+    sheen: GlassSheen,
+    strength: Float,
+    size: androidx.compose.ui.geometry.Size
+): Brush? {
+    val a = (strength.coerceIn(0f, 1f) * 0.26f)
+    if (sheen == GlassSheen.NONE || a <= 0.002f) return null
+    val white = Color.White
+    return when (sheen) {
+        GlassSheen.NONE -> null
+        GlassSheen.TOP -> Brush.verticalGradient(
+            0f to white.copy(alpha = a),
+            0.22f to white.copy(alpha = a * 0.55f),
+            0.55f to white.copy(alpha = 0f),
+            1f to white.copy(alpha = 0f),
+            startY = 0f,
+            endY = size.height
+        )
+        GlassSheen.DIAGONAL -> Brush.linearGradient(
+            0f to white.copy(alpha = a),
+            0.45f to white.copy(alpha = a * 0.25f),
+            1f to white.copy(alpha = 0f),
+            start = androidx.compose.ui.geometry.Offset(0f, 0f),
+            end = androidx.compose.ui.geometry.Offset(size.width, size.height)
+        )
+        GlassSheen.RIM -> Brush.horizontalGradient(
+            0f to white.copy(alpha = a),
+            0.10f to white.copy(alpha = a * 0.15f),
+            0.5f to white.copy(alpha = 0f),
+            0.90f to white.copy(alpha = a * 0.15f),
+            1f to white.copy(alpha = a),
+            startX = 0f,
+            endX = size.width
+        )
+    }
+}
+
+/**
+ * True when this config's film *is* [preset] — so the chip can show as selected.
+ *
+ * Compared with the tolerances the sliders themselves have (whole degrees on hue, one percent on the
+ * ratios) rather than exactly, because a value that came back from `SharedPreferences` is a `Float`
+ * round-trip away from the constant, and a preset that does not light up after you tap it is worse than
+ * no preset at all.
+ */
+fun LiquidGlassConfig.matches(preset: GlassFilmPreset): Boolean {
+    fun near(a: Float, b: Float, tolerance: Float) = abs(a - b) <= tolerance
+    fun hueNear(a: Float, b: Float) = near((a % 360f + 360f) % 360f, (b % 360f + 360f) % 360f, 0.75f)
+    return hueNear(tintHueA, preset.hueA) &&
+        hueNear(tintHueB, preset.hueB) &&
+        near(tintMix, preset.mix, 0.01f) &&
+        near(tintSaturation, preset.saturation, 0.01f) &&
+        near(tintAlpha, preset.alpha, 0.005f)
 }
 
 /**
@@ -138,13 +380,13 @@ fun liquidGlassTintColor(
 internal fun resolveGlassFilm(
     fallbackColor: Color,
     glassTint: Color,
-    tintAlpha: Float,
+    tintColor: Color,
     clearGlass: Boolean
 ): Color = when {
     clearGlass -> Color.Transparent
     glassTint != Color.Transparent -> glassTint
-    tintAlpha <= 0.001f -> Color.Transparent
-    else -> Color.White.copy(alpha = tintAlpha)
+    tintColor.alpha <= 0.001f -> Color.Transparent
+    else -> tintColor
 }
 
 /**
@@ -193,7 +435,7 @@ fun liquidGlassTextColors(
     val film = resolveGlassFilm(
         fallbackColor = base,
         glassTint = tint,
-        tintAlpha = tintAlphaOverride ?: config.tintAlpha,
+        tintColor = glassFilmColor(config, tintAlphaOverride),
         clearGlass = clearGlass
     )
 
@@ -355,15 +597,29 @@ fun Modifier.liquidGlass(
     val config = LocalLiquidGlassConfig.current
     val isGlassActive = enabled && config.enabled && isLiquidGlassSupported() && backdrop != null
 
+    // The user's corner geometry, resolved once: at the default dial position this *is* the shape the
+    // call site passed, so nothing in the app changes unless the dial was moved.
+    val effectiveShape = shape.withCornerSmoothing(config.edgeSmoothing)
+
     // One film decision for both render paths (an explicit `glassTint` wins, `clearGlass` wears none,
-    // everything else takes the soft white tint from Settings) and one plate that keeps the card's own
-    // material under its content so the ink its children were given stays true over any backdrop.
+    // everything else takes the two-colour recipe from Settings) and one plate that keeps the card's
+    // own material under its content so the ink its children were given stays true over any backdrop.
     val activeTint = resolveGlassFilm(
         fallbackColor = fallbackColor,
         glassTint = glassTint,
-        tintAlpha = config.tintAlpha,
+        tintColor = glassFilmColor(config),
         clearGlass = clearGlass
     )
+    // A sheen is a cacheable brush: it depends on the size, not on the frame, so it is built once per
+    // layout instead of once per draw.
+    val sheenModifier = if (config.sheen != GlassSheen.NONE && config.sheenStrength > 0.002f) {
+        Modifier.drawWithCache {
+            val brush = sheenBrush(config.sheen, config.sheenStrength, size)
+            onDrawBehind { brush?.let { drawRect(it) } }
+        }
+    } else {
+        Modifier
+    }
     val legibilityPlate = resolveLegibilityPlate(
         fallbackColor = fallbackColor,
         glassTint = glassTint,
@@ -371,15 +627,20 @@ fun Modifier.liquidGlass(
     )
 
     return if (isGlassActive) {
-        // Dynamic blur radius
-        val activeBlur = (config.blurRadiusDp + style.blurRadius.value).coerceAtLeast(0f).dp
+        // Dynamic blur radius, scaled by the shader profile: a frosted recipe diffuses more of the
+        // backdrop, a crystal one barely touches it.
+        val profile = config.shaderProfile
+        val activeBlur = ((config.blurRadiusDp + style.blurRadius.value) * profile.blurScale)
+            .coerceAtLeast(0f).dp
 
-        // Dynamic refraction depth & warping amount scaled by user preferences
+        // Dynamic refraction depth & warping amount scaled by user preferences and the profile
         val baseRefractionHeight = style.refractionHeight.value
-        val activeRefractionHeight = (config.refractionHeightDp * (if (baseRefractionHeight > 0f) baseRefractionHeight / 28f else 1f)).coerceAtLeast(0f).dp
+        val activeRefractionHeight = (config.refractionHeightDp * profile.refractionScale *
+            (if (baseRefractionHeight > 0f) baseRefractionHeight / 28f else 1f)).coerceAtLeast(0f).dp
 
         val baseRefractionAmount = style.refractionAmount.value
-        val activeRefractionAmount = (config.refractionAmountDp * (if (baseRefractionAmount > 0f) baseRefractionAmount / 28f else 1f)).coerceAtLeast(0f).dp
+        val activeRefractionAmount = (config.refractionAmountDp * profile.refractionScale *
+            (if (baseRefractionAmount > 0f) baseRefractionAmount / 28f else 1f)).coerceAtLeast(0f).dp
 
         val activeChromatic = config.chromaticAberration && style.chromaticAberration
         val activeHighlight = config.hasHighlight && style.hasHighlight
@@ -396,7 +657,7 @@ fun Modifier.liquidGlass(
         this
             .drawBackdrop(
                 backdrop = backdrop!!,
-                shape = { shape },
+                shape = { effectiveShape },
                 effects = {
                     vibrancy()
                     if (activeBlur > 0.dp) {
@@ -414,18 +675,22 @@ fun Modifier.liquidGlass(
                 shadow = if (activeShadow > 0.dp) { { Shadow(radius = activeShadow) } } else null,
                 innerShadow = if (activeInnerShadow > 0.dp) { { InnerShadow(radius = activeInnerShadow) } } else null
             )
-            .then(if (clarityFrostedColor != Color.Transparent) Modifier.background(clarityFrostedColor, shape) else Modifier)
-            .then(if (legibilityPlate != Color.Transparent) Modifier.background(legibilityPlate, shape) else Modifier)
-            .then(if (activeTint != Color.Transparent) Modifier.background(activeTint, shape) else Modifier)
-            .then(if (glassBorder != null) Modifier.border(glassBorder, shape) else Modifier)
-            .clip(shape)
+            .then(if (clarityFrostedColor != Color.Transparent) Modifier.background(clarityFrostedColor, effectiveShape) else Modifier)
+            .then(if (legibilityPlate != Color.Transparent) Modifier.background(legibilityPlate, effectiveShape) else Modifier)
+            .then(if (activeTint != Color.Transparent) Modifier.background(activeTint, effectiveShape) else Modifier)
+            // The sheen is drawn *over* the sampled backdrop and *under* the content, which is where a
+            // reflection physically is: light on the outside of the surface, not on the text.
+            .then(sheenModifier)
+            .then(if (glassBorder != null) Modifier.border(glassBorder, effectiveShape) else Modifier)
+            .clip(effectiveShape)
     } else {
         this
-            .then(if (fallbackShadowElevation > 0.dp) Modifier.shadow(fallbackShadowElevation, shape) else Modifier)
-            .background(fallbackColor, shape)
-            .then(if (activeTint != Color.Transparent) Modifier.background(activeTint, shape) else Modifier)
-            .border(fallbackBorder, shape)
-            .clip(shape)
+            .then(if (fallbackShadowElevation > 0.dp) Modifier.shadow(fallbackShadowElevation, effectiveShape) else Modifier)
+            .background(fallbackColor, effectiveShape)
+            .then(if (activeTint != Color.Transparent) Modifier.background(activeTint, effectiveShape) else Modifier)
+            .then(sheenModifier)
+            .border(fallbackBorder, effectiveShape)
+            .clip(effectiveShape)
     }
 }
 

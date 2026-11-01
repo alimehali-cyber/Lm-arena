@@ -51,35 +51,61 @@ class PersepolisFramingTest {
 
     @Test
     fun theCombinedLandscapeRetainsExactlyHalfTheFirstLinearSize() {
+        // Part 6: the window is a CONSTANT 178 m (twice the 89 m reference), not an aspect-grown one.
+        // It is what makes the tower — and the two fires burning in it — land at the same column on
+        // every screen; see theFireBurnsAtTheSamePlaceOnEveryScreen below for the assertion that
+        // matters. It widens only for a scene so wide and short that the stone could not otherwise
+        // clear the readout, and then only by what that needs.
         sizes.forEach { size ->
             val framing = framingFor(size)
-            val aspect = size.widthPx / size.heightPx
-            // The first integration's framing, recomputed: its model window, widened by the old cap.
-            val referenceVisibleWidth = maxOf(
-                PersepolisFraming.DEFAULT_VISIBLE_WIDTH_M,
-                aspect * PersepolisFraming.BUILDING_HEIGHT_M /
-                    PersepolisFraming.REFERENCE_MAX_BUILDING_HEIGHT_FRACTION
+            val fixedWindow = PersepolisFraming.DEFAULT_VISIBLE_WIDTH_M /
+                PersepolisFraming.LINEAR_SCALE_FRACTION
+            assertTrue(
+                "${size.label}: never narrower than the fixed window (${framing.visibleWidthMeters})",
+                framing.visibleWidthMeters >= fixedWindow - 0.01f
             )
+            if (size.label != "wide short scene 800x312dp") {
+                assertEquals(
+                    "${size.label}: exactly the fixed half-scale window",
+                    fixedWindow,
+                    framing.visibleWidthMeters,
+                    0.01f
+                )
+            }
             assertEquals(
-                "${size.label}: twice the reference visible width",
-                referenceVisibleWidth / PersepolisFraming.LINEAR_SCALE_FRACTION,
-                framing.visibleWidthMeters,
-                0.01f
-            )
-            assertEquals(
-                "${size.label}: half the reference pixels per metre",
-                0.5f * size.widthPx / referenceVisibleWidth,
+                "${size.label}: pixels per metre follow the window",
+                size.widthPx / framing.visibleWidthMeters,
                 framing.pxPerMeter,
                 0.001f
             )
         }
-        // On phone-shaped scenes that is concretely the 178 m window (twice the previous 89 m).
-        sizes.filter { it.widthPx / it.heightPx < 1.2f }.forEach { size ->
+    }
+
+    @Test
+    fun theFireBurnsAtTheSamePlaceOnEveryScreen() {
+        // Part 6, item 3. The fire is a world point baked into the tower, so the only thing that can
+        // move it on screen is the framing. With a fixed window and a fixed 30 % anchor its column is
+        // `(0.30 + 108.14 / 178)` of the width — the same number of metres from the same edge, on every
+        // one of these devices, from a 320 dp phone to a 1200 dp tablet.
+        val expectedColumn = PersepolisFraming.CENTER_FRACTION_FROM_LEFT +
+            PersepolisFraming.MIL_TOWER_CENTER_VIEW_OFFSET_M / 178f
+        sizes.forEach { size ->
+            val framing = framingFor(size)
             assertEquals(
-                "${size.label}: half-scale phone window",
-                178f,
-                framingFor(size).visibleWidthMeters,
-                0.001f
+                "${size.label}: the tower's column is the same fraction of the width",
+                expectedColumn,
+                framing.milTowerCenterXPx / size.widthPx,
+                0.01f
+            )
+            // …and it is on the frame, not cropped off it.
+            assertTrue(
+                "${size.label}: the tower is inside the frame (${framing.milTowerCenterXPx / size.widthPx})",
+                framing.milTowerCenterXPx in size.widthPx * 0.85f..size.widthPx * 0.97f
+            )
+            // Vertically it stays in the ground band, tied to the horizon rather than to the device.
+            assertTrue(
+                "${size.label}: the toe stays in the ground band (${framing.toeYPx / size.heightPx})",
+                framing.toeYPx / size.heightPx in 0.78f..PersepolisFraming.MAX_TOE_FRACTION + 0.001f
             )
         }
     }
@@ -194,7 +220,6 @@ class PersepolisFramingTest {
             assertTrue(
                 "${size.label}: toe is farther back, with a deeper foreground below it",
                 framing.toeYPx >= composition.horizonY + size.heightPx * 0.095f &&
-                    framing.toeYPx <= size.heightPx * 0.86f &&
                     framing.toeYPx <= size.heightPx * PersepolisFraming.MAX_TOE_FRACTION + 0.5f &&
                     framing.toeYPx < size.heightPx
             )
@@ -230,10 +255,16 @@ class PersepolisFramingTest {
                 "${size.label}: tallest column clears the header band",
                 framing.tallestColumnTopYPx > size.heightPx * 0.36f
             )
-            val buildingFraction = (framing.toeYPx - framing.tallestColumnTopYPx) / size.heightPx
-            assertTrue(
-                "${size.label}: building height capped ($buildingFraction)",
-                buildingFraction <= PersepolisFraming.MAX_BUILDING_HEIGHT_FRACTION + 0.001f
+            // With a fixed world window the building is a constant fraction of the frame's *width*
+            // on every device (23.6 m of the 178 m window), rather than a cap against its height —
+            // which is the same statement as "it is drawn at the same scale everywhere".
+            val buildingWidthFraction =
+                (framing.toeYPx - framing.tallestColumnTopYPx) / size.widthPx
+            assertEquals(
+                "${size.label}: building height is a constant fraction of the frame width",
+                PersepolisFraming.BUILDING_HEIGHT_M / 178f,
+                buildingWidthFraction,
+                0.002f
             )
         }
     }

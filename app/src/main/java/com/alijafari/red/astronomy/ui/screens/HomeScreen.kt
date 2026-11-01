@@ -379,9 +379,9 @@ fun HomeScreen(
                 ) {
                     // The feed scrolls over whatever the user has behind the app — the theme's own
                     // background, the live sky, or a photographic backdrop — so a section title cannot be
-                    // bare ink on an unknown picture. It carries its own surface, taken from the theme,
-                    // which is the same surface the theme measured this text's contrast against; that is
-                    // what makes it legible on every backdrop instead of only on the dark one.
+                    // ink of a fixed colour on an unknown picture. Part 6 removed the plate it used to
+                    // carry and moved the contrast into the ink itself: the header reads the backdrop's
+                    // brightness and picks a colour that wins on it.
                     HomeSectionHeader(
                         title = if (isFa) "امشب در آسمان" else "What's Up Tonight",
                         subtitle = if (isFa) "رویدادهای شاخص نجومی برای مختصات شما"
@@ -927,14 +927,18 @@ private data class HeroCardMetrics(
 }
 
 /**
- * A Home section title that survives its backdrop.
+ * A Home section title with **no surface under it**, in ink that adapts to what is behind it.
  *
- * Home is the one screen that scrolls over content the app does not own: the theme background, the live
- * sky, or a photographic backdrop. Plain ink on that is unreadable the moment the picture behind it is
- * bright, which is exactly what happened to "What's Up Tonight". The title therefore carries its own
- * surface — `surfaceElevated`, the surface the theme resolved `textPrimary`/`textSecondary` against — so
- * the contrast the theme guarantees applies here too, in every theme, over every backdrop. It is
- * wrap-content and sits on the start side: a label, not a banner.
+ * Home scrolls over content the app does not own: the theme background, the live sky, or a photographic
+ * backdrop. The previous answer was to give the title its own surface in the theme's colours, which is
+ * legible but reads as a panel — the plate the user asked to be removed.
+ *
+ * The title is therefore bare text, and the problem the plate was solving is solved in the ink instead:
+ * [LocalBackdropLuminance] carries the *measured* brightness of whatever is behind the app (the theme's
+ * own background, the sky at this instant, or a photograph's measured mean), and [backdropInkFor] picks
+ * near-black or near-white from the contrast ratio against it. In the ambiguous middle of the range —
+ * dusk, or a washed-out photo — a halo in the opposite ink keeps the strokes separated from the pixels
+ * behind them. Nothing sits between the text and the backdrop; only the text's own colour does the work.
  */
 @Composable
 private fun HomeSectionHeader(
@@ -942,26 +946,32 @@ private fun HomeSectionHeader(
     subtitle: String?,
     modifier: Modifier = Modifier
 ) {
+    val ink = backdropInkFor(LocalBackdropLuminance.current)
+
+    // A text shadow, not a background: it is invisible on a dark backdrop, invisible on a white one, and
+    // only separates the glyphs where the backdrop itself is mid-bright.
+    fun halo(): Shadow? = if (ink.halo.alpha <= 0.01f) {
+        null
+    } else {
+        Shadow(color = ink.halo, offset = Offset.Zero, blurRadius = 7f)
+    }
+
     Column(
-        modifier = modifier
-            .clip(squircleShape(RedCornerRadius.md))
-            .background(RedTheme.colors.surfaceElevated.copy(alpha = 0.92f))
-            .border(0.6.dp, RedTheme.colors.border, squircleShape(RedCornerRadius.md))
-            .padding(horizontal = RedSpacing.md, vertical = RedSpacing.sm),
+        modifier = modifier.padding(horizontal = RedSpacing.xs),
         verticalArrangement = Arrangement.spacedBy(1.dp)
     ) {
         Text(
             text = title,
-            style = RedTypographyTokens.sectionTitle,
-            color = RedTheme.colors.textPrimary,
+            style = RedTypographyTokens.sectionTitle.copy(shadow = halo()),
+            color = ink.primary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         if (subtitle != null) {
             Text(
                 text = subtitle,
-                style = RedTypographyTokens.caption,
-                color = RedTheme.colors.textSecondary,
+                style = RedTypographyTokens.caption.copy(shadow = halo()),
+                color = ink.secondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1443,8 +1453,13 @@ private fun EclipseCard(
                         // The plate is a square on the card's left and the card is much wider than the
                         // two of them need: the circumstances start right beside the plate (2 dp, not a
                         // gutter) and get the rest of the sheet, ending on the card's own inner margin.
+                        // Part 6, item 2: the circumstances sit 8 mm further towards the card's outer
+                        // edge than they used to (8 mm = 50.4 dp at 160 dpi). `offset` is layout-direction
+                        // aware, so this is physically leftwards in the Persian build — which is what was
+                        // asked for — and outwards from the plate in either direction, never on top of it.
                         modifier = detailsWeight
                             .fillMaxHeight()
+                            .offset(x = HomeTextShift.eclipseCard)
                             .padding(start = RedSpacing.xxs, end = RedSpacing.sm)
                     )
                 }
@@ -1610,7 +1625,11 @@ private fun MoonCardReadout(
     val accent = readoutAccentColor(uiState.skyCanvasTheme, sunHoriz.altitudeDeg)
 
     Column(
+        // Part 6, item 5: the readout sits 1.5 cm further towards the card's outer edge than it used to
+        // (1.5 cm = 94.5 dp at 160 dpi) — physically leftwards in the Persian build, as asked, and away
+        // from the Moon's disc in either direction so the two never collide.
         modifier = modifier
+            .offset(x = HomeTextShift.moonCard)
             .padding(horizontal = RedSpacing.md)
             .testTag("home_moon_card_readout"),
         verticalArrangement = Arrangement.Center,
@@ -1681,6 +1700,21 @@ private fun MoonCardReadout(
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+/**
+ * The measured distances the two hero cards' text moved in Part 6.
+ *
+ * Spelled out in dp — one millimetre is 6.299 dp at the 160 dpi baseline the design system uses — so the
+ * numbers in the code are the numbers that were asked for, and `HomeMoonCardLayoutTest` can check them
+ * without a device.
+ */
+internal object HomeTextShift {
+    /** Item 2: "move the texts on the eclipses card 8 mm to the left." 8 × 6.299. */
+    val eclipseCard: Dp = 50.4.dp
+
+    /** Item 5: "move all the texts on the moon card 1.5 cm to the left." 15 × 6.299. */
+    val moonCard: Dp = 94.5.dp
 }
 
 /**

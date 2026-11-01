@@ -164,10 +164,21 @@ size into the view's three inputs (`visibleWidthMeters`, `baseFractionFromTop`,
 `centerFractionFromLeft`) and the platform/slope pixel bounds used by the ground painter. Rules, in
 priority order:
 
-1. **Exactly half the first Persepolis linear size, retained.** The previous framing's visible
-   width — the earlier model's 89 m window on phones, or the aspect-grown width required by its
-   34 % building-height cap on wide scenes — is still doubled. The combined file's own 116 m
-   default is therefore deliberately not used in Home: it would undo the approved 50 % reduction.
+1. **Exactly half the first Persepolis linear size, retained — and, since Part 6, a constant on
+   every screen.** The window is the earlier model's 89 m phone window, doubled to **178 m of world
+   width at every size, density and aspect ratio**; the file's own 116 m default is still
+   deliberately not used in Home, because it would undo the approved 50 % reduction. The window
+   used to grow with the scene's aspect ratio (`aspect × 23.6 m / 34 %`), so that a wide scene could
+   not crop the building vertically. The cost was that the same world moved sideways from device to
+   device: the tower sat at ~89 % of the width on a phone-shaped scene and at ~76 % on a wider one.
+   Because the two fires are *baked into the tower*, that is exactly the bug the user reported —
+   "the fire doesn't show up in the same place on every phone" — a fire that appeared to wander
+   between the openings' positions on different devices. With a fixed window the tower's column is
+   the same fraction of the frame everywhere: `0.30 + 108.14 / 178 = 0.9075`, asserted for the whole
+   size matrix by `PersepolisFramingTest.theFireBurnsAtTheSamePlaceOnEveryScreen`.
+   The window widens only for a scene so wide and short that the stone could not otherwise clear the
+   readout (the 800 × 312 dp case needs 179 m); that loop is bounded to three iterations and never
+   runs on a phone-shaped scene.
 2. **Persepolis left, Mil-e Azhdaha alone at the right.** The combined-frame anchor `(0, 0, -2)`
    still sits at 0.30 of the width, so every Persepolis landmark is unchanged: exact projection
    puts its detailed façade at about 2–50 % of a phone scene and its cut-back platform ends near
@@ -410,3 +421,9 @@ both sites back into the living plain.
   `FIRE_LIGHT_COLOR` and `FIRE_LIGHT_RANGE_M` (how far and how warm their light is on the stone),
   the `FIRES` list (one entry per burning opening), `fireNightFactor` (when they are lit) and
   `fireFlicker` (how they move).
+- Brightness: `FIRE_BRIGHTNESS_GAIN` (1.20 since Part 6). It multiplies both things that make a fire
+  visible — `FIRE_LIGHT_COLOR` (the light it throws on the stone) and `FIRE_HALO_TINT` (the halo
+  around it) — and the same 1.20 is applied to the flame's own emission in `FRAGMENT_SHADER_FIRE`
+  (`col *= 1.20`). One gain on all three channels is what makes it read as a *stronger* fire rather
+  than a redder one; the reach (`FIRE_LIGHT_RANGE_M = 3.20 m`) is deliberately unchanged, so it is
+  brighter, not wider.

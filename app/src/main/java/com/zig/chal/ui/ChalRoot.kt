@@ -344,7 +344,7 @@ internal fun ChalInterface(params: ChalSimulationParams, snapshot: ChalRenderer.
         }
         @Composable
         fun header() {
-            ChalHeader(isPersian, backend.native, fontScale <= 1.8f, actions.back, { onShowUiChange(false) },
+            ChalHeader(isPersian, { onShowUiChange(false) },
                 if (snapshot.isReady) ({ showMetrics = true }) else null)
             if (snapshot.isReady && fontScale <= 1.8f && contentHeight >= 360.dp) {
                 ChalTelemetry(snapshot, isPersian, backend.native, compact = true)
@@ -426,16 +426,17 @@ internal fun ChalInterface(params: ChalSimulationParams, snapshot: ChalRenderer.
     }
 }
 
+/**
+ * The Chal chrome: two controls, no band.
+ *
+ * There used to be a back button and a centred "CHAL" title here, which is exactly the strip the user
+ * asked to be removed from the Lab and its sub-screens (Part 6, item 8). What is left is what the
+ * simulation actually needs while it runs: the live readouts and a way to get the interface out of the
+ * way. Leaving goes through the system back gesture (see the `BackHandler` in the root).
+ */
 @Composable
-private fun ChalHeader(persian: Boolean, native: Boolean, showSubtitle: Boolean, onBack: () -> Unit, onHide: () -> Unit, onMetrics: (() -> Unit)?) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        ChalChromeButton(Icons.AutoMirrored.Filled.ArrowBack, if (persian) "بازگشت به آزمایشگاه" else "Back to Lab", onBack)
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("CHAL", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (showSubtitle) Text(if (native) { if (persian) "رندر بومی · Vulkan" else "Native · Vulkan" }
-                else { if (persian) "تخمینی · OpenGL" else "Approximate · OpenGL" },
-                color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
+private fun ChalHeader(persian: Boolean, onHide: () -> Unit, onMetrics: (() -> Unit)?) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End) {
         onMetrics?.let { ChalChromeButton(Icons.Default.Analytics, if (persian) "نمایش داده‌های زنده" else "Show live readouts", it) }
         ChalChromeButton(Icons.Default.VisibilityOff, if (persian) "پنهان کردن رابط" else "Hide interface", onHide, Modifier.testTag("chal_hide_ui"))
     }

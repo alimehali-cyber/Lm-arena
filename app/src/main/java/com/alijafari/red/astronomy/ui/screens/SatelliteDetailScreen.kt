@@ -150,89 +150,48 @@ fun SatelliteDetailScreen(
         modifier = Modifier
             .fillMaxSize()
             .testTag("satellite_detail_screen"),
-        topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
-                ) {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(RedTheme.colors.surfaceElevated.copy(alpha = 0.7f))
-                            .border(0.5.dp, RedTheme.colors.border.copy(alpha = 0.4f), CircleShape)
-                            .testTag("sat_detail_back")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = RedTheme.colors.textPrimary,
-                            modifier = Modifier.size(RedIconSize.sm)
-                        )
-                    }
-
-                    Column {
-                        Text(
-                            text = if (isFa) satelliteItem.nameFa else satelliteItem.nameEn,
-                            style = RedTypographyTokens.sectionHeading,
-                            color = RedTheme.colors.textPrimary
-                        )
-                        Text(
-                            text = if (isFa) "شناسه نوراد: ${satelliteItem.noradId} • ${satelliteItem.designation}".toPersianDigits()
-                            else "NORAD ${satelliteItem.noradId} • ${satelliteItem.designation}",
-                            style = RedTypographyTokens.caption,
-                            color = RedTheme.colors.textSecondary
-                        )
-                    }
-                }
-
-                if (!isOnline) {
-                    Surface(
-                        shape = RedShapes.capsule,
-                        color = RedTheme.colors.statusError.copy(alpha = 0.15f),
-                        border = BorderStroke(0.5.dp, RedTheme.colors.statusError.copy(alpha = 0.35f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.WifiOff,
-                                contentDescription = "Offline",
-                                tint = RedTheme.colors.statusError,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Text(
-                                text = if (isFa) "آفلاین" else "Offline",
-                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
-                                color = RedTheme.colors.statusError
-                            )
-                        }
-                    }
-                }
-            }
-        },
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
         Column(
+            // The detail screen had a title band with a back button; both are gone (Part 6, item 8),
+            // so it takes the status-bar inset itself and leaves the way back to the system.
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.md),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)
         ) {
+            // The offline state used to live in the removed band. It is still worth saying, so it is a
+            // chip above the data rather than a row of chrome.
+            if (!isOnline) {
+                Surface(
+                    shape = RedShapes.capsule,
+                    color = RedTheme.colors.statusError.copy(alpha = 0.15f),
+                    border = BorderStroke(0.5.dp, RedTheme.colors.statusError.copy(alpha = 0.35f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.WifiOff,
+                            contentDescription = "Offline",
+                            tint = RedTheme.colors.statusError,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = if (isFa) "آفلاین" else "Offline",
+                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                            color = RedTheme.colors.statusError
+                        )
+                    }
+                }
+            }
+
             // 1. Hero Status Card
             LiquidGlassSurface(
                 modifier = Modifier.fillMaxWidth(),

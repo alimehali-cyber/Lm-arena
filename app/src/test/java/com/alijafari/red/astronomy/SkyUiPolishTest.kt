@@ -130,21 +130,52 @@ class SkyUiPolishTest {
     }
 
     @Test
-    fun whatsUpTonightIsReadableOnEveryBackdrop() {
-        // Home scrolls over the theme background, the live sky or a photo backdrop, so a section title
-        // cannot be bare ink on an unknown picture: it carries the surface the theme measured its ink
-        // against.
-        assertTrue("the title has its own surface", home.contains("private fun HomeSectionHeader("))
-        assertTrue("taken from the theme", home.contains(".background(RedTheme.colors.surfaceElevated.copy(alpha = 0.92f))"))
-        assertTrue("the title uses the readable ink", home.contains("color = RedTheme.colors.textPrimary,"))
+    fun whatsUpTonightHasNoPlateAndAdaptsItsInkToTheBackdrop() {
+        // Part 6, item 1. The Part-5 answer to "unreadable over a bright backdrop" was a surface behind
+        // the title. The user asked for the surface gone and the *text colour* to do the work, so the
+        // header now reads the backdrop's resolved brightness and picks its ink from the contrast ratio.
+        assertTrue("the title is still its own composable", home.contains("private fun HomeSectionHeader("))
+        assertFalse(
+            "no surface plate any more",
+            home.contains(".background(RedTheme.colors.surfaceElevated.copy(alpha = 0.92f))")
+        )
+        assertTrue(
+            "the ink comes from the backdrop's measured brightness",
+            home.contains("val ink = backdropInkFor(LocalBackdropLuminance.current)")
+        )
+        assertTrue("the title is drawn in that ink", home.contains("color = ink.primary,"))
+        assertTrue("and so is the subtitle", home.contains("color = ink.secondary,"))
+        assertTrue(
+            "the halo is a text shadow, not a background",
+            home.contains("Shadow(color = ink.halo, offset = Offset.Zero, blurRadius = 7f)")
+        )
+        // The whole point of the item: the header function must not build a plate of any kind.
+        val headerStart = home.indexOf("private fun HomeSectionHeader(")
+        val headerBody = home.substring(headerStart, home.indexOf("\n}", headerStart))
+        assertFalse("the header draws no plate", headerBody.contains(".background("))
+        assertFalse("and no border or clip to fake one", headerBody.contains(".border("))
+        assertFalse("nor does it clip to a shape", headerBody.contains(".clip("))
         assertTrue(
             "and the section uses it",
             home.contains("HomeSectionHeader(\n                        title = if (isFa) \"امشب در آسمان\" else \"What's Up Tonight\",")
         )
-        assertFalse(
-            "the bare header that vanished into bright backdrops is gone",
-            home.contains("RedSectionHeader(\n                        title = if (isFa) \"امشب در آسمان\"")
-        )
+    }
+
+    @Test
+    fun theBackdropBrightnessIsResolvedFromWhatTheBackdropIs() {
+        // The number the header reads is not a guess about the theme: it is the mean brightness of the
+        // chosen photograph, the sky at this hour, or the theme's own background.
+        val ink = source("com/alijafari/red/astronomy/ui/theme/BackdropInk.kt")
+        assertTrue("a composition local carries it", ink.contains("val LocalBackdropLuminance = staticCompositionLocalOf"))
+        assertTrue("the ink is chosen by contrast ratio", ink.contains("fun backdropInkFor(luminance: Float): BackdropInk"))
+        assertTrue("night skies are dark", ink.contains("else -> 0.04f"))
+        assertTrue("daylight is bright", ink.contains("day >= 6.0 -> 0.62f"))
+        assertTrue("the photographs' brightness is measured, not estimated", ink.contains("AppBackdropMode.NGC_1929 -> 0.162f"))
+        assertTrue("and the other one too", ink.contains("AppBackdropMode.CEPHEUS -> 0.202f"))
+
+        val activity = source("com/alijafari/red/astronomy/MainActivity.kt")
+        assertTrue("MainActivity resolves it", activity.contains("appBackdropLuminance("))
+        assertTrue("and provides it to the tree", activity.contains("LocalBackdropLuminance provides backdropLuminance"))
     }
 
     @Test

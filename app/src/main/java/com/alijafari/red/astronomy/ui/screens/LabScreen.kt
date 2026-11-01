@@ -119,8 +119,11 @@ fun LabScreen(
         )
     } else {
         LazyColumn(
+            // The screen owns the status-bar inset now that the app has no shared top band (Part 6,
+            // item 8): the list starts below the clock, and keeps doing so on every device.
             modifier = modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .testTag("lab_screen"),
             contentPadding = PaddingValues(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)

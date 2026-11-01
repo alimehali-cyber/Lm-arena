@@ -20,6 +20,10 @@ import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.backdrop.LiveSkyPolicy
 import com.alijafari.red.astronomy.ui.backdrop.SkyLiveClock
+import com.alijafari.red.astronomy.ui.theme.CornerSmoothness
+import com.alijafari.red.astronomy.ui.theme.GlassFilmPreset
+import com.alijafari.red.astronomy.ui.theme.GlassShaderProfile
+import com.alijafari.red.astronomy.ui.theme.GlassSheen
 import com.alijafari.red.astronomy.ui.theme.LiquidGlassConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -118,7 +122,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 tintAlpha = prefs.getFloat(
                     "liquid_glass_tint_alpha",
                     LiquidGlassConfig.DEFAULT_TINT_ALPHA
-                )
+                ),
+                tintHueA = prefs.getFloat("liquid_glass_tint_hue_a", LiquidGlassConfig.DEFAULT_HUE_A),
+                tintHueB = prefs.getFloat("liquid_glass_tint_hue_b", LiquidGlassConfig.DEFAULT_HUE_B),
+                tintMix = prefs.getFloat("liquid_glass_tint_mix", 0f),
+                tintSaturation = prefs.getFloat("liquid_glass_tint_saturation", 0f),
+                shaderProfile = enumPref(
+                    prefs.getString("liquid_glass_shader_profile", null),
+                    GlassShaderProfile.BALANCED
+                ),
+                sheen = enumPref(prefs.getString("liquid_glass_sheen", null), GlassSheen.TOP),
+                sheenStrength = prefs.getFloat(
+                    "liquid_glass_sheen_strength",
+                    LiquidGlassConfig.DEFAULT_SHEEN_STRENGTH
+                ),
+                edgeSmoothing = prefs.getFloat("liquid_glass_edge_smoothing", CornerSmoothness.DEFAULT)
             ),
             language = try {
                 AppLanguage.valueOf(prefs.getString("app_language", AppLanguage.PERSIAN.name) ?: AppLanguage.PERSIAN.name)
@@ -291,6 +309,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .putBoolean("liquid_glass_highlight", config.hasHighlight)
             .putBoolean("liquid_glass_shadow", config.hasShadow)
             .putFloat("liquid_glass_tint_alpha", config.tintAlpha)
+            .putFloat("liquid_glass_tint_hue_a", config.tintHueA)
+            .putFloat("liquid_glass_tint_hue_b", config.tintHueB)
+            .putFloat("liquid_glass_tint_mix", config.tintMix)
+            .putFloat("liquid_glass_tint_saturation", config.tintSaturation)
+            .putString("liquid_glass_shader_profile", config.shaderProfile.name)
+            .putString("liquid_glass_sheen", config.sheen.name)
+            .putFloat("liquid_glass_sheen_strength", config.sheenStrength)
+            .putFloat("liquid_glass_edge_smoothing", config.edgeSmoothing)
             .apply()
         _uiState.update { it.copy(liquidGlassConfig = config, isLiquidGlassEnabled = config.enabled) }
     }
@@ -299,6 +325,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val defaultConfig = LiquidGlassConfig()
         updateLiquidGlassConfig(defaultConfig)
     }
+
+    /**
+     * Applies a named film recipe (the colour-mixing presets in Settings) in one write.
+     *
+     * The preset and the sliders write the same four numbers, so picking a preset and then dragging a
+     * slider never fights a hidden state: the preset *is* a slider position.
+     */
+    fun applyGlassFilmPreset(preset: GlassFilmPreset) {
+        updateLiquidGlassConfig(
+            _uiState.value.liquidGlassConfig.copy(
+                tintHueA = preset.hueA,
+                tintHueB = preset.hueB,
+                tintMix = preset.mix,
+                tintSaturation = preset.saturation,
+                tintAlpha = preset.alpha
+            )
+        )
+    }
+
+    /** Forgiving enum read: a value written by a newer build falls back instead of throwing. */
+    private inline fun <reified T : Enum<T>> enumPref(stored: String?, fallback: T): T =
+        if (stored == null) fallback else enumValues<T>().firstOrNull { it.name == stored } ?: fallback
 
     fun setSkyCanvasTheme(theme: SkyCanvasTheme) {
         prefs.edit().putString("sky_canvas_theme", theme.name).apply()

@@ -2248,15 +2248,23 @@ private const val FIRE_HALO_OUTER_R_M = 2.40f
  *  piers and the cap slabs above it, gone before it can climb down the shaft. */
 private const val FIRE_LIGHT_RANGE_M = 3.20f
 
+/** Part 6, item 3: the fire is 20 % brighter than the Part-5 bake, measured on the
+ *  two things that make it visible — the light it throws on the stone and the halo
+ *  around the flame. One multiplier, applied to both, so the flame keeps its hue
+ *  and its falloff and simply gains intensity: brightness is not saturation, and
+ *  scaling the three channels by the same number is what makes it read as a
+ *  stronger fire rather than a redder one. */
+private const val FIRE_BRIGHTNESS_GAIN = 1.20f
+
 /** The fire's light, colour × intensity at full night: the warm end of a
  *  wood flame (≈1900 K blackbody), bright enough to beat the Moon on the stone
- *  it reaches and nothing more. */
-private val FIRE_LIGHT_COLOR = floatArrayOf(2.25f, 1.10f, 0.38f)
+ *  it reaches and nothing more. Already includes the Part-6 20 % gain. */
+private val FIRE_LIGHT_COLOR = floatArrayOf(2.25f * FIRE_BRIGHTNESS_GAIN, 1.10f * FIRE_BRIGHTNESS_GAIN, 0.38f * FIRE_BRIGHTNESS_GAIN)
 
 /** The halo's colour: the same flame seen through its own smoke — warmer and
  *  redder than the light it throws, which is why the glow and the pool of
  *  light under it are never quite the same hue. */
-private val FIRE_HALO_TINT = floatArrayOf(1.00f, 0.50f, 0.15f)
+private val FIRE_HALO_TINT = floatArrayOf(1.00f * FIRE_BRIGHTNESS_GAIN, 0.50f * FIRE_BRIGHTNESS_GAIN, 0.15f * FIRE_BRIGHTNESS_GAIN)
 
 /**
  * How lit the fire is, from the Sun's true altitude (degrees): 0 in daylight or
@@ -2325,6 +2333,9 @@ void main(){
   // only where the flame is thin. Blue at the very root, as a wood fire is.
   float hot = (1.0 - smoothstep(0.0, 0.62, d)) * (1.0 - smoothstep(0.03, 0.55, y));
   vec3 col = mix(vec3(0.95, 0.28, 0.045), vec3(1.0, 0.60, 0.16), body);
+  // Part 6, item 3: the flame itself is 20 % brighter, the same gain as the light
+  // it throws, so the emissive and the illumination stay one fire.
+  col *= 1.20;
   col = mix(col, vec3(1.0, 0.93, 0.72), hot*hot);
   col = mix(col, vec3(0.55, 0.66, 1.0), (1.0 - smoothstep(0.0, 0.10, y)) * 0.35);
   float a = clamp(body*0.95 + hot*0.30, 0.0, 1.0) * uAlpha;

@@ -256,21 +256,50 @@ object PersepolisFraming {
     ): Result {
         val w = widthPx.coerceAtLeast(1f)
         val h = heightPx.coerceAtLeast(1f)
-        val aspect = w / h
 
-        // Rule 1: half the first Persepolis framing's linear size, at every aspect.
-        val referenceVisibleWidth = max(
-            DEFAULT_VISIBLE_WIDTH_M,
-            aspect * BUILDING_HEIGHT_M / REFERENCE_MAX_BUILDING_HEIGHT_FRACTION
-        )
-        val visibleWidth = referenceVisibleWidth / LINEAR_SCALE_FRACTION
-        val pxPerMeter = w / visibleWidth
+        // Rule 1: half the first Persepolis framing's linear size — and, since Part 6, exactly the
+        // same number of metres of world *on every screen*.
+        //
+        // This used to grow with the scene's aspect ratio (`aspect × height / 34 %`), so that a wide
+        // scene could not crop the building vertically. The cost was that the same world moved
+        // horizontally from device to device: on a phone-shaped scene the window was 178 m and the tower
+        // sat at ~89 % of the width, while on a wider one it was 230 m and the same tower sat at ~76 %.
+        // The fire burns at a fixed point on that tower, so it appeared to wander — the bug the user
+        // reported ("the fire doesn't show up in the same place on every phone").
+        //
+        // The window is now a constant: [DEFAULT_VISIBLE_WIDTH_M] metres of world, doubled by
+        // [LINEAR_SCALE_FRACTION]. Nothing about the model's placement depends on the device's aspect,
+        // density or size any more, so the tower — and the two fires in it — land at the same fractions
+        // of the frame everywhere. The vertical safety the old term provided is already covered: the
+        // toe is pinned to [MAX_TOE_FRACTION] of the height, and `autoFitHeight` in the GL camera needs
+        // more than five times the reference aspect before it would widen the view at all.
         val modelCenterX = w * CENTER_FRACTION_FROM_LEFT
+        val fixedVisibleWidth = DEFAULT_VISIBLE_WIDTH_M / LINEAR_SCALE_FRACTION
 
-        // Rule 4 (evaluated before the toe is placed): the tallest stone under the readout.
-        val readoutGuardTopM = READOUT_GUARD_STRUCTURES
+        /** The tallest stone whose projected span reaches the readout, at this scale. */
+        fun guardTopFor(pxPerMeter: Float): Float = READOUT_GUARD_STRUCTURES
             .filter { modelCenterX + (it.worldX - it.halfWidthM) * pxPerMeter < readoutRightPx }
             .maxOfOrNull { it.topM } ?: 0f
+
+        // The window is the fixed one unless the stone would have to go below the frame's own floor to
+        // clear the readout. That can only happen on a very wide, very short scene (a landscape tablet),
+        // where the fixed window makes the building taller than the ground band can hold. Widening the
+        // window is the only way out of that — there is no room to move the toe further down — so the
+        // view is widened *just* until the guard fits, and no further. On every phone-shaped scene the
+        // loop never runs, so the window and the tower's column are identical on all of them.
+        var visibleWidth = fixedVisibleWidth
+        var pxPerMeter = w / visibleWidth
+        var readoutGuardTopM = guardTopFor(pxPerMeter)
+        val roomBelowReadout = (h * MAX_TOE_FRACTION - readoutBottomPx - readoutClearancePx)
+        for (attempt in 0 until 3) {
+            val need = readoutGuardTopM * pxPerMeter
+            if (need <= roomBelowReadout || readoutGuardTopM <= 0.01f || roomBelowReadout <= 1f) break
+            val targetPxPerMeter = roomBelowReadout / readoutGuardTopM
+            if (targetPxPerMeter >= pxPerMeter) break
+            visibleWidth = w / targetPxPerMeter
+            pxPerMeter = targetPxPerMeter
+            readoutGuardTopM = guardTopFor(pxPerMeter)
+        }
 
         // Rules 3+4: the distant toe, lowered only as far as the readout requires.
         val distantToeY = horizonYPx + h * DISTANT_TOE_BELOW_HORIZON_FRACTION

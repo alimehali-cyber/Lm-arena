@@ -319,10 +319,11 @@ and that the ground band sits below the horizon.
 - Height of the plate's shadow: `elevationDp` on `EclipseRender` (10 dp on the Home card, 8 dp in the
   Eclipses window's rows).
 - Cloud presence per theme: `ScenePalette.cloudStrength`.
-- Section titles outside the hero (the feed): `HomeSectionHeader` in `HomeScreen`. It is deliberately not a
-  bare `RedSectionHeader`, because the feed scrolls over whatever the user has chosen behind the app; the
-  header carries `surfaceElevated` (the surface the theme measured its text tokens against) so it stays
-  legible over the theme background, the live sky and both photographic backdrops.
+- Section titles outside the hero (the feed): `HomeSectionHeader` in `HomeScreen`. Since Part 6 it is **bare
+  text with no plate**, and the legibility that the plate used to buy is bought by the ink instead: the
+  root provides `LocalBackdropLuminance` (see §6) and `backdropInkFor` picks near-black or near-white from
+  the measured contrast ratio against it, plus a text-shadow halo through the ambiguous middle of the
+  range. Nothing sits between the title and the backdrop.
 - Motion cost: `SCENE_MOTION_FRAME_MS` in `HeroSkyCanvas` (42 ms ≈ 24 fps).
 - Scene tail: the scene does not end at the canvas's bottom edge. The canvas's own bottom
   colour continues *below* the canvas and dissolves in alpha to full transparency over
@@ -354,3 +355,38 @@ and that the ground band sits below the horizon.
   through it formed one glowing white slab on the horizon. The ranges are now opaque and
   only lightly hazed, the palette haze's daylight mix is capped, and no pooling rect
   remains. Only the ridges' own silhouettes may cross the horizon.
+
+
+## 6. Part 6 — the ink that reads the backdrop, and the two card shifts
+
+### The backdrop's brightness is measured, not assumed
+
+`ui/theme/BackdropInk.kt` resolves one number for the whole app and publishes it as
+`LocalBackdropLuminance`:
+
+| Backdrop | Where the number comes from |
+|---|---|
+| `AppBackdropMode.NONE` | the theme's own `background`, through `inkedLuminance` |
+| `LIVE_SKY` | the Sun's altitude at the shown instant — daylight 0.62, civil twilight 0.26, astronomical night 0.04, per `SkyCanvasTheme` |
+| `NGC_1929` / `CEPHEUS` | **measured**: the mean sRGB luma of the shipped drawable (0.162 / 0.202) |
+
+`backdropInkFor(luminance)` then picks the ink by **measured WCAG contrast ratio**, not by a threshold
+constant, so the crossover sits where white and black actually swap (~0.18 linear luminance). It also
+returns the *losing* ink as a halo with an alpha that rises where the winner is weakest and falls to zero
+at both ends of the range. Two consequences worth keeping:
+
+- a new photographic backdrop must get its measured number into `measuredPhotoLuminance`, which is the
+  moment to think about whether text over it is readable;
+- the halo is a text shadow, never a background: it is invisible on a dark backdrop and on a white one.
+
+### The two text shifts (Part 6, items 2 and 5)
+
+| Card | Shift | Source of the number |
+|---|---|---|
+| Eclipse card details | `50.4 dp` | 8 mm × 6.299 dp/mm |
+| Moon card readout | `94.5 dp` | 15 mm × 6.299 dp/mm |
+
+Both live in `HomeTextShift` and are applied with `Modifier.offset(x = …)`, which is layout-direction
+aware: in the Persian build that is physically leftwards, exactly as asked, and in either direction it
+moves the text **away from the picture** rather than on top of it. The cards clip to their own shape, so
+a long line ellipsizes instead of spilling out of the card.

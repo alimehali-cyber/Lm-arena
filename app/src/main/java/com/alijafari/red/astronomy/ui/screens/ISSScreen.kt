@@ -344,8 +344,11 @@ fun ISSScreen(
             .background(Color.Transparent)
     ) {
         Column(
+            // Owns its status-bar inset: the shared top band that used to provide it is gone (Part 6,
+            // item 8), so this screen must not slide under the clock.
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.md),
             verticalArrangement = Arrangement.spacedBy(RedSpacing.lg)

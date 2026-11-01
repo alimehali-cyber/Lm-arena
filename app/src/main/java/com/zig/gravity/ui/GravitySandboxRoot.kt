@@ -450,36 +450,10 @@ fun GravitySandboxRoot(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(c.chrome)
-                            .border(1.dp, c.chromeBorder, CircleShape)
-                            .clickableTag("sandbox_back") { onBack() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = if (fa) "بازگشت" else "Back",
-                            tint = c.onSurface,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = if (fa) "میز گرانش" else "Gravity table",
-                            color = c.onSurface,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = if (fa) vm.preset.titleFa else vm.preset.titleEn,
-                            color = c.onSurfaceDim,
-                            fontSize = 11.sp
-                        )
-                    }
+                    // No title band and no back chip (Part 6, item 8): the sandbox is a place, not a
+                    // page with a header. The system back gesture leaves it, and the controls that
+                    // belong to the simulation — help, scenes, predict — keep the row to themselves.
+                    Spacer(Modifier.weight(1f))
                     // §16 — the permanent way back into the tutorial. Compact, wordless, and in
                     // the top bar where help belongs; it shares the header's inset handling, so it
                     // can never end up under the status bar or behind the + button.
