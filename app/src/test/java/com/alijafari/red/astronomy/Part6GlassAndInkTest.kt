@@ -68,14 +68,19 @@ class Part6GlassAndInkTest {
         // The crossover is where the two inks actually swap — about 0.5 in sRGB grey, which is 0.18 in
         // linear luminance — and not a hand-picked threshold. At every brightness, including both sides of
         // it, the ink that was chosen is the one with the higher measured ratio of the two.
-        val nearBlack = Color(8f / 255f, 10f / 255f, 18f / 255f, 1f)
+        //
+        // The two inks the decision is made between, exactly as `BackdropInk` defines them: a near-black
+        // and a near-white, not the extremes — which is why the chosen ink's ratio is not simply the
+        // theoretical maximum of pure black or pure white.
+        val darkInk = Color(8f / 255f, 10f / 255f, 18f / 255f, 1f)
+        val lightInk = Color(0xF8 / 255f, 0xFA / 255f, 1f, 1f)
         listOf(0.02f, 0.2f, 0.35f, 0.4f, 0.5f, 0.6f, 0.8f, 0.98f).forEach { l ->
             val ink = backdropInkFor(l)
             val backdrop = grey(l)
             val chosen = wcagContrast(ink.primary, backdrop)
             val bestOfTheTwo = maxOf(
-                wcagContrast(Color.White, backdrop),
-                wcagContrast(nearBlack, backdrop)
+                wcagContrast(lightInk, backdrop),
+                wcagContrast(darkInk, backdrop)
             )
             assertTrue(
                 "at $l the chosen ink is the better of the two ($chosen vs $bestOfTheTwo)",
@@ -84,7 +89,7 @@ class Part6GlassAndInkTest {
             assertEquals(
                 "and it says which one it is",
                 ink.isDarkInk,
-                wcagContrast(nearBlack, backdrop) >= wcagContrast(Color.White, backdrop)
+                wcagContrast(darkInk, backdrop) >= wcagContrast(lightInk, backdrop)
             )
         }
     }
@@ -101,7 +106,15 @@ class Part6GlassAndInkTest {
             backdropInkFor(0.5f).halo.alpha > backdropInkFor(0.4f).halo.alpha &&
                 backdropInkFor(0.4f).halo.alpha > backdropInkFor(0.2f).halo.alpha
         )
-        assertTrue("and it is the opposite ink", backdropInkFor(0.05f).halo.red > 0.5f)
+        // The halo is the ink that lost: light text gets a dark shadow and dark text a light one, which is
+        // the only direction a shadow can help in.
+        val beforeTheCrossover = backdropInkFor(0.45f)
+        assertFalse("white ink wins just below the crossover", beforeTheCrossover.isDarkInk)
+        assertTrue("so its halo is real", beforeTheCrossover.halo.alpha > 0.1f)
+        assertEquals("and black", 0f, beforeTheCrossover.halo.red, 0.01f)
+        val afterTheCrossover = backdropInkFor(0.55f)
+        assertTrue("dark ink wins just above it", afterTheCrossover.isDarkInk)
+        assertTrue("and its halo is white", afterTheCrossover.halo.red > 0.99f)
     }
 
     @Test
