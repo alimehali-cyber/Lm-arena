@@ -62,7 +62,8 @@ private data class SpatialNavTab(
     val index: Int,
     val labelRes: Int,
     val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector
+    val unselectedIcon: ImageVector,
+    val testTag: String
 )
 
 /**
@@ -81,14 +82,14 @@ fun SpatialFloatingNavBar(
     val palette = SpatialTheme.palette
     val tabs = remember {
         listOf(
-            SpatialNavTab(4, R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home),
-            SpatialNavTab(3, R.string.nav_ar_sky, Icons.Filled.Explore, Icons.Outlined.Explore),
-            SpatialNavTab(1, R.string.nav_iss, Icons.Filled.SatelliteAlt, Icons.Outlined.SatelliteAlt),
-            SpatialNavTab(0, R.string.nav_lab, Icons.Filled.Science, Icons.Outlined.Science)
+            SpatialNavTab(4, R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home, "nav_item_home"),
+            SpatialNavTab(3, R.string.nav_arsky, Icons.Filled.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
+            SpatialNavTab(1, R.string.nav_satellites, Icons.Filled.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
+            SpatialNavTab(0, R.string.nav_lab, Icons.Filled.Science, Icons.Outlined.Science, "nav_item_lab")
         )
     }
 
-    val dockShape = squircleShape(32.dp)
+    val dockShape = squircleShape(34.dp)
     val rimBrush = remember(palette) {
         Brush.verticalGradient(
             listOf(
@@ -103,12 +104,14 @@ fun SpatialFloatingNavBar(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 10.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp)
+            .testTag("main_bottom_navigation"),
         contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .testTag("main_bottom_navigation_surface")
                 .shadow(
                     elevation = 20.dp,
                     shape = dockShape,
@@ -233,7 +236,7 @@ private fun SpatialNavTabPill(
                 onClick = onClick
             )
             .padding(vertical = 7.dp, horizontal = 4.dp)
-            .testTag("nav_tab_${tab.index}"),
+            .testTag(tab.testTag),
         contentAlignment = Alignment.Center
     ) {
         Column(
