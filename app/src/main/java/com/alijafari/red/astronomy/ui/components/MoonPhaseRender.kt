@@ -116,8 +116,10 @@ fun MoonPhaseRender(
     // Libration is small (±8°) but it is the one thing that makes the disc feel like a globe rather than
     // a printed circle: the surface shifts by a hair as we see a little more of one limb. Kept under 1.5 %
     // of the plate so it can never pull the clipped limb inwards.
-    val parallaxX = (moonData.librationLonDeg / 8.0).coerceIn(-1.0, 1.0) * MoonParallaxMaxFraction
-    val parallaxY = (moonData.librationLatDeg / 8.0).coerceIn(-1.0, 1.0) * MoonParallaxMaxFraction
+    val parallaxX =
+        ((moonData.librationLonDeg / 8.0).coerceIn(-1.0, 1.0) * MoonParallaxMaxFraction).toFloat()
+    val parallaxY =
+        ((moonData.librationLatDeg / 8.0).coerceIn(-1.0, 1.0) * MoonParallaxMaxFraction).toFloat()
 
     Box(
         modifier = modifier,
