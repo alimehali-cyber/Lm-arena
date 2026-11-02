@@ -54,7 +54,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
@@ -89,7 +91,7 @@ fun SpatialFloatingNavBar(
         )
     }
 
-    val dockShape = squircleShape(34.dp)
+    val dockShape = squircleShape(RedCornerRadius.window)
     val rimBrush = remember(palette) {
         Brush.verticalGradient(
             listOf(
@@ -104,13 +106,13 @@ fun SpatialFloatingNavBar(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 10.dp)
-            .testTag("main_bottom_navigation"),
-        contentAlignment = Alignment.Center
+            .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
+            .testTag("main_bottom_navigation")
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(64.dp)
                 .testTag("main_bottom_navigation_surface")
                 .shadow(
                     elevation = 20.dp,
@@ -140,7 +142,8 @@ fun SpatialFloatingNavBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 7.dp),
+                    .height(64.dp)
+                    .padding(horizontal = RedSpacing.xs, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {

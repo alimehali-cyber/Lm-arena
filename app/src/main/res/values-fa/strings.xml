@@ -93,7 +93,7 @@
     <string name="ui_style_default">رابط پیش‌فرض</string>
     <string name="ui_style_default_desc">طراحی کلاسیک و یکدست زیگ</string>
     <string name="ui_style_spatial">رابط فضایی (Spatial)</string>
-    <string name="ui_style_spatial_desc">طراحی فضایی VisionOS، چیدمان بنتو و نمایشگر نقطه‌ای</string>
+    <string name="ui_style_spatial_desc">طراحی فضایی VisionOS، شیشه مات درخشان و نمایشگر نقطه‌ای</string>
     <string name="ok">تایید</string>
     <string name="cancel">انصراف</string>
     <string name="confirm">تایید</string>

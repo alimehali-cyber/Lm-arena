@@ -75,4 +75,27 @@ class SpatialUiTest {
         assertTrue(activity.contains("SpatialFloatingNavBar("))
         assertTrue(activity.contains("SpatialSettingsModal("))
     }
+
+    @Test
+    fun spatialScreensPreserveDefaultLayoutsAndUntouchedFullBleedSkyCanvas() {
+        val spatialHome = source("com/alijafari/red/astronomy/ui/spatial/SpatialHomeScreen.kt")
+        // Sky canvas must remain full-bleed edge-to-edge SCENE with bottomTailHeight = controlsBottom
+        assertTrue(spatialHome.contains("presentation = SkyCanvasPresentation.SCENE"))
+        assertTrue(spatialHome.contains("bottomTailHeight = controlsBottom"))
+        assertTrue(spatialHome.contains("HomeTextShift.moonCard"))
+        assertTrue(spatialHome.contains("HomeTextShift.eclipseCard"))
+        assertTrue(spatialHome.contains("home_moon_card"))
+        assertTrue(spatialHome.contains("home_eclipse_card"))
+        assertTrue(spatialHome.contains("home_highlights_card"))
+        assertTrue(spatialHome.contains("sky_canvas_fullscreen"))
+
+        val spatialSats = source("com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt")
+        assertTrue(spatialSats.contains("aspectRatio(2.0f)"))
+        assertTrue(spatialSats.contains("satellite_time_scrubber_card"))
+        assertTrue(spatialSats.contains("sat_card_"))
+
+        val spatialLab = source("com/alijafari/red/astronomy/ui/spatial/SpatialLabScreen.kt")
+        assertTrue(spatialLab.contains("LabFeatureType.entries"))
+        assertTrue(spatialLab.contains("lab_feature_card_"))
+    }
 }

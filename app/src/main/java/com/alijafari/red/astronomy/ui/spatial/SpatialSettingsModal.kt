@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -31,10 +30,10 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Brightness6
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.NightsStay
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.Icon
@@ -69,15 +68,23 @@ import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 /**
- * VisionOS Spatial Control Center Popover for Application Settings.
+ * VisionOS Spatial Glassmorphism Settings Dialog — Exact Default [SettingsDialog] Expandable Layout.
  *
- * Features a prominent Default-vs-Spatial UI Bento switcher, tactile glowing toggle tiles,
- * fluid spring-expanding option drawers, and a dot-matrix Bortle sky darkness controller.
+ * Preserves the exact vertical sequence of expandable sections from `SettingsDialog`:
+ * 0. Interface Style (`Default UI` vs `Spatial UI`)
+ * 1. Application Language
+ * 2. Calendar System
+ * 3. App Theme
+ * 4. Sky Canvas Theme
+ * 5. App Backdrop
+ * 6. Light Pollution (Bortle Scale)
  */
 @Composable
 fun SpatialSettingsModal(
@@ -88,9 +95,49 @@ fun SpatialSettingsModal(
     val palette = SpatialTheme.palette
     val isFa = uiState.language == AppLanguage.PERSIAN
 
-    var isSkyThemeExpanded by remember { mutableStateOf(false) }
-    var isBackdropExpanded by remember { mutableStateOf(false) }
+    var isUiStyleExpanded by remember { mutableStateOf(false) }
+    var isLanguageExpanded by remember { mutableStateOf(false) }
+    var isCalendarExpanded by remember { mutableStateOf(false) }
+    var isAppThemeExpanded by remember { mutableStateOf(false) }
+    var isSkyCanvasThemeExpanded by remember { mutableStateOf(false) }
+    var isAppBackdropExpanded by remember { mutableStateOf(false) }
     var isBortleExpanded by remember { mutableStateOf(false) }
+
+    val uiStyleLabel = when (uiState.uiStyle) {
+        AppUiStyle.DEFAULT -> stringResource(R.string.ui_style_default)
+        AppUiStyle.SPATIAL -> stringResource(R.string.ui_style_spatial)
+    }
+    val languageLabel = when (uiState.language) {
+        AppLanguage.PERSIAN -> stringResource(R.string.language_persian)
+        AppLanguage.ENGLISH -> stringResource(R.string.language_english)
+    }
+    val calendarLabel = when (uiState.calendarSystem) {
+        CalendarSystem.SOLAR_HIJRI -> stringResource(R.string.calendar_solar_hijri)
+        CalendarSystem.GREGORIAN -> stringResource(R.string.calendar_gregorian)
+    }
+    val appThemeLabel = when (uiState.themeMode) {
+        ThemeMode.LIGHT -> if (isFa) "روشن" else "Light"
+        ThemeMode.DARK -> if (isFa) "تاریک" else "Dark"
+    }
+    val skyCanvasThemeLabel = when (uiState.skyCanvasTheme) {
+        SkyCanvasTheme.REAL_SKY -> if (isFa) "آسمان واقعی" else "Real Sky"
+        SkyCanvasTheme.ATMOSPHERIC_SKY -> if (isFa) "آسمان جوی" else "Atmospheric"
+        SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (isFa) "تک‌رنگ علمی" else "Monochrome"
+        SkyCanvasTheme.KIDS_WATERCOLOR -> if (isFa) "آبرنگ" else "Watercolor"
+        SkyCanvasTheme.OBSERVATORY -> if (isFa) "رصدخانه" else "Observatory"
+        SkyCanvasTheme.PAPERCRAFT_DIORAMA -> if (isFa) "دیوراما" else "Papercraft"
+    }
+    val backdropLabel = when (uiState.appBackdropMode) {
+        AppBackdropMode.NONE -> if (isFa) "خاموش (کویر فضایی)" else "Off (Spatial Dreamscape)"
+        AppBackdropMode.LIVE_SKY -> stringResource(R.string.live_sky_setting)
+        AppBackdropMode.NGC_1929 -> stringResource(R.string.backdrop_ngc1929_setting)
+        AppBackdropMode.CEPHEUS -> stringResource(R.string.backdrop_cepheus_setting)
+    }
+    val bortleLabel = if (isFa) {
+        "کلاس ${TimeEngine.formatPersianNumbers(uiState.bortleClass.toString())}"
+    } else {
+        "Class ${uiState.bortleClass}"
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -99,398 +146,238 @@ fun SpatialSettingsModal(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 24.dp),
+                .padding(horizontal = 20.dp, vertical = 24.dp),
             contentAlignment = Alignment.Center
         ) {
             SpatialGlassCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 640.dp),
-                cornerRadius = 36.dp,
+                cornerRadius = RedCornerRadius.window,
                 contentPadding = PaddingValues(20.dp),
                 elevation = 24.dp,
                 elevated = true,
                 glowAccent = SpatialNeonRose
             ) {
-                // Header Row
+                // Title Row (Matches SettingsDialog)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(RedSpacing.md)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.app_settings),
-                            style = RedTypographyTokens.sectionHeading.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 20.sp
-                            ),
-                            color = palette.textPrimary
-                        )
-                        Text(
-                            text = if (isFa) "مرکز کنترل فضایی زیگ" else "ZIG Spatial Control Center",
-                            style = RedTypographyTokens.caption.copy(fontSize = 12.sp),
-                            color = palette.textSecondary
+                    SpatialMeshPill(
+                        preset = SpatialMeshPreset.ROSE_TO_ORANGE,
+                        isCapsule = true,
+                        contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null,
+                            tint = Color(0xFF23111C),
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(18.dp)
                         )
                     }
-                    SpatialGlowIconButton(
-                        icon = Icons.Default.Close,
-                        contentDescription = stringResource(R.string.ok),
-                        onClick = onDismiss,
-                        size = 36.dp,
-                        iconSize = 17.dp
+                    Text(
+                        text = stringResource(R.string.app_settings),
+                        style = RedTypographyTokens.sectionHeading,
+                        color = palette.textPrimary
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(RedSpacing.sm + 2.dp)
                 ) {
-                    // 1. UI Style Bento Switcher (Default UI vs Spatial UI)
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("settings_section_ui_style"),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    // 0. Interface Style
+                    SpatialExpandableSection(
+                        title = stringResource(R.string.ui_style_title),
+                        currentValueLabel = uiStyleLabel,
+                        icon = Icons.Outlined.Widgets,
+                        isExpanded = isUiStyleExpanded,
+                        onToggle = { isUiStyleExpanded = !isUiStyleExpanded },
+                        testTag = "settings_section_ui_style"
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Widgets,
-                                contentDescription = null,
-                                tint = palette.accentInk,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.ui_style_title),
-                                style = RedTypographyTokens.caption.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 12.5.sp
-                                ),
-                                color = palette.textSecondary
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Default UI Option Card
-                            SpatialGlassCard(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("settings_ui_style_default"),
-                                cornerRadius = 24.dp,
-                                contentPadding = PaddingValues(14.dp),
-                                elevation = 6.dp,
-                                onClick = { viewModel.setUiStyle(AppUiStyle.DEFAULT) }
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.ui_style_default),
-                                    style = RedTypographyTokens.bodyPrimary.copy(fontSize = 14.sp),
-                                    color = palette.textPrimary
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = stringResource(R.string.ui_style_default_desc),
-                                    style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                                    color = palette.textTertiary,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-
-                            // Spatial UI Option Mesh Pill (Active!)
-                            SpatialMeshPill(
-                                preset = SpatialMeshPreset.ROSE_TO_ORANGE,
-                                cornerRadius = 24.dp,
-                                contentPadding = PaddingValues(14.dp),
-                                onClick = { viewModel.setUiStyle(AppUiStyle.SPATIAL) },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("settings_ui_style_spatial")
-                            ) {
-                                Column {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = stringResource(R.string.ui_style_spatial),
-                                            style = RedTypographyTokens.bodyPrimary.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 14.sp
-                                            ),
-                                            color = Color(0xFF23111C)
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .size(18.dp)
-                                                .clip(CircleShape)
-                                                .background(Color.White.copy(alpha = 0.85f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = null,
-                                                tint = SpatialNeonRoseDeep,
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = stringResource(R.string.ui_style_spatial_desc),
-                                        style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                                        color = Color(0xCC23111C),
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
+                        SpatialSettingsOptionRow(
+                            title = stringResource(R.string.ui_style_default),
+                            subtitle = stringResource(R.string.ui_style_default_desc),
+                            isSelected = uiState.uiStyle == AppUiStyle.DEFAULT,
+                            onClick = { viewModel.setUiStyle(AppUiStyle.DEFAULT) },
+                            modifier = Modifier.testTag("settings_ui_style_default")
+                        )
+                        SpatialSettingsOptionRow(
+                            title = stringResource(R.string.ui_style_spatial),
+                            subtitle = stringResource(R.string.ui_style_spatial_desc),
+                            isSelected = uiState.uiStyle == AppUiStyle.SPATIAL,
+                            onClick = { viewModel.setUiStyle(AppUiStyle.SPATIAL) },
+                            modifier = Modifier.testTag("settings_ui_style_spatial")
+                        )
                     }
 
-                    // 2. Quick Bento Toggle Grid (Dark Dreamscape + Language + Calendar)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    // 1. Language
+                    SpatialExpandableSection(
+                        title = stringResource(R.string.application_language),
+                        currentValueLabel = languageLabel,
+                        icon = Icons.Default.Language,
+                        isExpanded = isLanguageExpanded,
+                        onToggle = { isLanguageExpanded = !isLanguageExpanded },
+                        testTag = "settings_section_language"
                     ) {
-                        // Dark / Desert Light Theme Toggle Card
-                        SpatialGlassCard(
-                            modifier = Modifier.weight(1f),
-                            cornerRadius = 26.dp,
-                            contentPadding = PaddingValues(14.dp),
-                            elevation = 8.dp,
-                            glowAccent = if (uiState.themeMode == ThemeMode.DARK) SpatialCosmicIris else SpatialWarmPeach,
-                            onClick = {
-                                viewModel.setThemeMode(
-                                    if (uiState.themeMode == ThemeMode.DARK) ThemeMode.LIGHT else ThemeMode.DARK
-                                )
-                            }
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.DarkMode,
-                                    contentDescription = null,
-                                    tint = palette.accentInk,
-                                    modifier = Modifier.size(19.dp)
-                                )
-                                SpatialGlowToggle(
-                                    checked = uiState.themeMode == ThemeMode.DARK,
-                                    onCheckedChange = { dark ->
-                                        viewModel.setThemeMode(if (dark) ThemeMode.DARK else ThemeMode.LIGHT)
-                                    }
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = if (isFa) "پوسته فضایی" else "Atmosphere",
-                                style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                                color = palette.textTertiary
-                            )
-                            Text(
-                                text = if (uiState.themeMode == ThemeMode.DARK) {
-                                    if (isFa) "گرگ‌ومیش تاریک" else "Twilight Dark"
-                                } else {
-                                    if (isFa) "کویر روشن" else "Desert Light"
-                                },
-                                style = RedTypographyTokens.bodyPrimary.copy(fontSize = 13.5.sp),
-                                color = palette.textPrimary
-                            )
-                        }
-
-                        // Language Switcher Bento Tile
-                        SpatialGlassCard(
-                            modifier = Modifier.weight(1f),
-                            cornerRadius = 26.dp,
-                            contentPadding = PaddingValues(14.dp),
-                            elevation = 8.dp,
-                            onClick = {
-                                viewModel.setLanguage(
-                                    if (uiState.language == AppLanguage.PERSIAN) AppLanguage.ENGLISH
-                                    else AppLanguage.PERSIAN
-                                )
-                            }
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Language,
-                                    contentDescription = null,
-                                    tint = palette.coolInk,
-                                    modifier = Modifier.size(19.dp)
-                                )
-                                SpatialGlassCapsule(
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 3.dp),
-                                    isActive = true,
-                                    elevation = 0.dp
-                                ) {
-                                    Text(
-                                        text = if (isFa) "FA" else "EN",
-                                        style = RedTypographyTokens.badge.copy(fontSize = 10.sp),
-                                        color = palette.accentInk
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = stringResource(R.string.application_language),
-                                style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
-                                color = palette.textTertiary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = if (isFa) stringResource(R.string.language_persian)
-                                else stringResource(R.string.language_english),
-                                style = RedTypographyTokens.bodyPrimary.copy(fontSize = 13.5.sp),
-                                color = palette.textPrimary
-                            )
-                        }
+                        SpatialSettingsOptionRow(
+                            title = stringResource(R.string.language_persian),
+                            subtitle = "فارسی (Persian)",
+                            isSelected = uiState.language == AppLanguage.PERSIAN,
+                            onClick = { viewModel.setLanguage(AppLanguage.PERSIAN) }
+                        )
+                        SpatialSettingsOptionRow(
+                            title = stringResource(R.string.language_english),
+                            subtitle = "English (US)",
+                            isSelected = uiState.language == AppLanguage.ENGLISH,
+                            onClick = { viewModel.setLanguage(AppLanguage.ENGLISH) }
+                        )
                     }
 
-                    // 3. Calendar Quick-Switch Pill Row
-                    SpatialGlassCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 24.dp,
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        elevation = 6.dp,
-                        onClick = {
-                            viewModel.setCalendarSystem(
-                                if (uiState.calendarSystem == CalendarSystem.SOLAR_HIJRI) CalendarSystem.GREGORIAN
-                                else CalendarSystem.SOLAR_HIJRI
-                            )
-                        }
+                    // 2. Calendar System
+                    SpatialExpandableSection(
+                        title = stringResource(R.string.calendar_system),
+                        currentValueLabel = calendarLabel,
+                        icon = Icons.Default.CalendarToday,
+                        isExpanded = isCalendarExpanded,
+                        onToggle = { isCalendarExpanded = !isCalendarExpanded },
+                        testTag = "settings_section_calendar"
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarToday,
-                                    contentDescription = null,
-                                    tint = palette.secondaryInk,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Column {
-                                    Text(
-                                        text = stringResource(R.string.calendar_system),
-                                        style = RedTypographyTokens.bodyPrimary.copy(fontSize = 13.5.sp),
-                                        color = palette.textPrimary
-                                    )
-                                    Text(
-                                        text = if (uiState.calendarSystem == CalendarSystem.SOLAR_HIJRI) {
-                                            stringResource(R.string.calendar_solar_hijri)
-                                        } else {
-                                            stringResource(R.string.calendar_gregorian)
-                                        },
-                                        style = RedTypographyTokens.caption.copy(fontSize = 11.5.sp),
-                                        color = palette.textSecondary
-                                    )
-                                }
-                            }
-                            SpatialGlowToggle(
-                                checked = uiState.calendarSystem == CalendarSystem.SOLAR_HIJRI,
-                                onCheckedChange = { hijri ->
-                                    viewModel.setCalendarSystem(
-                                        if (hijri) CalendarSystem.SOLAR_HIJRI else CalendarSystem.GREGORIAN
-                                    )
-                                },
-                                glowColor = SpatialWarmPeach
-                            )
-                        }
+                        SpatialSettingsOptionRow(
+                            title = stringResource(R.string.calendar_solar_hijri),
+                            subtitle = if (isFa) "تقویم خورشیدی رسمی ایران" else "Solar Hijri Calendar",
+                            isSelected = uiState.calendarSystem == CalendarSystem.SOLAR_HIJRI,
+                            onClick = { viewModel.setCalendarSystem(CalendarSystem.SOLAR_HIJRI) }
+                        )
+                        SpatialSettingsOptionRow(
+                            title = stringResource(R.string.calendar_gregorian),
+                            subtitle = if (isFa) "تقویم بین‌المللی میلادی" else "Gregorian International Calendar",
+                            isSelected = uiState.calendarSystem == CalendarSystem.GREGORIAN,
+                            onClick = { viewModel.setCalendarSystem(CalendarSystem.GREGORIAN) }
+                        )
                     }
 
-                    // 4. Expandable Sky Canvas Theme Drawer
-                    val currentSkyLabel = when (uiState.skyCanvasTheme) {
-                        SkyCanvasTheme.REAL_SKY -> if (isFa) "آسمان واقعی" else "Real Sky"
-                        SkyCanvasTheme.ATMOSPHERIC_SKY -> if (isFa) "آسمان جوی" else "Atmospheric"
-                        SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> if (isFa) "تک‌رنگ علمی" else "Monochrome"
-                        SkyCanvasTheme.KIDS_WATERCOLOR -> if (isFa) "آبرنگ" else "Watercolor"
-                        SkyCanvasTheme.OBSERVATORY -> if (isFa) "رصدخانه" else "Observatory"
-                        SkyCanvasTheme.PAPERCRAFT_DIORAMA -> if (isFa) "دیوراما" else "Papercraft"
+                    // 3. App Theme
+                    SpatialExpandableSection(
+                        title = if (isFa) "پوسته برنامه" else "App Theme",
+                        currentValueLabel = appThemeLabel,
+                        icon = Icons.Default.Palette,
+                        isExpanded = isAppThemeExpanded,
+                        onToggle = { isAppThemeExpanded = !isAppThemeExpanded },
+                        testTag = "settings_section_app_theme"
+                    ) {
+                        SpatialSettingsOptionRow(
+                            title = if (isFa) "روشن" else "Light",
+                            isSelected = uiState.themeMode == ThemeMode.LIGHT,
+                            onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) }
+                        )
+                        SpatialSettingsOptionRow(
+                            title = if (isFa) "تاریک" else "Dark",
+                            isSelected = uiState.themeMode == ThemeMode.DARK,
+                            onClick = { viewModel.setThemeMode(ThemeMode.DARK) }
+                        )
                     }
-                    SpatialExpandableDrawer(
-                        icon = Icons.Default.AutoAwesome,
+
+                    // 4. Sky Canvas Theme
+                    SpatialExpandableSection(
                         title = if (isFa) "سبک هنری آسمان (RMAE)" else "Sky Canvas Theme",
-                        valueLabel = currentSkyLabel,
-                        expanded = isSkyThemeExpanded,
-                        onToggle = { isSkyThemeExpanded = !isSkyThemeExpanded }
+                        currentValueLabel = skyCanvasThemeLabel,
+                        icon = Icons.Default.AutoAwesome,
+                        isExpanded = isSkyCanvasThemeExpanded,
+                        onToggle = { isSkyCanvasThemeExpanded = !isSkyCanvasThemeExpanded },
+                        testTag = "settings_section_sky_theme"
                     ) {
-                        val skyOptions = listOf(
+                        listOf(
                             SkyCanvasTheme.REAL_SKY to (if (isFa) "آسمان واقعی (Real Sky)" else "Real Sky"),
                             SkyCanvasTheme.ATMOSPHERIC_SKY to (if (isFa) "آسمان جوی (Atmospheric)" else "Atmospheric Sky"),
                             SkyCanvasTheme.MONOCHROME_SCIENTIFIC to (if (isFa) "تک‌رنگ علمی (Monochrome)" else "Monochrome Scientific"),
                             SkyCanvasTheme.KIDS_WATERCOLOR to (if (isFa) "آبرنگ کودکانه (Watercolor)" else "Kids Watercolor"),
                             SkyCanvasTheme.OBSERVATORY to (if (isFa) "رصدخانه (Observatory)" else "Observatory"),
-                            SkyCanvasTheme.PAPERCRAFT_DIORAMA to (if (isFa) "دیوراما کاغذ برجسته" else "Papercraft Diorama")
-                        )
-                        skyOptions.forEach { (mode, title) ->
-                            SpatialChoicePill(
-                                label = title,
-                                selected = uiState.skyCanvasTheme == mode,
-                                onClick = { viewModel.setSkyCanvasTheme(mode) }
+                            SkyCanvasTheme.PAPERCRAFT_DIORAMA to (if (isFa) "دیوراما کاغذ برجسته (Papercraft)" else "Papercraft Diorama")
+                        ).forEach { (theme, label) ->
+                            SpatialSettingsOptionRow(
+                                title = label,
+                                isSelected = uiState.skyCanvasTheme == theme,
+                                onClick = { viewModel.setSkyCanvasTheme(theme) }
                             )
                         }
                     }
 
-                    // 5. Expandable App Backdrop Drawer
-                    val currentBackdropLabel = when (uiState.appBackdropMode) {
-                        AppBackdropMode.NONE -> if (isFa) "کویر فضایی" else "Desert Dreamscape"
-                        AppBackdropMode.LIVE_SKY -> stringResource(R.string.live_sky_setting)
-                        AppBackdropMode.NGC_1929 -> stringResource(R.string.backdrop_ngc1929_setting)
-                        AppBackdropMode.CEPHEUS -> stringResource(R.string.backdrop_cepheus_setting)
-                    }
-                    SpatialExpandableDrawer(
-                        icon = Icons.Outlined.NightsStay,
+                    // 5. App Backdrop
+                    SpatialExpandableSection(
                         title = stringResource(R.string.app_backdrop_title),
-                        valueLabel = currentBackdropLabel,
-                        expanded = isBackdropExpanded,
-                        onToggle = { isBackdropExpanded = !isBackdropExpanded }
+                        currentValueLabel = backdropLabel,
+                        icon = Icons.Outlined.NightsStay,
+                        isExpanded = isAppBackdropExpanded,
+                        onToggle = { isAppBackdropExpanded = !isAppBackdropExpanded },
+                        testTag = "settings_section_app_backdrop"
                     ) {
-                        val backdropOptions = listOf(
-                            AppBackdropMode.NONE to (if (isFa) "کویر رویایی (پیش‌فرض فضایی)" else "Desert Dreamscape (Spatial Default)"),
-                            AppBackdropMode.LIVE_SKY to stringResource(R.string.live_sky_setting),
-                            AppBackdropMode.NGC_1929 to stringResource(R.string.backdrop_ngc1929_setting),
-                            AppBackdropMode.CEPHEUS to stringResource(R.string.backdrop_cepheus_setting)
-                        )
-                        backdropOptions.forEach { (mode, title) ->
-                            SpatialChoicePill(
-                                label = title,
-                                selected = uiState.appBackdropMode == mode,
-                                onClick = { viewModel.setAppBackdropMode(mode) }
+                        Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                            ) {
+                                SpatialBackdropChip(
+                                    label = if (isFa) "خاموش" else "Off",
+                                    selected = uiState.appBackdropMode == AppBackdropMode.NONE,
+                                    onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NONE) },
+                                    modifier = Modifier.testTag("settings_backdrop_off")
+                                )
+                                SpatialBackdropChip(
+                                    label = stringResource(R.string.live_sky_setting),
+                                    selected = uiState.appBackdropMode == AppBackdropMode.LIVE_SKY,
+                                    onClick = { viewModel.setAppBackdropMode(AppBackdropMode.LIVE_SKY) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("settings_live_sky_switch")
+                                )
+                                SpatialBackdropChip(
+                                    label = stringResource(R.string.backdrop_ngc1929_setting),
+                                    selected = uiState.appBackdropMode == AppBackdropMode.NGC_1929,
+                                    onClick = { viewModel.setAppBackdropMode(AppBackdropMode.NGC_1929) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("settings_backdrop_ngc1929")
+                                )
+                            }
+                            SpatialBackdropChip(
+                                label = stringResource(R.string.backdrop_cepheus_setting),
+                                selected = uiState.appBackdropMode == AppBackdropMode.CEPHEUS,
+                                onClick = { viewModel.setAppBackdropMode(AppBackdropMode.CEPHEUS) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("settings_backdrop_cepheus")
+                            )
+                            Text(
+                                text = when (uiState.appBackdropMode) {
+                                    AppBackdropMode.LIVE_SKY -> stringResource(R.string.live_sky_desc)
+                                    AppBackdropMode.NGC_1929 -> stringResource(R.string.backdrop_ngc1929_desc)
+                                    AppBackdropMode.CEPHEUS -> stringResource(R.string.backdrop_cepheus_desc)
+                                    AppBackdropMode.NONE -> stringResource(R.string.backdrop_off_desc)
+                                },
+                                style = RedTypographyTokens.caption,
+                                color = palette.textSecondary
                             )
                         }
                     }
 
-                    // 6. Expandable Bortle Light Pollution Dot-Matrix Slider
-                    val bortleNumStr = if (isFa) TimeEngine.formatPersianNumbers("B${uiState.bortleClass}") else "B${uiState.bortleClass}"
-                    SpatialExpandableDrawer(
+                    // 6. Bortle Light Pollution
+                    SpatialExpandableSection(
+                        title = if (isFa) "آلودگی نوری (مقیاس بورتل)" else "Light Pollution (Bortle Scale)",
+                        currentValueLabel = bortleLabel,
                         icon = Icons.Default.Brightness6,
-                        title = if (isFa) "مقیاس تاریکی آسمان (بورتل)" else "Sky Darkness (Bortle)",
-                        valueLabel = bortleNumStr,
-                        expanded = isBortleExpanded,
-                        onToggle = { isBortleExpanded = !isBortleExpanded }
+                        isExpanded = isBortleExpanded,
+                        onToggle = { isBortleExpanded = !isBortleExpanded },
+                        testTag = "settings_section_bortle"
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -498,24 +385,48 @@ fun SpatialSettingsModal(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = if (isFa) "کلاس آلودگی نوری" else "Bortle Sky Class",
-                                style = RedTypographyTokens.caption,
-                                color = palette.textSecondary
+                                text = if (isFa) "کلاس انتخابی بورتل:" else "Selected Bortle Class:",
+                                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                                color = palette.textPrimary
                             )
+                            val rawB = "${uiState.bortleClass}/9"
                             DotMatrixText(
-                                text = if (isFa) TimeEngine.formatPersianNumbers("${uiState.bortleClass}/9") else "${uiState.bortleClass}/9",
-                                dotSize = 2.4.dp,
+                                text = if (isFa) TimeEngine.formatPersianNumbers(rawB) else rawB,
+                                dotSize = 2.0.dp,
                                 activeColor = palette.dotMatrixInk,
                                 glowColor = SpatialNeonRose
                             )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
+
                         SpatialGlowSlider(
                             value = uiState.bortleClass.toFloat(),
                             onValueChange = { viewModel.setBortleClass(it.toInt().coerceIn(1, 9)) },
                             valueRange = 1f..9f,
                             steps = 7,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("bortle_class_slider")
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Confirm Button Row (Matches SettingsDialog)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    SpatialMeshPill(
+                        preset = SpatialMeshPreset.ROSE_TO_ORANGE,
+                        isCapsule = true,
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 9.dp),
+                        onClick = onDismiss
+                    ) {
+                        Text(
+                            text = stringResource(R.string.ok),
+                            style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.Bold),
+                            color = Color(0xFF23111C)
                         )
                     }
                 }
@@ -525,25 +436,28 @@ fun SpatialSettingsModal(
 }
 
 @Composable
-private fun SpatialExpandableDrawer(
-    icon: ImageVector,
+private fun SpatialExpandableSection(
     title: String,
-    valueLabel: String,
-    expanded: Boolean,
+    currentValueLabel: String,
+    icon: ImageVector,
+    isExpanded: Boolean,
     onToggle: () -> Unit,
-    content: @Composable ColumnScopeAdapter.() -> Unit
+    testTag: String,
+    content: @Composable () -> Unit
 ) {
     val palette = SpatialTheme.palette
     val chevronDeg by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f,
+        targetValue = if (isExpanded) 180f else 0f,
         animationSpec = spring(dampingRatio = 0.75f, stiffness = 360f),
-        label = "SpatialChevron"
+        label = "SpatialSettingsChevron"
     )
 
     SpatialGlassCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(testTag),
         cornerRadius = 24.dp,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
         elevation = 6.dp
     ) {
         Row(
@@ -567,13 +481,16 @@ private fun SpatialExpandableDrawer(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        style = RedTypographyTokens.bodyPrimary.copy(fontSize = 13.5.sp),
+                        style = RedTypographyTokens.bodyPrimary.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.5.sp
+                        ),
                         color = palette.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = valueLabel,
+                        text = currentValueLabel,
                         style = RedTypographyTokens.caption.copy(fontSize = 11.5.sp),
                         color = palette.accentInk,
                         maxLines = 1,
@@ -592,46 +509,46 @@ private fun SpatialExpandableDrawer(
         }
 
         AnimatedVisibility(
-            visible = expanded,
+            visible = isExpanded,
             enter = expandVertically(spring(dampingRatio = 0.78f, stiffness = 340f)) + fadeIn(),
             exit = shrinkVertically(spring(dampingRatio = 0.85f, stiffness = 380f)) + fadeOut()
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp),
+                    .padding(top = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                ColumnScopeAdapter.content()
+                content()
             }
         }
     }
 }
 
-private object ColumnScopeAdapter
-
 @Composable
-private fun SpatialChoicePill(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
+private fun SpatialSettingsOptionRow(
+    title: String,
+    subtitle: String? = null,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val palette = SpatialTheme.palette
     val shape = squircleShape(16.dp)
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(shape)
             .background(
-                if (selected) SpatialNeonRose.copy(alpha = if (palette.isDark) 0.24f else 0.18f)
+                if (isSelected) SpatialNeonRose.copy(alpha = if (palette.isDark) 0.24f else 0.18f)
                 else Color.Transparent
             )
             .border(
                 BorderStroke(
                     width = 1.dp,
                     brush = Brush.verticalGradient(
-                        if (selected) listOf(Color.White.copy(alpha = 0.70f), SpatialNeonRose.copy(alpha = 0.45f))
-                        else listOf(palette.rimSideBorder.copy(alpha = 0.5f), Color.Transparent)
+                        if (isSelected) listOf(Color.White.copy(alpha = 0.72f), SpatialNeonRose.copy(alpha = 0.45f))
+                        else listOf(palette.rimSideBorder.copy(alpha = 0.45f), Color.Transparent)
                     )
                 ),
                 shape
@@ -641,20 +558,83 @@ private fun SpatialChoicePill(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = label,
-            style = RedTypographyTokens.bodyPrimary.copy(
-                fontSize = 13.sp,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
-            ),
-            color = if (selected) palette.accentInk else palette.textPrimary
-        )
-        if (selected) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = RedTypographyTokens.bodyPrimary.copy(
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                ),
+                color = if (isSelected) palette.accentInk else palette.textPrimary
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                    color = palette.textSecondary
+                )
+            }
+        }
+        if (isSelected) {
             Box(
                 modifier = Modifier
-                    .size(8.dp)
-                    .clip(RedShapes.capsule)
-                    .background(palette.accentInk)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(SpatialNeonRose.copy(alpha = 0.32f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = palette.accentInk,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpatialBackdropChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val palette = SpatialTheme.palette
+    if (selected) {
+        SpatialMeshPill(
+            preset = SpatialMeshPreset.ROSE_TO_ORANGE,
+            isCapsule = true,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
+            onClick = onClick,
+            modifier = modifier
+        ) {
+            Text(
+                text = label,
+                style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
+                color = Color(0xFF23111C),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
+    } else {
+        Box(
+            modifier = modifier
+                .clip(RedShapes.capsule)
+                .background(palette.glassFill)
+                .border(1.dp, palette.rimSideBorder, RedShapes.capsule)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 7.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                style = RedTypographyTokens.caption.copy(fontSize = 11.sp),
+                color = palette.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

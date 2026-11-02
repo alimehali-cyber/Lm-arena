@@ -93,7 +93,7 @@
     <string name="ui_style_default">Default UI</string>
     <string name="ui_style_default_desc">Classic ZIG flat &amp; high-contrast interface</string>
     <string name="ui_style_spatial">Spatial UI</string>
-    <string name="ui_style_spatial_desc">VisionOS spatial frost, bento widgets &amp; dot-matrix gauges</string>
+    <string name="ui_style_spatial_desc">VisionOS spatial frost, specular rims &amp; dot-matrix gauges</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>

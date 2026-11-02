@@ -287,6 +287,99 @@ fun SpatialRadialDotMeter(
     }
 }
 
+/**
+ * Compact inline Circular Radial Dot Meter (`42.dp` default) designed to fit directly into
+ * Default-layout trailing badge slots (Tonight's Sky rows, Satellite Pass rows, Lab cards)
+ * without altering row heights or grid geometry.
+ */
+@Composable
+fun SpatialCompactRadialMeter(
+    progress: Float,
+    centerValueText: String,
+    modifier: Modifier = Modifier,
+    diameter: Dp = 44.dp,
+    tickCount: Int = 20,
+    activeColor: Color = SpatialNeonRose,
+    secondaryActiveColor: Color = SpatialWarmPeach,
+    dotSize: Dp = 1.45.dp
+) {
+    val palette = SpatialTheme.palette
+    val clamped = progress.coerceIn(0f, 1f)
+    val animatedProgress by animateFloatAsState(
+        targetValue = clamped,
+        animationSpec = spring(dampingRatio = 0.80f, stiffness = 220f),
+        label = "SpatialCompactRadialMeter"
+    )
+
+    Box(
+        modifier = modifier.size(diameter),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(diameter)) {
+            val cx = size.width / 2f
+            val cy = size.height / 2f
+            val outerRadius = (size.minDimension / 2f) - 2.dp.toPx()
+            val innerTickRadius = outerRadius - 4.2.dp.toPx()
+
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        activeColor.copy(alpha = if (palette.isDark) 0.18f else 0.12f),
+                        Color.Transparent
+                    ),
+                    center = Offset(cx, cy),
+                    radius = outerRadius
+                ),
+                radius = outerRadius,
+                center = Offset(cx, cy)
+            )
+
+            val startDeg = 135f
+            val sweepDeg = 270f
+            val activeTicks = (animatedProgress * tickCount).roundToInt()
+
+            for (i in 0..tickCount) {
+                val t = i.toFloat() / tickCount.toFloat()
+                val angleRad = ((startDeg + sweepDeg * t) * PI / 180.0).toFloat()
+                val cosA = cos(angleRad)
+                val sinA = sin(angleRad)
+                val isLit = i <= activeTicks && animatedProgress > 0.005f
+
+                val p1 = Offset(cx + cosA * innerTickRadius, cy + sinA * innerTickRadius)
+                val p2 = Offset(cx + cosA * outerRadius, cy + sinA * outerRadius)
+
+                if (isLit) {
+                    val col = lerpColor(activeColor, secondaryActiveColor, t)
+                    drawLine(
+                        color = col,
+                        start = p1,
+                        end = p2,
+                        strokeWidth = 1.65.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                } else {
+                    drawLine(
+                        color = if (palette.isDark) Color(0x2BFFFFFF) else Color(0x26321E38),
+                        start = p1,
+                        end = p2,
+                        strokeWidth = 1.2.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+        }
+
+        DotMatrixText(
+            text = centerValueText,
+            dotSize = dotSize,
+            dotGap = 0.55.dp,
+            charGap = 1.4.dp,
+            activeColor = palette.dotMatrixInk,
+            glowColor = activeColor
+        )
+    }
+}
+
 private fun lerpColor(a: Color, b: Color, t: Float): Color {
     val clamped = t.coerceIn(0f, 1f)
     return Color(
