@@ -1106,7 +1106,7 @@ private fun CyberEclipseCutoutCard(
 ) {
     val palette = CyberTheme.palette
     val eclipseType = eclipse?.localType ?: EclipseEngine.EclipseType.TOTAL_SOLAR
-    val daysUntil = eclipse?.daysRemaining?.coerceAtLeast(0L)?.toInt() ?: 0
+    val daysUntil = eclipse?.daysRemaining?.coerceAtLeast(0) ?: 0
     val countdownMatrix = remember(daysUntil, isFa) {
         val raw = "${daysUntil}D"
         if (isFa) TimeEngine.formatPersianNumbers(daysUntil.toString()) else raw
