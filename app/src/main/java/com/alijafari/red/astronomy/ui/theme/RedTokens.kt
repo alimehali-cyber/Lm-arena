@@ -197,6 +197,40 @@ val RedLightColorTokens = RedColorTokens(
     navBorder = Color(0x1A000000)
 )
 
+// Wine ("می") Palette (Wine Red, Merlot & Deep Burgundy)
+val RedWineColorTokens = RedColorTokens(
+    isDark = true,
+    background = WineBackground,
+    backgroundSecondary = WineSurface,
+    backgroundTertiary = WineSurfaceElevated,
+    surface = WineSurface,
+    surfaceElevated = WineSurfaceElevated,
+    surfaceGrouped = WineSurfaceGrouped,
+    surfaceVariant = WineSurfaceVariant,
+    textPrimary = WineTextPrimary,
+    textSecondary = WineTextSecondary,
+    textTertiary = Color(0x8FEDD2D9),
+    textQuaternary = Color(0x47EDD2D9),
+    border = Color(0x42E86480),
+    separator = Color(0x2BE86480),
+    separatorOpaque = WineOutline,
+    accentRed = WineAccentCrimson,
+    accentRedSubtle = Color(0x33B82245),
+    accentGold = WineCognacGold,
+    accentBlue = WineVintageRose,
+    accentPurple = WinePlumVelvet,
+    statusSuccess = Color(0xFF4ADE80),
+    statusSuccessContainer = Color(0x264ADE80),
+    statusWarning = WineCognacGold,
+    statusWarningContainer = Color(0x26E2A86F),
+    statusError = Color(0xFFFF5C77),
+    statusErrorContainer = Color(0x26FF5C77),
+    statusInfo = WineVintageRose,
+    statusInfoContainer = Color(0x26E87A98),
+    navSurface = Color(0xF21B070E),
+    navBorder = Color(0x40E86480)
+)
+
 // Composition Locals
 val LocalRedColors = staticCompositionLocalOf { RedDarkColorTokens }
 val LocalRedSpacing = staticCompositionLocalOf { RedSpacing }

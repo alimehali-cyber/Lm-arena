@@ -118,6 +118,13 @@ enum class SpatialMeshPreset(
         colors = listOf(Color(0xFFFFA8CC), Color(0xFFFFC7A2), Color(0xFFC3ACFF)),
         radialBloomColor = Color(0x66FFFFFF),
         contentColor = Color(0xFF221426)
+    ),
+
+    /** Wine & Burgundy velvet mesh (vintage burgundy -> claret crimson -> rose garnet). */
+    WINE_VELVET(
+        colors = listOf(Color(0xFF7A142B), Color(0xFFB82547), Color(0xFFE55B78)),
+        radialBloomColor = Color(0x59FFD4DF),
+        contentColor = Color(0xFFFFF5F7)
     )
 }
 
@@ -201,6 +208,29 @@ val LightSpatialPalette = SpatialPalette(
     dotMatrixGhost = Color(0x1A24162B)
 )
 
+val WineSpatialPalette = SpatialPalette(
+    isDark = true,
+    glassFill = Color(0x22FF8EA6),          // Burgundy-tinted frosted crystal glass
+    glassElevatedFill = Color(0x2EFF9EB3),  // Elevated wine-crystal frost
+    glassBackingVeil = Color(0x7A240610),   // Deep cabernet-merlot optical backing veil
+    rimTopHighlight = Color(0x99FFD6E0),    // Ruby-rose top specular catchlight
+    rimSideBorder = Color(0x42F06886),      // Translucent claret side border
+    rimBottomReflection = Color(0x52B8294A),// Burgundy bottom reflection
+    innerTopGlow = Color(0x78FFE0E8),       // Warm blush inset glass thickness glow
+    ambientDropShadow = Color(0x66090104),
+    textPrimary = Color(0xFFFFF2F5),
+    textSecondary = Color(0xD6F4D7DF),
+    textTertiary = Color(0x94F4D7DF),
+    neonGlow = Color(0xFFE84A6C),           // Wine-garnet neon glow
+    accentInk = Color(0xFFFF8AA5),
+    secondaryInk = Color(0xFFE8A878),       // Warm cognac-amber secondary ink
+    coolInk = Color(0xFFF09AB8),
+    successInk = SpatialMintGlow,
+    warningInk = Color(0xFFE8A878),
+    dotMatrixInk = Color(0xFFFFEDF2),
+    dotMatrixGhost = Color(0x26FF8EA6)
+)
+
 val LocalSpatialPalette = staticCompositionLocalOf { DarkSpatialPalette }
 
 object SpatialTheme {
@@ -213,6 +243,7 @@ object SpatialTheme {
 fun spatialPaletteFor(themeMode: ThemeMode): SpatialPalette = when (themeMode) {
     ThemeMode.LIGHT -> LightSpatialPalette
     ThemeMode.DARK -> DarkSpatialPalette
+    ThemeMode.WINE -> WineSpatialPalette
 }
 
 /**
@@ -231,9 +262,27 @@ fun SpatialThemeProvider(
     }
     val palette = remember(themeMode) { spatialPaletteFor(themeMode) }
     val baseRedColors = RedTheme.colors
-    val adaptedRedColors = remember(baseRedColors, palette) {
-        if (palette.isDark) {
-            baseRedColors.copy(
+    val adaptedRedColors = remember(baseRedColors, palette, themeMode) {
+        when (themeMode) {
+            ThemeMode.WINE -> baseRedColors.copy(
+                background = Color(0xFF140409),
+                backgroundSecondary = Color(0xFF1F0710),
+                backgroundTertiary = Color(0xFF2B0B17),
+                surface = Color(0xE61D070F),
+                surfaceElevated = Color(0xEB280A15),
+                surfaceGrouped = Color(0xD9210811),
+                surfaceVariant = Color(0xCC36101E),
+                border = Color(0x42FF8EA6),
+                separator = Color(0x2BFF8EA6),
+                accentRed = Color(0xFFE84A6C),
+                accentRedSubtle = Color(0x38B82547),
+                accentGold = Color(0xFFE8A878),
+                accentBlue = Color(0xFFF09AB8),
+                accentPurple = Color(0xFFC86CA2),
+                navSurface = Color(0xE0210710),
+                navBorder = Color(0x4DFF9EB3)
+            )
+            ThemeMode.DARK -> baseRedColors.copy(
                 background = Color(0xFF140E1E),
                 backgroundSecondary = Color(0xFF1E162C),
                 backgroundTertiary = Color(0xFF281E3A),
@@ -251,8 +300,7 @@ fun SpatialThemeProvider(
                 navSurface = Color(0xD91E162D),
                 navBorder = Color(0x47FFFFFF)
             )
-        } else {
-            baseRedColors.copy(
+            ThemeMode.LIGHT -> baseRedColors.copy(
                 background = Color(0xFFF5EAE0),
                 backgroundSecondary = Color(0xFFFAF2EB),
                 backgroundTertiary = Color(0xFFFFFFFF),

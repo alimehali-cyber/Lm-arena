@@ -79,6 +79,23 @@ val PapercraftTextSecondary = Color(0xFF6E655F)    // Muted Sepia
 val PapercraftOutline = Color(0xFFD8D0C3)          // Visible Cut Paper Edge Shadow Border
 
 // ==========================================
+// Wine ("می") Burgundy & Claret Color System
+// ==========================================
+val WineBackground = Color(0xFF120408)             // Deep Cabernet Oxblood
+val WineSurface = Color(0xFF1B070E)                // Merlot Dark Cellar Surface
+val WineSurfaceElevated = Color(0xFF260B15)        // Rich Burgundy Elevated Card
+val WineSurfaceGrouped = Color(0xFF200811)         // Grouped Burgundy Surface
+val WineSurfaceVariant = Color(0xFF32101D)         // Deep Claret Container
+val WineAccentCrimson = Color(0xFFE04263)          // Luminous Wine Red / Pinot Crimson
+val WineAccentBurgundy = Color(0xFF8C1D38)         // Vintage Burgundy Reserve
+val WineCognacGold = Color(0xFFE2A86F)             // Warm Cognac & Mulled Spice Gold
+val WineVintageRose = Color(0xFFE87A98)            // Soft Rosé Highlight
+val WinePlumVelvet = Color(0xFFC46B9E)             // Velvet Plum Accent
+val WineTextPrimary = Color(0xFFFCF0F3)            // Warm Blush Ivory
+val WineTextSecondary = Color(0xCCEDD2D9)          // Muted Rose Parchment
+val WineOutline = Color(0xFF52182A)                // Rich Burgundy Hairline
+
+// ==========================================
 // Legacy color mappings for backward compatibility
 // ==========================================
 val NavyBackground = BackgroundPrimary

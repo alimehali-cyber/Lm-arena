@@ -96,18 +96,23 @@ enum class CalendarSystem {
 
 enum class ThemeMode {
     LIGHT,
-    DARK
+    DARK,
+    WINE
 }
 
 /**
  * Selectable application interface design language.
  * - [DEFAULT]: Classic ZIG restrained flat & high-contrast interface.
  * - [SPATIAL]: VisionOS Spatial Glassmorphism, organic desert/dreamscape atmosphere,
- *   modular squircle bento widgets, mesh gradient pills, neon glow controls, and dot-matrix gauges.
+ *   specular rim lighting, mesh gradient pills, neon glow controls, and dot-matrix gauges.
+ * - [CYBER]: Spatial Glassmorphism 2.0 & Cyber-Minimalist (visionOS x Nothing OS x Teenage Engineering)
+ *   with 4-layer cut glass, retro-futuristic dot-matrix counters, sub-frosted mesh gradient pill cards,
+ *   spatial floating capsule bars, and crisp cutout viewport windows.
  */
 enum class AppUiStyle {
     DEFAULT,
-    SPATIAL
+    SPATIAL,
+    CYBER
 }
 
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {

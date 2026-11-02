@@ -175,6 +175,23 @@ fun ISSScreen(
                     isDarkBackground = true
                 )
             }
+            ThemeMode.WINE -> {
+                SatelliteMapPalette(
+                    oceanColor = WineBackground,
+                    landColor = WineSurfaceElevated,
+                    landStroke = WineOutline,
+                    gridColor = Color(0x22FCECEF),
+                    equatorColor = WineCognacGold,
+                    nightShadowColor = Color(0xEB0B0205),
+                    cityLightColor = WineCognacGold,
+                    orbitTrackColor = WineAccentCrimson,
+                    userPinColor = WineVintageRose,
+                    userTextColor = WineTextPrimary,
+                    containerBg = WineSurface,
+                    containerBorder = WineOutline,
+                    isDarkBackground = true
+                )
+            }
             else -> { // DARK, GLASS, etc.
                 SatelliteMapPalette(
                     oceanColor = Color(0xFF1E293B),

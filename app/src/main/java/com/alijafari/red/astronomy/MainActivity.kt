@@ -40,6 +40,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.AppUiStyle
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.cyber.CyberAmbientBackground
+import com.alijafari.red.astronomy.ui.cyber.CyberFloatingNavBar
+import com.alijafari.red.astronomy.ui.cyber.CyberHomeScreen
+import com.alijafari.red.astronomy.ui.cyber.CyberLabScreen
+import com.alijafari.red.astronomy.ui.cyber.CyberSatellitesScreen
+import com.alijafari.red.astronomy.ui.cyber.CyberSettingsModal
+import com.alijafari.red.astronomy.ui.cyber.CyberThemeProvider
 import com.alijafari.red.astronomy.ui.spatial.SpatialAtmosphereBackground
 import com.alijafari.red.astronomy.ui.spatial.SpatialFloatingNavBar
 import com.alijafari.red.astronomy.ui.spatial.SpatialHomeScreen
@@ -181,8 +188,13 @@ class MainActivity : ComponentActivity() {
                     // The backdrop's measured brightness is still resolved and provided: the Home feed
                     // titles are written straight onto it and pick their ink from it (see BackdropInk).
                     val isSpatialUi = uiState.uiStyle == AppUiStyle.SPATIAL
+                    val isCyberUi = uiState.uiStyle == AppUiStyle.CYBER
                     SpatialThemeProvider(
                         enabled = isSpatialUi,
+                        themeMode = uiState.themeMode
+                    ) {
+                    CyberThemeProvider(
+                        enabled = isCyberUi,
                         themeMode = uiState.themeMode
                     ) {
                     CompositionLocalProvider(
@@ -236,32 +248,45 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
+                            if (isCyberUi && uiState.selectedTab != 3) {
+                                CyberAmbientBackground(
+                                    themeMode = uiState.themeMode,
+                                    isOpaqueCanvas = uiState.appBackdropMode == AppBackdropMode.NONE,
+                                    sunAltitudeDeg = sunAltitudeDeg,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                             // The screens, drawn over the backdrop.
                             Crossfade(
                                 targetState = Pair(uiState.selectedTab, uiState.uiStyle),
                                 label = "TabSwitch"
                             ) { (tab, activeStyle) ->
-                                val useSpatial = activeStyle == AppUiStyle.SPATIAL
                                 when (tab) {
                                     // Root tab 2 is retired: the Moon screen became a card on Home.
-                                    0 -> if (useSpatial) {
-                                        SpatialLabScreen(
+                                    0 -> when (activeStyle) {
+                                        AppUiStyle.CYBER -> CyberLabScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
-                                    } else {
-                                        LabScreen(
+                                        AppUiStyle.SPATIAL -> SpatialLabScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
+                                        )
+                                        AppUiStyle.DEFAULT -> LabScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
                                     }
-                                    1 -> if (useSpatial) {
-                                        SpatialSatellitesScreen(
+                                    1 -> when (activeStyle) {
+                                        AppUiStyle.CYBER -> CyberSatellitesScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
-                                    } else {
-                                        ISSScreen(
+                                        AppUiStyle.SPATIAL -> SpatialSatellitesScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
+                                        )
+                                        AppUiStyle.DEFAULT -> ISSScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
@@ -270,14 +295,18 @@ class MainActivity : ComponentActivity() {
                                         uiState = uiState,
                                         viewModel = viewModel
                                     )
-                                    4 -> if (useSpatial) {
-                                        SpatialHomeScreen(
+                                    4 -> when (activeStyle) {
+                                        AppUiStyle.CYBER -> CyberHomeScreen(
                                             uiState = uiState,
                                             viewModel = viewModel,
                                             onNavigateToTab = { viewModel.selectTab(it) }
                                         )
-                                    } else {
-                                        HomeScreen(
+                                        AppUiStyle.SPATIAL -> SpatialHomeScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel,
+                                            onNavigateToTab = { viewModel.selectTab(it) }
+                                        )
+                                        AppUiStyle.DEFAULT -> HomeScreen(
                                             uiState = uiState,
                                             viewModel = viewModel,
                                             onNavigateToTab = { viewModel.selectTab(it) }
@@ -291,14 +320,18 @@ class MainActivity : ComponentActivity() {
                     // Floating Navigation Bar.
                     // Hidden while an immersive screen (the Gravity Sandbox) owns the display.
                     if (!com.zig.gravity.ui.ImmersiveScreenState.active) {
-                        if (isSpatialUi) {
-                            SpatialFloatingNavBar(
+                        when (uiState.uiStyle) {
+                            AppUiStyle.CYBER -> CyberFloatingNavBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
                                 modifier = Modifier.align(Alignment.BottomCenter)
                             )
-                        } else {
-                            com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
+                            AppUiStyle.SPATIAL -> SpatialFloatingNavBar(
+                                selectedTab = uiState.selectedTab,
+                                onTabSelected = { viewModel.selectTab(it) },
+                                modifier = Modifier.align(Alignment.BottomCenter)
+                            )
+                            AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
                                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -372,14 +405,18 @@ class MainActivity : ComponentActivity() {
                       }
 
                       if (uiState.showSettingsDialog) {
-                          if (isSpatialUi) {
-                              SpatialSettingsModal(
+                          when (uiState.uiStyle) {
+                              AppUiStyle.CYBER -> CyberSettingsModal(
                                   uiState = uiState,
                                   viewModel = viewModel,
                                   onDismiss = { viewModel.setShowSettingsDialog(false) }
                               )
-                          } else {
-                              SettingsDialog(
+                              AppUiStyle.SPATIAL -> SpatialSettingsModal(
+                                  uiState = uiState,
+                                  viewModel = viewModel,
+                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
+                              )
+                              AppUiStyle.DEFAULT -> SettingsDialog(
                                   uiState = uiState,
                                   viewModel = viewModel,
                                   onDismiss = { viewModel.setShowSettingsDialog(false) }
@@ -395,6 +432,7 @@ class MainActivity : ComponentActivity() {
                           )
                       }
                   }
+                }
                 }
                 }
             }

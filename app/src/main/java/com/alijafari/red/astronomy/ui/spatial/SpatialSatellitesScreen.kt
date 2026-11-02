@@ -187,7 +187,7 @@ fun SpatialSatellitesScreen(
     val activeMapDark = when (mapTheme) {
         MapTheme.DARK -> true
         MapTheme.LIGHT -> false
-        MapTheme.AUTO -> uiState.themeMode == ThemeMode.DARK
+        MapTheme.AUTO -> uiState.themeMode != ThemeMode.LIGHT
     }
 
     val coroutineScope = rememberCoroutineScope()

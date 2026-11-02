@@ -106,6 +106,7 @@ fun SpatialSettingsModal(
     val uiStyleLabel = when (uiState.uiStyle) {
         AppUiStyle.DEFAULT -> stringResource(R.string.ui_style_default)
         AppUiStyle.SPATIAL -> stringResource(R.string.ui_style_spatial)
+        AppUiStyle.CYBER -> stringResource(R.string.ui_style_cyber)
     }
     val languageLabel = when (uiState.language) {
         AppLanguage.PERSIAN -> stringResource(R.string.language_persian)
@@ -118,6 +119,7 @@ fun SpatialSettingsModal(
     val appThemeLabel = when (uiState.themeMode) {
         ThemeMode.LIGHT -> if (isFa) "روشن" else "Light"
         ThemeMode.DARK -> if (isFa) "تاریک" else "Dark"
+        ThemeMode.WINE -> stringResource(R.string.theme_wine)
     }
     val skyCanvasThemeLabel = when (uiState.skyCanvasTheme) {
         SkyCanvasTheme.REAL_SKY -> if (isFa) "آسمان واقعی" else "Real Sky"
@@ -218,6 +220,13 @@ fun SpatialSettingsModal(
                             onClick = { viewModel.setUiStyle(AppUiStyle.SPATIAL) },
                             modifier = Modifier.testTag("settings_ui_style_spatial")
                         )
+                        SpatialSettingsOptionRow(
+                            title = stringResource(R.string.ui_style_cyber),
+                            subtitle = stringResource(R.string.ui_style_cyber_desc),
+                            isSelected = uiState.uiStyle == AppUiStyle.CYBER,
+                            onClick = { viewModel.setUiStyle(AppUiStyle.CYBER) },
+                            modifier = Modifier.testTag("settings_ui_style_cyber")
+                        )
                     }
 
                     // 1. Language
@@ -284,6 +293,13 @@ fun SpatialSettingsModal(
                             title = if (isFa) "تاریک" else "Dark",
                             isSelected = uiState.themeMode == ThemeMode.DARK,
                             onClick = { viewModel.setThemeMode(ThemeMode.DARK) }
+                        )
+                        SpatialSettingsOptionRow(
+                            title = stringResource(R.string.theme_wine),
+                            subtitle = stringResource(R.string.theme_wine_desc),
+                            isSelected = uiState.themeMode == ThemeMode.WINE,
+                            onClick = { viewModel.setThemeMode(ThemeMode.WINE) },
+                            modifier = Modifier.testTag("settings_theme_wine")
                         )
                     }
 

@@ -48,6 +48,24 @@ private val LightSpaceColorScheme = lightColorScheme(
     outline = SoftCreamCardBorder
 )
 
+private val WineSpaceColorScheme = darkColorScheme(
+    primary = WineAccentCrimson,
+    onPrimary = Color.White,
+    primaryContainer = WineSurfaceVariant,
+    onPrimaryContainer = WineTextPrimary,
+    secondary = WineCognacGold,
+    onSecondary = WineBackground,
+    tertiary = WinePlumVelvet,
+    onTertiary = Color.White,
+    background = WineBackground,
+    onBackground = WineTextPrimary,
+    surface = WineSurface,
+    onSurface = WineTextPrimary,
+    surfaceVariant = WineSurfaceVariant,
+    onSurfaceVariant = WineTextSecondary,
+    outline = WineOutline
+)
+
 private val PapercraftPastelColorScheme = lightColorScheme(
     primary = PapercraftPrimary,
     onPrimary = Color.White,
@@ -317,6 +335,7 @@ fun REDTheme(
     val colorScheme = when (themeMode) {
         ThemeMode.LIGHT -> LightSpaceColorScheme
         ThemeMode.DARK -> OledSpaceColorScheme
+        ThemeMode.WINE -> WineSpaceColorScheme
     }
 
     val redColorTokens = when (themeMode) {
@@ -332,6 +351,7 @@ fun REDTheme(
             border = Color(0xFF27272A),
             separator = Color(0xFF18181B)
         )
+        ThemeMode.WINE -> RedWineColorTokens
     }
 
     // Every token set goes through the contrast repair, so no theme — bundled or dynamic — can hand a

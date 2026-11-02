@@ -29,18 +29,21 @@ fun SpatialAtmosphereBackground(
     sunAltitudeDeg: Double = -18.0,
     modifier: Modifier = Modifier
 ) {
-    val isDark = themeMode == ThemeMode.DARK
+    val isWine = themeMode == ThemeMode.WINE
+    val isDark = themeMode != ThemeMode.LIGHT
 
     Canvas(modifier = modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
 
         if (!isOpaqueDreamscape) {
+            val primaryBleed = if (isWine) Color(0xFFE03E60) else SpatialNeonRose
+            val secondaryBleed = if (isWine) Color(0xFF9E1B38) else SpatialWarmPeach
             // Subtle ethereal ambient mesh glow over LiveSky / PhotoBackdrop
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        SpatialNeonRose.copy(alpha = if (isDark) 0.14f else 0.18f),
+                        primaryBleed.copy(alpha = if (isWine) 0.22f else if (isDark) 0.14f else 0.18f),
                         Color.Transparent
                     ),
                     center = Offset(w * 0.82f, h * 0.16f),
@@ -52,7 +55,7 @@ fun SpatialAtmosphereBackground(
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        SpatialWarmPeach.copy(alpha = if (isDark) 0.11f else 0.15f),
+                        secondaryBleed.copy(alpha = if (isWine) 0.18f else if (isDark) 0.11f else 0.15f),
                         Color.Transparent
                     ),
                     center = Offset(w * 0.18f, h * 0.62f),
@@ -66,16 +69,22 @@ fun SpatialAtmosphereBackground(
 
         // 1. Sky Zenith-to-Horizon Dreamscape Gradient
         val twilightFactor = ((sunAltitudeDeg + 18.0) / 24.0).coerceIn(0.0, 1.0).toFloat()
-        val skyColors = if (isDark) {
-            listOf(
+        val skyColors = when (themeMode) {
+            ThemeMode.WINE -> listOf(
+                Color(0xFF0E0206),                                  // Cabernet midnight zenith
+                Color(0xFF1F060F),                                  // Deep merlot upper sky
+                Color(0xFF380B1A),                                  // Rich burgundy mid-sky
+                lerpAtmo(Color(0xFF591329), Color(0xFF7A1C38), twilightFactor), // Claret wine horizon glow
+                Color(0xFF21060E)                                   // Burgundy cellar shadow base
+            )
+            ThemeMode.DARK -> listOf(
                 Color(0xFF0E0B1A),                                  // Deep cosmic zenith
                 Color(0xFF1A132B),                                  // Indigo-plum upper sky
                 Color(0xFF2D1C3B),                                  // Warm amethyst mid-sky
                 lerpAtmo(Color(0xFF4B2846), Color(0xFF6B3552), twilightFactor), // Rose-dusk horizon glow
                 Color(0xFF241529)                                   // Desert shadow base
             )
-        } else {
-            listOf(
+            ThemeMode.LIGHT -> listOf(
                 Color(0xFFF6ECE6),                                  // Warm alabaster sky
                 Color(0xFFF9E4DC),                                  // Soft blush quartz
                 Color(0xFFFCD8C8),                                  // Warm peach horizon mist
@@ -93,11 +102,15 @@ fun SpatialAtmosphereBackground(
         )
 
         // 2. Ambient Pastel Neon Mesh Glow Orbs (behind frosted glass widgets)
-        // Top-right soft neon pink bloom (#FFB0D0)
+        val topRightBloom = if (isWine) Color(0xFFE8486B) else SpatialNeonRose
+        val midLeftBloom = if (isWine) Color(0xFF9C1D3B) else SpatialCosmicIris
+        val horizonPrimaryBloom = if (isWine) Color(0xFFD93B5C) else SpatialWarmPeach
+        val horizonSecondaryBloom = if (isWine) Color(0xFFE29B6B) else SpatialSunsetCoral
+
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    SpatialNeonRose.copy(alpha = if (isDark) 0.24f else 0.34f),
+                    topRightBloom.copy(alpha = if (isWine) 0.28f else if (isDark) 0.24f else 0.34f),
                     Color.Transparent
                 ),
                 center = Offset(w * 0.84f, h * 0.18f),
@@ -107,11 +120,10 @@ fun SpatialAtmosphereBackground(
             center = Offset(w * 0.84f, h * 0.18f)
         )
 
-        // Mid-left celestial iris-blue mesh orb
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    SpatialCosmicIris.copy(alpha = if (isDark) 0.20f else 0.20f),
+                    midLeftBloom.copy(alpha = if (isWine) 0.30f else 0.20f),
                     Color.Transparent
                 ),
                 center = Offset(w * 0.14f, h * 0.38f),
@@ -121,12 +133,11 @@ fun SpatialAtmosphereBackground(
             center = Offset(w * 0.14f, h * 0.38f)
         )
 
-        // Horizon warm solar/lunar desert bloom
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    SpatialWarmPeach.copy(alpha = if (isDark) 0.26f else 0.44f),
-                    SpatialSunsetCoral.copy(alpha = if (isDark) 0.10f else 0.18f),
+                    horizonPrimaryBloom.copy(alpha = if (isWine) 0.28f else if (isDark) 0.26f else 0.44f),
+                    horizonSecondaryBloom.copy(alpha = if (isWine) 0.12f else if (isDark) 0.10f else 0.18f),
                     Color.Transparent
                 ),
                 center = Offset(w * 0.56f, h * 0.68f),
@@ -136,16 +147,17 @@ fun SpatialAtmosphereBackground(
             center = Offset(w * 0.56f, h * 0.68f)
         )
 
-        // 3. Delicate Starfield Pinpoints in Dark Dreamscape Mode
+        // 3. Delicate Starfield Pinpoints in Dark & Wine Dreamscape Modes
         if (isDark) {
             val starCount = 34
+            val starColor = if (isWine) Color(0xFFFFE6EC) else Color(0xFFFFF5FA)
             for (i in 0 until starCount) {
                 val fx = ((sin(i * 12.9898 + 4.1414) * 43758.5453) % 1.0 + 1.0) % 1.0
                 val fy = (((sin(i * 78.233 + 1.732) * 24634.6345) % 1.0 + 1.0) % 1.0) * 0.62
                 val alpha = (0.16f + (i % 5) * 0.08f) * (1f - fy.toFloat() * 0.9f)
                 val radius = if (i % 7 == 0) 1.6f else 1.05f
                 drawCircle(
-                    color = Color(0xFFFFF5FA).copy(alpha = alpha.coerceIn(0.05f, 0.55f)),
+                    color = starColor.copy(alpha = alpha.coerceIn(0.05f, 0.55f)),
                     radius = radius,
                     center = Offset((fx * w).toFloat(), (fy * h).toFloat())
                 )
@@ -167,10 +179,10 @@ fun SpatialAtmosphereBackground(
         drawPath(
             path = distantDune,
             brush = Brush.verticalGradient(
-                colors = if (isDark) {
-                    listOf(Color(0x883A2139), Color(0xCC1E1326))
-                } else {
-                    listOf(Color(0xCCEAB69E), Color(0xFFDDA287))
+                colors = when (themeMode) {
+                    ThemeMode.WINE -> listOf(Color(0x994A0F22), Color(0xD9240711))
+                    ThemeMode.DARK -> listOf(Color(0x883A2139), Color(0xCC1E1326))
+                    ThemeMode.LIGHT -> listOf(Color(0xCCEAB69E), Color(0xFFDDA287))
                 },
                 startY = h * 0.67f,
                 endY = h
@@ -191,10 +203,10 @@ fun SpatialAtmosphereBackground(
         drawPath(
             path = midDune,
             brush = Brush.verticalGradient(
-                colors = if (isDark) {
-                    listOf(Color(0xAA2B182E), Color(0xEE160F20))
-                } else {
-                    listOf(Color(0xD9E2A58B), Color(0xFFCF9076))
+                colors = when (themeMode) {
+                    ThemeMode.WINE -> listOf(Color(0xB8360A19), Color(0xEE19040C))
+                    ThemeMode.DARK -> listOf(Color(0xAA2B182E), Color(0xEE160F20))
+                    ThemeMode.LIGHT -> listOf(Color(0xD9E2A58B), Color(0xFFCF9076))
                 },
                 startY = h * 0.74f,
                 endY = h
@@ -215,10 +227,10 @@ fun SpatialAtmosphereBackground(
         drawPath(
             path = foregroundDune,
             brush = Brush.verticalGradient(
-                colors = if (isDark) {
-                    listOf(Color(0xCC211327), Color(0xFF120B1B))
-                } else {
-                    listOf(Color(0xFFE7B39C), Color(0xFFD59A80))
+                colors = when (themeMode) {
+                    ThemeMode.WINE -> listOf(Color(0xD9260712), Color(0xFF120308))
+                    ThemeMode.DARK -> listOf(Color(0xCC211327), Color(0xFF120B1B))
+                    ThemeMode.LIGHT -> listOf(Color(0xFFE7B39C), Color(0xFFD59A80))
                 },
                 startY = h * 0.83f,
                 endY = h
