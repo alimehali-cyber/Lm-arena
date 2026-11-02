@@ -111,11 +111,12 @@ object SplashArtLoader {
     private fun makeGrainTile(size: Int = 128): Bitmap {
         val rnd = Random(0x5A16)
         val px = IntArray(size * size) {
-            // Signed grain: half the grains lighten, half darken, so the mean brightness is kept.
-            val v = rnd.nextFloat()
-            val light = v > 0.5f
-            val a = ((kotlin.math.abs(v - 0.5f) * 2f).let { it * it } * 255f).toInt().coerceIn(0, 255)
-            if (light) (a shl 24) or 0xFFFFFF else (a shl 24)
+            // Opaque, mid-grey-centred grain, composited with OVERLAY. On the dark velvet OVERLAY is
+            // multiplicative (~2 x base x grain), so the grain modulates the fibres without a grey
+            // veil and keeps the photo's hue and mean brightness. Triangular noise, mean 128.
+            val n = (rnd.nextFloat() + rnd.nextFloat() - 1f) * 96f
+            val v = (128f + n).toInt().coerceIn(0, 255)
+            (0xFF shl 24) or (v shl 16) or (v shl 8) or v
         }
         return Bitmap.createBitmap(px, size, size, Bitmap.Config.ARGB_8888).also { it.prepareToDraw() }
     }

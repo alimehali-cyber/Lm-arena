@@ -358,8 +358,8 @@ private fun VelvetLayer(state: PremiumSplashState, art: SplashArt?) {
                 val glowRadius = glassW * 1.25f
                 val glowBrush = Brush.radialGradient(
                     colorStops = arrayOf(
-                        0f to SplashPalette.Glow.copy(alpha = 0.30f),
-                        0.45f to SplashPalette.Glow.copy(alpha = 0.11f),
+                        0f to SplashPalette.Glow.copy(alpha = 0.22f),
+                        0.45f to SplashPalette.Glow.copy(alpha = 0.08f),
                         1f to Color.Transparent,
                     ),
                     center = glowCenter,
@@ -398,13 +398,13 @@ private fun VelvetLayer(state: PremiumSplashState, art: SplashArt?) {
                             val strength = SplashTimeline.lightStrength(t)
                             if (strength > 0.01f) {
                                 plateShader.setLocalMatrix(plateMatrix)
-                                val r = max(w, h) * 0.62f
+                                val r = max(w, h) * 0.55f
                                 lightMatrix.reset()
                                 lightMatrix.setScale(r, r * 0.82f)
                                 lightMatrix.postTranslate(SplashTimeline.lightX(t) * w, SplashTimeline.lightY(t) * h)
                                 light.setLocalMatrix(lightMatrix)
                                 lightPaint.shader = ComposeShader(plateShader, light, PorterDuff.Mode.MULTIPLY)
-                                lightPaint.alpha = (strength * 235f).roundToInt().coerceIn(0, 255)
+                                lightPaint.alpha = (strength * 150f).roundToInt().coerceIn(0, 255)
                                 nc.drawRect(0f, 0f, w, h, lightPaint)
                             }
                         }
@@ -625,7 +625,8 @@ private fun OverlayLayer(state: PremiumSplashState, art: SplashArt?) {
                 }
                 val grainPaint = android.graphics.Paint().apply {
                     shader = grainShader
-                    alpha = 46
+                    xfermode = PorterDuffXfermode(PorterDuff.Mode.OVERLAY)
+                    alpha = 84
                 }
                 val grainMatrix = Matrix()
                 val grainScale = max(1f, density * 0.7f)
