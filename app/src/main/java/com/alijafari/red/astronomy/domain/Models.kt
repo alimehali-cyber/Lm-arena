@@ -99,6 +99,43 @@ enum class ThemeMode {
     DARK
 }
 
+/**
+ * Which interface the app draws itself with.
+ *
+ * [CLASSIC] is the app as it has always been: one flat, opaque surface per panel, ink measured against
+ * that surface, nothing behind it. [SPATIAL] is the optional second interface — frosted translucent
+ * panels floating over an animated ambient mesh, specular edges, dot-matrix readouts — described in
+ * `docs/SPATIAL_GLASS_UI.md`. It is a *drawing* choice, not a colour choice: the same token set, the
+ * same call sites and the same layout are kept, so switching interfaces never changes what the app
+ * says, only how it is lit.
+ */
+enum class UiStyle(val nameEn: String, val nameFa: String) {
+    CLASSIC("Default", "پیش‌فرض"),
+    SPATIAL("Spatial Glass", "شیشه فضایی");
+
+    companion object {
+        /** The style the app ships with; anything unreadable in preferences falls back to it. */
+        val DEFAULT = CLASSIC
+    }
+}
+
+/**
+ * The colour of the [UiStyle.SPATIAL] interface.
+ *
+ * Each palette is a complete ambient world — the base the glass floats over, the mesh blobs it
+ * refracts, the specular edge, the accent — so a palette can never only half-apply. [AURORA] is the
+ * coral / peach / cyan / violet mesh the style is known for; [WINE] is the same construction in wine
+ * red and burgundy, gold-edged.
+ */
+enum class SpatialPalette(val nameEn: String, val nameFa: String) {
+    AURORA("Aurora", "شفق"),
+    WINE("Wine · Mei", "شرابی · می");
+
+    companion object {
+        val DEFAULT = AURORA
+    }
+}
+
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {
     REAL_SKY("Real Sky", "آسمان واقعی"),
     ATMOSPHERIC_SKY("Atmospheric Sky", "آسمان جوی (اتمسفریک)"),

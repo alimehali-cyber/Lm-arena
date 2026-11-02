@@ -30,6 +30,15 @@ data class MainUiState(
     val language: AppLanguage = AppLanguage.PERSIAN,
     val calendarSystem: CalendarSystem = CalendarSystem.SOLAR_HIJRI,
     val themeMode: ThemeMode = ThemeMode.DARK,
+    /**
+     * Which interface is drawn: the app's default flat panels ([UiStyle.CLASSIC]) or the optional
+     * Spatial Glass interface ([UiStyle.SPATIAL]). It is a drawing choice, orthogonal to [themeMode] —
+     * the default interface keeps its light and dark palettes, and glass brings its own ambient world,
+     * coloured by [ambientPalette].
+     */
+    val uiStyle: UiStyle = UiStyle.DEFAULT,
+    /** The colour of the Spatial Glass world. Ignored — and never drawn — while [uiStyle] is CLASSIC. */
+    val ambientPalette: SpatialPalette = SpatialPalette.DEFAULT,
     val skyCanvasTheme: SkyCanvasTheme = SkyCanvasTheme.REAL_SKY,
     val userLocation: UserLocation = UserLocation(),
     val selectedTab: Int = 4,
@@ -119,6 +128,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.DARK.name) ?: ThemeMode.DARK.name)
             } catch (e: Exception) {
                 ThemeMode.DARK
+            },
+            uiStyle = try {
+                UiStyle.valueOf(prefs.getString("ui_style", UiStyle.DEFAULT.name) ?: UiStyle.DEFAULT.name)
+            } catch (e: Exception) {
+                UiStyle.DEFAULT
+            },
+            ambientPalette = try {
+                SpatialPalette.valueOf(
+                    prefs.getString("ambient_palette", SpatialPalette.DEFAULT.name) ?: SpatialPalette.DEFAULT.name
+                )
+            } catch (e: Exception) {
+                SpatialPalette.DEFAULT
             },
             bortleClass = prefs.getInt("bortle_class", 3),
             isLiveGpsLocation = prefs.getBoolean("user_location_is_live_gps", false),
@@ -239,6 +260,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setThemeMode(themeMode: ThemeMode) {
         prefs.edit().putString("theme_mode", themeMode.name).apply()
         _uiState.update { it.copy(themeMode = themeMode) }
+    }
+
+    fun setUiStyle(style: UiStyle) {
+        prefs.edit().putString("ui_style", style.name).apply()
+        _uiState.update { it.copy(uiStyle = style) }
+    }
+
+    fun setAmbientPalette(palette: SpatialPalette) {
+        prefs.edit().putString("ambient_palette", palette.name).apply()
+        _uiState.update { it.copy(ambientPalette = palette) }
     }
 
     fun setLiveSkyBackdropEnabled(enabled: Boolean) {

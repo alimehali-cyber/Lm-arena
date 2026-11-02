@@ -9,7 +9,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import kotlin.math.pow
+import com.alijafari.red.astronomy.domain.SpatialPalette
 import com.alijafari.red.astronomy.domain.ThemeMode
+import com.alijafari.red.astronomy.domain.UiStyle
 
 // Material 3 Color Schemes
 private val OledSpaceColorScheme = darkColorScheme(
@@ -300,9 +302,37 @@ fun createDynamicSkyColorScheme(sunAltitudeDeg: Double): androidx.compose.materi
     )
 }
 
+/**
+ * Material's roles, wearing the spatial palette.
+ *
+ * Screens exist that mix Material components (dialogs, text fields, chips) with RED tokens, so the two
+ * palettes have to agree on what a surface and its ink are. The surfaces here are the same translucent
+ * sheets the RED tokens use, and the ink is the light off-white a glass panel carries.
+ */
+private fun spatialMaterialColorScheme(spec: SpatialGlassSpec): androidx.compose.material3.ColorScheme =
+    darkColorScheme(
+        primary = spec.accent,
+        onPrimary = Color.White,
+        primaryContainer = spec.accentSoft,
+        onPrimaryContainer = Color.White,
+        secondary = spec.accentGold,
+        onSecondary = Color(0xFF1A1014),
+        tertiary = spec.accentBlue,
+        onTertiary = Color(0xFF10121A),
+        background = spec.ambientBase,
+        onBackground = Color(0xFFF8F5FF),
+        surface = spec.glassFillStrong,
+        onSurface = Color(0xFFF8F5FF),
+        surfaceVariant = spec.glassFill,
+        onSurfaceVariant = Color(0xC2F8F5FF),
+        outline = spec.edge.copy(alpha = 0.32f)
+    )
+
 @Composable
 fun REDTheme(
     themeMode: ThemeMode = ThemeMode.DARK,
+    uiStyle: UiStyle = UiStyle.DEFAULT,
+    ambientPalette: SpatialPalette = SpatialPalette.DEFAULT,
     sunAltitudeDeg: Double = -20.0,
     userLatitude: Double = 30.1141,
     userLongitude: Double = 51.5217,
@@ -314,12 +344,16 @@ fun REDTheme(
         calculateCelestialLighting(timestampMs, userLatitude, userLongitude)
     }
 
-    val colorScheme = when (themeMode) {
+    // The interface. Off, everything below resolves exactly as it always has; on, the palette replaces
+    // the flat plate with a translucent sheet and the ambient world it floats over.
+    val spatial = remember(uiStyle, ambientPalette) { spatialGlassSpecFor(uiStyle, ambientPalette) }
+
+    val colorScheme = if (spatial.enabled) spatialMaterialColorScheme(spatial) else when (themeMode) {
         ThemeMode.LIGHT -> LightSpaceColorScheme
         ThemeMode.DARK -> OledSpaceColorScheme
     }
 
-    val redColorTokens = when (themeMode) {
+    val redColorTokens = if (spatial.enabled) spatialGlassColorTokens(spatial) else when (themeMode) {
         ThemeMode.LIGHT -> RedLightColorTokens
         ThemeMode.DARK -> RedDarkColorTokens.copy(
             background = Color.Black,
@@ -335,8 +369,12 @@ fun REDTheme(
     }
 
     // Every token set goes through the contrast repair, so no theme — bundled or dynamic — can hand a
-    // call site text or accent ink that dies on the surface it is drawn on.
-    val readableColorTokens = withReadableInk(redColorTokens)
+    // call site text or accent ink that dies on the surface it is drawn on. The spatial palette is the
+    // one exception, and by construction rather than by trust: its surfaces are translucent, so the
+    // repair (which measures against the surface itself) would read a 10 % white sheet as white and
+    // repaint the app's glass in black ink. That palette's legibility is established at the other end —
+    // `spatialSurfaceInk` measures each panel's fill composited over the ambient world it sits on.
+    val readableColorTokens = if (spatial.enabled) redColorTokens else withReadableInk(redColorTokens)
 
     // Material's ink roles are aligned with those tokens: screens exist that put `colorScheme.onSurface`
     // text on `RedTheme.colors` surfaces (and the reverse), so the two palettes must agree on what ink is.
@@ -357,13 +395,20 @@ fun REDTheme(
     //    style (CompassARScreen / ISSScreen labels).
     val appFontFamily = redFontFamily(isPersian)
 
+    // The dot-matrix face is a Latin/numeral lattice, so it is offered only where every glyph the
+    // readouts use exists in it. In Persian the instrument figures keep Vazirmatn — the interface
+    // changes, the legibility of the numbers never does.
+    val statFontFamily = if (spatial.enabled && !isPersian) DotoFontFamily else appFontFamily
+
     CompositionLocalProvider(
         LocalCelestialLighting provides celestialLighting,
         LocalRedColors provides readableColorTokens,
         LocalRedSpacing provides RedSpacing,
         LocalRedRadius provides RedCornerRadius,
         LocalRedElevation provides RedElevation,
-        LocalAppFontFamily provides appFontFamily
+        LocalAppFontFamily provides appFontFamily,
+        LocalStatFontFamily provides statFontFamily,
+        LocalSpatialGlass provides spatial
     ) {
         MaterialTheme(
             colorScheme = readableMaterialScheme,

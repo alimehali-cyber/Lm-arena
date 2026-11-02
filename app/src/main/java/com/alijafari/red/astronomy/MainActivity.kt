@@ -138,6 +138,8 @@ class MainActivity : ComponentActivity() {
 
             REDTheme(
                 themeMode = uiState.themeMode,
+                uiStyle = uiState.uiStyle,
+                ambientPalette = uiState.ambientPalette,
                 sunAltitudeDeg = sunAltitudeDeg,
                 userLatitude = uiState.userLocation.latitude,
                 userLongitude = uiState.userLocation.longitude,
@@ -175,11 +177,20 @@ class MainActivity : ComponentActivity() {
                     CompositionLocalProvider(
                         com.alijafari.red.astronomy.ui.theme.LocalBackdropLuminance provides backdropLuminance
                     ) {
+                    val spatialGlass = com.alijafari.red.astronomy.ui.theme.LocalSpatialGlass.current
+
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(com.alijafari.red.astronomy.ui.theme.RedTheme.colors.background)
                     ) {
+                    // The ambient world of the Spatial Glass interface: the mesh every translucent panel
+                    // in the app picks its colour up from. It emits nothing at all in the default
+                    // interface, so the app's own background is the only thing painted behind the screens.
+                    com.alijafari.red.astronomy.ui.theme.SpatialAmbientBackdrop(
+                        spec = spatialGlass,
+                        modifier = Modifier.fillMaxSize()
+                    )
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()

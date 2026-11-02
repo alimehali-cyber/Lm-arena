@@ -36,7 +36,9 @@ import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.CalendarSystem
 import com.alijafari.red.astronomy.domain.SkyCanvasTheme
+import com.alijafari.red.astronomy.domain.SpatialPalette
 import com.alijafari.red.astronomy.domain.ThemeMode
+import com.alijafari.red.astronomy.domain.UiStyle
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
@@ -44,6 +46,189 @@ import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import kotlin.math.roundToInt
+
+/**
+ * The Interface section's live preview.
+ *
+ * It is not an illustration of the two interfaces: it renders the *same* composables the app draws
+ * with — [SpatialAmbientBackdrop] behind, [RedSurface] in front, the real palette spec and the real
+ * type tokens — so choosing an interface and looking at this card are the same act. The palette shown
+ * is the one being previewed, not the one the app is currently drawn with, which is the whole point of
+ * a preview.
+ */
+@Composable
+private fun SpatialInterfacePreview(
+    style: UiStyle,
+    palette: SpatialPalette,
+    isFa: Boolean
+) {
+    val spec = remember(style, palette) { spatialGlassSpecFor(style, palette) }
+    val previewShape = squircleShape(RedCornerRadius.window)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(138.dp)
+            .clip(previewShape)
+            .testTag("settings_interface_preview")
+    ) {
+        if (spec.enabled) {
+            SpatialAmbientBackdrop(
+                spec = spec,
+                modifier = Modifier.matchParentSize(),
+                animated = false
+            )
+        } else {
+            Box(modifier = Modifier.matchParentSize().background(RedTheme.colors.background))
+        }
+
+        CompositionLocalProvider(
+            LocalSpatialGlass provides spec,
+            LocalStatFontFamily provides if (isFa) LocalAppFontFamily.current else DotoFontFamily
+        ) {
+            RedSurface(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = RedSpacing.lg)
+                    .fillMaxWidth(),
+                shape = squircleShape(RedCornerRadius.lg),
+                color = if (spec.enabled) spec.glassFill else RedTheme.colors.surfaceElevated,
+                border = BorderStroke(
+                    1.dp,
+                    if (spec.enabled) spec.edge.copy(alpha = 0.30f) else RedTheme.colors.border
+                ),
+                elevation = RedElevation.none,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = if (isFa) "۲۱:۰۴" else "21:04",
+                            style = RedTypographyTokens.statNumber,
+                            color = RedTheme.colors.textPrimary,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = if (spec.enabled) {
+                                if (isFa) "شفق · ماه ۸۲٪" else "Aurora · Moon 82%"
+                            } else {
+                                if (isFa) "پیش‌فرض · ماه ۸۲٪" else "Default · Moon 82%"
+                            },
+                            style = RedTypographyTokens.caption,
+                            color = RedTheme.colors.textSecondary,
+                            maxLines = 1
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .height(26.dp)
+                            .clip(squircleShape(RedCornerRadius.pill))
+                            .background(
+                                if (spec.enabled) spec.accent.copy(alpha = 0.22f) else RedTheme.colors.accentRed.copy(alpha = 0.16f)
+                            )
+                            .padding(horizontal = RedSpacing.md),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "37%",
+                            style = RedTypographyTokens.statNumberSmall,
+                            color = RedTheme.colors.textPrimary,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One palette, shown as a palette *and* as glass: the real ambient world of that palette with a sheet
+ * of its own material floating on it, so the choice is made by looking at the material rather than at
+ * two words and a swatch.
+ */
+@Composable
+private fun GlassPaletteCard(
+    palette: SpatialPalette,
+    isSelected: Boolean,
+    isFa: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val spec = remember(palette) { spatialGlassSpecFor(UiStyle.SPATIAL, palette) }
+    val shape = squircleShape(RedCornerRadius.window)
+    val ink = Color(0xFFFDF7FA)
+
+    Box(
+        modifier = modifier
+            .height(92.dp)
+            .clip(shape)
+            .clickable(onClick = onClick)
+            .border(
+                BorderStroke(
+                    if (isSelected) 1.5.dp else 0.5.dp,
+                    if (isSelected) RedTheme.colors.accentRed else RedTheme.colors.border.copy(alpha = 0.5f)
+                ),
+                shape
+            )
+    ) {
+        SpatialAmbientBackdrop(
+            spec = spec,
+            modifier = Modifier.matchParentSize(),
+            animated = false,
+            showDots = false
+        )
+
+        // The material itself, over its own world.
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = RedSpacing.sm + 2.dp)
+                .fillMaxWidth()
+                .height(34.dp)
+                .testTag("settings_palette_sheet_${palette.name.lowercase()}")
+                .background(spec.glassFillStrong, squircleShape(RedCornerRadius.sm + 6.dp))
+                .spatialGlassMaterial(shape = squircleShape(RedCornerRadius.sm + 6.dp), spec = spec)
+                .clip(squircleShape(RedCornerRadius.sm + 6.dp))
+        )
+
+        Text(
+            text = if (isFa) palette.nameFa else palette.nameEn,
+            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+            color = ink,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = RedSpacing.sm, vertical = RedSpacing.xs + 2.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(RedSpacing.xs + 2.dp)
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(RedTheme.colors.accentRed),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(11.dp)
+                )
+            }
+        }
+    }
+}
 
 /**
  * Data structure for the Bortle Dark-Sky scale reference guide.
@@ -136,6 +321,7 @@ fun SettingsDialog(
     var isLanguageExpanded by remember { mutableStateOf(false) }
     var isCalendarExpanded by remember { mutableStateOf(false) }
     var isAppThemeExpanded by remember { mutableStateOf(false) }
+    var isInterfaceExpanded by remember { mutableStateOf(false) }
     var isSkyCanvasThemeExpanded by remember { mutableStateOf(false) }
     var isAppBackdropExpanded by remember { mutableStateOf(false) }
     var isBortleExpanded by remember { mutableStateOf(false) }
@@ -154,6 +340,15 @@ fun SettingsDialog(
     val appThemeLabel = when (uiState.themeMode) {
         ThemeMode.LIGHT -> if (isFa) "روشن" else "Light"
         ThemeMode.DARK -> if (isFa) "تاریک (OLED)" else "Dark (OLED)"
+    }
+
+    val interfaceLabel = when (uiState.uiStyle) {
+        UiStyle.CLASSIC -> if (isFa) "پیش‌فرض" else "Default"
+        UiStyle.SPATIAL -> if (isFa) {
+            "شیشه فضایی · ${if (uiState.ambientPalette == SpatialPalette.WINE) "می" else "شفق"}"
+        } else {
+            "Spatial Glass · ${if (uiState.ambientPalette == SpatialPalette.WINE) "Wine" else "Aurora"}"
+        }
     }
 
     val skyCanvasThemeLabel = when (uiState.skyCanvasTheme) {
@@ -282,7 +477,93 @@ fun SettingsDialog(
                     )
                 }
 
-                // 4. Sky Canvas Theme Dropdown Section
+                // 4. Interface Section — which of the two interfaces the app is drawn with, and the
+                // colour of the optional one. The preview is built from the very same spec the app
+                // draws with, so what is shown here is the material, not an illustration of it.
+                ExpandableSettingsSection(
+                    title = if (isFa) "رابط کاربری" else "Interface",
+                    currentValueLabel = interfaceLabel,
+                    icon = Icons.Outlined.BlurCircular,
+                    isExpanded = isInterfaceExpanded,
+                    onToggle = { isInterfaceExpanded = !isInterfaceExpanded },
+                    statusColor = if (uiState.uiStyle == UiStyle.SPATIAL) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
+                    testTag = "settings_section_interface"
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
+                        SpatialInterfacePreview(
+                            style = uiState.uiStyle,
+                            palette = uiState.ambientPalette,
+                            isFa = isFa
+                        )
+
+                        SettingsOptionRow(
+                            title = if (isFa) "پیش‌فرض (صفحه‌های مات)" else "Default (flat panels)",
+                            subtitle = if (isFa) "همان رابط فعلی برنامه: سطوح مات، بدون افکت پشت زمینه"
+                            else "The app as it is: opaque panels, nothing behind them",
+                            isSelected = uiState.uiStyle == UiStyle.CLASSIC,
+                            onClick = { viewModel.setUiStyle(UiStyle.CLASSIC) }
+                        )
+                        SettingsOptionRow(
+                            title = if (isFa) "شیشه فضایی (Spatial Glass)" else "Spatial Glass",
+                            subtitle = if (isFa) "پنل‌های شیشه‌ای شفاف روی نور محیطی متحرک"
+                            else "Frosted translucent panels floating over drifting ambient light",
+                            isSelected = uiState.uiStyle == UiStyle.SPATIAL,
+                            onClick = { viewModel.setUiStyle(UiStyle.SPATIAL) }
+                        )
+
+                        Text(
+                            text = if (isFa) "پالت شیشه" else "Glass palette",
+                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                            color = RedTheme.colors.textSecondary,
+                            modifier = Modifier.padding(top = RedSpacing.xs)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(RedSpacing.sm)
+                        ) {
+                            GlassPaletteCard(
+                                palette = SpatialPalette.AURORA,
+                                isSelected = uiState.ambientPalette == SpatialPalette.AURORA,
+                                isFa = isFa,
+                                onClick = { viewModel.setAmbientPalette(SpatialPalette.AURORA) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("settings_palette_aurora")
+                            )
+                            GlassPaletteCard(
+                                palette = SpatialPalette.WINE,
+                                isSelected = uiState.ambientPalette == SpatialPalette.WINE,
+                                isFa = isFa,
+                                onClick = { viewModel.setAmbientPalette(SpatialPalette.WINE) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("settings_palette_wine")
+                            )
+                        }
+
+                        Text(
+                            text = when {
+                                uiState.uiStyle == UiStyle.CLASSIC && isFa ->
+                                    "پالت فقط روی رابط «شیشه فضایی» اعمال می‌شود؛ پس از انتخاب آن نمایان می‌شود."
+                                uiState.uiStyle == UiStyle.CLASSIC ->
+                                    "The palette colours the Spatial Glass interface; pick that interface above to see it."
+                                uiState.ambientPalette == SpatialPalette.WINE && isFa ->
+                                    "شرابی · می: شیشه روی شراب؛ پایه زرشکی تیره، نور بورگوندی و لبه طلایی."
+                                uiState.ambientPalette == SpatialPalette.WINE ->
+                                    "Wine · Mei: glass held up to a lamp — burgundy light, rose specular, gold rim."
+                                isFa ->
+                                    "شفق: مشبک نور مرجانی، هلویی، فیروزه‌ای و بنفش در شب بنفش‌تیره."
+                                else ->
+                                    "Aurora: a coral, peach, cyan and violet mesh drifting through a violet night."
+                            },
+                            style = RedTypographyTokens.caption,
+                            color = RedTheme.colors.textSecondary
+                        )
+                    }
+                }
+
+                // 5. Sky Canvas Theme Dropdown Section
                 ExpandableSettingsSection(
                     title = if (isFa) "سبک هنری آسمان (RMAE)" else "Sky Canvas Theme",
                     currentValueLabel = skyCanvasThemeLabel,
@@ -323,7 +604,7 @@ fun SettingsDialog(
                     )
                 }
 
-                // 5. App Backdrop Section. One live option, default OFF.
+                // 6. App Backdrop Section. One live option, default OFF.
                 ExpandableSettingsSection(
                     title = stringResource(R.string.app_backdrop_title),
                     currentValueLabel = liveSkyStatusLabel,
@@ -398,7 +679,7 @@ fun SettingsDialog(
                     }
                 }
 
-                // 6. Bortle Light-Pollution Dedicated Section & Guide
+                // 7. Bortle Light-Pollution Dedicated Section & Guide
                 ExpandableSettingsSection(
                     title = if (isFa) "آلودگی نوری (مقیاس بورتل)" else "Light Pollution (Bortle Scale)",
                     currentValueLabel = bortleLabel,
@@ -511,7 +792,7 @@ fun SettingsDialog(
                     }
                 }
 
-                // 7. Developer Credit Card
+                // 8. Developer Credit Card
                 RedSurface(
                     modifier = Modifier
                         .fillMaxWidth()

@@ -121,7 +121,12 @@ fun RedSurface(
         label = "RedSurfacePress"
     )
 
-    val ink = surfaceInkFor(color, tint)
+    // The interface the app is currently drawn with. Off, this is a flat panel and nothing below
+    // changes; on, the same fill is a translucent sheet with the palette's light refracting through it
+    // and a specular rim instead of a flat hairline (see SpatialGlass.kt).
+    val glass = LocalSpatialGlass.current
+
+    val ink = spatialSurfaceInk(glass, color, tint)
     val surfaceColors = RedTheme.colors.copy(
         textPrimary = ink.primary,
         textSecondary = ink.secondary,
@@ -134,10 +139,21 @@ fun RedSurface(
         propagateMinConstraints = true,
         modifier = modifier
             .scale(pressScale)
-            .then(if (elevation > 0.dp) Modifier.shadow(elevation, shape) else Modifier)
+            .then(
+                if (glass.enabled) {
+                    Modifier.spatialGlassGlow(if (elevation > 0.dp) elevation else RedElevation.card, shape, glass)
+                } else if (elevation > 0.dp) {
+                    Modifier.shadow(elevation, shape)
+                } else {
+                    Modifier
+                }
+            )
             .background(color, shape)
             .then(if (tint.alpha > 0.001f) Modifier.background(tint, shape) else Modifier)
-            .then(if (border != null) Modifier.border(border, shape) else Modifier)
+            // The material. It draws over the fill and under the content: refraction, sheen, drop,
+            // specular rim and inner bevel, all clipped to the card's own squircle.
+            .spatialGlassMaterial(shape, glass, edgeWidth = border?.width ?: 1.dp)
+            .then(if (border != null && !glass.enabled) Modifier.border(border, shape) else Modifier)
             .clip(shape)
             .then(
                 if (onClick != null) {

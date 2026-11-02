@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -59,6 +60,11 @@ fun FloatingBottomBar(
     // The floating platter wears the same 34 dp window radius as every other container in the app.
     val navShape = squircleShape(RedCornerRadius.window)
 
+    // In the Spatial Glass interface the bar is a capsule of floating material, so the selected tab is
+    // a second, smaller capsule inside it — the "spatial segmented control" of the style. The default
+    // interface keeps its bare icons and coloured tint, exactly as before.
+    val glass = LocalSpatialGlass.current
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -73,7 +79,10 @@ fun FloatingBottomBar(
                 .height(64.dp)
                 .testTag("main_bottom_navigation_surface"),
             shape = navShape,
-            color = RedTheme.colors.surfaceElevated,
+            // In glass the platter is a denser sheet with the ambient world's own base mixed into it,
+            // so the content scrolling under the bar is muted while the light still comes through.
+            color = if (glass.enabled) RedTheme.colors.surfaceGrouped else RedTheme.colors.surfaceElevated,
+            tint = if (glass.enabled) glass.ambientBase.copy(alpha = 0.45f) else Color.Transparent,
             border = androidx.compose.foundation.BorderStroke(1.dp, RedTheme.colors.border),
             elevation = RedElevation.floating,
         ) {
@@ -123,6 +132,23 @@ fun FloatingBottomBar(
                             .padding(vertical = 4.dp)
                             .testTag(item.testTag)
                     ) {
+                        if (glass.enabled) {
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .padding(horizontal = 5.dp, vertical = 3.dp)
+                                    .graphicsLayer { alpha = activeProgress }
+                                    .background(glass.accent.copy(alpha = 0.16f), pillShape)
+                                    .border(
+                                        androidx.compose.foundation.BorderStroke(
+                                            0.75.dp,
+                                            glass.edge.copy(alpha = 0.22f)
+                                        ),
+                                        pillShape
+                                    )
+                            )
+                        }
+
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center

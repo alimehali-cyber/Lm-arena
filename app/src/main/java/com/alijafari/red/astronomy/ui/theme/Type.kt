@@ -55,6 +55,29 @@ fun redFontFamily(isPersian: Boolean): FontFamily =
 val LocalAppFontFamily = staticCompositionLocalOf<FontFamily> { FontFamily.Default }
 
 /**
+ * Doto — the dot-matrix face the Spatial Glass interface renders its instrument readouts in.
+ *
+ * Bundled as one static instance (wght 700, ROND 100: full round dots) rather than the two-axis
+ * variable font, so every API level in the app's range draws the same lattice: Compose only honours
+ * variable axes from API 26, and the dots are the point. Licence: SIL Open Font License 1.1 —
+ * `THIRD_PARTY_LICENSES/Doto-OFL.txt`.
+ *
+ * Doto is Latin and digit only, which is exactly the job: this face never sets prose, only numbers,
+ * times, coordinates and instrument labels. Persian digits are not in it, so [LocalStatFontFamily]
+ * resolves to the locale face there instead of drawing tofu.
+ */
+val DotoFontFamily = FontFamily(
+    Font(R.font.doto_dot_matrix, FontWeight.Normal)
+)
+
+/**
+ * The face numeric readouts are set in. Provided by [REDTheme]: Doto while the Spatial Glass
+ * interface is on and the locale is Latin, the locale face otherwise — so a readout token is always
+ * safe to use, in either interface, in either language.
+ */
+val LocalStatFontFamily = staticCompositionLocalOf<FontFamily> { FontFamily.Default }
+
+/**
  * RED Design System - Restrained Apple-Inspired Typography Hierarchy
  * Balanced for English LTR and Persian RTL scripts with appropriate line-heights and weights.
  *
@@ -325,6 +348,31 @@ object RedTypographyTokens {
         @Composable
         @ReadOnlyComposable
         get() = redLocalized(RedTypeBase.numberSmall)
+
+    /**
+     * statNumber — the instrument readout: a big, wide-tracked figure set in the dot-matrix face while
+     * the Spatial Glass interface is on (see [LocalStatFontFamily]).
+     *
+     * Use it for values, never for prose: times, magnitudes, percentages, counts. In the default
+     * interface it is the ordinary locale face at the same size, so a call site that adopts it does not
+     * change how the app reads when the user has not opted into glass.
+     */
+    val statNumber: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = RedTypeBase.numberLarge.copy(
+            fontFamily = LocalStatFontFamily.current,
+            letterSpacing = 0.5.sp
+        )
+
+    /** statNumberSmall — the same readout at caption scale, for values inside dense rows. */
+    val statNumberSmall: TextStyle
+        @Composable
+        @ReadOnlyComposable
+        get() = RedTypeBase.numberSmall.copy(
+            fontFamily = LocalStatFontFamily.current,
+            letterSpacing = 0.4.sp
+        )
 
     /** screenTitle — rendered with the locale face (see [redLocalized]). */
     val screenTitle: TextStyle

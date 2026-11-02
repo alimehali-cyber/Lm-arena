@@ -1629,16 +1629,18 @@ private fun MoonCardReadout(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.Start
     ) {
+        // The instant, as the interface's own instrument: the locale face in the default interface,
+        // the dot-matrix lattice when Spatial Glass is on (and the locale face there too in Persian,
+        // which Doto has no glyphs for — see LocalStatFontFamily).
         Text(
             text = timeText,
-            style = TextStyle(
-                fontFamily = LocalAppFontFamily.current,
-                fontWeight = FontWeight.Medium,
+            style = RedTypographyTokens.statNumber.copy(
                 fontSize = 26.sp,
                 lineHeight = 28.sp,
-                letterSpacing = if (isFa) 0.sp else 0.5.sp,
-                color = RedTheme.colors.textPrimary
+                fontWeight = FontWeight.Medium,
+                letterSpacing = if (isFa) 0.sp else 0.5.sp
             ),
+            color = RedTheme.colors.textPrimary,
             maxLines = 1
         )
 

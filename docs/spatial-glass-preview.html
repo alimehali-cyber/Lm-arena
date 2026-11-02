@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spatial Glass — design reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@700&family=Inter:wght@200;300;400;500;600&family=Vazirmatn:wght@300;400;600&display=swap" rel="stylesheet" />
+<style>
+  /* ------------------------------------------------------------------------------------------------
+     A design reference, not the app. Every colour, radius, blur, stroke and blend below is the value
+     the Kotlin implementation uses (ui/theme/SpatialGlass.kt, SpatialAmbient.kt, Surface.kt); this page
+     exists so the material can be reviewed without building the APK.
+     ------------------------------------------------------------------------------------------------ */
+  :root {
+    --aurora-base: #14101c;
+    --aurora-bottom: #07060c;
+    --aurora-glass: rgba(255, 255, 255, 0.09);
+    --aurora-glass-strong: rgba(255, 255, 255, 0.13);
+    --aurora-warm: #ff9e7e;
+    --aurora-cool: #8fd9ff;
+    --aurora-accent: #ff9a8b;
+    --aurora-gold: #ffd9a0;
+    --aurora-dot: #ede7ff;
+    --aurora-glow: #9a5bff;
+
+    --wine-base: #160409;
+    --wine-bottom: #080103;
+    --wine-glass: rgba(255, 233, 237, 0.10);
+    --wine-glass-strong: rgba(255, 233, 237, 0.14);
+    --wine-warm: #e0708a;
+    --wine-cool: #c9a227;
+    --wine-accent: #e8677f;
+    --wine-gold: #d9b26a;
+    --wine-dot: #f6dde4;
+    --wine-glow: #8e1230;
+
+    --ink: #f8f5ff;
+    --ink-2: rgba(248, 245, 255, 0.76);
+    --ink-3: rgba(248, 245, 255, 0.56);
+
+    --radius-window: 40px;
+    --radius-card: 34px;
+    --dark-bg: #000;
+    --dark-surface: #0e0e12;
+    --dark-border: #27272a;
+
+    --accent: var(--aurora-accent);
+    --edge: rgba(255, 255, 255, 0.26);
+    --edge-bright: rgba(255, 255, 255, 0.72);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: #0a0a0e;
+    color: #e9e9f2;
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 28px 20px 64px;
+  }
+
+  .doc-head { max-width: 1180px; margin: 0 auto 26px; }
+  .doc-head h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.2px; margin: 0 0 6px; }
+  .doc-head p { margin: 0; max-width: 720px; font-size: 13px; line-height: 1.6; color: #9a9aa8; }
+  .doc-head code { font-family: ui-monospace, monospace; font-size: 12px; color: #c8c8d6; }
+
+  .stage { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 26px; align-items: start; }
+
+  .phone {
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    margin: 0 auto;
+    aspect-ratio: 380 / 780;
+    border-radius: 52px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 40px 90px rgba(0, 0, 0, 0.65);
+    isolation: isolate;
+  }
+  .phone .screen { position: absolute; inset: 0; display: flex; flex-direction: column; }
+
+  /* ---- the ambient world (SpatialAmbient.kt): base gradient + five drifting blobs + dot lattice ---- */
+  .ambient { position: absolute; inset: 0; overflow: hidden; }
+  .ambient .base { position: absolute; inset: 0; background: linear-gradient(180deg, var(--base) 0%, var(--bottom) 100%); }
+  .ambient .blob { position: absolute; border-radius: 50%; filter: blur(6px); mix-blend-mode: screen; animation: drift 26s linear infinite; }
+  .ambient .dots {
+    position: absolute; inset: 0; opacity: 0.14;
+    background-image: radial-gradient(circle, var(--dotColour) 1px, transparent 1.2px);
+    background-size: 22px 22px;
+  }
+  .ambient .vignette { position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 42%, transparent 40%, rgba(0, 0, 0, 0.52) 100%); }
+  @keyframes drift {
+    0%   { transform: translate(0, 0) scale(1); }
+    25%  { transform: translate(2.5%, -2%) scale(1.05); }
+    50%  { transform: translate(-1.5%, 2.5%) scale(0.97); }
+    75%  { transform: translate(2%, 1.5%) scale(1.03); }
+    100% { transform: translate(0, 0) scale(1); }
+  }
+
+  /* ---- the glass material (spatialGlassMaterial + spatialGlassGlow in SpatialGlass.kt) ---- */
+  .glass {
+    position: relative;
+    background:
+      radial-gradient(120% 110% at 4% -18%, color-mix(in srgb, var(--warm) 30%, transparent) 0%, transparent 62%),
+      radial-gradient(120% 110% at 104% 112%, color-mix(in srgb, var(--cool) 22%, transparent) 0%, transparent 62%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.03) 48%, transparent 100%),
+      linear-gradient(180deg, transparent 35%, rgba(0, 0, 0, 0.16) 100%),
+      var(--glassFill);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    border-radius: var(--r, var(--radius-card));
+    box-shadow:
+      0 24px 50px -12px color-mix(in srgb, var(--glow) 55%, transparent),
+      0 18px 34px rgba(0, 0, 0, 0.28);
+    color: var(--ink);
+  }
+  /* the specular rim: bright top-left → faint → bright bottom-right, plus an inner bevel */
+  .glass::before {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, var(--edge-bright) 0%, rgba(255, 255, 255, 0.10) 45%, rgba(255, 255, 255, 0.40) 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  .glass::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    border-top: 2px solid rgba(255, 255, 255, 0.16);
+    pointer-events: none;
+  }
+
+  /* ---- the default interface, for comparison ---- */
+  .flat { background: var(--dark-surface); border: 1px solid var(--dark-border); border-radius: var(--radius-card); color: #fff; }
+
+  /* ---- content ---- */
+  .statusbar { display: flex; justify-content: space-between; padding: 16px 26px 0; font-size: 11px; color: var(--ink-2); letter-spacing: 0.3px; }
+  .statusbar.on-flat { color: rgba(255, 255, 255, 0.65); }
+  .feed { flex: 1; padding: 10px 16px 96px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+  .feed h2 { margin: 6px 2px 0; font-size: 15px; font-weight: 500; letter-spacing: -0.1px; }
+  .feed h2 small { display: block; font-size: 10.5px; font-weight: 400; color: var(--ink-3); margin-top: 3px; }
+
+  .hero { padding: 18px 18px 16px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .hero .label { font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; color: var(--ink-3); }
+  .readout { font-family: Doto, ui-monospace, monospace; font-weight: 700; font-size: 34px; line-height: 1; letter-spacing: 1px; margin: 6px 0 6px; }
+  .readout.small { font-size: 21px; margin: 0; }
+  .sub { font-size: 11px; color: var(--ink-2); }
+  .sub.tiny { font-size: 10px; color: var(--ink-3); margin-top: 2px; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 26px; padding: 0 12px; border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    font-family: Doto, ui-monospace, monospace; font-size: 12px; letter-spacing: 0.5px;
+  }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .row + .row { margin-top: 10px; }
+  .icon { width: 22px; height: 22px; border-radius: 7px; background: color-mix(in srgb, var(--accent) 26%, transparent); flex: none; }
+  .row .body { flex: 1; min-width: 0; }
+  .row .title { font-size: 12.5px; font-weight: 500; }
+  .row .desc { font-size: 10.5px; color: var(--ink-3); margin-top: 2px; }
+  .row .when { font-family: Doto, ui-monospace, monospace; font-size: 11px; color: var(--accent); margin-top: 4px; letter-spacing: 0.4px; }
+
+  .card { padding: 14px 14px; border-radius: var(--radius-card); }
+  .card.tight { padding: 12px 14px; }
+
+  /* the floating capsule bar, with its inner capsule on the selected item */
+  .nav {
+    position: absolute; left: 16px; right: 16px; bottom: 16px;
+    height: 64px; border-radius: var(--radius-window);
+    display: flex; align-items: center; padding: 0 6px;
+  }
+  .nav .item {
+    flex: 1; height: 48px; border-radius: 20px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    font-size: 9.5px; color: var(--ink-3);
+  }
+  .nav .item.active {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    border: 0.75px solid rgba(255, 255, 255, 0.22);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .nav .doticon { width: 18px; height: 18px; border-radius: 6px; background: currentColor; opacity: 0.85; }
+
+  /* settings section preview */
+  .preview { height: 138px; border-radius: var(--radius-window); overflow: hidden; position: relative; }
+  .preview .inner { position: absolute; left: 20px; right: 20px; top: 50%; transform: translateY(-50%); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; }
+
+  .caption { max-width: 1180px; margin: 26px auto 0; font-size: 12px; line-height: 1.7; color: #8d8d9c; }
+  .caption b { color: #c9c9d6; font-weight: 500; }
+  .caption table { border-collapse: collapse; margin-top: 8px; }
+  .caption td { padding: 3px 14px 3px 0; vertical-align: top; }
+  .caption td:first-child { color: #c9c9d6; white-space: nowrap; }
+
+  /* palette switcher (the page's own chrome, not the app) */
+  .switcher { max-width: 1180px; margin: 0 auto 20px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .switcher button {
+    font: inherit; font-size: 12px; color: #d7d7e2; cursor: pointer;
+    background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px; padding: 7px 14px;
+  }
+  .switcher button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.3); color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="doc-head">
+  <h1>Spatial Glass — design reference</h1>
+  <p>
+    The optional second interface, drawn with the exact values the app uses
+    (<code>ui/theme/SpatialGlass.kt</code>, <code>SpatialAmbient.kt</code>, <code>Surface.kt</code>, <code>Type.kt</code>).
+    Same layout, same tokens, same call sites as the default interface — only the material changes.
+    Switch the palette to see the <b>Wine · می</b> world, and compare each with the default flat interface beside it.
+  </p>
+</div>
+
+<div class="switcher">
+  <button id="btnAurora" aria-pressed="true">Aurora · شفق</button>
+  <button id="btnWine" aria-pressed="false">Wine · می</button>
+</div>
+
+<div class="stage">
+  <!-- ============================ SPATIAL GLASS ============================ -->
+  <div class="phone" id="spatial">
+    <div class="ambient">
+      <div class="base"></div>
+      <div class="blob"></div>
+      <div class="blob"></div>
+      <div class="blob"></div>
+      <div class="blob"></div>
+      <div class="blob"></div>
+      <div class="dots"></div>
+      <div class="vignette"></div>
+    </div>
+    <div class="screen">
+      <div class="statusbar"><span>21:04</span><span>● ● ●</span></div>
+      <div class="feed">
+        <div class="glass hero">
+          <div>
+            <div class="label">Moon · readout</div>
+            <div class="readout">21:04</div>
+            <div class="sub">Moon 82% up · Bortle 3</div>
+            <div class="sub tiny">Monday · 12 Azar</div>
+          </div>
+          <div class="pill">37%</div>
+        </div>
+
+        <h2>What's Up Tonight<small>Key celestial events for your coordinates</small></h2>
+
+        <div class="glass card">
+          <div class="row">
+            <div class="icon"></div>
+            <div class="body">
+              <div class="title">Geminid meteor shower</div>
+              <div class="desc">Radiant near Castor, best after local midnight.</div>
+              <div class="when">22:40</div>
+            </div>
+            <div class="pill">89%</div>
+          </div>
+          <div class="row">
+            <div class="icon"></div>
+            <div class="body">
+              <div class="title">ISS pass</div>
+              <div class="desc">West to north-east, magnitude −3.4.</div>
+              <div class="when">18:52</div>
+            </div>
+            <div class="pill">16.2</div>
+          </div>
+        </div>
+
+        <div class="glass card tight">
+          <div class="row">
+            <div class="body">
+              <div class="title">Satellites overhead</div>
+              <div class="desc">Next visible pass in 1 h 12 m</div>
+            </div>
+            <div class="readout small">04</div>
+          </div>
+        </div>
+      </div>
+      <div class="glass nav">
+        <div class="item active"><div class="doticon"></div>Home</div>
+        <div class="item"><div class="doticon"></div>AR Sky</div>
+        <div class="item"><div class="doticon"></div>Satellites</div>
+        <div class="item"><div class="doticon"></div>Lab</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ DEFAULT ============================ -->
+  <div class="phone" id="classic">
+    <div class="ambient"><div class="base" style="--base:#000;--bottom:#000"></div></div>
+    <div class="screen">
+      <div class="statusbar on-flat"><span>21:04</span><span>● ● ●</span></div>
+      <div class="feed">
+        <div class="flat hero">
+          <div>
+            <div class="label" style="color:rgba(255,255,255,.42)">Moon · readout</div>
+            <div class="readout" style="font-family:Inter,sans-serif;font-weight:500;font-size:30px;letter-spacing:.3px">21:04</div>
+            <div class="sub" style="color:rgba(255,255,255,.7)">Moon 82% up · Bortle 3</div>
+            <div class="sub tiny" style="color:rgba(255,255,255,.42)">Monday · 12 Azar</div>
+          </div>
+          <div class="pill" style="font-family:Inter,sans-serif;font-weight:500;background:rgba(229,57,53,.16);border-color:#27272a">37%</div>
+        </div>
+
+        <h2 style="color:#fff">What's Up Tonight<small style="color:rgba(255,255,255,.42)">Key celestial events for your coordinates</small></h2>
+
+        <div class="flat card">
+          <div class="row">
+            <div class="icon" style="background:rgba(229,57,53,.18)"></div>
+            <div class="body">
+              <div class="title">Geminid meteor shower</div>
+              <div class="desc" style="color:rgba(255,255,255,.45)">Radiant near Castor, best after local midnight.</div>
+              <div class="when" style="font-family:Inter,sans-serif;color:#e53935">22:40</div>
+            </div>
+            <div class="pill" style="font-family:Inter,sans-serif;background:rgba(52,199,89,.18);border-color:#27272a">89%</div>
+          </div>
+          <div class="row">
+            <div class="icon" style="background:rgba(229,57,53,.18)"></div>
+            <div class="body">
+              <div class="title">ISS pass</div>
+              <div class="desc" style="color:rgba(255,255,255,.45)">West to north-east, magnitude −3.4.</div>
+              <div class="when" style="font-family:Inter,sans-serif;color:#e53935">18:52</div>
+            </div>
+            <div class="pill" style="font-family:Inter,sans-serif;background:rgba(52,199,89,.18);border-color:#27272a">16.2</div>
+          </div>
+        </div>
+
+        <div class="flat card tight">
+          <div class="row">
+            <div class="body">
+              <div class="title">Satellites overhead</div>
+              <div class="desc" style="color:rgba(255,255,255,.45)">Next visible pass in 1 h 12 m</div>
+            </div>
+            <div class="readout small" style="font-family:Inter,sans-serif;font-weight:600">04</div>
+          </div>
+        </div>
+      </div>
+      <div class="flat nav">
+        <div class="item active" style="background:rgba(229,57,53,.10);border-color:transparent;color:#e53935"><div class="doticon"></div>Home</div>
+        <div class="item"><div class="doticon"></div>AR Sky</div>
+        <div class="item"><div class="doticon"></div>Satellites</div>
+        <div class="item"><div class="doticon"></div>Lab</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================ SETTINGS PREVIEW ============================ -->
+  <div class="phone" style="aspect-ratio: 380 / 780;">
+    <div class="ambient">
+      <div class="base"></div>
+      <div class="blob"></div><div class="blob"></div><div class="blob"></div><div class="blob"></div><div class="blob"></div>
+      <div class="dots"></div>
+      <div class="vignette"></div>
+    </div>
+    <div class="screen" style="padding: 18px 16px;">
+      <div style="font-size:13px;font-weight:500;margin:6px 2px 12px">Interface</div>
+
+      <div class="glass preview">
+        <div class="inner glass" style="--r:34px">
+          <div>
+            <div class="readout">21:04</div>
+            <div class="sub tiny">Aurora · Moon 82%</div>
+          </div>
+          <div class="pill">37%</div>
+        </div>
+      </div>
+
+      <div class="glass card" style="margin-top:12px;--r:28px">
+        <div class="row">
+          <div class="body">
+            <div class="title">Default (flat panels)</div>
+            <div class="desc">The app as it is: opaque panels, nothing behind them</div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="body">
+            <div class="title" style="color:var(--accent)">Spatial Glass</div>
+            <div class="desc">Frosted translucent panels over drifting ambient light</div>
+          </div>
+          <div class="pill" style="font-family:Inter,sans-serif">✓</div>
+        </div>
+      </div>
+
+      <div style="font-size:10.5px;color:var(--ink-3);margin:14px 2px 8px">Glass palette</div>
+      <div style="display:flex;gap:10px">
+        <div class="palette-card" data-pal="aurora" style="flex:1;height:92px;border-radius:40px;border:1.5px solid var(--aurora-accent);overflow:hidden;position:relative"></div>
+        <div class="palette-card" data-pal="wine" style="flex:1;height:92px;border-radius:40px;border:0.5px solid rgba(255,255,255,.18);overflow:hidden;position:relative"></div>
+      </div>
+      <div style="font-size:10.5px;line-height:1.6;color:var(--ink-3);margin:12px 2px 0" id="paletteNote">
+        Aurora: a coral, peach, cyan and violet mesh drifting through a violet night.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="caption">
+  <b>What is being shown.</b> The material is four layers: a translucent sheet, the palette's own light
+  re-painted inside the panel's outline, a diagonal specular sweep with weight at the bottom, and a
+  gradient rim (bright where the light is, faint opposite) with an inner bevel. No layer samples the
+  screen behind it — the app has no backdrop capture by design, and the ambient world is soft enough
+  that re-lighting it reads exactly like blurring it.
+  <table>
+    <tr><td>Glass fill</td><td>white 9 % (Aurora) / rose-white 10 % (Wine), 22–25 px blur behind it</td></tr>
+    <tr><td>Rim</td><td>1 px gradient stroke, white .72 → .12 → .40; 2.2 px inner bevel fading from the top</td></tr>
+    <tr><td>Glow</td><td>drop shadow tinted by the palette (violet for Aurora, burgundy for Wine)</td></tr>
+    <tr><td>Readouts</td><td>Doto (bundled, dot-matrix) — values only; prose stays Inter / Vazirmatn</td></tr>
+    <tr><td>Bar</td><td>capsule platter, selected tab a second capsule inside it</td></tr>
+  </table>
+</div>
+
+<script>
+  const AURORA = {
+    base: '#14101c', bottom: '#07060c', dotColour: '#ede7ff',
+    glassFill: 'rgba(255,255,255,.09)', strong: 'rgba(255,255,255,.13)',
+    warm: '#ff9e7e', cool: '#8fd9ff', accent: '#ff9a8b', gold: '#ffd9a0', glow: '#9a5bff',
+    edge: 'rgba(255,255,255,.26)', edgeBright: 'rgba(255,255,255,.72)',
+    blobs: [
+      ['#ff8d6b', 16, 10, 86, 0.62], ['#ffb38a', 90, 24, 62, 0.50],
+      ['#63e6e2', 82, 82, 70, 0.55], ['#8c7bff', 10, 72, 78, 0.58],
+      ['#ff6fa5', 50, 46, 48, 0.42]
+    ],
+    note: 'Aurora: a coral, peach, cyan and violet mesh drifting through a violet night.'
+  };
+  const WINE = {
+    base: '#160409', bottom: '#080103', dotColour: '#f6dde4',
+    glassFill: 'rgba(255,233,237,.10)', strong: 'rgba(255,233,237,.14)',
+    warm: '#e0708a', cool: '#c9a227', accent: '#e8677f', gold: '#d9b26a', glow: '#8e1230',
+    edge: 'rgba(255,237,224,.26)', edgeBright: 'rgba(255,237,224,.72)',
+    blobs: [
+      ['#8e1230', 20, 12, 82, 0.62], ['#d1506f', 92, 28, 60, 0.50],
+      ['#5a0a1e', 78, 84, 74, 0.55], ['#b07a3c', 12, 78, 52, 0.44],
+      ['#a2153a', 52, 48, 50, 0.42]
+    ],
+    note: 'Wine · Mei: glass held up to a lamp — burgundy light, rose specular, gold rim.'
+  };
+
+  function paint(pal) {
+    document.documentElement.style.setProperty('--base', pal.base);
+    document.documentElement.style.setProperty('--bottom', pal.bottom);
+    document.documentElement.style.setProperty('--dotColour', pal.dotColour);
+    document.documentElement.style.setProperty('--glassFill', pal.glassFill);
+    document.documentElement.style.setProperty('--strong', pal.strong);
+    document.documentElement.style.setProperty('--warm', pal.warm);
+    document.documentElement.style.setProperty('--cool', pal.cool);
+    document.documentElement.style.setProperty('--accent', pal.accent);
+    document.documentElement.style.setProperty('--gold', pal.gold);
+    document.documentElement.style.setProperty('--glow', pal.glow);
+    document.documentElement.style.setProperty('--edge', pal.edge);
+    document.documentElement.style.setProperty('--edge-bright', pal.edgeBright);
+
+    document.querySelectorAll('.blob').forEach((el, i) => {
+      const b = pal.blobs[i % pal.blobs.length];
+      el.style.background = `radial-gradient(circle, ${b[0]} 0%, transparent 68%)`;
+      el.style.left = `calc(${b[1]}% - ${b[3] / 2}%)`;
+      el.style.top = `calc(${b[2]}% - ${b[3] / 2}%)`;
+      el.style.width = `${b[3]}%`;
+      el.style.height = `${b[3] * 1.25}%`;
+      el.style.opacity = b[4];
+      el.style.animationDelay = `${-i * 5.2}s`;
+      el.style.animationDuration = `${24 + i * 1.6}s`;
+    });
+
+    document.getElementById('paletteNote').textContent = pal.note;
+
+    // the two palette cards in the settings preview
+    document.querySelectorAll('.palette-card').forEach(card => {
+      const p = card.dataset.pal === 'wine' ? WINE : AURORA;
+      const sel = card.dataset.pal === (pal === WINE ? 'wine' : 'aurora');
+      card.style.borderColor = sel ? p.accent : 'rgba(255,255,255,.18)';
+      card.style.borderWidth = sel ? '1.5px' : '0.5px';
+      const blobsHtml = p.blobs.map(b =>
+        `<span style="position:absolute;left:calc(${b[1]}% - ${b[3] / 2}%);top:calc(${b[2]}% - ${b[3] / 2}%);width:${b[3]}%;height:${b[3] * 1.25}%;opacity:${b[4]};border-radius:50%;background:radial-gradient(circle, ${b[0]} 0%, transparent 68%);mix-blend-mode:screen"></span>`
+      ).join('');
+      card.innerHTML = `
+        <div style="position:absolute;inset:0;background:linear-gradient(180deg,${p.base},${p.bottom})"></div>
+        ${blobsHtml}
+        <div style="position:absolute;left:10px;right:10px;top:50%;transform:translateY(-50%);height:34px;border-radius:14px;background:${p.glassFill};border-top:2px solid rgba(255,255,255,.16);box-shadow:0 10px 24px -8px ${p.glow}"></div>
+        <div style="position:absolute;left:12px;bottom:8px;font-size:10.5px;font-weight:600;color:#fdf7fa">${card.dataset.pal === 'wine' ? 'Wine · می' : 'Aurora · شفق'}</div>
+        ${sel ? `<div style="position:absolute;right:10px;top:10px;width:16px;height:16px;border-radius:50%;background:${p.accent};color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center">✓</div>` : ''}
+      `;
+    });
+  }
+
+  const btnA = document.getElementById('btnAurora');
+  const btnW = document.getElementById('btnWine');
+  btnA.onclick = () => { paint(AURORA); btnA.setAttribute('aria-pressed', 'true'); btnW.setAttribute('aria-pressed', 'false'); };
+  btnW.onclick = () => { paint(WINE); btnW.setAttribute('aria-pressed', 'true'); btnA.setAttribute('aria-pressed', 'false'); };
+  paint(AURORA);
+</script>
+</body>
+</html>

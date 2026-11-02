@@ -25,6 +25,27 @@ Files in this directory are reproduced verbatim from the upstream projects they 
 They are applied in `ui/theme/Type.kt` (`VazirmatnFontFamily`) and switched on per locale in
 `ui/theme/Theme.kt` (`REDTheme(isPersian = ...)`).
 
+## Doto (dot-matrix typeface)
+
+* Project: Doto by Oliver Lalan and contributors — `https://github.com/oliverlalan/Doto`, distributed
+  through the Google Fonts repository at `ofl/doto`.
+* Release used: the `main` branch of `google/fonts`; the variable source is
+  `ofl/doto/Doto[ROND,wght].ttf` (axes: `ROND` 0–100, `wght` 100–900).
+* Licence: SIL Open Font License 1.1 — see `Doto-OFL.txt` (verbatim copy of upstream `OFL.txt`).
+* File bundled: one static instance, `res/font/doto_dot_matrix.ttf`, produced from the upstream
+  variable font with `fontTools.varLib.instancer` at `wght=700, ROND=100` (full round dots). A single
+  static instance is shipped rather than the variable font because Compose only honours variable axes
+  from API 26 up and this app's `minSdk` is 24 — the lattice must be identical on every device.
+* Provenance: the variable source was fetched from the GitHub contents API for `google/fonts` and
+  instantiated locally; no glyphs were edited, added or removed.
+* Used in `ui/theme/Type.kt` (`DotoFontFamily`, provided as `LocalStatFontFamily`) for numeric
+  readouts in the optional Spatial Glass interface only. It sets numbers and Latin labels, never
+  Persian text — Persian keeps Vazirmatn.
+
+| file | bytes |
+|---|---|
+| `res/font/doto_dot_matrix.ttf` | 173,740 |
+
 ## blackhole-simulation (Kerr ray-marching reference)
 
 * Project: blackhole-simulation by Mayank / steeltroops-ai and contributors —
