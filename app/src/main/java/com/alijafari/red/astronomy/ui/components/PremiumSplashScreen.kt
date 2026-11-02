@@ -369,7 +369,7 @@ private fun VelvetLayer(state: PremiumSplashState, art: SplashArt?) {
                     colorStops = arrayOf(
                         0f to Color.Transparent,
                         0.55f to Color.Transparent,
-                        1f to Color.Black.copy(alpha = 0.55f),
+                        1f to Color.Black.copy(alpha = 0.40f),
                     ),
                     center = Offset(w / 2f, h / 2f),
                     radius = sqrt(w * w + h * h) / 2f,
