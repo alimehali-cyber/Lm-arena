@@ -7,4 +7,8 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- Darkest tone of the launch splash velvet. The window background, the Android 12+ system
+         splash and frame 0 of the animated splash (SplashPalette.VelvetDark) are all this colour,
+         so the OS hand-off is seamless. Keep them in sync. -->
+    <color name="zig_splash_velvet_dark">#FF120105</color>
 </resources>

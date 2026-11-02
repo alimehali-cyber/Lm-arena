@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar">
+        <!-- Shown from process start until the animated splash draws its first frame (which is this
+             same colour), so launch never flashes white or black. -->
+        <item name="android:windowBackground">@color/zig_splash_velvet_dark</item>
+    </style>
 </resources>

@@ -1,7 +1,11 @@
 package com.alijafari.red.astronomy
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.View
+import android.view.ViewTreeObserver
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
@@ -63,6 +67,11 @@ import com.alijafari.red.astronomy.ui.components.MoonDetailWindow
 import com.alijafari.red.astronomy.ui.components.ObjectDetailModal
 import com.alijafari.red.astronomy.ui.components.SafeAppLogo
 import com.alijafari.red.astronomy.ui.components.SettingsDialog
+import com.alijafari.red.astronomy.ui.components.PremiumSplashScreen
+import com.alijafari.red.astronomy.ui.components.SplashRevealRole
+import com.alijafari.red.astronomy.ui.components.rememberPremiumSplashState
+import com.alijafari.red.astronomy.ui.components.splashReveal
+import com.alijafari.red.astronomy.ui.splash.SplashArtLoader
 import com.alijafari.red.astronomy.ui.screens.*
 import com.alijafari.red.astronomy.ui.theme.REDTheme
 import com.alijafari.red.astronomy.util.LocaleHelper
@@ -78,6 +87,9 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_TARGET_OBJECT_ID = "extra_target_object_id"
         const val EXTRA_TARGET_TYPE = "extra_target_type"
         const val EXTRA_TARGET_ROUTE = "extra_target_route"
+
+        /** Longest the system splash is held waiting for the splash art to decode. */
+        private const val SPLASH_ART_MAX_HOLD_MS = 800L
     }
 
     private val viewModel: MainViewModel by viewModels()
@@ -112,8 +124,16 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Start decoding the launch splash art before anything else, on its own thread.
+        SplashArtLoader.preload(applicationContext)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Android 12+: the system splash is a plain field of the velvet's darkest tone (see
+        // values-v31/themes.xml) and the animated splash's first frame is that exact colour, so the
+        // system splash can go the instant we draw - no fade overlapping the animation.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            splashScreen.setOnExitAnimationListener { it.remove() }
+        }
         handleNotificationIntent(intent)
 
         // Initialize TLE repository and tie satellite engine resolver
@@ -126,6 +146,20 @@ class MainActivity : ComponentActivity() {
         IssTleWorker.enqueueImmediateSync(this)
         TleSyncWorker.schedulePeriodicSync(this)
         TleSyncWorker.enqueueImmediateSync(this)
+
+        // Keep the system splash (window background) up until the splash art is decoded and its
+        // textures are uploading, so the animation's first frame is never a decode stall. Bounded
+        // by SPLASH_ART_MAX_HOLD_MS; the splash degrades to a plain velvet colour if art is late.
+        val content: View = findViewById(android.R.id.content)
+        val holdStart = SystemClock.uptimeMillis()
+        content.viewTreeObserver.addOnPreDrawListener(object : ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                val ready = SplashArtLoader.isSettled ||
+                    SystemClock.uptimeMillis() - holdStart > SPLASH_ART_MAX_HOLD_MS
+                if (ready) content.viewTreeObserver.removeOnPreDrawListener(this)
+                return ready
+            }
+        })
 
         setContent {
             val baseContext = LocalContext.current
@@ -167,6 +201,9 @@ class MainActivity : ComponentActivity() {
                     // Orientation changes (including the sky viewer's landscape transition) recreate the
                     // Activity. Save this one-shot state across that recreation so the intro never reappears.
                     var showSplashScreen by rememberSaveable { mutableStateOf(true) }
+                    // The splash clock, shared with the UI so the UI slides in on the same timeline as
+                    // the splash leaves. Null once the splash is gone (every reveal is then a no-op).
+                    val splashState = if (showSplashScreen) rememberPremiumSplashState() else null
                     // How bright the thing behind the app actually is, resolved from what the backdrop
                     // *is* rather than from the theme (Part 6, item 1). Text with no surface under it —
                     // the Home feed titles — asks this for its ink.
@@ -208,6 +245,7 @@ class MainActivity : ComponentActivity() {
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
+                            .splashReveal(splashState)
                             .testTag("main_scaffold"),
                         containerColor = Color.Transparent,
                         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -324,17 +362,23 @@ class MainActivity : ComponentActivity() {
                             AppUiStyle.CYBER -> CyberFloatingNavBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
-                                modifier = Modifier.align(Alignment.BottomCenter)
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .splashReveal(splashState, SplashRevealRole.NavigationBar)
                             )
                             AppUiStyle.SPATIAL -> SpatialFloatingNavBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
-                                modifier = Modifier.align(Alignment.BottomCenter)
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .splashReveal(splashState, SplashRevealRole.NavigationBar)
                             )
                             AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
-                                modifier = Modifier.align(Alignment.BottomCenter)
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .splashReveal(splashState, SplashRevealRole.NavigationBar)
                             )
                         }
                     }
@@ -424,11 +468,12 @@ class MainActivity : ComponentActivity() {
                           }
                       }
 
-                      if (showSplashScreen) {
-                          com.alijafari.red.astronomy.ui.components.PremiumSplashScreen(
+                      if (showSplashScreen && splashState != null) {
+                          PremiumSplashScreen(
                               onSplashComplete = {
                                   showSplashScreen = false
-                              }
+                              },
+                              state = splashState
                           )
                       }
                   }
