@@ -1,0 +1,28 @@
+# Baseline profile: the launch path, compiled ahead of time on install (profileinstaller applies it
+# to sideloaded installs too). Rules use the human-readable profile format with wildcards; the
+# Compose, Activity and Lifecycle libraries ship their own profiles, merged in by the build.
+#
+# Activity, ViewModel, start-up trace and the launch splash.
+HSPLcom/alijafari/red/astronomy/MainActivity**->**(**)**
+HSPLcom/alijafari/red/astronomy/ui/MainViewModel**->**(**)**
+HSPLcom/alijafari/red/astronomy/ui/MainUiState**->**(**)**
+HSPLcom/alijafari/red/astronomy/ui/StartupTrace**->**(**)**
+HSPLcom/alijafari/red/astronomy/ui/components/PremiumSplashScreen**->**(**)**
+HSPLcom/alijafari/red/astronomy/ui/components/PremiumSplashState**->**(**)**
+HSPLcom/alijafari/red/astronomy/ui/splash/**->**(**)**
+# Home's start-up astronomy (warm-up, memo, engines, catalogs) and the time/coordinate maths.
+HSPLcom/alijafari/red/astronomy/ui/home/**->**(**)**
+HSPLcom/alijafari/red/astronomy/astro_engine/**->**(**)**
+HSPLcom/alijafari/red/astronomy/data/catalog/**->**(**)**
+HSPLcom/alijafari/red/astronomy/domain/**->**(**)**
+# Home's first frame: the three Home variants, the hero sky, backdrop and theme.
+HSPLcom/alijafari/red/astronomy/ui/screens/HomeScreen**->**(**)**
+HSPLcom/alijafari/red/astronomy/ui/cyber/CyberHomeScreen**->**(**)**
+HSPLcom/alijafari/red/astronomy/ui/spatial/SpatialHomeScreen**->**(**)**
+HSPLcom/alijafari/red/astronomy/ui/rendering/**->**(**)**
+HSPLcom/alijafari/red/astronomy/ui/backdrop/**->**(**)**
+HSPLcom/alijafari/red/astronomy/ui/theme/**->**(**)**
+# Database and TLE store opened during the warm-up.
+HSPLcom/alijafari/red/astronomy/data/database/**->**(**)**
+HSPLcom/alijafari/red/astronomy/data/repository/**->**(**)**
+HSPLcom/alijafari/red/astronomy/data/AppRepository**->**(**)**

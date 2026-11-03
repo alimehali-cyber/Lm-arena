@@ -1,5 +1,13 @@
 package com.alijafari.red.astronomy.ui.spatial
 
+import com.alijafari.red.astronomy.astro_engine.ISSEngine
+import com.alijafari.red.astronomy.ui.home.CatalogObjectsKey
+import com.alijafari.red.astronomy.ui.home.EclipseSeriesKey
+import com.alijafari.red.astronomy.ui.home.HomeAstroKeys
+import com.alijafari.red.astronomy.ui.home.HomeAstroMemo
+import com.alijafari.red.astronomy.ui.home.MoonKey
+import com.alijafari.red.astronomy.ui.home.TonightEventsKey
+import com.alijafari.red.astronomy.ui.home.rememberReadyTimeMs
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -178,12 +186,26 @@ fun SpatialHomeScreen(
         liveTimeMs
     }
 
-    val moonKeyMs = spatialBucketMs(activeTimeMs, isSimulation, SPATIAL_MOON_REFRESH_MS)
-    val catalogKeyMs = spatialBucketMs(activeTimeMs, isSimulation, SPATIAL_CATALOG_REFRESH_MS)
-    val eclipseKeyMs = spatialBucketMs(activeTimeMs, isSimulation, SPATIAL_ECLIPSE_REFRESH_MS)
+    // In live mode each bucket advances once its results are ready (computed off the main thread),
+    // so a refresh never stalls a frame; see rememberReadyTimeMs. Simulation time is unchanged.
+    val moonKeyMs = rememberReadyTimeMs(
+        targetMs = spatialBucketMs(activeTimeMs, isSimulation, SPATIAL_MOON_REFRESH_MS),
+        deferUntilReady = !isSimulation,
+        maxDeferredStepMs = 2 * SPATIAL_MOON_REFRESH_MS
+    ) { HomeAstroKeys.moonKeys(it, uiState) }
+    val catalogKeyMs = rememberReadyTimeMs(
+        targetMs = spatialBucketMs(activeTimeMs, isSimulation, SPATIAL_CATALOG_REFRESH_MS),
+        deferUntilReady = !isSimulation,
+        maxDeferredStepMs = 2 * SPATIAL_CATALOG_REFRESH_MS
+    ) { HomeAstroKeys.catalogKeys(it, uiState, isFa) }
+    val eclipseKeyMs = rememberReadyTimeMs(
+        targetMs = spatialBucketMs(activeTimeMs, isSimulation, SPATIAL_ECLIPSE_REFRESH_MS),
+        deferUntilReady = !isSimulation,
+        maxDeferredStepMs = 2 * SPATIAL_ECLIPSE_REFRESH_MS
+    ) { HomeAstroKeys.eclipseKeys(it, uiState) }
 
     val catalogJd = remember(catalogKeyMs) { TimeEngine.getJulianDate(catalogKeyMs) }
-    val allObjects = remember(catalogJd) { AstronomyCatalog.getAllObjects(catalogJd) }
+    val allObjects = remember(catalogJd) { HomeAstroMemo.get(CatalogObjectsKey(catalogJd)) }
     val catalogLastDeg = remember(catalogJd, uiState.userLocation) {
         TimeEngine.getLAST(catalogJd, uiState.userLocation.longitude)
     }
@@ -196,7 +218,7 @@ fun SpatialHomeScreen(
 
     val moonJd = remember(moonKeyMs) { TimeEngine.getJulianDate(moonKeyMs) }
     val moonData = remember(moonJd, uiState.userLocation) {
-        MoonEngine.calculateMoon(moonJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+        HomeAstroMemo.get(MoonKey(moonJd, uiState.userLocation.latitude, uiState.userLocation.longitude))
     }
 
     val sortedObjectsWithObs = remember(
@@ -246,11 +268,11 @@ fun SpatialHomeScreen(
     }
 
     val moonCardJd = TimeEngine.getJulianDate(
-        spatialBucketMs(activeTimeMs, isSimulation, SPATIAL_MOON_REFRESH_MS) +
+        moonKeyMs +
             (uiState.moonDayOffset.toDouble() * 86_400_000.0).toLong()
     )
     val moonCardData = remember(moonCardJd, uiState.userLocation) {
-        MoonEngine.calculateMoon(moonCardJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+        HomeAstroMemo.get(MoonKey(moonCardJd, uiState.userLocation.latitude, uiState.userLocation.longitude))
     }
     val moonCardSunHoriz = remember(moonCardJd, uiState.userLocation) {
         val scrubSun = SunEngine.calculatePosition(moonCardJd)
@@ -279,14 +301,16 @@ fun SpatialHomeScreen(
         eclipseKeyMs,
         uiState.calendarSystem
     ) {
-        EclipseEngine.getNextEclipseSeries(
-            nowMs = eclipseKeyMs,
-            userLatDeg = uiState.userLocation.latitude,
-            userLonDeg = uiState.userLocation.longitude,
-            elevationM = uiState.userLocation.elevationMeters,
-            timezoneId = uiState.userLocation.timezoneId,
-            calendarSystem = uiState.calendarSystem,
-            count = 3
+        HomeAstroMemo.get(
+            EclipseSeriesKey(
+                nowMs = eclipseKeyMs,
+                latitude = uiState.userLocation.latitude,
+                longitude = uiState.userLocation.longitude,
+                elevationM = uiState.userLocation.elevationMeters,
+                timezoneId = uiState.userLocation.timezoneId,
+                calendarSystem = uiState.calendarSystem,
+                count = HomeAstroKeys.ECLIPSE_COUNT
+            )
         )
     }
 
@@ -356,11 +380,14 @@ fun SpatialHomeScreen(
             // 1. WHAT'S UP TONIGHT? — exact single-column grouped card layout with Spatial Glassmorphism
             item {
                 val tonightEvents = remember(uiState.userLocation, catalogJd, isFa) {
-                    WhatsUpTonightEngine.calculateTonightEvents(
-                        jd = catalogJd,
-                        userLatDeg = uiState.userLocation.latitude,
-                        userLonDeg = uiState.userLocation.longitude,
-                        isFa = isFa
+                    HomeAstroMemo.get(
+                        TonightEventsKey(
+                            jd = catalogJd,
+                            latitude = uiState.userLocation.latitude,
+                            longitude = uiState.userLocation.longitude,
+                            isFa = isFa,
+                            issTle = ISSEngine.cachedTLE
+                        )
                     )
                 }
 

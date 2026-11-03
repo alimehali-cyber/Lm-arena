@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import com.alijafari.red.astronomy.ui.StartupTrace
 import com.alijafari.red.astronomy.ui.splash.SplashArt
 import com.alijafari.red.astronomy.ui.splash.SplashArtGeometry
 import com.alijafari.red.astronomy.ui.splash.SplashArtLoader
@@ -72,6 +73,7 @@ import com.alijafari.red.astronomy.ui.splash.SplashPalette
 import com.alijafari.red.astronomy.ui.splash.SplashTimeline
 import kotlin.math.PI
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -119,12 +121,16 @@ fun PremiumSplashScreen(
         var last = -1L
         while (!state.isFinished) {
             withFrameNanos { now ->
-                if (last < 0L) last = now
+                if (last < 0L) {
+                    last = now
+                    StartupTrace.mark("splash first frame")
+                }
                 val dt = ((now - last) / 1_000_000f).coerceIn(0f, MAX_FRAME_STEP_MS)
                 last = now
                 state.timeMs += dt
             }
         }
+        StartupTrace.mark("splash finished")
         SplashArtLoader.release()
         onComplete()
     }
@@ -150,16 +156,44 @@ private const val MAX_FRAME_STEP_MS = 40f
  * same timeline (see [splashReveal]).
  */
 @Stable
-class PremiumSplashState internal constructor(val reducedMotion: Boolean) {
+class PremiumSplashState internal constructor(
+    val reducedMotion: Boolean,
+    waitForContent: Boolean = false,
+) {
     /** Milliseconds since the first animated frame. Read it only in draw/layer lambdas. */
     var timeMs by mutableFloatStateOf(0f)
         internal set
 
-    /** When the exit starts. Moves earlier if the user taps to skip. */
-    var exitStartMs by mutableFloatStateOf(
+    /** When the exit is planned: the end of the intro, or earlier if the user taps to skip. */
+    var plannedExitMs by mutableFloatStateOf(
         if (reducedMotion) SplashTimeline.REDUCED_INTRO_MS else SplashTimeline.INTRO_MS
     )
         private set
+
+    /**
+     * Splash time at which the app underneath reported its first frames drawn. NaN while waiting
+     * for it; minus infinity when the splash was not asked to wait (tests, previews).
+     */
+    private var contentReadyAtMs by mutableFloatStateOf(
+        if (waitForContent) Float.NaN else Float.NEGATIVE_INFINITY
+    )
+
+    /** Whether the app underneath has reported ready (always true when not waiting for it). */
+    val isContentReady: Boolean
+        get() = !contentReadyAtMs.isNaN()
+
+    /**
+     * When the exit starts: as planned, but never sooner than [SplashTimeline.CONTENT_LEAD_MS]
+     * after the app is ready. While the app is not ready it stays that lead ahead of now, so the
+     * splash holds on its ambient motion with the hairline creeping, and leaves smoothly once the
+     * app is ready. When the app is ready in time (the normal case) this is exactly [plannedExitMs].
+     */
+    val exitStartMs: Float
+        get() {
+            val readyAt = contentReadyAtMs
+            val anchor = if (readyAt.isNaN()) timeMs else readyAt
+            return max(plannedExitMs, anchor + SplashTimeline.CONTENT_LEAD_MS)
+        }
 
     /** Time used for the scene: frozen on a settled still under reduced motion. */
     internal val sceneTimeMs: Float
@@ -168,9 +202,25 @@ class PremiumSplashState internal constructor(val reducedMotion: Boolean) {
     internal val isFinished: Boolean
         get() = SplashTimeline.isFinished(timeMs, exitStartMs, reducedMotion)
 
+    /**
+     * Whether the app may be composed underneath now: once the Z has landed (under reduced motion,
+     * once the still is up), so its heavy first composition never costs the entrance a frame.
+     */
+    val allowsAppComposition: Boolean
+        get() = if (reducedMotion) timeMs > 0f else timeMs >= SplashTimeline.APP_COMPOSE_AFTER_MS
+
+    /** Past the warm-up safety net (see [SplashTimeline.MAX_WARMUP_WAIT_MS]). */
+    val isPastWarmupWait: Boolean
+        get() = timeMs >= SplashTimeline.MAX_WARMUP_WAIT_MS
+
+    /** The app underneath has drawn its first frames; the splash may leave. Idempotent. */
+    fun markContentReady() {
+        if (contentReadyAtMs.isNaN()) contentReadyAtMs = timeMs
+    }
+
     fun skip() {
         val t = timeMs
-        if (t >= SplashTimeline.MIN_SKIP_MS && t < exitStartMs) exitStartMs = t
+        if (t >= SplashTimeline.MIN_SKIP_MS && t < exitStartMs) plannedExitMs = min(plannedExitMs, t)
     }
 
     /** For tests and frame renders: jump the clock to an exact moment. */
@@ -179,10 +229,16 @@ class PremiumSplashState internal constructor(val reducedMotion: Boolean) {
     }
 }
 
+/**
+ * @param waitForContent hold the exit until [PremiumSplashState.markContentReady] is called (the app
+ *   underneath is composed while the splash plays). Off by default, for previews and tests.
+ */
 @Composable
-fun rememberPremiumSplashState(): PremiumSplashState {
+fun rememberPremiumSplashState(waitForContent: Boolean = false): PremiumSplashState {
     val context = LocalContext.current
-    return remember { PremiumSplashState(reducedMotion = animationsDisabled(context)) }
+    return remember {
+        PremiumSplashState(reducedMotion = animationsDisabled(context), waitForContent = waitForContent)
+    }
 }
 
 /** System "Remove animations" (accessibility) or animator scale 0 (developer options). */
@@ -493,7 +549,7 @@ private fun GlassLayer(state: PremiumSplashState, art: SplashArt) {
                             filterQuality = FilterQuality.High,
                         )
 
-                        val sweep = SplashTimeline.sweep(state.sceneTimeMs, state.exitStartMs) ?: return@onDrawBehind
+                        val sweep = SplashTimeline.sweep(state.sceneTimeMs, state.plannedExitMs) ?: return@onDrawBehind
                         val (u, strength) = sweep
                         val c = dir * (u * projMax)
 
@@ -572,7 +628,7 @@ private fun SparkleLayer(state: PremiumSplashState) {
                     val center = Offset(SplashArtGeometry.SPARKLE_X * size.width, SplashArtGeometry.SPARKLE_Y * size.height)
                     val stroke = 1.6.dp.toPx()
                     onDrawBehind {
-                        val s = SplashTimeline.sparkle(state.sceneTimeMs, state.exitStartMs)
+                        val s = SplashTimeline.sparkle(state.sceneTimeMs, state.plannedExitMs)
                         if (s < 0.01f) return@onDrawBehind
                         val arm = size.width * 0.15f * (0.55f + 0.45f * s)
                         val glint = Brush.radialGradient(

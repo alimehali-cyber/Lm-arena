@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy
 
+import com.alijafari.red.astronomy.ui.components.PremiumSplashState
 import com.alijafari.red.astronomy.ui.splash.SplashArtGeometry
 import com.alijafari.red.astronomy.ui.splash.SplashLayout
 import com.alijafari.red.astronomy.ui.splash.SplashPalette
@@ -14,6 +15,90 @@ import org.junit.Test
 
 /** The splash choreography, the hand-offs at both ends, and the screen-fit rules. */
 class SplashTimelineTest {
+
+    // ---- holding for the app ------------------------------------------------------------------
+
+    @Test
+    fun withoutWaitingTheTimelineIsUnchanged() {
+        val s = PremiumSplashState(reducedMotion = false)
+        assertTrue(s.isContentReady)
+        for (t in listOf(0f, 1000f, 2599f, 2600f, 3000f)) {
+            s.seekTo(t)
+            assertEquals(T.INTRO_MS, s.exitStartMs, 0f)
+        }
+    }
+
+    @Test
+    fun appReadyInTimeLeavesTheTimelineExactlyAsPlanned() {
+        val s = PremiumSplashState(reducedMotion = false, waitForContent = true)
+        s.seekTo(1800f)
+        s.markContentReady()
+        for (t in listOf(1800f, 2600f, 3500f)) {
+            s.seekTo(t)
+            assertEquals(T.INTRO_MS, s.exitStartMs, 0f)
+        }
+        s.seekTo(T.INTRO_MS + T.EXIT_TOTAL_MS)
+        assertTrue(s.isFinished)
+    }
+
+    @Test
+    fun theSplashHoldsUntilTheAppIsReadyAndThenLeavesSmoothly() {
+        val s = PremiumSplashState(reducedMotion = false, waitForContent = true)
+        var lastExit = 0f
+        var t = 0f
+        while (t <= 6000f) {
+            s.seekTo(t)
+            val e = s.exitStartMs
+            assertTrue("exit never moves earlier", e >= lastExit)
+            assertTrue("exit stays ahead while waiting (t=$t)", e > t)
+            assertTrue("hairline never completes while waiting (t=$t)", T.progress(t, e) < 1f)
+            assertTrue("not finished while waiting", !s.isFinished)
+            lastExit = e
+            t += 16f
+        }
+        // Continuous where the hold takes over from the planned exit.
+        s.seekTo(T.INTRO_MS - T.CONTENT_LEAD_MS)
+        assertEquals(T.INTRO_MS, s.exitStartMs, 0.001f)
+
+        s.seekTo(5000f)
+        s.markContentReady()
+        s.markContentReady() // idempotent
+        s.seekTo(5200f)
+        assertEquals("exit follows the lead after ready", 5000f + T.CONTENT_LEAD_MS, s.exitStartMs, 0.001f)
+        s.seekTo(5000f + T.CONTENT_LEAD_MS + T.EXIT_TOTAL_MS - 1f)
+        assertTrue(!s.isFinished)
+        s.seekTo(5000f + T.CONTENT_LEAD_MS + T.EXIT_TOTAL_MS)
+        assertTrue(s.isFinished)
+    }
+
+    @Test
+    fun aSkippedSweepNeverReplaysDuringAHold() {
+        val s = PremiumSplashState(reducedMotion = false, waitForContent = true)
+        s.seekTo(1000f)
+        s.skip()
+        assertEquals(1000f, s.plannedExitMs, 0f)
+        s.seekTo(2400f) // inside the second sweep's window, still waiting for the app
+        assertTrue(s.exitStartMs > 2400f)
+        assertNull("the second sweep was skipped", T.sweep(2400f, s.plannedExitMs))
+    }
+
+    @Test
+    fun theAppIsComposedOnlyAfterTheZHasLanded() {
+        val s = PremiumSplashState(reducedMotion = false, waitForContent = true)
+        s.seekTo(T.APP_COMPOSE_AFTER_MS - 1f)
+        assertTrue(!s.allowsAppComposition)
+        s.seekTo(T.APP_COMPOSE_AFTER_MS)
+        assertTrue(s.allowsAppComposition)
+        assertTrue("the Z has landed by then", T.APP_COMPOSE_AFTER_MS >= 180f + 1300f)
+        assertTrue(!s.isPastWarmupWait)
+        s.seekTo(T.MAX_WARMUP_WAIT_MS)
+        assertTrue(s.isPastWarmupWait)
+
+        val reduced = PremiumSplashState(reducedMotion = true, waitForContent = true)
+        assertTrue(!reduced.allowsAppComposition)
+        reduced.seekTo(16f)
+        assertTrue(reduced.allowsAppComposition)
+    }
 
     private val exit = T.INTRO_MS
     private val end = exit + T.EXIT_TOTAL_MS

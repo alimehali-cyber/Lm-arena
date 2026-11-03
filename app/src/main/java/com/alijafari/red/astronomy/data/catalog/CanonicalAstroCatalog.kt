@@ -1046,11 +1046,16 @@ object CanonicalAstroCatalog {
         "carina" to "CAR"
     )
 
+    /** Compiled once instead of on every call (it runs twice per object on every catalog pass). */
+    private object CatalogTokenPatterns {
+        val NON_ALPHANUMERIC = Regex("[^a-z0-9]+")
+    }
+
     private fun normalizedCatalogToken(value: String?): String? {
         val clean = value
             ?.trim()
             ?.lowercase()
-            ?.replace(Regex("[^a-z0-9]+"), "")
+            ?.replace(CatalogTokenPatterns.NON_ALPHANUMERIC, "")
             ?: return null
         return clean.takeIf { it.isNotBlank() }
     }
@@ -1587,9 +1592,10 @@ object CanonicalAstroCatalog {
      */
     fun resolveCanonicalId(idOrLegacyId: String): String {
         val clean = idOrLegacyId.trim().lowercase()
-        val normalized = normalizedCatalogToken(idOrLegacyId)
+        // The normalised form is only consulted when the direct lookup misses, so it is only built
+        // then (it is a pure function of the input, so the result is the same either way).
         return legacyToCanonicalMap[clean]
-            ?: normalized?.let { legacyToCanonicalMap[it] }
+            ?: normalizedCatalogToken(idOrLegacyId)?.let { legacyToCanonicalMap[it] }
             ?: idOrLegacyId
     }
 
@@ -1598,7 +1604,20 @@ object CanonicalAstroCatalog {
      */
     fun getCanonicalObject(idOrLegacyId: String): CanonicalAstroObject? {
         val canonicalId = resolveCanonicalId(idOrLegacyId)
-        return extendedCanonicalObjectsList.find { it.canonicalId == canonicalId }
+        return canonicalObjectsById[canonicalId]
+    }
+
+    /**
+     * Canonical id -> object. Keeps the FIRST object for each id, so a lookup returns exactly what
+     * `extendedCanonicalObjectsList.find { it.canonicalId == id }` returned, in O(1) instead of a
+     * scan of the whole catalog (which made every full catalog pass quadratic).
+     */
+    private val canonicalObjectsById: Map<String, CanonicalAstroObject> by lazy {
+        val byId = HashMap<String, CanonicalAstroObject>(extendedCanonicalObjectsList.size * 2)
+        for (obj in extendedCanonicalObjectsList) {
+            if (!byId.containsKey(obj.canonicalId)) byId[obj.canonicalId] = obj
+        }
+        byId
     }
 
     /**

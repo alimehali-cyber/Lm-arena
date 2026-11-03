@@ -40,7 +40,10 @@ class SkyCanvasInteractionRegressionTest {
     @Test
     fun expandedHomeEclipseListIsRemovedButEclipseScienceAndHeroTileRemain() {
         val home = source("com/alijafari/red/astronomy/ui/screens/HomeScreen.kt")
-        assertTrue("the eclipse series calculation remains intact", home.contains("EclipseEngine.getNextEclipseSeries("))
+        // Home asks for the series through the shared memo; the memo key makes the exact same call.
+        val memo = source("com/alijafari/red/astronomy/ui/home/HomeAstro.kt")
+        assertTrue("Home still asks for the eclipse series", home.contains("HomeAstroMemo.get(\n            EclipseSeriesKey("))
+        assertTrue("the eclipse series calculation remains intact", memo.contains("EclipseEngine.getNextEclipseSeries("))
         assertTrue("the compact eclipse card beside the Moon remains", home.contains(".testTag(\"home_eclipse_card\")"))
         assertTrue("the expanded upcoming-eclipses feed card is removed", !home.contains("home_next_eclipses_card"))
     }

@@ -1,5 +1,13 @@
 package com.alijafari.red.astronomy.ui.cyber
 
+import com.alijafari.red.astronomy.astro_engine.ISSEngine
+import com.alijafari.red.astronomy.ui.home.CatalogObjectsKey
+import com.alijafari.red.astronomy.ui.home.EclipseSeriesKey
+import com.alijafari.red.astronomy.ui.home.HomeAstroKeys
+import com.alijafari.red.astronomy.ui.home.HomeAstroMemo
+import com.alijafari.red.astronomy.ui.home.MoonKey
+import com.alijafari.red.astronomy.ui.home.TonightEventsKey
+import com.alijafari.red.astronomy.ui.home.rememberReadyTimeMs
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -171,12 +179,26 @@ fun CyberHomeScreen(
     val isSimulation = uiState.timeMachineState.mode == TimeMachineMode.SIMULATION
     val activeTimeMs = if (isSimulation) uiState.timeMachineState.simulationTimeMs else liveTimeMs
 
-    val moonKeyMs = cyberBucketMs(activeTimeMs, isSimulation, CYBER_MOON_REFRESH_MS)
-    val catalogKeyMs = cyberBucketMs(activeTimeMs, isSimulation, CYBER_CATALOG_REFRESH_MS)
-    val eclipseKeyMs = cyberBucketMs(activeTimeMs, isSimulation, CYBER_ECLIPSE_REFRESH_MS)
+    // In live mode each bucket advances once its results are ready (computed off the main thread),
+    // so a refresh never stalls a frame; see rememberReadyTimeMs. Simulation time is unchanged.
+    val moonKeyMs = rememberReadyTimeMs(
+        targetMs = cyberBucketMs(activeTimeMs, isSimulation, CYBER_MOON_REFRESH_MS),
+        deferUntilReady = !isSimulation,
+        maxDeferredStepMs = 2 * CYBER_MOON_REFRESH_MS
+    ) { HomeAstroKeys.moonKeys(it, uiState) }
+    val catalogKeyMs = rememberReadyTimeMs(
+        targetMs = cyberBucketMs(activeTimeMs, isSimulation, CYBER_CATALOG_REFRESH_MS),
+        deferUntilReady = !isSimulation,
+        maxDeferredStepMs = 2 * CYBER_CATALOG_REFRESH_MS
+    ) { HomeAstroKeys.catalogKeys(it, uiState, isFa) }
+    val eclipseKeyMs = rememberReadyTimeMs(
+        targetMs = cyberBucketMs(activeTimeMs, isSimulation, CYBER_ECLIPSE_REFRESH_MS),
+        deferUntilReady = !isSimulation,
+        maxDeferredStepMs = 2 * CYBER_ECLIPSE_REFRESH_MS
+    ) { HomeAstroKeys.eclipseKeys(it, uiState) }
 
     val catalogJd = remember(catalogKeyMs) { TimeEngine.getJulianDate(catalogKeyMs) }
-    val allObjects = remember(catalogJd) { AstronomyCatalog.getAllObjects(catalogJd) }
+    val allObjects = remember(catalogJd) { HomeAstroMemo.get(CatalogObjectsKey(catalogJd)) }
     val catalogLastDeg = remember(catalogJd, uiState.userLocation) {
         TimeEngine.getLAST(catalogJd, uiState.userLocation.longitude)
     }
@@ -189,7 +211,7 @@ fun CyberHomeScreen(
 
     val moonJd = remember(moonKeyMs) { TimeEngine.getJulianDate(moonKeyMs) }
     val moonData = remember(moonJd, uiState.userLocation) {
-        MoonEngine.calculateMoon(moonJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+        HomeAstroMemo.get(MoonKey(moonJd, uiState.userLocation.latitude, uiState.userLocation.longitude))
     }
 
     val scrubbedMoonMs = remember(moonKeyMs, uiState.moonDayOffset) {
@@ -197,7 +219,7 @@ fun CyberHomeScreen(
     }
     val cardMoonData = remember(scrubbedMoonMs, uiState.userLocation) {
         val jd = TimeEngine.getJulianDate(scrubbedMoonMs)
-        MoonEngine.calculateMoon(jd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+        HomeAstroMemo.get(MoonKey(jd, uiState.userLocation.latitude, uiState.userLocation.longitude))
     }
     val cardSunHoriz = remember(scrubbedMoonMs, uiState.userLocation) {
         val jd = TimeEngine.getJulianDate(scrubbedMoonMs)
@@ -261,11 +283,14 @@ fun CyberHomeScreen(
     }
 
     val tonightHighlights = remember(catalogJd, uiState.userLocation, isFa) {
-        WhatsUpTonightEngine.calculateTonightEvents(
-            jd = catalogJd,
-            userLatDeg = uiState.userLocation.latitude,
-            userLonDeg = uiState.userLocation.longitude,
-            isFa = isFa
+        HomeAstroMemo.get(
+            TonightEventsKey(
+                jd = catalogJd,
+                latitude = uiState.userLocation.latitude,
+                longitude = uiState.userLocation.longitude,
+                isFa = isFa,
+                issTle = ISSEngine.cachedTLE
+            )
         ).take(8)
     }
 
@@ -274,14 +299,16 @@ fun CyberHomeScreen(
         eclipseKeyMs,
         uiState.calendarSystem
     ) {
-        EclipseEngine.getNextEclipseSeries(
-            nowMs = eclipseKeyMs,
-            userLatDeg = uiState.userLocation.latitude,
-            userLonDeg = uiState.userLocation.longitude,
-            elevationM = uiState.userLocation.elevationMeters,
-            timezoneId = uiState.userLocation.timezoneId,
-            calendarSystem = uiState.calendarSystem,
-            count = 3
+        HomeAstroMemo.get(
+            EclipseSeriesKey(
+                nowMs = eclipseKeyMs,
+                latitude = uiState.userLocation.latitude,
+                longitude = uiState.userLocation.longitude,
+                elevationM = uiState.userLocation.elevationMeters,
+                timezoneId = uiState.userLocation.timezoneId,
+                calendarSystem = uiState.calendarSystem,
+                count = HomeAstroKeys.ECLIPSE_COUNT
+            )
         )
     }
 

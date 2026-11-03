@@ -99,6 +99,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_skyDragOffsetHours.value != hours) _skyDragOffsetHours.value = hours
     }
 
+    // --- Start-up warm-up ----------------------------------------------------------------------
+
+    private val startupWarmupStarted = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val _startupWarmupDone = MutableStateFlow(false)
+
+    /**
+     * True once Home's first-composition astronomy is computed (or the warm-up gave up, in which case
+     * Home computes on demand exactly as it always did). MainActivity composes the app after this.
+     */
+    val startupWarmupDone: StateFlow<Boolean> = _startupWarmupDone.asStateFlow()
+
+    /**
+     * Starts the start-up warm-up (see HomeStartupWarmup) once per ViewModel, so a rotation does not
+     * repeat it. Called by MainActivity rather than from init, so ViewModels built in tests stay inert.
+     */
+    fun startStartupWarmup() {
+        if (!startupWarmupStarted.compareAndSet(false, true)) return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.Default) {
+                    com.alijafari.red.astronomy.ui.home.HomeStartupWarmup.run(
+                        context = getApplication<android.app.Application>(),
+                        stateNow = { _uiState.value },
+                        liveTimeNow = { skyLiveClock.timeMs.value }
+                    )
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                android.util.Log.w(StartupTrace.TAG, "warm-up failed; Home computes on demand", t)
+            }
+            _startupWarmupDone.value = true
+            StartupTrace.mark("warm-up done")
+        }
+    }
+
     private val _uiState = MutableStateFlow(
         MainUiState(
             language = try {

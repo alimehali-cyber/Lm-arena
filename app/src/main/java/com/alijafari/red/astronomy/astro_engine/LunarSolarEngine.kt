@@ -18,55 +18,12 @@ class LunarSolarEngine {
         private const val DEG2RAD = Math.PI / 180.0
         private const val RAD2DEG = 180.0 / Math.PI
         private const val ARCSEC2DEG = 1.0 / 3600.0
-    }
 
-    data class LunarPosition(
-        val geocentricLongitudeDeg: Double,
-        val geocentricLatitudeDeg: Double,
-        val distanceKm: Double,
-        val horizontalParallaxDeg: Double,
-        val apparentLongitudeDeg: Double,
-        val apparentLatitudeDeg: Double,
-        val raDeg: Double,
-        val decDeg: Double
-    )
+        // Meeus ch. 47 (ELP-2000/82 truncated) periodic terms. They are constants: built once here
+        // instead of on every calculateMoon call (180 arrays per call). Same values, same order.
 
-    data class SolarPosition(
-        val geocentricLongitudeDeg: Double,
-        val geocentricLatitudeDeg: Double,
-        val distanceAu: Double,
-        val apparentLongitudeDeg: Double,
-        val raDeg: Double,
-        val decDeg: Double,
-        val equationOfTimeMinutes: Double
-    )
-
-    /**
-     * Calculate high-precision lunar position.
-     * @param astroTime Time in TT
-     * @return Lunar geocentric position
-     */
-    fun calculateMoon(astroTime: AstroTime): LunarPosition {
-        val t = astroTime.jcTt  // Julian centuries in TT from J2000.0
-
-        // Fundamental arguments (in degrees, from Meeus Chapter 47)
-        val Lp = normalizeAngle(218.3164477 + 481267.88123421 * t - 0.0015786 * t * t +
-            1.0 / 538841.0 * t * t * t - 1.0 / 65194000.0 * t * t * t * t)
-        val D = normalizeAngle(297.8501921 + 445267.1114034 * t - 0.0018819 * t * t +
-            1.0 / 545868.0 * t * t * t - 1.0 / 113065000.0 * t * t * t * t)
-        val M = normalizeAngle(357.5291092 + 35999.0502909 * t - 0.0001536 * t * t +
-            1.0 / 24490000.0 * t * t * t)
-        val Mp = normalizeAngle(134.9633964 + 477198.8675055 * t + 0.0087414 * t * t +
-            1.0 / 69699.0 * t * t * t - 1.0 / 14712000.0 * t * t * t * t)
-        val F = normalizeAngle(93.2720950 + 483202.0175233 * t - 0.0036539 * t * t -
-            1.0 / 3526000.0 * t * t * t + 1.0 / 863310000.0 * t * t * t * t)
-
-        val A1 = normalizeAngle(119.75 + 131.849 * t)
-        val A2 = normalizeAngle(53.09 + 479264.290 * t)
-        val A3 = normalizeAngle(313.45 + 481266.484 * t)
-        val E = 1.0 - 0.002516 * t - 0.0000074 * t * t
-
-        val lTerms = arrayOf(
+        /** Longitude terms (Σl, 1e-6 degree). Rows: D, M, M', F multipliers, then the coefficient. Read-only; never mutated. */
+        private val L_TERMS: Array<DoubleArray> = arrayOf(
             doubleArrayOf(0.0, 0.0, 1.0, 0.0, 6288774.0),
             doubleArrayOf(2.0, 0.0, -1.0, 0.0, 1274027.0),
             doubleArrayOf(2.0, 0.0, 0.0, 0.0, 658314.0),
@@ -129,7 +86,8 @@ class LunarSolarEngine {
             doubleArrayOf(2.0, 0.0, -1.0, -2.0, 0.0)
         )
 
-        val bTerms = arrayOf(
+        /** Latitude terms (Σb, 1e-6 degree). Rows: D, M, M', F multipliers, then the coefficient. Read-only; never mutated. */
+        private val B_TERMS: Array<DoubleArray> = arrayOf(
             doubleArrayOf(0.0, 0.0, 0.0, 1.0, 5128122.0),
             doubleArrayOf(0.0, 0.0, 1.0, 1.0, 280602.0),
             doubleArrayOf(0.0, 0.0, 1.0, -1.0, 277693.0),
@@ -192,7 +150,8 @@ class LunarSolarEngine {
             doubleArrayOf(2.0, 0.0, 0.0, 3.0, -107.0)
         )
 
-        val rTerms = arrayOf(
+        /** Distance terms (Σr, 1e-3 km). Rows: D, M, M', F multipliers, then the coefficient. Read-only; never mutated. */
+        private val R_TERMS: Array<DoubleArray> = arrayOf(
             doubleArrayOf(0.0, 0.0, 1.0, 0.0, -20905355.0),
             doubleArrayOf(2.0, 0.0, -1.0, 0.0, -3699111.0),
             doubleArrayOf(2.0, 0.0, 0.0, 0.0, -2955968.0),
@@ -254,9 +213,56 @@ class LunarSolarEngine {
             doubleArrayOf(2.0, 0.0, 3.0, 0.0, 294.0),
             doubleArrayOf(2.0, 0.0, -1.0, -2.0, 0.0)
         )
+    }
+
+    data class LunarPosition(
+        val geocentricLongitudeDeg: Double,
+        val geocentricLatitudeDeg: Double,
+        val distanceKm: Double,
+        val horizontalParallaxDeg: Double,
+        val apparentLongitudeDeg: Double,
+        val apparentLatitudeDeg: Double,
+        val raDeg: Double,
+        val decDeg: Double
+    )
+
+    data class SolarPosition(
+        val geocentricLongitudeDeg: Double,
+        val geocentricLatitudeDeg: Double,
+        val distanceAu: Double,
+        val apparentLongitudeDeg: Double,
+        val raDeg: Double,
+        val decDeg: Double,
+        val equationOfTimeMinutes: Double
+    )
+
+    /**
+     * Calculate high-precision lunar position.
+     * @param astroTime Time in TT
+     * @return Lunar geocentric position
+     */
+    fun calculateMoon(astroTime: AstroTime): LunarPosition {
+        val t = astroTime.jcTt  // Julian centuries in TT from J2000.0
+
+        // Fundamental arguments (in degrees, from Meeus Chapter 47)
+        val Lp = normalizeAngle(218.3164477 + 481267.88123421 * t - 0.0015786 * t * t +
+            1.0 / 538841.0 * t * t * t - 1.0 / 65194000.0 * t * t * t * t)
+        val D = normalizeAngle(297.8501921 + 445267.1114034 * t - 0.0018819 * t * t +
+            1.0 / 545868.0 * t * t * t - 1.0 / 113065000.0 * t * t * t * t)
+        val M = normalizeAngle(357.5291092 + 35999.0502909 * t - 0.0001536 * t * t +
+            1.0 / 24490000.0 * t * t * t)
+        val Mp = normalizeAngle(134.9633964 + 477198.8675055 * t + 0.0087414 * t * t +
+            1.0 / 69699.0 * t * t * t - 1.0 / 14712000.0 * t * t * t * t)
+        val F = normalizeAngle(93.2720950 + 483202.0175233 * t - 0.0036539 * t * t -
+            1.0 / 3526000.0 * t * t * t + 1.0 / 863310000.0 * t * t * t * t)
+
+        val A1 = normalizeAngle(119.75 + 131.849 * t)
+        val A2 = normalizeAngle(53.09 + 479264.290 * t)
+        val A3 = normalizeAngle(313.45 + 481266.484 * t)
+        val E = 1.0 - 0.002516 * t - 0.0000074 * t * t
 
         var sumL = 0.0
-        for (term in lTerms) {
+        for (term in L_TERMS) {
             val arg = (term[0] * D + term[1] * M + term[2] * Mp + term[3] * F) * DEG2RAD
             var coeff = term[4]
             if (abs(term[1]) == 1.0) coeff *= E
@@ -265,7 +271,7 @@ class LunarSolarEngine {
         }
 
         var sumB = 0.0
-        for (term in bTerms) {
+        for (term in B_TERMS) {
             val arg = (term[0] * D + term[1] * M + term[2] * Mp + term[3] * F) * DEG2RAD
             var coeff = term[4]
             if (abs(term[1]) == 1.0) coeff *= E
@@ -274,7 +280,7 @@ class LunarSolarEngine {
         }
 
         var sumR = 0.0
-        for (term in rTerms) {
+        for (term in R_TERMS) {
             val arg = (term[0] * D + term[1] * M + term[2] * Mp + term[3] * F) * DEG2RAD
             var coeff = term[4]
             if (abs(term[1]) == 1.0) coeff *= E

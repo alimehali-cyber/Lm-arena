@@ -1,5 +1,13 @@
 package com.alijafari.red.astronomy.ui.screens
 
+import com.alijafari.red.astronomy.astro_engine.ISSEngine
+import com.alijafari.red.astronomy.ui.home.CatalogObjectsKey
+import com.alijafari.red.astronomy.ui.home.EclipseSeriesKey
+import com.alijafari.red.astronomy.ui.home.HomeAstroKeys
+import com.alijafari.red.astronomy.ui.home.HomeAstroMemo
+import com.alijafari.red.astronomy.ui.home.MoonKey
+import com.alijafari.red.astronomy.ui.home.TonightEventsKey
+import com.alijafari.red.astronomy.ui.home.rememberReadyTimeMs
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -156,9 +164,23 @@ fun HomeScreen(
     // coarse bucket of the clock instead. See MOON_REFRESH_MS / CATALOG_REFRESH_MS /
     // ECLIPSE_REFRESH_MS: those numbers are conservative engineering estimates,
     // NOT measurements — they have not been benchmarked on a device.
-    val moonKeyMs = bucketMs(activeTimeMs, isSimulation, MOON_REFRESH_MS)
-    val catalogKeyMs = bucketMs(activeTimeMs, isSimulation, CATALOG_REFRESH_MS)
-    val eclipseKeyMs = bucketMs(activeTimeMs, isSimulation, ECLIPSE_REFRESH_MS)
+    // In live mode each bucket advances once its results are ready (computed off the main thread),
+    // so a refresh never stalls a frame; see rememberReadyTimeMs. Simulation time is unchanged.
+    val moonKeyMs = rememberReadyTimeMs(
+        targetMs = bucketMs(activeTimeMs, isSimulation, MOON_REFRESH_MS),
+        deferUntilReady = !isSimulation,
+        maxDeferredStepMs = 2 * MOON_REFRESH_MS
+    ) { HomeAstroKeys.moonKeys(it, uiState) }
+    val catalogKeyMs = rememberReadyTimeMs(
+        targetMs = bucketMs(activeTimeMs, isSimulation, CATALOG_REFRESH_MS),
+        deferUntilReady = !isSimulation,
+        maxDeferredStepMs = 2 * CATALOG_REFRESH_MS
+    ) { HomeAstroKeys.catalogKeys(it, uiState, isFa) }
+    val eclipseKeyMs = rememberReadyTimeMs(
+        targetMs = bucketMs(activeTimeMs, isSimulation, ECLIPSE_REFRESH_MS),
+        deferUntilReady = !isSimulation,
+        maxDeferredStepMs = 2 * ECLIPSE_REFRESH_MS
+    ) { HomeAstroKeys.eclipseKeys(it, uiState) }
 
     // Cheap, and correct to keep live: this is the clock the user reads, and the
     // instant the hero canvas draws the sky for.
@@ -166,7 +188,7 @@ fun HomeScreen(
 
     // Whole-catalog pass: ~336 objects through AstroDispatchEngine.calculateState.
     val catalogJd = remember(catalogKeyMs) { TimeEngine.getJulianDate(catalogKeyMs) }
-    val allObjects = remember(catalogJd) { AstronomyCatalog.getAllObjects(catalogJd) }
+    val allObjects = remember(catalogJd) { HomeAstroMemo.get(CatalogObjectsKey(catalogJd)) }
     val catalogLastDeg = remember(catalogJd, uiState.userLocation) {
         TimeEngine.getLAST(catalogJd, uiState.userLocation.longitude)
     }
@@ -190,7 +212,7 @@ fun HomeScreen(
     // Moon data — expensive: ELP2000 plus an iterative MoonTimes rise/set solve.
     val moonJd = remember(moonKeyMs) { TimeEngine.getJulianDate(moonKeyMs) }
     val moonData = remember(moonJd, uiState.userLocation) {
-        MoonEngine.calculateMoon(moonJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+        HomeAstroMemo.get(MoonKey(moonJd, uiState.userLocation.latitude, uiState.userLocation.longitude))
     }
 
     val sortedObjectsWithObs = remember(allObjects, catalogLastDeg, sunHoriz, moonData, uiState.userLocation, uiState.bortleClass) {
@@ -235,11 +257,11 @@ fun HomeScreen(
     // Bucketed so an idle tick never re-solves MoonTimes, while a user scrub still
     // moves the card as soon as the offset crosses a bucket boundary.
     val moonCardJd = TimeEngine.getJulianDate(
-        bucketMs(activeTimeMs, isSimulation, MOON_REFRESH_MS) +
+        moonKeyMs +
             (uiState.moonDayOffset.toDouble() * 86_400_000.0).toLong()
     )
     val moonCardData = remember(moonCardJd, uiState.userLocation) {
-        MoonEngine.calculateMoon(moonCardJd, uiState.userLocation.latitude, uiState.userLocation.longitude)
+        HomeAstroMemo.get(MoonKey(moonCardJd, uiState.userLocation.latitude, uiState.userLocation.longitude))
     }
     val moonCardSunHoriz = remember(moonCardJd, uiState.userLocation) {
         val scrubSun = SunEngine.calculatePosition(moonCardJd)
@@ -265,25 +287,28 @@ fun HomeScreen(
     BackHandler(enabled = isSearchOpen) { closeSkySearch() }
     var selectedEclipseResult by remember { mutableStateOf<EclipseEngine.EclipseResult?>(null) }
 
-    // The eclipse search resolves 3 solar + 3 lunar eclipses synchronously during
-    // composition (~1260 + ~360 ephemeris evaluations). It is keyed on eclipseKeyMs so
-    // it runs at most once per ECLIPSE_REFRESH_MS rather than once per tick.
-    // NOTE: WhatsUpTonightEngine below performs a second, identical search. Removing
-    // that duplicate needs an API change to pass the result in, so it is left as-is
-    // here and recorded as follow-up work.
+    // The eclipse search resolves 3 solar + 3 lunar eclipses (~1260 + ~360 ephemeris
+    // evaluations). It is keyed on eclipseKeyMs so it runs at most once per
+    // ECLIPSE_REFRESH_MS, and it goes through HomeAstroMemo: the start-up warm-up computes
+    // it off the main thread while the splash plays, and live refreshes are computed off
+    // the main thread too (see rememberReadyTimeMs). WhatsUpTonightEngine runs its own
+    // search with its own defaults; EclipseEngine shares each eclipse's contact scan
+    // between the two whenever their inputs are identical.
     val (nextSolarEclipses, nextLunarEclipses) = remember(
         uiState.userLocation,
         eclipseKeyMs,
         uiState.calendarSystem
     ) {
-        EclipseEngine.getNextEclipseSeries(
-            nowMs = eclipseKeyMs,
-            userLatDeg = uiState.userLocation.latitude,
-            userLonDeg = uiState.userLocation.longitude,
-            elevationM = uiState.userLocation.elevationMeters,
-            timezoneId = uiState.userLocation.timezoneId,
-            calendarSystem = uiState.calendarSystem,
-            count = 3
+        HomeAstroMemo.get(
+            EclipseSeriesKey(
+                nowMs = eclipseKeyMs,
+                latitude = uiState.userLocation.latitude,
+                longitude = uiState.userLocation.longitude,
+                elevationM = uiState.userLocation.elevationMeters,
+                timezoneId = uiState.userLocation.timezoneId,
+                calendarSystem = uiState.calendarSystem,
+                count = HomeAstroKeys.ECLIPSE_COUNT
+            )
         )
     }
 
@@ -365,11 +390,14 @@ fun HomeScreen(
             // 2. WHAT'S UP TONIGHT? — Level 2: Contextual Astronomical Information
             item {
                 val tonightEvents = remember(uiState.userLocation, catalogJd, isFa) {
-                    WhatsUpTonightEngine.calculateTonightEvents(
-                        jd = catalogJd,
-                        userLatDeg = uiState.userLocation.latitude,
-                        userLonDeg = uiState.userLocation.longitude,
-                        isFa = isFa
+                    HomeAstroMemo.get(
+                        TonightEventsKey(
+                            jd = catalogJd,
+                            latitude = uiState.userLocation.latitude,
+                            longitude = uiState.userLocation.longitude,
+                            isFa = isFa,
+                            issTle = ISSEngine.cachedTLE
+                        )
                     )
                 }
 

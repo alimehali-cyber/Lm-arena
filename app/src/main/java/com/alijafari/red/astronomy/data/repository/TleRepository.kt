@@ -319,10 +319,9 @@ class TleRepository(private val context: Context) {
         private var INSTANCE: TleRepository? = null
 
         fun getInstance(context: Context): TleRepository {
+            // Checked again inside the lock: start-up warm-up and the UI thread can race here.
             return INSTANCE ?: synchronized(this) {
-                val instance = TleRepository(context.applicationContext)
-                INSTANCE = instance
-                instance
+                INSTANCE ?: TleRepository(context.applicationContext).also { INSTANCE = it }
             }
         }
 

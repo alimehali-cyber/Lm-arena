@@ -91,6 +91,9 @@ dependencies {
   implementation(platform(libs.androidx.compose.bom))
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
+  // Installs baseline profiles (the app's src/main/baseline-prof.txt and the Compose libraries' own)
+  // on sideloaded installs too, so launch code is AOT-compiled instead of interpreted at first run.
+  implementation(libs.androidx.profileinstaller)
   implementation(libs.androidx.camera.camera2)
   implementation(libs.androidx.camera.core)
   implementation(libs.androidx.camera.lifecycle)

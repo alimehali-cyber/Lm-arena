@@ -30,6 +30,18 @@ class EclipseEngine {
         // Shared singleton instance
         val instance = EclipseEngine()
 
+        // Contact-scan caches shared by every EclipseEngine instance (see solarLocalScan and
+        // lunarLocalScan). Each entry is a few hundred bytes; 64 covers every eclipse a session
+        // looks at for several places.
+        private val solarScanCache = BoundedCache<SolarScanKey, SolarLocalScan>(maxEntries = 64)
+        private val lunarScanCache = BoundedCache<LunarScanKey, LunarLocalScan>(maxEntries = 64)
+
+        /** Test hook: forget every shared scan, so the next evaluation recomputes from scratch. */
+        internal fun clearScanCachesForTest() {
+            solarScanCache.clear()
+            lunarScanCache.clear()
+        }
+
         /**
          * Convenience helper to evaluate next eclipses for a user location.
          */
@@ -1926,7 +1938,7 @@ class EclipseEngine {
         }
     }
 
-    private data class SolarStepEval(
+    internal data class SolarStepEval(
         val sunAltDeg: Double,
         val sunAzDeg: Double,
         val sunRadiusDeg: Double,
@@ -2000,19 +2012,36 @@ class EclipseEngine {
         )
     }
 
+    /** What [solarLocalScan] finds: the raw contact-scan state, before any use of nowMs or formatting. */
+    internal data class SolarLocalScan(
+        val firstContactMs: Long,
+        val lastContactMs: Long,
+        val peakTimeMs: Long,
+        val maxObscuration: Double,
+        val maxMagnitude: Double,
+        val minVisibleSepDeg: Double,
+        val peakSunRadiusDeg: Double,
+        val peakMoonRadiusDeg: Double,
+        val peakSunAlt: Double,
+        val peakSunAz: Double,
+        val maxEval: SolarStepEval
+    )
+
+    internal data class SolarScanKey(val maxMs: Long, val latDeg: Double, val lonDeg: Double, val elevationM: Double)
+
     /**
-     * High-precision local circumstances for Solar Eclipse at user location.
+     * The solar contact scan for one eclipse at one place, computed once and then shared by every
+     * caller (Home, What's Up Tonight, the Eclipses window) and every refresh. The key is exactly the
+     * scan's inputs and the scan is a pure function of them, so a shared result is bit-identical to
+     * a fresh one.
      */
-    private fun evaluateSolarEclipseLocal(
-        event: EclipseEvent,
-        userLatDeg: Double,
-        userLonDeg: Double,
-        elevationM: Double,
-        nowMs: Long,
-        timezoneId: String,
-        calendarSystem: CalendarSystem
-    ): EclipseResult {
-        val maxMs = event.maximumMs
+    private fun solarLocalScan(maxMs: Long, userLatDeg: Double, userLonDeg: Double, elevationM: Double): SolarLocalScan =
+        solarScanCache.getOrCompute(SolarScanKey(maxMs, userLatDeg, userLonDeg, elevationM)) {
+            computeSolarLocalScan(maxMs, userLatDeg, userLonDeg, elevationM)
+        }
+
+    /** The scan itself, moved verbatim out of evaluateSolarEclipseLocal. */
+    private fun computeSolarLocalScan(maxMs: Long, userLatDeg: Double, userLonDeg: Double, elevationM: Double): SolarLocalScan {
         val stepMs = 60 * 1000L // 1-minute coarse step
         val scanRadiusMs = (3.5 * 3600 * 1000).toLong()
 
@@ -2083,6 +2112,49 @@ class EclipseEngine {
             }
         }
 
+        val maxEval = evalSolarAt(maxMs, userLatDeg, userLonDeg, elevationM)
+        return SolarLocalScan(
+            firstContactMs = firstContactMs,
+            lastContactMs = lastContactMs,
+            peakTimeMs = peakTimeMs,
+            maxObscuration = maxObscuration,
+            maxMagnitude = maxMagnitude,
+            minVisibleSepDeg = minVisibleSepDeg,
+            peakSunRadiusDeg = peakSunRadiusDeg,
+            peakMoonRadiusDeg = peakMoonRadiusDeg,
+            peakSunAlt = peakSunAlt,
+            peakSunAz = peakSunAz,
+            maxEval = maxEval
+        )
+    }
+
+    /**
+     * High-precision local circumstances for Solar Eclipse at user location.
+     */
+    private fun evaluateSolarEclipseLocal(
+        event: EclipseEvent,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        elevationM: Double,
+        nowMs: Long,
+        timezoneId: String,
+        calendarSystem: CalendarSystem
+    ): EclipseResult {
+        val maxMs = event.maximumMs
+        // The contact scan (about 430 Sun/Moon evaluations) depends only on the eclipse and the
+        // observer, never on nowMs, the time zone or the calendar, so it is shared; see solarLocalScan.
+        val scan = solarLocalScan(maxMs, userLatDeg, userLonDeg, elevationM)
+        val firstContactMs = scan.firstContactMs
+        val lastContactMs = scan.lastContactMs
+        val peakTimeMs = scan.peakTimeMs
+        val maxObscuration = scan.maxObscuration
+        val maxMagnitude = scan.maxMagnitude
+        val minVisibleSepDeg = scan.minVisibleSepDeg
+        val peakSunRadiusDeg = scan.peakSunRadiusDeg
+        val peakMoonRadiusDeg = scan.peakMoonRadiusDeg
+        var peakSunAlt = scan.peakSunAlt
+        var peakSunAz = scan.peakSunAz
+
         val isVisible = maxObscuration >= 0.001 && firstContactMs != 0L
         val isLocalTotal = isVisible &&
                 peakMoonRadiusDeg >= peakSunRadiusDeg &&
@@ -2098,7 +2170,7 @@ class EclipseEngine {
             else -> (maxObscuration * 100.0).roundToInt().coerceIn(1, 99)
         }
 
-        val maxEval = evalSolarAt(maxMs, userLatDeg, userLonDeg, elevationM)
+        val maxEval = scan.maxEval
         if (!isVisible) {
             peakSunAlt = maxEval.sunAltDeg
             peakSunAz = maxEval.sunAzDeg
@@ -2258,22 +2330,46 @@ class EclipseEngine {
         }
     }
 
-    /**
-     * High-precision local circumstances for Lunar Eclipse at user location.
-     */
-    private fun evaluateLunarEclipseLocal(
-        event: EclipseEvent,
+    /** What [lunarLocalScan] finds: the raw horizon-scan state, before any use of nowMs or formatting. */
+    internal data class LunarLocalScan(
+        val localStartMs: Long,
+        val localEndMs: Long,
+        val maxHoriz: CoordinateEngine.Horizontal,
+        val p1Alt: Double,
+        val p4Alt: Double
+    )
+
+    internal data class LunarScanKey(
+        val p1Ms: Long,
+        val p4Ms: Long,
+        val maxMs: Long,
+        val latDeg: Double,
+        val lonDeg: Double,
+        val elevationM: Double
+    )
+
+    /** The lunar horizon scan, shared exactly like [solarLocalScan]: the key is all of its inputs. */
+    private fun lunarLocalScan(
+        p1Ms: Long,
+        p4Ms: Long,
+        maxMs: Long,
         userLatDeg: Double,
         userLonDeg: Double,
-        elevationM: Double,
-        nowMs: Long,
-        timezoneId: String,
-        calendarSystem: CalendarSystem
-    ): EclipseResult {
-        val maxMs = event.maximumMs
-        val p1Ms = event.penumbralStartMs
-        val p4Ms = event.penumbralEndMs
+        elevationM: Double
+    ): LunarLocalScan =
+        lunarScanCache.getOrCompute(LunarScanKey(p1Ms, p4Ms, maxMs, userLatDeg, userLonDeg, elevationM)) {
+            computeLunarLocalScan(p1Ms, p4Ms, maxMs, userLatDeg, userLonDeg, elevationM)
+        }
 
+    /** The scan itself, moved verbatim out of evaluateLunarEclipseLocal. */
+    private fun computeLunarLocalScan(
+        p1Ms: Long,
+        p4Ms: Long,
+        maxMs: Long,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        elevationM: Double
+    ): LunarLocalScan {
         // Step through [P1, P4] in 2-minute increments to find the exact local visibility window
         val stepMs = 2 * 60 * 1000L
         var localStartMs = 0L
@@ -2291,6 +2387,33 @@ class EclipseEngine {
         val maxHoriz = getMoonHorizAt(maxMs, userLatDeg, userLonDeg, elevationM)
         val p1Alt = getMoonAltAt(p1Ms, userLatDeg, userLonDeg, elevationM)
         val p4Alt = getMoonAltAt(p4Ms, userLatDeg, userLonDeg, elevationM)
+        return LunarLocalScan(localStartMs, localEndMs, maxHoriz, p1Alt, p4Alt)
+    }
+
+    /**
+     * High-precision local circumstances for Lunar Eclipse at user location.
+     */
+    private fun evaluateLunarEclipseLocal(
+        event: EclipseEvent,
+        userLatDeg: Double,
+        userLonDeg: Double,
+        elevationM: Double,
+        nowMs: Long,
+        timezoneId: String,
+        calendarSystem: CalendarSystem
+    ): EclipseResult {
+        val maxMs = event.maximumMs
+        val p1Ms = event.penumbralStartMs
+        val p4Ms = event.penumbralEndMs
+
+        // The P1..P4 horizon scan depends only on the contact times and the observer, never on nowMs,
+        // the time zone or the calendar, so it is shared; see lunarLocalScan.
+        val scan = lunarLocalScan(p1Ms, p4Ms, maxMs, userLatDeg, userLonDeg, elevationM)
+        var localStartMs = scan.localStartMs
+        var localEndMs = scan.localEndMs
+        val maxHoriz = scan.maxHoriz
+        val p1Alt = scan.p1Alt
+        val p4Alt = scan.p4Alt
 
         val isVisibleAtPeak = maxHoriz.altitudeDeg > -0.5
         val isVisibleAtAnyTime = isVisibleAtPeak || localStartMs != 0L || p1Alt > -0.5 || p4Alt > -0.5

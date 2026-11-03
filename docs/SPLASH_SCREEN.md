@@ -71,3 +71,23 @@ This rewrites `res/drawable-nodpi/splash_*.webp` and the generated `SplashArtGeo
 The **Splash preview render** workflow (`.github/workflows/splash-frames.yml`) renders the splash
 with Robolectric's native graphics. It uploads key frames for phone, landscape and tablet, plus a
 30 fps `splash-preview.mp4`, as the `splash-preview` artifact.
+
+## Launch path: the splash first, the app behind it
+
+The splash is composed first and draws its first frame without waiting for the app. While it plays:
+
+1. `MainViewModel.startStartupWarmup()` computes Home's first-frame astronomy off the main thread
+   (`ui/home/HomeStartupWarmup.kt`, at most two worker threads): the eclipse series, the whole catalog,
+   What's Up Tonight and the Moon, into the process memo `HomeAstroMemo`. The TLE store and the hero
+   sky's star table are opened there too, instead of on the main thread.
+2. The app is composed underneath once the warm-up is done **and** the Z has landed
+   (`SplashTimeline.APP_COMPOSE_AFTER_MS`), so its one heavy composition frame can never cost the entrance.
+   Past `MAX_WARMUP_WAIT_MS` (8 s) the app is composed anyway, so the splash can never hang.
+3. Two frames after the app is composed it calls `markContentReady()` and `reportFullyDrawn()`.
+   The exit starts at the planned time, or `CONTENT_LEAD_MS` after ready, whichever is later. While
+   waiting, the splash holds on its ambient motion with the hairline creeping (never completing). When
+   the app is ready in time, the timeline is exactly the one described above.
+
+Results are unchanged: the memo's keys hold every input of each computation, and
+`AstroBitIdentityTest` compares 202 output fingerprints against a baseline recorded from the code
+before this work. Launch milestones are logged under the `ZigStartup` tag (`adb logcat -s ZigStartup`).

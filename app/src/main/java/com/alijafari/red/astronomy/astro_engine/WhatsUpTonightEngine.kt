@@ -32,11 +32,17 @@ object WhatsUpTonightEngine {
         val targetObject: CelestialObject? = null
     )
 
+    /**
+     * @param issTle the ISS elements used for tonight's pass. Defaults to the cached elements, exactly
+     *   what the pass search used before; passing it explicitly lets a caller key a cached result on
+     *   every input the result depends on.
+     */
     fun calculateTonightEvents(
         jd: Double = TimeEngine.getJulianDate(),
         userLatDeg: Double,
         userLonDeg: Double,
-        isFa: Boolean
+        isFa: Boolean,
+        issTle: ISSEngine.TLEData = ISSEngine.cachedTLE
     ): List<TonightEvent> {
         val events = mutableListOf<TonightEvent>()
         val nowMs = TimeEngine.getTimestampFromJulianDate(jd)
@@ -144,7 +150,7 @@ object WhatsUpTonightEngine {
 
         // 3. Bright ISS Passes Tonight
         try {
-            val passes = ISSEngine.predictPasses(userLatDeg, userLonDeg, startTimestampMs = nowMs, scanDays = 1)
+            val passes = ISSEngine.predictPasses(userLatDeg, userLonDeg, startTimestampMs = nowMs, tle = issTle, scanDays = 1)
             val bestPass = passes.filter { it.maxElevationDeg >= 20.0 }.maxByOrNull { it.maxElevationDeg }
             if (bestPass != null) {
                 val timeStr = TimeEngine.formatTime24h(bestPass.maxTimeMs, isFa)

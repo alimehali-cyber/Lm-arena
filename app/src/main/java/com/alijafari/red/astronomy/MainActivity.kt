@@ -3,6 +3,8 @@ package com.alijafari.red.astronomy
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewTreeObserver
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import com.alijafari.red.astronomy.ui.StartupTrace
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,9 +93,26 @@ class MainActivity : ComponentActivity() {
 
         /** Longest the system splash is held waiting for the splash art to decode. */
         private const val SPLASH_ART_MAX_HOLD_MS = 800L
+
+        /** Background sync is scheduled after the first frame, or after this long at the latest. */
+        private const val BACKGROUND_SYNC_FALLBACK_MS = 3_000L
     }
 
     private val viewModel: MainViewModel by viewModels()
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var backgroundSyncScheduled = false
+
+    /** Schedules the TLE sync work (periodic 6-hour sync plus an initial refresh), once per onCreate. */
+    private fun scheduleBackgroundSyncOnce() {
+        if (backgroundSyncScheduled) return
+        backgroundSyncScheduled = true
+        val appContext = applicationContext
+        IssTleWorker.schedulePeriodicSync(appContext)
+        IssTleWorker.enqueueImmediateSync(appContext)
+        TleSyncWorker.schedulePeriodicSync(appContext)
+        TleSyncWorker.enqueueImmediateSync(appContext)
+    }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -124,6 +144,7 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        StartupTrace.mark("activity created")
         // Start decoding the launch splash art before anything else, on its own thread.
         SplashArtLoader.preload(applicationContext)
         super.onCreate(savedInstanceState)
@@ -136,16 +157,22 @@ class MainActivity : ComponentActivity() {
         }
         handleNotificationIntent(intent)
 
-        // Initialize TLE repository and tie satellite engine resolver
-        val tleRepo = TleRepository.getInstance(applicationContext)
-        SatelliteEngine.customTleResolver = { noradId -> tleRepo.getTle(noradId) }
-        SatelliteEngine.customTleMetadataResolver = { noradId -> tleRepo.getTleWithMetadata(noradId) }
+        // Tie the satellite engine to the TLE repository. The repository opens the database and loads
+        // the cached elements when first used, so it is fetched lazily: the start-up warm-up creates it
+        // off the main thread instead of here, before the first frame. Same repository, same answers.
+        val appContext = applicationContext
+        SatelliteEngine.customTleResolver = { noradId -> TleRepository.getInstance(appContext).getTle(noradId) }
+        SatelliteEngine.customTleMetadataResolver = { noradId ->
+            TleRepository.getInstance(appContext).getTleWithMetadata(noradId)
+        }
 
-        // Schedule periodic 6-hour sync and trigger initial refresh
-        IssTleWorker.schedulePeriodicSync(this)
-        IssTleWorker.enqueueImmediateSync(this)
-        TleSyncWorker.schedulePeriodicSync(this)
-        TleSyncWorker.enqueueImmediateSync(this)
+        // Compute Home's first-frame astronomy off the main thread while the splash plays.
+        viewModel.startStartupWarmup()
+
+        // Schedule the periodic 6-hour sync and the initial refresh once the first frame is up (and
+        // at the latest after BACKGROUND_SYNC_FALLBACK_MS), so WorkManager's setup stays out of the
+        // launch path. Same work, same policies, a moment later.
+        mainHandler.postDelayed(::scheduleBackgroundSyncOnce, BACKGROUND_SYNC_FALLBACK_MS)
 
         // Keep the system splash (window background) up until the splash art is decoded and its
         // textures are uploading, so the animation's first frame is never a decode stall. Bounded
@@ -156,7 +183,11 @@ class MainActivity : ComponentActivity() {
             override fun onPreDraw(): Boolean {
                 val ready = SplashArtLoader.isSettled ||
                     SystemClock.uptimeMillis() - holdStart > SPLASH_ART_MAX_HOLD_MS
-                if (ready) content.viewTreeObserver.removeOnPreDrawListener(this)
+                if (ready) {
+                    content.viewTreeObserver.removeOnPreDrawListener(this)
+                    // Runs after this first frame has been drawn.
+                    mainHandler.post(::scheduleBackgroundSyncOnce)
+                }
                 return ready
             }
         })
@@ -203,7 +234,23 @@ class MainActivity : ComponentActivity() {
                     var showSplashScreen by rememberSaveable { mutableStateOf(true) }
                     // The splash clock, shared with the UI so the UI slides in on the same timeline as
                     // the splash leaves. Null once the splash is gone (every reveal is then a no-op).
-                    val splashState = if (showSplashScreen) rememberPremiumSplashState() else null
+                    val splashState = if (showSplashScreen) rememberPremiumSplashState(waitForContent = true) else null
+                    // The app is composed under the splash once Home's astronomy is ready (the warm-up)
+                    // and the Z has landed, so neither the splash's first frame nor its entrance waits
+                    // on the app. The splash then holds its exit until the app has drawn (below). With
+                    // no splash (a recreation), the app is composed at once, as before.
+                    val warmupDone by viewModel.startupWarmupDone.collectAsStateWithLifecycle()
+                    val composeApp = if (splashState == null) {
+                        true
+                    } else {
+                        val splashAllows by remember(splashState) {
+                            derivedStateOf { splashState.allowsAppComposition }
+                        }
+                        val pastWarmupWait by remember(splashState) {
+                            derivedStateOf { splashState.isPastWarmupWait }
+                        }
+                        splashAllows && (warmupDone || pastWarmupWait)
+                    }
                     // How bright the thing behind the app actually is, resolved from what the backdrop
                     // *is* rather than from the theme (Part 6, item 1). Text with no surface under it —
                     // the Home feed titles — asks this for its ink.
@@ -242,6 +289,17 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .background(com.alijafari.red.astronomy.ui.theme.RedTheme.colors.background)
                     ) {
+                    if (composeApp) {
+                    // Once the app's first frames are drawn, release the splash and report the launch
+                    // as fully drawn (the platform's time-to-full-display metric).
+                    LaunchedEffect(Unit) {
+                        StartupTrace.mark("app composed")
+                        withFrameNanos { }
+                        withFrameNanos { }
+                        splashState?.markContentReady()
+                        StartupTrace.mark("app drawn")
+                        reportFullyDrawn()
+                    }
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
@@ -467,6 +525,8 @@ class MainActivity : ComponentActivity() {
                               )
                           }
                       }
+
+                    } // composeApp
 
                       if (showSplashScreen && splashState != null) {
                           PremiumSplashScreen(

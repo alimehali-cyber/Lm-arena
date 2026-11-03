@@ -72,6 +72,30 @@ object SplashTimeline {
     /** The settled moment shown as a still frame under reduced motion (Z landed, between sweeps). */
     const val REDUCED_STILL_MS = 2200f
 
+    // --- Waiting for the app -------------------------------------------------------------------
+    // The app underneath is composed while the splash plays and tells the splash when its first
+    // frames are drawn. The splash never exits before that.
+
+    /**
+     * The app is composed no earlier than this: the Z has landed (its arrival ends at 1480 ms), so
+     * the one heavy composition frame can only cost the slow ambient float a beat, never the
+     * entrance itself.
+     */
+    const val APP_COMPOSE_AFTER_MS = 1500f
+
+    /**
+     * The exit starts no sooner than this after the app reports ready. While the app is not ready
+     * the exit stays this far ahead of now, so the progress hairline keeps creeping without ever
+     * completing, and completes over this lead once the app is ready.
+     */
+    const val CONTENT_LEAD_MS = 400f
+
+    /**
+     * Safety net: past this splash time the app is composed even if the start-up warm-up has not
+     * finished (Home then computes on demand, as it always did), so the splash can never hang.
+     */
+    const val MAX_WARMUP_WAIT_MS = 8000f
+
     // -- curves ---------------------------------------------------------------------------------
     /** Material 3 emphasized decelerate: things entering the screen. */
     val EmphasizedDecelerate: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)

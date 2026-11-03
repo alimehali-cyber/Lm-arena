@@ -8,8 +8,10 @@ import com.alijafari.red.astronomy.data.database.*
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.domain.ConstellationData
 import com.alijafari.red.astronomy.domain.ObjectType
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.withContext
 
 class AppRepository(private val db: AppDatabase) {
 
@@ -119,8 +121,11 @@ class AppRepository(private val db: AppDatabase) {
         val constDao = db.constellationDao()
 
         if (objDao.getCount() == 0) {
+            // A whole catalog pass; it runs on the caller's dispatcher (Main, from the ViewModel), so
+            // it is moved to Default. Same objects, same entities.
+            val entities = withContext(Dispatchers.Default) {
             val allObjects = AstronomyCatalog.getAllObjects()
-            val entities = allObjects.map { obj ->
+            allObjects.map { obj ->
                 CelestialObjectEntity(
                     id = obj.id,
                     typeName = obj.type.name,
@@ -147,6 +152,7 @@ class AppRepository(private val db: AppDatabase) {
                     activePeakDateWindowFa = obj.activePeakDateWindowFa,
                     zhr = obj.zhr
                 )
+            }
             }
             objDao.insertAll(entities)
         }
