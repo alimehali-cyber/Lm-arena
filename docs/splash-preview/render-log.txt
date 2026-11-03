@@ -150,13 +150,13 @@ app/build/outputs/splash-frames/tablet_3200ms.png
 
 ## SplashFramesRenderTest results
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.alijafari.red.astronomy.SplashFramesRenderTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:51:54.550Z" hostname="runnervmcwoy2" time="52.998">
+<testsuite name="com.alijafari.red.astronomy.SplashFramesRenderTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-03T15:43:30.981Z" hostname="runnervmcwoy2" time="59.163">
   <properties/>
-  <testcase name="portraitPhone" classname="com.alijafari.red.astronomy.SplashFramesRenderTest" time="15.674"/>
-  <testcase name="denseSequence" classname="com.alijafari.red.astronomy.SplashFramesRenderTest" time="29.281"/>
-  <testcase name="mainActivityWiresTheHandOffAtBothEnds" classname="com.alijafari.red.astronomy.SplashFramesRenderTest" time="0.086"/>
-  <testcase name="tablet" classname="com.alijafari.red.astronomy.SplashFramesRenderTest" time="3.448"/>
-  <testcase name="landscapePhone" classname="com.alijafari.red.astronomy.SplashFramesRenderTest" time="2.178"/>
+  <testcase name="portraitPhone" classname="com.alijafari.red.astronomy.SplashFramesRenderTest" time="17.182"/>
+  <testcase name="denseSequence" classname="com.alijafari.red.astronomy.SplashFramesRenderTest" time="33.073"/>
+  <testcase name="mainActivityWiresTheHandOffAtBothEnds" classname="com.alijafari.red.astronomy.SplashFramesRenderTest" time="0.11"/>
+  <testcase name="tablet" classname="com.alijafari.red.astronomy.SplashFramesRenderTest" time="3.54"/>
+  <testcase name="landscapePhone" classname="com.alijafari.red.astronomy.SplashFramesRenderTest" time="2.291"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>
