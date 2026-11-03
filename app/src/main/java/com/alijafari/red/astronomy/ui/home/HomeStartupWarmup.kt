@@ -11,6 +11,25 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
 /**
+ * Whether the first visible route needs Home's expensive first-frame data before it is revealed.
+ * A notification/deep-link destination is allowed to render without waiting for unrelated Home work.
+ * Tab 4 is Home, matching MainUiState's initial value and MainActivity's navigation wiring.
+ */
+internal fun shouldGateLaunchForHomeWarmup(state: MainUiState): Boolean =
+    state.selectedTab == 4 &&
+        state.selectedObjectForDetail == null &&
+        !state.showSkyViewer &&
+        !state.showEclipseWindow
+
+/** Wall-clock deadline helpers for the splash's warm-up fallback. */
+internal object HomeWarmupDeadline {
+    const val MAX_WAIT_MS = 8_000L
+
+    fun remainingMs(deadlineElapsedRealtimeMs: Long, nowElapsedRealtimeMs: Long): Long =
+        (deadlineElapsedRealtimeMs - nowElapsedRealtimeMs).coerceAtLeast(0L)
+}
+
+/**
  * Computes everything Home's first composition needs, off the main thread, while the launch splash
  * plays, so the first Home frame is a cheap lookup instead of seconds of astronomy on the UI thread.
  *

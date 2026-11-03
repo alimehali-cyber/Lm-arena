@@ -90,10 +90,6 @@ class SplashTimelineTest {
         s.seekTo(T.APP_COMPOSE_AFTER_MS)
         assertTrue(s.allowsAppComposition)
         assertTrue("the Z has landed by then", T.APP_COMPOSE_AFTER_MS >= 180f + 1300f)
-        assertTrue(!s.isPastWarmupWait)
-        s.seekTo(T.MAX_WARMUP_WAIT_MS)
-        assertTrue(s.isPastWarmupWait)
-
         val reduced = PremiumSplashState(reducedMotion = true, waitForContent = true)
         assertTrue(!reduced.allowsAppComposition)
         reduced.seekTo(16f)

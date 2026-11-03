@@ -90,12 +90,6 @@ object SplashTimeline {
      */
     const val CONTENT_LEAD_MS = 400f
 
-    /**
-     * Safety net: past this splash time the app is composed even if the start-up warm-up has not
-     * finished (Home then computes on demand, as it always did), so the splash can never hang.
-     */
-    const val MAX_WARMUP_WAIT_MS = 8000f
-
     // -- curves ---------------------------------------------------------------------------------
     /** Material 3 emphasized decelerate: things entering the screen. */
     val EmphasizedDecelerate: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)

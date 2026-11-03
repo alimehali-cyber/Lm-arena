@@ -17,7 +17,9 @@ import com.alijafari.red.astronomy.ui.home.CatalogObjectsKey
 import com.alijafari.red.astronomy.ui.home.EclipseSeriesKey
 import com.alijafari.red.astronomy.ui.home.HomeAstroKeys
 import com.alijafari.red.astronomy.ui.home.HomeAstroMemo
+import com.alijafari.red.astronomy.ui.home.HomeWarmupDeadline
 import com.alijafari.red.astronomy.ui.home.MoonKey
+import com.alijafari.red.astronomy.ui.home.shouldGateLaunchForHomeWarmup
 import com.alijafari.red.astronomy.ui.home.SingleFlightTable
 import com.alijafari.red.astronomy.ui.home.TonightEventsKey
 import org.junit.Assert.assertEquals
@@ -166,6 +168,29 @@ class StartupPerformanceTest {
     // ---- the warm-up asks for exactly what Home asks for ------------------------------------------
 
     @Test
+    fun onlyHomeLaunchesWaitForHomeWarmup() {
+        val home = MainUiState()
+        assertTrue("ordinary Home launch is gated for its warm-up", shouldGateLaunchForHomeWarmup(home))
+        assertFalse("satellite notification route must not wait for Home", shouldGateLaunchForHomeWarmup(home.copy(selectedTab = 1)))
+        assertFalse("fullscreen sky route must not wait for Home", shouldGateLaunchForHomeWarmup(home.copy(showSkyViewer = true)))
+        assertFalse("eclipse route must not wait for Home", shouldGateLaunchForHomeWarmup(home.copy(showEclipseWindow = true)))
+        assertFalse(
+            "object notification route must not wait for Home",
+            shouldGateLaunchForHomeWarmup(home.copy(selectedObjectForDetail = AstronomyCatalog.SUN))
+        )
+    }
+
+    @Test
+    fun warmupFallbackUsesAnElapsedRealtimeDeadlineNotSplashFrames() {
+        val startElapsedMs = 12_345L
+        val deadlineElapsedMs = startElapsedMs + HomeWarmupDeadline.MAX_WAIT_MS
+        assertEquals(HomeWarmupDeadline.MAX_WAIT_MS, HomeWarmupDeadline.remainingMs(deadlineElapsedMs, startElapsedMs))
+        assertEquals(1L, HomeWarmupDeadline.remainingMs(deadlineElapsedMs, deadlineElapsedMs - 1L))
+        assertEquals(0L, HomeWarmupDeadline.remainingMs(deadlineElapsedMs, deadlineElapsedMs))
+        assertEquals(0L, HomeWarmupDeadline.remainingMs(deadlineElapsedMs, deadlineElapsedMs + 5_000L))
+    }
+
+    @Test
     fun warmupKeysFollowHomesBucketFormulas() {
         val live = 1_793_797_199_999L // 2026-11-04T12:59:59.999Z: minute bucket 12:59, hour bucket 12:00
         val state = MainUiState(language = AppLanguage.PERSIAN)
@@ -221,10 +246,16 @@ class StartupPerformanceTest {
     fun mainActivityWiresTheWarmupAndTheSplashHold() {
         val activity = source("com/alijafari/red/astronomy/MainActivity.kt")
         assertTrue(activity.contains("viewModel.startStartupWarmup()"))
+        assertTrue("only Home is warmed before its initial reveal", activity.contains("if (shouldGateLaunchForHomeWarmup(viewModel.uiState.value))"))
+        assertTrue("other routes defer Home warm-up until after the splash hand-off", activity.contains("if (!showSplashScreen && !warmupDone) viewModel.startStartupWarmup()"))
         assertTrue(activity.contains("rememberPremiumSplashState(waitForContent = true)"))
         assertTrue(activity.contains("if (composeApp) {"))
         assertTrue(activity.contains("splashState?.markContentReady()"))
         assertTrue(activity.contains("reportFullyDrawn()"))
+        assertTrue("warm-up fallback uses a saved elapsed-realtime deadline", activity.contains("SystemClock.elapsedRealtime()"))
+        assertTrue("warm-up timeout does not depend on animation time", activity.contains("HomeWarmupDeadline.remainingMs("))
+        assertTrue("timeout cannot leave a stalled splash covering the app", activity.contains("showSplashScreen = false"))
+        assertTrue("non-Home routes bypass the Home warm-up gate", activity.contains("!homeWarmupRequired"))
         assertTrue("sync work is scheduled after the first frame", activity.contains("mainHandler.post(::scheduleBackgroundSyncOnce)"))
         assertFalse("the TLE store is not opened eagerly in onCreate", activity.contains("val tleRepo = TleRepository.getInstance(applicationContext)"))
         val onCreate = activity.substringAfter("override fun onCreate(").substringBefore("setContent {")

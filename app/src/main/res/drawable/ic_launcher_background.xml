@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Adaptive-icon background: the ZIG logo's own backdrop colour.
-
-    It is a flat fill on purpose. The foreground layer is a full-bleed render of the logo on the
-    same #F7F6F7, so the two layers meet with no visible seam and the launcher's mask can cut the
-    icon to any shape without exposing an edge.
+    Adaptive-icon background: warm ivory sampled from the supplied galaxy-Z artwork's outer field.
+    The foreground carries the original subtle background gradient and drop shadow; this flat base
+    keeps antialiased adaptive-mask edges close in color without baking the launcher mask into the art.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -12,6 +10,6 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#F7F6F7"
+        android:fillColor="#F3F2EC"
         android:pathData="M0,0h108v108h-108z" />
 </vector>

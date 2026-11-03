@@ -44,9 +44,12 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.AppUiStyle
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.home.HomeWarmupDeadline
+import com.alijafari.red.astronomy.ui.home.shouldGateLaunchForHomeWarmup
 import com.alijafari.red.astronomy.ui.cyber.CyberAmbientBackground
 import com.alijafari.red.astronomy.ui.cyber.CyberFloatingNavBar
 import com.alijafari.red.astronomy.ui.cyber.CyberHomeScreen
@@ -166,8 +169,11 @@ class MainActivity : ComponentActivity() {
             TleRepository.getInstance(appContext).getTleWithMetadata(noradId)
         }
 
-        // Compute Home's first-frame astronomy off the main thread while the splash plays.
-        viewModel.startStartupWarmup()
+        // Warm Home before its first reveal only when Home is the launch destination. A notification
+        // or deep link to another screen must not wait for, or compete with, unrelated Home work.
+        if (shouldGateLaunchForHomeWarmup(viewModel.uiState.value)) {
+            viewModel.startStartupWarmup()
+        }
 
         // Schedule the periodic 6-hour sync and the initial refresh once the first frame is up (and
         // at the latest after BACKGROUND_SYNC_FALLBACK_MS), so WorkManager's setup stays out of the
@@ -235,21 +241,59 @@ class MainActivity : ComponentActivity() {
                     // The splash clock, shared with the UI so the UI slides in on the same timeline as
                     // the splash leaves. Null once the splash is gone (every reveal is then a no-op).
                     val splashState = if (showSplashScreen) rememberPremiumSplashState(waitForContent = true) else null
-                    // The app is composed under the splash once Home's astronomy is ready (the warm-up)
-                    // and the Z has landed, so neither the splash's first frame nor its entrance waits
-                    // on the app. The splash then holds its exit until the app has drawn (below). With
-                    // no splash (a recreation), the app is composed at once, as before.
+                    // On a Home launch, the app is composed under the splash once Home's astronomy
+                    // is ready (the warm-up) and the Z has landed. Other launch routes don't wait for
+                    // unrelated Home work. The splash holds its exit until the app has drawn (below).
+                    // With no splash (a recreation after hand-off), the app is composed at once.
                     val warmupDone by viewModel.startupWarmupDone.collectAsStateWithLifecycle()
+                    val homeWarmupRequired = shouldGateLaunchForHomeWarmup(uiState)
+
+                    // This is a wall-clock deadline, deliberately separate from the splash animation
+                    // clock. The animation caps large frame deltas to stay smooth, so it must not be
+                    // used as a timeout (at low frame rates it can advance much more slowly than real
+                    // time). Save the deadline across Activity recreation so rotation cannot restart it.
+                    var warmupDeadlineElapsedMs by rememberSaveable {
+                        mutableStateOf(0L)
+                    }
+                    LaunchedEffect(splashState, homeWarmupRequired, warmupDone) {
+                        if (splashState == null || !homeWarmupRequired || warmupDone) {
+                            return@LaunchedEffect
+                        }
+                        if (warmupDeadlineElapsedMs == 0L) {
+                            warmupDeadlineElapsedMs =
+                                SystemClock.elapsedRealtime() + HomeWarmupDeadline.MAX_WAIT_MS
+                        }
+                        while (true) {
+                            val remainingMs = HomeWarmupDeadline.remainingMs(
+                                deadlineElapsedRealtimeMs = warmupDeadlineElapsedMs,
+                                nowElapsedRealtimeMs = SystemClock.elapsedRealtime()
+                            )
+                            if (remainingMs == 0L) break
+                            // Recheck elapsedRealtime periodically: unlike the animation clock, it
+                            // also accounts for long pauses between rendered frames and device sleep.
+                            delay(minOf(remainingMs, 250L))
+                        }
+                        StartupTrace.mark("Home warm-up deadline reached; revealing app without splash")
+                        // If even the animation clock is stalled, merely allowing composition behind
+                        // the splash would not help. Drop the splash at the wall-clock deadline so a
+                        // slow/failed warm-up cannot leave the launch permanently covered.
+                        showSplashScreen = false
+                    }
+
                     val composeApp = if (splashState == null) {
                         true
                     } else {
                         val splashAllows by remember(splashState) {
                             derivedStateOf { splashState.allowsAppComposition }
                         }
-                        val pastWarmupWait by remember(splashState) {
-                            derivedStateOf { splashState.isPastWarmupWait }
-                        }
-                        splashAllows && (warmupDone || pastWarmupWait)
+                        val warmupMayBeSkipped = !homeWarmupRequired
+                        splashAllows && (warmupDone || warmupMayBeSkipped)
+                    }
+                    // If launch went to a different destination, begin warming Home only after the
+                    // splash hand-off. This preserves the later Home benefit without spending worker
+                    // time on the destination's first visible frames.
+                    LaunchedEffect(showSplashScreen, warmupDone) {
+                        if (!showSplashScreen && !warmupDone) viewModel.startStartupWarmup()
                     }
                     // How bright the thing behind the app actually is, resolved from what the backdrop
                     // *is* rather than from the theme (Part 6, item 1). Text with no surface under it —

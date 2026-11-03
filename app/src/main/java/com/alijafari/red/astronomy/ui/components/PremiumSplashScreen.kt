@@ -209,10 +209,6 @@ class PremiumSplashState internal constructor(
     val allowsAppComposition: Boolean
         get() = if (reducedMotion) timeMs > 0f else timeMs >= SplashTimeline.APP_COMPOSE_AFTER_MS
 
-    /** Past the warm-up safety net (see [SplashTimeline.MAX_WARMUP_WAIT_MS]). */
-    val isPastWarmupWait: Boolean
-        get() = timeMs >= SplashTimeline.MAX_WARMUP_WAIT_MS
-
     /** The app underneath has drawn its first frames; the splash may leave. Idempotent. */
     fun markContentReady() {
         if (contentReadyAtMs.isNaN()) contentReadyAtMs = timeMs

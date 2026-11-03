@@ -76,13 +76,18 @@ with Robolectric's native graphics. It uploads key frames for phone, landscape a
 
 The splash is composed first and draws its first frame without waiting for the app. While it plays:
 
-1. `MainViewModel.startStartupWarmup()` computes Home's first-frame astronomy off the main thread
-   (`ui/home/HomeStartupWarmup.kt`, at most two worker threads): the eclipse series, the whole catalog,
-   What's Up Tonight and the Moon, into the process memo `HomeAstroMemo`. The TLE store and the hero
-   sky's star table are opened there too, instead of on the main thread.
-2. The app is composed underneath once the warm-up is done **and** the Z has landed
+1. When Home is the launch destination, `MainViewModel.startStartupWarmup()` computes Home's
+   first-frame astronomy off the main thread (`ui/home/HomeStartupWarmup.kt`, at most two worker
+   threads): the eclipse series, the whole catalog, What's Up Tonight and the Moon, into the process
+   memo `HomeAstroMemo`. The TLE store and the hero sky's star table are opened there too, instead of
+   on the main thread. For a non-Home notification/deep-link launch, this warm-up starts after the
+   splash hand-off, so it cannot delay or compete with that destination's first visible frames.
+2. On a Home launch, the app is composed underneath once the warm-up is done **and** the Z has landed
    (`SplashTimeline.APP_COMPOSE_AFTER_MS`), so its one heavy composition frame can never cost the entrance.
-   Past `MAX_WARMUP_WAIT_MS` (8 s) the app is composed anyway, so the splash can never hang.
+   The warm-up fallback is an 8-second `elapsedRealtime` deadline, independent of animation frames and
+   preserved across Activity recreation. If it expires, the splash is removed and the app is revealed,
+   even if the animation clock has stalled. Non-Home notification/deep-link destinations do not wait
+   for Home's warm-up; the warm-up may continue in the background.
 3. Two frames after the app is composed it calls `markContentReady()` and `reportFullyDrawn()`.
    The exit starts at the planned time, or `CONTENT_LEAD_MS` after ready, whichever is later. While
    waiting, the splash holds on its ambient motion with the hairline creeping (never completing). When
