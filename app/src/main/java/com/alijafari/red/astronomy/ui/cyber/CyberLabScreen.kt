@@ -45,6 +45,7 @@ import com.alijafari.red.astronomy.ui.screens.LabFeatureType
 import com.alijafari.red.astronomy.ui.screens.TimeDilationCalculatorScreen
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
+import com.zig.antar.ui.AntarRoot
 import com.zig.chal.ui.ChalRoot
 import com.zig.gargantua.ui.GargantuaRoot
 import com.zig.gravity.ui.GravitySandboxRoot
@@ -104,6 +105,15 @@ fun CyberLabScreen(
                 startInPersian = isFa
             )
         }
+        LabFeatureType.ANTAR_BLACKHOLE -> {
+            AntarRoot(
+                onBack = { selectedFeature = null },
+                language = uiState.language,
+                uiStyle = uiState.uiStyle,
+                themeMode = uiState.themeMode,
+                modifier = modifier
+            )
+        }
         null -> {
             LazyColumn(
                 modifier = modifier
@@ -137,7 +147,7 @@ fun CyberLabScreen(
                             ) {
                                 CyberSignalDot(size = 5.5.dp)
                                 CyberMatrixText(
-                                    text = "04 LAB",
+                                    text = "0${LabFeatureType.entries.size} LAB",
                                     dotSize = 1.65.dp,
                                     dotGap = 0.65.dp,
                                     charGap = 1.9.dp,
@@ -192,6 +202,7 @@ private fun CyberLabViewportCard(
         LabFeatureType.GRAVITY_SANDBOX -> Triple(CyberMeshPreset.CYAN_VIOLET, palette.primaryAccent, "0$index NBODY")
         LabFeatureType.GARGANTUA -> Triple(CyberMeshPreset.VIOLET_PEACH, palette.tertiaryAccent, "0$index KERR")
         LabFeatureType.CHAL -> Triple(CyberMeshPreset.EMERALD_CYAN, palette.primaryAccent, "0$index METRIC")
+        LabFeatureType.ANTAR_BLACKHOLE -> Triple(CyberMeshPreset.CORAL_PEACH, palette.secondaryAccent, "0$index ANTAR")
     }
 
     CyberCutoutViewportCard(
@@ -481,6 +492,66 @@ private fun CyberLabProceduralViewport(
                     color = secondaryColor,
                     radius = 4.5.dp.toPx(),
                     center = Offset(cx, cy + h * 0.12f)
+                )
+            }
+
+            LabFeatureType.ANTAR_BLACKHOLE -> {
+                // Kerr–Schild D-Shadow, n=1 Photon Sub-Ring, Lensed Halo & Polar Relativistic Jet
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            primaryColor.copy(alpha = 0.52f),
+                            secondaryColor.copy(alpha = 0.20f),
+                            Color.Transparent
+                        ),
+                        center = Offset(cx, cy),
+                        radius = h * 0.62f
+                    ),
+                    radius = h * 0.62f,
+                    center = Offset(cx, cy)
+                )
+                // Polar Blandford-Znajek relativistic jet spine
+                drawLine(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            secondaryColor.copy(alpha = 0.72f),
+                            Color.Transparent
+                        )
+                    ),
+                    start = Offset(cx, h * 0.06f),
+                    end = Offset(cx, h * 0.94f),
+                    strokeWidth = 2.0.dp.toPx()
+                )
+                // Lensed upper & lower Einstein photon arch
+                drawCircle(
+                    color = primaryColor.copy(alpha = 0.75f),
+                    radius = h * 0.30f,
+                    center = Offset(cx, cy),
+                    style = Stroke(width = 2.2.dp.toPx())
+                )
+                // Beamed equatorial accretion disk (brighter approaching side on the left)
+                drawOval(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.95f),
+                            primaryColor,
+                            secondaryColor.copy(alpha = 0.35f)
+                        ),
+                        startX = cx - w * 0.36f,
+                        endX = cx + w * 0.36f
+                    ),
+                    topLeft = Offset(cx - w * 0.36f, cy - h * 0.08f),
+                    size = Size(w * 0.72f, h * 0.16f),
+                    style = Stroke(width = 3.8.dp.toPx())
+                )
+                // Event horizon + crisp n=1 photon ring
+                drawCircle(color = Color(0xFF04050B), radius = h * 0.21f, center = Offset(cx + h * 0.02f, cy))
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.90f),
+                    radius = h * 0.22f,
+                    center = Offset(cx + h * 0.015f, cy),
+                    style = Stroke(width = 1.4.dp.toPx())
                 )
             }
         }

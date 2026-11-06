@@ -39,6 +39,7 @@ import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedIconSize
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
+import com.zig.antar.ui.AntarRoot
 import com.zig.chal.ui.ChalRoot
 import com.zig.gargantua.ui.GargantuaRoot
 import com.zig.gravity.ui.GravitySandboxRoot
@@ -80,6 +81,14 @@ fun SpatialLabScreen(
             modifier = modifier,
             startInPersian = isFa,
             startInDarkTheme = uiState.themeMode != ThemeMode.LIGHT
+        )
+    } else if (selectedFeature == LabFeatureType.ANTAR_BLACKHOLE) {
+        AntarRoot(
+            onBack = { selectedFeature = null },
+            language = uiState.language,
+            uiStyle = uiState.uiStyle,
+            themeMode = uiState.themeMode,
+            modifier = modifier
         )
     } else if (selectedFeature == LabFeatureType.CHAL) {
         ChalRoot(
@@ -146,6 +155,7 @@ private fun SpatialLabFeatureCard(
         LabFeatureType.GRAVITY_SANDBOX -> Triple(SpatialMeshPreset.BLUE_TO_PURPLE, SpatialSkyBlue, "NB")
         LabFeatureType.GARGANTUA -> Triple(SpatialMeshPreset.ROSE_TO_ORANGE, SpatialWarmPeach, "GR")
         LabFeatureType.CHAL -> Triple(SpatialMeshPreset.BLUE_TO_PURPLE, SpatialCosmicIris, "3D")
+        LabFeatureType.ANTAR_BLACKHOLE -> Triple(SpatialMeshPreset.AURORA_PEACH, SpatialNeonRoseVibrant, "KS")
     }
 
     SpatialGlassCard(
@@ -172,7 +182,11 @@ private fun SpatialLabFeatureCard(
                 Icon(
                     imageVector = feature.icon,
                     contentDescription = null,
-                    tint = if (meshPreset == SpatialMeshPreset.ROSE_TO_ORANGE) Color(0xFF23111C) else Color.White,
+                    tint = if (meshPreset == SpatialMeshPreset.ROSE_TO_ORANGE || meshPreset == SpatialMeshPreset.AURORA_PEACH) {
+                        Color(0xFF23111C)
+                    } else {
+                        Color.White
+                    },
                     modifier = Modifier
                         .align(Alignment.Center)
                         .size(RedIconSize.md)

@@ -133,4 +133,9 @@
     <string name="chal_title">چال</string>
     <string name="chal_subtitle">موتور ردیابی پرتوی زمان-واقعی کر</string>
     <string name="chal_description">ردیابی پرتوی نسبیتی و دقیق به‌صورت زمان-واقعی برای سیاه‌چاله چرخان کر: همگرایی گرانشی ژئودزیکی، قرص برافزایشی نوویکوف-تورن، درخشش دوپلری نسبیتی، درخشش حلقه فوتونی و میدان ستارگان طیفی.</string>
+
+    <!-- Antar Blackhole Laboratory -->
+    <string name="antar_blackhole_title">سیاه‌چاله عنتر</string>
+    <string name="antar_blackhole_subtitle">شبیه‌ساز ژئودزیکی کر–شیلد</string>
+    <string name="antar_blackhole_description">شبیه‌ساز تعاملی WebGL2 سیاه‌چاله کر–شیلد، اختروش TON 618 و ادغام سیاه‌چاله‌های دوتایی به همراه سقوط آزاد به درون افق رویداد، فیلتر EHT و فیزیک قرص نسبیتی.</string>
 </resources>

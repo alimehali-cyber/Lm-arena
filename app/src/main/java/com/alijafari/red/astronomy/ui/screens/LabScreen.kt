@@ -80,6 +80,16 @@ enum class LabFeatureType(
         descriptionFa = "کاوش تعاملی سیاه‌چالهٔ چرخان، قرص برافزایشی و همگرایی نور. رندر بومی در دستگاه‌های سازگار و حالت تخمینی OpenGL در سایر دستگاه‌ها فعال است. دقت فیزیکی تصویر به‌طور مستقل تأیید نشده است.",
         icon = Icons.Default.BlurCircular,
         isAvailable = true
+    ),
+    ANTAR_BLACKHOLE(
+        titleEn = "Antar Blackhole",
+        titleFa = "سیاه‌چاله عنتر",
+        subtitleEn = "Kerr–Schild Null-Geodesic Simulator",
+        subtitleFa = "شبیه‌ساز ژئودزیکی کر–شیلد",
+        descriptionEn = "Interactive WebGL2 Kerr–Schild black hole, TON 618 quasar, and binary black-hole merger simulator with free-fall horizon plunge, EHT 230 GHz filter, and relativistic accretion physics.",
+        descriptionFa = "شبیه‌ساز تعاملی WebGL2 سیاه‌چاله کر–شیلد، اختروش TON 618 و ادغام سیاه‌چاله‌های دوتایی به همراه سقوط آزاد به درون افق رویداد، فیلتر EHT و فیزیک قرص نسبیتی.",
+        icon = Icons.Default.Adjust,
+        isAvailable = true
     )
 }
 
@@ -111,6 +121,14 @@ fun LabScreen(
             modifier = modifier,
             startInPersian = isFa,
             startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
+        )
+    } else if (selectedFeature == LabFeatureType.ANTAR_BLACKHOLE) {
+        com.zig.antar.ui.AntarRoot(
+            onBack = { selectedFeature = null },
+            language = uiState.language,
+            uiStyle = uiState.uiStyle,
+            themeMode = uiState.themeMode,
+            modifier = modifier
         )
     } else if (selectedFeature == LabFeatureType.CHAL) {
         com.zig.chal.ui.ChalRoot(
