@@ -175,9 +175,11 @@ fun AntarRoot(
                 .background(rememberCosmicBackdropBrush(themeMode))
                 .testTag("antar_root")
         ) {
-            val viewportWidthDp = maxWidth.value
-            val viewportHeightDp = maxHeight.value
-            val isWideLandscape = maxWidth >= 680.dp && maxWidth > maxHeight
+            val containerWidth = maxWidth
+            val containerHeight = maxHeight
+            val viewportWidthDp = containerWidth.value
+            val viewportHeightDp = containerHeight.value
+            val isWideLandscape = containerWidth >= 680.dp && containerWidth > containerHeight
             val sideDockWidthDp = 356f
 
             // Smooth optical framing offset when the control sheet opens so the photon ring stays centered
@@ -269,8 +271,8 @@ fun AntarRoot(
             // 2. Native Multi-Touch Gesture Surface (1-finger orbit, 2-finger pinch/pan/roll, double-tap)
             val latestSettings by rememberUpdatedState(settings)
             val latestTelemetry by rememberUpdatedState(telemetry)
-            val viewportWidthPx = with(density) { maxWidth.toPx() }
-            val viewportHeightPx = with(density) { maxHeight.toPx() }
+            val viewportWidthPx = with(density) { containerWidth.toPx() }
+            val viewportHeightPx = with(density) { containerHeight.toPx() }
             val edgeGuardPx = with(density) { 20.dp.toPx() }
             val touchSlopPx = viewConfig.touchSlop
             val doubleTapRadiusPx = with(density) { 42.dp.toPx() }
@@ -608,7 +610,7 @@ fun AntarRoot(
                         onClosePanel = { panelOpen = false },
                         isPersian = isPersian,
                         chrome = chrome,
-                        maxHeight = if (isWideLandscape) (maxHeight - 28.dp) else (maxHeight * 0.50f),
+                        maxHeight = if (isWideLandscape) (containerHeight - 28.dp) else (containerHeight * 0.50f),
                         modifier = if (isWideLandscape) {
                             Modifier.width(sideDockWidthDp.dp)
                         } else {
