@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
@@ -166,12 +167,20 @@ internal fun parseAntarTelemetryJson(
 
 internal class AntarJsHostBridge(
     private val mainHandler: Handler,
-    private val onSnapshotJson: (String) -> Unit
+    private val onSnapshotJson: (String) -> Unit,
+    private val reportRuntimeError: (String) -> Unit
 ) {
     @JavascriptInterface
     fun onTelemetry(json: String?) {
         if (json.isNullOrBlank()) return
         mainHandler.post { onSnapshotJson(json) }
+    }
+
+    @JavascriptInterface
+    fun onRuntimeError(message: String?) {
+        val safeMessage = message?.trim()?.take(500).orEmpty()
+        if (safeMessage.isEmpty()) return
+        mainHandler.post { reportRuntimeError(safeMessage) }
     }
 }
 
@@ -219,8 +228,14 @@ fun AntarWebEngineView(
         modifier = modifier,
         factory = { context ->
             WebView(context).apply {
-                setBackgroundColor(Color.TRANSPARENT)
-                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                // Keep WebView on the window's hardware-accelerated path. An extra hardware
+                // layer over a transparent background can make WebGL canvases disappear on Android.
+                setBackgroundColor(Color.BLACK)
+                setLayerType(View.LAYER_TYPE_NONE, null)
                 isHorizontalScrollBarEnabled = false
                 isVerticalScrollBarEnabled = false
                 overScrollMode = View.OVER_SCROLL_NEVER
@@ -242,16 +257,31 @@ fun AntarWebEngineView(
                     mediaPlaybackRequiresUserGesture = false
                 }
 
-                addJavascriptInterface(
-                    AntarJsHostBridge(mainHandler) { rawJson ->
+                val hostBridge = AntarJsHostBridge(
+                    mainHandler = mainHandler,
+                    onSnapshotJson = { rawJson ->
                         val next = parseAntarTelemetryJson(rawJson, currentTelemetry)
                         currentTelemetry = next
                         latestOnTelemetry(next)
                     },
-                    "AntarHostBridge"
+                    reportRuntimeError = { message ->
+                        val next = currentTelemetry.copy(errorMessage = message)
+                        currentTelemetry = next
+                        latestOnTelemetry(next)
+                    }
                 )
+                addJavascriptInterface(hostBridge, "AntarHostBridge")
 
-                webChromeClient = WebChromeClient()
+                webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                        if (message.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
+                            hostBridge.onRuntimeError(
+                                "JavaScript: ${message.message().take(350)} (${message.sourceId().substringAfterLast('/')} : ${message.lineNumber()})"
+                            )
+                        }
+                        return super.onConsoleMessage(message)
+                    }
+                }
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
@@ -261,12 +291,13 @@ fun AntarWebEngineView(
 
                 handle.webView = this
                 handle.pageLoaded = false
+                val simulationUrl = AntarSimulationPayload.buildBaseUrl(bootSettings)
                 loadDataWithBaseURL(
-                    AntarSimulationPayload.buildBaseUrl(bootSettings),
+                    simulationUrl,
                     AntarSimulationPayload.buildHostedHtml(),
                     "text/html",
                     "UTF-8",
-                    null
+                    simulationUrl
                 )
             }
         },

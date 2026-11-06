@@ -31,7 +31,7 @@ object AntarSimulationPayload {
     fun buildHostedHtml(): String = hostedSimulationHtml
 
     private val hostedSimulationHtml: String by lazy {
-        val raw = rawSimulationHtml
+        val raw = applyMobileWebViewFixes(rawSimulationHtml)
         val anchor = "</body>"
         val idx = raw.lastIndexOf(anchor)
         check(idx > 0) { "Simulation HTML is missing closing </body> tag" }
@@ -40,6 +40,50 @@ object AntarSimulationPayload {
             append(NATIVE_CHROME_AND_BRIDGE)
             append(raw, idx, raw.length)
         }
+    }
+
+    /**
+     * Applies narrowly-scoped fixes to the bundled standalone page without changing its source
+     * asset: Android WebView may expose an empty document URL, and some mobile GPUs do not support
+     * linear filtering of half-float textures or complete all render targets as expected.
+     */
+    private fun applyMobileWebViewFixes(source: String): String {
+        val replacements = listOf(
+            "const q=new URLSearchParams(location.search);" to
+                "const q=new URLSearchParams(location.search || new URL(document.baseURI).search);",
+            "if(location.search!==('?'+q.toString())) history.replaceState(null,'',location.pathname+'?'+q.toString()+location.hash);" to
+                "if(location.search!==('?'+q.toString())) { try { history.replaceState(null,'',location.pathname+'?'+q.toString()+location.hash); } catch (_) {} }",
+            "const qs = new URLSearchParams(location.search);" to
+                "const qs = new URLSearchParams(location.search || new URL(document.baseURI).search);",
+            "function fail(msg) {\n    const e = $('#error');" to
+                "function fail(msg) {\n    try { if (window.AntarHostBridge) window.AntarHostBridge.onRuntimeError(String(msg)); } catch (_) {}\n    const e = $('#error');",
+            "  gl.getExtension('OES_texture_float_linear');" to
+                "  const floatLinear = !!gl.getExtension('OES_texture_float_linear');",
+            "gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter || gl.LINEAR);" to
+                "gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter || (floatLinear ? gl.LINEAR : gl.NEAREST));",
+            "gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter || gl.LINEAR);" to
+                "gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter || (floatLinear ? gl.LINEAR : gl.NEAREST));",
+            "gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);" to
+                "gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, floatLinear ? gl.LINEAR_MIPMAP_LINEAR : gl.NEAREST_MIPMAP_NEAREST);",
+            "gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);" to
+                "gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, floatLinear ? gl.LINEAR : gl.NEAREST);",
+            "      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_X + f, skyTex, 0);" to
+                "      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_X + f, skyTex, 0);\n      const skyStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);\n      if (skyStatus !== gl.FRAMEBUFFER_COMPLETE) { const msg = 'WebGL sky framebuffer incomplete: 0x' + skyStatus.toString(16); fail(msg); throw new Error(msg); }",
+            "    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);\n    return { tex, fb, w, h };" to
+                "    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);\n    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);\n    if (status !== gl.FRAMEBUFFER_COMPLETE) { const msg = 'WebGL framebuffer incomplete: 0x' + status.toString(16); fail(msg); throw new Error(msg); }\n    return { tex, fb, w, h };",
+            "    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);\n    neighRT = { mu, sig, fb: nfb };" to
+                "    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);\n    const mrtStatus = gl.checkFramebufferStatus(gl.FRAMEBUFFER);\n    if (mrtStatus !== gl.FRAMEBUFFER_COMPLETE) { const msg = 'WebGL MRT framebuffer incomplete: 0x' + mrtStatus.toString(16); fail(msg); throw new Error(msg); }\n    neighRT = { mu, sig, fb: nfb };",
+            "  outColor = vec4(col, escaped ? step(0.0005, max(Acc, max(col.r, max(col.g, col.b)))) : 1.0);" to
+                "  if (any(isnan(col)) || any(isinf(col))) col = vec3(0.0);\n  col = clamp(col, vec3(0.0), vec3(60000.0));\n  outColor = vec4(col, escaped ? step(0.0005, max(Acc, max(col.r, max(col.g, col.b)))) : 1.0);",
+            "  outColor = vec4(itm(o), oa);" to
+                "  vec3 safeOut = itm(o);\n  if (any(isnan(safeOut)) || any(isinf(safeOut))) safeOut = vec3(0.0);\n  outColor = vec4(clamp(safeOut, vec3(0.0), vec3(60000.0)), clamp(oa, 0.0, 1.0));"
+        )
+        var patched = source
+        replacements.forEach { (old, replacement) ->
+            check(patched.contains(old)) { "Bundled simulation patch anchor missing: ${old.take(72)}" }
+            patched = patched.replaceFirst(old, replacement)
+        }
+        return patched
     }
 
     /** Formats a JSON payload for `window.__antarBridge.applySettings(...)`. */
@@ -176,7 +220,7 @@ object AntarSimulationPayload {
     width: 100% !important;
     height: 100% !important;
     overflow: hidden !important;
-    background: transparent !important;
+    background: #000000 !important;
     touch-action: none !important;
     user-select: none !important;
     -webkit-user-select: none !important;
@@ -394,6 +438,20 @@ object AntarSimulationPayload {
   };
 
   window.__antarBridge = bridge;
+
+  function reportRuntimeError(message) {
+    try {
+      if (window.AntarHostBridge && typeof window.AntarHostBridge.onRuntimeError === 'function') {
+        window.AntarHostBridge.onRuntimeError(String(message || 'Unknown WebGL runtime error'));
+      }
+    } catch (_) {}
+  }
+  window.addEventListener('error', function(event) {
+    reportRuntimeError((event && event.message) || 'Unhandled JavaScript error');
+  });
+  window.addEventListener('unhandledrejection', function(event) {
+    reportRuntimeError((event && event.reason && event.reason.message) || 'Unhandled JavaScript rejection');
+  });
 
   setInterval(function() {
     if (!window.AntarHostBridge || typeof window.AntarHostBridge.onTelemetry !== 'function') return;

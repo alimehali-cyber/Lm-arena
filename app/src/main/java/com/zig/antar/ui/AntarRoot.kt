@@ -53,7 +53,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
@@ -172,7 +171,7 @@ fun AntarRoot(
         BoxWithConstraints(
             modifier = modifier
                 .fillMaxSize()
-                .background(rememberCosmicBackdropBrush(themeMode))
+                .background(rememberCosmicBackdropColor(themeMode))
                 .testTag("antar_root")
         ) {
             val containerWidth = maxWidth
@@ -624,17 +623,14 @@ fun AntarRoot(
 }
 
 @Composable
-private fun rememberCosmicBackdropBrush(themeMode: ThemeMode): Brush = remember(themeMode) {
+private fun rememberCosmicBackdropColor(themeMode: ThemeMode): Color = remember(themeMode) {
+    // The scene WebView can briefly expose transparent pixels while its WebGL surface is starting.
+    // Keep that fallback uniformly black; a radial gradient reads as a blurry orb and can be
+    // mistaken for the black hole itself.
     when (themeMode) {
-        ThemeMode.WINE -> Brush.radialGradient(
-            colors = listOf(Color(0xFF1A050C), Color(0xFF0A0205), Color(0xFF030102))
-        )
-        ThemeMode.LIGHT -> Brush.radialGradient(
-            colors = listOf(Color(0xFF0E1629), Color(0xFF060A14), Color(0xFF02040A))
-        )
-        ThemeMode.DARK -> Brush.radialGradient(
-            colors = listOf(Color(0xFF0B0F1D), Color(0xFF04060D), Color(0xFF010205))
-        )
+        ThemeMode.WINE -> Color(0xFF030102)
+        ThemeMode.LIGHT -> Color(0xFF02040A)
+        ThemeMode.DARK -> Color(0xFF010205)
     }
 }
 
