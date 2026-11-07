@@ -53,6 +53,9 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.domain.TimeMachineMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.monument.MonumentHitTargets
+import com.alijafari.red.astronomy.ui.monument.MonumentId
+import com.alijafari.red.astronomy.ui.monument.MonumentPages
 import com.alijafari.red.astronomy.ui.mountain.HomeMountain
 import com.alijafari.red.astronomy.ui.persepolis.PersepolisFeature
 import com.alijafari.red.astronomy.ui.persepolis.PersepolisLandscape
@@ -599,6 +602,65 @@ fun HeroSkyCanvas(
             }
         }
 
+        // --- THE TWO MONUMENTS AS TAP TARGETS ---
+        //
+        // The relief is drawn by a GL surface that has no idea a finger exists, so the stone's own
+        // framing — the very numbers that place the camera — become the hit boxes: the Persepolis
+        // façade on the left, the Mil-e Azhdaha slope on the right. Two small boxes, never one
+        // full-size overlay: a full-size one would swallow every tap meant for the sky, and this
+        // canvas already owns tap-to-identify for the Sun, the Moon, the planets and the stars.
+        //
+        // A tap raises the same selection card the sky uses, carrying the monument's own name. Opening
+        // that card is what leaves the scene for the monument's page, so a first tap never navigates
+        // by accident and the name is always read before the page opens. The card, the ring and the
+        // four-second dismissal are all the existing selection machinery: a monument is simply
+        // another thing in this canvas that can be named.
+        if (persepolisFraming != null) {
+            val density = LocalDensity.current
+            val canvasWpx = with(density) { maxWidth.toPx() }
+            val canvasHpx = with(density) { maxHeight.toPx() }
+            val slopPx = with(density) { MonumentHitTargets.HIT_SLOP_DP.dp.toPx() }
+            val monumentRects = MonumentHitTargets.rects(
+                framing = persepolisFraming,
+                canvasWidthPx = canvasWpx,
+                canvasHeightPx = canvasHpx,
+                slopPx = slopPx
+            )
+            monumentRects.forEach { rect ->
+                Box(
+                    modifier = Modifier
+                        .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }
+                        .size(
+                            width = with(density) { rect.width.toDp() },
+                            height = with(density) { rect.height.toDp() }
+                        )
+                        .testTag("monument_tap_${rect.id.name.lowercase()}")
+                        .pointerInput(rect.id, rect.left, rect.top, rect.width, rect.height) {
+                            detectTapGestures {
+                                val fa = currentIsFa
+                                val page = MonumentPages.of(rect.id, fa)
+                                selectedCelestial = SelectedCelestialInfo(
+                                    id = rect.id.selectionId,
+                                    name = page.title,
+                                    position = Offset(rect.centerX, rect.pinY()),
+                                    typeName = if (fa) {
+                                        when (rect.id) {
+                                            MonumentId.PERSEPOLIS -> "میراث جهانی یونسکو"
+                                            MonumentId.MIL_E_AZHDAHA -> "اثر ملی دورهٔ اشکانی"
+                                        }
+                                    } else {
+                                        when (rect.id) {
+                                            MonumentId.PERSEPOLIS -> "UNESCO World Heritage"
+                                            MonumentId.MIL_E_AZHDAHA -> "Parthian national monument"
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                )
+            }
+        }
+
         // --- LAYER 2: SCENE MOTION ---
         // Drifting cloud veils and the observer on the grass line. Full-bleed scene only, and cheap enough
         // to run continuously.
@@ -776,7 +838,12 @@ fun HeroSkyCanvas(
                     onOpen = {
                         val idToOpen = sel.id
                         selectedCelestial = null
-                        if (idToOpen.isNotEmpty()) {
+                        // A monument has no catalogue entry: its name opens its own page. Everything
+                        // else in this canvas is a catalogue object and opens the object modal.
+                        val monument = MonumentId.fromSelectionId(idToOpen)
+                        if (monument != null) {
+                            viewModel.openMonument(monument)
+                        } else if (idToOpen.isNotEmpty()) {
                             viewModel.openObjectDetailById(idToOpen, simulatedTimeMs)
                         }
                     }

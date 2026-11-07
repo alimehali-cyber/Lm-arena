@@ -77,6 +77,7 @@ import com.alijafari.red.astronomy.ui.components.PremiumSplashScreen
 import com.alijafari.red.astronomy.ui.components.SplashRevealRole
 import com.alijafari.red.astronomy.ui.components.rememberPremiumSplashState
 import com.alijafari.red.astronomy.ui.components.splashReveal
+import com.alijafari.red.astronomy.ui.monument.MonumentScreen
 import com.alijafari.red.astronomy.ui.splash.SplashArtLoader
 import com.alijafari.red.astronomy.ui.screens.*
 import com.alijafari.red.astronomy.ui.theme.REDTheme
@@ -547,6 +548,17 @@ class MainActivity : ComponentActivity() {
                               uiState = uiState,
                               viewModel = viewModel,
                               onDismiss = { viewModel.setShowMoonWindow(false) }
+                          )
+                      }
+
+                      // The monument pages: the two stone landmarks the Home landscape stands on.
+                      // Full-screen and above every screen and tab, because the tap that opens them
+                      // can come from any of the three Home styles (they all mount the same canvas).
+                      uiState.openMonument?.let { monument ->
+                          MonumentScreen(
+                              monument = monument,
+                              isFa = isFa,
+                              onDismiss = { viewModel.closeMonument() }
                           )
                       }
 

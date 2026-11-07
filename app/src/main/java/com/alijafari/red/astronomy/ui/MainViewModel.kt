@@ -20,6 +20,7 @@ import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.backdrop.LiveSkyPolicy
 import com.alijafari.red.astronomy.ui.backdrop.SkyLiveClock
+import com.alijafari.red.astronomy.ui.monument.MonumentId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -49,6 +50,15 @@ data class MainUiState(
     val showSkyViewer: Boolean = false,
     /** The Eclipses screen. Opened by the eclipse tile on Home. */
     val showEclipseWindow: Boolean = false,
+    /**
+     * The open monument page — Persepolis or Mil-e Azhdaha, the two stone landmarks the Home
+     * landscape stands on — or null when none is open.
+     *
+     * It lives in the ViewModel for the same reason the sky viewer does: the page is a full-screen
+     * window, and a configuration change (a rotation, a font-size change) must not be able to close
+     * it mid-read.
+     */
+    val openMonument: MonumentId? = null,
     /**
      * Lunar day offset in days (-30..+30) driven by dragging the Moon render. The Home moon card and the
      * Moon window read the same value, so scrubbing one moves the other.
@@ -600,6 +610,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /** Opens or closes the fullscreen sky viewer. */
     fun setShowSkyViewer(show: Boolean) {
         _uiState.update { if (it.showSkyViewer == show) it else it.copy(showSkyViewer = show) }
+    }
+
+    /**
+     * Opens a monument's page: the place a tap on the stone in the Home landscape leads to.
+     *
+     * The monument is not a catalogue object, so this is deliberately not `openObjectDetail`: the
+     * object modal is built around ephemeris values a monument does not have. The page it opens is a
+     * separate screen (see [com.alijafari.red.astronomy.ui.monument.MonumentScreen]).
+     */
+    fun openMonument(monument: MonumentId) {
+        _uiState.update { if (it.openMonument == monument) it else it.copy(openMonument = monument) }
+    }
+
+    /** Closes the monument page and returns to whatever was underneath it. */
+    fun closeMonument() {
+        _uiState.update { if (it.openMonument == null) it else it.copy(openMonument = null) }
     }
 
     /**
