@@ -60,3 +60,5 @@ jobs:
 
 # Re-record the bit-identity baseline after the Persian copy pass (baseline was dropped
 # in f44eb11 on purpose: the eclipse descriptions changed).
+
+# Re-baselined after the Persian copy pass settled (catalog text is fingerprinted too).
