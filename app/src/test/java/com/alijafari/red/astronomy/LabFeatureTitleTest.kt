@@ -75,9 +75,8 @@ class LabFeatureTitleTest {
         // still opens the sandbox.
         val timeDilation = text.indexOf("    TIME_DILATION(")
         val gravity = text.indexOf("    GRAVITY_SANDBOX(")
-        val gargantua = text.indexOf("    GARGANTUA(")
-        assertTrue("all three features are still declared", minOf(timeDilation, gravity, gargantua) > 0)
-        assertTrue("and still in the same order", timeDilation < gravity && gravity < gargantua)
+        assertTrue("both features are still declared", minOf(timeDilation, gravity) > 0)
+        assertTrue("and still in the same order", timeDilation < gravity)
         assertTrue(
             "the two 'Coming Soon' placeholder cards must stay removed",
             !text.contains("ORBITAL_RESONANCE") && !text.contains("STELLAR_EVOLUTION")

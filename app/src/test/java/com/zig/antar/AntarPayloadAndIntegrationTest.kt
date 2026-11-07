@@ -79,8 +79,8 @@ class AntarPayloadAndIntegrationTest {
         val stringsFa = readSource("res/values-fa/strings.xml")
 
         assertTrue(labScreen.contains("ANTAR_BLACKHOLE("))
-        assertTrue(labScreen.contains("titleEn = \"Antar Blackhole\""))
-        assertTrue(labScreen.contains("titleFa = \"سیاه‌چاله عنتر\""))
+        assertTrue(labScreen.contains("titleEn = \"ZIG's Blackhole\""))
+        assertTrue(labScreen.contains("titleFa = \"سیاه‌چاله ZIG\""))
         assertTrue(labScreen.contains("selectedFeature == LabFeatureType.ANTAR_BLACKHOLE"))
         assertTrue(labScreen.contains("com.zig.antar.ui.AntarRoot("))
 
@@ -90,8 +90,8 @@ class AntarPayloadAndIntegrationTest {
         assertTrue(cyberLab.contains("LabFeatureType.ANTAR_BLACKHOLE ->"))
         assertTrue(cyberLab.contains("AntarRoot("))
 
-        assertTrue(stringsEn.contains("<string name=\"antar_blackhole_title\">Antar Blackhole</string>"))
-        assertTrue(stringsFa.contains("<string name=\"antar_blackhole_title\">سیاه‌چاله عنتر</string>"))
+        assertTrue(stringsEn.contains("<string name=\"antar_blackhole_title\">ZIG\\'s Blackhole</string>"))
+        assertTrue(stringsFa.contains("<string name=\"antar_blackhole_title\">سیاه‌چاله ZIG</string>"))
     }
 
     @Test

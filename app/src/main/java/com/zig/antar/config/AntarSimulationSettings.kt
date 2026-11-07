@@ -35,7 +35,7 @@ enum class AntarMassPreset(
 ) {
     SGR_A("sgra", 4.3e6, "Sgr A* (4.3×10⁶ M☉)", "کمان A* (۴٫۳×۱۰⁶ M☉)"),
     M87("m87", 6.5e9, "M87* (6.5×10⁹ M☉)", "M87* (۶٫۵×۱۰⁹ M☉)"),
-    GARGANTUA_1E8("garg", 1.0e8, "Supermassive (10⁸ M☉)", "کلان‌جرم (۱۰⁸ M☉)"),
+    SUPERMASSIVE_1E8("smbh", 1.0e8, "Supermassive (10⁸ M☉)", "کلان‌جرم (۱۰⁸ M☉)"),
     STELLAR_10("stellar", 10.0, "Stellar (10 M☉)", "ستاره‌ای (۱۰ M☉)"),
     TON_618("ton618", 4.07e10, "TON 618 (4.07×10¹⁰ M☉)", "TON 618 (۴٫۰۷×۱۰¹⁰ M☉)");
 
@@ -90,7 +90,7 @@ enum class AntarPreset(
         subtitleFa = "قرص نوویکوف-تورن و درخشش دوپلری"
     ),
     THICK_CINEMA(
-        jsKey = "gargantua",
+        jsKey = "thickdisk",
         titleEn = "Thick Disk",
         titleFa = "قرص ضخیم",
         subtitleEn = "Symmetric cinematic accretion halo",
@@ -188,7 +188,7 @@ enum class AntarPreset(
             )
             THICK_CINEMA -> current.copy(
                 objectMode = AntarObjectMode.KERR,
-                massPreset = AntarMassPreset.GARGANTUA_1E8,
+                massPreset = AntarMassPreset.SUPERMASSIVE_1E8,
                 spin = 0.99,
                 inclinationDeg = 86.5,
                 distanceM = 22.0,

@@ -20,10 +20,7 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
-# XAPK libblackhole.so resolves JNI by this exact class and method name.
--keep class com.orchestrsim.blackhole.NativeBridge { *; }
-
-# Keep Antar Blackhole WebView @JavascriptInterface telemetry bridge in release builds.
+# Keep the ZIG's Blackhole WebView @JavascriptInterface telemetry bridge in release builds.
 -keepattributes JavascriptInterface
 -keepclassmembers class com.zig.antar.render.AntarJsHostBridge {
     @android.webkit.JavascriptInterface <methods>;

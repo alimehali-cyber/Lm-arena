@@ -12,7 +12,7 @@ import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * Pure-Kotlin, deterministic multi-touch camera controller for Antar Blackhole.
+ * Pure-Kotlin, deterministic multi-touch camera controller for ZIG's Blackhole.
  *
  * Designed so every hand gesture maps 1:1 to screen-space physical intuition with zero user
  * adaptation:

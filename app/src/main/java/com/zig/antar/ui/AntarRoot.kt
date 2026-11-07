@@ -87,7 +87,7 @@ import com.zig.gravity.ui.ImmersiveScreenState
 import kotlinx.coroutines.delay
 
 /**
- * Full-bleed immersive laboratory screen for **Antar Blackhole** (`سیاه‌چاله عنتر`).
+ * Full-bleed immersive laboratory screen for **ZIG's Blackhole** (`سیاه‌چاله ZIG`).
  *
  * - Owns the full screen via [ImmersiveScreenState] (no top header bar, no back button; system back
  *   collapses the control sheet first, then returns to the Lab tab).
@@ -142,7 +142,7 @@ fun AntarRoot(
     val gestureController = remember { AntarGestureController() }
     var inertiaEpoch by remember { mutableIntStateOf(0) }
 
-    // System back closes the expanded sheet first, then exits Antar Blackhole to Lab.
+    // System back closes the expanded sheet first, then exits ZIG's Blackhole to Lab.
     BackHandler(enabled = true) {
         if (panelOpen) {
             panelOpen = false
