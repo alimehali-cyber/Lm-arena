@@ -20,3 +20,6 @@ debug.keystore
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Image-search scratch downloads (not shipped assets)
+/image-search

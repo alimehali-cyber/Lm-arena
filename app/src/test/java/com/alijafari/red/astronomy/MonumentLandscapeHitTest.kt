@@ -98,8 +98,8 @@ class MonumentLandscapeHitTest {
         listOf(1080f to 1480f, 720f to 1560f, 1440f to 1120f).forEach { (w, h) ->
             val boxes = rects(widthPx = w, heightPx = h)
             boxes.forEach { box ->
-                assertTrue(box.left >= 0f && box.right <= w, "box inside the width at ${w}x$h")
-                assertTrue(box.top >= 0f && box.bottom <= h, "box inside the height at ${w}x$h")
+                assertTrue("box inside the width at ${w}x$h", box.left >= 0f && box.right <= w)
+                assertTrue("box inside the height at ${w}x$h", box.top >= 0f && box.bottom <= h)
             }
         }
     }
