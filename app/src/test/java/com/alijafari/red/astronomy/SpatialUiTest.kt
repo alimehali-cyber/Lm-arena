@@ -18,7 +18,7 @@ import org.junit.Test
 
 /**
  * Verifies all three selectable UI design systems ([AppUiStyle.DEFAULT], [AppUiStyle.SPATIAL],
- * [AppUiStyle.CYBER]), the Wine ("می") burgundy theme across all three UIs, Settings switchers,
+ * [AppUiStyle.CYBER]), the Wine ("شرابی") burgundy theme across all three UIs, Settings switchers,
  * and MainActivity routing.
  */
 class SpatialUiTest {
@@ -113,7 +113,7 @@ class SpatialUiTest {
         val stringsEn = resource("values/strings.xml")
         val stringsFa = resource("values-fa/strings.xml")
         assertTrue(stringsEn.contains("<string name=\"theme_wine\">Wine</string>"))
-        assertTrue(stringsFa.contains("<string name=\"theme_wine\">می</string>"))
+        assertTrue(stringsFa.contains("<string name=\"theme_wine\">شرابی</string>"))
     }
 
     @Test

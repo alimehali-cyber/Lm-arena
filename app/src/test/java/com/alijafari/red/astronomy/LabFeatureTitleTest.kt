@@ -106,7 +106,7 @@ class LabFeatureTitleTest {
             resource("values-fa").contains("شبیه‌ساز گرانش")
         )
         assertTrue(resource("values").contains("<string name=\"gravity_sandbox_subtitle\">N-Body Newton-Kepler Simulator</string>"))
-        assertTrue(resource("values-fa").contains("<string name=\"gravity_sandbox_subtitle\">شبیه‌سازی برهم‌کنش‌های N-جرم گرانشی</string>"))
+        assertTrue(resource("values-fa").contains("<string name=\"gravity_sandbox_subtitle\">شبیه‌سازی گرانش چند جسمی</string>"))
     }
 
     // -----------------------------------------------------------------------------------------

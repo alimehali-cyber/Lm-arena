@@ -1113,7 +1113,7 @@ object PhysicalData {
                     diameterComparedToEarth = (1.3927e6 * solarMult) / EARTH_DIAMETER_KM,
                     diameterDisplayFa = "${String.format("%.1f", solarMult)} برابر قطر خورشید",
                     diameterDisplayEn = "${String.format("%.1f", solarMult)}× Solar Diameter",
-                    massKgDisplayFa = "${String.format("%.1f", ۱٫۲ + abs(obj.magnitude)/۳٫۰)} برابر جرم خورشید",
+                    massKgDisplayFa = "${String.format("%.1f", 1.2 + abs(obj.magnitude)/3.0)} برابر جرم خورشید",
                     massKgDisplayEn = "${String.format("%.1f", 1.2 + abs(obj.magnitude)/3.0)}× Solar Mass",
                     massComparedToEarth = (1.2 + abs(obj.magnitude)/3.0) * 333000.0,
                     gravityMssDisplayFa = "رده طیفی ${if (obj.spectralType.isNotEmpty()) obj.spectralType else "A/F/G"}",

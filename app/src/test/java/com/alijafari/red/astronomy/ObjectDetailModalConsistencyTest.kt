@@ -70,7 +70,7 @@ class ObjectDetailModalConsistencyTest {
     @Test
     fun factsHeaderIsCountAwareAndLocalizedTheSameWayForAllObjects() {
         assertEquals("5 Verified Facts & Stories", objectDetailFactsHeader(5, isFa = false))
-        assertEquals("۳ حقیقت شگفت‌انگیز و علمی", objectDetailFactsHeader(3, isFa = true))
+        assertEquals("۳ نکتهٔ خواندنی", objectDetailFactsHeader(3, isFa = true))
     }
 
     @Test

@@ -133,7 +133,7 @@ class HomeMoonCardLayoutTest {
     fun theLocationPillShowsOnlyTheCityOrLiveGps() {
         assertTrue("the pill is still the way into the location window", home.contains(".testTag(\"home_location_selector_button\")"))
         assertTrue("a device fix shows Live GPS", home.contains("\"Live GPS\""))
-        assertTrue("and its Persian equivalent", home.contains("\"GPS زنده\""))
+        assertTrue("and its Persian equivalent", home.contains("\"GPS به‌روز\""))
         assertTrue("the source of the location is state, not a guess", home.contains("uiState.isLiveGpsLocation"))
         assertFalse("the coordinates are gone from the pill", home.contains("coordsText"))
     }
