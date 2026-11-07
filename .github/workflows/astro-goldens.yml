@@ -57,3 +57,6 @@ jobs:
             sleep 5
           done
           exit 1
+
+# Re-record the bit-identity baseline after the Persian copy pass (baseline was dropped
+# in f44eb11 on purpose: the eclipse descriptions changed).
