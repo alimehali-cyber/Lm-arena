@@ -730,7 +730,7 @@ private fun CyberSkyHeroSection(
                 )
                 Text(
                     text = if (uiState.isLiveGpsLocation) {
-                        if (isFa) "GPS زنده" else "Live GPS"
+                        if (isFa) "GPS به‌روز" else "Live GPS"
                     } else {
                         if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
                     },

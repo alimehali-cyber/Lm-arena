@@ -1279,7 +1279,7 @@ private fun HomeLocationPill(
             )
             Text(
                 text = if (isLiveGps) {
-                    if (isFa) "GPS زنده" else "Live GPS"
+                    if (isFa) "GPS به‌روز" else "Live GPS"
                 } else {
                     cityName
                 },
