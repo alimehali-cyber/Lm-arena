@@ -197,7 +197,7 @@ fun LocationSelectorDialog(
                             .testTag("location_search_input"),
                         placeholder = {
                             Text(
-                                text = if (isFa) "جستجوی شهر، استان، کشور (فارسی / انگلیسی)..." else "Search city, province, country...",
+                                text = if (isFa) "جستجوی شهر، استان، کشور (فارسی / انگلیسی)…" else "Search city, province, country...",
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontFamily = if (isFa) IranSans else null
                                 ),
@@ -504,7 +504,7 @@ fun LocationSelectorDialog(
                                             textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                                             value = manualLat,
                                             onValueChange = { manualLat = it; manualError = null },
-                                            label = { Text(if (isFa) "عرض جغرافیایی (-۹۰ تا +۹۰)" else "Latitude (-90.0 to +90.0)") },
+                                            label = { Text(if (isFa) "عرض جغرافیایی (−۹۰ تا +۹۰)" else "Latitude (-90.0 to +90.0)") },
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .testTag("manual_lat_input"),
@@ -525,7 +525,7 @@ fun LocationSelectorDialog(
                                             textStyle = TextStyle(fontFamily = LocalAppFontFamily.current),
                                             value = manualLon,
                                             onValueChange = { manualLon = it; manualError = null },
-                                            label = { Text(if (isFa) "طول جغرافیایی (-۱۸۰ تا +۱۸۰)" else "Longitude (-180.0 to +180.0)") },
+                                            label = { Text(if (isFa) "طول جغرافیایی (−۱۸۰ تا +۱۸۰)" else "Longitude (-180.0 to +180.0)") },
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .testTag("manual_lon_input"),
@@ -603,11 +603,11 @@ fun LocationSelectorDialog(
                                                 val elev = manualElev.toDoubleOrNull() ?: 0.0
 
                                                 if (lat == null || lat < -90.0 || lat > 90.0) {
-                                                    manualError = if (isFa) "عرض جغرافیایی باید عددی بین -۹۰ و +۹۰ باشد." else "Latitude must be between -90 and +90."
+                                                    manualError = if (isFa) "عرض جغرافیایی باید عددی بین −۹۰ و +۹۰ باشد." else "Latitude must be between -90 and +90."
                                                     return@Button
                                                 }
                                                 if (lon == null || lon < -180.0 || lon > 180.0) {
-                                                    manualError = if (isFa) "طول جغرافیایی باید عددی بین -۱۸۰ و +۱۸۰ باشد." else "Longitude must be between -180 and +180."
+                                                    manualError = if (isFa) "طول جغرافیایی باید عددی بین −۱۸۰ و +۱۸۰ باشد." else "Longitude must be between -180 and +180."
                                                     return@Button
                                                 }
 

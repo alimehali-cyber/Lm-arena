@@ -18,7 +18,7 @@ class RelativisticEngineTest {
 
         // Test parsing Persian digit strings
         assertEquals(90.0, RelativisticEngine.parseLocalizedDouble("۹۰")!!, 0.0001)
-        assertEquals(0.95, RelativisticEngine.parseLocalizedDouble("۰.۹۵")!!, 0.0001)
+        assertEquals(0.95, RelativisticEngine.parseLocalizedDouble("۰٫۹۵")!!, 0.0001)
         assertEquals(0.95, RelativisticEngine.parseLocalizedDouble("۰٫۹۵")!!, 0.0001) // Persian momayyez / comma decimal
     }
 

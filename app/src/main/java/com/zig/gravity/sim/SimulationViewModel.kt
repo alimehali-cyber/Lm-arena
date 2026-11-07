@@ -930,7 +930,7 @@ class SimulationViewModel : ViewModel() {
     }
 
     private fun capMessage(): String = if (persian) {
-        "میز آزمایش پر است — حداکثر ۲۰ جسم جا می‌شود."
+        "میز آزمایش پر است، حداکثر ۲۰ جسم جا می‌شود."
     } else {
         "The experiment table is full — 20 bodies maximum."
     }

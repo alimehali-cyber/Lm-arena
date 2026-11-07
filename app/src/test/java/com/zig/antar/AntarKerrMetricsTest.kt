@@ -58,7 +58,7 @@ class AntarKerrMetricsTest {
         assertEquals("۱۸٫۵", fa)
 
         val negFa = AntarNumberFormat.decimal(-0.94, 2, isPersian = true)
-        assertEquals("-۰٫۹۴", negFa)
+        assertEquals("−۰٫۹۴", negFa)
 
         val parsed = AntarNumberFormat.parseFlexibleDouble("−۰٫۹۴")
         assertNotNull(parsed)

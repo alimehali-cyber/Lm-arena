@@ -119,7 +119,7 @@ private val BORTLE_CLASSES = listOf(
         nameEn = "Inner-City Sky",
         nameFa = "مرکز کلان‌شهر",
         descEn = "Only brightest stars and planets visible, sky brilliantly illuminated by urban lighting.",
-        descFa = "فقط سیارات و پرنورترین ستارگان (مانند شباهنگ) قابل رویت هستند؛ زمینه آسمان روشن است."
+        descFa = "فقط سیارات و پرنورترین ستاره‌ها، مثل شباهنگ، دیده می‌شوند؛ آسمان روشن است."
     )
 )
 
@@ -490,7 +490,7 @@ fun SettingsDialog(
 
                     // Concise Bortle Scale Identification Guide
                     Text(
-                        text = if (isFa) "راهنمای تطبیق وضعیت آسمان شب:" else "Sky Appearance Identification Guide:",
+                        text = if (isFa) "آسمان شب شما کدام است؟" else "Sky Appearance Identification Guide:",
                         style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
                         color = RedTheme.colors.textSecondary
                     )

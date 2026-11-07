@@ -158,7 +158,7 @@ object ArScreenSupport {
         val (fa, en) = when {
             below -> "هشدار: این جرم در حال حاضر زیر افق قرار دارد (${String.format(Locale.US, "%.1f", placed.altDeg)}°)" to
                 "Warning: Target is currently below the horizon (${String.format(Locale.US, "%.1f", placed.altDeg)}°)"
-            arrived -> "هدف دقیقاً در مرکز دید شماست!" to "Target acquired in the centre reticle!"
+            arrived -> "هدف دقیقاً در مرکز دید شماست." to "Target acquired in the centre reticle!"
             else -> {
                 val deg = Math.toDegrees(angle.toDouble())
                 when {

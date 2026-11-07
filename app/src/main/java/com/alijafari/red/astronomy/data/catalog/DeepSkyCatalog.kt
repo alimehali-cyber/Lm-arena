@@ -131,7 +131,7 @@ object DeepSkyCatalog {
                 distanceLightYears = 577.0,
                 category = "Open Cluster",
                 descriptionEn = "Bright open cluster known since antiquity as a misty cloud in Cancer.",
-                descriptionFa = "خوشه ستاره‌ای درخشان که از دوران باستان به عنوان ابر مه‌آلود شناخته می‌شد.",
+                descriptionFa = "خوشه ستاره‌ای درخشان که از دوران باستان به‌عنوان ابر مه‌آلود شناخته می‌شد.",
                 observationTipEn = "Appears as a nebulous patch midway between Regulus and Pollux.",
                 observationTipFa = "بین ستاره قلب‌الاسد و پولوکس به شکل لکه‌ای ابری دیده می‌شود.",
                 spectralType = "Open Cluster"

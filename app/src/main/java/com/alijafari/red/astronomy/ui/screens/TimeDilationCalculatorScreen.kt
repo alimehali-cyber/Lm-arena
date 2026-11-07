@@ -287,7 +287,7 @@ fun TimeDilationCalculatorScreen(
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
-                                        text = if (isFa) "فاصله بین دو جرم:" else "Calculated Distance:",
+                                        text = if (isFa) "فاصلهٔ دو جرم" else "Calculated Distance:",
                                         style = RedTypography.labelMedium,
                                         color = RedTheme.colors.textSecondary
                                     )
@@ -493,7 +493,7 @@ fun TimeDilationCalculatorScreen(
                                         tint = RedTheme.colors.accentRed
                                     )
                                     Text(
-                                        text = if (isFa) "هشدار فیزیکی: سرعت $rawSpeedInput بیشتر از سرعت نور (v > c) است! طبق اصل نسبیت خاص آینشتاین، هیچ ذره دارای جرمی نمی‌تواند به سرعت نور یا بالاتر از آن دست یابد."
+                                        text = if (isFa) "هشدار فیزیکی: سرعت $rawSpeedInput بیشتر از سرعت نور (v > c) است! طبق اصل نسبیت خاص اینشتاین، هیچ ذره دارای جرمی نمی‌تواند به سرعت نور یا بالاتر از آن دست یابد."
                                         else "Physical Constraint Violation: Speed exceeds light speed (v > c). Superluminal travel is forbidden by Special Relativity as mass becomes infinite.",
                                         style = RedTypography.labelMedium,
                                         color = RedTheme.colors.accentRed
@@ -615,7 +615,7 @@ fun TimeDilationCalculatorScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(
-                                            text = if (isFa) "بیشینه سرعت رسیده شده:" else "Max Velocity Reached:",
+                                            text = if (isFa) "بیشینه سرعت" else "Max Velocity Reached:",
                                             style = RedTypography.labelMedium,
                                             color = RedTheme.colors.textSecondary
                                         )
@@ -633,7 +633,7 @@ fun TimeDilationCalculatorScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(
-                                            text = if (isFa) "زمان فاز شتاب‌گیری (مرجع زمین):" else "Acc. Phase Duration (Earth):",
+                                            text = if (isFa) "زمان فاز شتاب‌گیری (از دید زمین)" else "Acc. Phase Duration (Earth):",
                                             style = RedTypography.labelSmall,
                                             color = RedTheme.colors.textSecondary
                                         )
@@ -649,7 +649,7 @@ fun TimeDilationCalculatorScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(
-                                            text = if (isFa) "زمان فاز کروز / سرعت ثابت:" else "Cruise Phase Duration:",
+                                            text = if (isFa) "زمان فاز کروز (سرعت ثابت)" else "Cruise Phase Duration:",
                                             style = RedTypography.labelSmall,
                                             color = RedTheme.colors.textSecondary
                                         )
@@ -762,7 +762,7 @@ fun TimeDilationCalculatorScreen(
                                     verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                                 ) {
                                     MetricRow(
-                                        label = if (isFa) "اختلاف زمان (کند شدن زمان):" else "Time Difference (Dilation):",
+                                        label = if (isFa) "اختلاف زمان" else "Time Difference (Dilation):",
                                         value = RelativisticEngine.formatDuration(journeyResult.timeDifferenceSeconds, isFa),
                                         highlight = true
                                     )
@@ -783,7 +783,7 @@ fun TimeDilationCalculatorScreen(
                                     val pctStr = if (isFa) pctRaw.toPersianDigits() else pctRaw
 
                                     MetricRow(
-                                        label = if (isFa) "درصد انقباض زمان نسبت به زمین:" else "Percentage Time Dilation:",
+                                        label = if (isFa) "انقباض زمان نسبت به زمین (٪)" else "Percentage Time Dilation:",
                                         value = pctStr,
                                         highlight = false
                                     )
@@ -795,7 +795,7 @@ fun TimeDilationCalculatorScreen(
                                             isFa = isFa
                                         )
                                         MetricRow(
-                                            label = if (isFa) "طول انقباض یافته از دید مسافر:" else "Contracted Distance (Traveller):",
+                                            label = if (isFa) "طول مسیر از دید مسافر" else "Contracted Distance (Traveller):",
                                             value = contractedLyStr,
                                             highlight = true
                                         )
@@ -880,7 +880,7 @@ fun TimeDilationCalculatorScreen(
                 ) {
                     Text(
                         text = if (isFa)
-                            "بر اساس نظریه نسبیت خاص آینشتاین (۱۹۰۵)، سرعت نور در خلاء (c ≈ ۳۰۰,۰۰۰ km/s) برای تمامی ناظرها یکسان و ثابت است. برای حفظ این ثبات، زمان و مکان نسبی می‌شوند."
+                            "بر اساس نظریه نسبیت خاص اینشتاین (۱۹۰۵)، سرعت نور در خلأ (c ≈ ۳۰۰٬۰۰۰ km/s) برای تمامی ناظرها یکسان و ثابت است. برای حفظ این ثبات، زمان و مکان نسبی می‌شوند."
                         else
                             "According to Einstein's Theory of Special Relativity (1905), the speed of light in vacuum (c ≈ 300,000 km/s) is invariant across all inertial reference frames.",
                         style = RedTypography.bodyMedium,
@@ -1081,7 +1081,7 @@ private fun ObjectSearchModal(
                     .testTag("object_search_dialog_input"),
                 placeholder = {
                     Text(
-                        text = if (isFa) "جستجوی جرم (زمین، خورشید، ماه، مریخ، آندرومدا...)" else "Search objects (Earth, Moon, Sun, Mars...)",
+                        text = if (isFa) "جستجوی جرم (زمین، خورشید، ماه، مریخ، آندرومدا…)" else "Search objects (Earth, Moon, Sun, Mars...)",
                         style = RedTypography.bodyMedium,
                         color = RedTheme.colors.textSecondary
                     )

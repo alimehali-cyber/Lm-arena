@@ -1406,7 +1406,7 @@ private fun CyberSkySearchOverlay(
                         onValueChange = onQueryChange,
                         placeholder = {
                             Text(
-                                text = if (isFa) "جستجوی ستاره، سیاره، سحابی..." else "Search stars, planets, nebulae...",
+                                text = if (isFa) "جستجوی ستاره، سیاره، سحابی…" else "Search stars, planets, nebulae...",
                                 style = RedTypographyTokens.bodySecondary.copy(fontWeight = FontWeight.Light),
                                 color = palette.textMuted
                             )

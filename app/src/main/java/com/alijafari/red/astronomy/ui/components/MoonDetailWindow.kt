@@ -182,9 +182,9 @@ fun MoonDetailWindow(
                             if (isFa) it.toPersianDigits() else it
                         }
                         val offsetBadge = when {
-                            dayOffsetInt == 0 -> if (isFa) "امروز — $dateStr" else "Today — $dateStr"
-                            dayOffsetInt > 0 -> if (isFa) "+${dayOffsetInt} روز — $dateStr".toPersianDigits() else "+${dayOffsetInt}d — $dateStr"
-                            else -> if (isFa) "${dayOffsetInt} روز — $dateStr".toPersianDigits() else "${dayOffsetInt}d — $dateStr"
+                            dayOffsetInt == 0 -> if (isFa) "امروز، $dateStr" else "Today — $dateStr"
+                            dayOffsetInt > 0 -> if (isFa) "+${dayOffsetInt} روز، $dateStr".toPersianDigits() else "+${dayOffsetInt}d — $dateStr"
+                            else -> if (isFa) "${dayOffsetInt} روز، $dateStr".toPersianDigits() else "${dayOffsetInt}d — $dateStr"
                         }
 
                         Text(

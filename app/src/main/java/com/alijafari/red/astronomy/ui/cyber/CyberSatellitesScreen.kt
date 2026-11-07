@@ -984,7 +984,7 @@ fun CyberSatellitesScreen(
                     contentPadding = PaddingValues(18.dp)
                 ) {
                     Text(
-                        text = if (isFa) "در حال محاسبه گذرهای مداری..." else "Propagating SGP4 visible passes...",
+                        text = if (isFa) "در حال محاسبه گذرهای مداری…" else "Propagating SGP4 visible passes...",
                         style = RedTypographyTokens.bodySecondary.copy(fontWeight = FontWeight.Light),
                         color = palette.textSecondary
                     )
@@ -1022,7 +1022,7 @@ fun CyberSatellitesScreen(
                                     else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")
                                     Toast.makeText(
                                         context,
-                                        if (isFa) "هشدار گذر $labelStr قبل از شروع تنظیم شد!"
+                                        if (isFa) "هشدار گذر $labelStr پیش از شروع تنظیم شد."
                                         else "Alert set $labelStr prior to pass!",
                                         Toast.LENGTH_SHORT
                                     ).show()

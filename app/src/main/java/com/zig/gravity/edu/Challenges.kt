@@ -77,8 +77,8 @@ object Challenges {
             setupEn = "Add a second planet farther out and wait until both complete a full lap.",
             preset = Preset.SUN_EARTH,
             options = listOf(
-                ChallengeOption("near", "نزدیک‌تر — هرچه دورتر، کندتر", "The nearer one — farther means slower", true),
-                ChallengeOption("far", "دورتر — چون مسیرش بازتر است", "The farther one — it has more room", false),
+                ChallengeOption("near", "نزدیک‌تر، هرچه دورتر، کندتر", "The nearer one — farther means slower", true),
+                ChallengeOption("far", "دورتر، چون مسیرش بازتر است", "The farther one — it has more room", false),
                 ChallengeOption("same", "هر دو هم‌زمان", "Both at the same time", false)
             ),
             explainConcept = SimulationDetectors.ORBIT_STABILIZED

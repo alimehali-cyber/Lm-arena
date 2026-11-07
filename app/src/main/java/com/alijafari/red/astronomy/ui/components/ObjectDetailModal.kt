@@ -64,7 +64,7 @@ fun objectDetailSectionPlan(type: ObjectType, factCount: Int): List<String> = bu
 
 fun objectDetailFactsHeader(count: Int, isFa: Boolean): String =
     if (isFa) {
-        "${TimeEngine.formatPersianNumbers(count.toString())} حقیقت شگفت‌انگیز و علمی"
+        "${TimeEngine.formatPersianNumbers(count.toString())} نکتهٔ خواندنی"
     } else {
         "$count Verified Facts & Stories"
     }
@@ -122,7 +122,7 @@ fun ObjectDetailModal(
             pendingNotificationAction = null
             Toast.makeText(
                 context,
-                if (isFa) "برای دریافت هشدار رصد، لطفاً مجوز اعلان را فعال کنید."
+                if (isFa) "برای هشدار رصد، اجازهٔ اعلان را بدهید."
                 else "Notification permission is required to receive observation alerts.",
                 Toast.LENGTH_LONG
             ).show()
@@ -493,7 +493,7 @@ fun ObjectDetailModal(
                                 modifier = Modifier.size(20.dp)
                             )
                             Text(
-                                text = if (isFa) "مشخصات فیزیکی و محاسباتی مراجع" else "Derived Physical Properties",
+                                text = if (isFa) "مشخصات فیزیکی و داده‌های مرجع" else "Derived Physical Properties",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -534,7 +534,7 @@ fun ObjectDetailModal(
                                 modifier = Modifier.size(20.dp)
                             )
                             Text(
-                                text = if (isFa) "مشخصات فیزیکی و محاسباتی مراجع" else "Derived Physical Properties",
+                                text = if (isFa) "مشخصات فیزیکی و داده‌های مرجع" else "Derived Physical Properties",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -1096,7 +1096,7 @@ fun ObjectDetailModal(
                                 )
                                 Toast.makeText(
                                     context,
-                                    if (isFa) "هشدار رصد با موفقیت تنظیم شد!" else "Observation alert scheduled!",
+                                    if (isFa) "هشدار رصد تنظیم شد." else "Observation alert scheduled!",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
@@ -1135,7 +1135,7 @@ fun ObjectDetailModal(
                         value = notesInput,
                         onValueChange = { notesInput = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(text = if (isFa) "شرایط جوی، تجهیزات رصدی..." else "Weather, telescope...") }
+                        placeholder = { Text(text = if (isFa) "شرایط جوی، تجهیزات رصدی…" else "Weather, telescope...") }
                     )
 
                     Row(

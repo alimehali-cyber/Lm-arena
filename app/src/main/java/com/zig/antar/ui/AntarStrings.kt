@@ -20,7 +20,7 @@ object AntarStrings {
 
     fun title(fa: Boolean): String = if (fa) "سیاه‌چاله ZIG" else "ZIG's Blackhole"
     fun subtitle(fa: Boolean): String =
-        if (fa) "ردیابی پرتو نسبیتی کر–شیلد" else "Kerr–Schild Null-Geodesic Ray Tracer"
+        if (fa) "ردیابی پرتو نورگونه در متریک کر–شیلد" else "Kerr–Schild Null-Geodesic Ray Tracer"
 
     fun loadingShader(fa: Boolean): String =
         if (fa) "در حال کامپایل شیدرهای نسبیت عام…" else "Compiling general-relativistic shaders…"
@@ -32,7 +32,7 @@ object AntarStrings {
         if (fa) "درون افق رویداد" else "INSIDE EVENT HORIZON"
 
     fun restartInspiral(fa: Boolean): String =
-        if (fa) "شروع دوباره مارپیچ ادغام" else "Restart Inspiral"
+        if (fa) "شروع دوبارهٔ ادغام" else "Restart Inspiral"
 
     fun exitPlunge(fa: Boolean): String =
         if (fa) "بازگشت به مدار" else "Return to Orbit"
@@ -44,7 +44,7 @@ object AntarStrings {
         if (fa) "بازنشانی نما" else "Reset View"
 
     fun resetAll(fa: Boolean): String =
-        if (fa) "تنظیمات پیش‌فرض" else "Reset All"
+        if (fa) "بازنشانی همه" else "Reset All"
 
     fun play(fa: Boolean): String = if (fa) "پخش" else "Play"
     fun pause(fa: Boolean): String = if (fa) "مکث" else "Pause"
@@ -81,7 +81,7 @@ object AntarStrings {
         if (fa) preset.subtitleFa else preset.subtitleEn
 
     // Section headers
-    fun sectionObjectType(fa: Boolean): String = if (fa) "ساختار جرم کیهانی" else "Astrophysical System"
+    fun sectionObjectType(fa: Boolean): String = if (fa) "سامانهٔ کیهانی" else "Astrophysical System"
     fun sectionCameraMode(fa: Boolean): String = if (fa) "حالت دوربین و حرکت" else "Camera & Trajectory"
     fun sectionPresets(fa: Boolean): String = if (fa) "صحنه‌های آماده اخترفیزیکی" else "Astrophysical Presets"
     fun sectionObservables(fa: Boolean): String = if (fa) "کمیت‌های تحلیلی نسبیت عام" else "Exact Relativistic Observables"
@@ -95,7 +95,7 @@ object AntarStrings {
 
     // Observables & sliders
     fun obsHorizon(fa: Boolean): String = if (fa) "افق رویداد r+" else "Horizon r+"
-    fun obsIsco(fa: Boolean): String = if (fa) "مدار پایدار ISCO" else "ISCO Radius"
+    fun obsIsco(fa: Boolean): String = if (fa) "آخرین مدار پایدار (ISCO)" else "ISCO Radius"
     fun obsPhotonRing(fa: Boolean): String = if (fa) "مدار فوتون r_ph" else "Photon Orbit"
     fun obsTimeDilation(fa: Boolean): String = if (fa) "اتساع زمان dτ/dt" else "Time Dilation"
     fun obsBinarySep(fa: Boolean): String = if (fa) "جدایی مداری" else "Separation"
@@ -105,8 +105,8 @@ object AntarStrings {
     fun paramSpin(fa: Boolean): String = if (fa) "چرخش بی‌بعد (a/M)" else "Dimensionless Spin (a/M)"
     fun paramMass(fa: Boolean): String = if (fa) "مقیاس جرم سیاه‌چاله" else "Mass Scale"
     fun paramTimeScale(fa: Boolean): String = if (fa) "سرعت زمان شبیه‌سازی" else "Simulation Time Rate"
-    fun paramPlungeSpeed(fa: Boolean): String = if (fa) "شتاب زمان سقوط آزاد" else "Free-Fall Rate"
-    fun paramBeaming(fa: Boolean): String = if (fa) "تقویت دوپلر نسبیتی" else "Relativistic Doppler Beaming"
+    fun paramPlungeSpeed(fa: Boolean): String = if (fa) "سرعت سقوط آزاد" else "Free-Fall Rate"
+    fun paramBeaming(fa: Boolean): String = if (fa) "پرتوسازی دوپلر نسبیتی" else "Relativistic Doppler Beaming"
     fun paramBolometric(fa: Boolean): String = if (fa) "قفل درخشندگی بولومتریک" else "Lock Bolometric Luminosity"
 
     fun paramBinaryQ(fa: Boolean): String = if (fa) "نسبت جرم (q = M₂/M₁)" else "Mass Ratio (q = M₂/M₁)"
@@ -123,27 +123,27 @@ object AntarStrings {
     fun paramOuterRadius(fa: Boolean): String = if (fa) "شعاع بیرونی قرص (M)" else "Outer Disk Radius (M)"
     fun paramDensity(fa: Boolean): String = if (fa) "چگالی نوری پلاسما" else "Optical Density"
     fun paramTurbulence(fa: Boolean): String = if (fa) "تلاطم مگنتوهیدرودینامیکی" else "MRI Turbulence"
-    fun paramHaze(fa: Boolean): String = if (fa) "غبار پراکندگی تاج" else "Coronal Haze"
+    fun paramHaze(fa: Boolean): String = if (fa) "غبار تاجی" else "Coronal Haze"
     fun paramDiskBright(fa: Boolean): String = if (fa) "بهره تابش قرص" else "Disk Emission Gain"
-    fun paramCorona(fa: Boolean): String = if (fa) "تاج پرتو ایکس چراغ‌پستی" else "Lamppost X-Ray Corona"
-    fun paramWind(fa: Boolean): String = if (fa) "باد خط‌پهن فرابنفش" else "UV Disk Wind"
+    fun paramCorona(fa: Boolean): String = if (fa) "تاج پرتو ایکس چراغ‌مانند" else "Lamppost X-Ray Corona"
+    fun paramWind(fa: Boolean): String = if (fa) "باد فرابنفش قرص" else "UV Disk Wind"
     fun paramBlr(fa: Boolean): String = if (fa) "ناحیه خطوط پهن (BLR)" else "Broad-Line Region"
 
     fun paramStars(fa: Boolean): String = if (fa) "میدان ستارگان و راه شیری" else "Starfield & Milky Way"
-    fun paramStarBright(fa: Boolean): String = if (fa) "درخشش ستارگان همگراشده" else "Lensed Star Brightness"
+    fun paramStarBright(fa: Boolean): String = if (fa) "درخشش ستارگان لنزشده" else "Lensed Star Brightness"
     fun paramSkyBright(fa: Boolean): String = if (fa) "سحابی و غبار کهکشانی" else "Galactic Dust & Nebula"
     fun paramGrid(fa: Boolean): String = if (fa) "شبکه مختصات سماوی" else "Celestial Lensing Grid"
     fun paramJet(fa: Boolean): String = if (fa) "فواره نسبیتی بلندفورد–زنایک" else "Relativistic Polar Jet"
-    fun paramEht(fa: Boolean): String = if (fa) "بازسازی تداخل‌سنجی EHT ۲۳۰GHz" else "EHT 230 GHz VLBI Filter"
+    fun paramEht(fa: Boolean): String = if (fa) "فیلتر تداخل‌سنجی EHT در ۲۳۰ گیگاهرتز" else "EHT 230 GHz VLBI Filter"
 
     fun paramDistance(fa: Boolean): String = if (fa) "فاصله شعاعی دوربین (r/M)" else "Radial Distance (r/M)"
     fun paramInclination(fa: Boolean): String = if (fa) "زاویه میل ناظر" else "Inclination Angle"
     fun paramRoll(fa: Boolean): String = if (fa) "چرخش افق دوربین" else "Horizon Roll"
     fun paramFov(fa: Boolean): String = if (fa) "میدان دید عمودی (FOV)" else "Vertical Field of View"
     fun paramExposure(fa: Boolean): String = if (fa) "نوردهی تون‌مپینگ ACES" else "ACES Exposure"
-    fun paramBloom(fa: Boolean): String = if (fa) "هاله درخشش فوتونی" else "Photon Ring Bloom"
+    fun paramBloom(fa: Boolean): String = if (fa) "هالهٔ حلقهٔ فوتون" else "Photon Ring Bloom"
     fun paramQuality(fa: Boolean): String = if (fa) "دقت گام انتگرال‌گیری پرتو" else "Geodesic Step Quality"
-    fun paramAutoRes(fa: Boolean): String = if (fa) "تنظیم هوشمند تفکیک‌پذیری (۶۰ فریم)" else "Adaptive 60 FPS Scale"
+    fun paramAutoRes(fa: Boolean): String = if (fa) "تفکیک‌پذیری تطبیقی (۶۰ فریم)" else "Adaptive 60 FPS Scale"
 
     fun paramSensitivity(fa: Boolean): String = if (fa) "حساسیت چرخش لمسی" else "Orbit Drag Sensitivity"
     fun paramInertia(fa: Boolean): String = if (fa) "لغزش لختی پس از رهاسازی" else "Inertial Glide on Release"
@@ -151,9 +151,9 @@ object AntarStrings {
     fun paramShowHudBadge(fa: Boolean): String = if (fa) "نمایش نوار زنده کمیت‌های فیزیکی" else "Live Telemetry Pill"
 
     fun gestureSummary(fa: Boolean): String = if (fa) {
-        "• یک انگشت: چرخش نرم سه‌بعدی به دور سیاه‌چاله (یا نگاه به اطراف هنگام سقوط آزاد)\n" +
-            "• دو انگشت: بزرگ‌نمایی، جابه‌جایی صفحه و چرخاندن زاویه افق\n" +
-            "• دو ضربه پیاپی: بازگرداندن فوری سیاه‌چاله به مرکز تصویر"
+        "• یک انگشت: چرخاندن نرم سیاه‌چاله در فضا (هنگام سقوط آزاد: نگاه به اطراف)\n" +
+            "• دو انگشت: بزرگ‌نمایی، جابه‌جایی و چرخش افق\n" +
+            "• دو ضربه: بازگرداندن نما به مرکز"
     } else {
         "• 1 finger: smooth 3D arcball orbit & tilt (or head-look during free-fall)\n" +
             "• 2 fingers: pinch to zoom, drag to pan, twist to roll the horizon\n" +

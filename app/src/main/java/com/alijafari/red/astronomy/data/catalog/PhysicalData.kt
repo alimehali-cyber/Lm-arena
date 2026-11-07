@@ -29,34 +29,34 @@ object PhysicalData {
     private val SUN_PROPS = PhysicalProperties(
         diameterKm = 1392700.0,
         diameterComparedToEarth = 109.3,
-        diameterDisplayFa = "۱,۳۹۲,۷۰۰ کیلومتر (۱۰۹.۳ برابر زمین)",
+        diameterDisplayFa = "۱٬۳۹۲٬۷۰۰ کیلومتر (۱۰۹٫۳ برابر زمین)",
         diameterDisplayEn = "1,392,700 km (109.3× Earth)",
-        massKgDisplayFa = "۱.۹۸۹ × ۱۰³⁰ کیلوگرم (۳۳۳,۰۰۰ برابر زمین)",
+        massKgDisplayFa = "۱٫۹۸۹ × ۱۰³⁰ کیلوگرم (۳۳۳٬۰۰۰ برابر زمین)",
         massKgDisplayEn = "1.989 × 10³⁰ kg (333,000× Earth)",
         massComparedToEarth = 333000.0,
-        gravityMssDisplayFa = "۲۷۴.۰ متر بر مجذور ثانیه (۲۷.۹۴ برابر زمین)",
+        gravityMssDisplayFa = "۲۷۴٫۰ متر بر مجذور ثانیه (۲۷٫۹۴ برابر زمین)",
         gravityMssDisplayEn = "274.0 m/s² (27.94× Earth)",
         gravityComparedToEarth = 27.94,
         distanceKm = 149597870.7,
         distanceLightYears = 0.00001581,
-        distanceDisplayFa = "۱۴۹,۶۰۰,۰۰۰ کیلومتر | ۰.۰۰۰۰۱۵۸ سال نوری (۱ واحد نجومی - متغیر مداری)",
+        distanceDisplayFa = "۱۴۹٬۶۰۰٬۰۰۰ کیلومتر | ۰٫۰۰۰۰۱۵۸ سال نوری (۱ واحد نجومی، متغیر مداری)",
         distanceDisplayEn = "149,600,000 km | 0.0000158 light-years (1.0 AU - dynamic orbital)"
     )
 
     private val MOON_PROPS = PhysicalProperties(
         diameterKm = 3474.8,
         diameterComparedToEarth = 0.2727,
-        diameterDisplayFa = "۳,۴۷۵ کیلومتر (۰.۲۷۳ برابر زمین)",
+        diameterDisplayFa = "۳٬۴۷۵ کیلومتر (۰٫۲۷۳ برابر زمین)",
         diameterDisplayEn = "3,475 km (0.273× Earth)",
-        massKgDisplayFa = "۷.۳۴۲ × ۱۰²² کیلوگرم (۰.۰۱۲۳ برابر زمین)",
+        massKgDisplayFa = "۷٫۳۴۲ × ۱۰²² کیلوگرم (۰٫۰۱۲۳ برابر زمین)",
         massKgDisplayEn = "7.342 × 10²² kg (0.0123× Earth)",
         massComparedToEarth = 0.0123,
-        gravityMssDisplayFa = "۱.۶۲۲ متر بر مجذور ثانیه (۰.۱۶۵ برابر زمین)",
+        gravityMssDisplayFa = "۱٫۶۲۲ متر بر مجذور ثانیه (۰٫۱۶۵ برابر زمین)",
         gravityMssDisplayEn = "1.622 m/s² (0.165× Earth)",
         gravityComparedToEarth = 0.1654,
         distanceKm = 384400.0,
         distanceLightYears = 0.0000000406,
-        distanceDisplayFa = "۳۸۴,۴۰۰ کیلومتر | ۰.۰۰۰۰۰۰۰۴ سال نوری (متغیر در مدار بیضوی)",
+        distanceDisplayFa = "۳۸۴٬۴۰۰ کیلومتر | ۰٫۰۰۰۰۰۰۰۴ سال نوری (متغیر در مدار بیضوی)",
         distanceDisplayEn = "384,400 km | 0.00000004 light-years (dynamic elliptical orbit)"
     )
 
@@ -65,10 +65,10 @@ object PhysicalData {
         diameterComparedToEarth = 0.00000855,
         diameterDisplayFa = "۱۰۹ متر (اندازه یک زمین فوتبال)",
         diameterDisplayEn = "109 meters (Football field size)",
-        massKgDisplayFa = "۴۵۰,۰۰۰ کیلوگرم (۴۵۰ تن)",
+        massKgDisplayFa = "۴۵۰٬۰۰۰ کیلوگرم (۴۵۰ تن)",
         massKgDisplayEn = "450,000 kg (450 tonnes)",
         massComparedToEarth = 7.53e-20,
-        gravityMssDisplayFa = "۸.۷ متر بر مجذور ثانیه در مدار (بی‌وزنی ظاهری / سقوط آزاد)",
+        gravityMssDisplayFa = "۸٫۷ متر بر مجذور ثانیه در مدار (بی‌وزنی ظاهری / سقوط آزاد)",
         gravityMssDisplayEn = "8.7 m/s² orbital (Microgravity / free-fall environment)",
         gravityComparedToEarth = 0.887,
         distanceKm = 420.0,
@@ -80,12 +80,12 @@ object PhysicalData {
     private val MERCURY_PROPS = PhysicalProperties(
         diameterKm = 4879.4,
         diameterComparedToEarth = 0.3829,
-        diameterDisplayFa = "۴,۸۷۹ کیلومتر (۰.۳۸۳ برابر زمین)",
+        diameterDisplayFa = "۴٬۸۷۹ کیلومتر (۰٫۳۸۳ برابر زمین)",
         diameterDisplayEn = "4,879 km (0.383× Earth)",
-        massKgDisplayFa = "۳.۳۰۱ × ۱۰²³ کیلوگرم (۰.۰۵۵ برابر زمین)",
+        massKgDisplayFa = "۳٫۳۰۱ × ۱۰²³ کیلوگرم (۰٫۰۵۵ برابر زمین)",
         massKgDisplayEn = "3.301 × 10²³ kg (0.055× Earth)",
         massComparedToEarth = 0.0553,
-        gravityMssDisplayFa = "۳.۷۰ متر بر مجذور ثانیه (۰.۳۷۷ برابر زمین)",
+        gravityMssDisplayFa = "۳٫۷۰ متر بر مجذور ثانیه (۰٫۳۷۷ برابر زمین)",
         gravityMssDisplayEn = "3.70 m/s² (0.377× Earth)",
         gravityComparedToEarth = 0.377,
         distanceKm = null, // Dynamic planetary ephemeris
@@ -97,12 +97,12 @@ object PhysicalData {
     private val VENUS_PROPS = PhysicalProperties(
         diameterKm = 12103.6,
         diameterComparedToEarth = 0.9499,
-        diameterDisplayFa = "۱۲,۱۰۴ کیلومتر (۰.۹۵۰ برابر زمین)",
+        diameterDisplayFa = "۱۲٬۱۰۴ کیلومتر (۰٫۹۵۰ برابر زمین)",
         diameterDisplayEn = "12,104 km (0.950× Earth)",
-        massKgDisplayFa = "۴.۸۶۷ × ۱۰²⁴ کیلوگرم (۰.۸۱۵ برابر زمین)",
+        massKgDisplayFa = "۴٫۸۶۷ × ۱۰²⁴ کیلوگرم (۰٫۸۱۵ برابر زمین)",
         massKgDisplayEn = "4.867 × 10²⁴ kg (0.815× Earth)",
         massComparedToEarth = 0.8150,
-        gravityMssDisplayFa = "۸.۸۷ متر بر مجذور ثانیه (۰.۹۰۴ برابر زمین)",
+        gravityMssDisplayFa = "۸٫۸۷ متر بر مجذور ثانیه (۰٫۹۰۴ برابر زمین)",
         gravityMssDisplayEn = "8.87 m/s² (0.904× Earth)",
         gravityComparedToEarth = 0.9045,
         distanceKm = null,
@@ -114,12 +114,12 @@ object PhysicalData {
     private val EARTH_PROPS = PhysicalProperties(
         diameterKm = 12742.0,
         diameterComparedToEarth = 1.00,
-        diameterDisplayFa = "۱۲,۷۴۲ کیلومتر (۱.۰۰ برابر زمین)",
+        diameterDisplayFa = "۱۲٬۷۴۲ کیلومتر (۱٫۰۰ برابر زمین)",
         diameterDisplayEn = "12,742 km (1.00× Earth)",
-        massKgDisplayFa = "۵.۹۷۲ × ۱۰²⁴ کیلوگرم (۱.۰۰ برابر زمین)",
+        massKgDisplayFa = "۵٫۹۷۲ × ۱۰²⁴ کیلوگرم (۱٫۰۰ برابر زمین)",
         massKgDisplayEn = "5.972 × 10²⁴ kg (1.00× Earth)",
         massComparedToEarth = 1.00,
-        gravityMssDisplayFa = "۹.۸۱ متر بر مجذور ثانیه (۱.۰۰ برابر زمین)",
+        gravityMssDisplayFa = "۹٫۸۱ متر بر مجذور ثانیه (۱٫۰۰ برابر زمین)",
         gravityMssDisplayEn = "9.81 m/s² (1.00× Earth)",
         gravityComparedToEarth = 1.00,
         distanceKm = 0.0,
@@ -131,12 +131,12 @@ object PhysicalData {
     private val MARS_PROPS = PhysicalProperties(
         diameterKm = 6779.0,
         diameterComparedToEarth = 0.5320,
-        diameterDisplayFa = "۶,۷۷۹ کیلومتر (۰.۵۳۲ برابر زمین)",
+        diameterDisplayFa = "۶٬۷۷۹ کیلومتر (۰٫۵۳۲ برابر زمین)",
         diameterDisplayEn = "6,779 km (0.532× Earth)",
-        massKgDisplayFa = "۶.۴۱۷ × ۱۰²³ کیلوگرم (۰.۱۰۷ برابر زمین)",
+        massKgDisplayFa = "۶٫۴۱۷ × ۱۰²³ کیلوگرم (۰٫۱۰۷ برابر زمین)",
         massKgDisplayEn = "6.417 × 10²³ kg (0.107× Earth)",
         massComparedToEarth = 0.1074,
-        gravityMssDisplayFa = "۳.۷۲ متر بر مجذور ثانیه (۰.۳۷۹ برابر زمین)",
+        gravityMssDisplayFa = "۳٫۷۲ متر بر مجذور ثانیه (۰٫۳۷۹ برابر زمین)",
         gravityMssDisplayEn = "3.72 m/s² (0.379× Earth)",
         gravityComparedToEarth = 0.3794,
         distanceKm = null,
@@ -148,12 +148,12 @@ object PhysicalData {
     private val JUPITER_PROPS = PhysicalProperties(
         diameterKm = 139822.0,
         diameterComparedToEarth = 10.973,
-        diameterDisplayFa = "۱۳۹,۸۲۲ کیلومتر (۱۰.۹۷ برابر زمین)",
+        diameterDisplayFa = "۱۳۹٬۸۲۲ کیلومتر (۱۰٫۹۷ برابر زمین)",
         diameterDisplayEn = "139,822 km (10.97× Earth)",
-        massKgDisplayFa = "۱.۸۹۸ × ۱۰²⁷ کیلوگرم (۳۱۷.۸ برابر زمین)",
+        massKgDisplayFa = "۱٫۸۹۸ × ۱۰²⁷ کیلوگرم (۳۱۷٫۸ برابر زمین)",
         massKgDisplayEn = "1.898 × 10²⁷ kg (317.8× Earth)",
         massComparedToEarth = 317.83,
-        gravityMssDisplayFa = "۲۴.۷۹ متر بر مجذور ثانیه (۲.۵۲۸ برابر زمین)",
+        gravityMssDisplayFa = "۲۴٫۷۹ متر بر مجذور ثانیه (۲٫۵۲۸ برابر زمین)",
         gravityMssDisplayEn = "24.79 m/s² (2.528× Earth)",
         gravityComparedToEarth = 2.528,
         distanceKm = null,
@@ -165,136 +165,136 @@ object PhysicalData {
     private val SATURN_PROPS = PhysicalProperties(
         diameterKm = 116460.0,
         diameterComparedToEarth = 9.140,
-        diameterDisplayFa = "۱۱۶,۴۶۰ کیلومتر (۹.۱۴ برابر زمین)",
+        diameterDisplayFa = "۱۱۶٬۴۶۰ کیلومتر (۹٫۱۴ برابر زمین)",
         diameterDisplayEn = "116,460 km (9.14× Earth)",
-        massKgDisplayFa = "۵.۶۸۳ × ۱۰²۶ کیلوگرم (۹۵.۲ برابر زمین)",
+        massKgDisplayFa = "۵٫۶۸۳ × ۱۰²۶ کیلوگرم (۹۵٫۲ برابر زمین)",
         massKgDisplayEn = "5.683 × 10²⁶ kg (95.2× Earth)",
         massComparedToEarth = 95.16,
-        gravityMssDisplayFa = "۱۰.۴۴ متر بر مجذور ثانیه (۱.۰۶۵ برابر زمین)",
+        gravityMssDisplayFa = "۱۰٫۴۴ متر بر مجذور ثانیه (۱٫۰۶۵ برابر زمین)",
         gravityMssDisplayEn = "10.44 m/s² (1.065× Earth)",
         gravityComparedToEarth = 1.065,
         distanceKm = null,
         distanceLightYears = null,
-        distanceDisplayFa = "۱.۲ تا ۱.۶۶ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)",
+        distanceDisplayFa = "۱٫۲ تا ۱٫۶۶ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)",
         distanceDisplayEn = "1.2B to 1.66B km (Dynamic real-time ephemeris)"
     )
 
     private val URANUS_PROPS = PhysicalProperties(
         diameterKm = 50724.0,
         diameterComparedToEarth = 3.981,
-        diameterDisplayFa = "۵۰,۷۲۴ کیلومتر (۳.۹۸ برابر زمین)",
+        diameterDisplayFa = "۵۰٬۷۲۴ کیلومتر (۳٫۹۸ برابر زمین)",
         diameterDisplayEn = "50,724 km (3.98× Earth)",
-        massKgDisplayFa = "۸.۶۸۱ × ۱۰²۵ کیلوگرم (۱۴.۵۴ برابر زمین)",
+        massKgDisplayFa = "۸٫۶۸۱ × ۱۰²۵ کیلوگرم (۱۴٫۵۴ برابر زمین)",
         massKgDisplayEn = "8.681 × 10²⁵ kg (14.54× Earth)",
         massComparedToEarth = 14.536,
-        gravityMssDisplayFa = "۸.۶۹ متر بر مجذور ثانیه (۰.۸۸۶ برابر زمین)",
+        gravityMssDisplayFa = "۸٫۶۹ متر بر مجذور ثانیه (۰٫۸۸۶ برابر زمین)",
         gravityMssDisplayEn = "8.69 m/s² (0.886× Earth)",
         gravityComparedToEarth = 0.886,
         distanceKm = null,
         distanceLightYears = null,
-        distanceDisplayFa = "۲.۶ تا ۳.۱۵ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)",
+        distanceDisplayFa = "۲٫۶ تا ۳٫۱۵ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)",
         distanceDisplayEn = "2.6B to 3.15B km (Dynamic real-time ephemeris)"
     )
 
     private val NEPTUNE_PROPS = PhysicalProperties(
         diameterKm = 49244.0,
         diameterComparedToEarth = 3.865,
-        diameterDisplayFa = "۴۹,۲۴۴ کیلومتر (۳.۸۶ برابر زمین)",
+        diameterDisplayFa = "۴۹٬۲۴۴ کیلومتر (۳٫۸۶ برابر زمین)",
         diameterDisplayEn = "49,244 km (3.86× Earth)",
-        massKgDisplayFa = "۱.۰۲۴ × ۱۰²۶ کیلوگرم (۱۷.۱۵ برابر زمین)",
+        massKgDisplayFa = "۱٫۰۲۴ × ۱۰²۶ کیلوگرم (۱۷٫۱۵ برابر زمین)",
         massKgDisplayEn = "1.024 × 10²⁶ kg (17.15× Earth)",
         massComparedToEarth = 17.147,
-        gravityMssDisplayFa = "۱۱.۱۵ متر بر مجذور ثانیه (۱.۱۳۷ برابر زمین)",
+        gravityMssDisplayFa = "۱۱٫۱۵ متر بر مجذور ثانیه (۱٫۱۳۷ برابر زمین)",
         gravityMssDisplayEn = "11.15 m/s² (1.137× Earth)",
         gravityComparedToEarth = 1.137,
         distanceKm = null,
         distanceLightYears = null,
-        distanceDisplayFa = "۴.۳ تا ۴.۷ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)",
+        distanceDisplayFa = "۴٫۳ تا ۴٫۷ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)",
         distanceDisplayEn = "4.3B to 4.7B km (Dynamic real-time ephemeris)"
     )
 
     private val PLUTO_PROPS = PhysicalProperties(
         diameterKm = 2376.6,
         diameterComparedToEarth = 0.1865,
-        diameterDisplayFa = "۲,۳۷۷ کیلومتر (۰.۱۸۶ برابر زمین)",
+        diameterDisplayFa = "۲٬۳۷۷ کیلومتر (۰٫۱۸۶ برابر زمین)",
         diameterDisplayEn = "2,377 km (0.186× Earth)",
-        massKgDisplayFa = "۱.۳۰۳ × ۱۰²۲ کیلوگرم (۰.۰۰۲۲ برابر زمین)",
+        massKgDisplayFa = "۱٫۳۰۳ × ۱۰²۲ کیلوگرم (۰٫۰۰۲۲ برابر زمین)",
         massKgDisplayEn = "1.303 × 10²² kg (0.0022× Earth)",
         massComparedToEarth = 0.00218,
-        gravityMssDisplayFa = "۰.۶۲ متر بر مجذور ثانیه (۰.۰۶۳ برابر زمین)",
+        gravityMssDisplayFa = "۰٫۶۲ متر بر مجذور ثانیه (۰٫۰۶۳ برابر زمین)",
         gravityMssDisplayEn = "0.62 m/s² (0.063× Earth)",
         gravityComparedToEarth = 0.0632,
         distanceKm = null,
         distanceLightYears = null,
-        distanceDisplayFa = "۴.۴ تا ۷.۵ میلیارد کیلومتر (مدار به شدت بیضوی)",
+        distanceDisplayFa = "۴٫۴ تا ۷٫۵ میلیارد کیلومتر (مدار به شدت بیضوی)",
         distanceDisplayEn = "4.4B to 7.5B km (Highly eccentric orbit)"
     )
 
     private val IO_PROPS = PhysicalProperties(
         diameterKm = 3643.2,
         diameterComparedToEarth = 0.2859,
-        diameterDisplayFa = "۳,۶۴۳ کیلومتر (۰.۲۸۶ برابر زمین)",
+        diameterDisplayFa = "۳٬۶۴۳ کیلومتر (۰٫۲۸۶ برابر زمین)",
         diameterDisplayEn = "3,643 km (0.286× Earth)",
-        massKgDisplayFa = "۸.۹۳۲ × ۱۰²² کیلوگرم (۰.۰۱۵۰ برابر زمین)",
+        massKgDisplayFa = "۸٫۹۳۲ × ۱۰²² کیلوگرم (۰٫۰۱۵۰ برابر زمین)",
         massKgDisplayEn = "8.932 × 10²² kg (0.0150× Earth)",
         massComparedToEarth = 0.01495,
-        gravityMssDisplayFa = "۱.۷۹۶ متر بر مجذور ثانیه (۰.۱۸۳ برابر زمین)",
+        gravityMssDisplayFa = "۱٫۷۹۶ متر بر مجذور ثانیه (۰٫۱۸۳ برابر زمین)",
         gravityMssDisplayEn = "1.796 m/s² (0.183× Earth)",
         gravityComparedToEarth = 0.1831,
         distanceKm = 421700.0, // Orbital radius from Jupiter center
         distanceLightYears = null,
-        distanceDisplayFa = "۴۲۱,۷۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)",
+        distanceDisplayFa = "۴۲۱٬۷۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)",
         distanceDisplayEn = "421,700 km from Jupiter (Earth distance dynamic via Jupiter)"
     )
 
     private val EUROPA_PROPS = PhysicalProperties(
         diameterKm = 3121.6,
         diameterComparedToEarth = 0.2450,
-        diameterDisplayFa = "۳,۱۲۲ کیلومتر (۰.۲۴۵ برابر زمین)",
+        diameterDisplayFa = "۳٬۱۲۲ کیلومتر (۰٫۲۴۵ برابر زمین)",
         diameterDisplayEn = "3,122 km (0.245× Earth)",
-        massKgDisplayFa = "۴.۸۰۰ × ۱۰²² کیلوگرم (۰.۰۰۸۰ برابر زمین)",
+        massKgDisplayFa = "۴٫۸۰۰ × ۱۰²² کیلوگرم (۰٫۰۰۸۰ برابر زمین)",
         massKgDisplayEn = "4.800 × 10²² kg (0.0080× Earth)",
         massComparedToEarth = 0.008037,
-        gravityMssDisplayFa = "۱.۳۱۵ متر بر مجذور ثانیه (۰.۱۳۴ برابر زمین)",
+        gravityMssDisplayFa = "۱٫۳۱۵ متر بر مجذور ثانیه (۰٫۱۳۴ برابر زمین)",
         gravityMssDisplayEn = "1.315 m/s² (0.134× Earth)",
         gravityComparedToEarth = 0.1341,
         distanceKm = 670900.0,
         distanceLightYears = null,
-        distanceDisplayFa = "۶۷۰,۹۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)",
+        distanceDisplayFa = "۶۷۰٬۹۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)",
         distanceDisplayEn = "670,900 km from Jupiter (Earth distance dynamic via Jupiter)"
     )
 
     private val GANYMEDE_PROPS = PhysicalProperties(
         diameterKm = 5268.2,
         diameterComparedToEarth = 0.4135,
-        diameterDisplayFa = "۵,۲۶۸ کیلومتر (۰.۴۱۴ برابر زمین / بزرگ‌تر از عطارد)",
+        diameterDisplayFa = "۵٬۲۶۸ کیلومتر (۰٫۴۱۴ برابر زمین / بزرگ‌تر از عطارد)",
         diameterDisplayEn = "5,268 km (0.414× Earth / Larger than Mercury)",
-        massKgDisplayFa = "۱.۴۸۲ × ۱۰²۳ کیلوگرم (۰.۰۲۴۸ برابر زمین)",
+        massKgDisplayFa = "۱٫۴۸۲ × ۱۰²۳ کیلوگرم (۰٫۰۲۴۸ برابر زمین)",
         massKgDisplayEn = "1.482 × 10²³ kg (0.0248× Earth)",
         massComparedToEarth = 0.02481,
-        gravityMssDisplayFa = "۱.۴۲۸ متر بر مجذور ثانیه (۰.۱۴۶ برابر زمین)",
+        gravityMssDisplayFa = "۱٫۴۲۸ متر بر مجذور ثانیه (۰٫۱۴۶ برابر زمین)",
         gravityMssDisplayEn = "1.428 m/s² (0.146× Earth)",
         gravityComparedToEarth = 0.1456,
         distanceKm = 1070400.0,
         distanceLightYears = null,
-        distanceDisplayFa = "۱,۰۷۰,۴۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)",
+        distanceDisplayFa = "۱٬۰۷۰٬۴۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)",
         distanceDisplayEn = "1,070,400 km from Jupiter (Earth distance dynamic via Jupiter)"
     )
 
     private val CALLISTO_PROPS = PhysicalProperties(
         diameterKm = 4820.6,
         diameterComparedToEarth = 0.3783,
-        diameterDisplayFa = "۴,۸۲۱ کیلومتر (۰.۳۷۸ برابر زمین)",
+        diameterDisplayFa = "۴٬۸۲۱ کیلومتر (۰٫۳۷۸ برابر زمین)",
         diameterDisplayEn = "4,821 km (0.378× Earth)",
-        massKgDisplayFa = "۱.۰۷۶ × ۱۰²۳ کیلوگرم (۰.۰۱۸۰ برابر زمین)",
+        massKgDisplayFa = "۱٫۰۷۶ × ۱۰²۳ کیلوگرم (۰٫۰۱۸۰ برابر زمین)",
         massKgDisplayEn = "1.076 × 10²³ kg (0.0180× Earth)",
         massComparedToEarth = 0.01802,
-        gravityMssDisplayFa = "۱.۲۳۵ متر بر مجذور ثانیه (۰.۱۲۶ برابر زمین)",
+        gravityMssDisplayFa = "۱٫۲۳۵ متر بر مجذور ثانیه (۰٫۱۲۶ برابر زمین)",
         gravityMssDisplayEn = "1.235 m/s² (0.126× Earth)",
         gravityComparedToEarth = 0.1259,
         distanceKm = 1882700.0,
         distanceLightYears = null,
-        distanceDisplayFa = "۱,۸۸۲,۷۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)",
+        distanceDisplayFa = "۱٬۸۸۲٬۷۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)",
         distanceDisplayEn = "1,882,700 km from Jupiter (Earth distance dynamic via Jupiter)"
     )
 
@@ -303,92 +303,92 @@ object PhysicalData {
         diameterComparedToEarth = 0.00675,
         diameterDisplayFa = "۸۶ کیلومتر قطر (قمر نامنظم هیپالیا)",
         diameterDisplayEn = "86 km diameter (Irregular Himalia Group)",
-        massKgDisplayFa = "۸.۷ × ۱۰¹۷ کیلوگرم (۱.۴۶ × ۱۰⁻⁷ برابر زمین)",
+        massKgDisplayFa = "۸٫۷ × ۱۰¹۷ کیلوگرم (۱٫۴۶ × ۱۰⁻⁷ برابر زمین)",
         massKgDisplayEn = "8.7 × 10¹⁷ kg (1.46 × 10⁻⁷× Earth)",
         massComparedToEarth = 1.46e-7,
-        gravityMssDisplayFa = "۰.۰۳۱ متر بر مجذور ثانیه (۰.۰۰۳۲ برابر زمین)",
+        gravityMssDisplayFa = "۰٫۰۳۱ متر بر مجذور ثانیه (۰٫۰۰۳۲ برابر زمین)",
         gravityMssDisplayEn = "0.031 m/s² (0.0032× Earth)",
         gravityComparedToEarth = 0.00316,
         distanceKm = 11740000.0,
         distanceLightYears = null,
-        distanceDisplayFa = "۱۱,۷۴۰,۰۰۰ کیلومتر از مشتری",
+        distanceDisplayFa = "۱۱٬۷۴۰٬۰۰۰ کیلومتر از مشتری",
         distanceDisplayEn = "11,740,000 km from Jupiter"
     )
 
     private val SIRIUS_PROPS = PhysicalProperties(
         diameterKm = 2382000.0,
         diameterComparedToEarth = 186.9,
-        diameterDisplayFa = "۲,۳۸۲,۰۰۰ کیلومتر (۱.۷۱ برابر خورشید / ۱۸۷ برابر زمین)",
+        diameterDisplayFa = "۲٬۳۸۲٬۰۰۰ کیلومتر (۱٫۷۱ برابر خورشید / ۱۸۷ برابر زمین)",
         diameterDisplayEn = "2,382,000 km (1.71× Sun / 187× Earth)",
-        massKgDisplayFa = "۴.۰۱۸ × ۱۰³⁰ کیلوگرم (۲.۰۶ برابر خورشید / ۶۷۳,۰۰۰ برابر زمین)",
+        massKgDisplayFa = "۴٫۰۱۸ × ۱۰³⁰ کیلوگرم (۲٫۰۶ برابر خورشید / ۶۷۳٬۰۰۰ برابر زمین)",
         massKgDisplayEn = "4.018 × 10³⁰ kg (2.06× Sun / 673,000× Earth)",
         massComparedToEarth = 672800.0,
-        gravityMssDisplayFa = "۲۴۰ متر بر مجذور ثانیه (۲۴.۵ برابر زمین)",
+        gravityMssDisplayFa = "۲۴۰ متر بر مجذور ثانیه (۲۴٫۵ برابر زمین)",
         gravityMssDisplayEn = "240 m/s² (24.5× Earth)",
         gravityComparedToEarth = 24.47,
         distanceKm = 8.146e13,
         distanceLightYears = 8.611,
-        distanceDisplayFa = "۸.۶۱ سال نوری (۸۱.۵ تریلیون کیلومتر)",
+        distanceDisplayFa = "۸٫۶۱ سال نوری (۸۱٫۵ تریلیون کیلومتر)",
         distanceDisplayEn = "8.61 light-years (81.5 trillion km)"
     )
 
     private val VEGA_PROPS = PhysicalProperties(
         diameterKm = 3286000.0,
         diameterComparedToEarth = 257.9,
-        diameterDisplayFa = "۳,۲۸۶,۰۰۰ کیلومتر (۲.۳۶ برابر خورشید / ۲۵۸ برابر زمین)",
+        diameterDisplayFa = "۳٬۲۸۶٬۰۰۰ کیلومتر (۲٫۳۶ برابر خورشید / ۲۵۸ برابر زمین)",
         diameterDisplayEn = "3,286,000 km (2.36× Sun / 258× Earth)",
-        massKgDisplayFa = "۴.۲۵۰ × ۱۰³⁰ کیلوگرم (۲.۱۳ برابر خورشید / ۷۱۱,۰۰۰ برابر زمین)",
+        massKgDisplayFa = "۴٫۲۵۰ × ۱۰³⁰ کیلوگرم (۲٫۱۳ برابر خورشید / ۷۱۱٬۰۰۰ برابر زمین)",
         massKgDisplayEn = "4.250 × 10³⁰ kg (2.13× Sun / 711,000× Earth)",
         massComparedToEarth = 710900.0,
-        gravityMssDisplayFa = "۱۵۸ متر بر مجذور ثانیه (۱۶.۱ برابر زمین)",
+        gravityMssDisplayFa = "۱۵۸ متر بر مجذور ثانیه (۱۶٫۱ برابر زمین)",
         gravityMssDisplayEn = "158 m/s² (16.1× Earth)",
         gravityComparedToEarth = 16.11,
         distanceKm = 2.369e14,
         distanceLightYears = 25.04,
-        distanceDisplayFa = "۲۵.۰۴ سال نوری (۲۳۶.۹ تریلیون کیلومتر)",
+        distanceDisplayFa = "۲۵٫۰۴ سال نوری (۲۳۶٫۹ تریلیون کیلومتر)",
         distanceDisplayEn = "25.04 light-years (236.9 trillion km)"
     )
 
     private val BETELGEUSE_PROPS = PhysicalProperties(
         diameterKm = 1063000000.0,
         diameterComparedToEarth = 83400.0,
-        diameterDisplayFa = "۱,۰۶۳,۰۰۰,۰۰۰ کیلومتر (۷۶۴ برابر خورشید / ۸۳,۴۰۰ برابر زمین)",
+        diameterDisplayFa = "۱٬۰۶۳٬۰۰۰٬۰۰۰ کیلومتر (۷۶۴ برابر خورشید / ۸۳٬۴۰۰ برابر زمین)",
         diameterDisplayEn = "1,063,000,000 km (764× Sun / 83,400× Earth)",
-        massKgDisplayFa = "۳.۲۸۰ × ۱۰³¹ کیلوگرم (۱۶.۵ برابر خورشید / ۵.۵ میلیون برابر زمین)",
+        massKgDisplayFa = "۳٫۲۸۰ × ۱۰³¹ کیلوگرم (۱۶٫۵ برابر خورشید / ۵٫۵ میلیون برابر زمین)",
         massKgDisplayEn = "3.280 × 10³¹ kg (16.5× Sun / 5.5M× Earth)",
         massComparedToEarth = 5490000.0,
-        gravityMssDisplayFa = "۰.۰۰۳ متر بر مجذور ثانیه (ابرغول بسیار منبسط)",
+        gravityMssDisplayFa = "۰٫۰۰۳ متر بر مجذور ثانیه (ابرغول بسیار منبسط)",
         gravityMssDisplayEn = "0.003 m/s² (Ultra-low density red supergiant)",
         gravityComparedToEarth = 0.0003,
         distanceKm = 6.078e15,
         distanceLightYears = 642.5,
-        distanceDisplayFa = "۶۴۲.۵ سال نوری (۶,۰۷۸ تریلیون کیلومتر)",
+        distanceDisplayFa = "۶۴۲٫۵ سال نوری (۶٬۰۷۸ تریلیون کیلومتر)",
         distanceDisplayEn = "642.5 light-years (6,078 trillion km)"
     )
 
     private val POLARIS_PROPS = PhysicalProperties(
         diameterKm = 64000000.0,
         diameterComparedToEarth = 5020.0,
-        diameterDisplayFa = "۶۴,۰۰۰,۰۰۰ کیلومتر (۴۶ برابر خورشید / ۵,۰۲۰ برابر زمین)",
+        diameterDisplayFa = "۶۴٬۰۰۰٬۰۰۰ کیلومتر (۴۶ برابر خورشید / ۵٬۰۲۰ برابر زمین)",
         diameterDisplayEn = "64,000,000 km (46× Sun / 5,020× Earth)",
-        massKgDisplayFa = "۱.۰۷۰ × ۱۰³¹ کیلوگرم (۵.۴ برابر خورشید / ۱.۸ میلیون برابر زمین)",
+        massKgDisplayFa = "۱٫۰۷۰ × ۱۰³¹ کیلوگرم (۵٫۴ برابر خورشید / ۱٫۸ میلیون برابر زمین)",
         massKgDisplayEn = "1.070 × 10³¹ kg (5.4× Sun / 1.8M× Earth)",
         massComparedToEarth = 1790000.0,
-        gravityMssDisplayFa = "۷.۰ متر بر مجذور ثانیه (۰.۷۱ برابر زمین)",
+        gravityMssDisplayFa = "۷٫۰ متر بر مجذور ثانیه (۰٫۷۱ برابر زمین)",
         gravityMssDisplayEn = "7.0 m/s² (0.71× Earth)",
         gravityComparedToEarth = 0.71,
         distanceKm = 4.096e15,
         distanceLightYears = 433.0,
-        distanceDisplayFa = "۴۳۳ سال نوری (۴,۰۹۶ تریلیون کیلومتر)",
+        distanceDisplayFa = "۴۳۳ سال نوری (۴٬۰۹۶ تریلیون کیلومتر)",
         distanceDisplayEn = "433 light-years (4,096 trillion km)"
     )
 
     private val ANDROMEDA_PROPS = PhysicalProperties(
         diameterKm = 2.08e18,
         diameterComparedToEarth = null, // Scientifically not applicable (diffuse galaxy)
-        diameterDisplayFa = "۲۲۰,۰۰۰ سال نوری قطر (۲.۲ برابر کهکشان راه شیری)",
+        diameterDisplayFa = "۲۲۰٬۰۰۰ سال نوری قطر (۲٫۲ برابر کهکشان راه شیری)",
         diameterDisplayEn = "220,000 light-years diameter (2.2× Milky Way)",
-        massKgDisplayFa = "۲.۹۸ × ۱۰⁴۲ کیلوگرم (۱,۵۰۰ میلیارد برابر جرم خورشید)",
+        massKgDisplayFa = "۲٫۹۸ × ۱۰⁴۲ کیلوگرم (۱٬۵۰۰ میلیارد برابر جرم خورشید)",
         massKgDisplayEn = "2.98 × 10⁴² kg (1.5 trillion Solar Masses)",
         massComparedToEarth = null,
         gravityMssDisplayFa = "پتانسیل گرانشی کهکشانی (دارای بیش از ۱ تریلیون ستاره)",
@@ -396,7 +396,7 @@ object PhysicalData {
         gravityComparedToEarth = null,
         distanceKm = 2.365e19,
         distanceLightYears = 2500000.0,
-        distanceDisplayFa = "۲,۵۰۰,۰۰۰ سال نوری (۲.۳۶ × ۱۰¹۹ کیلومتر)",
+        distanceDisplayFa = "۲٬۵۰۰٬۰۰۰ سال نوری (۲٫۳۶ × ۱۰¹۹ کیلومتر)",
         distanceDisplayEn = "2,500,000 light-years (2.36 × 10¹⁹ km)"
     )
 
@@ -405,7 +405,7 @@ object PhysicalData {
         diameterComparedToEarth = null,
         diameterDisplayFa = "۲۴ سال نوری پهنای سحابی (زایشگاه فعال ستارگان)",
         diameterDisplayEn = "24 light-years diameter (Active stellar nursery)",
-        massKgDisplayFa = "۳.۹۸ × ۱۰³۳ کیلوگرم (۲,۰۰۰ برابر جرم خورشید)",
+        massKgDisplayFa = "۳٫۹۸ × ۱۰³۳ کیلوگرم (۲٬۰۰۰ برابر جرم خورشید)",
         massKgDisplayEn = "3.98 × 10³³ kg (2,000 Solar Masses)",
         massComparedToEarth = null,
         gravityMssDisplayFa = "ابرهای گاز هیدروژن یونیزه در حال تراکم گرانشی",
@@ -413,16 +413,16 @@ object PhysicalData {
         gravityComparedToEarth = null,
         distanceKm = 1.271e16,
         distanceLightYears = 1344.0,
-        distanceDisplayFa = "۱,۳۴۴ سال نوری (۱.۲۷ × ۱۰¹۶ کیلومتر)",
+        distanceDisplayFa = "۱٬۳۴۴ سال نوری (۱٫۲۷ × ۱۰¹۶ کیلومتر)",
         distanceDisplayEn = "1,344 light-years (1.27 × 10¹⁶ km)"
     )
 
     private val PLEIADES_PROPS = PhysicalProperties(
         diameterKm = 1.65e14,
         diameterComparedToEarth = null,
-        diameterDisplayFa = "۱۷.۵ سال نوری پهنای خوشه (شامل بیش از ۱,۰۰۰ ستاره)",
+        diameterDisplayFa = "۱۷٫۵ سال نوری پهنای خوشه (شامل بیش از ۱٬۰۰۰ ستاره)",
         diameterDisplayEn = "17.5 light-years cluster span (Over 1,000 stars)",
-        massKgDisplayFa = "۱.۵۹ × ۱۰³۳ کیلوگرم (۸۰۰ برابر جرم خورشید)",
+        massKgDisplayFa = "۱٫۵۹ × ۱۰³۳ کیلوگرم (۸۰۰ برابر جرم خورشید)",
         massKgDisplayEn = "1.59 × 10³³ kg (800 Solar Masses)",
         massComparedToEarth = null,
         gravityMssDisplayFa = "پیوند گرانشی متقابل خوشه باز ستاره‌ای جوان",
@@ -430,16 +430,16 @@ object PhysicalData {
         gravityComparedToEarth = null,
         distanceKm = 4.20e15,
         distanceLightYears = 444.0,
-        distanceDisplayFa = "۴۴۴ سال نوری (۴.۲ × ۱۰¹۵ کیلومتر)",
+        distanceDisplayFa = "۴۴۴ سال نوری (۴٫۲ × ۱۰¹۵ کیلومتر)",
         distanceDisplayEn = "444 light-years (4.2 × 10¹⁵ km)"
     )
 
     private val MILKY_WAY_PROPS = PhysicalProperties(
         diameterKm = 9.46e17,
         diameterComparedToEarth = null,
-        diameterDisplayFa = "۱۰۰,۰۰۰ سال نوری قطر (کهکشان مارپیچی میله‌ای)",
+        diameterDisplayFa = "۱۰۰٬۰۰۰ سال نوری قطر (کهکشان مارپیچی میله‌ای)",
         diameterDisplayEn = "100,000 light-years diameter (Barred spiral galaxy)",
-        massKgDisplayFa = "۲.۹۸ × ۱۰⁴۲ کیلوگرم (۱,۵۰۰ میلیارد برابر جرم خورشید)",
+        massKgDisplayFa = "۲٫۹۸ × ۱۰⁴۲ کیلوگرم (۱٬۵۰۰ میلیارد برابر جرم خورشید)",
         massKgDisplayEn = "2.98 × 10⁴² kg (1.5 trillion Solar Masses)",
         massComparedToEarth = null,
         gravityMssDisplayFa = "پتانسیل گرانشی کل کهکشان با ۴ میلیون خورشید در مرکز",
@@ -447,16 +447,16 @@ object PhysicalData {
         gravityComparedToEarth = null,
         distanceKm = 2.46e17,
         distanceLightYears = 26000.0,
-        distanceDisplayFa = "۲۶,۰۰۰ سال نوری فاصله منظومه شمسی تا مرکز کهکشان",
+        distanceDisplayFa = "۲۶٬۰۰۰ سال نوری فاصله منظومه شمسی تا مرکز کهکشان",
         distanceDisplayEn = "26,000 light-years from Solar System to Galactic Core"
     )
 
     private val SGRA_PROPS = PhysicalProperties(
         diameterKm = 5.18e7, // Shadow diameter ~52M km, Schwarzschild diameter ~24.6M km
         diameterComparedToEarth = null,
-        diameterDisplayFa = "افق رویداد: ~۲۵ تا ۵۲ میلیون کیلومتر (۰.۱۶ تا ۰.۳۵ واحد نجومی)",
+        diameterDisplayFa = "افق رویداد: ~۲۵ تا ۵۲ میلیون کیلومتر (۰٫۱۶ تا ۰٫۳۵ واحد نجومی)",
         diameterDisplayEn = "Event Horizon: ~25M to 52M km (0.16 to 0.35 AU)",
-        massKgDisplayFa = "۸.۲۶ × ۱۰³۶ کیلوگرم (۴.۱۵ میلیون برابر جرم خورشید)",
+        massKgDisplayFa = "۸٫۲۶ × ۱۰³۶ کیلوگرم (۴٫۱۵ میلیون برابر جرم خورشید)",
         massKgDisplayEn = "8.26 × 10³⁶ kg (4.15 Million Solar Masses)",
         massComparedToEarth = 1.38e12,
         gravityMssDisplayFa = "سیاهچاله کلان‌جرم با میدان گرانشی نسبیتی مفرط",
@@ -464,7 +464,7 @@ object PhysicalData {
         gravityComparedToEarth = null,
         distanceKm = 2.46e17,
         distanceLightYears = 26000.0,
-        distanceDisplayFa = "۲۶,۰۰۰ سال نوری (۲.۴۶ × ۱۰¹۷ کیلومتر)",
+        distanceDisplayFa = "۲۶٬۰۰۰ سال نوری (۲٫۴۶ × ۱۰¹۷ کیلومتر)",
         distanceDisplayEn = "26,000 light-years (2.46 × 10¹⁷ km)"
     )
 
@@ -549,9 +549,9 @@ object PhysicalData {
     private val SUN_FACTS_FA = listOf(
         "هسته خورشید با دمای ۱۵ میلیون درجه سانتی‌گراد، در هر ثانیه ۶۰۰ میلیون تن هیدروژن را به هلیوم تبدیل می‌کند.",
         "فوتون‌های تولیدشده در هسته خورشید بین ۱۰ هزار تا ۱۷۰ هزار سال در حرکت انتشاری هستند تا به سطح برسند، اما از سطح تا زمین تنها ۸ دقیقه و ۲۰ ثانیه در راهند.",
-        "خورشید بیش از ۹۹.۸۶ درصد از کل جرم کل منظومه شمسی را به خود اختصاص داده است.",
+        "خورشید بیش از ۹۹٫۸۶ درصد از کل جرم کل منظومه شمسی را به خود اختصاص داده است.",
         "میدان مغناطیسی خورشید هر ۱۱ سال یک‌بار در چرخه فعالیت خورشیدی به طور کامل معکوس می‌شود و جای قطب‌ها عوض می‌شود.",
-        "خورشید یک ستاره رشته اصلی با رده طیفی G2V (کوتوله زرد) با سن تقریبی ۴.۶ میلیارد سال است و در نیمه عمر رشته اصلی خود قرار دارد."
+        "خورشید یک ستاره رشته اصلی با رده طیفی G2V (کوتوله زرد) با سن تقریبی ۴٫۶ میلیارد سال است و در نیمه عمر رشته اصلی خود قرار دارد."
     )
 
     private val SUN_FACTS_EN = listOf(
@@ -567,7 +567,7 @@ object PhysicalData {
         "هسته بیرونی مذاب آهن و نیکل زمین میدان مغناطیسی نیرومندی ایجاد می‌کند که سیاره را در برابر بادهای خورشیدی و پرتوهای کیهانی محافظت می‌نماید.",
         "جو زمین حاوی ۷۸٪ نیتروژن و ۲۱٪ اکسیژن است که تعادل دمایی و تنفسی مناسب برای حیات را فراهم می‌سازد.",
         "زمین تنها سیاره خاکی منظومه شمسی است که دارای صفحات تکتونیکی فعال برای بازیافت کربن پوسته است.",
-        "زمین با سرعت میانگین ۲۹.۷۸ کیلومتر بر ثانیه (۱۰۷,۲۰۰ کیلومتر بر ساعت) به دور خورشید گردش می‌کند."
+        "زمین با سرعت میانگین ۲۹٫۷۸ کیلومتر بر ثانیه (۱۰۷٬۲۰۰ کیلومتر بر ساعت) به دور خورشید گردش می‌کند."
     )
 
     private val EARTH_FACTS_EN = listOf(
@@ -579,11 +579,11 @@ object PhysicalData {
     )
 
     private val MOON_FACTS_FA = listOf(
-        "ماه با سرعت ۳.۸ سانتی‌متر در سال به دلیل انتقال گشتاور جزر و مدی در حال دور شدن تدریجی از زمین است.",
-        "به دلیل قفل همگام (جزر و مدی)، دوره چرخش ماه به دور خود با دوره گردش آن به دور زمین یکسان (۲۷.۳۲ روز) است و همواره یک سمت آن دیده می‌شود.",
-        "چرخه کامل فازهای ماه (از ماه نو تا ماه نو بعدی) یا ماه هلالی برابر ۲۹.۵۳ روز به طول می‌انجامد.",
-        "دمای سطح ماه نوسان شدیدی دارد: از ۱۲۰+ درجه سانتی‌گراد در نیمروز تا ۱۳۰- درجه در شب و ۲۴۶- درجه در گودال‌های تاریک قطبی.",
-        "نیروی گرانش ماه (۱.۶۲۲ متر بر مجذور ثانیه) حدود یک‌ششم گرانش زمین است و عامل اصلی ایجاد جزر و مد در اقیانوس‌ها می‌باشد."
+        "ماه با سرعت ۳٫۸ سانتی‌متر در سال به دلیل انتقال گشتاور جزر و مدی در حال دور شدن تدریجی از زمین است.",
+        "به دلیل قفل همگام (جزر و مدی)، دوره چرخش ماه به دور خود با دوره گردش آن به دور زمین یکسان (۲۷٫۳۲ روز) است و همواره یک سمت آن دیده می‌شود.",
+        "چرخه کامل فازهای ماه (از ماه نو تا ماه نو بعدی) یا ماه هلالی برابر ۲۹٫۵۳ روز به طول می‌انجامد.",
+        "دمای سطح ماه نوسان شدیدی دارد: از ۱۲۰+ درجه سانتی‌گراد در نیمروز تا −۱۳۰ درجه در شب و −۲۴۶ درجه در گودال‌های تاریک قطبی.",
+        "نیروی گرانش ماه (۱٫۶۲۲ متر بر مجذور ثانیه) حدود یک‌ششم گرانش زمین است و عامل اصلی ایجاد جزر و مد در اقیانوس‌ها است."
     )
 
     private val MOON_FACTS_EN = listOf(
@@ -595,10 +595,10 @@ object PhysicalData {
     )
 
     private val ISS_FACTS_FA = listOf(
-        "ایستگاه فضایی بین‌المللی با سرعت ۲۷,۶۰۰ کیلومتر بر ساعت، هر ۹۰ تا ۹۲ دقیقه یک‌بار زمین را دور می‌زند.",
+        "ایستگاه فضایی بین‌المللی با سرعت ۲۷٬۶۰۰ کیلومتر بر ساعت، هر ۹۰ تا ۹۲ دقیقه یک‌بار زمین را دور می‌زند.",
         "فضانوردان حاضر در ISS در هر ۲۴ ساعت، ۱۶ بار طلوع و ۱۶ بار غروب خورشید را تجربه می‌کنند.",
         "ابعاد ایستگاه فضایی معادل یک زمین فوتبال بزرگ است و فضایی قابل سکونت برابر یک خانه ۶ خوابه دارد.",
-        "پنل‌های خورشیدی ISS مساحتی حدود ۲,۴۰۰ متر مربع را پوشش می‌دهند و برق کل ایستگاه را تامین می‌کنند.",
+        "پنل‌های خورشیدی ISS مساحتی حدود ۲٬۴۰۰ متر مربع را پوشش می‌دهند و برق کل ایستگاه را تامین می‌کنند.",
         "ایستگاه فضایی از زمان نوامبر سال ۲۰۰۰ میلادی به صورت پیوسته و بدون وقفه میزبان فضانوردان بوده است."
     )
 
@@ -612,7 +612,7 @@ object PhysicalData {
 
     private val MERCURY_FACTS_FA = listOf(
         "عطارد سریع‌ترین سیاره منظومه شمسی است و یک سال آن تنها ۸۸ روز زمین طول می‌کشد.",
-        "اختلاف دمای روز و شب در عطارد بیشترین میزان در منظومه شمسی است (از ۴۳۰ درجه بالای صفر تا ۱۸۰- زیر صفر).",
+        "اختلاف دمای روز و شب در عطارد بیشترین میزان در منظومه شمسی است (از ۴۳۰ درجه بالای صفر تا −۱۸۰ زیر صفر).",
         "عطارد با وجود نزدیکی به خورشید، گرم‌ترین سیاره نیست؛ زیرا جوی برای به دام انداختن گرما ندارد.",
         "هسته فلزی آهن در عطارد حدود ۸۵ درصد از شعاع کل این سیاره را تشکیل می‌دهد.",
         "گودال‌های قطبی عطارد به دلیل زاویه میل صفر درجه محوری، هرگز نور خورشید را نمی‌بینند و دارای یخ آب هستند."
@@ -643,8 +643,8 @@ object PhysicalData {
     )
 
     private val MARS_FACTS_FA = listOf(
-        "کوه المپوس در مریخ بزرگ‌ترین آتشفشان منظومه شمسی است که ارتفاعی ۳ برابر کوه اورست (۲۱.۹ کیلومتر) دارد.",
-        "دره والز مارینریس در مریخ دره‌ای غول‌پیکر به طول ۴,۰۰۰ کیلومتر است که کل پهنای ایالات متحده را می‌پوشاند.",
+        "کوه المپوس در مریخ بزرگ‌ترین آتشفشان منظومه شمسی است که ارتفاعی ۳ برابر کوه اورست (۲۱٫۹ کیلومتر) دارد.",
+        "دره والز مارینریس در مریخ دره‌ای غول‌پیکر به طول ۴٬۰۰۰ کیلومتر است که کل پهنای ایالات متحده را می‌پوشاند.",
         "رنگ سرخ مریخ ناشی از اکسید آهن (زنگ‌زدگی) موجود در خاک و غبار سطح آن است.",
         "مریخ دارای دو قمر کوچک و ناهموار به نام‌های فوبوس و دیموس است که احتمالاً سیارک‌های به دام افتاده هستند.",
         "یک روز در مریخ (سول) بسیار نزدیک به روز زمین است و ۲۴ ساعت و ۳۹ دقیقه طول می‌کشد."
@@ -660,10 +660,10 @@ object PhysicalData {
 
     private val JUPITER_FACTS_FA = listOf(
         "لکه سرخ بزرگ مشتری طوفانی عظیم و کهن است که ابعادی بزرگ‌تر از کل کره زمین دارد.",
-        "مشتری دارای قوی‌ترین میدان مغناطیسی در میان سیارات است که ۲۰,۰۰۰ برابر قوی‌تر از میدان مغناطیسی زمین می‌باشد.",
+        "مشتری دارای قوی‌ترین میدان مغناطیسی در میان سیارات است که ۲۰٬۰۰۰ برابر قوی‌تر از میدان مغناطیسی زمین است.",
         "مشتری سریع‌ترین سرعت دوران به دور خود را دارد و یک شبانه‌روز آن تنها ۹ ساعت و ۵۵ دقیقه طول می‌کشد.",
         "چهار قمر بزرگ مشتری (گالیله‌ای) شامل گانی‌مید (بزرگ‌ترین قمر کیهان)، اروپا (اقیانوس زیرسطحی)، یو (آتشفشانی) و کالیستو هستند.",
-        "مشتری به عنوان سپر گرانشی منظومه شمسی عمل کرده و بسیاری از دنباله‌دارها و سیارک‌های سرگردان را به سوی خود می‌کشد."
+        "مشتری به‌عنوان سپر گرانشی منظومه شمسی عمل کرده و بسیاری از دنباله‌دارها و سیارک‌های سرگردان را به سوی خود می‌کشد."
     )
 
     private val JUPITER_FACTS_EN = listOf(
@@ -676,10 +676,10 @@ object PhysicalData {
 
     private val SATURN_FACTS_FA = listOf(
         "حلقه‌های تماشایی زحل از میلیاردها قطعه یخ، غبار و سنگ با ضخامتی تنها حدود ۱۰ تا ۳۰ متر تشکیل شده‌اند.",
-        "چگالی زحل از آب کمتر است (۰.۶۸۷ گرم بر سانتی‌متر مکعب)؛ اگر اقیانوسی به اندازه کافی بزرگ وجود داشت، زحل روی آب شناور می‌ماند!",
+        "چگالی زحل از آب کمتر است (۰٫۶۸۷ گرم بر سانتی‌متر مکعب)؛ اگر اقیانوسی به اندازه کافی بزرگ وجود داشت، زحل روی آب شناور می‌ماند!",
         "قمر تایتان زحل تنها قمر منظومه شمسی با جوی غلیظ و دریاچه‌های مایع متان و اتان است.",
-        "در قطب شمال زحل، یک طوفان شش‌ضلعی (هگزاگون) شگفت‌انگیز و مداوم به عرض ۳۰,۰۰۰ کیلومتر وجود دارد.",
-        "زحل تا کنون دارای ۱۴۶ قمر تاییدشده رسمی است که بیشترین تعداد در منظومه شمسی محسوب می‌شود."
+        "در قطب شمال زحل، یک طوفان شش‌ضلعی (هگزاگون) شگفت‌انگیز و مداوم به عرض ۳۰٬۰۰۰ کیلومتر وجود دارد.",
+        "زحل تا کنون دارای ۱۴۶ قمر تاییدشده رسمی است که بیشترین تعداد در منظومه شمسی است."
     )
 
     private val SATURN_FACTS_EN = listOf(
@@ -692,7 +692,7 @@ object PhysicalData {
 
     private val URANUS_FACTS_FA = listOf(
         "اورانوس انحراف محوری عجیب ۹۸ درجه‌ای دارد و عملاً روی مدار خود به دور خورشید به پهلو می‌چرخد.",
-        "اورانوس سردترین جو را در میان سیارات منظومه شمسی دارد که دمای آن به ۲۲۴- درجه سانتی‌گراد (۴۹ کلوین) می‌رسد.",
+        "اورانوس سردترین جو را در میان سیارات منظومه شمسی دارد که دمای آن به −۲۲۴ درجه سانتی‌گراد (۴۹ کلوین) می‌رسد.",
         "رنگ فیروزه‌ای-آبی اورانوس به دلیل وجود گاز متان در جو بالای آن است که نور سرخ را جذب می‌کند.",
         "اورانوس دارای ۱۳ حلقه باریک و تاریک است که پس از حلقه‌های زحل کشف شدند.",
         "به دلیل چرخش به پهلو، هر قطب اورانوس ۴۲ سال مداوم روشنایی خورشید و ۴۲ سال تاریکی مطلق پیاپی را تجربه می‌کند."
@@ -707,11 +707,11 @@ object PhysicalData {
     )
 
     private val NEPTUNE_FACTS_FA = listOf(
-        "نپتون دارای شدیدترین بادهای منظومه شمسی است که سرعت آن‌ها به بیش از ۲,۱۰۰ کیلومتر بر ساعت می‌رسد.",
+        "نپتون دارای شدیدترین بادهای منظومه شمسی است که سرعت آن‌ها به بیش از ۲٬۱۰۰ کیلومتر بر ساعت می‌رسد.",
         "نپتون نخستین سیاره‌ای بود که وجود آن ابتدا از طریق محاسبات ریاضی گرانشی پیش‌بینی و سپس با تلسکوپ کشف شد.",
         "قمر بزرگ نپتون، تریتون، تنها قمر بزرگ منظومه شمسی است که مداری معکوس (مخالف جهت چرخش سیاره) دارد.",
-        "فاصله نپتون از خورشید به قدری زیاد است که یک سال در نپتون معادل ۱۶۴.۸ سال زمین به طول می‌انجامد.",
-        "با وجود فاصله دور از خورشید، نپتون ۲.۶ برابر انرژی گرمایی بیشتری نسبت به گرمای دریافتی از خورشید به فضا تابش می‌کند."
+        "فاصله نپتون از خورشید به قدری زیاد است که یک سال در نپتون معادل ۱۶۴٫۸ سال زمین به طول می‌انجامد.",
+        "با وجود فاصله دور از خورشید، نپتون ۲٫۶ برابر انرژی گرمایی بیشتری نسبت به گرمای دریافتی از خورشید به فضا تابش می‌کند."
     )
 
     private val NEPTUNE_FACTS_EN = listOf(
@@ -726,7 +726,7 @@ object PhysicalData {
         "پلوتو دارای یک منطقه یخچالی نیتروژنی قلبی‌شکل معروف به نام «تومبا رجیو» است.",
         "قمر بزرگ پلوتو، شارون، ابعادی نصف پلوتو دارد و این دو جرم یک سامانه دوتایی قفل‌شده را تشکیل می‌دهند.",
         "مدار پلوتو کاملاً بیضی شکل است و در بخشی از مدار خود به خورشید نزدیک‌تر از نپتون می‌شود.",
-        "در سال ۲۰۰۶، اتحادیه بین‌المللی اخترشناسی (IAU) تعریف سیاره را تغییر داد و پلوتو به عنوان سیاره کوتوله طبقه‌بندی شد.",
+        "در سال ۲۰۰۶، اتحادیه بین‌المللی اخترشناسی (IAU) تعریف سیاره را تغییر داد و پلوتو به‌عنوان سیاره کوتوله طبقه‌بندی شد.",
         "جو رقیق پلوتو هنگام نزدیک شدن به خورشید تبخیر شده و هنگام دور شدن منجمد و بر سطح می‌بارد."
     )
 
@@ -757,7 +757,7 @@ object PhysicalData {
     private val EUROPA_FACTS_FA = listOf(
         "اروپا دارای اقیانوسی جهانی از آب مایع زیر پوسته یخی خود است که حجم آب آن بیش از دو برابر تمام اقیانوس‌های زمین است.",
         "پوسته یخی اروپا بسیار صاف بوده و خطوط رگه‌مانند قهوه‌ای‌رنگی به نام «خطوارگی» (Lineae) سطح آن را پوشانده است.",
-        "اقیانوس زیرسطحی اروپا به عنوان یکی از امیدوارکننده‌ترین جاها برای یافتن حیات فرازمینی توسط مأموریت‌های Clipper و JUICE بررسی می‌شود.",
+        "اقیانوس زیرسطحی اروپا به‌عنوان یکی از امیدوارکننده‌ترین جاها برای یافتن حیات فرازمینی توسط مأموریت‌های Clipper و JUICE بررسی می‌شود.",
         "آب‌فشان‌های عظیمی از بخار آب در قطب جنوب اروپا شناسایی شده‌اند که از فوران‌های اقیانوس زیرسطحی سرچشمه می‌گیرند.",
         "نیروی جزر و مدی مشتری باعث انقباض و انبساط مداوم هسته اروپا و تولید گرمای هیدروترمال برای مایع ماندن اقیانوس می‌شود."
     )
@@ -788,10 +788,10 @@ object PhysicalData {
 
     private val CALLISTO_FACTS_FA = listOf(
         "کالیستو پردهانه‌ترین و دست‌نخورده‌ترین جرم منظومه شمسی است که سطح یخی آن بیش از ۴ میلیارد سال قدمت دارد.",
-        "بزرگ‌ترین عارضه برخوردی کالیستو، دهانه چندحلقه‌ای «والهالا» با قطری بیش از ۳,۸۰۰ کیلومتر است.",
+        "بزرگ‌ترین عارضه برخوردی کالیستو، دهانه چندحلقه‌ای «والهالا» با قطری بیش از ۳٬۸۰۰ کیلومتر است.",
         "کالیستو خارج از کمربند تشعشعی خطرناک مشتری گردش می‌کند و بهترین گزینه برای پایگاه‌های انسانی آینده است.",
         "این قمر فاقد فعالیت‌های آتشفشانی یا تکتونیکی بوده و تاریخچه اولیه منظومه شمسی را به صورت بکر حفظ کرده است.",
-        "کالیستو ترکیبی ۵۰/۵۰ از سنگ و یخ است و احتمالاً دارای اقیانوسی شور در عمق ۱۰۰ تا ۲۵۰ کیلومتری می‌باشد."
+        "کالیستو ترکیبی ۵۰٫۵۰ از سنگ و یخ است و احتمالاً دارای اقیانوسی شور در عمق ۱۰۰ تا ۲۵۰ کیلومتری است."
     )
 
     private val CALLISTO_FACTS_EN = listOf(
@@ -805,9 +805,9 @@ object PhysicalData {
     private val ELARA_FACTS_FA = listOf(
         "این قمر نامنظم مشتری در سال ۱۹۰۵ توسط چارلز دیلون پرین در رصدخانه لیک کشف شد.",
         "این قمر تا سال ۱۹۷۵ نام کنونی خود را نداشت و تنها با عنوان «مشتری ۷» (Jupiter VII) شناخته می‌شد؛ میان سال‌های ۱۹۵۵ تا ۱۹۷۵ گاهی به‌طور غیررسمی «هرا» نامیده می‌شد.",
-        "الارا متعلق به گروه هیمالیا از قمرهای نامنظم مشتری است که مداری موافق و دوردست در فاصله ۱۱.۷ میلیون کیلومتری دارند.",
+        "الارا متعلق به گروه هیمالیا از قمرهای نامنظم مشتری است که مداری موافق و دوردست در فاصله ۱۱٫۷ میلیون کیلومتری دارند.",
         "سطح الارا بسیار تاریک و خاکستری‌رنگ (از نوع کربنی C) است که نشان می‌دهد احتمالاً سیارکی بوده که توسط گرانش مشتری به دام افتاده است.",
-        "یک دور گردش کامل الارا به دور مشتری حدود ۲۵۹.۶ روز زمین به طول می‌انجامد."
+        "یک دور گردش کامل الارا به دور مشتری حدود ۲۵۹٫۶ روز زمین به طول می‌انجامد."
     )
 
     private val ELARA_FACTS_EN = listOf(
@@ -822,8 +822,8 @@ object PhysicalData {
         "شباهنگ (Sirius) درخشان‌ترین ستاره در آسمان شب زمین با قدر ظاهری ۱۴۶.- است.",
         "شباهنگ یک سامانه ستاره‌ای دوتایی است؛ ستاره همدم آن (Sirius B) یک کوتوله سفید بسیار متراکم است.",
         "در مصر باستان، طلوع شامگاهی شباهنگ نشان‌دهنده شروع طغیان سالانه رود نیل و آغاز سال نو بود.",
-        "دمای سطح شباهنگ حدود ۹,۹۴۰ کلوین است که موجب درخشش سفید-آبی خیره‌کننده آن می‌شود.",
-        "فاصله شباهنگ از زمین تنها ۸.۶ سال نوری است که آن را به یکی از نزدیک‌ترین همسایگان خورشید تبدیل می‌کند."
+        "دمای سطح شباهنگ حدود ۹٬۹۴۰ کلوین است که موجب درخشش سفید-آبی خیره‌کننده آن می‌شود.",
+        "فاصله شباهنگ از زمین تنها ۸٫۶ سال نوری است که آن را به یکی از نزدیک‌ترین همسایگان خورشید تبدیل می‌کند."
     )
 
     private val SIRIUS_FACTS_EN = listOf(
@@ -836,7 +836,7 @@ object PhysicalData {
 
     private val VEGA_FACTS_FA = listOf(
         "ستاره نسر واقع (Vega) مبنای اولیه صفر قدر ظاهری در مقیاس درخشش ستارگان بوده است.",
-        "حدود ۱۲,۰۰۰ سال پیش، نسر واقع ستاره قطبی زمین بوده است و ۱۴,۰۰۰ سال دیگر دوباره ستاره قطبی خواهد شد.",
+        "حدود ۱۲٬۰۰۰ سال پیش، نسر واقع ستاره قطبی زمین بوده است و ۱۴٬۰۰۰ سال دیگر دوباره ستاره قطبی خواهد شد.",
         "نسر واقع نخسیتن ستاره‌ای بود که پس از خورشید از آن عکس‌برداری شد (سال ۱۸۵۰ میلادی).",
         "سرعت دوران نسر واقع به دور خود بسیار بالاست و شکل آن در استوا برآمده شده است.",
         "قرص غباری بزرگی در اطراف نسر واقع وجود دارد که نشان‌دهنده احتمال وجود سامانه‌های سیاره‌ای است."
@@ -855,7 +855,7 @@ object PhysicalData {
         "این ستاره در مراحل پایانی تکامل خود قرار دارد و به زودی (در مقیاس نجومی) دچار انفجار ابرنواختری خواهد شد.",
         "انفجار ابرنواختری ابط‌الجوزا به قدری درخشان خواهد بود که تا چند هفته در روز روشن نیز دیده خواهد شد.",
         "در سال ۲۰۱۹، افت نور شدید ابط‌الجوزا ناشی از خروج یک توده عظیم غبار و گاز از سطح آن بود.",
-        "ابط‌الجوزا حدود ۱۰۰,۰۰۰ برابر خورشید روشنایی تابش می‌کند اما دمای سطح آن تنها ۳,۵۰۰ کلوین است."
+        "ابط‌الجوزا حدود ۱۰۰٬۰۰۰ برابر خورشید روشنایی تابش می‌کند اما دمای سطح آن تنها ۳٬۵۰۰ کلوین است."
     )
 
     private val BETELGEUSE_FACTS_EN = listOf(
@@ -870,7 +870,7 @@ object PhysicalData {
         "ستاره قطبی (Polaris) دقیقاً در امتداد محور دوران زمین در قطب شمال آسمان قرار دارد.",
         "ارتفاع زاویه‌ای ستاره قطبی از افق، دقیقاً برابر با عرض جغرافیایی محل رصد شماست.",
         "ستاره قطبی یک ستاره تکی نیست، بلکه یک سامانه سه‌تایی از ستارگان تپنده متغیر قیفاووسی است.",
-        "درخشش ستاره قطبی حدود ۲,۵۰۰ برابر خورشید است و در فاصله ۴۳۳ سال نوری قرار دارد.",
+        "درخشش ستاره قطبی حدود ۲٬۵۰۰ برابر خورشید است و در فاصله ۴۳۳ سال نوری قرار دارد.",
         "به دلیل حرکت تقدیمی محور زمین، ستاره قطبی برای همیشه در قطب شمال نخواهد ماند."
     )
 
@@ -883,11 +883,11 @@ object PhysicalData {
     )
 
     private val ANDROMEDA_FACTS_FA = listOf(
-        "کهکشان آندرومدا نزدیک‌ترین کهکشان بزرگ به راه شیری است که بیش از ۱,۰۰۰ میلیارد ستاره دارد.",
+        "کهکشان آندرومدا نزدیک‌ترین کهکشان بزرگ به راه شیری است که بیش از ۱٬۰۰۰ میلیارد ستاره دارد.",
         "آندرومدا دورترین جرمی در کیهان است که می‌توان آن را با چشم غیرمسلح در تاریکی شب مشاهده کرد.",
         "کهکشان آندرومدا با سرعت ۱۱۰ کیلومتر بر ثانیه در حال نزدیک شدن به کهکشان راه شیری است.",
-        "حدود ۴.۵ میلیارد سال دیگر، کهکشان آندرومدا و راه شیری با هم ادغام شده و یک کهکشان بیضوی غول‌پیکر می‌سازند.",
-        "نوری که امشب از آندرومدا می‌بینید، ۲.۵ میلیون سال پیش (زمان انسان‌های اولیه) حرکت خود را آغاز کرده است."
+        "حدود ۴٫۵ میلیارد سال دیگر، کهکشان آندرومدا و راه شیری با هم ادغام شده و یک کهکشان بیضوی غول‌پیکر می‌سازند.",
+        "نوری که امشب از آندرومدا می‌بینید، ۲٫۵ میلیون سال پیش (زمان انسان‌های اولیه) حرکت خود را آغاز کرده است."
     )
 
     private val ANDROMEDA_FACTS_EN = listOf(
@@ -915,8 +915,8 @@ object PhysicalData {
     )
 
     private val PLEIADES_FACTS_FA = listOf(
-        "خوشه پروین (ثریا) یک خوشه باز ستاره‌ای جوان شامل بیش از ۱,۰۰۰ ستاره داغ و آبی‌رنگ است.",
-        "سن این خوشه ستاره‌ای تنها حدود ۱۰۰ میلیون سال است (در مقایسه با سن ۴.۶ میلیارد ساله خورشید).",
+        "خوشه پروین (ثریا) یک خوشه باز ستاره‌ای جوان شامل بیش از ۱٬۰۰۰ ستاره داغ و آبی‌رنگ است.",
+        "سن این خوشه ستاره‌ای تنها حدود ۱۰۰ میلیون سال است (در مقایسه با سن ۴٫۶ میلیارد ساله خورشید).",
         "ابرهای غباری انعکاسی آبی‌رنگ اطراف ستارگان، ناشی از عبور خوشه از یک ابر غبار میان‌ستاره‌ای است.",
         "در فرهنگ‌ها و اساطیر کهن جهان (ایران، یونان، ژاپن و عرب)، این خوشه به نام هفت خواهران شناخته می‌شود.",
         "این خوشه با چشم غیرمسلح شبیه یک ملاقه کوچک یا آبپاش مینیاتوری در صورت فلکی گاو دیده می‌شود."
@@ -932,7 +932,7 @@ object PhysicalData {
 
     private val MILKY_WAY_FACTS_FA = listOf(
         "کهکشان راه شیری حاوی بین ۱۰۰ تا ۴۰۰ میلیارد ستاره و حداقل ۱۰۰ میلیارد سیاره است.",
-        "در مرکز کهکشان راه شیری، سیاهچاله کلان‌جرم کمان آ (*Sagittarius A) با جرمی ۴.۱۵ میلیون برابر خورشید قرار دارد.",
+        "در مرکز کهکشان راه شیری، سیاهچاله کلان‌جرم کمان آ (*Sagittarius A) با جرمی ۴٫۱۵ میلیون برابر خورشید قرار دارد.",
         "منظومه شمسی هر ۲۳۰ میلیون سال یک‌بار مدار کامل خود به دور مرکز کهکشان را طی می‌کند (یک سال کیهانی).",
         "نوار روشن راه شیری در آسمان شب، مقطع عرضی دیسک کهکشان خودمان است که از داخل آن را تماشا می‌کنیم.",
         "کهکشان راه شیری بخشی از ابرخوشه کهکشانی عظیم «لانیاکئا» شامل بیش از ۱۰ هزار کهکشان است."
@@ -947,10 +947,10 @@ object PhysicalData {
     )
 
     private val SGRA_FACTS_FA = listOf(
-        "کمان آ (*Sagittarius A) سیاهچاله کلان‌جرم مرکز کهکشان راه شیری با جرمی معادل ۴.۱۵ میلیون برابر خورشید است.",
+        "کمان آ (*Sagittarius A) سیاهچاله کلان‌جرم مرکز کهکشان راه شیری با جرمی معادل ۴٫۱۵ میلیون برابر خورشید است.",
         "در سال ۲۰۲۲، تلسکوپ افق رویداد (EHT) نخستین تصویر مستقیم از سایه افق رویداد این سیاهچاله را منتشر کرد.",
         "ستارگان مرکزی نزدیک مانند S2 با سرعتی بالغ بر چند درصد سرعت نور در مدارهای بیضوی فشرده به دور آن می‌چرخند.",
-        "شعاع افق رویداد (شعاع شوارتزشیلد) آن حدود ۱۲.۳ میلیون کیلومتر است که کمتر از فاصله عطارد تا خورشید می‌باشد.",
+        "شعاع افق رویداد (شعاع شوارتزشیلد) آن حدود ۱۲٫۳ میلیون کیلومتر است که کمتر از فاصله عطارد تا خورشید است.",
         "کمان آ یک سیاهچاله فشرده با تابش رادیویی غول‌پیکر است که گرانش مرکزی کهکشان ما را کنترل می‌کند."
     )
 
@@ -1113,7 +1113,7 @@ object PhysicalData {
                     diameterComparedToEarth = (1.3927e6 * solarMult) / EARTH_DIAMETER_KM,
                     diameterDisplayFa = "${String.format("%.1f", solarMult)} برابر قطر خورشید",
                     diameterDisplayEn = "${String.format("%.1f", solarMult)}× Solar Diameter",
-                    massKgDisplayFa = "${String.format("%.1f", 1.2 + abs(obj.magnitude)/3.0)} برابر جرم خورشید",
+                    massKgDisplayFa = "${String.format("%.1f", ۱٫۲ + abs(obj.magnitude)/۳٫۰)} برابر جرم خورشید",
                     massKgDisplayEn = "${String.format("%.1f", 1.2 + abs(obj.magnitude)/3.0)}× Solar Mass",
                     massComparedToEarth = (1.2 + abs(obj.magnitude)/3.0) * 333000.0,
                     gravityMssDisplayFa = "رده طیفی ${if (obj.spectralType.isNotEmpty()) obj.spectralType else "A/F/G"}",
@@ -1128,7 +1128,7 @@ object PhysicalData {
             com.alijafari.red.astronomy.domain.ObjectType.GALAXY -> PhysicalProperties(
                 diameterKm = 9.46e17,
                 diameterComparedToEarth = null, // Not applicable
-                diameterDisplayFa = "۵۰,۰۰۰ تا ۱۵۰,۰۰۰ سال نوری قطر",
+                diameterDisplayFa = "۵۰٬۰۰۰ تا ۱۵۰٬۰۰۰ سال نوری قطر",
                 diameterDisplayEn = "50,000 to 150,000 light-years diameter",
                 massKgDisplayFa = "۱۰۰ تا ۵۰۰ میلیارد برابر جرم خورشید",
                 massKgDisplayEn = "100B to 500B Solar Masses",
@@ -1146,7 +1146,7 @@ object PhysicalData {
                 diameterComparedToEarth = null, // Not applicable
                 diameterDisplayFa = "۱۰ تا ۵۰ سال نوری پهنای سحابی",
                 diameterDisplayEn = "10 to 50 light-years extent",
-                massKgDisplayFa = "۵۰۰ تا ۳,۰۰۰ برابر جرم خورشید",
+                massKgDisplayFa = "۵۰۰ تا ۳٬۰۰۰ برابر جرم خورشید",
                 massKgDisplayEn = "500 to 3,000 Solar Masses",
                 massComparedToEarth = null,
                 gravityMssDisplayFa = "ابرهای گاز هیدروژن و یون‌های باردار",
@@ -1162,7 +1162,7 @@ object PhysicalData {
                 diameterComparedToEarth = null, // Not applicable
                 diameterDisplayFa = "۱۵ تا ۱۰۰ سال نوری قطر خوشه",
                 diameterDisplayEn = "15 to 100 light-years cluster diameter",
-                massKgDisplayFa = "۱,۰۰۰ تا ۵۰۰,۰۰۰ ستاره هم‌تکامل",
+                massKgDisplayFa = "۱٬۰۰۰ تا ۵۰۰٬۰۰۰ ستاره هم‌تکامل",
                 massKgDisplayEn = "1,000 to 500,000 co-eval stars",
                 massComparedToEarth = null,
                 gravityMssDisplayFa = "پیوند گرانشی خود-تراکم ستاره‌ای",

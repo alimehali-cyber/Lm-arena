@@ -279,7 +279,7 @@ private fun LiveStatusCard(status: ArSensorStatus, state: CalibrationState, isFa
             )
             StatusRow(
                 label = if (isFa) "تداخل مغناطیسی" else "Magnetic interference",
-                value = if (f.interference) (if (isFa) "شناسایی شد — از فلز فاصله بگیرید" else "Detected — move away from metal")
+                value = if (f.interference) (if (isFa) "شناسایی شد، از فلز فاصله بگیرید" else "Detected — move away from metal")
                 else (if (isFa) "ندارد" else "None"),
                 level = if (f.interference) Level.BAD else if (f.mode == HeadingFusion.Mode.NONE) Level.UNKNOWN else Level.GOOD,
                 isFa = isFa
@@ -417,9 +417,9 @@ private fun AccuracyBarsRow(status: Int, isFa: Boolean) {
 }
 
 private fun verdictText(state: CalibrationState, isFa: Boolean): String = when (state) {
-    CalibrationState.EXCELLENT -> if (isFa) "عالی — آماده رصد" else "Excellent — ready to observe"
-    CalibrationState.GOOD -> if (isFa) "خوب — دقت کافی" else "Good — adequate accuracy"
-    CalibrationState.POOR -> if (isFa) "ضعیف — حرکت شکل ۸ را ادامه دهید" else "Poor — keep doing figure-8s"
+    CalibrationState.EXCELLENT -> if (isFa) "عالی، آماده رصد" else "Excellent — ready to observe"
+    CalibrationState.GOOD -> if (isFa) "خوب، دقت کافی" else "Good — adequate accuracy"
+    CalibrationState.POOR -> if (isFa) "ضعیف، حرکت شکل ۸ را ادامه دهید" else "Poor — keep doing figure-8s"
     CalibrationState.NEEDS_CALIBRATION -> if (isFa) "نیازمند کالیبراسیون" else "Calibration needed"
     CalibrationState.UNCALIBRATED -> if (isFa) "در حال سنجش حسگرها…" else "Measuring sensors…"
 }
@@ -435,7 +435,7 @@ private fun modeText(mode: HeadingFusion.Mode, isFa: Boolean): String = when (mo
 private fun sensorsLine(s: ArSensorStatus, isFa: Boolean): String {
     fun mark(b: Boolean) = if (b) "✓" else "✗"
     return if (isFa) {
-        "ژیروسکوپ ${mark(s.hasGyroscope)}  قطب‌نما ${mark(s.hasMagnetometer)}  شتاب‌سنج ${mark(s.hasAccelerometer)}  فشارسنج ${mark(s.hasBarometer)}  دماسنج ${mark(s.hasThermometer)}"
+        "ژیروسکوپ ${mark(s.hasGyroscope)} قطب‌نما ${mark(s.hasMagnetometer)} شتاب‌سنج ${mark(s.hasAccelerometer)} فشارسنج ${mark(s.hasBarometer)} دماسنج ${mark(s.hasThermometer)}"
     } else {
         "Gyroscope ${mark(s.hasGyroscope)}  Magnetometer ${mark(s.hasMagnetometer)}  Accelerometer ${mark(s.hasAccelerometer)}  Barometer ${mark(s.hasBarometer)}  Thermometer ${mark(s.hasThermometer)}"
     }

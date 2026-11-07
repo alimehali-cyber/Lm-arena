@@ -56,7 +56,7 @@ enum class Preset(
     ),
     INNER_SYSTEM(
         "منظومه داخلی", "Inner system",
-        "چهار سیاره سنگی. هرچه دورتر، کندتر — این همان قانون سوم کپلر است.",
+        "چهار سیاره سنگی. هرچه دورتر، کندتر، این همان قانون سوم کپلر است.",
         "Four rocky planets. Farther means slower — that is Kepler's third law."
     ),
     BINARY(

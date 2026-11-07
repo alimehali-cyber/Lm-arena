@@ -767,11 +767,11 @@ class ISSEngine {
             // Mention shadow events if applicable
             if (shadowExitMs != null && shadowExitMs in (startMs - 5000L)..(startMs + 5000L)) {
                 reasonsEn.add("✓ Dawn emergence: ISS leaves Earth shadow at ${String.format("%.0f", calculateTopocentricPos(startMs, userLatDeg, userLonDeg, 940.0, tle).elevationDeg)}° elevation")
-                reasonsFa.add("✓ پدیده خروج از سایه: ایستگاه در ارتفاع ${String.format("%.0f", calculateTopocentricPos(startMs, userLatDeg, userLonDeg, 940.0, tle).elevationDeg)} درجه از سایه زمین خارج و نمایان می‌شود")
+                reasonsFa.add("✓ پدیده خروج از سایه: ایستگاه در ارتفاع ${String.format("%.0f", calculateTopocentricPos(startMs, userLatDeg, userLonDeg, ۹۴۰٫۰، tle).elevationDeg)} درجه از سایه زمین خارج و نمایان می‌شود")
             }
             if (shadowEntryMs != null && shadowEntryMs in (endMs - 5000L)..(endMs + 5000L)) {
                 reasonsEn.add("✓ Evening eclipse: ISS enters Earth shadow at ${String.format("%.0f", calculateTopocentricPos(endMs, userLatDeg, userLonDeg, 940.0, tle).elevationDeg)}° elevation")
-                reasonsFa.add("✓ پدیده ورود به سایه: ایستگاه در ارتفاع ${String.format("%.0f", calculateTopocentricPos(endMs, userLatDeg, userLonDeg, 940.0, tle).elevationDeg)} درجه وارد سایه زمین شده و محو می‌شود")
+                reasonsFa.add("✓ پدیده ورود به سایه: ایستگاه در ارتفاع ${String.format("%.0f", calculateTopocentricPos(endMs, userLatDeg, userLonDeg, ۹۴۰٫۰، tle).elevationDeg)} درجه وارد سایه زمین شده و محو می‌شود")
             }
 
             when {
@@ -819,7 +819,7 @@ class ISSEngine {
         }
 
         val summaryFa = when (classification) {
-            PassClassification.OUTSTANDING -> "گذر درخشان بالای سر در تاریکی کامل! قدر ${String.format("%.1f", estMag)}"
+            PassClassification.OUTSTANDING -> "گذر درخشان بالای سر در تاریکی کامل. قدر ${String.format("%.1f", estMag)}"
             PassClassification.EXCELLENT -> "گذر کاملاً واضح با چشم غیرمسلح و ارتفاع بالا (${maxElevDeg.toInt()} درجه)"
             PassClassification.VERY_GOOD -> "گذر پرنور و جذاب در شفق شامگاهی یا سپیده‌دم"
             PassClassification.GOOD -> "مانند یک ستاره پرنور متحرک در آسمان دیده می‌شود"

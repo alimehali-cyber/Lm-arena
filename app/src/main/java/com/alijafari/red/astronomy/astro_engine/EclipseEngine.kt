@@ -337,7 +337,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Americas, Antarctica, Alaska, NE Asia",
             maxTotalityRegionFa = "قاره آمریکا، جنوبگان، آلاسکا و شمال شرق آسیا",
             descriptionEn = "A deep penumbral lunar eclipse where 95.6% of the Moon disk passed through Earth's penumbral shadow.",
-            descriptionFa = "خسوف عمیق نیم‌سایه‌ای که طی آن ۹۵.۶٪ قرص ماه وارد نیم‌سایه زمین شد.",
+            descriptionFa = "خسوف عمیق نیم‌سایه‌ای که طی آن ۹۵٫۶٪ قرص ماه وارد نیم‌سایه زمین شد.",
             isSolar = false,
             penumbralStartMs = 1711342407000L, // 04:53 UTC
             umbralStartMs = 1711350780000L, // 07:13 UTC
@@ -373,7 +373,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Americas, Europe, Africa, Middle East, Western Asia",
             maxTotalityRegionFa = "آمریکا، اروپا، آفریقا، خاورمیانه و غرب آسیا",
             descriptionEn = "A shallow partial lunar eclipse with 8.5% of the Moon in Earth's dark umbral shadow.",
-            descriptionFa = "خسوف جزئی با ورود ۸.۵٪ از قرص ماه به بخش تاریک سایه زمین.",
+            descriptionFa = "خسوف جزئی با ورود ۸٫۵٪ از قرص ماه به بخش تاریک سایه زمین.",
             isSolar = false,
             penumbralStartMs = 1726620051000L, // 00:40 UTC
             umbralStartMs = 1726625556000L, // 02:12 UTC
@@ -589,7 +589,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Southeast Asia, Australia, Pacific",
             maxTotalityRegionFa = "جنوب شرق آسیا، استرالیا و اقیانوس آرام",
             descriptionEn = "A penumbral lunar eclipse. 0.1% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
-            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۰.۱ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۰٫۱ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
             isSolar = false,
             penumbralStartMs = 1815926219000L, // 15:56 UTC
             umbralStartMs = 1815926573000L, // 16:02 UTC
@@ -608,7 +608,7 @@ class EclipseEngine {
             nameFa = "کسوف قرن (خورشیدگرفتگی کامل خاورمیانه و شمال آفریقا)",
             durationTotalSeconds = 383,
             maxTotalityRegionEn = "Gibraltar, S Spain, Morocco, Algeria, Tunisia, Libya, Egypt (Luxor 6m22s!), Saudi Arabia (Jeddah, Mecca), Yemen, Somalia; Partial across ALL of Europe, Middle East, Iran & Africa",
-            maxTotalityRegionFa = "جبل‌طارق، جنوب اسپانیا، مراکش، الجزایر، تونس، لیبی، مصر (اقصر ۶ دقیقه و ۲۲ ثانیه!)، عربستان (جده و مکه)، یمن، سومالی؛ جزئی در سراسر ایران، خاورمیانه، اروپا و آفریقا",
+            maxTotalityRegionFa = "جبل‌طارق، جنوب اسپانیا، مراکش، الجزایر، تونس، لیبی، مصر (اقصر ۶ دقیقه و ۲۲ ثانیه)، عربستان (جده و مکه)، یمن، سومالی؛ جزئی در سراسر ایران، خاورمیانه، اروپا و آفریقا",
             descriptionEn = "The greatest solar eclipse of the 21st century on land with over 6 minutes and 22 seconds of totality over Luxor Egypt, Mecca, and North Africa! Deep partial eclipse visible across Iran and the Middle East.",
             descriptionFa = "باشکوه‌ترین و طولانی‌ترین خورشیدگرفتگی قرن بیست و یکم با گرفت کامل بیش از ۶ دقیقه و ۲۲ ثانیه در اقصر مصر و مکه! فاز جزئی بسیار عمیق در سراسر ایران و خاورمیانه قابل مشاهده است.",
             isSolar = true
@@ -646,7 +646,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Americas, Europe, Africa, Middle East",
             maxTotalityRegionFa = "قاره آمریکا، اروپا، آفریقا و غرب خاورمیانه",
             descriptionEn = "A shallow partial lunar eclipse with 6.6% umbral grazing at the Moon's northern limb.",
-            descriptionFa = "خسوف جزئی کم‌عمق با ورود ۶.۶٪ از لبه ماه به سایه تاریک زمین.",
+            descriptionFa = "خسوف جزئی کم‌عمق با ورود ۶٫۶٪ از لبه ماه به سایه تاریک زمین.",
             isSolar = false,
             penumbralStartMs = 1831255659000L, // 02:07 UTC
             umbralStartMs = 1831261500000L, // 03:45 UTC
@@ -701,7 +701,7 @@ class EclipseEngine {
             nameFa = "خورشیدگرفتگی کامل استرالیا و سیدنی",
             durationTotalSeconds = 310,
             maxTotalityRegionEn = "Australia (directly over Sydney!), New Zealand",
-            maxTotalityRegionFa = "استرالیا (مستقیماً از فراز شهر سیدنی!) و نیوزیلند",
+            maxTotalityRegionFa = "استرالیا (مستقیماً از فراز شهر سیدنی) و نیوزیلند",
             descriptionEn = "A spectacular total solar eclipse passing directly over Sydney Harbour with over 5 minutes of totality in NW Australia.",
             descriptionFa = "کسوف کامل بی‌نظیر که مستقیماً از بالای شهر سیدنی عبور می‌کند و بیش از ۵ دقیقه گرفت کامل دارد.",
             isSolar = true
@@ -913,7 +913,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Americas, Europe, Africa",
             maxTotalityRegionFa = "قاره آمریکا، اروپا و آفریقا",
             descriptionEn = "A penumbral lunar eclipse. 88.1% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
-            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۸۸.۱ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۸۸٫۱ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
             isSolar = false,
             penumbralStartMs = 1935885125000L, // 01:52 UTC
             umbralStartMs = 1935892244000L, // 03:50 UTC
@@ -934,7 +934,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Africa, s Asia, E. Indies, Australia (Annular: Angola, Congo, Zambia, Tanzania, s India, Malaysia, Indonesia)",
             maxTotalityRegionFa = "آفریقا، جنوب آسیا، هند شرقی و استرالیا",
             descriptionEn = "An annular solar eclipse of magnitude 0.959. The ring of fire lasts up to 5m 26s along the central path.",
-            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۵۹. حلقه آتش در طول مسیر مرکزی تا ۵ دقیقه و ۲۶ ثانیه دوام دارد.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰٫۹۵۹. حلقه آتش در طول مسیر مرکزی تا ۵ دقیقه و ۲۶ ثانیه دوام دارد.",
             isSolar = true
         ),
         EclipseEvent(
@@ -949,7 +949,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "East Indies, Australia, Pacific",
             maxTotalityRegionFa = "هند شرقی، استرالیا و اقیانوس آرام",
             descriptionEn = "A penumbral lunar eclipse. 12.9% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
-            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۱۲.۹ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۱۲٫۹ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
             isSolar = false,
             penumbralStartMs = 1938423371000L, // 10:56 UTC
             umbralStartMs = 1938426239000L, // 11:43 UTC
@@ -970,7 +970,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Americas",
             maxTotalityRegionFa = "قاره آمریکا",
             descriptionEn = "A penumbral lunar eclipse. 71.6% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
-            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۷۱.۶ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۷۱٫۶ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
             isSolar = false,
             penumbralStartMs = 1951105772000L, // 05:49 UTC
             umbralStartMs = 1951112726000L, // 07:45 UTC
@@ -991,7 +991,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Pacific, s US, C. America, nw S. America (Hybrid: Pacific, Panama)",
             maxTotalityRegionFa = "اقیانوس آرام، جنوب آمریکا، آمریکای مرکزی و شمال غرب آمریکای جنوبی",
             descriptionEn = "A hybrid (annular-total) solar eclipse of magnitude 1.011, appearing annular along part of its path and total along another.",
-            descriptionFa = "خورشیدگرفتگی مرکب (حلقوی-کامل) با قدر ۱.۰۱۱ که در بخشی از مسیر حلقوی و در بخش دیگر کامل دیده می‌شود.",
+            descriptionFa = "خورشیدگرفتگی مرکب (حلقوی-کامل) با قدر ۱٫۰۱۱ که در بخشی از مسیر حلقوی و در بخش دیگر کامل دیده می‌شود.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1006,7 +1006,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "e Africa, Asia, Australia, Pacific",
             maxTotalityRegionFa = "شرق آفریقا، آسیا، استرالیا و اقیانوس آرام",
             descriptionEn = "A total lunar eclipse of umbral magnitude 1.191. The Moon stays completely inside Earth's umbra for 65m 30s.",
-            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۱۹۱. قرص ماه به مدت ۶۵ دقیقه و ۳۰ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱٫۱۹۱. قرص ماه به مدت ۶۵ دقیقه و ۳۰ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 1966508540000L, // 12:22 UTC
             umbralStartMs = 1966512476000L, // 13:27 UTC
@@ -1027,7 +1027,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "s S. America, s Africa (Annular: s Atlantic)",
             maxTotalityRegionFa = "جنوب آمریکای جنوبی و جنوب آفریقا",
             descriptionEn = "An annular solar eclipse of magnitude 0.996. The ring of fire lasts up to 0m 22s along the central path.",
-            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۹۶. حلقه آتش در طول مسیر مرکزی تا ۰ دقیقه و ۲۲ ثانیه دوام دارد.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰٫۹۹۶. حلقه آتش در طول مسیر مرکزی تا ۰ دقیقه و ۲۲ ثانیه دوام دارد.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1042,7 +1042,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Africa, Europe, Asia, Australia",
             maxTotalityRegionFa = "آفریقا، اروپا، آسیا و استرالیا",
             descriptionEn = "A total lunar eclipse of umbral magnitude 1.103. The Moon stays completely inside Earth's umbra for 47m 06s.",
-            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۱۰۳. قرص ماه به مدت ۴۷ دقیقه و ۰۶ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱٫۱۰۳. قرص ماه به مدت ۴۷ دقیقه و ۰۶ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 1981729479000L, // 16:24 UTC
             umbralStartMs = 1981733064000L, // 17:24 UTC
@@ -1063,7 +1063,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Asia",
             maxTotalityRegionFa = "آسیا",
             descriptionEn = "A partial solar eclipse of magnitude 0.855; no location on Earth sees totality.",
-            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۸۵۵؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰٫۸۵۵؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1078,7 +1078,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "N. America (Total: e Russia, Alaska)",
             maxTotalityRegionFa = "آمریکای شمالی (فاز کامل: شرق روسیه و آلاسکا)",
             descriptionEn = "A total solar eclipse of magnitude 1.046. Totality lasts up to 2m 37s along the central path.",
-            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۴۶. مدت فاز کامل در طول مسیر مرکزی تا ۲ دقیقه و ۳۷ ثانیه است.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱٫۰۴۶. مدت فاز کامل در طول مسیر مرکزی تا ۲ دقیقه و ۳۷ ثانیه است.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1093,7 +1093,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Europe, Africa, Asia, Australia",
             maxTotalityRegionFa = "اروپا، آفریقا، آسیا و استرالیا",
             descriptionEn = "A total lunar eclipse of umbral magnitude 1.094. The Moon stays completely inside Earth's umbra for 49m 12s.",
-            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۰۹۴. قرص ماه به مدت ۴۹ دقیقه و ۱۲ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱٫۰۹۴. قرص ماه به مدت ۴۹ دقیقه و ۱۲ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 1997107915000L, // 16:11 UTC
             umbralStartMs = 1997112301000L, // 17:25 UTC
@@ -1114,7 +1114,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "s S. America, Antarctica",
             maxTotalityRegionFa = "جنوب آمریکای جنوبی و جنوبگان",
             descriptionEn = "A partial solar eclipse of magnitude 0.689; no location on Earth sees totality.",
-            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۶۸۹؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰٫۶۸۹؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1129,7 +1129,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Asia, Australia, Pacific, Americas",
             maxTotalityRegionFa = "آسیا، استرالیا، اقیانوس آرام و قاره آمریکا",
             descriptionEn = "A total lunar eclipse of umbral magnitude 1.350. The Moon stays completely inside Earth's umbra for 78m 48s.",
-            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۳۵۰. قرص ماه به مدت ۷۸ دقیقه و ۴۸ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱٫۳۵۰. قرص ماه به مدت ۷۸ دقیقه و ۴۸ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 2012372325000L, // 08:18 UTC
             umbralStartMs = 2012375631000L, // 09:13 UTC
@@ -1150,7 +1150,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Africa, Europe, w Asia (Total: Nigeria, Cameroon, Chad, Sudan, Egypt, Saudi Arabia, Iran, Afghanistan, Pakistan, India, China)",
             maxTotalityRegionFa = "آفریقا، اروپا و غرب آسیا (فاز کامل: نیجریه، کامرون، چاد، سودان، مصر، عربستان، ایران، افغانستان، پاکستان، هند و چین)",
             descriptionEn = "A total solar eclipse of magnitude 1.046. Totality lasts up to 4m 09s along the central path.",
-            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۴۶. مدت فاز کامل در طول مسیر مرکزی تا ۴ دقیقه و ۰۹ ثانیه است.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱٫۰۴۶. مدت فاز کامل در طول مسیر مرکزی تا ۴ دقیقه و ۰۹ ثانیه است.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1165,7 +1165,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Europe, Africa, Asia, Australia",
             maxTotalityRegionFa = "اروپا، آفریقا، آسیا و استرالیا",
             descriptionEn = "A penumbral lunar eclipse. 85.5% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
-            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۸۵.۵ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۸۵٫۵ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
             isSolar = false,
             penumbralStartMs = 2027695977000L, // 16:52 UTC
             umbralStartMs = 2027703939000L, // 19:05 UTC
@@ -1186,7 +1186,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "C. & S. America (Annular: Chile, Bolivia, Argentina, Paraguay, Brazil)",
             maxTotalityRegionFa = "آمریکای مرکزی و جنوبی (فاز حلقوی: شیلی، بولیوی، آرژانتین، پاراگوئه و برزیل)",
             descriptionEn = "An annular solar eclipse of magnitude 0.974. The ring of fire lasts up to 2m 58s along the central path.",
-            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۷۴. حلقه آتش در طول مسیر مرکزی تا ۲ دقیقه و ۵۸ ثانیه دوام دارد.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰٫۹۷۴. حلقه آتش در طول مسیر مرکزی تا ۲ دقیقه و ۵۸ ثانیه دوام دارد.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1201,7 +1201,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Americas, Europe, Africa",
             maxTotalityRegionFa = "قاره آمریکا، اروپا و آفریقا",
             descriptionEn = "A partial lunar eclipse of umbral magnitude 0.014, so 1.4% of the Moon's diameter is inside Earth's umbra at greatest eclipse.",
-            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰.۰۱۴؛ در اوج گرفتگی ۱.۴ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰٫۰۱۴؛ در اوج گرفتگی ۱٫۴ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 2043016915000L, // 00:41 UTC
             umbralStartMs = 2043023575000L, // 02:32 UTC
@@ -1222,7 +1222,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "e Asia, Pacific, Americas",
             maxTotalityRegionFa = "شرق آسیا، اقیانوس آرام و قاره آمریکا",
             descriptionEn = "A penumbral lunar eclipse. 96.5% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
-            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۹۶.۵ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۹۶٫۵ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
             isSolar = false,
             penumbralStartMs = 2055740220000L, // 06:57 UTC
             umbralStartMs = 2055747891000L, // 09:04 UTC
@@ -1243,7 +1243,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Australia, New Zealand, s Pacific, Mexico, Antarctica (Annular: New Zealand, Pacific)",
             maxTotalityRegionFa = "استرالیا، نیوزیلند، جنوب اقیانوس آرام، مکزیک و جنوبگان",
             descriptionEn = "An annular solar eclipse of magnitude 0.992. The ring of fire lasts up to 0m 48s along the central path.",
-            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۹۲. حلقه آتش در طول مسیر مرکزی تا ۰ دقیقه و ۴۸ ثانیه دوام دارد.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰٫۹۹۲. حلقه آتش در طول مسیر مرکزی تا ۰ دقیقه و ۴۸ ثانیه دوام دارد.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1258,7 +1258,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Americas, Europe, Africa, Mid East",
             maxTotalityRegionFa = "قاره آمریکا، اروپا، آفریقا و خاورمیانه",
             descriptionEn = "A partial lunar eclipse of umbral magnitude 0.104, so 10.4% of the Moon's diameter is inside Earth's umbra at greatest eclipse.",
-            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰.۱۰۴؛ در اوج گرفتگی ۱۰.۴ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰٫۱۰۴؛ در اوج گرفتگی ۱۰٫۴ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 2071089960000L, // 22:46 UTC
             umbralStartMs = 2071096359000L, // 00:32 UTC
@@ -1279,7 +1279,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "e Asia, Pacific (Total: China, Korea, Japan, Pacific)",
             maxTotalityRegionFa = "شرق آسیا و اقیانوس آرام (فاز کامل: چین، کره، ژاپن و اقیانوس آرام)",
             descriptionEn = "A total solar eclipse of magnitude 1.032. Totality lasts up to 2m 54s along the central path.",
-            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۳۲. مدت فاز کامل در طول مسیر مرکزی تا ۲ دقیقه و ۵۴ ثانیه است.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱٫۰۳۲. مدت فاز کامل در طول مسیر مرکزی تا ۲ دقیقه و ۵۴ ثانیه است.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1294,7 +1294,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Americas, Europe, Africa, Asia, w Australia",
             maxTotalityRegionFa = "قاره آمریکا، اروپا، آفریقا، آسیا و غرب استرالیا",
             descriptionEn = "A total lunar eclipse of umbral magnitude 1.300. The Moon stays completely inside Earth's umbra for 74m 30s.",
-            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۳۰۰. قرص ماه به مدت ۷۴ دقیقه و ۳۰ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱٫۳۰۰. قرص ماه به مدت ۷۴ دقیقه و ۳۰ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 2086371221000L, // 19:33 UTC
             umbralStartMs = 2086374647000L, // 20:30 UTC
@@ -1315,7 +1315,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Antarctica, s Australia, New Zealand",
             maxTotalityRegionFa = "جنوبگان، جنوب استرالیا و نیوزیلند",
             descriptionEn = "A partial solar eclipse of magnitude 0.629; no location on Earth sees totality.",
-            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۶۲۹؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰٫۶۲۹؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1330,7 +1330,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "s Atlantic",
             maxTotalityRegionFa = "جنوب اقیانوس اطلس",
             descriptionEn = "A partial solar eclipse of magnitude 0.199; no location on Earth sees totality.",
-            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۱۹۹؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰٫۱۹۹؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1345,7 +1345,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Americas, Europe, Africa, w Asia",
             maxTotalityRegionFa = "قاره آمریکا، اروپا، آفریقا و غرب آسیا",
             descriptionEn = "A total lunar eclipse of umbral magnitude 1.454. The Moon stays completely inside Earth's umbra for 95m 18s.",
-            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۴۵۴. قرص ماه به مدت ۹۵ دقیقه و ۱۸ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱٫۴۵۴. قرص ماه به مدت ۹۵ دقیقه و ۱۸ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 2101679107000L, // 23:45 UTC
             umbralStartMs = 2101683331000L, // 00:55 UTC
@@ -1366,7 +1366,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Alaska, Canada, Arctic, w Europe, nw Africa",
             maxTotalityRegionFa = "آلاسکا، کانادا، شمالگان، غرب اروپا و شمال غرب آفریقا",
             descriptionEn = "A partial solar eclipse of magnitude 0.862; no location on Earth sees totality.",
-            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۸۶۲؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰٫۸۶۲؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1381,7 +1381,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "n Africa, Europe, Mid East, w Asia",
             maxTotalityRegionFa = "شمال آفریقا، اروپا، خاورمیانه و غرب آسیا",
             descriptionEn = "A partial solar eclipse of magnitude 0.705; no location on Earth sees totality.",
-            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۷۰۵؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰٫۷۰۵؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1396,7 +1396,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "e Europe, e Africa, Asia, Australia, Pacific, N. America",
             maxTotalityRegionFa = "شرق اروپا، شرق آفریقا، آسیا، استرالیا، اقیانوس آرام و آمریکای شمالی",
             descriptionEn = "A total lunar eclipse of umbral magnitude 1.207. The Moon stays completely inside Earth's umbra for 63m 42s.",
-            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۲۰۷. قرص ماه به مدت ۶۳ دقیقه و ۴۲ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱٫۲۰۷. قرص ماه به مدت ۶۳ دقیقه و ۴۲ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 2117013853000L, // 11:24 UTC
             umbralStartMs = 2117017291000L, // 12:21 UTC
@@ -1417,7 +1417,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "E. Indies, Australia, Pacific (Total: Australia, New Zealand)",
             maxTotalityRegionFa = "هند شرقی، استرالیا و اقیانوس آرام (فاز کامل: استرالیا و نیوزیلند)",
             descriptionEn = "A total solar eclipse of magnitude 1.041. Totality lasts up to 3m 58s along the central path.",
-            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۴۱. مدت فاز کامل در طول مسیر مرکزی تا ۳ دقیقه و ۵۸ ثانیه است.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱٫۰۴۱. مدت فاز کامل در طول مسیر مرکزی تا ۳ دقیقه و ۵۸ ثانیه است.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1432,7 +1432,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Americas, Europe, Africa",
             maxTotalityRegionFa = "قاره آمریکا، اروپا و آفریقا",
             descriptionEn = "A partial lunar eclipse of umbral magnitude 0.809, so 81.0% of the Moon's diameter is inside Earth's umbra at greatest eclipse.",
-            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰.۸۰۹؛ در اوج گرفتگی ۸۱.۰ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰٫۸۰۹؛ در اوج گرفتگی ۸۱٫۰ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 2132270286000L, // 01:18 UTC
             umbralStartMs = 2132274738000L, // 02:32 UTC
@@ -1453,7 +1453,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "e N. America, n S. America, Atlantic, Africa, Europe (Annular: Cuba, Dom.Rep., Ghana, Niger, Chad, Egypt)",
             maxTotalityRegionFa = "شرق آمریکای شمالی، شمال آمریکای جنوبی، اقیانوس اطلس، آفریقا و اروپا",
             descriptionEn = "An annular solar eclipse of magnitude 0.973. The ring of fire lasts up to 3m 18s along the central path.",
-            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۷۳. حلقه آتش در طول مسیر مرکزی تا ۳ دقیقه و ۱۸ ثانیه دوام دارد.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰٫۹۷۳. حلقه آتش در طول مسیر مرکزی تا ۳ دقیقه و ۱۸ ثانیه دوام دارد.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1468,7 +1468,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Americas, Europe, Africa",
             maxTotalityRegionFa = "قاره آمریکا، اروپا و آفریقا",
             descriptionEn = "A penumbral lunar eclipse. 90.0% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
-            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۹۰.۰ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۹۰٫۰ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
             isSolar = false,
             penumbralStartMs = 2147651135000L, // 01:45 UTC
             umbralStartMs = 2147658509000L, // 03:48 UTC
@@ -1489,7 +1489,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "e N. America, C. & S. America, Africa, w Europe",
             maxTotalityRegionFa = "شرق آمریکای شمالی، آمریکای مرکزی و جنوبی، آفریقا و غرب اروپا",
             descriptionEn = "A penumbral lunar eclipse. 44.2% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
-            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۴۴.۲ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۴۴٫۲ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
             isSolar = false,
             penumbralStartMs = 2160350130000L, // 01:15 UTC
             umbralStartMs = 2160355419000L, // 02:43 UTC
@@ -1510,7 +1510,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "N. & C. America, S. America, Africa, Europe, Mid East (Annular: Colombia, Venezuela, Morocco, Mali, Niger, Chad, Sudan, Ethiopia, Kenya)",
             maxTotalityRegionFa = "آمریکای شمالی و مرکزی، آمریکای جنوبی، آفریقا، اروپا و خاورمیانه",
             descriptionEn = "An annular solar eclipse of magnitude 0.991. The ring of fire lasts up to 1m 00s along the central path.",
-            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۹۱. حلقه آتش در طول مسیر مرکزی تا ۱ دقیقه و ۰۰ ثانیه دوام دارد.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰٫۹۹۱. حلقه آتش در طول مسیر مرکزی تا ۱ دقیقه و ۰۰ ثانیه دوام دارد.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1525,7 +1525,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Australia, e Asia, Pacific, w Americas",
             maxTotalityRegionFa = "استرالیا، شرق آسیا، اقیانوس آرام و غرب قاره آمریکا",
             descriptionEn = "A penumbral lunar eclipse. 50.0% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
-            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۵۰.۰ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۵۰٫۰ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
             isSolar = false,
             penumbralStartMs = 2162887100000L, // 09:58 UTC
             umbralStartMs = 2162892872000L, // 11:34 UTC
@@ -1546,7 +1546,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Europe, Africa, Asia, Australia",
             maxTotalityRegionFa = "اروپا، آفریقا، آسیا و استرالیا",
             descriptionEn = "A penumbral lunar eclipse. 80.5% of the Moon's diameter passes through Earth's penumbral shadow; no umbral darkening occurs.",
-            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۸۰.۵ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
+            descriptionFa = "خسوف نیم‌سایه‌ای که طی آن ۸۰٫۵ درصد از قطر ماه از نیم‌سایه زمین می‌گذرد؛ هیچ تاریکیِ سایه‌ای رخ نمی‌دهد.",
             isSolar = false,
             penumbralStartMs = 2175694461000L, // 15:34 UTC
             umbralStartMs = 2175702216000L, // 17:43 UTC
@@ -1567,7 +1567,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "se Asia, E. Indies, Australia, New Zealand, s Pacific, Antarctica (Total: Australia, New Zealand, s Pacific)",
             maxTotalityRegionFa = "جنوب شرق آسیا، هند شرقی، استرالیا، نیوزیلند، جنوب اقیانوس آرام و جنوبگان",
             descriptionEn = "A total solar eclipse of magnitude 1.027. Totality lasts up to 2m 18s along the central path.",
-            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۲۷. مدت فاز کامل در طول مسیر مرکزی تا ۲ دقیقه و ۱۸ ثانیه است.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱٫۰۲۷. مدت فاز کامل در طول مسیر مرکزی تا ۲ دقیقه و ۱۸ ثانیه است.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1582,7 +1582,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Europe, Africa, Asia, Australia",
             maxTotalityRegionFa = "اروپا، آفریقا، آسیا و استرالیا",
             descriptionEn = "A partial lunar eclipse of umbral magnitude 0.885, so 88.5% of the Moon's diameter is inside Earth's umbra at greatest eclipse.",
-            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰.۸۸۵؛ در اوج گرفتگی ۸۸.۵ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰٫۸۸۵؛ در اوج گرفتگی ۸۸٫۵ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 2190990280000L, // 16:24 UTC
             umbralStartMs = 2190993802000L, // 17:23 UTC
@@ -1603,7 +1603,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "N. America, w Europe (Annular: Alaska, n Canada, Norway, Sweden, Finland, Estonia, Russia)",
             maxTotalityRegionFa = "آمریکای شمالی و غرب اروپا (فاز حلقوی: آلاسکا، شمال کانادا، نروژ، سوئد، فنلاند، استونی و روسیه)",
             descriptionEn = "An annular solar eclipse of magnitude 0.945. The ring of fire lasts up to 4m 05s along the central path.",
-            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰.۹۴۵. حلقه آتش در طول مسیر مرکزی تا ۴ دقیقه و ۰۵ ثانیه دوام دارد.",
+            descriptionFa = "خورشیدگرفتگی حلقوی با قدر ۰٫۹۴۵. حلقه آتش در طول مسیر مرکزی تا ۴ دقیقه و ۰۵ ثانیه دوام دارد.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1618,7 +1618,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Europe, Africa, Asia, Australia, Pacific",
             maxTotalityRegionFa = "اروپا، آفریقا، آسیا، استرالیا و اقیانوس آرام",
             descriptionEn = "A partial lunar eclipse of umbral magnitude 0.943, so 94.3% of the Moon's diameter is inside Earth's umbra at greatest eclipse.",
-            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰.۹۴۳؛ در اوج گرفتگی ۹۴.۳ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف جزئی با قدر سایه‌ای ۰٫۹۴۳؛ در اوج گرفتگی ۹۴٫۳ درصد از قطر ماه درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 2206274100000L, // 13:55 UTC
             umbralStartMs = 2206278723000L, // 15:12 UTC
@@ -1639,7 +1639,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "s S. America, Antarctica (Total: Antarctica)",
             maxTotalityRegionFa = "جنوب آمریکای جنوبی و جنوبگان",
             descriptionEn = "A total solar eclipse of magnitude 1.036. Totality lasts up to 1m 51s along the central path.",
-            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱.۰۳۶. مدت فاز کامل در طول مسیر مرکزی تا ۱ دقیقه و ۵۱ ثانیه است.",
+            descriptionFa = "خورشیدگرفتگی کامل با قدر ۱٫۰۳۶. مدت فاز کامل در طول مسیر مرکزی تا ۱ دقیقه و ۵۱ ثانیه است.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1654,7 +1654,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "Australia, N.Z., Antarctica",
             maxTotalityRegionFa = "استرالیا، نیوزیلند و جنوبگان",
             descriptionEn = "A partial solar eclipse of magnitude 0.531; no location on Earth sees totality.",
-            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۵۳۱؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰٫۵۳۱؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1669,7 +1669,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "e Asia, Australia, Pacific, w Americas",
             maxTotalityRegionFa = "شرق آسیا، استرالیا، اقیانوس آرام و غرب قاره آمریکا",
             descriptionEn = "A total lunar eclipse of umbral magnitude 1.535. The Moon stays completely inside Earth's umbra for 92m 12s.",
-            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۵۳۵. قرص ماه به مدت ۹۲ دقیقه و ۱۲ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱٫۵۳۵. قرص ماه به مدت ۹۲ دقیقه و ۱۲ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 2221635855000L, // 09:04 UTC
             umbralStartMs = 2221639176000L, // 09:59 UTC
@@ -1690,7 +1690,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "N. & C. America",
             maxTotalityRegionFa = "آمریکای شمالی و مرکزی",
             descriptionEn = "A partial solar eclipse of magnitude 0.807; no location on Earth sees totality.",
-            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰.۸۰۷؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
+            descriptionFa = "خورشیدگرفتگی جزئی با قدر ۰٫۸۰۷؛ در هیچ نقطه‌ای از زمین فاز کامل دیده نمی‌شود.",
             isSolar = true
         ),
         EclipseEvent(
@@ -1705,7 +1705,7 @@ class EclipseEngine {
             maxTotalityRegionEn = "e Americas, Europe, Africa, Asia, Australia",
             maxTotalityRegionFa = "شرق قاره آمریکا، اروپا، آفریقا، آسیا و استرالیا",
             descriptionEn = "A total lunar eclipse of umbral magnitude 1.397. The Moon stays completely inside Earth's umbra for 87m 48s.",
-            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱.۳۹۷. قرص ماه به مدت ۸۷ دقیقه و ۴۸ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
+            descriptionFa = "خسوف کامل با قدر سایه‌ای ۱٫۳۹۷. قرص ماه به مدت ۸۷ دقیقه و ۴۸ ثانیه کاملاً درون سایه زمین قرار می‌گیرد.",
             isSolar = false,
             penumbralStartMs = 2236867587000L, // 16:06 UTC
             umbralStartMs = 2236871583000L, // 17:13 UTC
@@ -2475,7 +2475,7 @@ class EclipseEngine {
             val altStr = "${localPeakHoriz.altitudeDeg.roundToInt().coerceAtLeast(0)}°"
             if (p1Alt > -0.5 && p4Alt > -0.5 && isVisibleAtPeak) {
                 visibilityTextEn = "Fully visible from start to finish! Moon is above the horizon throughout (Altitude: $altStr at peak)."
-                visibilityTextFa = "کاملاً قابل رصد در تمام مراحل! ماه در تمام مدت بالای افق قرار دارد (ارتفاع در اوج: ${altStr.toPersianDigits()})."
+                visibilityTextFa = "کاملاً قابل رصد در تمام مراحل. ماه در تمام مدت بالای افق قرار دارد (ارتفاع در اوج: ${altStr.toPersianDigits()})."
             } else if (p1Alt <= -0.5) {
                 if (isVisibleAtPeak) {
                     visibilityTextEn = "Visible after Moonrise including maximum eclipse (Moon altitude is $altStr at peak)."
@@ -2820,7 +2820,7 @@ class EclipseEngine {
         }
 
         val safetyFa = if (event.isSolar) {
-            "هشدار حیاتی سلامت چشم: هرگز بدون عینک مخصوص خورشیدگرفتگی (استاندارد ISO 12312-2) یا فیلتر استاندارد به خورشید نگاه نکنید! عینک آفتابی معمولی یا فیلم رادیولوژی به شبکیه چشم آسیب دائمی می‌زند."
+            "هشدار حیاتی سلامت چشم: هرگز بدون عینک مخصوص خورشیدگرفتگی (استاندارد ISO 12312-۲) یا فیلتر استاندارد به خورشید نگاه نکنید! عینک آفتابی معمولی یا فیلم رادیولوژی به شبکیه چشم آسیب دائمی می‌زند."
         } else {
             "کاملاً ایمن برای چشم: تماشای ماه‌گرفتگی (خسوف) با چشم غیرمسلح، دوربین دوچشمی یا تلسکوپ کاملاً بی‌خطر است و نیاز به هیچ فیلتری ندارد."
         }

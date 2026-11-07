@@ -191,7 +191,7 @@ object SolarSystemCatalog {
                 )
                 JupiterMoonsEngine.GalileanMoon.EUROPA -> Quadruple(
                     "A smooth icy moon harboring a global subsurface liquid water ocean beneath its fractured shell, holding twice as much water as all Earth's oceans combined.",
-                    "قمری یخ‌زده با اقیانوسی پهناور از آب مایع در زیر پوسته خود که حجم آب آن بیش از دو برابر تمام اقیانوس‌های زمین است و هدف اصلی کشف حیات می‌باشد.",
+                    "قمری یخ‌زده با اقیانوسی پهناور از آب مایع در زیر پوسته خود که حجم آب آن بیش از دو برابر تمام اقیانوس‌های زمین است و هدف اصلی کشف حیات است.",
                     "Galilean Satellite (Ocean World)",
                     5.3
                 )
@@ -209,7 +209,7 @@ object SolarSystemCatalog {
                 )
                 JupiterMoonsEngine.GalileanMoon.ELARA -> Quadruple(
                     "An irregular Jovian satellite discovered in 1905 by C. D. Perrine. It did not receive its present name until 1975; before then it was known simply as Jupiter VII, and between 1955 and 1975 it was sometimes informally called 'Hera'.",
-                    "قمر نامنظم و تیره‌رنگ مشتری که در سال ۱۹۰۵ توسط چارلز دیلون پرین کشف شد. این قمر تا سال ۱۹۷۵ تنها با عنوان «مشتری ۷» شناخته می‌شد و میان سال‌های ۱۹۵۵ تا ۱۹۷۵ گاهی به‌طور غیررسمی «هرا» نامیده می‌شد.",
+                    "قمر نامنظم و تیره‌رنگ مشتری که چارلز دیلون پرین آن را در ۱۹۰۵ کشف کرد. این قمر تا سال ۱۹۷۵ تنها با عنوان «مشتری ۷» شناخته می‌شد و میان سال‌های ۱۹۵۵ تا ۱۹۷۵ گاهی به‌طور غیررسمی «هرا» نامیده می‌شد.",
                     "Irregular Jovian Satellite (Himalia Group)",
                     16.3
                 )

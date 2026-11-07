@@ -289,7 +289,7 @@ fun EclipseDetailContent(
 
             // Local Timings Grid (Start, Peak, End, Duration)
             Text(
-                text = if (isFa) "زمان‌بندی دقیق محلی (موقعیت شما):" else "Exact Local Timing (Your Location):",
+                text = if (isFa) "زمان‌بندی محلی" else "Exact Local Timing (Your Location):",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )
@@ -341,7 +341,7 @@ fun EclipseDetailContent(
                         )
                         Text(
                             text = if (isFa) {
-                                "مدت قابل رصد در موقعیت شما: ${detailedInfo.durationTextFa}"
+                                "مدت رصد در محل شما: ${detailedInfo.durationTextFa}"
                             } else {
                                 "Local Observable Duration: ${detailedInfo.durationTextEn}"
                             },
@@ -414,7 +414,7 @@ fun EclipseDetailContent(
                         )
                         Text(
                             text = if (isFa) {
-                                "مدت قابل رصد در موقعیت شما: ${detailedInfo.durationTextFa}"
+                                "مدت رصد در محل شما: ${detailedInfo.durationTextFa}"
                             } else {
                                 "Local Observable Duration: ${detailedInfo.durationTextEn}"
                             },
@@ -454,7 +454,7 @@ fun EclipseDetailContent(
 
             // Sky Position & Obscuration Coverage
             Text(
-                text = if (isFa) "موقعیت در آسمان و درصد پوشش:" else "Sky Position & Local Obscuration:",
+                text = if (isFa) "جای ماه و خورشید در آسمان، و درصد پوشش" else "Sky Position & Local Obscuration:",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )
@@ -582,7 +582,7 @@ fun EclipseDetailContent(
                     EclipseEngine.EclipseType.ANNULAR_SOLAR ->
                         if (isFa) "مسیر اصلی حلقه آتش (حلقوی)" else "Annularity Path (Ring of Fire)"
                     else ->
-                        if (isFa) "مناطق قابل رویت در جهان" else "Global Visibility Region"
+                        if (isFa) "مناطق دیدنی در جهان" else "Global Visibility Region"
                 }
                 val regionStr = if (isFa) {
                     "$regionPrefix: ${event.maxTotalityRegionFa}"
@@ -623,7 +623,7 @@ fun EclipseDetailContent(
                 EclipseVisibility.Grade.NOT_OBSERVABLE -> MaterialTheme.colorScheme.error
             }
             Text(
-                text = if (isFa) "ارزیابی دیدپذیری از موقعیت شما:" else "Visibility From Your Location:",
+                text = if (isFa) "از محل شما چقدر دیده می‌شود؟" else "Visibility From Your Location:",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )
@@ -661,7 +661,7 @@ fun EclipseDetailContent(
             // What it is called, what it will look like, and why it matters.
             val insight = result.insight
             Text(
-                text = if (isFa) "نام و اهمیت این رخداد:" else "Name & Significance:",
+                text = if (isFa) "این رخداد چه بود؟" else "Name & Significance:",
                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.primary
             )

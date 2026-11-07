@@ -84,7 +84,7 @@ object TutorialContent {
             titleFa = "انتخاب و ویرایش",
             titleEn = "Select and edit",
             bodyFa = "روی هر جسم ضربه بزنید تا انتخاب شود. سپس می‌توانید جرم، سرعت، مکان و اندازهٔ آن را " +
-                "تغییر دهید — و همان‌جا دکمهٔ «دنبال کن» هست تا دوربین آن جسم را دنبال کند.",
+                "تغییر دهید، و همان‌جا دکمهٔ «دنبال کن» هست تا دوربین آن جسم را دنبال کند.",
             bodyEn = "Tap any body to select it. You can then change its mass, speed, position and size — " +
                 "and the same panel has a Follow button that makes the camera track it.",
             focus = TutorialFocus.CANVAS,

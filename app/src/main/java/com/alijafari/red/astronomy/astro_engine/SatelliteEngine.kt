@@ -327,7 +327,7 @@ object SatelliteEngine {
                 visibilityVerdictEn = "NO",
                 visibilityVerdictFa = "خیر (نیاز به تلسکوپ)",
                 reasonEn = "JWST is at Sun-Earth L2 Point (~1.5M km) and magnitude +14.5.",
-                reasonFa = "جیمز وب در نقطه L2 زمین-خورشید (فاصله ۱.۵ میلیون کیلومتری) و قدر ۱۴.۵ قرار دارد."
+                reasonFa = "جیمز وب در نقطه L2 زمین-خورشید (فاصله ۱٫۵ میلیون کیلومتری) و قدر ۱۴٫۵ قرار دارد."
             )
         }
 

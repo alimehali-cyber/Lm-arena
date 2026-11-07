@@ -167,7 +167,7 @@ object WhatsUpTonightEngine {
                         timeOrDateStrFa = "زمان اوج گذر: $timeStr",
                         visibilityStatus = EventVisibilityStatus.OPTIMAL,
                         visibilityTextEn = "Mag ${String.format(java.util.Locale.US, "%.1f", bestPass.estimatedMagnitude)} — Highly Visible",
-                        visibilityTextFa = "قدر ${String.format(java.util.Locale.US, "%.1f", bestPass.estimatedMagnitude)} — کاملاً شفاف".toPersianDigits(),
+                        visibilityTextFa = "قدر ${String.format(java.util.Locale.US, "%.1f", bestPass.estimatedMagnitude)}، کاملاً شفاف".toPersianDigits(),
                         importanceScore = 850,
                         targetObject = CanonicalAstroCatalog.getCanonicalObject("sat_25544")?.let {
                             CanonicalAstroCatalog.toCelestialObject(it)
@@ -266,7 +266,7 @@ object WhatsUpTonightEngine {
                         timeOrDateStrFa = "آسمان شبانگاهی",
                         visibilityStatus = if (horiz.altitudeDeg > 15.0) EventVisibilityStatus.OPTIMAL else EventVisibilityStatus.GOOD,
                         visibilityTextEn = "Altitude: ${horiz.altitudeDeg.toInt()}° — ${obs.level.nameEn}",
-                        visibilityTextFa = "ارتفاع: ${horiz.altitudeDeg.toInt()} درجه — ${obs.level.nameFa}".toPersianDigits(),
+                        visibilityTextFa = "ارتفاع: ${horiz.altitudeDeg.toInt()} درجه، ${obs.level.nameFa}".toPersianDigits(),
                         importanceScore = pScore,
                         targetObject = CanonicalAstroCatalog.getCanonicalObject(id)?.let {
                             CanonicalAstroCatalog.toCelestialObject(
@@ -302,7 +302,7 @@ object WhatsUpTonightEngine {
                         timeOrDateStrFa = "امشب",
                         visibilityStatus = EventVisibilityStatus.OPTIMAL,
                         visibilityTextEn = "Separation: $sepStr° — Beautiful Naked Eye View",
-                        visibilityTextFa = "فاصله زاویه‌ای: $sepStr درجه — رصد جذاب با چشم غیرمسلح".toPersianDigits(),
+                        visibilityTextFa = "فاصله زاویه‌ای: $sepStr درجه، رصد جذاب با چشم غیرمسلح".toPersianDigits(),
                         importanceScore = 920,
                         targetObject = CanonicalAstroCatalog.getCanonicalObject(id)?.let {
                             CanonicalAstroCatalog.toCelestialObject(

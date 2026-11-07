@@ -225,7 +225,7 @@ fun ISSScreen(
             pendingNotificationAction = null
             Toast.makeText(
                 context,
-                if (isFa) "برای دریافت هشدارهای گذر ماهواره، لطفاً مجوز اعلان را فعال کنید."
+                if (isFa) "برای هشدار گذر ماهواره‌ها، اجازهٔ اعلان را بدهید."
                 else "Notification permission is required to receive satellite pass alerts.",
                 Toast.LENGTH_LONG
             ).show()
@@ -1039,7 +1039,7 @@ fun ISSScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = if (isFa) "در حال محاسبه گذرهای ماهواره‌ها..." else "Calculating satellite passes...",
+                        text = if (isFa) "در حال محاسبه گذرهای ماهواره‌ها…" else "Calculating satellite passes...",
                         style = RedTypography.bodyMedium,
                         color = RedTheme.colors.textSecondary,
                         modifier = Modifier.padding(RedSpacing.lg)
@@ -1050,7 +1050,7 @@ fun ISSScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = if (isFa) "هیچ گذر قابل مشهودی مطابق با معیار علمی در ۳ روز آینده یافت نشد."
+                        text = if (isFa) "با معیارهای علمی، در ۳ روز آینده گذر دیدنی‌ای پیدا نشد."
                         else "No visible passes meeting scientific criteria predicted in next 3 days.",
                         style = RedTypography.bodyMedium,
                         color = RedTheme.colors.textSecondary,
@@ -1077,7 +1077,7 @@ fun ISSScreen(
                                     val labelStr = if (leadMins == 1440) (if (isFa) "۱ روز" else "1 day") else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")
                                     Toast.makeText(
                                         context,
-                                        if (isFa) "هشدار گذر $labelStr قبل از شروع تنظیم شد!" else "Alert set $labelStr prior to pass!",
+                                        if (isFa) "هشدار گذر $labelStr پیش از شروع تنظیم شد." else "Alert set $labelStr prior to pass!",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
@@ -1208,7 +1208,7 @@ fun ISSScreen(
                     modifier = Modifier.verticalScroll(rememberScrollState())
                 ) {
                     Text(
-                        text = if (isFa) "زمان یادآوری قبل از آغاز گذر:" else "Notification timing before pass:",
+                        text = if (isFa) "یادآوری پیش از گذر" else "Notification timing before pass:",
                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                         color = AccentPrimary
                     )
@@ -1313,7 +1313,7 @@ fun ISSScreen(
 
                             Toast.makeText(
                                 context,
-                                if (isFa) "سیستم پایش خودکار ۷ روزه برای ماهواره‌های انتخاب شده فعال شد!"
+                                if (isFa) "پایش خودکار ماهواره‌های انتخاب‌شده برای ۷ روز فعال شد."
                                 else "7-day automated pass schedule enabled for selected satellites!",
                                 Toast.LENGTH_SHORT
                             ).show()
@@ -1338,7 +1338,7 @@ fun ISSScreen(
                                 AstroNotificationManager.cancelAllPassNotifications(context)
                                 Toast.makeText(
                                     context,
-                                    if (isFa) "هشدارهای خودکار ماهواره غیرفعال شدند."
+                                    if (isFa) "هشدارهای خودکار ماهواره خاموش شد."
                                     else "Automated satellite alerts disabled.",
                                     Toast.LENGTH_SHORT
                                 ).show()
@@ -1375,7 +1375,7 @@ fun ISSScreen(
                 ) {
                     TutorialBullet(
                         title = if (isFa) "نقشه دقیق زمین:" else "Accurate Earth Map:",
-                        desc = if (isFa) "نمایش قاره‌ها با پروژکسیون دقیق جغرافیایی، خط مرز روز و شب واقعی و روشنایی شهرهای شب."
+                        desc = if (isFa) "قاره‌ها با تصویر جغرافیایی دقیق، مرز واقعی روز و شب، و نور شهرها در شب."
                         else "Displays accurate geographic continents, real astronomical terminator boundary, and night-side city lights."
                     )
                     TutorialBullet(

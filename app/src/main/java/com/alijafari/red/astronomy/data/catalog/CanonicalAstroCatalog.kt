@@ -52,19 +52,19 @@ object CanonicalAstroCatalog {
             temperatureK = 5778,
             rotationPeriodHours = 600.0,
             diameterDisplayEn = "1,392,700 km (109.3× Earth)",
-            diameterDisplayFa = "۱,۳۹۲,۷۰۰ کیلومتر (۱۰۹.۳ برابر زمین)",
+            diameterDisplayFa = "۱٬۳۹۲٬۷۰۰ کیلومتر (۱۰۹٫۳ برابر زمین)",
             massDisplayEn = "1.989 × 10³⁰ kg (333,000× Earth)",
-            massDisplayFa = "۱.۹۸۹ × ۱۰³⁰ کیلوگرم (۳۳۳,۰۰۰ برابر زمین)",
+            massDisplayFa = "۱٫۹۸۹ × ۱۰³⁰ کیلوگرم (۳۳۳٬۰۰۰ برابر زمین)",
             gravityDisplayEn = "274.0 m/s² (27.94× Earth)",
-            gravityDisplayFa = "۲۷۴.۰ متر بر مجذور ثانیه (۲۷.۹۴ برابر زمین)",
+            gravityDisplayFa = "۲۷۴٫۰ متر بر مجذور ثانیه (۲۷٫۹۴ برابر زمین)",
             distanceDisplayEn = "149,600,000 km | 0.0000158 light-years (1.0 AU)",
-            distanceDisplayFa = "۱۴۹,۶۰۰,۰۰۰ کیلومتر | ۰.۰۰۰۰۱۵۸ سال نوری (۱ واحد نجومی)"
+            distanceDisplayFa = "۱۴۹٬۶۰۰٬۰۰۰ کیلومتر | ۰٫۰۰۰۰۱۵۸ سال نوری (۱ واحد نجومی)"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "G-type Main-Sequence Star (Yellow Dwarf)",
             categoryFa = "ستاره رشته اصلی نوع G (کوتوله زرد)",
             descriptionEn = "The central star of the Solar System, containing 99.86% of all system mass.",
-            descriptionFa = "ستاره مرکزی منظومه‌شمسی که ۹۹.۸۶ درصد کل جرم منظومه را در خود جای داده است.",
+            descriptionFa = "ستاره مرکزی منظومه‌شمسی که ۹۹٫۸۶ درصد کل جرم منظومه را در خود جای داده است.",
             observationTipEn = "WARNING: Never view the Sun directly without proper certified solar filters!",
             observationTipFa = "هشدار: هرگز بدون فیلتر مجهز و استاندارد خورشیدی مستقیماً به خورشید نگاه نکنید!",
             verifiedFactsEn = listOf(
@@ -77,9 +77,9 @@ object CanonicalAstroCatalog {
             verifiedFactsFa = listOf(
                 "هسته خورشید با دمای ۱۵ میلیون درجه سانتی‌گراد، در هر ثانیه ۶۰۰ میلیون تن هیدروژن را به هلیوم تبدیل می‌کند.",
                 "فوتون‌های تولیدشده در هسته خورشید بین ۱۰ هزار تا ۱۷۰ هزار سال در حرکت انتشاری هستند تا به سطح برسند، اما از سطح تا زمین تنها ۸ دقیقه و ۲۰ ثانیه در راهند.",
-                "خورشید بیش از ۹۹.۸۶ درصد از کل جرم کل منظومه شمسی را به خود اختصاص داده است.",
+                "خورشید بیش از ۹۹٫۸۶ درصد از کل جرم کل منظومه شمسی را به خود اختصاص داده است.",
                 "میدان مغناطیسی خورشید هر ۱۱ سال یک‌بار در چرخه فعالیت خورشیدی به طور کامل معکوس می‌شود و جای قطب‌ها عوض می‌شود.",
-                "خورشید یک ستاره رشته اصلی با رده طیفی G2V (کوتوله زرد) با سن تقریبی ۴.۶ میلیارد سال است و در نیمه عمر رشته اصلی خود قرار دارد."
+                "خورشید یک ستاره رشته اصلی با رده طیفی G2V (کوتوله زرد) با سن تقریبی ۴٫۶ میلیارد سال است و در نیمه عمر رشته اصلی خود قرار دارد."
             )
         )
     )
@@ -108,11 +108,11 @@ object CanonicalAstroCatalog {
             rotationPeriodHours = 23.93,
             orbitalPeriodDays = 365.256,
             diameterDisplayEn = "12,742 km (1.00× Earth)",
-            diameterDisplayFa = "۱۲,۷۴۲ کیلومتر (۱.۰۰ برابر زمین)",
+            diameterDisplayFa = "۱۲٬۷۴۲ کیلومتر (۱٫۰۰ برابر زمین)",
             massDisplayEn = "5.972 × 10²⁴ kg (1.00× Earth)",
-            massDisplayFa = "۵.۹۷۲ × ۱۰²⁴ کیلوگرم (۱.۰۰ برابر زمین)",
+            massDisplayFa = "۵٫۹۷۲ × ۱۰²⁴ کیلوگرم (۱٫۰۰ برابر زمین)",
             gravityDisplayEn = "9.81 m/s² (1.00× Earth)",
-            gravityDisplayFa = "۹.۸۱ متر بر مجذور ثانیه (۱.۰۰ برابر زمین)",
+            gravityDisplayFa = "۹٫۸۱ متر بر مجذور ثانیه (۱٫۰۰ برابر زمین)",
             distanceDisplayEn = "0 km (Right beneath you)",
             distanceDisplayFa = "۰ کیلومتر (زیر پای شما)"
         ),
@@ -135,7 +135,7 @@ object CanonicalAstroCatalog {
                 "هسته بیرونی مذاب آهن و نیکل زمین میدان مغناطیسی نیرومندی ایجاد می‌کند که سیاره را در برابر بادهای خورشیدی و پرتوهای کیهانی محافظت می‌نماید.",
                 "جو زمین حاوی ۷۸٪ نیتروژن و ۲۱٪ اکسیژن است که تعادل دمایی و تنفسی مناسب برای حیات را فراهم می‌سازد.",
                 "زمین تنها سیاره خاکی منظومه شمسی است که دارای صفحات تکتونیکی فعال برای بازیافت کربن پوسته است.",
-                "زمین با سرعت میانگین ۲۹.۷۸ کیلومتر بر ثانیه (۱۰۷,۲۰۰ کیلومتر بر ساعت) به دور خورشید گردش می‌کند."
+                "زمین با سرعت میانگین ۲۹٫۷۸ کیلومتر بر ثانیه (۱۰۷٬۲۰۰ کیلومتر بر ساعت) به دور خورشید گردش می‌کند."
             )
         )
     )
@@ -163,13 +163,13 @@ object CanonicalAstroCatalog {
             rotationPeriodHours = 655.7,
             orbitalPeriodDays = 27.32,
             diameterDisplayEn = "3,475 km (0.273× Earth)",
-            diameterDisplayFa = "۳,۴۷۵ کیلومتر (۰.۲۷۳ برابر زمین)",
+            diameterDisplayFa = "۳٬۴۷۵ کیلومتر (۰٫۲۷۳ برابر زمین)",
             massDisplayEn = "7.342 × 10²² kg (0.0123× Earth)",
-            massDisplayFa = "۷.۳۴۲ × ۱۰²² کیلوگرم (۰.۰۱۲۳ برابر زمین)",
+            massDisplayFa = "۷٫۳۴۲ × ۱۰²² کیلوگرم (۰٫۰۱۲۳ برابر زمین)",
             gravityDisplayEn = "1.62 m/s² (0.165× Earth)",
-            gravityDisplayFa = "۱.۶۲ متر بر مجذور ثانیه (۰.۱۶۵ برابر زمین)",
+            gravityDisplayFa = "۱٫۶۲ متر بر مجذور ثانیه (۰٫۱۶۵ برابر زمین)",
             distanceDisplayEn = "384,400 km | 0.00000004 light-years (dynamic elliptical orbit)",
-            distanceDisplayFa = "۳۸۴,۴۰۰ کیلومتر (متغیر در مدار بیضوی)"
+            distanceDisplayFa = "۳۸۴٬۴۰۰ کیلومتر (متغیر در مدار بیضوی)"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "Natural Satellite of Earth",
@@ -186,11 +186,11 @@ object CanonicalAstroCatalog {
                 "Surface gravity on the Moon is 1.622 m/s² (about 1/6th of Earth's), driving significant ocean tides on Earth."
             ),
             verifiedFactsFa = listOf(
-                "ماه با سرعت ۳.۸ سانتی‌متر در سال به دلیل انتقال گشتاور جزر و مدی در حال دور شدن تدریجی از زمین است.",
-                "به دلیل قفل همگام (جزر و مدی)، دوره چرخش ماه به دور خود با دوره گردش آن به دور زمین یکسان (۲۷.۳۲ روز) است و همواره یک سمت آن دیده می‌شود.",
-                "چرخه کامل فازهای ماه (از ماه نو تا ماه نو بعدی) یا ماه هلالی برابر ۲۹.۵۳ روز به طول می‌انجامد.",
-                "دمای سطح ماه نوسان شدیدی دارد: از ۱۲۰+ درجه سانتی‌گراد در نیمروز تا ۱۳۰- درجه در شب و ۲۴۶- درجه در گودال‌های تاریک قطبی.",
-                "نیروی گرانش ماه (۱.۶۲۲ متر بر مجذور ثانیه) حدود یک‌ششم گرانش زمین است و عامل اصلی ایجاد جزر و مد در اقیانوس‌ها می‌باشد."
+                "ماه با سرعت ۳٫۸ سانتی‌متر در سال به دلیل انتقال گشتاور جزر و مدی در حال دور شدن تدریجی از زمین است.",
+                "به دلیل قفل همگام (جزر و مدی)، دوره چرخش ماه به دور خود با دوره گردش آن به دور زمین یکسان (۲۷٫۳۲ روز) است و همواره یک سمت آن دیده می‌شود.",
+                "چرخه کامل فازهای ماه (از ماه نو تا ماه نو بعدی) یا ماه هلالی برابر ۲۹٫۵۳ روز به طول می‌انجامد.",
+                "دمای سطح ماه نوسان شدیدی دارد: از ۱۲۰+ درجه سانتی‌گراد در نیمروز تا −۱۳۰ درجه در شب و −۲۴۶ درجه در گودال‌های تاریک قطبی.",
+                "نیروی گرانش ماه (۱٫۶۲۲ متر بر مجذور ثانیه) حدود یک‌ششم گرانش زمین است و عامل اصلی ایجاد جزر و مد در اقیانوس‌ها است."
             )
         )
     )
@@ -217,11 +217,11 @@ object CanonicalAstroCatalog {
             rotationPeriodHours = 1407.6,
             orbitalPeriodDays = 87.97,
             diameterDisplayEn = "4,879 km (0.383× Earth)",
-            diameterDisplayFa = "۴,۸۷۹ کیلومتر (۰.۳۸۳ برابر زمین)",
+            diameterDisplayFa = "۴٬۸۷۹ کیلومتر (۰٫۳۸۳ برابر زمین)",
             massDisplayEn = "3.301 × 10²³ kg (0.055× Earth)",
-            massDisplayFa = "۳.۳۰۱ × ۱۰²³ کیلوگرم (۰.۰۵۵ برابر زمین)",
+            massDisplayFa = "۳٫۳۰۱ × ۱۰²³ کیلوگرم (۰٫۰۵۵ برابر زمین)",
             gravityDisplayEn = "3.70 m/s² (0.377× Earth)",
-            gravityDisplayFa = "۳.۷۰ متر بر مجذور ثانیه (۰.۳۷۷ برابر زمین)",
+            gravityDisplayFa = "۳٫۷۰ متر بر مجذور ثانیه (۰٫۳۷۷ برابر زمین)",
             distanceDisplayEn = "77M to 222M km (Dynamic real-time ephemeris)",
             distanceDisplayFa = "۷۷ تا ۲۲۲ میلیون کیلومتر (محاسبه دینامیکی لحظه‌ای)"
         ),
@@ -241,7 +241,7 @@ object CanonicalAstroCatalog {
             ),
             verifiedFactsFa = listOf(
                 "عطارد سریع‌ترین سیاره منظومه شمسی است و یک سال آن تنها ۸۸ روز زمین طول می‌کشد.",
-                "اختلاف دمای روز و شب در عطارد بیشترین میزان در منظومه شمسی است (از ۴۳۰ درجه بالای صفر تا ۱۸۰- زیر صفر).",
+                "اختلاف دمای روز و شب در عطارد بیشترین میزان در منظومه شمسی است (از ۴۳۰ درجه بالای صفر تا −۱۸۰ زیر صفر).",
                 "عطارد با وجود نزدیکی به خورشید، گرم‌ترین سیاره نیست؛ زیرا جوی برای به دام انداختن گرما ندارد.",
                 "هسته فلزی آهن در عطارد حدود ۸۵ درصد از شعاع کل این سیاره را تشکیل می‌دهد.",
                 "گودال‌های قطبی عطارد به دلیل زاویه میل صفر درجه محوری، هرگز نور خورشید را نمی‌بینند و دارای یخ آب هستند."
@@ -271,11 +271,11 @@ object CanonicalAstroCatalog {
             rotationPeriodHours = -5832.5,
             orbitalPeriodDays = 224.7,
             diameterDisplayEn = "12,104 km (0.950× Earth)",
-            diameterDisplayFa = "۱۲,۱۰۴ کیلومتر (۰.۹۵۰ برابر زمین)",
+            diameterDisplayFa = "۱۲٬۱۰۴ کیلومتر (۰٫۹۵۰ برابر زمین)",
             massDisplayEn = "4.867 × 10²⁴ kg (0.815× Earth)",
-            massDisplayFa = "۴.۸۶۷ × ۱۰²⁴ کیلوگرم (۰.۸۱۵ برابر زمین)",
+            massDisplayFa = "۴٫۸۶۷ × ۱۰²⁴ کیلوگرم (۰٫۸۱۵ برابر زمین)",
             gravityDisplayEn = "8.87 m/s² (0.904× Earth)",
-            gravityDisplayFa = "۸.۸۷ متر بر مجذور ثانیه (۰.۹۰۴ برابر زمین)",
+            gravityDisplayFa = "۸٫۸۷ متر بر مجذور ثانیه (۰٫۹۰۴ برابر زمین)",
             distanceDisplayEn = "38M to 261M km (Dynamic real-time ephemeris)",
             distanceDisplayFa = "۳۸ تا ۲۶۱ میلیون کیلومتر (محاسبه دینامیکی لحظه‌ای)"
         ),
@@ -326,11 +326,11 @@ object CanonicalAstroCatalog {
             rotationPeriodHours = 24.62,
             orbitalPeriodDays = 686.98,
             diameterDisplayEn = "6,779 km (0.532× Earth)",
-            diameterDisplayFa = "۶,۷۷۹ کیلومتر (۰.۵۳۲ برابر زمین)",
+            diameterDisplayFa = "۶٬۷۷۹ کیلومتر (۰٫۵۳۲ برابر زمین)",
             massDisplayEn = "6.417 × 10²³ kg (0.107× Earth)",
-            massDisplayFa = "۶.۴۱۷ × ۱۰²³ کیلوگرم (۰.۱۰۷ برابر زمین)",
+            massDisplayFa = "۶٫۴۱۷ × ۱۰²³ کیلوگرم (۰٫۱۰۷ برابر زمین)",
             gravityDisplayEn = "3.72 m/s² (0.379× Earth)",
-            gravityDisplayFa = "۳.۷۲ متر بر مجذور ثانیه (۰.۳۷۹ برابر زمین)",
+            gravityDisplayFa = "۳٫۷۲ متر بر مجذور ثانیه (۰٫۳۷۹ برابر زمین)",
             distanceDisplayEn = "55M to 401M km (Dynamic real-time ephemeris)",
             distanceDisplayFa = "۵۵ تا ۴۰۱ میلیون کیلومتر (محاسبه دینامیکی لحظه‌ای)"
         ),
@@ -349,8 +349,8 @@ object CanonicalAstroCatalog {
                 "A Martian solar day, known as a sol, lasts 24 hours, 39 minutes, and 35 seconds, remarkably close to an Earth day."
             ),
             verifiedFactsFa = listOf(
-                "کوه المپوس در مریخ بزرگ‌ترین آتشفشان منظومه شمسی است که ارتفاعی ۳ برابر کوه اورست (۲۱.۹ کیلومتر) دارد.",
-                "دره والز مارینریس در مریخ دره‌ای غول‌پیکر به طول ۴,۰۰۰ کیلومتر است که کل پهنای ایالات متحده را می‌پوشاند.",
+                "کوه المپوس در مریخ بزرگ‌ترین آتشفشان منظومه شمسی است که ارتفاعی ۳ برابر کوه اورست (۲۱٫۹ کیلومتر) دارد.",
+                "دره والز مارینریس در مریخ دره‌ای غول‌پیکر به طول ۴٬۰۰۰ کیلومتر است که کل پهنای ایالات متحده را می‌پوشاند.",
                 "رنگ سرخ مریخ ناشی از اکسید آهن (زنگ‌زدگی) موجود در خاک و غبار سطح آن است.",
                 "مریخ دارای دو قمر کوچک و ناهموار به نام‌های فوبوس و دیموس است که احتمالاً سیارک‌های به دام افتاده هستند.",
                 "یک روز در مریخ (سول) بسیار نزدیک به روز زمین است و ۲۴ ساعت و ۳۹ دقیقه طول می‌کشد."
@@ -381,11 +381,11 @@ object CanonicalAstroCatalog {
             rotationPeriodHours = 9.93,
             orbitalPeriodDays = 4332.59,
             diameterDisplayEn = "139,822 km (10.97× Earth)",
-            diameterDisplayFa = "۱۳۹,۸۲۲ کیلومتر (۱۰.۹۷ برابر زمین)",
+            diameterDisplayFa = "۱۳۹٬۸۲۲ کیلومتر (۱۰٫۹۷ برابر زمین)",
             massDisplayEn = "1.898 × 10²⁷ kg (317.8× Earth)",
-            massDisplayFa = "۱.۸۹۸ × ۱۰²⁷ کیلوگرم (۳۱۷.۸ برابر زمین)",
+            massDisplayFa = "۱٫۸۹۸ × ۱۰²⁷ کیلوگرم (۳۱۷٫۸ برابر زمین)",
             gravityDisplayEn = "24.79 m/s² (2.528× Earth)",
-            gravityDisplayFa = "۲۴.۷۹ متر بر مجذور ثانیه (۲.۵۲۸ برابر زمین)",
+            gravityDisplayFa = "۲۴٫۷۹ متر بر مجذور ثانیه (۲٫۵۲۸ برابر زمین)",
             distanceDisplayEn = "588M to 968M km (Dynamic real-time ephemeris)",
             distanceDisplayFa = "۵۸۸ تا ۹۶۸ میلیون کیلومتر (محاسبه دینامیکی لحظه‌ای)"
         ),
@@ -405,10 +405,10 @@ object CanonicalAstroCatalog {
             ),
             verifiedFactsFa = listOf(
                 "لکه سرخ بزرگ مشتری طوفانی عظیم و کهن است که ابعادی بزرگ‌تر از کل کره زمین دارد.",
-                "مشتری دارای قوی‌ترین میدان مغناطیسی در میان سیارات است که ۲۰,۰۰۰ برابر قوی‌تر از میدان مغناطیسی زمین می‌باشد.",
+                "مشتری دارای قوی‌ترین میدان مغناطیسی در میان سیارات است که ۲۰٬۰۰۰ برابر قوی‌تر از میدان مغناطیسی زمین است.",
                 "مشتری سریع‌ترین سرعت دوران به دور خود را دارد و یک شبانه‌روز آن تنها ۹ ساعت و ۵۵ دقیقه طول می‌کشد.",
                 "چهار قمر بزرگ مشتری (گالیله‌ای) شامل گانی‌مید (بزرگ‌ترین قمر کیهان)، اروپا (اقیانوس زیرسطحی)، یو (آتشفشانی) و کالیستو هستند.",
-                "مشتری به عنوان سپر گرانشی منظومه شمسی عمل کرده و بسیاری از دنباله‌دارها و سیارک‌های سرگردان را به سوی خود می‌کشد."
+                "مشتری به‌عنوان سپر گرانشی منظومه شمسی عمل کرده و بسیاری از دنباله‌دارها و سیارک‌های سرگردان را به سوی خود می‌کشد."
             )
         )
     )
@@ -436,13 +436,13 @@ object CanonicalAstroCatalog {
             rotationPeriodHours = 10.7,
             orbitalPeriodDays = 10759.22,
             diameterDisplayEn = "116,460 km (9.14× Earth)",
-            diameterDisplayFa = "۱۱۶,۴۶۰ کیلومتر (۹.۱۴ برابر زمین)",
+            diameterDisplayFa = "۱۱۶٬۴۶۰ کیلومتر (۹٫۱۴ برابر زمین)",
             massDisplayEn = "5.683 × 10²⁶ kg (95.2× Earth)",
-            massDisplayFa = "۵.۶۸۳ × ۱۰²۶ کیلوگرم (۹۵.۲ برابر زمین)",
+            massDisplayFa = "۵٫۶۸۳ × ۱۰²۶ کیلوگرم (۹۵٫۲ برابر زمین)",
             gravityDisplayEn = "10.44 m/s² (1.065× Earth)",
-            gravityDisplayFa = "۱۰.۴۴ متر بر مجذور ثانیه (۱.۰۶۵ برابر زمین)",
+            gravityDisplayFa = "۱۰٫۴۴ متر بر مجذور ثانیه (۱٫۰۶۵ برابر زمین)",
             distanceDisplayEn = "1.2B to 1.66B km (Dynamic real-time ephemeris)",
-            distanceDisplayFa = "۱.۲ تا ۱.۶۶ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)"
+            distanceDisplayFa = "۱٫۲ تا ۱٫۶۶ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "Gas Giant Planet (Ringed Planet)",
@@ -460,10 +460,10 @@ object CanonicalAstroCatalog {
             ),
             verifiedFactsFa = listOf(
                 "حلقه‌های تماشایی زحل از میلیاردها قطعه یخ، غبار و سنگ با ضخامتی تنها حدود ۱۰ تا ۳۰ متر تشکیل شده‌اند.",
-                "چگالی زحل از آب کمتر است (۰.۶۸۷ گرم بر سانتی‌متر مکعب)؛ اگر اقیانوسی به اندازه کافی بزرگ وجود داشت، زحل روی آب شناور می‌ماند!",
+                "چگالی زحل از آب کمتر است (۰٫۶۸۷ گرم بر سانتی‌متر مکعب)؛ اگر اقیانوسی به اندازه کافی بزرگ وجود داشت، زحل روی آب شناور می‌ماند!",
                 "قمر تایتان زحل تنها قمر منظومه شمسی با جوی غلیظ و دریاچه‌های مایع متان و اتان است.",
-                "در قطب شمال زحل، یک طوفان شش‌ضلعی (هگزاگون) شگفت‌انگیز و مداوم به عرض ۳۰,۰۰۰ کیلومتر وجود دارد.",
-                "زحل تا کنون دارای ۱۴۶ قمر تاییدشده رسمی است که بیشترین تعداد در منظومه شمسی محسوب می‌شود."
+                "در قطب شمال زحل، یک طوفان شش‌ضلعی (هگزاگون) شگفت‌انگیز و مداوم به عرض ۳۰٬۰۰۰ کیلومتر وجود دارد.",
+                "زحل تا کنون دارای ۱۴۶ قمر تاییدشده رسمی است که بیشترین تعداد در منظومه شمسی است."
             )
         )
     )
@@ -490,13 +490,13 @@ object CanonicalAstroCatalog {
             rotationPeriodHours = -17.24,
             orbitalPeriodDays = 30685.4,
             diameterDisplayEn = "50,724 km (3.98× Earth)",
-            diameterDisplayFa = "۵۰,۷۲۴ کیلومتر (۳.۹۸ برابر زمین)",
+            diameterDisplayFa = "۵۰٬۷۲۴ کیلومتر (۳٫۹۸ برابر زمین)",
             massDisplayEn = "8.681 × 10²⁵ kg (14.54× Earth)",
-            massDisplayFa = "۸.۶۸۱ × ۱۰²۵ کیلوگرم (۱۴.۵۴ برابر زمین)",
+            massDisplayFa = "۸٫۶۸۱ × ۱۰²۵ کیلوگرم (۱۴٫۵۴ برابر زمین)",
             gravityDisplayEn = "8.69 m/s² (0.886× Earth)",
-            gravityDisplayFa = "۸.۶۹ متر بر مجذور ثانیه (۰.۸۸۶ برابر زمین)",
+            gravityDisplayFa = "۸٫۶۹ متر بر مجذور ثانیه (۰٫۸۸۶ برابر زمین)",
             distanceDisplayEn = "2.6B to 3.15B km (Dynamic real-time ephemeris)",
-            distanceDisplayFa = "۲.۶ تا ۳.۱۵ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)"
+            distanceDisplayFa = "۲٫۶ تا ۳٫۱۵ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "Ice Giant Planet",
@@ -514,7 +514,7 @@ object CanonicalAstroCatalog {
             ),
             verifiedFactsFa = listOf(
                 "اورانوس انحراف محوری عجیب ۹۸ درجه‌ای دارد و عملاً روی مدار خود به دور خورشید به پهلو می‌چرخد.",
-                "اورانوس سردترین جو را در میان سیارات منظومه شمسی دارد که دمای آن به ۲۲۴- درجه سانتی‌گراد (۴۹ کلوین) می‌رسد.",
+                "اورانوس سردترین جو را در میان سیارات منظومه شمسی دارد که دمای آن به −۲۲۴ درجه سانتی‌گراد (۴۹ کلوین) می‌رسد.",
                 "رنگ فیروزه‌ای-آبی اورانوس به دلیل وجود گاز متان در جو بالای آن است که نور سرخ را جذب می‌کند.",
                 "اورانوس دارای ۱۳ حلقه باریک و تاریک است که پس از حلقه‌های زحل کشف شدند.",
                 "به دلیل چرخش به پهلو، هر قطب اورانوس ۴۲ سال مداوم روشنایی خورشید و ۴۲ سال تاریکی مطلق پیاپی را تجربه می‌کند."
@@ -545,13 +545,13 @@ object CanonicalAstroCatalog {
             rotationPeriodHours = 16.11,
             orbitalPeriodDays = 60189.0,
             diameterDisplayEn = "49,244 km (3.86× Earth)",
-            diameterDisplayFa = "۴۹,۲۴۴ کیلومتر (۳.۸۶ برابر زمین)",
+            diameterDisplayFa = "۴۹٬۲۴۴ کیلومتر (۳٫۸۶ برابر زمین)",
             massDisplayEn = "1.024 × 10²⁶ kg (17.15× Earth)",
-            massDisplayFa = "۱.۰۲۴ × ۱۰²۶ کیلوگرم (۱۷.۱۵ برابر زمین)",
+            massDisplayFa = "۱٫۰۲۴ × ۱۰²۶ کیلوگرم (۱۷٫۱۵ برابر زمین)",
             gravityDisplayEn = "11.15 m/s² (1.137× Earth)",
-            gravityDisplayFa = "۱۱.۱۵ متر بر مجذور ثانیه (۱.۱۳۷ برابر زمین)",
+            gravityDisplayFa = "۱۱٫۱۵ متر بر مجذور ثانیه (۱٫۱۳۷ برابر زمین)",
             distanceDisplayEn = "4.3B to 4.7B km (Dynamic real-time ephemeris)",
-            distanceDisplayFa = "۴.۳ تا ۴.۷ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)"
+            distanceDisplayFa = "۴٫۳ تا ۴٫۷ میلیارد کیلومتر (محاسبه دینامیکی لحظه‌ای)"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "Ice Giant Planet",
@@ -568,11 +568,11 @@ object CanonicalAstroCatalog {
                 "Despite being the most distant major planet from the Sun, Neptune emits 2.6 times more internal thermal energy than it absorbs from solar radiation."
             ),
             verifiedFactsFa = listOf(
-                "نپتون دارای شدیدترین بادهای منظومه شمسی است که سرعت آن‌ها به بیش از ۲,۱۰۰ کیلومتر بر ساعت می‌رسد.",
+                "نپتون دارای شدیدترین بادهای منظومه شمسی است که سرعت آن‌ها به بیش از ۲٬۱۰۰ کیلومتر بر ساعت می‌رسد.",
                 "نپتون نخستین سیاره‌ای بود که وجود آن ابتدا از طریق محاسبات ریاضی گرانشی پیش‌بینی و سپس با تلسکوپ کشف شد.",
                 "قمر بزرگ نپتون، تریتون، تنها قمر بزرگ منظومه شمسی است که مداری معکوس (مخالف جهت چرخش سیاره) دارد.",
-                "فاصله نپتون از خورشید به قدری زیاد است که یک سال در نپتون معادل ۱۶۴.۸ سال زمین به طول می‌انجامد.",
-                "با وجود فاصله دور از خورشید، نپتون ۲.۶ برابر انرژی گرمایی بیشتری نسبت به گرمای دریافتی از خورشید به فضا تابش می‌کند."
+                "فاصله نپتون از خورشید به قدری زیاد است که یک سال در نپتون معادل ۱۶۴٫۸ سال زمین به طول می‌انجامد.",
+                "با وجود فاصله دور از خورشید، نپتون ۲٫۶ برابر انرژی گرمایی بیشتری نسبت به گرمای دریافتی از خورشید به فضا تابش می‌کند."
             )
         )
     )
@@ -599,13 +599,13 @@ object CanonicalAstroCatalog {
             rotationPeriodHours = -153.3,
             orbitalPeriodDays = 90560.0,
             diameterDisplayEn = "2,377 km (0.186× Earth)",
-            diameterDisplayFa = "۲,۳۷۷ کیلومتر (۰.۱۸۶ برابر زمین)",
+            diameterDisplayFa = "۲٬۳۷۷ کیلومتر (۰٫۱۸۶ برابر زمین)",
             massDisplayEn = "1.303 × 10²² kg (0.0022× Earth)",
-            massDisplayFa = "۱.۳۰۳ × ۱۰²۲ کیلوگرم (۰.۰۰۲۲ برابر زمین)",
+            massDisplayFa = "۱٫۳۰۳ × ۱۰²۲ کیلوگرم (۰٫۰۰۲۲ برابر زمین)",
             gravityDisplayEn = "0.62 m/s² (0.063× Earth)",
-            gravityDisplayFa = "۰.۶۲ متر بر مجذور ثانیه (۰.۰۶۳ برابر زمین)",
+            gravityDisplayFa = "۰٫۶۲ متر بر مجذور ثانیه (۰٫۰۶۳ برابر زمین)",
             distanceDisplayEn = "4.4B to 7.5B km (Highly eccentric orbit)",
-            distanceDisplayFa = "۴.۴ تا ۷.۵ میلیارد کیلومتر (مدار به شدت بیضوی)"
+            distanceDisplayFa = "۴٫۴ تا ۷٫۵ میلیارد کیلومتر (مدار به شدت بیضوی)"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "Dwarf Planet (Kuiper Belt World)",
@@ -625,7 +625,7 @@ object CanonicalAstroCatalog {
                 "پلوتو دارای یک منطقه یخچالی نیتروژنی قلبی‌شکل معروف به نام «تومبا رجیو» است.",
                 "قمر بزرگ پلوتو، شارون، ابعادی نصف پلوتو دارد و این دو جرم یک سامانه دوتایی قفل‌شده را تشکیل می‌دهند.",
                 "مدار پلوتو کاملاً بیضی شکل است و در بخشی از مدار خود به خورشید نزدیک‌تر از نپتون می‌شود.",
-                "در سال ۲۰۰۶، اتحادیه بین‌المللی اخترشناسی (IAU) تعریف سیاره را تغییر داد و پلوتو به عنوان سیاره کوتوله طبقه‌بندی شد.",
+                "در سال ۲۰۰۶، اتحادیه بین‌المللی اخترشناسی (IAU) تعریف سیاره را تغییر داد و پلوتو به‌عنوان سیاره کوتوله طبقه‌بندی شد.",
                 "جو رقیق پلوتو هنگام نزدیک شدن به خورشید تبخیر شده و هنگام دور شدن منجمد و بر سطح می‌بارد."
             )
         )
@@ -652,13 +652,13 @@ object CanonicalAstroCatalog {
             distanceLightYears = null,
             temperatureK = 110,
             diameterDisplayEn = "3,643 km (0.286× Earth / Volcanic Moon)",
-            diameterDisplayFa = "۳,۶۴۳ کیلومتر (۰.۲۸۶ برابر زمین / قمر آتشفشانی)",
+            diameterDisplayFa = "۳٬۶۴۳ کیلومتر (۰٫۲۸۶ برابر زمین / قمر آتشفشانی)",
             massDisplayEn = "8.932 × 10²² kg (0.0150× Earth)",
-            massDisplayFa = "۸.۹۳۲ × ۱۰²۲ کیلوگرم (۰.۰۱۵۰ برابر زمین)",
+            massDisplayFa = "۸٫۹۳۲ × ۱۰²۲ کیلوگرم (۰٫۰۱۵۰ برابر زمین)",
             gravityDisplayEn = "1.796 m/s² (0.183× Earth)",
-            gravityDisplayFa = "۱.۷۹۶ متر بر مجذور ثانیه (۰.۱۸۳ برابر زمین)",
+            gravityDisplayFa = "۱٫۷۹۶ متر بر مجذور ثانیه (۰٫۱۸۳ برابر زمین)",
             distanceDisplayEn = "421,700 km from Jupiter (Earth distance dynamic via Jupiter)",
-            distanceDisplayFa = "۴۲۱,۷۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)"
+            distanceDisplayFa = "۴۲۱٬۷۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "Galilean Volcanic Moon",
@@ -701,13 +701,13 @@ object CanonicalAstroCatalog {
             distanceLightYears = null,
             temperatureK = 102,
             diameterDisplayEn = "3,122 km (0.245× Earth)",
-            diameterDisplayFa = "۳,۱۲۲ کیلومتر (۰.۲۴۵ برابر زمین)",
+            diameterDisplayFa = "۳٬۱۲۲ کیلومتر (۰٫۲۴۵ برابر زمین)",
             massDisplayEn = "4.800 × 10²² kg (0.0080× Earth)",
-            massDisplayFa = "۴.۸۰۰ × ۱۰²۲ کیلوگرم (۰.۰۰۸۰ برابر زمین)",
+            massDisplayFa = "۴٫۸۰۰ × ۱۰²۲ کیلوگرم (۰٫۰۰۸۰ برابر زمین)",
             gravityDisplayEn = "1.315 m/s² (0.134× Earth)",
-            gravityDisplayFa = "۱.۳۱۵ متر بر مجذور ثانیه (۰.۱۳۴ برابر زمین)",
+            gravityDisplayFa = "۱٫۳۱۵ متر بر مجذور ثانیه (۰٫۱۳۴ برابر زمین)",
             distanceDisplayEn = "670,900 km from Jupiter (Earth distance dynamic via Jupiter)",
-            distanceDisplayFa = "۶۷۰,۹۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)"
+            distanceDisplayFa = "۶۷۰٬۹۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "Galilean Ocean Moon",
@@ -724,7 +724,7 @@ object CanonicalAstroCatalog {
             verifiedFactsFa = listOf(
                 "اروپا دارای اقیانوسی جهانی از آب مایع زیر پوسته یخی خود است که حجم آب آن بیش از دو برابر تمام اقیانوس‌های زمین است.",
                 "پوسته یخی اروپا بسیار صاف بوده و خطوط رگه‌مانند قهوه‌ای‌رنگی به نام «خطوارگی» (Lineae) سطح آن را پوشانده است.",
-                "اقیانوس زیرسطحی اروپا به عنوان یکی از امیدوارکننده‌ترین جاها برای یافتن حیات فرازمینی توسط مأموریت‌های Clipper و JUICE بررسی می‌شود.",
+                "اقیانوس زیرسطحی اروپا به‌عنوان یکی از امیدوارکننده‌ترین جاها برای یافتن حیات فرازمینی مأموریت‌های Clipper و JUICE در حال بررسی آن هستند.",
                 "آب‌فشان‌های عظیمی از بخار آب در قطب جنوب اروپا شناسایی شده‌اند که از فوران‌های اقیانوس زیرسطحی سرچشمه می‌گیرند.",
                 "نیروی جزر و مدی مشتری باعث انقباض و انبساط مداوم هسته اروپا و تولید گرمای هیدروترمال برای مایع ماندن اقیانوس می‌شود."
             )
@@ -750,13 +750,13 @@ object CanonicalAstroCatalog {
             distanceLightYears = null,
             temperatureK = 110,
             diameterDisplayEn = "5,268 km (0.414× Earth / Larger than Mercury)",
-            diameterDisplayFa = "۵,۲۶۸ کیلومتر (۰.۴۱۴ برابر زمین / بزرگ‌تر از عطارد)",
+            diameterDisplayFa = "۵٬۲۶۸ کیلومتر (۰٫۴۱۴ برابر زمین / بزرگ‌تر از عطارد)",
             massDisplayEn = "1.482 × 10²³ kg (0.0248× Earth)",
-            massDisplayFa = "۱.۴۸۲ × ۱۰²۳ کیلوگرم (۰.۰۲۴۸ برابر زمین)",
+            massDisplayFa = "۱٫۴۸۲ × ۱۰²۳ کیلوگرم (۰٫۰۲۴۸ برابر زمین)",
             gravityDisplayEn = "1.428 m/s² (0.146× Earth)",
-            gravityDisplayFa = "۱.۴۲۸ متر بر مجذور ثانیه (۰.۱۴۶ برابر زمین)",
+            gravityDisplayFa = "۱٫۴۲۸ متر بر مجذور ثانیه (۰٫۱۴۶ برابر زمین)",
             distanceDisplayEn = "1,070,400 km from Jupiter (Earth distance dynamic via Jupiter)",
-            distanceDisplayFa = "۱,۰۷۰,۴۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)"
+            distanceDisplayFa = "۱٬۰۷۰٬۴۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "Galilean Moon (Largest Moon)",
@@ -799,13 +799,13 @@ object CanonicalAstroCatalog {
             distanceLightYears = null,
             temperatureK = 134,
             diameterDisplayEn = "4,821 km (0.378× Earth)",
-            diameterDisplayFa = "۴,۸۲۱ کیلومتر (۰.۳۷۸ برابر زمین)",
+            diameterDisplayFa = "۴٬۸۲۱ کیلومتر (۰٫۳۷۸ برابر زمین)",
             massDisplayEn = "1.076 × 10²³ kg (0.0180× Earth)",
-            massDisplayFa = "۱.۰۷۶ × ۱۰²۳ کیلوگرم (۰.۰۱۸۰ برابر زمین)",
+            massDisplayFa = "۱٫۰۷۶ × ۱۰²۳ کیلوگرم (۰٫۰۱۸۰ برابر زمین)",
             gravityDisplayEn = "1.235 m/s² (0.126× Earth)",
-            gravityDisplayFa = "۱.۲۳۵ متر بر مجذور ثانیه (۰.۱۲۶ برابر زمین)",
+            gravityDisplayFa = "۱٫۲۳۵ متر بر مجذور ثانیه (۰٫۱۲۶ برابر زمین)",
             distanceDisplayEn = "1,882,700 km from Jupiter (Earth distance dynamic via Jupiter)",
-            distanceDisplayFa = "۱,۸۸۲,۷۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)"
+            distanceDisplayFa = "۱٬۸۸۲٬۷۰۰ کیلومتر از مشتری (فاصله از زمین وابسته به مشتری)"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "Galilean Heavily Cratered Moon",
@@ -821,10 +821,10 @@ object CanonicalAstroCatalog {
             ),
             verifiedFactsFa = listOf(
                 "کالیستو پردهانه‌ترین و دست‌نخورده‌ترین جرم منظومه شمسی است که سطح یخی آن بیش از ۴ میلیارد سال قدمت دارد.",
-                "بزرگ‌ترین عارضه برخوردی کالیستو، دهانه چندحلقه‌ای «والهالا» با قطری بیش از ۳,۸۰۰ کیلومتر است.",
+                "بزرگ‌ترین عارضه برخوردی کالیستو، دهانه چندحلقه‌ای «والهالا» با قطری بیش از ۳٬۸۰۰ کیلومتر است.",
                 "کالیستو خارج از کمربند تشعشعی خطرناک مشتری گردش می‌کند و بهترین گزینه برای پایگاه‌های انسانی آینده است.",
                 "این قمر فاقد فعالیت‌های آتشفشانی یا تکتونیکی بوده و تاریخچه اولیه منظومه شمسی را به صورت بکر حفظ کرده است.",
-                "کالیستو ترکیبی ۵۰/۵۰ از سنگ و یخ است و احتمالاً دارای اقیانوسی شور در عمق ۱۰۰ تا ۲۵۰ کیلومتری می‌باشد."
+                "کالیستو ترکیبی ۵۰٫۵۰ از سنگ و یخ است و احتمالاً دارای اقیانوسی شور در عمق ۱۰۰ تا ۲۵۰ کیلومتری است."
             )
         )
     )
@@ -850,11 +850,11 @@ object CanonicalAstroCatalog {
             diameterDisplayEn = "86 km diameter (Irregular Himalia Group)",
             diameterDisplayFa = "۸۶ کیلومتر قطر (قمر نامنظم هیپالیا)",
             massDisplayEn = "8.7 × 10¹⁷ kg (1.46 × 10⁻⁷× Earth)",
-            massDisplayFa = "۸.۷ × ۱۰¹۷ کیلوگرم (۱.۴۶ × ۱۰⁻⁷ برابر زمین)",
+            massDisplayFa = "۸٫۷ × ۱۰¹۷ کیلوگرم (۱٫۴۶ × ۱۰⁻⁷ برابر زمین)",
             gravityDisplayEn = "0.031 m/s² (0.0032× Earth)",
-            gravityDisplayFa = "۰.۰۳۱ متر بر مجذور ثانیه (۰.۰۰۳۲ برابر زمین)",
+            gravityDisplayFa = "۰٫۰۳۱ متر بر مجذور ثانیه (۰٫۰۰۳۲ برابر زمین)",
             distanceDisplayEn = "11,740,000 km from Jupiter",
-            distanceDisplayFa = "۱۱,۷۴۰,۰۰۰ کیلومتر از مشتری"
+            distanceDisplayFa = "۱۱٬۷۴۰٬۰۰۰ کیلومتر از مشتری"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "Prograde Irregular Moon",
@@ -869,11 +869,11 @@ object CanonicalAstroCatalog {
                 "It takes Elara approximately 259.6 Earth days to complete a single eccentric orbit around Jupiter."
             ),
             verifiedFactsFa = listOf(
-                "این قمر نامنظم مشتری در سال ۱۹۰۵ توسط چارلز دیلون پرین در رصدخانه لیک کشف شد.",
+                "این قمر نامنظم مشتری چارلز دیلون پرین آن را در ۱۹۰۵ در رصدخانه لیک کشف کرد.",
                 "این قمر تا سال ۱۹۷۵ نام کنونی خود را نداشت و تنها با عنوان «مشتری ۷» (Jupiter VII) شناخته می‌شد؛ میان سال‌های ۱۹۵۵ تا ۱۹۷۵ گاهی به‌طور غیررسمی «هرا» نامیده می‌شد.",
-                "الارا متعلق به گروه هیمالیا از قمرهای نامنظم مشتری است که مداری موافق و دوردست در فاصله ۱۱.۷ میلیون کیلومتری دارند.",
-                "سطح الارا بسیار تاریک و خاکستری‌رنگ (از نوع کربنی C) است که نشان می‌دهد احتمالاً سیارکی بوده که توسط گرانش مشتری به دام افتاده است.",
-                "یک دور گردش کامل الارا به دور مشتری حدود ۲۵۹.۶ روز زمین به طول می‌انجامد."
+                "الارا متعلق به گروه هیمالیا از قمرهای نامنظم مشتری است که مداری موافق و دوردست در فاصله ۱۱٫۷ میلیون کیلومتری دارند.",
+                "سطح الارا بسیار تاریک و خاکستری‌رنگ (از نوع کربنی C) است که نشان می‌دهد احتمالاً سیارکی بوده که گرانش مشتری به دامش انداخته است.",
+                "یک دور گردش کامل الارا به دور مشتری حدود ۲۵۹٫۶ روز زمین به طول می‌انجامد."
             )
         )
     )
@@ -906,19 +906,19 @@ object CanonicalAstroCatalog {
             relativisticGravitationalRatio = 0.99999,
             relativisticKinematicRatio = 0.98,
             diameterDisplayEn = "Event Horizon: ~25M to 52M km (0.16 to 0.35 AU)",
-            diameterDisplayFa = "افق رویداد: ~۲۵ تا ۵۲ میلیون کیلومتر (۰.۱۶ تا ۰.۳۵ واحد نجومی)",
+            diameterDisplayFa = "افق رویداد: ~۲۵ تا ۵۲ میلیون کیلومتر (۰٫۱۶ تا ۰٫۳۵ واحد نجومی)",
             massDisplayEn = "8.26 × 10³⁶ kg (4.15 Million Solar Masses)",
-            massDisplayFa = "۸.۲۶ × ۱۰³۶ کیلوگرم (۴.۱۵ میلیون برابر جرم خورشید)",
+            massDisplayFa = "۸٫۲۶ × ۱۰³۶ کیلوگرم (۴٫۱۵ میلیون برابر جرم خورشید)",
             gravityDisplayEn = "Supermassive black hole with extreme relativistic gravity",
             gravityDisplayFa = "سیاهچاله کلان‌جرم با میدان گرانشی نسبیتی مفرط",
             distanceDisplayEn = "26,000 light-years (2.46 × 10¹⁷ km)",
-            distanceDisplayFa = "۲۶,۰۰۰ سال نوری (۲.۴۶ × ۱۰¹۷ کیلومتر)"
+            distanceDisplayFa = "۲۶٬۰۰۰ سال نوری (۲٫۴۶ × ۱۰¹۷ کیلومتر)"
         ),
         observationalInfo = ObservationalInfo(
             categoryEn = "Supermassive Black Hole / Galactic Nucleus",
             categoryFa = "سیاهچاله کلان‌جرم / هسته کهکشانی",
             descriptionEn = "Supermassive black hole at the dynamical center of the Milky Way galaxy.",
-            descriptionFa = "سیاهچاله کلان‌جرم گرانشی در مرکز دینامیکی کهکشان راه شیری با ۴.۱۵ میلیون برابر جرم خورشید.",
+            descriptionFa = "سیاهچاله کلان‌جرم گرانشی در مرکز دینامیکی کهکشان راه شیری با ۴٫۱۵ میلیون برابر جرم خورشید.",
             observationTipEn = "Visible as a dense glowing arch of stars across dark summer skies in Sagittarius.",
             observationTipFa = "در شب‌های تابستان به صورت نوار پرنور قوس راه شیری در صورت فلکی قوس دیده می‌شود.",
             verifiedFactsEn = listOf(
@@ -929,10 +929,10 @@ object CanonicalAstroCatalog {
                 "Located 26,000 light-years away in Sagittarius, Sgr A* is shrouded behind visual dust lanes and studied via radio, infrared, and X-ray observatories."
             ),
             verifiedFactsFa = listOf(
-                "کمان آ (*Sagittarius A) سیاهچاله کلان‌جرم مرکز کهکشان راه شیری با جرمی معادل ۴.۱۵ میلیون برابر خورشید است.",
+                "کمان آ (*Sagittarius A) سیاهچاله کلان‌جرم مرکز کهکشان راه شیری با جرمی معادل ۴٫۱۵ میلیون برابر خورشید است.",
                 "در سال ۲۰۲۲، تلسکوپ افق رویداد (EHT) نخستین تصویر مستقیم از سایه افق رویداد این سیاهچاله را منتشر کرد.",
                 "ستارگان مرکزی نزدیک مانند S2 با سرعتی بالغ بر چند درصد سرعت نور در مدارهای بیضوی فشرده به دور آن می‌چرخند.",
-                "شعاع افق رویداد (شعاع شوارتزشیلد) آن حدود ۱۲.۳ میلیون کیلومتر است که کمتر از فاصله عطارد تا خورشید می‌باشد.",
+                "شعاع افق رویداد (شعاع شوارتزشیلد) آن حدود ۱۲٫۳ میلیون کیلومتر است که کمتر از فاصله عطارد تا خورشید است.",
                 "کمان آ یک سیاهچاله فشرده با تابش رادیویی غول‌پیکر است که گرانش مرکزی کهکشان ما را کنترل می‌کند."
             )
         )
@@ -967,9 +967,9 @@ object CanonicalAstroCatalog {
             diameterDisplayEn = "109 meters (Football field size)",
             diameterDisplayFa = "۱۰۹ متر (اندازه یک زمین فوتبال)",
             massDisplayEn = "450,000 kg (450 tonnes)",
-            massDisplayFa = "۴۵۰,۰۰۰ کیلوگرم (۴۵۰ تن)",
+            massDisplayFa = "۴۵۰٬۰۰۰ کیلوگرم (۴۵۰ تن)",
             gravityDisplayEn = "8.7 m/s² orbital (Microgravity / free-fall environment)",
-            gravityDisplayFa = "۸.۷ متر بر مجذور ثانیه در مدار (بی‌وزنی ظاهری / سقوط آزاد)",
+            gravityDisplayFa = "۸٫۷ متر بر مجذور ثانیه در مدار (بی‌وزنی ظاهری / سقوط آزاد)",
             distanceDisplayEn = "420 km (Dynamic orbital altitude above Earth)",
             distanceDisplayFa = "۴۲۰ کیلومتر (ارتفاع مداری متغیر از سطح زمین)"
         ),
@@ -977,7 +977,7 @@ object CanonicalAstroCatalog {
             categoryEn = "Habitable Space Station",
             categoryFa = "ایستگاه فضایی سرنشین‌دار",
             descriptionEn = "Habitable artificial satellite orbiting Earth every 90 minutes at 28,000 km/h.",
-            descriptionFa = "ایستگاه فضایی سرنشین‌دار در حال چرخش به دور زمین هر ۹۰ دقیقه با سرعت ۲۸,۰۰۰ کیلومتر بر ساعت.",
+            descriptionFa = "ایستگاه فضایی سرنشین‌دار در حال چرخش به دور زمین هر ۹۰ دقیقه با سرعت ۲۸٬۰۰۰ کیلومتر بر ساعت.",
             observationTipEn = "Appears as a fast-moving unblinking bright point across twilight skies.",
             observationTipFa = "مانند یک نقطه بسیار پرنور بدون چشمک‌زدن با سرعت بالای افق حرکت می‌کند.",
             verifiedFactsEn = listOf(
@@ -988,10 +988,10 @@ object CanonicalAstroCatalog {
                 "The ISS has been continuously inhabited by international astronaut crews without interruption since November 2, 2000."
             ),
             verifiedFactsFa = listOf(
-                "ایستگاه فضایی بین‌المللی با سرعت ۲۷,۶۰۰ کیلومتر بر ساعت، هر ۹۰ تا ۹۲ دقیقه یک‌بار زمین را دور می‌زند.",
+                "ایستگاه فضایی بین‌المللی با سرعت ۲۷٬۶۰۰ کیلومتر بر ساعت، هر ۹۰ تا ۹۲ دقیقه یک‌بار زمین را دور می‌زند.",
                 "فضانوردان حاضر در ISS در هر ۲۴ ساعت، ۱۶ بار طلوع و ۱۶ بار غروب خورشید را تجربه می‌کنند.",
                 "ابعاد ایستگاه فضایی معادل یک زمین فوتبال بزرگ است و فضایی قابل سکونت برابر یک خانه ۶ خوابه دارد.",
-                "پنل‌های خورشیدی ISS مساحتی حدود ۲,۴۰۰ متر مربع را پوشش می‌دهند و برق کل ایستگاه را تامین می‌کنند.",
+                "پنل‌های خورشیدی ISS مساحتی حدود ۲٬۴۰۰ متر مربع را پوشش می‌دهند و برق کل ایستگاه را تامین می‌کنند.",
                 "ایستگاه فضایی از زمان نوامبر سال ۲۰۰۰ میلادی به صورت پیوسته و بدون وقفه میزبان فضانوردان بوده است."
             )
         )

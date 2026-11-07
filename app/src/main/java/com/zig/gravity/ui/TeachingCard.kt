@@ -320,7 +320,7 @@ private fun ActiveChallenge(
             text = when {
                 correct && fa -> "درست حدس زدی. همین اتفاق در شبیه‌سازی افتاد."
                 correct -> "Your prediction matched what the simulation actually did."
-                fa -> "حدست فرق داشت — و این هیچ اشکالی ندارد. شبیه‌سازی نتیجه دیگری نشان داد؛ ببین چرا."
+                fa -> "حدست فرق داشت، و این هیچ اشکالی ندارد. شبیه‌سازی نتیجه دیگری نشان داد؛ ببین چرا."
                 else -> "Your guess differed — which is fine. The simulation did something else; here is why."
             },
             color = if (correct) c.accent else c.onSurface,

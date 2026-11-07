@@ -407,7 +407,7 @@ fun TimeMachineControlBar(
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = if (isFa) "رویدادهای من (${userOccasions.size}/20)" else "My Occasions (${userOccasions.size}/20)",
+                                        text = if (isFa) "رویدادهای من (${userOccasions.size}/۲۰)" else "My Occasions (${userOccasions.size}/20)",
                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold),
                                         color = MaterialTheme.colorScheme.secondary
                                     )
@@ -890,7 +890,7 @@ fun TimeMachineControlBar(
                             value = occasionTitle,
                             onValueChange = { occasionTitle = it },
                             label = { Text(if (isFa) "عنوان رویداد" else "Occasion Name") },
-                            placeholder = { Text(if (isFa) "مثلاً سالگرد، شب رصدی، ..." else "e.g. Observation Night") },
+                            placeholder = { Text(if (isFa) "مثلاً سالگرد، شب رصدی، …" else "e.g. Observation Night") },
                             singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()

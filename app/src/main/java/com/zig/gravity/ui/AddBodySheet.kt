@@ -100,7 +100,7 @@ fun AddBodySheet(
             if (used >= EngineConstants.MAX_BODIES) {
                 Text(
                     text = if (fa)
-                        "میز آزمایش پر است — حداکثر ۲۰ جسم جا می‌شود. برای افزودن جسم تازه، اول یکی را بردار."
+                        "میز آزمایش پر است، حداکثر ۲۰ جسم جا می‌شود. برای افزودن جسم تازه، اول یکی را بردار."
                     else
                         "The experiment table is full — 20 bodies maximum. Remove one to make room.",
                     color = c.accent,

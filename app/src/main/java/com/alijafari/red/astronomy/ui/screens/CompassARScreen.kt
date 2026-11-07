@@ -796,7 +796,7 @@ fun CompassARScreen(
                 "GPS unavailable",
                 "GPS در دسترس نیست",
                 "No live location fix",
-                "موقعیت زنده دریافت نشده است"
+                "موقعیت زنده دریافت نشد"
             )
             acc < 10f && age < 30_000L -> ArSubsystemHealth(
                 ArHealthLevel.GREEN,
@@ -851,7 +851,7 @@ fun CompassARScreen(
         val level = worstHealthLevel(listOf(gpsHealth.level, sensorHealth.level, cameraHealth.level))
         val problematic = listOf(gpsHealth, sensorHealth, cameraHealth).filter { it.level == level && level != ArHealthLevel.GREEN }
         val en = if (problematic.isEmpty()) "All systems operational" else problematic.joinToString(" • ") { it.titleEn }
-        val fa = if (problematic.isEmpty()) "تمام سامانه‌ها آماده‌اند" else problematic.joinToString(" • ") { it.titleFa }
+        val fa = if (problematic.isEmpty()) "همه‌چیز آماده است" else problematic.joinToString(" • ") { it.titleFa }
         ArSubsystemHealth(level, en, fa, en, fa)
     }
 
@@ -1805,7 +1805,7 @@ fun CompassARScreen(
                                         onValueChange = { searchQuery = it },
                                         placeholder = {
                                             Text(
-                                                text = if (isFa) "جستجوی جرم (ماه، مریخ، شباهنگ...)" else "Search target (Moon, Mars, Sirius...)",
+                                                text = if (isFa) "جستجوی جرم (ماه، مریخ، شباهنگ…)" else "Search target (Moon, Mars, Sirius...)",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = RedTheme.colors.textSecondary
                                             )
@@ -2683,7 +2683,7 @@ fun CompassARScreen(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = if (isFa) "تراز شد: آفست (${TimeEngine.formatPersianNumbers(offStr)}) اعمال شد"
+                        text = if (isFa) "تراز شد؛ آفست (${TimeEngine.formatPersianNumbers(offStr)}) اعمال شد"
                         else "Aligned: offset applied ($offStr)",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
@@ -3146,7 +3146,7 @@ private fun AlignmentModeOverlay(
                     )
                     if (targets.isEmpty()) {
                         Text(
-                            text = if (isFa) "در حال حاضر هیچ جرم درخشانی بالای افق نیست."
+                            text = if (isFa) "الان هیچ جرم درخشانی بالای افق نیست."
                             else "No bright targets above the horizon right now.",
                             style = MaterialTheme.typography.bodySmall,
                             color = RedTheme.colors.textSecondary

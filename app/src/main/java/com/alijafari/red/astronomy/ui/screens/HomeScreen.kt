@@ -603,7 +603,7 @@ private fun SkySearchOverlay(
                             .testTag("home_astronomy_search_input"),
                         placeholder = {
                             Text(
-                                text = if (isFa) "نام سیاره، ستاره، سحابی..." else "Search planets, stars, nebulae...",
+                                text = if (isFa) "نام سیاره، ستاره، سحابی…" else "Search planets, stars, nebulae...",
                                 style = RedTypographyTokens.bodySecondary,
                                 color = RedTheme.colors.textTertiary
                             )

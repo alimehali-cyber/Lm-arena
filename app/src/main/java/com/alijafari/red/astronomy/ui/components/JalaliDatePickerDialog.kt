@@ -204,7 +204,7 @@ fun JalaliDatePickerDialog(
                                     isDirectYearError = false
                                 },
                                 label = { Text("ورود مستقیم سال", fontSize = 11.sp) },
-                                placeholder = { Text("مثلاً ۱۳۷۰ یا 1403", fontSize = 11.sp) },
+                                placeholder = { Text("مثلاً ۱۳۷۰ یا ۱۴۰۳", fontSize = 11.sp) },
                                 singleLine = true,
                                 isError = isDirectYearError,
                                 keyboardOptions = KeyboardOptions(

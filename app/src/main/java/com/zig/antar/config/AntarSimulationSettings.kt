@@ -87,14 +87,14 @@ enum class AntarPreset(
         titleEn = "Physical Kerr",
         titleFa = "کر فیزیکی",
         subtitleEn = "Novikov-Thorne disk & Doppler beaming",
-        subtitleFa = "قرص نوویکوف-تورن و درخشش دوپلری"
+        subtitleFa = "قرص نوویکوف–تورن و درخشش دوپلری"
     ),
     THICK_CINEMA(
         jsKey = "thickdisk",
         titleEn = "Thick Disk",
         titleFa = "قرص ضخیم",
         subtitleEn = "Symmetric cinematic accretion halo",
-        subtitleFa = "هاله برافزایشی متقارن سینمایی"
+        subtitleFa = "هالهٔ برافزایشی متقارن"
     ),
     POLAR(
         jsKey = "kutup",
@@ -115,7 +115,7 @@ enum class AntarPreset(
         titleEn = "Near Horizon",
         titleFa = "نزدیک افق",
         subtitleEn = "7.5 M wide-angle relativistic immersion",
-        subtitleFa = "فاصله ۷٫۵M با میدان دید باز نسبیتی"
+        subtitleFa = "فاصلهٔ ۷٫۵M با میدان دید باز"
     ),
     EINSTEIN_LENS(
         jsKey = "lens",
@@ -136,7 +136,7 @@ enum class AntarPreset(
         titleEn = "Relativistic Jet",
         titleFa = "فوران نسبیتی",
         subtitleEn = "Blandford-Znajek helical polar outflow",
-        subtitleFa = "فوران مارپیچی سنکروترونی قطب‌ها"
+        subtitleFa = "فوران مارپیچی سنکروترونی از قطب‌ها"
     ),
     TON_618_QUASAR(
         jsKey = "ton618",

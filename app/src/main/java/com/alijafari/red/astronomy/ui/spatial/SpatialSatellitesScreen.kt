@@ -981,7 +981,7 @@ fun SpatialSatellitesScreen(
                     contentPadding = PaddingValues(RedSpacing.lg)
                 ) {
                     Text(
-                        text = if (isFa) "در حال محاسبه گذرهای ماهواره‌ها..." else "Calculating satellite passes...",
+                        text = if (isFa) "در حال محاسبه گذرهای ماهواره‌ها…" else "Calculating satellite passes...",
                         style = RedTypographyTokens.bodySecondary,
                         color = palette.textSecondary
                     )
@@ -1019,7 +1019,7 @@ fun SpatialSatellitesScreen(
                                     else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")
                                     Toast.makeText(
                                         context,
-                                        if (isFa) "هشدار گذر $labelStr قبل از شروع تنظیم شد!"
+                                        if (isFa) "هشدار گذر $labelStr پیش از شروع تنظیم شد."
                                         else "Alert set $labelStr prior to pass!",
                                         Toast.LENGTH_SHORT
                                     ).show()
@@ -1289,7 +1289,7 @@ fun SpatialSatellitesScreen(
 
                             Toast.makeText(
                                 context,
-                                if (isFa) "سیستم پایش خودکار ۷ روزه برای ماهواره‌های انتخاب شده فعال شد!"
+                                if (isFa) "پایش خودکار ۷ روزهٔ ماهواره‌های انتخاب‌شده فعال شد."
                                 else "7-day automated pass schedule enabled for selected satellites!",
                                 Toast.LENGTH_SHORT
                             ).show()

@@ -83,9 +83,9 @@ object SatelliteCatalog {
                 "Shines at magnitude -3.8, often outshining every celestial object except the Sun and Moon."
             ),
             verifiedFactsFa = listOf(
-                "هر ۹۲.۶ دقیقه یک بار با سرعت ۲۷۶۰۰ کیلومتر بر ساعت زمین را دور می‌زند.",
+                "هر ۹۲٫۶ دقیقه یک بار با سرعت ۲۷۶۰۰ کیلومتر بر ساعت زمین را دور می‌زند.",
                 "عرض پنل‌های خورشیدی آن ۷۳ متر است و تا ۱۲۰ کیلووات برق تولید می‌کند.",
-                "با درخشندگی قدر ۳.۸- روشن‌تر از تمام ستارگان و سیارات شبانه دیده می‌شود."
+                "با درخشندگی قدر −۳٫۸ روشن‌تر از تمام ستارگان و سیارات شبانه دیده می‌شود."
             )
         ),
         SatelliteItem(
@@ -122,8 +122,8 @@ object SatelliteCatalog {
             ),
             verifiedFactsFa = listOf(
                 "دارای ساختار T-شکل شامل ماژول اصلی تیانهه و آزمایشگاه‌های ونتیان و منگتیان.",
-                "در ارتفاع ۳۹۰ کیلومتری با زاویه میل ۴۱.۵ درجه به دور زمین در گردش است.",
-                "با قدر ۱.۵- به صورت یک نقطه طلایی پرنور در آسمان شب به راحتی دیده می‌شود."
+                "در ارتفاع ۳۹۰ کیلومتری با زاویه میل ۴۱٫۵ درجه به دور زمین در گردش است.",
+                "با قدر −۱٫۵ به صورت یک نقطه طلایی پرنور در آسمان شب به راحتی دیده می‌شود."
             )
         ),
         SatelliteItem(
@@ -144,7 +144,7 @@ object SatelliteCatalog {
             starlinkTrainCount = 1,
             standardMagnitude = 2.0,
             descriptionEn = "Legendary optical space telescope orbiting Earth at ~525 km altitude with 28.5° inclination.",
-            descriptionFa = "تلسکوپ فضایی افسانه‌ای هابل در ارتفاع ۵۲۵ کیلومتری زمین با زاویه میل مداری ۲۸.۵ درجه.",
+            descriptionFa = "تلسکوپ فضایی افسانه‌ای هابل در ارتفاع ۵۲۵ کیلومتری زمین با زاویه میل مداری ۲۸٫۵ درجه.",
             isNakedEyeCandidate = true,
             launchDate = "April 24, 1990",
             operatorEn = "NASA / ESA",
@@ -152,16 +152,16 @@ object SatelliteCatalog {
             missionPurposeEn = "Deep-space optical, ultraviolet, and near-infrared astronomy.",
             missionPurposeFa = "رصد عمیق کیهان در طیف‌های مرئی، فرابنفش و فروسرخ نزدیک.",
             scientificSignificanceEn = "Revolutionized astrophysics by confirming the accelerating expansion rate of the Universe and determining cosmic age (~13.8 billion years).",
-            scientificSignificanceFa = "تحول بنیادین در کیهان‌شناسی، اثبات شتاب انبساط جهان و تعیین دقیق سن کیهان (۱۳.۸ میلیارد سال).",
+            scientificSignificanceFa = "تحول بنیادین در کیهان‌شناسی، اثبات شتاب انبساط جهان و تعیین دقیق سن کیهان (۱۳٫۸ میلیارد سال).",
             verifiedFactsEn = listOf(
                 "Features a 2.4-meter primary glass mirror precision-polished to within 10 nanometers.",
                 "Serviced 5 times in orbit by NASA Space Shuttle astronaut crews between 1993 and 2009.",
                 "Has completed over 1.5 million scientific observations since its launch."
             ),
             verifiedFactsFa = listOf(
-                "دارای آینه اصلی ۲.۴ متری با دقت صیقل‌کاری فوق‌العاده ۱۰ نانومتر.",
-                "۵ بار توسط فضانوردان شاتل فضایی در مدار زمین تعمیر و ارتقا داده شد.",
-                "تاکنون بیش از ۱.۵ میلیون رصد علمی ارزشمند انجام داده است."
+                "دارای آینه اصلی ۲٫۴ متری با دقت صیقل‌کاری فوق‌العاده ۱۰ نانومتر.",
+                "فضانوردان شاتل فضایی پنج بار آن را در مدار زمین تعمیر و ارتقا دادند.",
+                "تاکنون بیش از ۱٫۵ میلیون رصد علمی ارزشمند انجام داده است."
             )
         ),
         SatelliteItem(
@@ -190,7 +190,7 @@ object SatelliteCatalog {
             missionPurposeEn = "Earth observation, global environmental, oceanographic, and atmospheric monitoring.",
             missionPurposeFa = "سنجش از دور، پایش تغییرات اقلیمی، اقیانوس‌شناسی و جو کره زمین.",
             scientificSignificanceEn = "The largest civilian Earth observation satellite ever built (8.2 metric tons, 25 meters long).",
-            scientificSignificanceFa = "بزرگ‌ترین ماهواره غیرنظامی پایش زمین به وزن ۸.۲ تن و طول ۲۵ متر.",
+            scientificSignificanceFa = "بزرگ‌ترین ماهواره غیرنظامی پایش زمین به وزن ۸٫۲ تن و طول ۲۵ متر.",
             verifiedFactsEn = listOf(
                 "Carried 10 advanced optical and radar Earth-monitoring instruments.",
                 "Provided crucial 10-year environmental dataset before communications ended in 2012.",

@@ -100,7 +100,7 @@ object FinderEngine {
                         "Warning: Target is currently below horizon (${String.format("%.1f", targetAlt)}°)"
             }
             isArrived -> {
-                "هدف دقیقاً در مرکز دید شماست!" to "Target acquired in center reticle!"
+                "هدف دقیقاً در مرکز دید شماست." to "Target acquired in center reticle!"
             }
             dAz > 15f && dAlt > 10f -> {
                 "به سمت راست بچرخید و بالاتر را نگاه کنید" to "Turn Right & Pitch Up"
@@ -127,7 +127,7 @@ object FinderEngine {
                 "مستقیماً به پایین‌تر نگاه کنید" to "Pitch Down"
             }
             else -> {
-                "بسیار نزدیک شدید — مرکز هدف‌گیر را روی نقطه تنظیم کنید" to "Very close — center the reticle on target"
+                "بسیار نزدیک شدید، مرکز هدف‌گیر را روی نقطه تنظیم کنید" to "Very close — center the reticle on target"
             }
         }
 

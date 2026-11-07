@@ -75,7 +75,7 @@ object AstroNotificationManager {
         val leadStrFa = if (leadMinutes == 1440) "۱ روز" else "$leadMinutes دقیقه"
         val leadStrEn = if (leadMinutes == 1440) "1 day" else "$leadMinutes min"
 
-        val titleFa = "${satellite.nameFa} — $leadStrFa دیگر!"
+        val titleFa = "${satellite.nameFa}، $leadStrFa دیگر!"
         val titleEn = "${satellite.nameEn} — in $leadStrEn!"
 
         val contentFa = "شهر: ${userLocation.cityNameFa} | زمان: $formattedTimeFa | حداکثر ارتفاع: ${pass.maxElevationDeg.toInt()}°\nمسیر: $startDirFa ➔ $endDirFa | مدت: $durMinutes دقیقه"

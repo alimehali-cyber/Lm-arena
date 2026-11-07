@@ -201,7 +201,7 @@ fun CyberSettingsModal(
                                 color = palette.textPrimary
                             )
                             Text(
-                                text = if (isFa) "سیستم طراحی سایبر گلس ۲.۰" else "CYBER GLASS 2.0 // SYSTEM",
+                                text = if (isFa) "سیستم طراحی سایبر گلس ۲٫۰" else "CYBER GLASS 2.0 // SYSTEM",
                                 style = RedTypographyTokens.caption.copy(
                                     fontWeight = FontWeight.Light,
                                     fontSize = 10.sp

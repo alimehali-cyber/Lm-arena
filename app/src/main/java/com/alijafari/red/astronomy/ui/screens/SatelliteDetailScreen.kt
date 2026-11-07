@@ -284,7 +284,7 @@ fun SatelliteDetailScreen(
                     elevation = RedElevation.none,
                 ) {
                     Text(
-                        text = if (isFa) "در حال محاسبه گذرهای ماهواره..." else "Calculating satellite passes...",
+                        text = if (isFa) "در حال محاسبه گذرهای ماهواره…" else "Calculating satellite passes...",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(16.dp)
@@ -326,7 +326,7 @@ fun SatelliteDetailScreen(
                                     val labelMins = if (leadMins == 1440) (if (isFa) "۱ روز" else "1 day") else (if (isFa) "$leadMins دقیقه" else "$leadMins mins")
                                     Toast.makeText(
                                         context,
-                                        if (isFa) "هشدار گذر $labelMins قبل از شروع تنظیم شد!" else "Alert scheduled $labelMins prior to pass!",
+                                        if (isFa) "هشدار گذر $labelMins پیش از شروع تنظیم شد." else "Alert scheduled $labelMins prior to pass!",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
@@ -589,7 +589,7 @@ private fun NextPassTimelineProgressBar(
             val relativeStatusText = when {
                 isCurrentlyActive -> {
                     val remMins = max(1L, (endDiffMs / 60000L))
-                    if (isFa) "در حال انجام! $remMins دقیقه تا پایان".toPersianDigits() else "Pass in progress! $remMins min remaining"
+                    if (isFa) "در حال انجام؛ $remMins دقیقه تا پایان".toPersianDigits() else "Pass in progress! $remMins min remaining"
                 }
                 isFuture -> {
                     val hrs = startDiffMs / (3600 * 1000L)
