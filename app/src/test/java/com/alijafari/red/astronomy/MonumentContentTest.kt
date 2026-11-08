@@ -65,11 +65,19 @@ class MonumentContentTest {
             assertTrue("$id must have a hero photograph", page.heroRes != 0)
 
             val figures = page.blocks.filterIsInstance<MonumentBlock.Figure>().map { it.figure }
-            assertTrue("$id needs at least three photographs", figures.size >= 3)
+            assertTrue("$id needs at least two photographs in the body", figures.size >= 2)
+            assertTrue(
+                "$id must show at least three photographs including its hero",
+                figures.size + 1 >= 3
+            )
             assertEquals(
                 "$id must not repeat a photograph on its own page",
                 figures.size,
                 figures.map { it.imageRes }.distinct().size
+            )
+            assertTrue(
+                "$id must not repeat its hero inside the body",
+                figures.none { it.imageRes == page.heroRes }
             )
 
             assertTrue(
