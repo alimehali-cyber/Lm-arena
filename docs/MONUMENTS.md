@@ -125,7 +125,17 @@ during the search because they showed Ka'ba-ye Zartosht, Naqsh-e Rostam or the P
 temple instead. Every page repeats its image credits and its text sources in the colophon, which is
 also where a licence notice for any photograph can be added if the app is published commercially.
 
-## 6. Files
+## 6. Verification
+
+* `MonumentContentTest` (JVM) asserts the structure of both pages in both languages (hero,
+  photograph count and uniqueness, chapters, one quote, one era list, four measurements, identical
+  block order across languages) and mechanically checks the Persian copy: no Arabic ي/ك or
+  Arabic-Indic digits, no Latin digits, no em/en dashes, no administrative or machine tells, ZWNJ
+  present, and callout text short enough for its card.
+* `./gradlew testDebugUnitTest` runs it as part of the normal suite; the release APK is built by
+  `.github/workflows/build.yml` after the full suite passes.
+
+## 7. Files
 
 | File | Role |
 |---|---|
