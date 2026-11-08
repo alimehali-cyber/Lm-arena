@@ -20,6 +20,7 @@ import com.alijafari.red.astronomy.domain.*
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.backdrop.LiveSkyPolicy
 import com.alijafari.red.astronomy.ui.backdrop.SkyLiveClock
+import com.alijafari.red.astronomy.ui.monuments.MonumentId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -49,6 +50,14 @@ data class MainUiState(
     val showSkyViewer: Boolean = false,
     /** The Eclipses screen. Opened by the eclipse tile on Home. */
     val showEclipseWindow: Boolean = false,
+    /**
+     * The monument page that is open, if any. Persepolis and Mil-e Azhdaha stand in the Home
+     * landscape, and tapping one of them on the canvas opens its dedicated screen.
+     *
+     * It lives in the ViewModel for the same reason as [showSkyViewer] and [showEclipseWindow]: the
+     * page is full-screen window content, so a configuration change must not be able to close it.
+     */
+    val monumentDetail: MonumentId? = null,
     /**
      * Lunar day offset in days (-30..+30) driven by dragging the Moon render. The Home moon card and the
      * Moon window read the same value, so scrubbing one moves the other.
@@ -595,6 +604,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setShowMoonWindow(show: Boolean) {
         _uiState.update { it.copy(showMoonWindow = show) }
+    }
+
+    /** Opens the dedicated page of a monument standing in the Home landscape. */
+    fun openMonument(id: MonumentId) {
+        _uiState.update { it.copy(monumentDetail = id) }
+    }
+
+    /** Closes the monument page and returns to the scene it was opened from. */
+    fun closeMonument() {
+        _uiState.update { it.copy(monumentDetail = null) }
     }
 
     /** Opens or closes the fullscreen sky viewer. */

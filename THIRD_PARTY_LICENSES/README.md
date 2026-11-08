@@ -69,3 +69,12 @@ illuminance; Lommel–Seeliger law and its disc-integrated phase function; earth
 earthshine programme (Qiu et al. 2003; Pallé et al. 2003, 2016: apparent albedo p* ≈ 0.30, Lambert
 phase function of the Earth) and its colour from Thejll et al. (2014, A&A 563, A38: 0.15 mag bluer in
 B−V); visibility from Crumey (2014, MNRAS 442, 2600) contrast thresholds and CIE 146:2002 disability glare.
+
+## Lalezar (Persian display typeface)
+
+* Project: Lalezar by Borna Izadpanah — `https://fonts.google.com/specimen/Lalezar`
+* Licence: SIL Open Font License 1.1 — see `Lalezar-OFL.txt`
+* File bundled: `res/font/lalezar_regular.ttf`, one static weight, used for Persian display headlines
+  on the monument pages only (`ui/monuments/MonumentScreen.kt`). Body copy keeps Vazirmatn.
+* Provenance: the upstream static TTF shipped with the `persian-writing` skill's `assets/fonts`
+  directory, copied byte-for-byte. sha256 `87ac2cefad76a91adbe9286a6d3d683741c781a7ddf841914479674d7939a8cd`.

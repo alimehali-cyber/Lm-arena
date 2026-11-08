@@ -53,6 +53,8 @@ import com.alijafari.red.astronomy.domain.SkyCanvasTheme
 import com.alijafari.red.astronomy.domain.TimeMachineMode
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.monuments.MonumentCopy
+import com.alijafari.red.astronomy.ui.monuments.MonumentId
 import com.alijafari.red.astronomy.ui.mountain.HomeMountain
 import com.alijafari.red.astronomy.ui.persepolis.PersepolisFeature
 import com.alijafari.red.astronomy.ui.persepolis.PersepolisLandscape
@@ -185,6 +187,16 @@ fun HeroSkyCanvas(
     // Selected Tapped Celestial Object
     var selectedCelestial by remember { mutableStateOf<SelectedCelestialInfo?>(null) }
 
+    // Selected monument standing in the landscape. Persepolis and Mil-e Azhdaha are places, not
+    // catalogue objects, so the tap does not open the celestial detail sheet: it raises the place's
+    // name, and tapping that name opens the monument's own page (see MonumentScreen).
+    var selectedMonument by remember { mutableStateOf<MonumentId?>(null) }
+
+    // The monument hit boxes are the resolved framing's own pixel landmarks (see PersepolisFraming),
+    // so a tap lands on exactly the stone the GL relief drew. Published from inside the
+    // BoxWithConstraints scope below, where the scene size is known, and read at gesture time.
+    var sceneFraming by remember { mutableStateOf<PersepolisFraming.Result?>(null) }
+
     // Two clocks. The sky clock moves on the shared 1 Hz tick (and per frame while time is being scrubbed);
     // the motion clock runs the cloud drift and the observer at a capped frame rate. Keeping them apart is
     // what lets the cheap layer animate without repainting the stars, the Moon sprite and the Milky Way.
@@ -294,6 +306,15 @@ fun HeroSkyCanvas(
         }
     }
 
+    // The monument's name sits longer than a star's: it is an invitation to open a page, so it must
+    // survive a slow read. It is only ever a name; nothing else about the scene changes.
+    LaunchedEffect(selectedMonument) {
+        if (selectedMonument != null) {
+            delay(7_000)
+            selectedMonument = null
+        }
+    }
+
     // A fresh radial bloom accompanies each selection; the continuous scene clock then carries its gentle pulse.
     val selectionBloom = remember { Animatable(1f) }
     LaunchedEffect(selectedCelestial?.id) {
@@ -314,6 +335,7 @@ fun HeroSkyCanvas(
     val currentMoonData by rememberUpdatedState(moonData)
     val currentUserLat by rememberUpdatedState(userLat)
     val currentSkyTheme by rememberUpdatedState(uiState.skyCanvasTheme)
+    val currentIsScene by rememberUpdatedState(isScene)
 
     // The photographic Moon: the Home Moon card's look with the true phase, libration and visibility.
     val moonSprites = rememberSkyMoonSprites()
@@ -339,6 +361,25 @@ fun HeroSkyCanvas(
                     val canvasW = size.width.toFloat()
                     val canvasH = size.height.toFloat()
                     val touchRadius = 36.dp.toPx()
+
+                    // Monuments first: they occupy the ground band, below every star, so nothing in
+                    // the sky can be shadowed by them. A hit raises the place's name instead of the
+                    // celestial callout; a miss clears any name that was showing.
+                    val framing = sceneFraming
+                    if (currentIsScene && framing != null) {
+                        val monumentHit = monumentHitTest(
+                            tap = tapOffset,
+                            framing = framing,
+                            width = canvasW,
+                            paddingPx = 16.dp.toPx()
+                        )
+                        if (monumentHit != null) {
+                            selectedCelestial = null
+                            selectedMonument = monumentHit
+                            return@detectTapGestures
+                        }
+                    }
+                    selectedMonument = null
 
                     val fa = currentIsFa
                     val lat = currentUserLat
@@ -418,6 +459,7 @@ fun HeroSkyCanvas(
                 detectHorizontalDragGestures(
                     onDragStart = {
                         isDragging = true
+                        selectedMonument = null
                         autoReturnJob?.cancel()
                     },
                     onDragEnd = {
@@ -507,6 +549,8 @@ fun HeroSkyCanvas(
                 readoutClearancePx = with(density) { PersepolisFraming.READOUT_CLEARANCE_DP.dp.toPx() }
             )
         } else null
+        // Hand the resolved landmarks to the gesture handler above.
+        SideEffect { sceneFraming = persepolisFraming }
 
         // --- LAYER 1: THE SKY ---
         // Atmosphere, Milky Way, stars, Sun, Moon, planets, ground. The expensive pass: it repaints on the
@@ -779,6 +823,43 @@ fun HeroSkyCanvas(
                         if (idToOpen.isNotEmpty()) {
                             viewModel.openObjectDetailById(idToOpen, simulatedTimeMs)
                         }
+                    }
+                )
+            }
+        }
+
+        // --- THE MONUMENT NAME (tap the landscape → name → page) ---
+        // Persepolis and Mil-e Azhdaha are the two subjects of the ground band, so they identify
+        // themselves the way the sky's objects do: the same quiet callout, pinned to the stone it
+        // names, with the wedge pointing at the terrace or the tower. The only difference is where
+        // the tap leads: not the celestial detail sheet, but the monument's own page. The name is
+        // the button, exactly as the user asked, and it sits for seven seconds before it fades.
+        AnimatedVisibility(
+            visible = selectedMonument != null,
+            enter = fadeIn(tween(180)) + scaleIn(
+                initialScale = 0.90f,
+                transformOrigin = TransformOrigin(0.5f, 0.5f),
+                animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
+            ),
+            exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.96f, animationSpec = tween(140))
+        ) {
+            val monument = selectedMonument
+            val framing = sceneFraming
+            if (monument != null && framing != null) {
+                val canvasW = constraints.maxWidth.toFloat()
+                val canvasH = constraints.maxHeight.toFloat()
+                val pin = monumentPin(framing, monument, canvasW)
+                SelectionCallout(
+                    name = MonumentCopy.title(monument, isFa),
+                    detail = MonumentCopy.calloutDetail(monument, isFa),
+                    accent = Color(0xFFC9A063),
+                    pinX = pin.x,
+                    pinY = pin.y,
+                    canvasWidth = canvasW,
+                    canvasHeight = canvasH,
+                    onOpen = {
+                        selectedMonument = null
+                        viewModel.openMonument(monument)
                     }
                 )
             }
@@ -1076,3 +1157,50 @@ private fun SelectionCallout(
         }
     }
 }
+
+/**
+ * Which monument, if any, is under the finger.
+ *
+ * The boxes are the framing's own landmarks rather than hand-tuned percentages, so they follow the
+ * stone if the scene's placement ever changes: Persepolis is the detailed façade from its far-left
+ * frame to the tallest column, from that column's capital down to the platform toe; Mil-e Azhdaha is
+ * the tower plus the eight metres of hillside around its base. Both get [paddingPx] of slack, because
+ * a finger is wider than a carved jamb. Mil-e Azhdaha is tested first: it stands at the far right,
+ * where Persepolis' forecourt never reaches.
+ */
+private fun monumentHitTest(
+    tap: Offset,
+    framing: PersepolisFraming.Result,
+    width: Float,
+    paddingPx: Float
+): MonumentId? {
+    if (width <= 0f) return null
+
+    val towerHalfWidth = (8f * framing.pxPerMeter).coerceAtLeast(paddingPx)
+    val milLeft = framing.milTowerCenterXPx - towerHalfWidth - paddingPx
+    val milRight = framing.milTowerCenterXPx + towerHalfWidth + paddingPx
+    val milTop = framing.milTowerTopYPx - paddingPx
+    val milBottom = framing.milSlopeFrontYPx + paddingPx
+    if (tap.x in milLeft..milRight && tap.y in milTop..milBottom) return MonumentId.MIL_E_AZHDAHA
+
+    val left = framing.facadeLeftXPx - paddingPx
+    val right = framing.facadeRightXPx + paddingPx
+    val top = framing.tallestColumnTopYPx - paddingPx
+    val bottom = framing.toeYPx + paddingPx
+    if (tap.x in left..right && tap.y in top..bottom) return MonumentId.PERSEPOLIS
+
+    return null
+}
+
+/** The point the name is pinned to: the tallest column's capital, or the tower's ruined top. */
+private fun monumentPin(framing: PersepolisFraming.Result, monument: MonumentId, width: Float): Offset =
+    when (monument) {
+        MonumentId.PERSEPOLIS -> Offset(
+            framing.tallestColumnXPx.coerceIn(24f, (width - 24f).coerceAtLeast(24f)),
+            framing.tallestColumnTopYPx
+        )
+        MonumentId.MIL_E_AZHDAHA -> Offset(
+            framing.milTowerCenterXPx.coerceIn(24f, (width - 24f).coerceAtLeast(24f)),
+            framing.milTowerTopYPx
+        )
+    }

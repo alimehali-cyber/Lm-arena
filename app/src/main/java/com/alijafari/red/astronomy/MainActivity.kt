@@ -13,7 +13,14 @@ import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -77,6 +84,8 @@ import com.alijafari.red.astronomy.ui.components.PremiumSplashScreen
 import com.alijafari.red.astronomy.ui.components.SplashRevealRole
 import com.alijafari.red.astronomy.ui.components.rememberPremiumSplashState
 import com.alijafari.red.astronomy.ui.components.splashReveal
+import com.alijafari.red.astronomy.ui.monuments.MonumentId
+import com.alijafari.red.astronomy.ui.monuments.MonumentScreen
 import com.alijafari.red.astronomy.ui.splash.SplashArtLoader
 import com.alijafari.red.astronomy.ui.screens.*
 import com.alijafari.red.astronomy.ui.theme.REDTheme
@@ -207,6 +216,13 @@ class MainActivity : ComponentActivity() {
             }
             val isFa = uiState.language == AppLanguage.PERSIAN
             val layoutDirection = if (isFa) LayoutDirection.Rtl else LayoutDirection.Ltr
+            // The monument page is full-screen window content, so its transition is owned here, next
+            // to the state that opens it. The last page is remembered so the exit animation still has
+            // something to draw after the open flag has already become null.
+            var lastMonument by remember { mutableStateOf<MonumentId?>(null) }
+            LaunchedEffect(uiState.monumentDetail) {
+                if (uiState.monumentDetail != null) lastMonument = uiState.monumentDetail
+            }
 
             val currentEffectiveTimeMs = if (uiState.timeMachineState.mode == com.alijafari.red.astronomy.domain.TimeMachineMode.SIMULATION) {
                 uiState.timeMachineState.simulationTimeMs
@@ -569,6 +585,36 @@ class MainActivity : ComponentActivity() {
                               )
                           }
                       }
+
+                    // The monument pages. Drawn last, above the screens, the floating navigation bar
+                    // and every dialog, and opening off the canvas with a short lift: a 0.92 scale and
+                    // a 1/12 slide, both on the same 420 ms curve, so the scene appears to recede
+                    // rather than be covered. Closing is deliberately faster than opening.
+                    AnimatedVisibility(
+                        visible = uiState.monumentDetail != null,
+                        enter = fadeIn(tween(220)) +
+                            scaleIn(
+                                animationSpec = tween(420, easing = FastOutSlowInEasing),
+                                initialScale = 0.92f
+                            ) +
+                            slideInVertically(tween(420, easing = FastOutSlowInEasing)) { it / 12 },
+                        exit = fadeOut(tween(180)) +
+                            scaleOut(
+                                animationSpec = tween(260, easing = FastOutSlowInEasing),
+                                targetScale = 0.96f
+                            ) +
+                            slideOutVertically(tween(260, easing = FastOutSlowInEasing)) { it / 16 }
+                    ) {
+                        val openMonument = lastMonument
+                        if (openMonument != null) {
+                            MonumentScreen(
+                                monument = openMonument,
+                                isPersian = isFa,
+                                onClose = { viewModel.closeMonument() },
+                                modifier = Modifier.testTag("monument_screen_root")
+                            )
+                        }
+                    }
 
                     } // composeApp
 
