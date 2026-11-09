@@ -17,7 +17,11 @@ class SkyCanvasInteractionRegressionTest {
     fun aSelectionShowsAnAnimatedNameBubbleInBothCanvasPresentationsAndOpensDetails() {
         val hero = source("com/alijafari/red/astronomy/ui/components/HeroSkyCanvas.kt")
         assertTrue("selection must reveal the name bubble", hero.contains("visible = selectedCelestial != null"))
-        assertTrue("the name bubble must animate into place", hero.contains("scaleIn("))
+        assertTrue(
+            "the name bubble must animate into place — it grows out of its own pin-side edge; scaling " +
+                "the full-bleed layer instead made it slide in from the middle of the screen",
+            hero.contains("label = \"SelectionCalloutAppear\"") && hero.contains("scaleX = s")
+        )
         assertTrue("the name bubble must open the selected object's information", hero.contains("viewModel.openObjectDetailById(idToOpen, simulatedTimeMs)"))
         assertTrue("the tap target gets a radial bloom", hero.contains("selectionBloom.animateTo("))
         assertTrue("the Home and viewer share the same selection bubble", hero.contains("Present in both Home and fullscreen"))

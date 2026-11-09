@@ -31,7 +31,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -567,7 +567,9 @@ fun GravitySandboxRoot(
             if (menuBodyId != 0L) {
                 ChromePanel(
                     modifier = Modifier
-                        .offset {
+                        // Absolute: these are raw touch pixels, so a right-to-left layout must not
+                        // mirror the menu to the other side of the screen (Modifier.offset does).
+                        .absoluteOffset {
                             IntOffset(
                                 (menuPos.x - 60.dp.toPx()).roundToInt().coerceAtLeast(12),
                                 (menuPos.y + 18.dp.toPx()).roundToInt()

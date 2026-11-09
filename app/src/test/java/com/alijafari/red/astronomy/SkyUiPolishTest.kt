@@ -103,9 +103,15 @@ class SkyUiPolishTest {
         assertTrue("the callout is its own composable", hero.contains("private fun SelectionCallout("))
         assertTrue("it is handed the object's projected position", hero.contains("pinX = livePos.x,"))
         assertTrue("the wedge is drawn, not an arrow glyph in the text", hero.contains("val wedgeH = with(density) { 7.dp.toPx() }"))
-        assertTrue("the card is centred on the object", hero.contains("val x = (pinX - w / 2f).coerceIn("))
-        assertTrue("it flips below the object near the top edge", hero.contains("val placeAbove = pinY - lift - wedgeH - h >= edge"))
-        assertTrue("the pointer stays inside the card", hero.contains("val tipX = (pinX - x).coerceIn("))
+        // The placement itself is pure arithmetic now, so the card's centring, its edge clamp and the
+        // wedge's aim are asserted as behaviour in SkyCalloutGeometryTest instead of as source text.
+        assertTrue("the card is placed by the shared geometry", hero.contains("SkyCalloutGeometry.place("))
+        assertTrue(
+            "and moved with absolute offsets: Modifier.offset is mirrored in RTL, which put a Persian\n" +
+                "user's card on the far side of the sky",
+            hero.contains(".absoluteOffset {")
+        )
+        assertFalse("no layout-direction-aware offset places the card", hero.contains(".offset {"))
         assertFalse("no cheap glyph arrow inside the card", hero.contains("text = if (isFa) \"‹\" else \"›\""))
         assertFalse("no accent ring around it", hero.contains("border = BorderStroke(1.dp, accent.copy(alpha = 0.72f))"))
         // The identify → detail affordance itself is untouched.

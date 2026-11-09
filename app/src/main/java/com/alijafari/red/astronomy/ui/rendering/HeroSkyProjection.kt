@@ -84,19 +84,22 @@ object HeroSkyProjection {
     }
 
     /**
-     * Calculates the shortest Euclidean screen distance between a tap position and a projected celestial object,
-     * accounting for continuous horizontal cylindrical wraparound at the canvas boundary.
+     * Plain Euclidean screen distance between a tap and a projected object, in pixels.
+     *
+     * This used to wrap the horizontal difference around the canvas seam (`min(dx, width - dx)`).
+     * That is only correct for a canvas that draws the panorama *wrapped* — which this one does not:
+     * each object is painted once, at its own x, and the 360° seam simply ends at the canvas edges.
+     * Wrapping therefore reported an object drawn at the far left as being a few pixels from a tap at
+     * the far right, and the identify card duly appeared on the opposite side of the screen from the
+     * finger. A tap is a physical point on a flat picture, so the distance is flat too.
      */
     fun screenDistance(
         tapPos: Offset,
-        projectedPos: Offset,
-        canvasWidth: Float
+        projectedPos: Offset
     ): Float {
-        if (canvasWidth <= 0f) return Float.MAX_VALUE
-        val dxDirect = kotlin.math.abs(tapPos.x - projectedPos.x)
-        val dxWrapped = kotlin.math.min(dxDirect, canvasWidth - dxDirect)
+        val dx = tapPos.x - projectedPos.x
         val dy = tapPos.y - projectedPos.y
-        return kotlin.math.hypot(dxWrapped, dy)
+        return kotlin.math.hypot(dx, dy)
     }
 
     /**

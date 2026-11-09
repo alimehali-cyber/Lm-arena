@@ -29,21 +29,26 @@ class HeroSkyProjectionTest {
     }
 
     @Test
-    fun testScreenDistanceCylindricalWraparound() {
-        val canvasWidth = 1000f
-
-        // Tap near x=5px and object near x=995px (same y=100px)
+    fun testScreenDistanceIsFlatBecauseTheSkyIsDrawnFlat() {
+        // The canvas paints each object once, at its own x: the 360° seam simply ends at the two
+        // edges, nothing is drawn wrapped. So an object at the left edge is a whole canvas away from
+        // a tap at the right edge — this used to be reported as 10 px away, which selected an object
+        // on the far side of the screen and put the identify card there instead of at the finger.
         val tapPos = Offset(5f, 100f)
         val objPos = Offset(995f, 100f)
+        assertEquals(990f, HeroSkyProjection.screenDistance(tapPos, objPos), 1e-4f)
 
-        val dist = HeroSkyProjection.screenDistance(tapPos, objPos, canvasWidth)
-        assertEquals(10f, dist, 1e-4f)
-
-        // Tap near center x=500px and object near x=510px, y=100px vs 100px
-        val tapCenter = Offset(500f, 100f)
-        val objCenter = Offset(510f, 100f)
-        val distCenter = HeroSkyProjection.screenDistance(tapCenter, objCenter, canvasWidth)
-        assertEquals(10f, distCenter, 1e-4f)
+        // The ordinary case is unchanged: plain straight-line pixel distance.
+        assertEquals(
+            10f,
+            HeroSkyProjection.screenDistance(Offset(500f, 100f), Offset(510f, 100f)),
+            1e-4f
+        )
+        assertEquals(
+            5f,
+            HeroSkyProjection.screenDistance(Offset(0f, 0f), Offset(3f, 4f)),
+            1e-4f
+        )
     }
 
     @Test

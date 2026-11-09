@@ -4,8 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
@@ -33,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -197,6 +196,12 @@ fun HeroSkyCanvas(
     // BoxWithConstraints scope below, where the scene size is known, and read at gesture time.
     var sceneFraming by remember { mutableStateOf<PersepolisFraming.Result?>(null) }
 
+    // The laid-out size of this canvas, published by the layout below. The callout's pin, the
+    // monument landmarks and the tap handler must all measure with the same ruler: the gesture layer
+    // and the drawing layers already use their node's own size, so the pins do too — not the incoming
+    // constraints, which only happen to be equal while every caller passes an exact size.
+    var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+
     // Two clocks. The sky clock moves on the shared 1 Hz tick (and per frame while time is being scrubbed);
     // the motion clock runs the cloud drift and the observer at a capped frame rate. Keeping them apart is
     // what lets the cheap layer animate without repainting the stars, the Moon sprite and the Milky Way.
@@ -336,6 +341,9 @@ fun HeroSkyCanvas(
     val currentUserLat by rememberUpdatedState(userLat)
     val currentSkyTheme by rememberUpdatedState(uiState.skyCanvasTheme)
     val currentIsScene by rememberUpdatedState(isScene)
+    // The tap handler selects only what the renderers actually draw; a star the daylight has faded
+    // out is not on screen and must not be selectable (see SkyTapTargets).
+    val currentStarVisibility by rememberUpdatedState(lightingState.starVisibility)
 
     // The photographic Moon: the Home Moon card's look with the true phase, libration and visibility.
     val moonSprites = rememberSkyMoonSprites()
@@ -356,6 +364,7 @@ fun HeroSkyCanvas(
             // bounds. The card and viewer keep their squircle.
             .then(if (isScene) Modifier else Modifier.clip(squircleShape(RedCornerRadius.window)))
             .testTag("hero_sky_canvas_container")
+            .onSizeChanged { canvasSize = it }
             .pointerInput(Unit) {
                 detectTapGestures { tapOffset ->
                     val canvasW = size.width.toFloat()
@@ -387,14 +396,33 @@ fun HeroSkyCanvas(
                     val moon = currentMoonData
                     val planets = currentPlanetPositions
                     val stars = currentCatalogStars
+                    val starVisibility = currentStarVisibility
 
                     var closestObj: SelectedCelestialInfo? = null
                     var minDistance = Float.MAX_VALUE
 
+                    // Only what is on screen can be tapped (see SkyTapTargets). The renderers clip the
+                    // whole sky at the horizon row and draw each object under its own rule; a tap on
+                    // the ground band, or near where an object *would* be if it were visible, used to
+                    // identify something that was not there and raise its card over something else.
+                    // The renderers' horizon row, from the same helper the projection uses.
+                    val horizonRowY = HeroSkyProjection.getHorizonY(canvasH, horizonFraction)
+                    val onSky = SkyTapTargets.tapIsOnSky(tapOffset.y, horizonRowY)
+                    // Pixels per degree of altitude, exactly as HeroSkyProjection lays it out, so a
+                    // disc half set below the horizon is still selectable and one fully set is not.
+                    val pxPerDegree = ((horizonRowY - HeroSkyProjection.TOP_MARGIN_PX) / 90f).coerceAtLeast(1f)
+                    val sunRadiusPx = SkyTapTargets.SUN_RADIUS_DP.dp.toPx()
+                    val moonRadiusPx = if (currentSkyTheme == SkyCanvasTheme.REAL_SKY) {
+                        SkyTapTargets.MOON_RADIUS_DP.dp.toPx() * 0.48f
+                    } else {
+                        SkyTapTargets.MOON_RADIUS_DP.dp.toPx()
+                    }
+                    val planetRadiusPx = SkyTapTargets.PLANET_RADIUS_DP.dp.toPx()
+
                     // Check Sun
-                    if (sun.altitudeDeg > -12.0) {
+                    if (onSky && SkyTapTargets.discIsDrawn(sun.altitudeDeg, sunRadiusPx, pxPerDegree)) {
                         val sunScreenPos = HeroSkyProjection.project(sun.azimuthDeg, sun.altitudeDeg, canvasW, canvasH, lat, horizonFraction)
-                        val dist = HeroSkyProjection.screenDistance(tapOffset, sunScreenPos, canvasW)
+                        val dist = HeroSkyProjection.screenDistance(tapOffset, sunScreenPos)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             closestObj = SelectedCelestialInfo(
@@ -407,9 +435,9 @@ fun HeroSkyCanvas(
                     }
 
                     // Check Moon
-                    if (moon.altitudeDeg > -12.0) {
+                    if (onSky && SkyTapTargets.discIsDrawn(moon.altitudeDeg, moonRadiusPx, pxPerDegree)) {
                         val moonScreenPos = HeroSkyProjection.project(moon.azimuthDeg, moon.altitudeDeg, canvasW, canvasH, lat, horizonFraction)
-                        val dist = HeroSkyProjection.screenDistance(tapOffset, moonScreenPos, canvasW)
+                        val dist = HeroSkyProjection.screenDistance(tapOffset, moonScreenPos)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             closestObj = SelectedCelestialInfo(
@@ -423,8 +451,9 @@ fun HeroSkyCanvas(
 
                     // Check Planets
                     planets.forEach { (pType, _, horiz) ->
+                        if (!onSky || !SkyTapTargets.discIsDrawn(horiz.altitudeDeg, planetRadiusPx, pxPerDegree)) return@forEach
                         val pPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH, lat, horizonFraction)
-                        val dist = HeroSkyProjection.screenDistance(tapOffset, pPos, canvasW)
+                        val dist = HeroSkyProjection.screenDistance(tapOffset, pPos)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             val planetId = "planet_${pType.name.lowercase()}"
@@ -439,8 +468,9 @@ fun HeroSkyCanvas(
 
                     // Check Catalog Stars
                     stars.forEach { (celestialObj, horiz) ->
+                        if (!onSky || !SkyTapTargets.starIsDrawn(horiz.altitudeDeg, starVisibility)) return@forEach
                         val sPos = HeroSkyProjection.project(horiz.azimuthDeg, horiz.altitudeDeg, canvasW, canvasH, lat, horizonFraction)
-                        val dist = HeroSkyProjection.screenDistance(tapOffset, sPos, canvasW)
+                        val dist = HeroSkyProjection.screenDistance(tapOffset, sPos)
                         if (dist < touchRadius && dist < minDistance) {
                             minDistance = dist
                             closestObj = SelectedCelestialInfo(
@@ -518,6 +548,12 @@ fun HeroSkyCanvas(
                 )
             }
     ) {
+        // The size the pins use: this node's own measured size once it has one. Before the first
+        // layout it falls back to the incoming constraints, which is what the pins used to read
+        // directly — and which only equals the real size while every caller passes an exact one.
+        val pinCanvasW = if (canvasSize.width > 0) canvasSize.width.toFloat() else constraints.maxWidth.toFloat()
+        val pinCanvasH = if (canvasSize.height > 0) canvasSize.height.toFloat() else constraints.maxHeight.toFloat()
+
         if (panoramaEnabled) {
             val skyPanoramaState = remember(skyFrame) { SkyPanoramaState.fromSceneFrame(skyFrame) }
             SkyPanoramaLayer(
@@ -537,8 +573,8 @@ fun HeroSkyCanvas(
         // photographic theme.
         val persepolisFraming = if (isScene && PersepolisFeature.isEnabledFor(uiState.skyCanvasTheme)) {
             val density = LocalDensity.current
-            val widthPx = with(density) { maxWidth.toPx() }
-            val heightPx = with(density) { maxHeight.toPx() }
+            val widthPx = pinCanvasW
+            val heightPx = pinCanvasH
             PersepolisFraming.forScene(
                 widthPx = widthPx,
                 heightPx = heightPx,
@@ -773,18 +809,17 @@ fun HeroSkyCanvas(
         // object and clamped inside the card's own width, so the pointer can never drift off the contact
         // point it is supposed to mark. Dark fill, one hairline, no accent ring: the sky is the loud
         // thing here, and the only colour in the card is the object's own dot.
+        // The layer only fades: scaling it would scale a full-bleed container about the canvas
+        // centre, which is what made the card appear to slide in from the middle of the screen. The
+        // card grows out of its own pin-side edge instead (see SelectionCallout).
         AnimatedVisibility(
             visible = selectedCelestial != null,
-            enter = fadeIn(tween(150)) + scaleIn(
-                initialScale = 0.90f,
-                transformOrigin = TransformOrigin(0.5f, 0.5f),
-                animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
-            ),
-            exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.96f, animationSpec = tween(120))
+            enter = fadeIn(tween(150)),
+            exit = fadeOut(tween(120))
         ) {
             selectedCelestial?.let { sel ->
-                val canvasW = constraints.maxWidth.toFloat()
-                val canvasH = constraints.maxHeight.toFloat()
+                val canvasW = pinCanvasW
+                val canvasH = pinCanvasH
                 val livePos = when {
                     sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
                     sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
@@ -836,18 +871,14 @@ fun HeroSkyCanvas(
         // the button, exactly as the user asked, and it sits for seven seconds before it fades.
         AnimatedVisibility(
             visible = selectedMonument != null,
-            enter = fadeIn(tween(180)) + scaleIn(
-                initialScale = 0.90f,
-                transformOrigin = TransformOrigin(0.5f, 0.5f),
-                animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
-            ),
-            exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.96f, animationSpec = tween(140))
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(140))
         ) {
             val monument = selectedMonument
             val framing = sceneFraming
             if (monument != null && framing != null) {
-                val canvasW = constraints.maxWidth.toFloat()
-                val canvasH = constraints.maxHeight.toFloat()
+                val canvasW = pinCanvasW
+                val canvasH = pinCanvasH
                 val pin = monumentPin(framing, monument, canvasW)
                 SelectionCallout(
                     name = MonumentCopy.title(monument, isFa),
@@ -1049,6 +1080,7 @@ private fun SelectionCallout(
     val wedgeW = with(density) { 18.dp.toPx() }
     val lift = with(density) { 13.dp.toPx() }        // gap between the wedge's tip and the object
     val edge = with(density) { 8.dp.toPx() }         // keep the card off the canvas edge
+    val tipInset = with(density) { 14.dp.toPx() }    // keep the pointer off the card's rounded corners
     val strokeW = with(density) { 0.7.dp.toPx() }
 
     val fill = Color(0xF20B0E15)
@@ -1056,30 +1088,55 @@ private fun SelectionCallout(
 
     val w = cardSize.width.toFloat()
     val h = cardSize.height.toFloat()
-    // Room above the object for the whole card plus its wedge?
-    val placeAbove = pinY - lift - wedgeH - h >= edge || pinY > canvasHeight * 0.55f
-    val x = (pinX - w / 2f).coerceIn(edge, (canvasWidth - edge - w).coerceAtLeast(edge))
-    val y = if (placeAbove) {
-        (pinY - lift - wedgeH - h).coerceIn(edge, (canvasHeight - edge - h).coerceAtLeast(edge))
-    } else {
-        (pinY + lift + wedgeH).coerceIn(edge, (canvasHeight - edge - h - wedgeH).coerceAtLeast(edge))
-    }
-    // The pointer marks the object: its centre tracks the object's x, held inside the card's corners.
-    val tipX = (pinX - x).coerceIn(with(density) { 14.dp.toPx() }, (w - with(density) { 14.dp.toPx() }).coerceAtLeast(with(density) { 14.dp.toPx() }))
+    // Everything below is a canvas pixel coordinate, resolved by pure arithmetic and then applied
+    // with absolute offsets: the sky behind the card is drawn without any layout direction, so the
+    // card must be placed without one too (see SkyCalloutGeometry — Modifier.offset is mirrored in RTL).
+    val placement = SkyCalloutGeometry.place(
+        pinX = pinX,
+        pinY = pinY,
+        cardWidthPx = w,
+        cardHeightPx = h,
+        canvasWidthPx = canvasWidth,
+        canvasHeightPx = canvasHeight,
+        gapPx = lift,
+        wedgeWidthPx = wedgeW,
+        wedgeHeightPx = wedgeH,
+        edgePx = edge,
+        tipInsetPx = tipInset
+    )
+    val placeAbove = placement.placeAbove
 
     // Until the card has been measured its position is a guess, so it is held invisible for the single
     // frame it takes to measure — never drawn at a guessed offset.
     val measured = cardSize.width > 0
+    // It then grows out of the object it points at. The layer is the whole canvas, so the origin is
+    // the pin's fraction of that canvas — scaling the layer about its centre is what used to slide
+    // the card in from the middle of the screen.
+    val appear by animateFloatAsState(
+        targetValue = if (measured) 1f else 0f,
+        animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
+        label = "SelectionCalloutAppear"
+    )
+    val originX = if (canvasWidth > 0f) (pinX / canvasWidth).coerceIn(0f, 1f) else 0.5f
+    val originY = if (canvasHeight > 0f) (pinY / canvasHeight).coerceIn(0f, 1f) else 0.5f
 
-    Box(modifier = Modifier.fillMaxSize().alpha(if (measured) 1f else 0f)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .alpha(if (measured) 1f else 0f)
+            .graphicsLayer {
+                // Card and wedge scale together, so they never separate while appearing.
+                val s = 0.92f + 0.08f * appear
+                scaleX = s
+                scaleY = s
+                transformOrigin = TransformOrigin(originX, originY)
+            }
+    ) {
         // The wedge first, so the card's own edge covers its base and the two read as one shape.
         Canvas(
             modifier = Modifier
-                .offset {
-                    IntOffset(
-                        (x + tipX - wedgeW / 2f).roundToInt(),
-                        (if (placeAbove) y + h else y - wedgeH).roundToInt()
-                    )
+                .absoluteOffset {
+                    IntOffset(placement.wedgeLeftPx.roundToInt(), placement.wedgeTopPx.roundToInt())
                 }
                 .size(with(density) { wedgeW.toDp() }, with(density) { wedgeH.toDp() })
         ) {
@@ -1112,7 +1169,7 @@ private fun SelectionCallout(
             border = BorderStroke(0.7.dp, hairline),
             shadowElevation = 10.dp,
             modifier = Modifier
-                .offset { IntOffset(x.roundToInt(), y.roundToInt()) }
+                .absoluteOffset { IntOffset(placement.cardLeftPx.roundToInt(), placement.cardTopPx.roundToInt()) }
                 .widthIn(max = with(density) { 210.dp })
                 .onSizeChanged { cardSize = it }
                 .testTag("selected_celestial_pill")

@@ -235,7 +235,7 @@ object StarRenderer {
 
             // 2. Named catalog stars (Pogson photometry, Ballesteros B-V tint, Kasten-Young extinction, PSF glow)
             for ((celestialObj, horiz) in objects) {
-                if (celestialObj.type != ObjectType.STAR || horiz.altitudeDeg <= 0.8) continue
+                if (celestialObj.type != ObjectType.STAR || horiz.altitudeDeg <= SkyTapTargets.STAR_MIN_ALTITUDE_DEG) continue
 
                 val hFade = horizonFadeFactor(horiz.altitudeDeg)
                 if (hFade <= 0.01f) continue
