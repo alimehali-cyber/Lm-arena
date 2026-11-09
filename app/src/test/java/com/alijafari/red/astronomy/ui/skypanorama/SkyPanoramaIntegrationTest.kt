@@ -56,7 +56,15 @@ class SkyPanoramaIntegrationTest {
         assertEquals(lat, state.latitudeDeg, 0.0)
         assertEquals(
             SkyPanoramaState.fromSkyState(
-                frame.lastDeg, lat, frame.sunHoriz.altitudeDeg, frame.lightingState.moonGlowIntensity
+                frame.lastDeg,
+                lat,
+                frame.sunHoriz.altitudeDeg,
+                frame.lightingState.moonGlowIntensity,
+                moonAltDeg = frame.moonData.altitudeDeg,
+                moonIlluminationPercent = frame.moonData.illuminationPercent,
+                bortle = frame.bortle,
+                sunAzimuthDeg = frame.sunHoriz.azimuthDeg,
+                moonAzimuthDeg = frame.moonData.azimuthDeg
             ),
             state
         )
@@ -82,6 +90,32 @@ class SkyPanoramaIntegrationTest {
             SkySceneModel.compute(SkyTimeModel.effectiveJd(liveTime, 2f), lat, lon, elev)
         )
         assertFalse("a two-hour offset must change the panorama camera", still.lstDeg == moved.lstDeg)
+    }
+
+    @Test
+    fun thePanoramaCarriesTheObserverBortleClassIntoTheSky() {
+        val frame = SkySceneModel.compute(TimeEngine.getJulianDate(liveTime), lat, lon, elev, bortle = 6)
+        val state = SkyPanoramaState.fromSceneFrame(frame)
+        assertEquals(6, state.bortle)
+        assertTrue("a Bortle 6 sky is light polluted", state.night.lightPollution > 0f)
+        val pristine = SkyPanoramaState.fromSceneFrame(
+            SkySceneModel.compute(TimeEngine.getJulianDate(liveTime), lat, lon, elev, bortle = 1)
+        )
+        assertEquals(0f, pristine.night.lightPollution, 0f)
+    }
+
+    @Test
+    fun theNightSkyReplacesTheDaytimePaletteBeforeTheNightTermsFade() {
+        // The shader blends the palette to the night sky with uNightSkyWeight, which must reach 1
+        // while the model still has twilight in it, otherwise a bright palette would sit on top of
+        // an already-synthesised twilight.
+        val twilight = SkyPanoramaState.fromSkyState(100.0, 45.0, -7.0, 0f)
+        assertTrue("mid-twilight is a blend", twilight.night.nightSkyWeight in 0.05f..0.95f)
+        val night = SkyPanoramaState.fromSkyState(100.0, 45.0, -12.0, 0f)
+        assertEquals(1f, night.night.nightSkyWeight, 1e-6f)
+        assertTrue("twilight must still have its own light", twilight.night.galaxyGamma > 0f)
+        val day = SkyPanoramaState.fromSkyState(100.0, 45.0, 20.0, 0f)
+        assertEquals(0f, day.night.nightSkyWeight, 0f)
     }
 
     private fun sourceRoot(): File {

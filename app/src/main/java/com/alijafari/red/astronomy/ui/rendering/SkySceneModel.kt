@@ -38,7 +38,12 @@ data class SkySceneFrame(
      * Moon's glyph geometry: phase, bright limb, axis position angle, libration). The photographic Moon
      * is rendered from this, so the Sky Canvas and the AR screen show the same Moon. Null if unavailable.
      */
-    val sunMoon: ArSkySceneComputer.SunMoon? = null
+    val sunMoon: ArSkySceneComputer.SunMoon? = null,
+    /**
+     * The observer's Bortle class. It is not astronomy: it is the darkness of the site, which sets how
+     * much light pollution the night sky carries. The panorama and the AR sky both read it.
+     */
+    val bortle: Int = SkyNightDefaults.BORTLE
 )
 
 object SkySceneModel {
@@ -61,7 +66,13 @@ object SkySceneModel {
      * Pure computation of the sky for [jd] at the observer position. Has no side effects, and every
      * engine call it makes uses only local state, so it may run on any thread.
      */
-    fun compute(jd: Double, latitudeDeg: Double, longitudeDeg: Double, elevationM: Double): SkySceneFrame {
+    fun compute(
+        jd: Double,
+        latitudeDeg: Double,
+        longitudeDeg: Double,
+        elevationM: Double,
+        bortle: Int = SkyNightDefaults.BORTLE
+    ): SkySceneFrame {
         val lastDeg = TimeEngine.getLAST(jd, longitudeDeg)
 
         val sunPos = SunEngine.calculatePosition(jd)
@@ -154,7 +165,8 @@ object SkySceneModel {
             lightingState = lightingState,
             isSolarEclipse = isSolarEclipse,
             isLunarEclipse = isLunarEclipse,
-            sunMoon = sunMoon
+            sunMoon = sunMoon,
+            bortle = bortle.coerceIn(1, 9)
         )
     }
 }

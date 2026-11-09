@@ -126,7 +126,8 @@ private fun LiveSkyActiveBackdrop(
         dragOffsetHours = dragOffset,
         latitudeDeg = latitudeDeg,
         longitudeDeg = longitudeDeg,
-        elevationM = elevationM
+        elevationM = elevationM,
+        bortle = bortleClass
     )
     val latestRequest = rememberUpdatedState(request)
 
@@ -199,7 +200,8 @@ private suspend fun computeFrame(req: LiveSkyFrameRequest): SkySceneFrame? = try
             jd = req.julianDate,
             latitudeDeg = req.latitudeDeg,
             longitudeDeg = req.longitudeDeg,
-            elevationM = req.elevationM
+            elevationM = req.elevationM,
+            bortle = req.bortle
         )
     }
 } catch (e: CancellationException) {

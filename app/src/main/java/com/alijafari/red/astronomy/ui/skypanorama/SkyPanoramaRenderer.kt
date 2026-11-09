@@ -71,7 +71,25 @@ class SkyPanoramaRenderer(private val listener: Listener) {
     private var uSkyZenith = -1
     private var uSkyMid = -1
     private var uSkyHorizon = -1
-    private var uNightWeight = -1
+    private var uNightSkyWeight = -1
+    private var uZenithDir = -1
+    private var uNorthDir = -1
+    private var uEastDir = -1
+    private var uSunAzDeg = -1
+    private var uSunAltDeg = -1
+    private var uMoonAzDeg = -1
+    private var uMoonAltDeg = -1
+    private var uTau = -1
+    private var uAirglow = -1
+    private var uLightPollution = -1
+    private var uZenithTz = -1
+    private var uMoonSky = -1
+    private var uGalaxyPeak = -1
+    private var uGalaxyGamma = -1
+    private var uZodiacalPeak = -1
+    private var uGegenschein = -1
+    private var uTwilightGain = -1
+    private var uDitherSeed = -1
 
     private var viewportWidth = 0
     private var viewportHeight = 0
@@ -244,7 +262,25 @@ class SkyPanoramaRenderer(private val listener: Listener) {
         uSkyZenith = GLES30.glGetUniformLocation(prog, "uSkyZenith")
         uSkyMid = GLES30.glGetUniformLocation(prog, "uSkyMid")
         uSkyHorizon = GLES30.glGetUniformLocation(prog, "uSkyHorizon")
-        uNightWeight = GLES30.glGetUniformLocation(prog, "uNightWeight")
+        uNightSkyWeight = GLES30.glGetUniformLocation(prog, "uNightSkyWeight")
+        uZenithDir = GLES30.glGetUniformLocation(prog, "uZenithDir")
+        uNorthDir = GLES30.glGetUniformLocation(prog, "uNorthDir")
+        uEastDir = GLES30.glGetUniformLocation(prog, "uEastDir")
+        uSunAzDeg = GLES30.glGetUniformLocation(prog, "uSunAzDeg")
+        uSunAltDeg = GLES30.glGetUniformLocation(prog, "uSunAltDeg")
+        uMoonAzDeg = GLES30.glGetUniformLocation(prog, "uMoonAzDeg")
+        uMoonAltDeg = GLES30.glGetUniformLocation(prog, "uMoonAltDeg")
+        uTau = GLES30.glGetUniformLocation(prog, "uTau")
+        uAirglow = GLES30.glGetUniformLocation(prog, "uAirglow")
+        uLightPollution = GLES30.glGetUniformLocation(prog, "uLightPollution")
+        uZenithTz = GLES30.glGetUniformLocation(prog, "uZenithTz")
+        uMoonSky = GLES30.glGetUniformLocation(prog, "uMoonSky")
+        uGalaxyPeak = GLES30.glGetUniformLocation(prog, "uGalaxyPeak")
+        uGalaxyGamma = GLES30.glGetUniformLocation(prog, "uGalaxyGamma")
+        uZodiacalPeak = GLES30.glGetUniformLocation(prog, "uZodiacalPeak")
+        uGegenschein = GLES30.glGetUniformLocation(prog, "uGegenschein")
+        uTwilightGain = GLES30.glGetUniformLocation(prog, "uTwilightGain")
+        uDitherSeed = GLES30.glGetUniformLocation(prog, "uDitherSeed")
     }
 
     private fun compileShader(type: Int, source: String): Int {
@@ -300,7 +336,6 @@ class SkyPanoramaRenderer(private val listener: Listener) {
         GLES30.glUniform3f(uUp, basis.up[0].toFloat(), basis.up[1].toFloat(), basis.up[2].toFloat())
         GLES30.glUniform2f(uTanHalf, tanHalfX.toFloat(), tanHalfY.toFloat())
         GLES30.glUniform1f(uLod, lod)
-        GLES30.glUniform1f(uExposure, cfg.exposure)
         GLES30.glUniform1f(uSaturation, cfg.saturation)
         GLES30.glUniform1f(uContrast, cfg.contrast)
         GLES30.glUniform1f(uVisibility, cfg.visibility)
@@ -308,7 +343,31 @@ class SkyPanoramaRenderer(private val listener: Listener) {
         GLES30.glUniform3f(uSkyZenith, sky.gradient.zenith.r, sky.gradient.zenith.g, sky.gradient.zenith.b)
         GLES30.glUniform3f(uSkyMid, sky.gradient.mid.r, sky.gradient.mid.g, sky.gradient.mid.b)
         GLES30.glUniform3f(uSkyHorizon, sky.gradient.horizon.r, sky.gradient.horizon.g, sky.gradient.horizon.b)
-        GLES30.glUniform1f(uNightWeight, sky.nightWeight)
+
+        // The physical night sky: geometry of the observer, the Sun and the Moon, then its photometry.
+        // The exposure comes from that photometry (the sky the eye adapts to), with the config's own
+        // gain applied on top, so a tuning value can still brighten or dim the whole frame.
+        val night = current.night
+        GLES30.glUniform1f(uExposure, night.exposure * cfg.exposure)
+        GLES30.glUniform1f(uNightSkyWeight, night.nightSkyWeight)
+        GLES30.glUniform3f(uZenithDir, current.zenithDir[0].toFloat(), current.zenithDir[1].toFloat(), current.zenithDir[2].toFloat())
+        GLES30.glUniform3f(uNorthDir, current.northDir[0].toFloat(), current.northDir[1].toFloat(), current.northDir[2].toFloat())
+        GLES30.glUniform3f(uEastDir, current.eastDir[0].toFloat(), current.eastDir[1].toFloat(), current.eastDir[2].toFloat())
+        GLES30.glUniform1f(uSunAzDeg, current.sunAzDeg.toFloat())
+        GLES30.glUniform1f(uSunAltDeg, current.sunAltDeg.toFloat())
+        GLES30.glUniform1f(uMoonAzDeg, current.moonAzDeg.toFloat())
+        GLES30.glUniform1f(uMoonAltDeg, current.moonAltDeg.toFloat())
+        GLES30.glUniform3f(uTau, night.tauR, night.tauG, night.tauB)
+        GLES30.glUniform1f(uAirglow, night.airglow)
+        GLES30.glUniform1f(uLightPollution, night.lightPollution)
+        GLES30.glUniform1f(uZenithTz, night.zenithTransmittance)
+        GLES30.glUniform1f(uMoonSky, night.moonSky)
+        GLES30.glUniform1f(uGalaxyPeak, night.galaxyPeak)
+        GLES30.glUniform1f(uGalaxyGamma, night.galaxyGamma)
+        GLES30.glUniform1f(uZodiacalPeak, night.zodiacalPeak)
+        GLES30.glUniform1f(uGegenschein, night.gegenschein)
+        GLES30.glUniform1f(uTwilightGain, night.twilightGain)
+        GLES30.glUniform1f(uDitherSeed, ((System.nanoTime() / 1_000_000L) % 997L).toFloat())
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
 

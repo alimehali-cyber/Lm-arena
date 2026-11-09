@@ -26,10 +26,14 @@ object AtmosphereRenderer {
         sunAzimuthDeg: Double = 180.0,
         latitudeDeg: Double = 0.0,
         panoramaMode: Boolean = false,
-        projection: SkyProjection = HeroProjection
+        projection: SkyProjection = HeroProjection,
+        nightSky: NightSkyPalette = NightSkyPalette.DEFAULT,
+        moonPosPx: Offset? = null
     ) {
         when (theme) {
-            SkyCanvasTheme.REAL_SKY -> drawRealSkyAtmosphere(drawScope, lightingState, sunPosPx, sunAzimuthDeg, latitudeDeg, panoramaMode, projection)
+            SkyCanvasTheme.REAL_SKY -> drawRealSkyAtmosphere(
+                drawScope, lightingState, sunPosPx, sunAzimuthDeg, latitudeDeg, panoramaMode, projection, nightSky, moonPosPx
+            )
             SkyCanvasTheme.ATMOSPHERIC_SKY -> drawAtmosphericSky(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.MONOCHROME_SCIENTIFIC -> drawMonochromeAtmosphere(drawScope, lightingState, sunPosPx)
             SkyCanvasTheme.KIDS_WATERCOLOR -> drawKidsWatercolorAtmosphere(drawScope, lightingState, sunPosPx)
@@ -54,7 +58,9 @@ object AtmosphereRenderer {
         sunAzimuthDeg: Double,
         latitudeDeg: Double,
         panoramaMode: Boolean,
-        projection: SkyProjection
+        projection: SkyProjection,
+        nightSky: NightSkyPalette,
+        moonPosPx: Offset?
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
@@ -66,6 +72,12 @@ object AtmosphereRenderer {
         } else 1f
 
         // 1. Zenith -> Mid -> Horizon gradient from the shared palette (skipped in panorama mode).
+        //
+        // On a dark night the flat gradient is replaced by the night itself: natural airglow that
+        // brightens towards the horizon, the local light dome and a moonlight wash. A flat gradient
+        // was the single biggest reason the procedural night did not read as a sky: a real night is
+        // never one colour from the zenith to the horizon. It fades out as twilight begins, and the
+        // palette gradient it replaces is still drawn underneath it, so the two never step.
         if (!panoramaMode) {
             val g = RealSkyPalette.gradientAt(sunAlt, lightingState.moonGlowIntensity)
             drawScope.drawRect(
@@ -79,6 +91,14 @@ object AtmosphereRenderer {
                 ),
                 size = drawScope.size
             )
+            if (nightSky.strength > 0.004f) {
+                NightSkyRenderer.drawSkyGlow(
+                    drawScope = drawScope,
+                    horizonY = horizonY,
+                    palette = nightSky,
+                    moonPosPx = moonPosPx
+                )
+            }
         }
 
         // 2. Sun-centered radial twilight dome.
@@ -126,23 +146,9 @@ object AtmosphereRenderer {
             }
         }
 
-        // 4. Subtle natural airglow / atmospheric extinction horizon band at night (legacy only).
-        if (!panoramaMode && sunAlt < -12.0) {
-            val airglowAlpha = (((-sunAlt - 12.0) / 6.0).coerceIn(0.0, 1.0) * 0.14).toFloat()
-            val bandHeight = height * 0.22f
-            drawScope.drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        Color(0xFF142038).copy(alpha = airglowAlpha)
-                    ),
-                    startY = horizonY - bandHeight,
-                    endY = horizonY
-                ),
-                topLeft = Offset(0f, horizonY - bandHeight),
-                size = drawScope.size.copy(height = bandHeight)
-            )
-        }
+        // 4. The night airglow band is part of [NightSkyRenderer.drawSkyGlow] above, which also owns the
+        //    light dome and the moonlight wash, so the night is drawn as one sky instead of three
+        //    separate strips.
     }
 
     private fun drawAtmosphericSky(

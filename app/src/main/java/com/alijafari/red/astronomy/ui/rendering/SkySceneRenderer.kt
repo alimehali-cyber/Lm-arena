@@ -63,6 +63,16 @@ object SkySceneRenderer {
         foregroundVegetationInOverlay: Boolean = false,
         replaceSceneMountains: Boolean = false
     ) {
+        // The night this sky is set in: airglow, light dome, moonlight and how much of the galaxy
+        // survives them. The same photometry the panorama shader uses, in theme colours.
+        val nightSky = NightSkyPalette.forNight(
+            sunAltDeg = frame.sunHoriz.altitudeDeg,
+            moonAltDeg = frame.moonData.altitudeDeg,
+            moonIlluminationPercent = frame.moonData.illuminationPercent,
+            bortle = bortle.coerceIn(1, 9),
+            themeSkyTone = NightSkyThemeTones.skyTone(theme),
+            themeHorizonTone = NightSkyThemeTones.horizonTone(theme)
+        )
         val canvasW = drawScope.size.width
         val canvasH = drawScope.size.height
         val userLat = frame.latitudeDeg
@@ -93,7 +103,9 @@ object SkySceneRenderer {
             sunAzimuthDeg = sunHoriz.azimuthDeg,
             latitudeDeg = userLat,
             panoramaMode = panoramaActive,
-            projection = projection
+            projection = projection,
+            nightSky = nightSky,
+            moonPosPx = moonPosPx
         )
 
         // 2. Milky Way Renderer (procedural; replaced by the photographic panorama when active)
@@ -106,7 +118,8 @@ object SkySceneRenderer {
                 theme = theme,
                 latitudeDeg = userLat,
                 lastDeg = lastDeg,
-                projection = projection
+                projection = projection,
+                nightSky = nightSky
             )
         }
 

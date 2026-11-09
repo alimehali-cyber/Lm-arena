@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy.ui.backdrop
 
+import com.alijafari.red.astronomy.ui.rendering.SkyNightDefaults
 import com.alijafari.red.astronomy.ui.rendering.SkyTimeModel
 
 /**
@@ -18,7 +19,9 @@ data class LiveSkyFrameRequest(
     val dragOffsetHours: Float,
     val latitudeDeg: Double,
     val longitudeDeg: Double,
-    val elevationM: Double
+    val elevationM: Double,
+    /** The observer's Bortle class. Part of the sky itself: it decides the night's light pollution. */
+    val bortle: Int = SkyNightDefaults.BORTLE
 ) {
     val needsCompute: Boolean
         get() = visible

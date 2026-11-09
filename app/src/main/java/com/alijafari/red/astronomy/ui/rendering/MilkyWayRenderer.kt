@@ -159,7 +159,8 @@ object MilkyWayRenderer {
         theme: SkyCanvasTheme = SkyCanvasTheme.CELESTIAL,
         latitudeDeg: Double = 0.0,
         lastDeg: Double = 0.0,
-        projection: SkyProjection = HeroProjection
+        projection: SkyProjection = HeroProjection,
+        nightSky: NightSkyPalette = NightSkyPalette.DEFAULT
     ) {
         // Only render the photometric multi-isophote Milky Way in REAL_SKY mode;
         // the old generic stroke line remains removed across all themes.
@@ -168,7 +169,10 @@ object MilkyWayRenderer {
 
         val darknessFactor = (((-lightingState.sunAltitudeDeg - 6.0) / 11.0).coerceIn(0.0, 1.0)).toFloat()
         val moonDimming = (1.0f - lightingState.moonGlowIntensity * 0.72f).coerceIn(0.12f, 1.0f)
-        val masterVisibility = darknessFactor * moonDimming
+        // A washed-out or moonlit sky cannot reach the galaxy at all. The night palette measures that
+        // in the light-pollution and moonlight terms, so the galaxy fades with the sky it is set in
+        // rather than at a fixed moonlight value: under Bortle 8 the Milky Way is simply not there.
+        val masterVisibility = darknessFactor * moonDimming * nightSky.galaxyVisibility
         if (masterVisibility <= 0.02f) return
 
         val width = drawScope.size.width

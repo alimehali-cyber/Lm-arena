@@ -298,8 +298,8 @@ fun HeroSkyCanvas(
         TimeEngine.resolveTimeZone(uiState.userLocation.timezoneId)
     }
     // Astro computations: one shared scene model (also used by the Live Sky app backdrop)
-    val skyFrame = remember(simulatedJd, userLat, userLon, userElev) {
-        SkySceneModel.compute(simulatedJd, userLat, userLon, userElev)
+    val skyFrame = remember(simulatedJd, userLat, userLon, userElev, uiState.bortleClass) {
+        SkySceneModel.compute(simulatedJd, userLat, userLon, userElev, uiState.bortleClass)
     }
     val lastDeg = skyFrame.lastDeg
     val sunHoriz = skyFrame.sunHoriz

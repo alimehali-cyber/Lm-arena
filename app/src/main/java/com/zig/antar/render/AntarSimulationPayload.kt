@@ -14,6 +14,16 @@ object AntarSimulationPayload {
 
     const val HOST_BASE_ORIGIN: String = "https://appassets.androidplatform.net/assets/"
 
+    /**
+     * Size of the sky's stars relative to the bundled page: 0.6, i.e. 40% smaller.
+     *
+     * The page's point spread is a Gaussian whose width is 0.30 px plus the intrinsic source size
+     * (`SIG_STAR`); the hosted page multiplies *both* terms by this factor, so every star on every
+     * layer shrinks by the same amount and the field keeps its relative brightness, its colour and
+     * its lensing behaviour — only the points get smaller.
+     */
+    const val STAR_SIZE_SCALE: Float = 0.6f
+
     /** Unmodified HTML decoded from [KERR_SIMULATION_GZIP_B64]. Works on both Android and plain JVM tests. */
     val rawSimulationHtml: String by lazy {
         val compressed = decodeBase64RFC4648(KERR_SIMULATION_GZIP_B64)
@@ -76,7 +86,15 @@ object AntarSimulationPayload {
             "  outColor = vec4(col, escaped ? step(0.0005, max(Acc, max(col.r, max(col.g, col.b)))) : 1.0);" to
                 "  if (any(isnan(col)) || any(isinf(col))) col = vec3(0.0);\n  col = clamp(col, vec3(0.0), vec3(60000.0));\n  outColor = vec4(col, escaped ? step(0.0005, max(Acc, max(col.r, max(col.g, col.b)))) : 1.0);",
             "  outColor = vec4(itm(o), oa);" to
-                "  vec3 safeOut = itm(o);\n  if (any(isnan(safeOut)) || any(isinf(safeOut))) safeOut = vec3(0.0);\n  outColor = vec4(clamp(safeOut, vec3(0.0), vec3(60000.0)), clamp(oa, 0.0, 1.0));"
+                "  vec3 safeOut = itm(o);\n  if (any(isnan(safeOut)) || any(isinf(safeOut))) safeOut = vec3(0.0);\n  outColor = vec4(clamp(safeOut, vec3(0.0), vec3(60000.0)), clamp(oa, 0.0, 1.0));",
+            // The sky's stars were 40% too large on a phone screen: the point-spread width is now
+            // 0.6 of what the bundled page ships with (both the intrinsic size and the pixel
+            // footprint term), on all three star layers at once, so the field keeps its relative
+            // brightness and its lensing behaviour and only the points get smaller.
+            "  float sStar2 = SIG_STAR * SIG_STAR / max(omPix, 1e-14);\n  float s2 = 0.30 + sStar2;" to
+                "  float sStar2 = (STAR_SIZE_SCALE * SIG_STAR) * (STAR_SIZE_SCALE * SIG_STAR) / max(omPix, 1e-14);\n  float s2 = STAR_SIZE_SCALE * STAR_SIZE_SCALE * 0.30 + sStar2;",
+            "const float SIG_STAR = 0.00006;" to
+                "const float SIG_STAR = 0.00006;\n/* Star point size relative to the original page: 0.6 = 40% smaller. */\nconst float STAR_SIZE_SCALE = ${STAR_SIZE_SCALE};"
         )
         var patched = source
         replacements.forEach { (old, replacement) ->

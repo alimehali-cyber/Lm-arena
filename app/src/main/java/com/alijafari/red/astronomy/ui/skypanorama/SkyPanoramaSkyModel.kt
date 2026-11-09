@@ -23,6 +23,19 @@ object SkyPanoramaSkyModel {
     /** Sun altitude quantum for the renderer state. Sub-quantum changes do not trigger a GL frame. */
     const val SUN_ALT_QUANTUM_DEG = 0.05
 
+    /** Moon altitude quantum for the renderer state (deg). */
+    const val MOON_ALT_QUANTUM_DEG = 0.25
+
+    /** Moon illuminated-fraction quantum for the renderer state (percent). */
+    const val MOON_ILLUM_QUANTUM_PERCENT = 1.0
+
+    /**
+     * Zenith transmittance in V used for the extinction of starlight, the galaxy and the Moon's own
+     * path: a clear, sea-level night (k ≈ 0.20 mag/airmass). Higher sites and hazier nights are not
+     * measured by the app yet, so this is the clear-sky value everywhere.
+     */
+    const val EXTINCTION_V = 0.83
+
     /** Moon-glow quantum for the renderer state. */
     const val MOON_GLOW_QUANTUM = 0.01f
 
@@ -52,5 +65,19 @@ object SkyPanoramaSkyModel {
     fun quantizeMoonGlow(glow: Float): Float {
         if (glow.isNaN()) return 0f
         return Math.round(glow / MOON_GLOW_QUANTUM) * MOON_GLOW_QUANTUM
+    }
+
+    /** Snaps a lunar altitude to [MOON_ALT_QUANTUM_DEG]; NaN is treated as "Moon down". */
+    fun quantizeMoonAlt(moonAltDeg: Double): Double {
+        if (moonAltDeg.isNaN()) return -90.0
+        return Math.round(moonAltDeg / MOON_ALT_QUANTUM_DEG) * MOON_ALT_QUANTUM_DEG
+    }
+
+    /** Snaps an illuminated fraction (percent) to [MOON_ILLUM_QUANTUM_PERCENT] and returns 0..1. */
+    fun quantizeMoonIllum(illuminationPercent: Double): Float {
+        if (illuminationPercent.isNaN()) return 0f
+        val clipped = illuminationPercent.coerceIn(0.0, 100.0)
+        val snapped = Math.round(clipped / MOON_ILLUM_QUANTUM_PERCENT) * MOON_ILLUM_QUANTUM_PERCENT
+        return (snapped / 100.0).toFloat().coerceIn(0f, 1f)
     }
 }

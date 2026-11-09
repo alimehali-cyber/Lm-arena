@@ -46,6 +46,35 @@ class AntarPayloadAndIntegrationTest {
     }
 
     @Test
+    fun theSkyStarsAreFortyPercentSmallerThanTheBundledPageDrawsThem() {
+        // The raw page holds the original point spread; the hosted page is what the WebView runs.
+        val raw = AntarSimulationPayload.rawSimulationHtml
+        assertTrue(raw.contains("const float SIG_STAR = 0.00006;"))
+        assertTrue(raw.contains("float s2 = 0.30 + sStar2;"))
+        assertFalse("the source asset must not be edited in place", raw.contains("STAR_SIZE_SCALE"))
+        // One constant scales the intrinsic star size and the pixel-footprint term, so every star
+        // on all three layers shrinks by the same 40%.
+        assertEquals(0.6f, AntarSimulationPayload.STAR_SIZE_SCALE, 0f)
+        val hosted = AntarSimulationPayload.buildHostedHtml()
+        assertTrue(hosted.contains("const float STAR_SIZE_SCALE = 0.6;"))
+        assertTrue(
+            hosted.contains(
+                "float s2 = STAR_SIZE_SCALE * STAR_SIZE_SCALE * 0.30 + sStar2;"
+            )
+        )
+        assertTrue(
+            hosted.contains(
+                "float sStar2 = (STAR_SIZE_SCALE * SIG_STAR) * (STAR_SIZE_SCALE * SIG_STAR) / max(omPix, 1e-14);"
+            )
+        )
+        // The constant must be declared before starLayer() uses it, or the shader would not compile.
+        val scaleAt = hosted.indexOf("const float STAR_SIZE_SCALE = 0.6;")
+        val firstUse = hosted.indexOf("STAR_SIZE_SCALE * SIG_STAR")
+        assertTrue("STAR_SIZE_SCALE must be declared in the shader source", scaleAt > 0)
+        assertTrue("STAR_SIZE_SCALE must be declared before it is used", scaleAt < firstUse)
+    }
+
+    @Test
     fun presetsAndSettingsSerializeCleanlyForEngineAndTelemetryParserWorks() {
         for (preset in AntarPreset.entries) {
             val s = preset.applyTo(AntarSimulationSettings.DEFAULT)

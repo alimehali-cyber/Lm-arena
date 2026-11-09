@@ -32,7 +32,10 @@ object AstronomyRenderer {
         frameTimeMs: Long,
         theme: SkyCanvasTheme = SkyCanvasTheme.ATMOSPHERIC_SKY,
         drawGrid: Boolean = false,
-        latitudeDeg: Double = 0.0
+        latitudeDeg: Double = 0.0,
+        moonAltitudeDeg: Double = -90.0,
+        moonIlluminationPercent: Double = 0.0,
+        bortle: Int = SkyNightDefaults.BORTLE
     ) {
         val width = drawScope.size.width
         val height = drawScope.size.height
@@ -41,14 +44,25 @@ object AstronomyRenderer {
             HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, width, height, latitudeDeg)
         } else null
 
-        // 1. Atmosphere & Sky Gradient
+        // 1. Atmosphere & Sky Gradient. The night it is set in — airglow, light dome, moonlight and
+        // how much of the galaxy survives them — comes from the same photometry every sky surface
+        // uses, so this renderer draws the same night as the Home scene and the backdrop.
+        val nightSky = NightSkyPalette.forNight(
+            sunAltDeg = sunHoriz.altitudeDeg,
+            moonAltDeg = moonAltitudeDeg,
+            moonIlluminationPercent = moonIlluminationPercent,
+            bortle = bortle,
+            themeSkyTone = NightSkyThemeTones.skyTone(theme),
+            themeHorizonTone = NightSkyThemeTones.horizonTone(theme)
+        )
         AtmosphereRenderer.drawAtmosphere(
             drawScope = drawScope,
             lightingState = lightingState,
             sunPosPx = sunPosPx,
             theme = theme,
             sunAzimuthDeg = sunHoriz.azimuthDeg,
-            latitudeDeg = latitudeDeg
+            latitudeDeg = latitudeDeg,
+            nightSky = nightSky
         )
 
         // 2. Coordinate Grid (if enabled)
@@ -63,7 +77,8 @@ object AstronomyRenderer {
             lightingState = lightingState,
             frameTimeMs = frameTimeMs,
             theme = theme,
-            latitudeDeg = latitudeDeg
+            latitudeDeg = latitudeDeg,
+            nightSky = nightSky
         )
 
         // 4. Constellation Lines
