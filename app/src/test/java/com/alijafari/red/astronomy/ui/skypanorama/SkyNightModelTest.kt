@@ -107,6 +107,43 @@ class SkyNightModelTest {
     }
 
     @Test
+    fun twilightFollowsThePublishedLadderFromDaylightToDark() {
+        // The classic twilight ladder: ~1.9 mag/arcsec2 per degree of solar depression.
+        assertEquals(10.5, SkyRenderModel.luminanceToMagArcsec2(SkyNightModel.twilightZenithLuminance(-12.0)), 0.05)
+        assertEquals(21.9, SkyRenderModel.luminanceToMagArcsec2(SkyNightModel.twilightZenithLuminance(-18.0)), 0.6)
+        // It rises strictly as the Sun goes down, and is handed back to the daytime palette above -6.
+        var previous = 0.0
+        var alt = -6.0
+        while (alt >= -20.0) {
+            val l = SkyNightModel.twilightZenithLuminance(alt)
+            assertTrue("twilight must brighten as the Sun sets (at $alt)", l <= previous * 1.0001)
+            previous = l
+            alt -= 0.25
+        }
+        assertEquals(0.0, SkyNightModel.twilightZenithLuminance(3.0), 0.0)
+        assertTrue(SkyNightModel.twilightZenithLuminance(-9.0) > SkyNightModel.naturalAirglow * 1000.0)
+    }
+
+    @Test
+    fun theExposureAdaptsToTwilightInsteadOfBurningItOut() {
+        val day = SkyNightModel.skyFor(-2.0, -30.0, 0.0, 3)
+        val nautical = SkyNightModel.skyFor(-9.0, -30.0, 0.0, 3)
+        val night = SkyNightModel.skyFor(-30.0, -30.0, 0.0, 3)
+        assertEquals(0f, day.twilightZenith, 0f)
+        assertTrue("twilight must be part of the sky", nautical.twilightZenith > 0f)
+        // Without the twilight in the key, twilight would be scaled by the night exposure (tens of
+        // times) and clip to white.
+        assertTrue(
+            "twilight exposure ${nautical.exposure} must be far below the night's ${night.exposure}",
+            nautical.exposure < night.exposure * 0.05f
+        )
+        // ...and it must still be exposed so that the twilight sky lands below white.
+        val twilightZenith = nautical.twilightZenith * nautical.exposure
+        assertTrue("twilight zenith must not clip (got $twilightZenith)", twilightZenith < 1f)
+        assertTrue("twilight zenith must be visible (got $twilightZenith)", twilightZenith > 0.05f)
+    }
+
+    @Test
     fun theNightSkyWeightNeverSteps() {
         var previous = SkyNightModel.nightSkyWeight(10.0)
         var maxStep = 0f
@@ -156,6 +193,25 @@ class SkyNightModelTest {
     }
 
     @Test
+    fun aPristineNightIsRodSeenAndACityNightIsNot() {
+        val pristine = SkyNightModel.skyFor(-30.0, -30.0, 0.0, 2)
+        val city = SkyNightModel.skyFor(-30.0, -30.0, 0.0, 8)
+        val fullMoon = SkyNightModel.skyFor(-30.0, 60.0, 100.0, 3)
+        // A dark night is seen by the rods (blue-green, desaturated); a city sky is a cone scene, so
+        // it keeps the sodium/LED colours it really has instead of going grey.
+        assertTrue("pristine sky must be rod-seen, got ${pristine.scotopicWeight}", pristine.scotopicWeight > 0.9f)
+        assertTrue("a city night must keep its colour, got ${city.scotopicWeight}", city.scotopicWeight < pristine.scotopicWeight)
+        assertTrue("a full Moon must keep its colour", fullMoon.scotopicWeight < pristine.scotopicWeight)
+        // Daylight is a cone scene: the rods have nothing to do with it.
+        assertEquals(0f, SkyNightModel.skyFor(30.0, -30.0, 0.0, 3).scotopicWeight, 0f)
+        // ...and it is the shared SkyRenderModel curve, not a second copy of it: at the adaptation
+        // luminance of a pristine sky it is essentially full rod vision.
+        assertTrue(SkyRenderModel.scotopicWeight(SkyNightModel.adaptationLuminance(
+            SkyNightModel.naturalAirglow, 0.0, 0.0
+        )) > 0.95)
+    }
+
+    @Test
     fun extinctionReddensWhatIsSeenThroughIt() {
         val clear = SkyNightModel.skyFor(-35.0, -30.0, 5.0, 3, extinctionV = 0.83)
         val hazy = SkyNightModel.skyFor(-35.0, -30.0, 5.0, 3, extinctionV = 0.55)
@@ -180,7 +236,7 @@ class SkyNightModelTest {
         for (uniform in listOf(
             "uZenithDir", "uNorthDir", "uEastDir", "uSunAzDeg", "uSunAltDeg", "uMoonAzDeg", "uMoonAltDeg",
             "uTau", "uAirglow", "uLightPollution", "uZenithTz", "uMoonSky", "uGalaxyPeak", "uGalaxyGamma",
-            "uZodiacalPeak", "uGegenschein", "uTwilightGain", "uExposure", "uNightSkyWeight", "uDitherSeed"
+            "uZodiacalPeak", "uGegenschein", "uTwilightZenith", "uExposure", "uNightSkyWeight", "uScotopicWeight", "uDitherSeed"
         )) {
             assertTrue("the fragment shader must declare $uniform", fragment.contains(uniform))
         }
@@ -211,7 +267,7 @@ class SkyNightModelTest {
         for (name in listOf(
             "uNightSkyWeight", "uZenithDir", "uNorthDir", "uEastDir", "uSunAzDeg", "uSunAltDeg",
             "uMoonAzDeg", "uMoonAltDeg", "uTau", "uAirglow", "uLightPollution", "uZenithTz", "uMoonSky",
-            "uGalaxyPeak", "uGalaxyGamma", "uZodiacalPeak", "uGegenschein", "uTwilightGain", "uDitherSeed"
+            "uGalaxyPeak", "uGalaxyGamma", "uZodiacalPeak", "uGegenschein", "uTwilightZenith", "uDitherSeed"
         )) {
             assertTrue("renderer must locate $name", renderer.contains("glGetUniformLocation(prog, \"$name\")"))
             assertTrue("renderer must set $name", renderer.contains("$name,") || renderer.contains("$name)"))

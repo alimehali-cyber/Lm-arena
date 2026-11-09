@@ -88,7 +88,8 @@ class SkyPanoramaRenderer(private val listener: Listener) {
     private var uGalaxyGamma = -1
     private var uZodiacalPeak = -1
     private var uGegenschein = -1
-    private var uTwilightGain = -1
+    private var uTwilightZenith = -1
+    private var uScotopicWeight = -1
     private var uDitherSeed = -1
 
     private var viewportWidth = 0
@@ -279,7 +280,8 @@ class SkyPanoramaRenderer(private val listener: Listener) {
         uGalaxyGamma = GLES30.glGetUniformLocation(prog, "uGalaxyGamma")
         uZodiacalPeak = GLES30.glGetUniformLocation(prog, "uZodiacalPeak")
         uGegenschein = GLES30.glGetUniformLocation(prog, "uGegenschein")
-        uTwilightGain = GLES30.glGetUniformLocation(prog, "uTwilightGain")
+        uTwilightZenith = GLES30.glGetUniformLocation(prog, "uTwilightZenith")
+        uScotopicWeight = GLES30.glGetUniformLocation(prog, "uScotopicWeight")
         uDitherSeed = GLES30.glGetUniformLocation(prog, "uDitherSeed")
     }
 
@@ -366,7 +368,8 @@ class SkyPanoramaRenderer(private val listener: Listener) {
         GLES30.glUniform1f(uGalaxyGamma, night.galaxyGamma)
         GLES30.glUniform1f(uZodiacalPeak, night.zodiacalPeak)
         GLES30.glUniform1f(uGegenschein, night.gegenschein)
-        GLES30.glUniform1f(uTwilightGain, night.twilightGain)
+        GLES30.glUniform1f(uTwilightZenith, night.twilightZenith)
+        GLES30.glUniform1f(uScotopicWeight, night.scotopicWeight)
         GLES30.glUniform1f(uDitherSeed, ((System.nanoTime() / 1_000_000L) % 997L).toFloat())
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, 3)
         GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)

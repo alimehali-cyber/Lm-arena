@@ -70,6 +70,18 @@ object SkyNightModel {
      */
     const val TWILIGHT_TRANSPARENCY: Double = 1.0
 
+    /**
+     * Zenith sky brightness at the start of nautical twilight, Sun 12° below the horizon, in
+     * cd/m² (~10.5 V mag/arcsec²: the classic "10 degrees of depression per 10x" twilight ladder
+     * from ~21.9 mag/arcsec² at 18°).
+     *
+     * This is the anchor: the ladder below is hung from it, so the twilight is *brighter than the
+     * night by a known, published amount* and the shared exposure then exposes it correctly, instead
+     * of an arbitrary gain making it grey or blown out.
+     */
+    val TWILIGHT_ZENITH_SKY_AT_MINUS_12: Double =
+        SkyRenderModel.magArcsec2ToLuminance(10.5)
+
     /** Everything the panorama shader needs from the sky for one instant. */
     data class Sky(
         /** Zenith extinction per channel (linear transmittance ratios turned into optical depth). */
@@ -89,11 +101,18 @@ object SkyNightModel {
         val galaxyGamma: Float,
         val zodiacalPeak: Float,
         val gegenschein: Float,
-        val twilightGain: Float,
+        /** The twilight's zenith luminance for this instant, cd/m² (zero once fully dark). */
+        val twilightZenith: Float,
         /** Exposure that maps the night at the camera's elevation onto the display. */
         val exposure: Float,
         /** 0 = daytime palette only, 1 = the physical night sky only. */
         val nightSkyWeight: Float,
+        /**
+         * How far the eye is dark-adapted, 0 = cone vision, 1 = rod vision. Drives the Purkinje
+         * shift: a dark night is rendered desaturated and blue-green, a moonlit or polluted one is
+         * not, because the eye has not gone scotopic under it.
+         */
+        val scotopicWeight: Float,
         /** Quantised Moon inputs, for state equality and for tests. */
         val moonIllumination: Float,
         val moonAltitudeDeg: Float
@@ -151,6 +170,23 @@ object SkyNightModel {
     }
 
     /**
+     * Zenith sky brightness for a solar depression angle, cd/m²: the classic twilight ladder,
+     * ~1.9 mag/arcsec² per degree of depression below the horizon (21.9 at 18°, 10.5 at 12°, ~2 at
+     * 6°), anchored on [TWILIGHT_ZENITH_SKY_AT_MINUS_12] and switched off above -6° where the sky
+     * is daylight's.
+     *
+     * The shader integrates the same ladder, and the exposure is keyed on it, so twilight is the
+     * brightness astronomy says it is instead of being multiplied up by a night exposure.
+     */
+    fun twilightZenithLuminance(sunAltDeg: Double, transparency: Double = TWILIGHT_TRANSPARENCY): Double {
+        if (sunAltDeg.isNaN()) return 0.0
+        val depression = max(-sunAltDeg, 0.0)
+        val notDaylight = 1.0 - smoothstep(-6.0, -2.0, sunAltDeg)
+        return TWILIGHT_ZENITH_SKY_AT_MINUS_12 * transparency *
+            10.0.pow(-0.76 * (depression - 12.0)) * notDaylight
+    }
+
+    /**
      * 0 in daylight and through civil twilight to 1 once the sky is fully dark, with the same
      * smoothstep shape the day/night palette blend uses so nothing steps.
      *
@@ -194,6 +230,7 @@ object SkyNightModel {
         val natural = naturalAirglow
         val artificial = artificialLuminance(bortle)
         val moonSky = moonSkyLuminance(moonAltDeg, moonIlluminationPercent, tz)
+        val twilight = twilightZenithLuminance(sunAltDeg)
         val adaptation = adaptationLuminance(natural, artificial, moonSky)
         // Exposure is normalised by the sky at the camera's elevation: the eye adapts to what fills
         // the frame. It uses the same dark-sky model as everything else, with the light dome over
@@ -201,7 +238,10 @@ object SkyNightModel {
         val airmassCamera = airmass(cameraAltDeg)
         val glareAtCamera = natural * airmassCamera * tz.pow(airmassCamera - 1.0) +
             artificial * (0.40 + 2.5 * exp(-max(cameraAltDeg, 0.4) / 7.5) * 1.28)
-        val keyLuminance = max(0.65 * adaptation + 0.35 * max(glareAtCamera, 1e-7), 1e-7)
+        // The eye adapts to whatever sky it is under, so the twilight is part of the key: without it
+        // the whole twilight sky is scaled by a night exposure and clips to white. It sits below the
+        // dark-sky terms near the horizon at dusk, where the light dome and the Moon are brighter.
+        val keyLuminance = max(0.65 * adaptation + 0.35 * max(glareAtCamera, 1e-7) + 0.45 * twilight, 1e-7)
 
         return Sky(
             tauR = tauR.toFloat(),
@@ -215,9 +255,12 @@ object SkyNightModel {
             galaxyGamma = GALAXY_GAMMA.toFloat(),
             zodiacalPeak = SkyRenderModel.magArcsec2ToLuminance(ZODIACAL_PEAK_MAG_ARCSEC2).toFloat(),
             gegenschein = SkyRenderModel.magArcsec2ToLuminance(GEGENSCHEIN_MAG_ARCSEC2).toFloat(),
-            twilightGain = TWILIGHT_TRANSPARENCY.toFloat(),
+            twilightZenith = twilight.toFloat(),
             exposure = SkyRenderModel.exposure(keyLuminance).toFloat(),
             nightSkyWeight = nightSkyWeight(sunAltDeg),
+            // Rod vision only applies to the night sky: in daylight the cones own the scene, and
+            // the daytime palette is drawn by uSkyZenith instead.
+            scotopicWeight = (SkyRenderModel.scotopicWeight(keyLuminance) * nightSkyWeight(sunAltDeg)).toFloat(),
             moonIllumination = (moonIlluminationPercent / 100.0).coerceIn(0.0, 1.0).toFloat(),
             moonAltitudeDeg = moonAltDeg.toFloat()
         )

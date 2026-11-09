@@ -32,7 +32,9 @@ package com.alijafari.red.astronomy.ui.skypanorama
  *     else, so it rises red near the horizon and is drawn only above it.
  *  2. **Airglow** — the natural night sky (21.95 mag/arcsec² at the zenith, mean solar activity)
  *     brightening towards the horizon as X·T^(X−1) (Krisciunas & Schaefer 1991), with a slow
- *     large-scale patchiness, faintly green as the 557.7 nm OI line is.
+ *     large-scale patchiness. Its colour is the 557.7 nm OI green line seen through the
+ *     integrated starlight (blue) that makes up the rest of the natural sky, so the zenith is a
+ *     cold blue-green rather than either a green wash or a flat grey.
  *  3. **Light pollution** — the Bortle excess over the natural sky, concentrated in domes near the
  *     horizon and tinted by high-pressure sodium/LED spectra.
  *  4. **Zodiacal light and Gegenschein** — along the ecliptic, brightest 90° from the Sun, with the
@@ -111,10 +113,14 @@ uniform float uGalaxyPeak;    // cd/m^2 for a unit galaxy texel after the sky is
 uniform float uGalaxyGamma;   // compresses the plate's dynamic range onto visual surface brightness
 uniform float uZodiacalPeak;  // cd/m^2 at the ecliptic, 90 deg from the Sun
 uniform float uGegenschein;   // cd/m^2 of the anti-solar Gegenschein
-uniform float uTwilightGain;  // scales the synthesised twilight (weather/transparency, 1 = clear)
+uniform float uTwilightZenith; // zenith twilight luminance for this instant, cd/m^2
+// Rod (scotopic) vision weight for this adaptation luminance, 0 = cones, 1 = rods.
+uniform float uScotopicWeight;
 uniform float uDitherSeed;
 
 const float PI = 3.14159265358979;
+// Henyey-Greenstein anisotropy of the twilight's forward scattering.
+const float G_TW = 0.72;
 const float MID_STOP = 0.55;
 const float HORIZON_STOP = 0.86;
 
@@ -248,29 +254,28 @@ void main() {
     moon *= smoothstep(-1.2, 3.0, altDeg) * vec3(0.82, 0.95, 1.28);
 
     // ---------------------------------------------------------------- twilight
-    // Single-scattered sunlight above the Earth's shadow. The zenith term falls a factor of 10 per
-    // 2.5 degrees of solar depression (the classic twilight law), the horizon term is the long air
-    // path to the Sun's side (Henyey-Greenstein, g = 0.72, plus Rayleigh).
-    float depression = max(-uSunAltDeg, 0.0);
-    float twZenith = pow(10.0, -0.40 * (depression - 6.0));
-    twZenith *= smoothstep(-18.0, -5.0, uSunAltDeg);
-    const float G = 0.72;
-    float hg = (1.0 - G * G) / (4.0 * PI * pow(1.0 + G * G - 2.0 * G * cos(radians(sunAngle)), 1.5));
-    float hg0 = (1.0 - G * G) / (4.0 * PI * pow(1.0 + G * G - 2.0 * G, 1.5));
-    float rayleigh = 0.75 * (1.0 + cos(radians(sunAngle)) * cos(radians(sunAngle))) / 1.5;
-    float twDome = exp(max(altDeg, -9.0) / 12.0);
-    float tw = twZenith * twDome * (0.22 * rayleigh + 1.25 * hg / hg0) * uTwilightGain;
+    // Sunlight scattered by the atmosphere above the Earth's shadow. The zenith brightness comes
+    // from the model (the classic twilight ladder in absolute photometry), and this shapes it: the
+    // glow hugs the horizon (the long air path) and is far brighter towards the Sun
+    // (Henyey-Greenstein forward scattering, g = 0.72) than away from it.
+    float hg = (1.0 - G_TW * G_TW) / (4.0 * PI * pow(1.0 + G_TW * G_TW - 2.0 * G_TW * cos(radians(sunAngle)), 1.5));
+    float hg0 = (1.0 - G_TW * G_TW) / (4.0 * PI * pow(1.0 + G_TW * G_TW - 2.0 * G_TW, 1.5));
+    float twHorizon = 0.55 + 0.45 * exp(-max(altDeg, 0.0) / 9.0);
+    float twTowardsSun = 0.25 + 1.50 * (hg / hg0);
+    float tw = uTwilightZenith * twHorizon * twTowardsSun;
     // Warm scattering close to the Sun and low in the sky, cool Rayleigh light elsewhere.
-    float warmTw = exp(-0.5 * pow(sunAngle / 38.0, 2.0)) * exp(-0.5 * pow(max(altDeg, 0.0) / 22.0, 2.0));
-    vec3 twilight = tw * mix(vec3(0.50, 0.68, 1.0), vec3(1.35, 0.62, 0.30), warmTw);
+    float rayleigh = 0.75 * (1.0 + cos(radians(sunAngle)) * cos(radians(sunAngle))) / 1.5;
+    vec3 twColour = mix(vec3(0.44, 0.60, 1.0), vec3(1.30, 0.72, 0.42),
+                        clamp(rayleigh * 0.55 * exp(-max(altDeg, 0.0) / 26.0), 0.0, 1.0));
+    vec3 twilight = tw * twColour;
     // The Earth's shadow: the dark band opposite the Sun, just above the horizon.
     float antiSolar = exp(-0.5 * pow((180.0 - sunAngle) / 45.0, 2.0))
                     * exp(-0.5 * pow((altDeg - 5.0) / 9.0, 2.0));
-    twilight *= 1.0 - 0.6 * antiSolar * (1.0 - smoothstep(-10.0, -2.0, uSunAltDeg));
+    twilight *= 1.0 - 0.6 * antiSolar;
 
     // ---------------------------------------------------------------- sum
     vec3 night = galaxy
-               + glow * vec3(0.92, 1.05, 0.88)
+               + glow * vec3(0.86, 1.00, 1.14)
                + lp * vec3(1.14, 0.96, 0.78)
                + zodiacal
                + moon
@@ -279,6 +284,14 @@ void main() {
     // Exposure, ACES curve and the Purkinje shift, exactly as SkyRenderModel.toneMap does them, so
     // the panorama and the AR sky respond to the night the same way.
     vec3 c = max(night, vec3(0.0)) * uExposure;
+    // Purkinje shift. Under a dark sky the rods take over and the scene goes desaturated and
+    // blue-green: the same scotopic term SkyRenderModel.toneMap applies to the AR sky, keyed on the
+    // eye's adaptation luminance. It is applied at 0.55, not in full, because a sky is never a
+    // pure rod scene: the brightest parts of it (the light dome, the Moon's own scattering, the
+    // stars) stay cone-mediated, which is why a city sky still reads as sodium orange at night and
+    // not as grey.
+    float scot = 0.36 * c.g + 0.62 * c.b + 0.02 * c.r;
+    c = mix(c, scot * vec3(0.62, 0.80, 1.18), 0.55 * uScotopicWeight);
     float y = luma(c);
     vec3 o = vec3(0.0);
     if (y > 1e-12) {
