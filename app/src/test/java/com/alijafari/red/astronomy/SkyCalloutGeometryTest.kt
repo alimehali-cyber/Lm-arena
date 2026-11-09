@@ -61,7 +61,8 @@ class SkyCalloutGeometryTest {
 
     @Test
     fun theCardIsCentredOnItsObjectAndTheWedgeAimsAtIt() {
-        val p = place(pinX = 540f, pinY = 900f)
+        val objectY = 900f
+        val p = place(pinX = 540f, pinY = objectY)
 
         assertTrue("there is room above, so the card sits above the object", p.placeAbove)
         assertEquals("the card is centred on the object", 540f, p.cardLeftPx + cardW / 2f, 1e-3f)
@@ -73,7 +74,7 @@ class SkyCalloutGeometryTest {
         assertEquals(
             "the wedge's tip clears the object by exactly the gap",
             gap,
-            pinY - (p.wedgeTopPx + wedgeH),
+            objectY - (p.wedgeTopPx + wedgeH),
             1e-3f
         )
     }
