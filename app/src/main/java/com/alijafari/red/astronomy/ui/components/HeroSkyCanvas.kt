@@ -22,10 +22,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -33,15 +33,20 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -201,6 +206,12 @@ fun HeroSkyCanvas(
     // and the drawing layers already use their node's own size, so the pins do too — not the incoming
     // constraints, which only happen to be equal while every caller passes an exact size.
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+
+    // The canvas' own rect **in window pixels**, published by the layout below. The tap callout is
+    // placed through this rect: the object's position is projected on the size the renderer actually
+    // drew on, then mapped into the callout layer's own pixels through the two nodes' window
+    // positions. Whatever either node's layout happens to be, the card lands on the object.
+    var canvasBounds by remember { mutableStateOf(Rect.Zero) }
 
     // Two clocks. The sky clock moves on the shared 1 Hz tick (and per frame while time is being scrubbed);
     // the motion clock runs the cloud drift and the observer at a capped frame rate. Keeping them apart is
@@ -365,6 +376,12 @@ fun HeroSkyCanvas(
             .then(if (isScene) Modifier else Modifier.clip(squircleShape(RedCornerRadius.window)))
             .testTag("hero_sky_canvas_container")
             .onSizeChanged { canvasSize = it }
+            .onGloballyPositioned { coords ->
+                // Window pixels, not parent pixels: the callout compares this rect with its own, so a
+                // padding, an alignment or any other layout offset between them cancels out exactly.
+                val bounds = coords.boundsInWindow()
+                if (canvasBounds != bounds) canvasBounds = bounds
+            }
             .pointerInput(Unit) {
                 detectTapGestures { tapOffset ->
                     val canvasW = size.width.toFloat()
@@ -818,23 +835,6 @@ fun HeroSkyCanvas(
             exit = fadeOut(tween(120))
         ) {
             selectedCelestial?.let { sel ->
-                val canvasW = pinCanvasW
-                val canvasH = pinCanvasH
-                val livePos = when {
-                    sel.id == "sun" -> HeroSkyProjection.project(sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
-                    sel.id == "moon" -> HeroSkyProjection.project(moonData.azimuthDeg, moonData.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
-                    sel.id.startsWith("planet_") -> {
-                        val pName = sel.id.removePrefix("planet_")
-                        planetPositions.find { it.first.name.equals(pName, ignoreCase = true) }?.let {
-                            HeroSkyProjection.project(it.third.azimuthDeg, it.third.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
-                        } ?: sel.position
-                    }
-                    else -> {
-                        catalogStars.find { it.first.id == sel.id }?.let {
-                            HeroSkyProjection.project(it.second.azimuthDeg, it.second.altitudeDeg, canvasW, canvasH, userLat, horizonFraction)
-                        } ?: sel.position
-                    }
-                }
                 val accent = when (uiState.skyCanvasTheme) {
                     SkyCanvasTheme.REAL_SKY -> Color(0xFFB4DCFF)
                     SkyCanvasTheme.ATMOSPHERIC_SKY -> Color(0xFF38BDF8)
@@ -848,10 +848,34 @@ fun HeroSkyCanvas(
                     name = sel.name,
                     detail = sel.typeName ?: if (isFa) "مشاهده اطلاعات" else "View details",
                     accent = accent,
-                    pinX = livePos.x,
-                    pinY = livePos.y,
-                    canvasWidth = canvasW,
-                    canvasHeight = canvasH,
+                    // The object's position, resolved on the canvas' own rect with the very projection
+                    // the sky renderer used to draw this object on that same rectangle (HeroSkyProjection
+                    // via SkyRenderTarget). The card is therefore always on the object it names, in the
+                    // canvas presentation and in the fullscreen viewer alike.
+                    canvasBounds = canvasBounds,
+                    pinAt = { w, h ->
+                        when {
+                            sel.id == "sun" -> HeroSkyProjection.project(
+                                sunHoriz.azimuthDeg, sunHoriz.altitudeDeg, w, h, userLat, horizonFraction
+                            )
+                            sel.id == "moon" -> HeroSkyProjection.project(
+                                moonData.azimuthDeg, moonData.altitudeDeg, w, h, userLat, horizonFraction
+                            )
+                            sel.id.startsWith("planet_") -> {
+                                val pName = sel.id.removePrefix("planet_")
+                                planetPositions.find { it.first.name.equals(pName, ignoreCase = true) }?.let {
+                                    HeroSkyProjection.project(
+                                        it.third.azimuthDeg, it.third.altitudeDeg, w, h, userLat, horizonFraction
+                                    )
+                                } ?: sel.position
+                            }
+                            else -> catalogStars.find { it.first.id == sel.id }?.let {
+                                HeroSkyProjection.project(
+                                    it.second.azimuthDeg, it.second.altitudeDeg, w, h, userLat, horizonFraction
+                                )
+                            } ?: sel.position
+                        }
+                    },
                     onOpen = {
                         val idToOpen = sel.id
                         selectedCelestial = null
@@ -877,17 +901,14 @@ fun HeroSkyCanvas(
             val monument = selectedMonument
             val framing = sceneFraming
             if (monument != null && framing != null) {
-                val canvasW = pinCanvasW
-                val canvasH = pinCanvasH
-                val pin = monumentPin(framing, monument, canvasW)
                 SelectionCallout(
                     name = MonumentCopy.title(monument, isFa),
                     detail = MonumentCopy.calloutDetail(monument, isFa),
                     accent = Color(0xFFC9A063),
-                    pinX = pin.x,
-                    pinY = pin.y,
-                    canvasWidth = canvasW,
-                    canvasHeight = canvasH,
+                    // The framing's landmarks are canvas pixels, and the pin is asked for them at the
+                    // canvas' own width, so the name lands on the stone itself.
+                    canvasBounds = canvasBounds,
+                    pinAt = { w, h -> monumentPin(framing, monument, w) },
                     onOpen = {
                         selectedMonument = null
                         viewModel.openMonument(monument)
@@ -1051,31 +1072,39 @@ fun HeroSkyCanvas(
  *
  * Why it is built this way:
  *  - **it belongs to the object, not to the tap.** The card is centred on the object's projected
- *    position and the wedge on its edge points *at* the object. The old pill was offset a fixed
- *    74 × 56 dp from the object, so its arrow — such as it was — pointed at nothing, and read as a
- *    label that had slid off the thing it labelled;
+ *    position and the wedge on its edge points *at* the object;
  *  - **it flips.** There is more sky above a low object than above a high one, so the card sits above
  *    the object with its wedge pointing down, and below it pointing up when the object is too near the
  *    top edge. Either way the wedge marks the contact point;
  *  - **it is quiet.** One dark surface at a fixed radius, one hairline, no accent-coloured ring, no
- *    arrow glyph inside. The name, a muted line saying what the object is, and the object's own colour
- *    as a 6 dp dot. The whole card is the tap target;
- *  - **it never jumps.** Its position is resolved from the card's measured size, clamped to the canvas,
- *    so a long name near an edge stays fully on screen and the pointer stays inside the card.
+ *    arrow glyph inside;
+ *  - **it is *placed*, never offset.** Card and wedge are positioned in a single layout pass with
+ *    `Placeable.place(x, y)`, in the callout layer's own pixel space — the only placement Compose has
+ *    that no layout direction can mirror. `Modifier.offset` places with `placeRelativeWithLayer`, so in
+ *    Persian (RTL) the card landed at `canvasWidth - x - cardWidth`: the right height, the far side of
+ *    the screen, correct only at the canvas centre, while the sky behind it is a `Canvas` drawing that
+ *    no layout direction mirrors;
+ *  - **its pin is resolved on the sky canvas, then mapped into this layer.** [pinAt] is handed the
+ *    canvas' own width and height — the size the renderer drew on — and returns the object's position
+ *    there, computed with the very projection the renderer used (see the call sites). That position is
+ *    then mapped into this layer through the two nodes' window rects
+ *    ([SkyCalloutGeometry.inLayerSpace]), so a different canvas size or any layout offset between the
+ *    two cancels out exactly, instead of throwing most cards off the frame and clamping the rest
+ *    against the wrong edge;
+ *  - **it never jumps and never leaves the canvas.** The card is measured and placed in the same pass, so
+ *    it is never drawn at a guessed offset, and the placement is clamped to the layer, so a long name at
+ *    an edge stays fully on screen.
  */
 @Composable
 private fun SelectionCallout(
     name: String,
     detail: String,
     accent: Color,
-    pinX: Float,
-    pinY: Float,
-    canvasWidth: Float,
-    canvasHeight: Float,
+    canvasBounds: Rect,
+    pinAt: (widthPx: Float, heightPx: Float) -> Offset,
     onOpen: () -> Unit
 ) {
     val density = LocalDensity.current
-    var cardSize by remember { mutableStateOf(IntSize.Zero) }
     val wedgeH = with(density) { 7.dp.toPx() }
     val wedgeW = with(density) { 18.dp.toPx() }
     val lift = with(density) { 13.dp.toPx() }        // gap between the wedge's tip and the object
@@ -1086,131 +1115,165 @@ private fun SelectionCallout(
     val fill = Color(0xF20B0E15)
     val hairline = Color.White.copy(alpha = 0.16f)
 
-    val w = cardSize.width.toFloat()
-    val h = cardSize.height.toFloat()
-    // Everything below is a canvas pixel coordinate, resolved by pure arithmetic and then applied
-    // with absolute offsets: the sky behind the card is drawn without any layout direction, so the
-    // card must be placed without one too (see SkyCalloutGeometry — Modifier.offset is mirrored in RTL).
-    val placement = SkyCalloutGeometry.place(
-        pinX = pinX,
-        pinY = pinY,
-        cardWidthPx = w,
-        cardHeightPx = h,
-        canvasWidthPx = canvasWidth,
-        canvasHeightPx = canvasHeight,
-        gapPx = lift,
-        wedgeWidthPx = wedgeW,
-        wedgeHeightPx = wedgeH,
-        edgePx = edge,
-        tipInsetPx = tipInset
-    )
-    val placeAbove = placement.placeAbove
+    // Resolved by the one layout pass below, which measures the card and places it; read by the draw
+    // pass that paints the wedge. Both therefore always come from the same set of numbers, in the same
+    // pixel space, in the same pass.
+    var placement by remember { mutableStateOf<SkyCalloutPlacement?>(null) }
+    var pinFraction by remember { mutableStateOf(Offset(0.5f, 0.5f)) }
+    var laidOut by remember { mutableStateOf(false) }
+    // This layer's own top-left, in the same window pixels as [canvasBounds].
+    var layerOrigin by remember { mutableStateOf(Offset.Zero) }
 
-    // Until the card has been measured its position is a guess, so it is held invisible for the single
-    // frame it takes to measure — never drawn at a guessed offset.
-    val measured = cardSize.width > 0
-    // It then grows out of the object it points at. The layer is the whole canvas, so the origin is
-    // the pin's fraction of that canvas — scaling the layer about its centre is what used to slide
-    // the card in from the middle of the screen.
+    // It grows out of the object it points at: the layer holding card and wedge scales about the pin's
+    // fraction of the canvas. At rest the transform is the identity.
     val appear by animateFloatAsState(
-        targetValue = if (measured) 1f else 0f,
+        targetValue = if (laidOut) 1f else 0f,
         animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
         label = "SelectionCalloutAppear"
     )
-    val originX = if (canvasWidth > 0f) (pinX / canvasWidth).coerceIn(0f, 1f) else 0.5f
-    val originY = if (canvasHeight > 0f) (pinY / canvasHeight).coerceIn(0f, 1f) else 0.5f
 
-    Box(
+    Layout(
+        content = {
+            Surface(
+                onClick = onOpen,
+                shape = squircleShape(RedCornerRadius.md),
+                color = fill,
+                border = BorderStroke(0.7.dp, hairline),
+                shadowElevation = 10.dp,
+                modifier = Modifier
+                    .widthIn(max = 210.dp)
+                    .testTag("selected_celestial_pill")
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 11.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(accent)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Text(
+                            text = name,
+                            style = TextStyle(
+                                fontFamily = LocalAppFontFamily.current,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                letterSpacing = 0.1.sp,
+                                color = Color(0xFFF4F7FC)
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = detail,
+                            style = TextStyle(
+                                fontFamily = LocalAppFontFamily.current,
+                                fontWeight = FontWeight.Normal,
+                                fontSize = 10.5.sp,
+                                color = Color.White.copy(alpha = 0.58f)
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        },
         modifier = Modifier
             .fillMaxSize()
-            .alpha(if (measured) 1f else 0f)
+            .onGloballyPositioned { coords ->
+                val origin = coords.positionInWindow()
+                if (layerOrigin != origin) layerOrigin = origin
+            }
             .graphicsLayer {
-                // Card and wedge scale together, so they never separate while appearing.
                 val s = 0.92f + 0.08f * appear
                 scaleX = s
                 scaleY = s
-                transformOrigin = TransformOrigin(originX, originY)
+                transformOrigin = TransformOrigin(pinFraction.x, pinFraction.y)
             }
-    ) {
-        // The wedge first, so the card's own edge covers its base and the two read as one shape.
-        Canvas(
-            modifier = Modifier
-                .absoluteOffset {
-                    IntOffset(placement.wedgeLeftPx.roundToInt(), placement.wedgeTopPx.roundToInt())
+            // The wedge is painted before the card, in the layer's own pixels, from the placement the
+            // layout pass resolved — the card's own edge then covers its base and the two read as one
+            // shape, with no second coordinate space to drift out of.
+            .drawBehind {
+                val p = placement ?: return@drawBehind
+                val above = p.placeAbove
+                val baseY = if (above) p.wedgeTopPx else p.wedgeTopPx + wedgeH
+                val tipY = if (above) p.wedgeTopPx + wedgeH else p.wedgeTopPx
+                val midX = p.wedgeLeftPx + wedgeW / 2f
+                val wedge = Path().apply {
+                    moveTo(p.wedgeLeftPx, baseY)
+                    lineTo(midX, tipY)
+                    lineTo(p.wedgeLeftPx + wedgeW, baseY)
+                    close()
                 }
-                .size(with(density) { wedgeW.toDp() }, with(density) { wedgeH.toDp() })
-        ) {
-            val path = Path().apply {
-                moveTo(0f, if (placeAbove) 0f else size.height)
-                lineTo(size.width / 2f, if (placeAbove) size.height else 0f)
-                lineTo(size.width, if (placeAbove) 0f else size.height)
-                close()
+                drawPath(wedge, color = fill)
+                // Only the two exposed sides get the hairline.
+                drawLine(hairline, Offset(p.wedgeLeftPx, baseY), Offset(midX, tipY), strokeW)
+                drawLine(hairline, Offset(midX, tipY), Offset(p.wedgeLeftPx + wedgeW, baseY), strokeW)
             }
-            drawPath(path, color = fill)
-            // Only the two exposed sides get the hairline.
-            drawLine(
-                color = hairline,
-                start = Offset(0f, if (placeAbove) 0f else size.height),
-                end = Offset(size.width / 2f, if (placeAbove) size.height else 0f),
-                strokeWidth = strokeW
-            )
-            drawLine(
-                color = hairline,
-                start = Offset(size.width / 2f, if (placeAbove) size.height else 0f),
-                end = Offset(size.width, if (placeAbove) 0f else size.height),
-                strokeWidth = strokeW
-            )
+    ) { measurables, constraints ->
+        val cardMeasurable = measurables.first()
+        // The layer is the canvas: this node fills the same box the sky is drawn in, and its origin is
+        // that box's top-left. It is never allowed to be smaller than the canvas, so the clamp that
+        // keeps the card on screen can never shrink the sky's own coordinate space.
+        val canvasWpx = canvasBounds.width.roundToInt()
+        val canvasHpx = canvasBounds.height.roundToInt()
+        val layerWidth = if (constraints.maxWidth == Constraints.Infinity) {
+            canvasWpx.coerceAtLeast(1)
+        } else {
+            maxOf(constraints.maxWidth, canvasWpx)
         }
-
-        Surface(
-            onClick = onOpen,
-            shape = squircleShape(RedCornerRadius.md),
-            color = fill,
-            border = BorderStroke(0.7.dp, hairline),
-            shadowElevation = 10.dp,
-            modifier = Modifier
-                .absoluteOffset { IntOffset(placement.cardLeftPx.roundToInt(), placement.cardTopPx.roundToInt()) }
-                .widthIn(max = with(density) { 210.dp })
-                .onSizeChanged { cardSize = it }
-                .testTag("selected_celestial_pill")
-        ) {
-            Row(
-                modifier = Modifier.padding(start = 11.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(accent)
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text(
-                        text = name,
-                        style = TextStyle(
-                            fontFamily = LocalAppFontFamily.current,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            letterSpacing = 0.1.sp,
-                            color = Color(0xFFF4F7FC)
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = detail,
-                        style = TextStyle(
-                            fontFamily = LocalAppFontFamily.current,
-                            fontWeight = FontWeight.Normal,
-                            fontSize = 10.5.sp,
-                            color = Color.White.copy(alpha = 0.58f)
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
+        val layerHeight = if (constraints.maxHeight == Constraints.Infinity) {
+            canvasHpx.coerceAtLeast(1)
+        } else {
+            maxOf(constraints.maxHeight, canvasHpx)
+        }
+        val card = cardMeasurable.measure(Constraints(maxWidth = layerWidth))
+        val widthPx = layerWidth.coerceAtLeast(1).toFloat()
+        val heightPx = layerHeight.coerceAtLeast(1).toFloat()
+        // The rectangle the sky was actually drawn on. Until the canvas has published its window rect
+        // (the very first measure) this layer is that rectangle by construction — both are children of
+        // the same box, each filling it.
+        val skyRect = if (canvasBounds.width > 0f && canvasBounds.height > 0f) {
+            canvasBounds
+        } else {
+            Rect(0f, 0f, widthPx, heightPx)
+        }
+        // The object's position on that rectangle, expressed in *this* layer's own pixels: the same
+        // projection the renderer used, on the same size it drew on, with the two nodes' window
+        // positions cancelling any layout offset between them. That is what puts the card exactly on
+        // the object in the canvas presentation and in the fullscreen viewer alike.
+        val pin = SkyCalloutGeometry.inLayerSpace(
+            pinOnCanvas = pinAt(skyRect.width, skyRect.height),
+            canvasTopLeft = skyRect.topLeft,
+            layerTopLeft = layerOrigin
+        )
+        val p = SkyCalloutGeometry.place(
+            pinX = pin.x,
+            pinY = pin.y,
+            cardWidthPx = card.width.toFloat(),
+            cardHeightPx = card.height.toFloat(),
+            canvasWidthPx = widthPx,
+            canvasHeightPx = heightPx,
+            gapPx = lift,
+            wedgeWidthPx = wedgeW,
+            wedgeHeightPx = wedgeH,
+            edgePx = edge,
+            tipInsetPx = tipInset
+        )
+        placement = p
+        pinFraction = Offset(
+            (pin.x / widthPx).coerceIn(0f, 1f),
+            (pin.y / heightPx).coerceIn(0f, 1f)
+        )
+        if (!laidOut) laidOut = true
+        layout(layerWidth, layerHeight) {
+            // Physical, absolute placement: placeRelative would mirror in RTL.
+            card.place(p.cardLeftPx.roundToInt(), p.cardTopPx.roundToInt())
         }
     }
 }

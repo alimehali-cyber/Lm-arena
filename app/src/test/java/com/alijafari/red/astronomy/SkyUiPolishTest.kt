@@ -101,17 +101,21 @@ class SkyUiPolishTest {
         // The old pill was a fixed 74 x 56 dp offset from the object with an arrow *glyph* inside it, so it
         // pointed at nothing. The callout is centred on the object and its wedge is aimed at the object.
         assertTrue("the callout is its own composable", hero.contains("private fun SelectionCallout("))
-        assertTrue("it is handed the object's projected position", hero.contains("pinX = livePos.x,"))
+        assertTrue(
+            "it resolves the object's projected position on the canvas' own rect",
+            hero.contains("pinAt = { w, h ->") && hero.contains("pinAt(skyRect.width, skyRect.height)")
+        )
         assertTrue("the wedge is drawn, not an arrow glyph in the text", hero.contains("val wedgeH = with(density) { 7.dp.toPx() }"))
         // The placement itself is pure arithmetic now, so the card's centring, its edge clamp and the
         // wedge's aim are asserted as behaviour in SkyCalloutGeometryTest instead of as source text.
         assertTrue("the card is placed by the shared geometry", hero.contains("SkyCalloutGeometry.place("))
         assertTrue(
-            "and moved with absolute offsets: Modifier.offset is mirrored in RTL, which put a Persian\n" +
-                "user's card on the far side of the sky",
-            hero.contains(".absoluteOffset {")
+            "and placed explicitly, never offset: Modifier.offset is mirrored in RTL, which put a\n" +
+                "Persian user's card on the far side of the sky",
+            hero.contains("card.place(")
         )
-        assertFalse("no layout-direction-aware offset places the card", hero.contains(".offset {"))
+        assertFalse("no offset modifier places the card", hero.contains(".offset {"))
+        assertFalse("not even the absolute one: placement is the layout's job", hero.contains("absoluteOffset"))
         assertFalse("no cheap glyph arrow inside the card", hero.contains("text = if (isFa) \"‹\" else \"›\""))
         assertFalse("no accent ring around it", hero.contains("border = BorderStroke(1.dp, accent.copy(alpha = 0.72f))"))
         // The identify → detail affordance itself is untouched.

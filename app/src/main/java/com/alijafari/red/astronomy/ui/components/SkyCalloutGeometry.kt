@@ -1,17 +1,22 @@
 package com.alijafari.red.astronomy.ui.components
 
+import androidx.compose.ui.geometry.Offset
 import kotlin.math.max
 
 /**
  * Where the tap callout sits, in **canvas pixels**.
  *
- * All three of [cardLeftPx], [cardTopPx] and the wedge's corner are absolute pixel coordinates: the
- * composable draws them with `Modifier.absoluteOffset`, never with the layout-direction-aware
- * `Modifier.offset`. That distinction is the whole point of this file. `Modifier.offset` is *mirrored*
- * in a right-to-left layout (`placeRelativeWithLayer`), and ZIG runs RTL for Persian — its default
- * language — while the sky behind the card is a `Canvas` that no layout direction can mirror. So a
- * card placed with `offset` landed at `canvasWidth − x − cardWidth`: the right height, mirrored to the
- * far side of the screen, exactly correct at the canvas centre and worst at the edges.
+ * All of [cardLeftPx], [cardTopPx] and the wedge's corner are pixel coordinates in the callout layer's
+ * own space, and the callout composable hands them to `Placeable.place(x, y)` — the one placement in
+ * Compose that no layout direction can mirror. That distinction is the whole point of this file.
+ * `Modifier.offset` places with `placeRelativeWithLayer`, so in a right-to-left layout (ZIG runs RTL
+ * for Persian, its default language) it lands at `canvasWidth − x − cardWidth`: the right height,
+ * mirrored to the far side of the screen, exactly correct only at the canvas centre — while the sky
+ * behind the card is a `Canvas` drawing that no layout direction mirrors.
+ *
+ * [inLayerSpace] is the other half of the same idea: the card is pinned to a position measured on the
+ * sky canvas, and that position only means anything in the callout layer's pixels if the two nodes'
+ * window rects are accounted for.
  *
  * The arithmetic lives here, pure and Compose-free, so the geometry this app *believes* it has is
  * unit-tested on the JVM instead of being asserted by eye on a phone:
@@ -103,4 +108,23 @@ object SkyCalloutGeometry {
             pointerXPx = pointerX
         )
     }
+
+    /**
+     * A position measured on the sky canvas, expressed in the callout layer's own pixels.
+     *
+     * The object's position is projected on the canvas — the rectangle the sky renderer drew on — so it
+     * is a canvas pixel. The card, however, is placed inside the callout layer, which is a different
+     * node. When the two share a top-left (they are siblings, each filling the same box, which is the
+     * normal case) this is the identity; when they do not — a padding, an alignment, a scrolled or
+     * inset parent — the difference between their window positions is exactly the correction needed.
+     * Both arguments are window pixels; the result is layer pixels.
+     */
+    fun inLayerSpace(
+        pinOnCanvas: Offset,
+        canvasTopLeft: Offset,
+        layerTopLeft: Offset
+    ): Offset = Offset(
+        x = pinOnCanvas.x + (canvasTopLeft.x - layerTopLeft.x),
+        y = pinOnCanvas.y + (canvasTopLeft.y - layerTopLeft.y)
+    )
 }

@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy
 
+import androidx.compose.ui.geometry.Offset
 import com.alijafari.red.astronomy.ui.components.SkyCalloutGeometry
 import com.alijafari.red.astronomy.ui.rendering.SkyTapTargets
 import java.io.File
@@ -13,12 +14,15 @@ import org.junit.Test
  *
  * It did not, for two independent reasons, and both are pinned here:
  *
- *  1. **The placement was mirrored in Persian.** `Modifier.offset` is layout-direction aware
- *     (`placeRelativeWithLayer`), so in RTL the card was placed at `canvasWidth − x − cardWidth`: the
- *     right height, the far side of the screen, exactly right only at the canvas centre. The sky and
- *     the landscape behind it are `Canvas` drawing, which no layout direction mirrors. The placement is
- *     now pure arithmetic in [SkyCalloutGeometry] and is applied with `absoluteOffset`; the source guard
- *     below keeps it that way.
+ *  1. **The placement was mirrored in Persian, then it drifted off the object altogether.** Moving a
+ *     smaller-than-parent child with an offset modifier is a placement problem, not an arithmetic one:
+ *     `Modifier.offset` is layout-direction aware (`placeRelativeWithLayer`), so in RTL the card landed
+ *     at `canvasWidth − x − cardWidth` — the right height, the far side of the screen, exactly right
+ *     only at the canvas centre — while the sky and the landscape behind it are `Canvas` drawing that
+ *     no layout direction can mirror. The card is now *placed* with `Placeable.place(x, y)` in one
+ *     layout pass, from pure arithmetic in [SkyCalloutGeometry], in the callout layer's own pixels;
+ *     the pins are projected on the canvas' own window rect first ([SkyCalloutGeometry.inLayerSpace]).
+ *     The source guards below keep it that way.
  *  2. **A tap could select something that was not drawn** — a star under the horizon, a star faded out
  *     by daylight, a Sun 10° below the ground — and the card then rose over empty sky. [SkyTapTargets]
  *     is the renderers' own visibility gate, applied to the hit test.
@@ -202,23 +206,83 @@ class SkyCalloutGeometryTest {
     // ================================ source guards ==============================================
 
     @Test
-    fun theCalloutIsNeverMovedWithALayoutDirectionAwareOffset() {
+    fun theCalloutIsNeverMovedWithAnOffsetModifier() {
         val hero = source("com/alijafari/red/astronomy/ui/components/HeroSkyCanvas.kt")
         val sandbox = source("com/zig/gravity/ui/GravitySandboxRoot.kt")
 
-        assertEquals(
-            "the card and its wedge are both moved with absolute offsets",
-            2,
-            Regex("absoluteOffset \\{").findAll(hero).count()
-        )
         assertFalse(
             "Modifier.offset is mirrored in RTL, so it must not place a card over the sky",
             hero.contains(".offset {")
         )
+        assertFalse(
+            "and an offset modifier of any kind is still a placement the layout owns, not the callout",
+            hero.contains("absoluteOffset")
+        )
+        assertTrue("the card is placed explicitly", hero.contains("card.place("))
         assertTrue("the placement is the shared, tested geometry", hero.contains("SkyCalloutGeometry.place("))
+        assertTrue(
+            "and its pin is mapped from the canvas it was measured on into this layer",
+            hero.contains("SkyCalloutGeometry.inLayerSpace(")
+        )
         assertTrue(
             "the sandbox's long-press menu is anchored to raw touch pixels, so it is absolute too",
             sandbox.contains("absoluteOffset {")
+        )
+    }
+
+    @Test
+    fun theCalloutIsAnchoredToTheSkyCanvasItNames() {
+        val hero = source("com/alijafari/red/astronomy/ui/components/HeroSkyCanvas.kt")
+
+        assertTrue(
+            "the canvas publishes its own rect in window pixels",
+            hero.contains(".onGloballyPositioned { coords ->") && hero.contains("coords.boundsInWindow()")
+        )
+        assertTrue(
+            "the callout layer publishes its own window origin, so the two can be reconciled",
+            hero.contains("coords.positionInWindow()")
+        )
+        // A pin is projected on the canvas' own size — the size the renderer drew on — never on the
+        // callout's, and never on the incoming constraints.
+        assertTrue(
+            "the pin is projected on the canvas' rect",
+            hero.contains("pinAt(skyRect.width, skyRect.height)")
+        )
+        assertEquals(
+            "both callouts — the sky's objects and the landscape's places — are anchored the same way",
+            2,
+            Regex("canvasBounds = canvasBounds,").findAll(hero).count()
+        )
+    }
+
+    @Test
+    fun aPinMeasuredOnTheCanvasIsExpressedInTheCalloutLayersOwnPixels() {
+        val pin = Offset(300f, 500f)
+
+        // The normal case: both nodes fill the same box, so they share a top-left and the pin is the
+        // pin. This is what makes the ordinary Home and fullscreen canvases exact.
+        assertEquals(
+            pin,
+            SkyCalloutGeometry.inLayerSpace(pin, canvasTopLeft = Offset.Zero, layerTopLeft = Offset.Zero)
+        )
+        assertEquals(
+            pin,
+            SkyCalloutGeometry.inLayerSpace(
+                pin,
+                canvasTopLeft = Offset(12f, 240f),
+                layerTopLeft = Offset(12f, 240f)
+            )
+        )
+
+        // A layer that sits 100 px lower than the canvas on screen: a canvas pixel at y = 500 is 100 px
+        // *above* the layer's origin, so it must be placed at 400 — not at 500, where it would be off.
+        assertEquals(
+            Offset(300f, 400f),
+            SkyCalloutGeometry.inLayerSpace(
+                pin,
+                canvasTopLeft = Offset(0f, -100f),
+                layerTopLeft = Offset.Zero
+            )
         )
     }
 
