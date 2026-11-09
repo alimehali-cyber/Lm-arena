@@ -130,8 +130,8 @@ data class SkyPanoramaState(
             framing = framing,
             moonAltDeg = SkyPanoramaSkyModel.quantizeMoonAlt(moonAltDeg),
             moonIllum = SkyPanoramaSkyModel.quantizeMoonIllum(moonIlluminationPercent),
-            sunAzDeg = sunAzDeg,
-            moonAzDeg = moonAzDeg,
+            sunAzDeg = sunAzimuthDeg,
+            moonAzDeg = moonAzimuthDeg,
             bortle = bortle.coerceIn(1, 9)
         )
 

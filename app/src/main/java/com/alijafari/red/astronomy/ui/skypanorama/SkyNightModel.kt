@@ -219,7 +219,7 @@ object SkyNightModel {
             exposure = SkyRenderModel.exposure(keyLuminance).toFloat(),
             nightSkyWeight = nightSkyWeight(sunAltDeg),
             moonIllumination = (moonIlluminationPercent / 100.0).coerceIn(0.0, 1.0).toFloat(),
-            moonAltitudeDeg = moonAltitudeDeg.toFloat()
+            moonAltitudeDeg = moonAltDeg.toFloat()
         )
     }
 
