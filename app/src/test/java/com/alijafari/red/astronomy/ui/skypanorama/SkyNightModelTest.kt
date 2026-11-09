@@ -112,11 +112,11 @@ class SkyNightModelTest {
         assertEquals(10.5, SkyRenderModel.luminanceToMagArcsec2(SkyNightModel.twilightZenithLuminance(-12.0)), 0.05)
         assertEquals(21.9, SkyRenderModel.luminanceToMagArcsec2(SkyNightModel.twilightZenithLuminance(-18.0)), 0.6)
         // It rises strictly as the Sun goes down, and is handed back to the daytime palette above -6.
-        var previous = 0.0
+        var previous = Double.MAX_VALUE
         var alt = -6.0
         while (alt >= -20.0) {
             val l = SkyNightModel.twilightZenithLuminance(alt)
-            assertTrue("twilight must brighten as the Sun sets (at $alt)", l <= previous * 1.0001)
+            assertTrue("twilight must brighten as the Sun sets (at $alt)", l <= previous)
             previous = l
             alt -= 0.25
         }
