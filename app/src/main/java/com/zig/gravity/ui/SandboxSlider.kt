@@ -32,7 +32,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.zig.gravity.ui.theme.LocalGravityColors
 
 /**
@@ -88,17 +88,19 @@ fun SandboxSlider(
                 if (label != null) {
                     Text(
                         text = label,
+                        // The app's own caption step, in the theme's dim ink: a slider label on the
+                        // sandbox is the same object as a slider label in the inspector of any other
+                        // screen, so it is drawn by the same type token.
+                        style = RedTypographyTokens.caption,
                         color = colors.onSurfaceDim,
-                        fontSize = 12.sp,
                         modifier = Modifier.weight(1f)
                     )
                 }
                 if (readout != null) {
                     Text(
                         text = readout,
+                        style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
                         color = colors.onSurface,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
                         modifier = if (tag.isEmpty()) Modifier else Modifier.testTag("${tag}_readout")
                     )
                 }
@@ -151,8 +153,11 @@ fun SandboxSlider(
 
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val cy = size.height * 0.5f
-                val trackH = 4.dp.toPx()
-                val thumbR = 9.dp.toPx()
+                // 3 dp of track and an 8 dp thumb inside a soft accent halo: the same weight as the
+                // app's own indicators, so a slider reads as chrome rather than as a Material control.
+                val trackH = 3.dp.toPx()
+                val thumbR = 8.dp.toPx()
+                val haloR = 14.dp.toPx()
                 val left = thumbR
                 val right = (size.width - thumbR).coerceAtLeast(left)
                 val usable = right - left
@@ -183,6 +188,13 @@ fun SandboxSlider(
                     )
                 }
 
+                // Halo first so the thumb sits inside it, never on top of a hard edge.
+                drawCircle(
+                    color = fill.copy(alpha = if (enabled) 0.16f else 0.08f),
+                    radius = haloR,
+                    center = Offset(thumbX, cy),
+                    style = Fill
+                )
                 drawCircle(color = fill, radius = thumbR, center = Offset(thumbX, cy), style = Fill)
             }
         }

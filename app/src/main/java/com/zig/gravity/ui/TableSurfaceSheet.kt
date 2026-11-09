@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -30,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.gravity.sim.SimulationViewModel
 import com.zig.gravity.ui.theme.GravitySurface
@@ -160,7 +160,8 @@ private fun RowScope.SurfaceSwatch(
         )
         Text(
             text = surface.title(fa),
-            style = MaterialTheme.typography.labelMedium,
+            // The app's caption step, not Material's labelMedium: the swatch name is chrome.
+            style = RedTypographyTokens.caption,
             color = if (selected) c.accent else c.onSurfaceDim,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,

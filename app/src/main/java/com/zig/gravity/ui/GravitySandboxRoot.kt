@@ -2,6 +2,18 @@ package com.zig.gravity.ui
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -64,6 +76,18 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.alijafari.red.astronomy.ui.theme.ChromeBanner
+import com.alijafari.red.astronomy.ui.theme.ChromeCapsule
+import com.alijafari.red.astronomy.ui.theme.ChromeDivider
+import com.alijafari.red.astronomy.ui.theme.ChromeIconDisc
+import com.alijafari.red.astronomy.ui.theme.ChromePanel
+import com.alijafari.red.astronomy.ui.theme.RedElevation
+import com.alijafari.red.astronomy.ui.theme.ChromeTextAction
+import com.alijafari.red.astronomy.ui.theme.ChromeTone
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
+import com.alijafari.red.astronomy.ui.theme.RedIconSize
+import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
+import com.alijafari.red.astronomy.ui.theme.chromeTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.zig.gravity.edu.TutorialContent
 import com.zig.gravity.physics.EngineConstants
@@ -208,7 +232,11 @@ fun GravitySandboxRoot(
     }
 
     ZigGravityTheme(surfaceKey = vm.tableSurface) {
+        // The tabletop's palette (fills, gradients, trails, cast shadows: the physics' own material)
+        // and, over it, the app's chrome — one accent, one hairline, one type scale, one corner
+        // geometry, taken from the selected theme and interface style.
         val c = LocalGravityColors.current
+        val chrome = chromeTokens()
         val fa = vm.persian
 
         var canvasWidthPx by remember { mutableStateOf(0f) }
@@ -457,57 +485,25 @@ fun GravitySandboxRoot(
                     // §16 — the permanent way back into the tutorial. Compact, wordless, and in
                     // the top bar where help belongs; it shares the header's inset handling, so it
                     // can never end up under the status bar or behind the + button.
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(c.chrome)
-                            .border(1.dp, c.chromeBorder, CircleShape)
-                            .semantics {
-                                contentDescription = if (fa) {
-                                    TutorialContent.OPEN_HELP_FA
-                                } else {
-                                    TutorialContent.OPEN_HELP_EN
-                                }
-                            }
-                            .clickableTag("open_tutorial") { showTutorial = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("؟".takeIf { fa } ?: "?", color = c.accent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    }
+                    // Help, scenes and predict are the app's capsules now — the same object as an AR
+                    // smart pill, drawn by the same component, so the two immersive screens agree.
+                    HelpDisc(fa = fa, onClick = { showTutorial = true })
                     Spacer(Modifier.width(6.dp))
-                    Row(
-                        modifier = Modifier
-                            .clip(squircleShape(16.dp))
-                            .background(c.chrome)
-                            .border(1.dp, c.chromeBorder, squircleShape(16.dp))
-                            .clickableTag("open_presets") { showPresets = true }
-                            .padding(horizontal = 10.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Filled.Public, contentDescription = null, tint = c.accent, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(5.dp))
-                        Text(text = if (fa) "صحنه‌ها" else "Scenes", color = c.accent, fontSize = 11.sp)
-                    }
+                    ChromeCapsule(
+                        label = if (fa) "صحنه‌ها" else "Scenes",
+                        icon = Icons.Filled.Public,
+                        onClick = { showPresets = true },
+                        testTag = "open_presets"
+                    )
                     Spacer(Modifier.width(6.dp))
                     if (vm.teachingEnabled) {
-                        Row(
-                            modifier = Modifier
-                                .clip(squircleShape(16.dp))
-                                .background(c.chrome)
-                                .border(1.dp, c.chromeBorder, squircleShape(16.dp))
-                                .clickableTag("open_challenges") { showChallenges = true }
-                                .padding(horizontal = 10.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Filled.Science, contentDescription = null, tint = c.accent, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(5.dp))
-                            Text(
-                                text = if (fa) "حدس بزن" else "Predict",
-                                color = c.accent,
-                                fontSize = 11.sp
-                            )
-                        }
+                        ChromeCapsule(
+                            label = if (fa) "حدس بزن" else "Predict",
+                            icon = Icons.Filled.Science,
+                            onClick = { showChallenges = true },
+                            highlighted = true,
+                            testTag = "open_challenges"
+                        )
                     }
                 }
 
@@ -522,31 +518,31 @@ fun GravitySandboxRoot(
                     }
                     Row(
                         modifier = Modifier
-                            .clip(squircleShape(16.dp))
-                            .background(c.accent.copy(alpha = 0.16f))
-                            .border(1.dp, c.accent.copy(alpha = 0.45f), squircleShape(16.dp))
+                            .clip(CircleShape)
+                            .background(c.accent.copy(alpha = if (c.isDark) 0.16f else 0.12f), CircleShape)
+                            .border(1.dp, c.accent.copy(alpha = 0.45f), CircleShape)
                             .clickableTag("follow_indicator") { vm.stopFollow() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .padding(start = 12.dp, end = 8.dp, top = 7.dp, bottom = 7.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             Icons.Filled.GpsFixed,
                             contentDescription = null,
                             tint = c.accent,
-                            modifier = Modifier.size(13.dp)
+                            modifier = Modifier.size(RedIconSize.xs)
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
                             text = if (fa) "در حال دنبال کردن $fName" else "Following $fName",
                             color = c.accent,
-                            fontSize = 11.sp
+                            style = RedTypographyTokens.badge.copy(fontWeight = FontWeight.SemiBold)
                         )
                         Spacer(Modifier.width(8.dp))
                         Icon(
                             Icons.Filled.Close,
                             contentDescription = if (fa) "پایان دنبال کردن" else "Stop following",
                             tint = c.accent.copy(alpha = 0.8f),
-                            modifier = Modifier.size(13.dp)
+                            modifier = Modifier.size(RedIconSize.xs)
                         )
                     }
                 }
@@ -557,23 +553,18 @@ fun GravitySandboxRoot(
 
                 val notice = vm.notice
                 if (notice != null) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(squircleShape(14.dp))
-                            .background(c.chrome)
-                            .border(1.dp, c.accent.copy(alpha = 0.45f), squircleShape(14.dp))
-                            .clickableTag("notice") { vm.dismissNotice() }
-                            .padding(12.dp)
-                    ) {
-                        Text(notice, color = c.onSurface, fontSize = 12.sp)
-                    }
+                    ChromeBanner(
+                        text = notice,
+                        tone = ChromeTone.ACCENT,
+                        onDismiss = { vm.dismissNotice() },
+                        testTag = "notice"
+                    )
                 }
             }
 
             // ---- long-press action menu -------------------------------------------------------
             if (menuBodyId != 0L) {
-                Column(
+                ChromePanel(
                     modifier = Modifier
                         .offset {
                             IntOffset(
@@ -581,27 +572,31 @@ fun GravitySandboxRoot(
                                 (menuPos.y + 18.dp.toPx()).roundToInt()
                             )
                         }
-                        .width(170.dp)
-                        .clip(squircleShape(14.dp))
-                        .background(c.chrome)
-                        .border(1.dp, c.chromeBorder, squircleShape(14.dp))
-                        .testTag("longpress_menu")
+                        .width(178.dp)
+                        .testTag("longpress_menu"),
+                    elevation = RedElevation.popover,
+                    shape = chrome.rowShape
                 ) {
-                    MenuItem(if (fa) "بررسی" else "Inspect", "menu_inspect") {
-                        menuBodyId = 0L
-                        showInspector = true
-                    }
-                    MenuItem(if (fa) "تکثیر" else "Duplicate", "menu_duplicate") {
-                        vm.duplicateSelected()
-                        menuBodyId = 0L
-                    }
-                    MenuItem(if (fa) "پرتاب با قلاب‌سنگ" else "Slingshot", "menu_slingshot") {
-                        vm.armSlingshot(menuBodyId)
-                        menuBodyId = 0L
-                    }
-                    MenuItem(if (fa) "حذف" else "Remove", "menu_remove") {
-                        vm.removeSelected()
-                        menuBodyId = 0L
+                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                        MenuItem(if (fa) "بررسی" else "Inspect", "menu_inspect") {
+                            menuBodyId = 0L
+                            showInspector = true
+                        }
+                        ChromeDivider(modifier = Modifier.padding(horizontal = 12.dp))
+                        MenuItem(if (fa) "تکثیر" else "Duplicate", "menu_duplicate") {
+                            vm.duplicateSelected()
+                            menuBodyId = 0L
+                        }
+                        ChromeDivider(modifier = Modifier.padding(horizontal = 12.dp))
+                        MenuItem(if (fa) "پرتاب با قلاب‌سنگ" else "Slingshot", "menu_slingshot") {
+                            vm.armSlingshot(menuBodyId)
+                            menuBodyId = 0L
+                        }
+                        ChromeDivider(modifier = Modifier.padding(horizontal = 12.dp))
+                        MenuItem(if (fa) "حذف" else "Remove", "menu_remove") {
+                            vm.removeSelected()
+                            menuBodyId = 0L
+                        }
                     }
                 }
             }
@@ -634,33 +629,27 @@ fun GravitySandboxRoot(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 if (vm.selectedId != 0L && !showInspector) {
-                    Box(
-                        modifier = Modifier
-                            .clip(squircleShape(14.dp))
-                            .background(c.chrome)
-                            .border(1.dp, c.chromeBorder, squircleShape(14.dp))
-                            .clickableTag("open_inspector") { showInspector = true }
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = if (fa) "بازکردن بازرس" else "Open inspector",
-                            color = c.accent,
-                            fontSize = 12.sp
-                        )
-                    }
+                    ChromeCapsule(
+                        label = if (fa) "بازکردن بازرس" else "Open inspector",
+                        icon = Icons.Filled.Tune,
+                        onClick = { showInspector = true },
+                        highlighted = true,
+                        testTag = "open_inspector"
+                    )
                 }
                 // §1 camera controls. Elevation lives on an explicit control rather than an
                 // ambiguous two-finger vertical drag, so it can never be confused with a pan.
-                if (showCameraPanel) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(squircleShape(16.dp))
-                            .background(c.chrome)
-                            .border(1.dp, c.chromeBorder, squircleShape(16.dp))
-                            .testTag("camera_panel")
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                AnimatedVisibility(
+                    visible = showCameraPanel,
+                    enter = fadeIn(tween(220)) + expandVertically(tween(220, easing = FastOutSlowInEasing)),
+                    exit = fadeOut(tween(160)) + shrinkVertically(tween(160, easing = FastOutSlowInEasing)),
+                    label = "CameraPanel"
+                ) {
+                    ChromePanel(
+                        modifier = Modifier.fillMaxWidth().testTag("camera_panel"),
+                        elevation = RedElevation.popover
                     ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                         // §3 ROOT CAUSE. `vm.camera` is a plain class, not Compose state, so a
                         // composable reading `camera.tiltRad` never recomposed: the slider drove
                         // the camera correctly but then re-synced its thumb and its readout from a
@@ -677,29 +666,20 @@ fun GravitySandboxRoot(
                             tag = "camera_tilt_slider"
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(squircleShape(12.dp))
-                                    .background(c.accent.copy(alpha = 0.10f))
-                                    .clickableTag("camera_fit") { vm.frameCameraToContent() }
-                                    .padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(if (fa) "جا دادن همه" else "Fit all", color = c.accent, fontSize = 12.sp)
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(squircleShape(12.dp))
-                                    .background(c.accent.copy(alpha = 0.10f))
-                                    .clickableTag("camera_reset") { vm.restorePresetCamera() }
-                                    .padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(if (fa) "بازنشانی دوربین" else "Reset camera", color = c.accent, fontSize = 12.sp)
-                            }
+                            ChromeTextAction(
+                                text = if (fa) "جا دادن همه" else "Fit all",
+                                onClick = { vm.frameCameraToContent() },
+                                modifier = Modifier.weight(1f),
+                                testTag = "camera_fit"
+                            )
+                            ChromeTextAction(
+                                text = if (fa) "بازنشانی دوربین" else "Reset camera",
+                                onClick = { vm.restorePresetCamera() },
+                                modifier = Modifier.weight(1f),
+                                testTag = "camera_reset"
+                            )
                         }
+                    }
                     }
                 }
 
@@ -733,35 +713,17 @@ fun GravitySandboxRoot(
             val anySheetOpen = showAdd || showInspector || showPresets ||
                 showChallenges || showTutorial || showCameraPanel || showTableSurface
             if (!anySheetOpen) {
-                Box(
+                AddDisc(
+                    contentDescription = if (fa) "افزودن جسم" else "Add body",
+                    onClick = {
+                        addAtScene = null
+                        showAdd = true
+                    },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .navigationBarsPadding()
                         .padding(bottom = 78.dp, end = 14.dp)
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .clickableTag("hud_add") {
-                            addAtScene = null
-                            showAdd = true
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .background(c.accent.copy(alpha = if (c.isDark) 0.22f else 0.16f))
-                            .border(1.5.dp, c.accent.copy(alpha = 0.7f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.Add,
-                            contentDescription = if (fa) "افزودن جسم" else "Add body",
-                            tint = c.accent,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
-                }
+                )
             }
 
             if (showInspector && vm.selectedId != 0L) {
@@ -804,8 +766,95 @@ private fun MenuItem(text: String, tag: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickableTag(tag, onClick)
-            .padding(horizontal = 14.dp, vertical = 11.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Text(text, color = c.onSurface, fontSize = 13.sp)
+        Text(
+            text = text,
+            color = c.onSurface,
+            style = RedTypographyTokens.bodySecondary
+        )
+    }
+}
+
+/**
+ * The primary creative action: one filled disc in the app's accent.
+ *
+ * A 52 dp circle inside a 56 dp touch target — above the 48 dp minimum without becoming the loudest
+ * thing on a screen whose subject is the physics. It replaced a translucent teal ring, which was the
+ * only control on the sandbox that did not look like a ZIG control: now it is the app's accent fill,
+ * the ink the theme repaired against that fill, and the same 0.94 press spring as every disc around it.
+ */
+@Composable
+private fun AddDisc(
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val chrome = chromeTokens()
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 440f),
+        label = "AddDiscPress"
+    )
+    Box(
+        modifier = modifier
+            .size(56.dp)
+            .clickableTag("hud_add", onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .scale(scale)
+                .clip(CircleShape)
+                .background(chrome.accent, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = contentDescription,
+                tint = chrome.onAccent,
+                modifier = Modifier.size(26.dp)
+            )
+        }
+    }
+}
+
+/**
+ * The permanent way into the tutorial, as a wordless disc in the app's chrome.
+ *
+ * A question mark rather than an icon: it is the same glyph in both languages (؟ / ?), it needs no
+ * image asset, and it reads as help at the size of the other controls around it.
+ */
+@Composable
+private fun HelpDisc(fa: Boolean, onClick: () -> Unit) {
+    val c = LocalGravityColors.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 460f),
+        label = "HelpDiscPress"
+    )
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .scale(scale)
+            .clip(CircleShape)
+            .background(c.chrome, CircleShape)
+            .border(1.dp, c.chromeBorder, CircleShape)
+            .semantics {
+                contentDescription = if (fa) TutorialContent.OPEN_HELP_FA else TutorialContent.OPEN_HELP_EN
+            }
+            .clickableTag("open_tutorial", onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = if (fa) "؟" else "?",
+            color = c.accent,
+            style = RedTypographyTokens.badge.copy(fontWeight = FontWeight.Bold)
+        )
     }
 }

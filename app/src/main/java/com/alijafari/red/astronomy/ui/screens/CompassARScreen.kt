@@ -140,6 +140,16 @@ private fun formatObjectDistance(
     calculatedState: CalculatedAstroState? = null
 ): String = ARDistanceFormatter.formatDistance(obj, isFa, calculatedState)
 
+/**
+ * An AR smart pill.
+ *
+ * It is the shared [ChromeCapsule] — the very same composable the Gravity Sandbox's scene, predict
+ * and inspector chips are drawn by — so the two immersive screens cannot drift apart in height,
+ * padding, ink or press behaviour. [isActive] means "this panel is the open one" and fills the
+ * capsule with the accent; [isHighlighted] means "a setting has moved away from its default" and
+ * leaves the capsule on the panel fill with an accent border and glyph, which is the quieter of the
+ * two states the app uses for exactly that distinction.
+ */
 @Composable
 private fun ArSmartPill(
     icon: ImageVector,
@@ -149,40 +159,14 @@ private fun ArSmartPill(
     testTag: String? = null,
     onClick: () -> Unit
 ) {
-    RedSurface(
+    ChromeCapsule(
+        label = label,
+        icon = icon,
         onClick = onClick,
-        shape = CircleShape,
-        color = if (isActive) RedTheme.colors.accentRed else if (isHighlighted) RedTheme.colors.surfaceElevated.copy(alpha = 0.95f) else RedTheme.colors.surfaceElevated.copy(alpha = 0.85f),
-        border = BorderStroke(
-            1.dp,
-            if (isActive) Color.Transparent else if (isHighlighted) RedTheme.colors.accentRed.copy(alpha = 0.6f) else RedTheme.colors.border
-        ),
-        elevation = RedElevation.floating,
-        modifier = Modifier
-            .height(36.dp)
-            .then(if (testTag != null) Modifier.testTag(testTag) else Modifier)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = if (isActive) Color.White else if (isHighlighted) RedTheme.colors.accentRed else RedTheme.colors.textPrimary,
-                modifier = Modifier.size(15.dp)
-            )
-            Text(
-                text = label,
-                style = RedTypographyTokens.caption.copy(
-                    fontWeight = if (isActive || isHighlighted) FontWeight.Bold else FontWeight.Medium,
-                    fontSize = 12.sp
-                ),
-                color = if (isActive) Color.White else RedTheme.colors.textPrimary
-            )
-        }
-    }
+        selected = isActive,
+        highlighted = isHighlighted && !isActive,
+        testTag = testTag
+    )
 }
 
 private enum class ArHealthLevel { GREEN, AMBER, RED, GRAY }
@@ -195,11 +179,19 @@ private data class ArSubsystemHealth(
     val detailFa: String
 )
 
-private fun arHealthColor(level: ArHealthLevel): Color = when (level) {
-    ArHealthLevel.GREEN -> StatusGood
-    ArHealthLevel.AMBER -> Color(0xFFF59E0B)
-    ArHealthLevel.RED -> AccentPrimary
-    ArHealthLevel.GRAY -> Color(0xFF94A3B8)
+/**
+ * The colour of a subsystem's health, taken from the theme.
+ *
+ * It used to return two literals — a hand-picked amber and a slate grey — which meant the AR screen
+ * carried status colours the rest of the app does not have, and they did not move when the user
+ * switched to the Wine theme. Green / amber / red are the theme's own success / warning / accent and
+ * an unlit subsystem is the theme's tertiary ink.
+ */
+private fun arHealthColor(level: ArHealthLevel, chrome: ChromeTokens): Color = when (level) {
+    ArHealthLevel.GREEN -> chrome.success
+    ArHealthLevel.AMBER -> chrome.warning
+    ArHealthLevel.RED -> chrome.accent
+    ArHealthLevel.GRAY -> chrome.textTertiary
 }
 
 private fun worstHealthLevel(levels: List<ArHealthLevel>): ArHealthLevel {
@@ -319,7 +311,7 @@ private fun ArLiveSensorLines(status: ArSensorStatus, atmosphere: ArAtmosphereRe
             " • Temp ${n(atmosphere.temperatureC, 0)}°C"
     )
     lines.forEach { line ->
-        Text(text = line, style = MaterialTheme.typography.labelSmall, color = RedTheme.colors.textPrimary)
+        Text(text = line, style = RedTypographyTokens.badge, color = RedTheme.colors.textPrimary)
     }
 }
 
@@ -333,6 +325,14 @@ fun CompassARScreen(
     // Text measured straight onto a Canvas never merges the theme's LocalTextStyle, so the locale
     // face is taken from the theme here and handed to each measure() call below.
     val canvasFontFamily = LocalAppFontFamily.current
+    // ---- the chrome this screen wears -----------------------------------------------------------
+    //
+    // Everything floating over the sky is the app's chrome, resolved from the theme in force — which
+    // is already the selected AppUiStyle's palette (the Cyber and Spatial providers adapt the tokens)
+    // and the selected ThemeMode. It is captured as plain values here because the overlay canvas, the
+    // reticle and every pointer lambda need the accent and the inks, and none of those is composable.
+    val chrome = chromeTokens()
+    val accent = chrome.accent
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val textMeasurer = rememberTextMeasurer(cacheSize = 96)
@@ -1142,7 +1142,9 @@ fun CompassARScreen(
             .drawWithContent {
                 drawContent()
                 if (nightVision) {
-                    // Night vision: everything (camera included) through a deep red filter.
+                    // Night vision: everything (camera included) through a deep red filter. This is
+                    // the one literal left on the screen on purpose — it is a photographic filter over
+                    // the sensor image, not a piece of chrome, so it must not follow the theme.
                     drawRect(color = Color(0xFFFF1E1E), blendMode = BlendMode.Multiply)
                 }
             }
@@ -1351,7 +1353,7 @@ fun CompassARScreen(
                         isFa = isFa,
                         timeMs = System.currentTimeMillis(),
                         selectedId = selectedTarget?.id,
-                        accent = AccentPrimary
+                        accent = accent
                     ),
                     textMeasurer = textMeasurer,
                     fontFamily = canvasFontFamily,
@@ -1373,12 +1375,12 @@ fun CompassARScreen(
                         return path
                     }
                     pathOf(orbitPastPoints)?.let {
-                        drawPath(path = it, color = Color(0xFF38BDF8).copy(alpha = 0.8f), style = Stroke(width = 2.2f * density))
+                        drawPath(path = it, color = accent.copy(alpha = 0.8f), style = Stroke(width = 2.2f * density))
                     }
                     pathOf(orbitFuturePoints)?.let {
                         drawPath(
                             path = it,
-                            color = Color(0xFF38BDF8).copy(alpha = 0.8f),
+                            color = accent.copy(alpha = 0.8f),
                             style = Stroke(width = 2.2f * density, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f * density, 8f * density), 0f))
                         )
                     }
@@ -1387,7 +1389,7 @@ fun CompassARScreen(
 
             // Centre reticle (its inner ring is also the aim radius used above).
             val ring = 24f * density
-            drawCircle(color = AccentPrimary, radius = ring, center = Offset(centerX, centerY), style = Stroke(width = 1.8f * density))
+            drawCircle(color = accent, radius = ring, center = Offset(centerX, centerY), style = Stroke(width = 1.8f * density))
             drawCircle(color = Color.White.copy(alpha = 0.3f), radius = ring * 1.7f, center = Offset(centerX, centerY), style = Stroke(width = 1f * density))
             val t0 = ring * 1.25f
             val t1 = ring * 0.72f
@@ -1457,19 +1459,25 @@ fun CompassARScreen(
             RedSurface(
                 onClick = { resetControlsTimer() },
                 shape = CircleShape,
-                color = Color.Black.copy(alpha = 0.75f),
-                border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.5f))
+                color = chrome.fill,
+                border = BorderStroke(1.dp, chrome.accent.copy(alpha = 0.45f)),
+                elevation = RedElevation.popover
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(Icons.Default.TouchApp, contentDescription = null, tint = AccentPrimary, modifier = Modifier.size(16.dp))
+                    Icon(
+                        imageVector = Icons.Default.TouchApp,
+                        contentDescription = null,
+                        tint = chrome.accent,
+                        modifier = Modifier.size(RedIconSize.xs)
+                    )
                     Text(
                         text = if (isFa) "لمس کنید تا ابزارها ظاهر شوند" else "Tap screen to show controls",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White
+                        style = RedTypographyTokens.badge,
+                        color = chrome.textPrimary
                     )
                 }
             }
@@ -1495,13 +1503,13 @@ fun CompassARScreen(
 
                     // Outer guidance progress ring
                     drawCircle(
-                        color = AccentPrimary.copy(alpha = 0.25f),
+                        color = accent.copy(alpha = 0.25f),
                         radius = 110f,
                         center = Offset(cX, cY),
                         style = Stroke(width = 6f)
                     )
                     drawArc(
-                        color = AccentPrimary,
+                        color = accent,
                         startAngle = -90f,
                         sweepAngle = finder.proximityFraction * 360f,
                         useCenter = false,
@@ -1521,7 +1529,7 @@ fun CompassARScreen(
                         lineTo(cX - 20f, cY - 65f)
                         close()
                     }
-                    drawPath(path = arrowPath, color = AccentPrimary)
+                    drawPath(path = arrowPath, color = accent)
                 }
 
                 // Instruction & Distance Card floating below arrow
@@ -1530,8 +1538,9 @@ fun CompassARScreen(
                         .align(Alignment.BottomCenter)
                         .offset(y = 60.dp),
                     shape = squircleShape(RedCornerRadius.window),
-                    color = RedTheme.colors.surfaceElevated.copy(alpha = 0.95f),
-                    border = BorderStroke(1.dp, RedTheme.colors.border)
+                    color = chrome.fill,
+                    border = BorderStroke(1.dp, chrome.stroke),
+                    elevation = RedElevation.popover
                 ) {
                     Column(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -1539,14 +1548,14 @@ fun CompassARScreen(
                     ) {
                         Text(
                             text = if (isFa) finder.instructionFa else finder.instructionEn,
-                            style = MaterialTheme.typography.bodySmall,
+                            style = RedTypographyTokens.bodySecondary,
                             fontWeight = FontWeight.Bold,
                             color = RedTheme.colors.textPrimary
                         )
                         val distStr = String.format(Locale.US, "%.1f°", finder.totalAngularDistanceDeg)
                         Text(
                             text = if (isFa) "فاصله تا هدف: ${TimeEngine.formatPersianNumbers(distStr)}" else "Distance: $distStr",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = RedTypographyTokens.badge,
                             color = RedTheme.colors.accentRed
                         )
                     }
@@ -1567,9 +1576,9 @@ fun CompassARScreen(
                     viewModel.clearTargetObject()
                 },
                 shape = squircleShape(RedCornerRadius.window),
-                color = Color(0xCC1A1F36),
-                border = BorderStroke(1.dp, Color(0x88FF5252)),
-                elevation = 6.dp
+                color = chrome.fill,
+                border = BorderStroke(1.dp, chrome.danger.copy(alpha = 0.55f)),
+                elevation = RedElevation.floating
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -1579,14 +1588,14 @@ fun CompassARScreen(
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = if (isFa) "انصراف از ردیابی" else "Cancel Target",
-                        tint = Color(0xFFFF5252),
+                        tint = chrome.danger,
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
                         text = if (isFa) "انصراف از ردیابی" else "Cancel Target",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = RedTypographyTokens.caption,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = chrome.textPrimary
                     )
                 }
             }
@@ -1634,8 +1643,8 @@ fun CompassARScreen(
                 // Left Floating Pill: Back Button + AR Sky Title
                 RedSurface(
                     shape = CircleShape,
-                    color = RedTheme.colors.surfaceElevated.copy(alpha = 0.88f),
-                    border = BorderStroke(1.dp, RedTheme.colors.border),
+                    color = chrome.fill,
+                    border = BorderStroke(1.dp, chrome.stroke),
                     elevation = RedElevation.floating
                 ) {
                     Row(
@@ -1643,26 +1652,17 @@ fun CompassARScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        IconButton(
+                        ChromeIconDisc(
+                            icon = if (isFa) Icons.AutoMirrored.Filled.ArrowForward else Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = if (isFa) "بازگشت" else "Back",
                             onClick = { viewModel.selectTab(4) },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .testTag("ar_back_button")
-                        ) {
-                            Icon(
-                                imageVector = if (isFa) Icons.AutoMirrored.Filled.ArrowForward else Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = RedTheme.colors.textPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                            size = 34.dp,
+                            testTag = "ar_back_button"
+                        )
                         Text(
                             text = if (isFa) "آسمان AR" else "AR Sky",
-                            style = RedTypographyTokens.bodyPrimary.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 14.sp
-                            ),
-                            color = RedTheme.colors.textPrimary,
+                            style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                            color = chrome.textPrimary,
                             modifier = Modifier.padding(end = 10.dp)
                         )
                     }
@@ -1672,8 +1672,8 @@ fun CompassARScreen(
                 val isNightVision = nightVision
                 RedSurface(
                     shape = CircleShape,
-                    color = RedTheme.colors.surfaceElevated.copy(alpha = 0.88f),
-                    border = BorderStroke(1.dp, RedTheme.colors.border),
+                    color = chrome.fill,
+                    border = BorderStroke(1.dp, chrome.stroke),
                     elevation = RedElevation.floating
                 ) {
                     Row(
@@ -1681,35 +1681,25 @@ fun CompassARScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        IconButton(
+                        ChromeIconDisc(
+                            icon = Icons.Default.NightsStay,
+                            contentDescription = if (isFa) "دید در شب" else "Night vision",
                             onClick = {
                                 // AR-local red night vision (the app-wide theme is left untouched).
                                 nightVision = !nightVision
                                 arPrefs.edit().putBoolean("ar_night_vision", nightVision).apply()
                             },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.NightsStay,
-                                contentDescription = if (isFa) "دید در شب" else "Night vision",
-                                tint = if (isNightVision) RedTheme.colors.accentRed else RedTheme.colors.textSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                            active = isNightVision,
+                            size = 34.dp
+                        )
 
-                        IconButton(
+                        ChromeIconDisc(
+                            icon = Icons.Default.GpsFixed,
+                            contentDescription = if (isFa) "هم‌ترازی" else "Align",
                             onClick = { isAlignmentMode = true },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .testTag("open_alignment_mode_btn")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.GpsFixed,
-                                contentDescription = "Align",
-                                tint = RedTheme.colors.textSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                            size = 34.dp,
+                            testTag = "open_alignment_mode_btn"
+                        )
                     }
                 }
             }
@@ -1774,13 +1764,23 @@ fun CompassARScreen(
             // EXPANDED PANEL CONTAINER (Renders only ONE expanded panel at a time)
             AnimatedVisibility(
                 visible = activeExpandedPanel != null,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+                // The panel drops out of the pill row it belongs to: the height expands on the app's
+                // curve and the content fades in behind it, so the row never jumps open.
+                enter = fadeIn(tween(200, easing = FastOutSlowInEasing)) +
+                    expandVertically(
+                        animationSpec = tween(300, easing = FastOutSlowInEasing),
+                        expandFrom = Alignment.Top
+                    ),
+                exit = fadeOut(tween(140, easing = FastOutSlowInEasing)) +
+                    shrinkVertically(
+                        animationSpec = tween(220, easing = FastOutSlowInEasing),
+                        shrinkTowards = Alignment.Top
+                    )
             ) {
                 RedSurface(
                     shape = squircleShape(RedCornerRadius.xl),
-                    color = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
-                    border = BorderStroke(1.dp, RedTheme.colors.border),
+                    color = chrome.fillStrong,
+                    border = BorderStroke(1.dp, chrome.stroke),
                     elevation = RedElevation.floating,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -1806,7 +1806,7 @@ fun CompassARScreen(
                                         placeholder = {
                                             Text(
                                                 text = if (isFa) "جستجوی جرم (ماه، مریخ، شباهنگ...)" else "Search target (Moon, Mars, Sirius...)",
-                                                style = MaterialTheme.typography.bodyMedium,
+                                                style = RedTypographyTokens.bodyPrimary,
                                                 color = RedTheme.colors.textSecondary
                                             )
                                         },
@@ -1825,23 +1825,19 @@ fun CompassARScreen(
                                             .testTag("ar_search_input")
                                     )
                                     if (searchQuery.isNotEmpty()) {
-                                        IconButton(
+                                        ChromeIconDisc(
+                                            icon = Icons.Default.Clear,
+                                            contentDescription = if (isFa) "پاک کردن" else "Clear",
                                             onClick = { searchQuery = "" },
-                                            modifier = Modifier.size(28.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Clear,
-                                                contentDescription = "Clear",
-                                                tint = TextSecondary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
+                                            size = 30.dp,
+                                            iconSize = RedIconSize.xs
+                                        )
                                     }
                                 }
 
                                 // Active Target Chip Banner
                                 selectedTarget?.let { target ->
-                                    HorizontalDivider(color = CardBorder, thickness = 1.dp, modifier = Modifier.padding(vertical = 6.dp))
+                                    HorizontalDivider(color = chrome.stroke, thickness = 1.dp, modifier = Modifier.padding(vertical = 6.dp))
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1854,32 +1850,27 @@ fun CompassARScreen(
                                             Icon(
                                                 imageVector = Icons.Default.GpsFixed,
                                                 contentDescription = "Target",
-                                                tint = AccentPrimary,
+                                                tint = accent,
                                                 modifier = Modifier.size(18.dp)
                                             )
                                             Text(
                                                 text = if (isFa) "هدف قفل‌شده: ${target.nameFa}" else "Locked Target: ${target.nameEn}",
-                                                style = MaterialTheme.typography.bodySmall,
+                                                style = RedTypographyTokens.bodySecondary,
                                                 fontWeight = FontWeight.Bold,
-                                                color = AccentPrimary
+                                                color = accent
                                             )
                                         }
-                                        TextButton(
+                                        ChromeTextAction(
+                                            text = if (isFa) "حذف هدف" else "Clear Target",
                                             onClick = { selectedTarget = null },
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(
-                                                text = if (isFa) "حذف هدف" else "Clear Target",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = TextSecondary
-                                            )
-                                        }
+                                            tint = chrome.textSecondary
+                                        )
                                     }
                                 }
 
                                 // Search Results or Quick Suggestions
                                 if (searchResults.isNotEmpty()) {
-                                    HorizontalDivider(color = RedTheme.colors.border, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+                                    ChromeDivider(modifier = Modifier.padding(vertical = 6.dp))
                                     LazyColumn(modifier = Modifier.heightIn(max = 200.dp).fillMaxWidth()) {
                                         items(searchResults) { result ->
                                             Row(
@@ -1898,25 +1889,26 @@ fun CompassARScreen(
                                                 Column {
                                                     Text(
                                                         text = if (isFa) result.celestialObject.nameFa else result.celestialObject.nameEn,
-                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        style = RedTypographyTokens.bodyPrimary,
                                                         fontWeight = FontWeight.Bold,
                                                         color = RedTheme.colors.textPrimary
                                                     )
                                                     Text(
                                                         text = if (isFa) result.celestialObject.constellationFa else result.celestialObject.constellationEn,
-                                                        style = MaterialTheme.typography.labelSmall,
+                                                        style = RedTypographyTokens.badge,
                                                         color = RedTheme.colors.textSecondary
                                                     )
                                                 }
-                                                Surface(
-                                                    shape = squircleShape(12.dp),
-                                                    color = if (result.isVisibleNow) StatusGood.copy(alpha = 0.2f) else RedTheme.colors.surfaceVariant,
-                                                    border = BorderStroke(1.dp, if (result.isVisibleNow) StatusGood else RedTheme.colors.border)
+                                                RedSurface(
+                                                    shape = squircleShape(RedCornerRadius.sm),
+                                                    color = if (result.isVisibleNow) chrome.success.copy(alpha = 0.18f) else RedTheme.colors.surfaceGrouped,
+                                                    border = BorderStroke(1.dp, if (result.isVisibleNow) chrome.success.copy(alpha = 0.7f) else chrome.stroke),
+                                                    elevation = RedElevation.none
                                                 ) {
                                                     Text(
                                                         text = if (isFa) result.statusFa else result.statusEn,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = if (result.isVisibleNow) StatusGood else RedTheme.colors.textSecondary,
+                                                        style = RedTypographyTokens.badge,
+                                                        color = if (result.isVisibleNow) chrome.success else chrome.textSecondary,
                                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                                     )
                                                 }
@@ -1924,10 +1916,10 @@ fun CompassARScreen(
                                         }
                                     }
                                 } else {
-                                    HorizontalDivider(color = RedTheme.colors.border, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+                                    ChromeDivider(modifier = Modifier.padding(vertical = 6.dp))
                                     Text(
                                         text = if (isFa) "پیشنهادهای سریع:" else "Quick Suggestions:",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        style = RedTypographyTokens.badge,
                                         color = RedTheme.colors.textSecondary,
                                         modifier = Modifier.padding(bottom = 6.dp)
                                     )
@@ -1945,10 +1937,10 @@ fun CompassARScreen(
                                     )
                                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         items(quickSuggestions) { sug ->
-                                            SuggestionChip(
-                                                onClick = { searchQuery = sug },
-                                                label = { Text(sug, color = RedTheme.colors.textPrimary) },
-                                                colors = SuggestionChipDefaults.suggestionChipColors(containerColor = RedTheme.colors.surfaceVariant)
+                                            ChromeToggleChip(
+                                                label = sug,
+                                                selected = false,
+                                                onClick = { searchQuery = sug }
                                             )
                                         }
                                     }
@@ -1994,100 +1986,97 @@ fun CompassARScreen(
                                 ) {
                                     Text(
                                         text = if (isFa) "فیلترهای نمایش اجرام آسمان" else "Sky Object Visibility",
-                                        style = MaterialTheme.typography.titleSmall,
+                                        style = RedTypographyTokens.sectionTitle,
                                         fontWeight = FontWeight.Bold,
                                         color = RedTheme.colors.textPrimary
                                     )
                                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        TextButton(
-                                            onClick = { setAllFilters(true) },
-                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(if (isFa) "نمایش همه" else "Show All", style = MaterialTheme.typography.labelSmall, color = RedTheme.colors.accentRed)
-                                        }
-                                        TextButton(
+                                        ChromeTextAction(
+                                            text = if (isFa) "نمایش همه" else "Show All",
+                                            onClick = { setAllFilters(true) }
+                                        )
+                                        ChromeTextAction(
+                                            text = if (isFa) "پنهان همه" else "Hide All",
                                             onClick = { setAllFilters(false) },
-                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(if (isFa) "پنهان همه" else "Hide All", style = MaterialTheme.typography.labelSmall, color = RedTheme.colors.textSecondary)
-                                        }
+                                            tint = chrome.textSecondary
+                                        )
                                     }
                                 }
 
-                                HorizontalDivider(color = RedTheme.colors.border, thickness = 0.5.dp)
+                                ChromeDivider()
 
                                 LazyRow(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     item {
-                                        FilterChip(
+                                        ChromeToggleChip(
+                                            label = if (isFa) "نام اجرام" else "Object Names",
                                             selected = filterObjectNames,
-                                            onClick = { updateFilter("filter_object_names", !filterObjectNames) { filterObjectNames = it } },
-                                            label = { Text(if (isFa) "نام اجرام" else "Object Names") }
+                                            onClick = { updateFilter("filter_object_names", !filterObjectNames) { filterObjectNames = it } }
                                         )
                                     }
                                     item {
-                                        FilterChip(
+                                        ChromeToggleChip(
+                                            label = if (isFa) "ستارگان" else "Stars",
                                             selected = filterStars,
-                                            onClick = { updateFilter("filter_stars", !filterStars) { filterStars = it } },
-                                            label = { Text(if (isFa) "ستارگان" else "Stars") }
+                                            onClick = { updateFilter("filter_stars", !filterStars) { filterStars = it } }
                                         )
                                     }
                                     item {
-                                        FilterChip(
+                                        ChromeToggleChip(
+                                            label = if (isFa) "✦ ستارگان بی‌نام" else "✦ Unnamed Stars",
                                             selected = filterUnnamedStars,
-                                            onClick = { updateFilter("filter_unnamed_stars", !filterUnnamedStars) { filterUnnamedStars = it } },
-                                            label = { Text(if (isFa) "✦ ستارگان بی‌نام" else "✦ Unnamed Stars") }
+                                            onClick = { updateFilter("filter_unnamed_stars", !filterUnnamedStars) { filterUnnamedStars = it } }
                                         )
                                     }
                                     item {
-                                        FilterChip(
+                                        ChromeToggleChip(
+                                            label = if (isFa) "صور فلکی" else "Constellations",
                                             selected = filterConstellations,
-                                            onClick = { updateFilter("filter_constellations", !filterConstellations) { filterConstellations = it } },
-                                            label = { Text(if (isFa) "صور فلکی" else "Constellations") }
+                                            onClick = { updateFilter("filter_constellations", !filterConstellations) { filterConstellations = it } }
                                         )
                                     }
                                     item {
-                                        FilterChip(
+                                        ChromeToggleChip(
+                                            label = if (isFa) "سیارات" else "Planets",
                                             selected = filterPlanets,
-                                            onClick = { updateFilter("filter_planets", !filterPlanets) { filterPlanets = it } },
-                                            label = { Text(if (isFa) "سیارات" else "Planets") }
+                                            onClick = { updateFilter("filter_planets", !filterPlanets) { filterPlanets = it } }
                                         )
                                     }
                                     item {
-                                        FilterChip(
+                                        ChromeToggleChip(
+                                            label = if (isFa) "ماه" else "Moon",
                                             selected = filterMoons,
-                                            onClick = { updateFilter("filter_moons", !filterMoons) { filterMoons = it } },
-                                            label = { Text(if (isFa) "ماه" else "Moon") }
+                                            onClick = { updateFilter("filter_moons", !filterMoons) { filterMoons = it } }
                                         )
                                     }
                                     item {
-                                        FilterChip(
+                                        ChromeToggleChip(
+                                            label = if (isFa) "خورشید" else "Sun",
                                             selected = filterSun,
-                                            onClick = { updateFilter("filter_sun", !filterSun) { filterSun = it } },
-                                            label = { Text(if (isFa) "خورشید" else "Sun") }
+                                            onClick = { updateFilter("filter_sun", !filterSun) { filterSun = it } }
                                         )
                                     }
                                     item {
-                                        FilterChip(
+                                        ChromeToggleChip(
+                                            label = if (isFa) "اعماق فضا" else "Deep Sky",
                                             selected = filterDeepSky,
-                                            onClick = { updateFilter("filter_deepsky", !filterDeepSky) { filterDeepSky = it } },
-                                            label = { Text(if (isFa) "اعماق فضا" else "Deep Sky") }
+                                            onClick = { updateFilter("filter_deepsky", !filterDeepSky) { filterDeepSky = it } }
                                         )
                                     }
                                     item {
-                                        FilterChip(
+                                        ChromeToggleChip(
+                                            label = if (isFa) "ماهواره‌ها" else "Satellites",
                                             selected = filterSatellites,
-                                            onClick = { updateFilter("filter_satellites", !filterSatellites) { filterSatellites = it } },
-                                            label = { Text(if (isFa) "ماهواره‌ها" else "Satellites") }
+                                            onClick = { updateFilter("filter_satellites", !filterSatellites) { filterSatellites = it } }
                                         )
                                     }
                                     item {
-                                        FilterChip(
+                                        ChromeToggleChip(
+                                            label = if (isFa) "بارش‌های شهابی" else "Meteor Showers",
                                             selected = filterMeteorShowers,
-                                            onClick = { updateFilter("filter_meteor_showers", !filterMeteorShowers) { filterMeteorShowers = it } },
-                                            label = { Text(if (isFa) "بارش‌های شهابی" else "Meteor Showers") }
+                                            onClick = { updateFilter("filter_meteor_showers", !filterMeteorShowers) { filterMeteorShowers = it } }
                                         )
                                     }
                                 }
@@ -2099,7 +2088,7 @@ fun CompassARScreen(
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text(
                                     text = if (isFa) "مدیریت حسگرها و موقعیت‌یاب" else "Sensors & Telemetry Control",
-                                    style = MaterialTheme.typography.titleSmall,
+                                    style = RedTypographyTokens.sectionTitle,
                                     fontWeight = FontWeight.Bold,
                                     color = RedTheme.colors.textPrimary
                                 )
@@ -2111,8 +2100,10 @@ fun CompassARScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     // GPS Toggle
-                                    FilterChip(
+                                    ChromeToggleChip(
+                                        label = if (isFa) "GPS دائم" else "Live GPS",
                                         selected = isGpsActive,
+                                        icon = if (isGpsActive) Icons.Default.GpsFixed else Icons.Default.GpsOff,
                                         onClick = {
                                             if (!hasLocationPermission) {
                                                 locationPermissionLauncher.launch(
@@ -2121,34 +2112,22 @@ fun CompassARScreen(
                                             } else {
                                                 isGpsActive = !isGpsActive
                                             }
-                                        },
-                                        label = { Text(if (isFa) "GPS دائم" else "Live GPS") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = if (isGpsActive) Icons.Default.GpsFixed else Icons.Default.GpsOff,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
                                         }
                                     )
 
                                     // Sensors Toggle
-                                    FilterChip(
+                                    ChromeToggleChip(
+                                        label = if (isFa) "ژیروسکوپ / قطب‌نما" else "Sensor Fusion",
                                         selected = isSensorActive,
-                                        onClick = { isSensorActive = !isSensorActive },
-                                        label = { Text(if (isFa) "ژیروسکوپ / قطب‌نما" else "Sensor Fusion") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = if (isSensorActive) Icons.Default.Sensors else Icons.Default.SensorsOff,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
+                                        icon = if (isSensorActive) Icons.Default.Sensors else Icons.Default.SensorsOff,
+                                        onClick = { isSensorActive = !isSensorActive }
                                     )
 
                                     // Camera Toggle
-                                    FilterChip(
+                                    ChromeToggleChip(
+                                        label = if (isFa) "دوربین AR" else "Camera Feed",
                                         selected = isCameraEnabled,
+                                        icon = if (isCameraEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
                                         onClick = {
                                             if (!hasCameraPermission) {
                                                 permissionLauncher.launch(Manifest.permission.CAMERA)
@@ -2158,26 +2137,18 @@ fun CompassARScreen(
                                                 userToggledCameraOff = turningOff
                                                 if (turningOff) cameraStreaming = false
                                             }
-                                        },
-                                        label = { Text(if (isFa) "دوربین AR" else "Camera Feed") },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = if (isCameraEnabled) Icons.Default.Videocam else Icons.Default.VideocamOff,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
                                         }
                                     )
                                 }
 
                                 // Operational Status Summary Card
                                 var showDetailsAccordion by remember { mutableStateOf(false) }
-                                val overallColor = arHealthColor(overallHealth.level)
+                                val overallColor = arHealthColor(overallHealth.level, chrome)
 
                                 RedSurface(
                                     shape = squircleShape(RedCornerRadius.window),
-                                    color = overallColor.copy(alpha = 0.12f),
-                                    border = BorderStroke(1.dp, overallColor.copy(alpha = 0.4f)),
+                                    color = overallColor.copy(alpha = if (chrome.isDark) 0.14f else 0.10f),
+                                    border = BorderStroke(1.dp, overallColor.copy(alpha = 0.40f)),
                                     modifier = Modifier.fillMaxWidth(),
                                     elevation = RedElevation.none,
                                 ) {
@@ -2206,7 +2177,7 @@ fun CompassARScreen(
                                                 Column {
                                                     Text(
                                                         text = if (isFa) overallHealth.titleFa else overallHealth.titleEn,
-                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        style = RedTypographyTokens.bodyPrimary,
                                                         fontWeight = FontWeight.Bold,
                                                         color = overallColor
                                                     )
@@ -2216,23 +2187,17 @@ fun CompassARScreen(
                                                         } else {
                                                             "GPS: ${gpsHealth.titleEn} • Sensors: ${sensorHealth.titleEn} • Camera: ${cameraHealth.titleEn}"
                                                         },
-                                                        style = MaterialTheme.typography.labelSmall,
+                                                        style = RedTypographyTokens.badge,
                                                         color = RedTheme.colors.textSecondary
                                                     )
                                                 }
                                             }
 
-                                            TextButton(
-                                                onClick = { showDetailsAccordion = !showDetailsAccordion },
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                                            ) {
-                                                Text(
-                                                    text = if (showDetailsAccordion) (if (isFa) "بستن جزئیات" else "Hide Details")
-                                                    else (if (isFa) "جزئیات تلمتری" else "Telemetry"),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = AccentPrimary
-                                                )
-                                            }
+                                            ChromeTextAction(
+                                                text = if (showDetailsAccordion) (if (isFa) "بستن جزئیات" else "Hide Details")
+                                                else (if (isFa) "جزئیات تلمتری" else "Telemetry"),
+                                                onClick = { showDetailsAccordion = !showDetailsAccordion }
+                                            )
                                         }
 
                                         // Locator status is read here, not on the canvas. It stays outside the telemetry
@@ -2248,7 +2213,7 @@ fun CompassARScreen(
                                                 Text(
                                                     text = if (isFa) "• موقعیت: ${TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.4f°", observerLat))}, ${TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.4f°", observerLon))} • ${TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.0f", observerHeightM))} متر"
                                                     else "• Location: ${String.format(Locale.US, "%.4f°", observerLat)}, ${String.format(Locale.US, "%.4f°", observerLon)} • ${String.format(Locale.US, "%.0f", observerHeightM)} m",
-                                                    style = MaterialTheme.typography.labelSmall,
+                                                    style = RedTypographyTokens.badge,
                                                     color = RedTheme.colors.textPrimary
                                                 )
                                                 ArLiveSensorLines(sensorStatus, atmosphereReading, isFa)
@@ -2259,19 +2224,13 @@ fun CompassARScreen(
                                                 ) {
                                                     Text(
                                                         text = if (isFa) "• وضعیت کالیبراسیون سنسور: ${calibrationLabel(calibrationState, true)}" else "• Sensor Calibration: ${calibrationLabel(calibrationState, false)}",
-                                                        style = MaterialTheme.typography.labelSmall,
+                                                        style = RedTypographyTokens.badge,
                                                         color = RedTheme.colors.textPrimary
                                                     )
-                                                    TextButton(
-                                                        onClick = { showManualSensorPrompt = true },
-                                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                                                    ) {
-                                                        Text(
-                                                            text = if (isFa) "راهنمای شکل ۸" else "Figure-8 Guide",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = AccentPrimary
-                                                        )
-                                                    }
+                                                    ChromeTextAction(
+                                                        text = if (isFa) "راهنمای شکل ۸" else "Figure-8 Guide",
+                                                        onClick = { showManualSensorPrompt = true }
+                                                    )
                                                 }
                                                 if (arCalibrationOffsets.isCalibrated) {
                                                     val yawFmt = String.format(Locale.US, "%+.1f°", arCalibrationOffsets.yawOffsetDeg)
@@ -2280,7 +2239,7 @@ fun CompassARScreen(
                                                             "• آفست تراز AR (سمت): ${TimeEngine.formatPersianNumbers(yawFmt)}"
                                                         else
                                                             "• AR Alignment Offset (Yaw): $yawFmt",
-                                                        style = MaterialTheme.typography.labelSmall,
+                                                        style = RedTypographyTokens.badge,
                                                         color = RedTheme.colors.accentRed
                                                     )
                                                 }
@@ -2319,7 +2278,7 @@ fun CompassARScreen(
                                                 Column {
                                                     Text(
                                                         text = if (isFa) "هم‌ترازی تک‌نقطه‌ای AR" else "1-Point Reference Alignment",
-                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        style = RedTypographyTokens.bodyPrimary,
                                                         fontWeight = FontWeight.Bold,
                                                         color = RedTheme.colors.textPrimary
                                                     )
@@ -2330,26 +2289,18 @@ fun CompassARScreen(
                                                         } else {
                                                             if (isFa) "همترازی نشانگر با جرم درخشان واقعی" else "Align pointer with a bright reference object"
                                                         },
-                                                        style = MaterialTheme.typography.labelSmall,
+                                                        style = RedTypographyTokens.badge,
                                                         color = RedTheme.colors.textSecondary
                                                     )
                                                 }
                                             }
 
-                                            Button(
+                                            ChromePrimaryAction(
+                                                text = if (isFa) "تراز" else "Align",
+                                                icon = Icons.Default.GpsFixed,
                                                 onClick = { isAlignmentMode = true },
-                                                colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed),
-                                                shape = squircleShape(10.dp),
-                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                                modifier = Modifier.testTag("open_alignment_btn")
-                                            ) {
-                                                Text(
-                                                    text = if (isFa) "تراز" else "Align",
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
+                                                testTag = "open_alignment_btn"
+                                            )
                                         }
                                     }
                                 }
@@ -2373,17 +2324,16 @@ fun CompassARScreen(
                 .statusBarsPadding()
                 .padding(top = 54.dp)
         ) {
-            Surface(
+            RedSurface(
                 shape = CircleShape,
-                color = Color.Black.copy(alpha = 0.8f),
-                border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.6f)),
-                shadowElevation = 8.dp
+                color = chrome.fill,
+                border = BorderStroke(1.dp, chrome.accent.copy(alpha = 0.55f)),
+                elevation = RedElevation.popover
             ) {
                 Text(
                     text = String.format(Locale.US, "%.1f×", zoomFactor),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                    color = chrome.textPrimary,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                 )
             }
@@ -2505,9 +2455,9 @@ fun CompassARScreen(
                                 viewModel.openObjectDetail(obj)
                             },
                         shape = squircleShape(RedCornerRadius.window),
-                        color = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
-                        border = BorderStroke(1.dp, RedTheme.colors.accentRed.copy(alpha = 0.6f)),
-                        elevation = 12.dp
+                        color = chrome.fillStrong,
+                        border = BorderStroke(1.dp, chrome.accent.copy(alpha = 0.55f)),
+                        elevation = RedElevation.modal
                     ) {
                         Column(
                             modifier = Modifier.padding(14.dp),
@@ -2521,26 +2471,27 @@ fun CompassARScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = if (isFa) obj.nameFa else obj.nameEn,
-                                        style = MaterialTheme.typography.titleSmall,
+                                        style = RedTypographyTokens.sectionTitle,
                                         fontWeight = FontWeight.Bold,
                                         color = RedTheme.colors.textPrimary
                                     )
                                     Text(
                                         text = if (isFa) obj.type.nameFa else obj.type.nameEn,
-                                        style = MaterialTheme.typography.labelSmall,
+                                        style = RedTypographyTokens.badge,
                                         color = RedTheme.colors.accentRed,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 }
-                                IconButton(
+                                ChromeIconDisc(
+                                    icon = Icons.Default.Close,
+                                    contentDescription = if (isFa) "بستن" else "Close",
                                     onClick = { tappedObject = null },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(Icons.Default.Close, contentDescription = "Close", tint = RedTheme.colors.textSecondary, modifier = Modifier.size(16.dp))
-                                }
+                                    size = 28.dp,
+                                    iconSize = RedIconSize.xs
+                                )
                             }
 
-                            HorizontalDivider(color = RedTheme.colors.border, thickness = 0.5.dp)
+                            ChromeDivider()
 
                             val cardCalculatedState = remember(obj.id, activeTimeMs / 1000L, observerLat, observerLon) {
                                 AstroDispatchEngine.calculateState(
@@ -2554,7 +2505,7 @@ fun CompassARScreen(
                             val distStr = formatObjectDistance(obj, isFa, cardCalculatedState)
                             Text(
                                 text = if (isFa) "فاصله از زمین: $distStr" else "Dist: $distStr",
-                                style = MaterialTheme.typography.labelSmall,
+                                style = RedTypographyTokens.badge,
                                 color = RedTheme.colors.textPrimary
                             )
 
@@ -2564,36 +2515,27 @@ fun CompassARScreen(
                             ) {
                                 Text(
                                     text = riseText,
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = RedTypographyTokens.badge,
                                     color = RedTheme.colors.textSecondary
                                 )
                                 Text(
                                     text = setText,
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = RedTypographyTokens.badge,
                                     color = RedTheme.colors.textSecondary
                                 )
                             }
 
-                            Button(
+                            ChromePrimaryAction(
+                                text = if (isFa) "مشاهده جزئیات" else "View Details",
                                 onClick = {
                                     tappedObject = null
                                     viewModel.openObjectDetail(obj)
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = RedTheme.colors.accentRed),
-                                shape = squircleShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 4.dp)
-                                    .testTag("ar_target_detail_button"),
-                                contentPadding = PaddingValues(vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = if (isFa) "مشاهده جزئیات" else "View Details",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                                    .padding(top = 4.dp),
+                                testTag = "ar_target_detail_button"
+                            )
                         }
                     }
                 }
@@ -2627,9 +2569,9 @@ fun CompassARScreen(
                     .offset(y = (-140).dp)
                     .testTag("ar_object_found_banner"),
                 shape = squircleShape(RedCornerRadius.window),
-                color = Color(0xDD0D1B2A),
-                border = BorderStroke(1.dp, Color(0xFF4CAF50)),
-                elevation = RedElevation.none,
+                color = chrome.fill,
+                border = BorderStroke(1.dp, chrome.success.copy(alpha = 0.6f)),
+                elevation = RedElevation.popover,
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
@@ -2639,14 +2581,14 @@ fun CompassARScreen(
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = Color(0xFF4CAF50),
+                        tint = chrome.success,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
                         text = if (isFa) "جرم پیدا شد" else "Object found",
-                        style = MaterialTheme.typography.titleSmall,
+                        style = RedTypographyTokens.sectionTitle,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = chrome.textPrimary
                     )
                 }
             }
@@ -2666,9 +2608,9 @@ fun CompassARScreen(
             val offStr = String.format(Locale.US, "%+.1f°", applied)
             RedSurface(
                 shape = squircleShape(RedCornerRadius.window),
-                color = Color(0xDD0D1B2A),
-                border = BorderStroke(1.dp, StatusGood),
-                elevation = 12.dp,
+                color = chrome.fill,
+                border = BorderStroke(1.dp, chrome.success.copy(alpha = 0.7f)),
+                elevation = RedElevation.modal,
                 modifier = Modifier.testTag("alignment_confirmation_pill"),
             ) {
                 Row(
@@ -2679,15 +2621,15 @@ fun CompassARScreen(
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = StatusGood,
+                        tint = chrome.success,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
                         text = if (isFa) "تراز شد: آفست (${TimeEngine.formatPersianNumbers(offStr)}) اعمال شد"
                         else "Aligned: offset applied ($offStr)",
-                        style = MaterialTheme.typography.titleSmall,
+                        style = RedTypographyTokens.sectionTitle,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = chrome.textPrimary
                     )
                 }
             }
@@ -2705,9 +2647,9 @@ fun CompassARScreen(
         ) {
             RedSurface(
                 shape = squircleShape(RedCornerRadius.window),
-                color = Color(0xDD2A0D0D),
-                border = BorderStroke(1.dp, Color(0xFFF59E0B)),
-                elevation = 12.dp,
+                color = chrome.fill,
+                border = BorderStroke(1.dp, chrome.warning.copy(alpha = 0.75f)),
+                elevation = RedElevation.modal,
                 modifier = Modifier.testTag("alignment_rejected_pill"),
             ) {
                 Row(
@@ -2715,13 +2657,13 @@ fun CompassARScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = chrome.warning, modifier = Modifier.size(20.dp))
                     Text(
                         text = if (isFa) "تصحیح بیش از ۴۵° است؛ هدف درست را در مرکز قرار دهید یا ابتدا قطب‌نما را کالیبره کنید."
                         else "Correction over 45° — centre the right object, or calibrate the compass first.",
-                        style = MaterialTheme.typography.labelMedium,
+                        style = RedTypographyTokens.caption,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = chrome.textPrimary
                     )
                 }
             }
@@ -2795,31 +2737,50 @@ fun CompassARScreen(
 
 
 
+/**
+ * One subsystem line of the sensors panel: a health dot, the subsystem, and its detail.
+ *
+ * The dot used to be a Material `Surface`; it is a plain filled circle now, so the row draws no
+ * elevation, no ripple and no shape of its own — it is text and a colour, which is all it needs to be.
+ */
 @Composable
 private fun TelemetryDetailRow(label: String, health: ArSubsystemHealth, isFa: Boolean) {
-    val color = arHealthColor(health.level)
+    val chrome = chromeTokens()
+    val color = arHealthColor(health.level, chrome)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Surface(shape = CircleShape, color = color, modifier = Modifier.size(7.dp)) {}
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(color, CircleShape)
+            )
             Text(
                 text = "• $label: ${if (isFa) health.titleFa else health.titleEn}",
-                style = MaterialTheme.typography.labelSmall,
-                color = RedTheme.colors.textPrimary
+                style = RedTypographyTokens.badge,
+                color = chrome.textPrimary
             )
         }
         Text(
             text = if (isFa) health.detailFa else health.detailEn,
-            style = MaterialTheme.typography.labelSmall,
+            style = RedTypographyTokens.badge,
             color = color,
             fontWeight = FontWeight.SemiBold
         )
     }
 }
 
+/**
+ * The camera-permission banner.
+ *
+ * It used to be its own navy panel with a literal red border; it is the chrome's own banner now
+ * ([ChromeBanner]) in the danger tone, so its fill, its radius, its icon size and its action all
+ * match the magnetic-interference and recalibration banners next to it.
+ */
 @Composable
 private fun PermissionBlockedBanner(
     text: String,
@@ -2828,61 +2789,29 @@ private fun PermissionBlockedBanner(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    RedSurface(
-        modifier = modifier.fillMaxWidth(),
-        shape = squircleShape(RedCornerRadius.window),
-        color = Color(0xDD1A0B12),
-        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.7f)),
-        elevation = 12.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(Icons.Default.VideocamOff, contentDescription = null, tint = AccentPrimary, modifier = Modifier.size(20.dp))
-            Text(
-                text = text,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White
-            )
-            TextButton(onClick = onOpenSettings, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)) {
-                Text(actionText, style = MaterialTheme.typography.labelSmall, color = Color.White, fontWeight = FontWeight.Bold)
-            }
-            IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(16.dp))
-            }
-        }
-    }
+    ChromeBanner(
+        text = text,
+        modifier = modifier,
+        icon = Icons.Default.VideocamOff,
+        tone = ChromeTone.DANGER,
+        actionLabel = actionText,
+        onAction = onOpenSettings,
+        onDismiss = onDismiss
+    )
 }
 
+/** The compass-interference banner: the same banner, in the warning tone. */
 @Composable
 private fun MagneticInterferenceBanner(text: String, modifier: Modifier = Modifier) {
-    RedSurface(
-        modifier = modifier.fillMaxWidth(),
-        shape = squircleShape(RedCornerRadius.window),
-        color = Color(0xDD2A1800),
-        border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.7f)),
-        elevation = 12.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
-            Text(
-                text = text,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
+    ChromeBanner(
+        text = text,
+        modifier = modifier,
+        icon = Icons.Default.WarningAmber,
+        tone = ChromeTone.WARNING
+    )
 }
 
+/** The "your compass needs a figure-8" prompt: a title, a body, one action, and a way out. */
 @Composable
 private fun RecalibrationSuggestionBanner(
     title: String,
@@ -2892,58 +2821,59 @@ private fun RecalibrationSuggestionBanner(
     onAction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    RedSurface(
-        modifier = modifier.fillMaxWidth(),
-        shape = squircleShape(RedCornerRadius.window),
-        color = Color.Black.copy(alpha = 0.78f),
-        border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.55f)),
-        elevation = 10.dp,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(Icons.Default.Tune, contentDescription = null, tint = AccentPrimary, modifier = Modifier.size(20.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.labelMedium, color = Color.White, fontWeight = FontWeight.Bold)
-                Text(body, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.76f))
-            }
-            TextButton(onClick = onAction, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)) {
-                Text(action, style = MaterialTheme.typography.labelSmall, color = AccentPrimary, fontWeight = FontWeight.Bold)
-            }
-            IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(16.dp))
-            }
-        }
-    }
+    ChromeBanner(
+        text = body,
+        modifier = modifier,
+        icon = Icons.Default.Tune,
+        tone = ChromeTone.ACCENT,
+        title = title,
+        actionLabel = action,
+        onAction = onAction,
+        onDismiss = onDismiss
+    )
 }
 
+/**
+ * The time-machine watermark: a quiet corner note that the sky is not now.
+ *
+ * Deliberately the *weakest* thing on the screen — a translucent panel in the theme's grouped fill,
+ * no border accent, no icon — because it must be readable when looked for and invisible when not.
+ */
 @Composable
 private fun TimeMachineWatermark(label: String, dateTime: String, modifier: Modifier = Modifier) {
-    Surface(
+    val chrome = chromeTokens()
+    RedSurface(
         modifier = modifier.testTag("ar_time_machine_watermark"),
-        shape = squircleShape(14.dp),
-        color = Color.Black.copy(alpha = 0.18f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+        shape = chrome.rowShape,
+        color = chrome.fillQuiet,
+        border = BorderStroke(1.dp, chrome.stroke.copy(alpha = 0.6f)),
+        elevation = RedElevation.none
     ) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
+        ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.62f)
+                style = RedTypographyTokens.badge.copy(fontWeight = FontWeight.SemiBold),
+                color = chrome.textSecondary
             )
             Text(
                 text = dateTime,
-                style = MaterialTheme.typography.labelSmall,
-                fontSize = 10.sp,
-                color = Color.White.copy(alpha = 0.50f)
+                style = RedTypographyTokens.badge,
+                color = chrome.textTertiary
             )
         }
     }
 }
 
+/**
+ * The crowd menu: several objects under one finger, each with its name, its kind and its magnitude.
+ *
+ * A panel from the chrome, a header line, a hairline, and rows that highlight on press — the same
+ * anatomy as an inspector sheet in the sandbox, which is the point: one crowded-sky menu and one
+ * body inspector should not look like two different products.
+ */
 @Composable
 private fun ClusterSelectionMenu(
     title: String,
@@ -2953,52 +2883,52 @@ private fun ClusterSelectionMenu(
     onSelect: (CelestialObject) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    RedSurface(
-        modifier = modifier.fillMaxWidth(),
-        shape = squircleShape(RedCornerRadius.window),
-        color = RedTheme.colors.surfaceElevated.copy(alpha = 0.96f),
-        border = BorderStroke(1.dp, RedTheme.colors.border),
-        elevation = 12.dp,
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val chrome = chromeTokens()
+    ChromePanel(modifier = modifier.fillMaxWidth(), elevation = RedElevation.modal) {
+        Column(modifier = Modifier.padding(RedSpacing.lg), verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(title, style = MaterialTheme.typography.titleSmall, color = RedTheme.colors.textPrimary, fontWeight = FontWeight.Bold)
-                IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = RedTheme.colors.textSecondary, modifier = Modifier.size(16.dp))
-                }
+                ChromeSectionTitle(text = title, modifier = Modifier.weight(1f))
+                ChromeIconDisc(
+                    icon = Icons.Default.Close,
+                    contentDescription = "Close",
+                    onClick = onDismiss,
+                    size = 30.dp,
+                    iconSize = RedIconSize.xs
+                )
             }
+            ChromeDivider()
             LazyColumn(modifier = Modifier.heightIn(max = 220.dp)) {
                 items(objects) { obj ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(chrome.rowShape)
                             .clickable { onSelect(obj) }
-                            .padding(vertical = 8.dp),
+                            .padding(horizontal = 10.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (isFa) obj.nameFa else obj.nameEn,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = RedTheme.colors.textPrimary,
-                                fontWeight = FontWeight.SemiBold
+                                style = RedTypographyTokens.bodyPrimary.copy(fontWeight = FontWeight.SemiBold),
+                                color = chrome.textPrimary
                             )
                             Text(
                                 text = if (isFa) obj.type.nameFa else obj.type.nameEn,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = RedTheme.colors.textSecondary
+                                style = RedTypographyTokens.caption,
+                                color = chrome.textSecondary
                             )
                         }
                         val mag = String.format(Locale.US, "%.1f", obj.magnitude)
                         Text(
                             text = if (isFa) TimeEngine.formatPersianNumbers(mag) else mag,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AccentPrimary
+                            style = RedTypographyTokens.numberSmall,
+                            color = chrome.accent
                         )
                     }
                 }
@@ -3013,6 +2943,15 @@ private fun ClusterSelectionMenu(
  * Clear-sightline HUD shown over the raw camera feed while all projected sky graphics are
  * hidden: a center crosshair reticle with a fine `+`, up to 3 recommended bright targets,
  * auto-hiding directional guide arrows, and bottom controls kept above the navigation bar.
+ *
+ * ## Dress and motion
+ *
+ * The overlay opens as one gesture: the reticle and the guide arrow scale up from 0.92 while the
+ * whole layer fades in on the app's `FastOutSlowInEasing`, so entering alignment reads as the sky
+ * being cleared for a measurement rather than as four panels appearing at once. Its controls are the
+ * shared chrome — capsules for the reference targets, one filled action for Align, a quiet one for
+ * Cancel, a danger-tinted one for Reset — so the two things the user must not confuse (this screen's
+ * chrome and the camera image behind it) are separated by material, not by a second palette.
  */
 @Composable
 private fun AlignmentModeOverlay(
@@ -3027,41 +2966,60 @@ private fun AlignmentModeOverlay(
     onCancel: () -> Unit,
     onReset: () -> Unit
 ) {
+    val chrome = chromeTokens()
+    val accent = chrome.accent
+    // The reticle is drawn over a camera image, so its ink is the image's opposite — a pinned white —
+    // and only the accented ring follows the theme. The panels are theme surfaces and take theme ink.
+    val sceneInk = Color.White
+    var entered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { entered = true }
+    val entrance by animateFloatAsState(
+        targetValue = if (entered) 1f else 0f,
+        animationSpec = tween(durationMillis = 340, easing = FastOutSlowInEasing),
+        label = "AlignmentOverlayEntrance"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .graphicsLayer { alpha = entrance }
             .testTag("alignment_mode_overlay")
     ) {
         // 1. Center crosshair reticle with a fine + at the exact center pixel
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer {
+                    val s = 0.92f + 0.08f * entrance
+                    scaleX = s
+                    scaleY = s
+                }
                 .testTag("alignment_reticle")
         ) {
             val cx = size.width / 2f
             val cy = size.height / 2f
             drawCircle(
-                color = Color.White.copy(alpha = 0.35f),
+                color = sceneInk.copy(alpha = 0.35f),
                 radius = 110f,
                 center = Offset(cx, cy),
                 style = Stroke(width = 1.5f)
             )
             drawCircle(
-                color = AccentPrimary,
+                color = accent,
                 radius = 65f,
                 center = Offset(cx, cy),
                 style = Stroke(width = 2.5f)
             )
             // Tick marks
-            drawLine(Color.White, Offset(cx - 85f, cy), Offset(cx - 50f, cy), strokeWidth = 2f)
-            drawLine(Color.White, Offset(cx + 50f, cy), Offset(cx + 85f, cy), strokeWidth = 2f)
-            drawLine(Color.White, Offset(cx, cy - 85f), Offset(cx, cy - 50f), strokeWidth = 2f)
-            drawLine(Color.White, Offset(cx, cy + 50f), Offset(cx, cy + 85f), strokeWidth = 2f)
+            drawLine(sceneInk, Offset(cx - 85f, cy), Offset(cx - 50f, cy), strokeWidth = 2f)
+            drawLine(sceneInk, Offset(cx + 50f, cy), Offset(cx + 85f, cy), strokeWidth = 2f)
+            drawLine(sceneInk, Offset(cx, cy - 85f), Offset(cx, cy - 50f), strokeWidth = 2f)
+            drawLine(sceneInk, Offset(cx, cy + 50f), Offset(cx, cy + 85f), strokeWidth = 2f)
             // Fine + pinned to the exact center pixel for accurate pinning
             val arm = 16f
-            drawLine(Color.White, Offset(cx - arm, cy), Offset(cx + arm, cy), strokeWidth = 2f)
-            drawLine(Color.White, Offset(cx, cy - arm), Offset(cx, cy + arm), strokeWidth = 2f)
-            drawCircle(Color.White, radius = 2f, center = Offset(cx, cy))
+            drawLine(sceneInk, Offset(cx - arm, cy), Offset(cx + arm, cy), strokeWidth = 2f)
+            drawLine(sceneInk, Offset(cx, cy - arm), Offset(cx, cy + arm), strokeWidth = 2f)
+            drawCircle(sceneInk, radius = 2f, center = Offset(cx, cy))
         }
 
         // 2. Directional guide arrows (auto-hidden once the target nears the reticle)
@@ -3082,7 +3040,7 @@ private fun AlignmentModeOverlay(
                     val cX = w / 2f
                     val cY = h / 2f
                     drawCircle(
-                        color = AccentPrimary.copy(alpha = 0.25f),
+                        color = accent.copy(alpha = 0.25f),
                         radius = 120f,
                         center = Offset(cX, cY),
                         style = Stroke(width = 6f)
@@ -3097,22 +3055,22 @@ private fun AlignmentModeOverlay(
                         lineTo(cX - 22f, cY - 72f)
                         close()
                     }
-                    drawPath(path = arrowPath, color = AccentPrimary)
+                    drawPath(path = arrowPath, color = accent)
                 }
                 // Live separation readout below the arrow
                 val sepStr = String.format(Locale.US, "%.1f°", guidance.separationDeg)
-                Surface(
-                    shape = squircleShape(14.dp),
-                    color = Color.Black.copy(alpha = 0.75f),
-                    border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.6f)),
+                RedSurface(
+                    shape = chrome.rowShape,
+                    color = chrome.fill,
+                    border = BorderStroke(1.dp, accent.copy(alpha = 0.55f)),
+                    elevation = RedElevation.popover,
                     modifier = Modifier.align(Alignment.BottomCenter)
                 ) {
                     Text(
                         text = if (isFa) "فاصله: ${TimeEngine.formatPersianNumbers(sepStr)}"
                         else "Distance: $sepStr",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Bold),
+                        color = chrome.textPrimary,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     )
                 }
@@ -3128,44 +3086,27 @@ private fun AlignmentModeOverlay(
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            RedSurface(
-                shape = squircleShape(RedCornerRadius.window),
-                color = RedTheme.colors.surfaceElevated.copy(alpha = 0.92f),
-                border = BorderStroke(1.dp, RedTheme.colors.border),
-                elevation = 8.dp
-            ) {
+            ChromePanel(elevation = RedElevation.modal) {
                 Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(RedSpacing.lg),
+                    verticalArrangement = Arrangement.spacedBy(RedSpacing.sm)
                 ) {
-                    Text(
-                        text = if (isFa) "جرم شاخص را انتخاب کنید:" else "Select reference target:",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = RedTheme.colors.textPrimary
-                    )
+                    ChromeSectionTitle(text = if (isFa) "جرم شاخص را انتخاب کنید" else "Select a reference target")
                     if (targets.isEmpty()) {
-                        Text(
+                        ChromeCaption(
                             text = if (isFa) "در حال حاضر هیچ جرم درخشانی بالای افق نیست."
-                            else "No bright targets above the horizon right now.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = RedTheme.colors.textSecondary
+                            else "No bright targets above the horizon right now."
                         )
                     } else {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(targets) { target ->
                                 val label = if (isFa) target.nameFa else target.nameEn
                                 val altStr = String.format(Locale.US, "%+.0f°", target.altitudeDeg)
-                                FilterChip(
+                                ChromeToggleChip(
+                                    label = "$label · " + (if (isFa) TimeEngine.formatPersianNumbers(altStr) else altStr),
                                     selected = target.id == selectedTarget?.id,
                                     onClick = { onSelectTarget(target) },
-                                    label = {
-                                        Text(
-                                            text = "$label · " + (if (isFa) TimeEngine.formatPersianNumbers(altStr) else altStr),
-                                            style = MaterialTheme.typography.labelMedium
-                                        )
-                                    },
-                                    modifier = Modifier.testTag("alignment_target_chip_${target.id}")
+                                    testTag = "alignment_target_chip_${target.id}"
                                 )
                             }
                         }
@@ -3176,9 +3117,8 @@ private fun AlignmentModeOverlay(
                         Text(
                             text = if (isFa) "موقعیت واقعی: سمت ${TimeEngine.formatPersianNumbers(azStr)} | ارتفاع ${TimeEngine.formatPersianNumbers(altStr)}"
                             else "True position: Az $azStr | Alt $altStr",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AccentPrimary,
-                            fontWeight = FontWeight.SemiBold
+                            style = RedTypographyTokens.badge.copy(fontWeight = FontWeight.SemiBold),
+                            color = chrome.accent
                         )
                     }
                 }
@@ -3198,9 +3138,11 @@ private fun AlignmentModeOverlay(
             val targetName = selectedTarget?.let { if (isFa) it.nameFa else it.nameEn } ?: ""
             val arrowsOn = guidance?.arrowsVisible == true
             RedSurface(
-                shape = squircleShape(RedCornerRadius.window),
-                color = Color.Black.copy(alpha = 0.75f),
-                border = BorderStroke(1.dp, AccentPrimary.copy(alpha = 0.5f))
+                shape = chrome.rowShape,
+                color = chrome.fill,
+                border = BorderStroke(1.dp, chrome.stroke),
+                elevation = RedElevation.popover,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = when {
@@ -3210,11 +3152,12 @@ private fun AlignmentModeOverlay(
                         else -> if (isFa) "علامت + را دقیقاً روی $targetName بگذارید و «تراز» را بزنید"
                         else "Center the + on $targetName, then tap Align"
                     },
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
+                    style = RedTypographyTokens.bodySecondary.copy(fontWeight = FontWeight.SemiBold),
+                    color = chrome.textPrimary,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
                 )
             }
 
@@ -3223,54 +3166,27 @@ private fun AlignmentModeOverlay(
                 horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(
+                ChromeTextAction(
+                    text = if (isFa) "انصراف" else "Cancel",
                     onClick = onCancel,
-                    modifier = Modifier.testTag("alignment_cancel_button")
-                ) {
-                    Text(
-                        text = if (isFa) "انصراف" else "Cancel",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-                Button(
+                    tint = chrome.textSecondary,
+                    testTag = "alignment_cancel_button"
+                )
+                ChromePrimaryAction(
+                    text = if (isFa) "تراز" else "Align",
                     onClick = onConfirm,
+                    icon = Icons.Default.GpsFixed,
                     enabled = selectedTarget != null,
-                    shape = squircleShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentPrimary),
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("alignment_confirm_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.GpsFixed,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isFa) "تراز" else "Align",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
+                    modifier = Modifier.weight(1f),
+                    testTag = "alignment_confirm_button"
+                )
                 if (hasActiveOffset) {
-                    OutlinedButton(
+                    ChromeTextAction(
+                        text = if (isFa) "بازنشانی" else "Reset",
                         onClick = onReset,
-                        shape = squircleShape(16.dp),
-                        border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.7f)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
-                        modifier = Modifier.testTag("alignment_reset_button")
-                    ) {
-                        Text(
-                            text = if (isFa) "بازنشانی" else "Reset",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                        tint = chrome.danger,
+                        testTag = "alignment_reset_button"
+                    )
                 }
             }
 
@@ -3278,8 +3194,8 @@ private fun AlignmentModeOverlay(
                 val offStr = String.format(Locale.US, "%+.1f°", activeOffsetDeg)
                 Text(
                     text = if (isFa) "آفست فعال: ${TimeEngine.formatPersianNumbers(offStr)}" else "Active offset: $offStr",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                    style = RedTypographyTokens.badge,
+                    color = chrome.textSecondary
                 )
             }
         }

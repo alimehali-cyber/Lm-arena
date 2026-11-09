@@ -1,15 +1,22 @@
 package com.zig.gravity.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Pause
@@ -20,18 +27,21 @@ import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.alijafari.red.astronomy.ui.theme.squircleShape
+import com.alijafari.red.astronomy.ui.theme.ChromeIconDisc
+import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
+import com.alijafari.red.astronomy.ui.theme.chromeTokens
 import com.zig.gravity.physics.EngineConstants
-import com.zig.gravity.ui.theme.LocalGravityColors
 import com.zig.gravity.util.PersianDigits
 
 /**
@@ -40,6 +50,18 @@ import com.zig.gravity.util.PersianDigits
  *
  * The old dark/light theme toggle is gone: the two themes it switched between live on as the
  * `charcoal` and `paper` table surfaces, and the palette button now opens the surface picker (§6).
+ *
+ * ## Dress
+ *
+ * The bar used to be a teal instrument with its own glass fill, its own icon discs and its own
+ * 11 sp labels — a small, complete design system of its own, sitting inside an app that has one.
+ * It now wears that app's chrome (`ui/theme/ImmersiveChrome.kt`): the theme's elevated surface and
+ * hairline for the platter, `RedTypographyTokens.badge` for the speed ladder, and the shared
+ * [ChromeIconDisc] for every control, so a press springs the same way here as it does on the AR sky.
+ *
+ * The accent comes from the theme as well — no teal, no literal — which means the sandbox's own
+ * `AppUiStyle` (DEFAULT / CYBER / SPATIAL) and `ThemeMode` (dark / light / wine) are respected by the
+ * one control bar the screen has.
  */
 @Composable
 fun HudBar(
@@ -58,69 +80,63 @@ fun HudBar(
     onToggleCameraPanel: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val c = LocalGravityColors.current
+    val chrome = chromeTokens()
     Row(
         modifier = modifier
-            .clip(squircleShape(22.dp))
-            .background(c.chrome)
-            .border(1.dp, c.chromeBorder, squircleShape(22.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .clip(CircleShape)
+            .background(chrome.fill, CircleShape)
+            .border(BorderStroke(1.dp, chrome.stroke), CircleShape)
+            .padding(horizontal = 6.dp, vertical = 5.dp)
             .testTag("gravity_hud"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        HudIcon(
+        ChromeIconDisc(
             icon = if (paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
+            contentDescription = if (persian) "پخش یا مکث" else "Play or pause",
+            onClick = onTogglePlay,
             active = !paused,
-            description = if (persian) "پخش یا مکث" else "Play or pause",
-            tag = "hud_play_pause",
-            onClick = onTogglePlay
+            testTag = "hud_play_pause"
         )
 
-        Row(
-            modifier = Modifier
-                .clip(squircleShape(14.dp))
-                .background(c.onSurface.copy(alpha = 0.05f))
-                .padding(horizontal = 2.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(1.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            for (i in EngineConstants.SPEEDS.indices) {
-                val selected = i == speedIndex
-                Box(
-                    modifier = Modifier
-                        .clip(squircleShape(11.dp))
-                        .background(if (selected) c.accent.copy(alpha = 0.20f) else Color.Transparent)
-                        .clickableTag("hud_speed_$i") { onSpeed(i) }
-                        .padding(horizontal = 7.dp, vertical = 5.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = speedLabel(i, persian),
-                        color = if (selected) c.accent else c.onSurfaceDim,
-                        fontSize = 11.sp,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                    )
-                }
-            }
-        }
+        SpeedLadder(
+            speedIndex = speedIndex,
+            persian = persian,
+            onSpeed = onSpeed
+        )
 
-        HudIcon(Icons.Filled.Refresh, false, if (persian) "شروع دوباره" else "Reset", "hud_reset", onReset)
-        HudIcon(Icons.Filled.Timeline, trailsVisible, if (persian) "رد حرکت" else "Trails", "hud_trails", onToggleTrails)
-        HudIcon(Icons.Filled.School, teachingEnabled, if (persian) "آموزش" else "Teaching", "hud_teaching", onToggleTeaching)
-        HudIcon(
+        ChromeIconDisc(
+            icon = Icons.Filled.Refresh,
+            contentDescription = if (persian) "شروع دوباره" else "Reset",
+            onClick = onReset,
+            testTag = "hud_reset"
+        )
+        ChromeIconDisc(
+            icon = Icons.Filled.Timeline,
+            contentDescription = if (persian) "رد حرکت" else "Trails",
+            onClick = onToggleTrails,
+            active = trailsVisible,
+            testTag = "hud_trails"
+        )
+        ChromeIconDisc(
+            icon = Icons.Filled.School,
+            contentDescription = if (persian) "آموزش" else "Teaching",
+            onClick = onToggleTeaching,
+            active = teachingEnabled,
+            testTag = "hud_teaching"
+        )
+        ChromeIconDisc(
             icon = Icons.Filled.Palette,
-            active = false,
-            description = if (persian) "رنگ میز" else "Table colour",
-            tag = "hud_btn_table",
-            onClick = onOpenTableSurface
+            contentDescription = if (persian) "رنگ میز" else "Table colour",
+            onClick = onOpenTableSurface,
+            testTag = "hud_btn_table"
         )
-        HudIcon(
+        ChromeIconDisc(
             icon = Icons.Filled.CenterFocusStrong,
+            contentDescription = if (persian) "دوربین" else "Camera",
+            onClick = onToggleCameraPanel,
             active = cameraPanelOpen,
-            description = if (persian) "دوربین" else "Camera",
-            tag = "hud_camera",
-            onClick = onToggleCameraPanel
+            testTag = "hud_camera"
         )
     }
 }
@@ -131,35 +147,90 @@ private fun speedLabel(index: Int, persian: Boolean): String {
     return if (persian) PersianDigits.convert(raw.replace("x", "×")) else raw
 }
 
+/**
+ * The speed ladder, as one segmented capsule.
+ *
+ * The selected step is a solid accent tablet with the ink that reads on it; the rest are the panel's
+ * own ink at the secondary weight. Selection cross-fades in 180 ms and the tablet springs, so holding
+ * the ladder down and walking through 1× → 10× → 69× → 100× reads as one control changing state
+ * instead of four separate chips being repainted.
+ */
 @Composable
-private fun HudIcon(
-    icon: ImageVector,
-    active: Boolean,
-    description: String,
-    tag: String,
-    onClick: () -> Unit,
-    emphasised: Boolean = false
+private fun SpeedLadder(
+    speedIndex: Int,
+    persian: Boolean,
+    onSpeed: (Int) -> Unit
 ) {
-    val c = LocalGravityColors.current
+    val chrome = chromeTokens()
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(chrome.fillQuiet, CircleShape)
+            .border(BorderStroke(1.dp, chrome.stroke.copy(alpha = 0.6f)), CircleShape)
+            .padding(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        for (i in EngineConstants.SPEEDS.indices) {
+            SpeedStep(
+                label = speedLabel(i, persian),
+                selected = i == speedIndex,
+                onClick = { onSpeed(i) },
+                tag = "hud_speed_$i"
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpeedStep(label: String, selected: Boolean, onClick: () -> Unit, tag: String) {
+    val chrome = chromeTokens()
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 480f),
+        label = "SpeedStepPress"
+    )
+    val container by animateColorAsState(
+        targetValue = if (selected) chrome.accent else Color.Transparent,
+        animationSpec = tween(durationMillis = 180),
+        label = "SpeedStepFill"
+    )
+    val ink by animateColorAsState(
+        targetValue = if (selected) chrome.onAccent else chrome.textSecondary,
+        animationSpec = tween(durationMillis = 180),
+        label = "SpeedStepInk"
+    )
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .defaultMinSize(minWidth = 34.dp, minHeight = 32.dp)
+            .scale(scale)
             .clip(CircleShape)
-            .background(
-                when {
-                    emphasised -> c.accent.copy(alpha = 0.16f)
-                    active -> c.accent.copy(alpha = 0.12f)
-                    else -> Color.Transparent
-                }
-            )
-            .clickableTag(tag, onClick),
+            .background(container, CircleShape)
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(horizontal = 7.dp, vertical = 5.dp)
+            .testTag(tag),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = description,
-            tint = if (active || emphasised) c.accent else c.onSurfaceDim,
-            modifier = Modifier.size(19.dp)
+        Text(
+            text = label,
+            style = RedTypographyTokens.badge.copy(
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+            ),
+            color = ink,
+            maxLines = 1
         )
     }
+}
+
+/** Kept for the panels that still need a plain, non-interactive glyph in the theme's dim ink. */
+@Composable
+internal fun HudGlyph(icon: ImageVector, description: String, tint: Color) {
+    Icon(
+        imageVector = icon,
+        contentDescription = description,
+        tint = tint,
+        modifier = Modifier.padding(2.dp)
+    )
 }

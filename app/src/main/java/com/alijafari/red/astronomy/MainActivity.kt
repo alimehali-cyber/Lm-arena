@@ -249,7 +249,12 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(
                     LocalContext provides localizedContext,
                     LocalLayoutDirection provides layoutDirection,
-                    LocalActivityResultRegistryOwner provides this@MainActivity
+                    LocalActivityResultRegistryOwner provides this@MainActivity,
+                    // The selected interface design language, published for the screens that are not
+                    // one of the three style-native pages. The AR sky and the Gravity Sandbox read it
+                    // through `chromeTokens()` so their floating chrome is geometrically in the same
+                    // family as the page that launched them (see ui/theme/ImmersiveChrome.kt).
+                    com.alijafari.red.astronomy.ui.theme.LocalAppUiStyle provides uiState.uiStyle
                 ) {
                     // Orientation changes (including the sky viewer's landscape transition) recreate the
                     // Activity. Save this one-shot state across that recreation so the intro never reappears.

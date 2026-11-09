@@ -11,6 +11,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import com.alijafari.red.astronomy.ui.theme.ChromeTokens
+import com.alijafari.red.astronomy.ui.theme.chromeTokens
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
@@ -193,10 +195,41 @@ fun SurfaceGradient.brushFor(size: Size): Brush {
     }
 }
 
+/**
+ * Gives the sandbox's chrome the app's inks.
+ *
+ * The tabletop keeps every value that belongs to the *simulation* — the surface gradient, its printed
+ * star field, the vignette, the trails, the diagnostic tints, the cast shadows, the black hole's disk —
+ * because those describe the material the physics is drawn on. What it does **not** keep is a palette
+ * of its own for the interface: the HUD, the sheets, the chips, the sliders and the labels are drawn
+ * on top of that material by ZIG's design system like every other control in the app.
+ *
+ * So the chrome accent becomes `RedTheme.colors.accentRed`, the ink becomes the theme's text inks, the
+ * panel fill becomes the theme's elevated surface and the hairline becomes the theme's border. In
+ * `AppUiStyle.DEFAULT` that is vermilion on obsidian; under the CYBER and SPATIAL providers the same
+ * fields already resolve to their own adapted tokens, so the sandbox follows the selected style without
+ * knowing that a style exists.
+ *
+ * Selection, the prediction path, the black-hole ring and the wormhole's mouth read the accent, so they
+ * turn with it: an instrument whose indicator is the app's accent, not a second brand colour.
+ */
+fun GravityColors.withAppChrome(chrome: ChromeTokens): GravityColors = copy(
+    accent = chrome.accent,
+    onSurface = chrome.textPrimary,
+    onSurfaceDim = chrome.textSecondary,
+    chrome = chrome.fill,
+    chromeBorder = chrome.stroke,
+    selection = chrome.accent,
+    prediction = chrome.accent.copy(alpha = GravityChrome.PREDICTION_ALPHA),
+    blackHoleRing = chrome.accent,
+    wormholeWarm = chrome.accent
+)
+
 @Composable
 fun ZigGravityTheme(surfaceKey: String, content: @Composable () -> Unit) {
     val surface = remember(surfaceKey) { TableSurfaces.resolve(surfaceKey) }
-    val colors = remember(surface) { colorsFor(surface) }
+    val chrome = chromeTokens()
+    val colors = remember(surface, chrome) { colorsFor(surface).withAppChrome(chrome) }
     CompositionLocalProvider(
         LocalGravityColors provides colors,
         content = content

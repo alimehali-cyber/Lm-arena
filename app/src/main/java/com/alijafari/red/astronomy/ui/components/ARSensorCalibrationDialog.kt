@@ -31,15 +31,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -55,7 +49,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.ar.core.HeadingFusion
 import com.alijafari.red.astronomy.astro_engine.ArSensorStatus
 import com.alijafari.red.astronomy.astro_engine.CalibrationState
@@ -64,7 +57,13 @@ import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedElevation
 import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.RedTheme
-import com.alijafari.red.astronomy.ui.theme.StatusGood
+import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
+import com.alijafari.red.astronomy.ui.theme.ChromeDivider
+import com.alijafari.red.astronomy.ui.theme.ChromeIconDisc
+import com.alijafari.red.astronomy.ui.theme.ChromePrimaryAction
+import com.alijafari.red.astronomy.ui.theme.ChromeTextAction
+import com.alijafari.red.astronomy.ui.theme.ChromeTone
+import com.alijafari.red.astronomy.ui.theme.chromeTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import java.util.Locale
 import kotlin.math.PI
@@ -89,12 +88,16 @@ fun ARSensorCalibrationDialog(
     onDisableAutoPrompt: (() -> Unit)? = null,
     status: ArSensorStatus = ArSensorStatus()
 ) {
+    // The sheet's accent is the meaning of the calibration, not a second palette: a good figure-eight
+    // is the theme's success ink, a poor one its warning ink, and an uncalibrated compass its quiet
+    // ink. All three are the inks every other screen uses for the same three meanings.
+    val chrome = chromeTokens()
     val isAdequate = calibrationState == CalibrationState.GOOD || calibrationState == CalibrationState.EXCELLENT
     val accent = when (calibrationState) {
-        CalibrationState.EXCELLENT, CalibrationState.GOOD -> StatusGood
-        CalibrationState.POOR -> Color(0xFFF59E0B)
-        CalibrationState.NEEDS_CALIBRATION -> RedTheme.colors.accentRed
-        CalibrationState.UNCALIBRATED -> Color(0xFF94A3B8)
+        CalibrationState.EXCELLENT, CalibrationState.GOOD -> chrome.success
+        CalibrationState.POOR -> chrome.warning
+        CalibrationState.NEEDS_CALIBRATION -> chrome.accent
+        CalibrationState.UNCALIBRATED -> chrome.textTertiary
     }
 
     // Scrim: a tap outside the card closes the window (a user action, never a timer).
@@ -122,9 +125,9 @@ fun ARSensorCalibrationDialog(
                 )
                 .testTag("ar_sensor_calibration_dialog"),
             shape = squircleShape(RedCornerRadius.xxl),
-            color = RedTheme.colors.surfaceElevated.copy(alpha = 0.97f),
+            color = chrome.fillStrong,
             border = BorderStroke(1.dp, accent.copy(alpha = 0.55f)),
-            elevation = 16.dp,
+            elevation = RedElevation.modal,
         ) {
             Column(
                 modifier = Modifier
@@ -152,24 +155,30 @@ fun ARSensorCalibrationDialog(
                         Column {
                             Text(
                                 text = if (isFa) "کالیبراسیون قطب‌نما" else "Compass Calibration",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = RedTypographyTokens.sectionTitle,
                                 fontWeight = FontWeight.Bold,
-                                color = RedTheme.colors.textPrimary
+                                color = chrome.textPrimary
                             )
                             Text(
                                 text = verdictText(calibrationState, isFa),
-                                style = MaterialTheme.typography.labelMedium,
+                                style = RedTypographyTokens.caption,
                                 fontWeight = FontWeight.SemiBold,
                                 color = accent
                             )
                         }
                     }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp).testTag("ar_sensor_calibration_dismiss_btn")) {
-                        Icon(Icons.Default.Close, contentDescription = if (isFa) "بستن" else "Close", tint = RedTheme.colors.textSecondary, modifier = Modifier.size(20.dp))
-                    }
+                    ChromeIconDisc(
+                        icon = Icons.Default.Close,
+                        contentDescription = if (isFa) "بستن" else "Close",
+                        onClick = onDismiss,
+                        size = 32.dp,
+                        iconSize = 20.dp,
+                        iconTint = chrome.textSecondary,
+                        testTag = "ar_sensor_calibration_dismiss_btn"
+                    )
                 }
 
-                HorizontalDivider(color = RedTheme.colors.border.copy(alpha = 0.5f), thickness = 0.5.dp)
+                ChromeDivider()
 
                 // Figure-8 guide with live coverage
                 Box(
@@ -183,8 +192,8 @@ fun ARSensorCalibrationDialog(
                     FigureEightCanvas(color = accent, coverage = status.fusion.coverage.toFloat())
                     Text(
                         text = (if (isFa) "پوشش حرکت: " else "Motion coverage: ") + percent(status.fusion.coverage, isFa),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = RedTheme.colors.textSecondary,
+                        style = RedTypographyTokens.caption,
+                        color = chrome.textSecondary,
                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)
                     )
                 }
@@ -194,8 +203,8 @@ fun ARSensorCalibrationDialog(
                         "گوشی را چند بار به شکل عدد ۸ در هوا بچرخانید و هم‌زمان آن را حول هر سه محور کج کنید، دور از اجسام فلزی، آهن‌ربا و خودرو."
                     else
                         "Sweep the phone through several figure-8 loops while tilting it about all three axes, away from metal, magnets and cars.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = RedTheme.colors.textPrimary
+                    style = RedTypographyTokens.bodySecondary,
+                    color = chrome.textPrimary
                 )
 
                 // Live sensor status
@@ -208,33 +217,22 @@ fun ARSensorCalibrationDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (onDisableAutoPrompt != null) {
-                        TextButton(
+                        ChromeTextAction(
+                            text = if (isFa) "عدم نمایش خودکار" else "Don't show automatically",
                             onClick = {
                                 onDisableAutoPrompt()
                                 onDismiss()
                             },
-                            modifier = Modifier.weight(1f).testTag("ar_sensor_calibration_dont_show_btn")
-                        ) {
-                            Text(
-                                text = if (isFa) "عدم نمایش خودکار" else "Don't show automatically",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = RedTheme.colors.textSecondary
-                            )
-                        }
-                    }
-                    Button(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f).testTag("ar_sensor_calibration_got_it_btn"),
-                        shape = squircleShape(RedCornerRadius.md),
-                        colors = ButtonDefaults.buttonColors(containerColor = if (isAdequate) StatusGood else RedTheme.colors.accentRed)
-                    ) {
-                        Text(
-                            text = if (isFa) "تمام" else "Done",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            modifier = Modifier.weight(1f).testTag("ar_sensor_calibration_dont_show_btn"),
+                            tint = chrome.textSecondary
                         )
                     }
+                    ChromePrimaryAction(
+                        text = if (isFa) "تمام" else "Done",
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).testTag("ar_sensor_calibration_got_it_btn"),
+                        tone = if (isAdequate) ChromeTone.SUCCESS else ChromeTone.ACCENT
+                    )
                 }
             }
         }
@@ -243,20 +241,21 @@ fun ARSensorCalibrationDialog(
 
 @Composable
 private fun LiveStatusCard(status: ArSensorStatus, state: CalibrationState, isFa: Boolean) {
+    val chrome = chromeTokens()
     val f = status.fusion
     RedSurface(
         shape = squircleShape(RedCornerRadius.window),
-        color = RedTheme.colors.surfaceGrouped.copy(alpha = 0.55f),
-        border = BorderStroke(1.dp, RedTheme.colors.border.copy(alpha = 0.6f)),
+        color = chrome.fillQuiet,
+        border = BorderStroke(1.dp, chrome.stroke),
         modifier = Modifier.fillMaxWidth().testTag("ar_sensor_calibration_status_badge"),
         elevation = RedElevation.none,
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(
                 text = if (isFa) "وضعیت زنده حسگرها" else "Live sensor status",
-                style = MaterialTheme.typography.labelLarge,
+                style = RedTypographyTokens.sectionTitle,
                 fontWeight = FontWeight.Bold,
-                color = RedTheme.colors.textPrimary
+                color = chrome.textPrimary
             )
             AccuracyBarsRow(f.magAccuracyStatus, isFa)
 
@@ -335,18 +334,17 @@ private fun LiveStatusCard(status: ArSensorStatus, state: CalibrationState, isFa
             }
             Text(
                 text = sensorsLine(status, isFa),
-                style = MaterialTheme.typography.labelSmall,
-                fontSize = 10.sp,
-                color = RedTheme.colors.textSecondary
+                style = RedTypographyTokens.caption,
+                color = chrome.textSecondary
             )
             if (state == CalibrationState.NEEDS_CALIBRATION || f.interference) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.WarningAmber, contentDescription = null, tint = chrome.warning, modifier = Modifier.size(16.dp))
                     Text(
                         text = if (isFa) "میدان اندازه‌گیری‌شده با مدل جهانی مغناطیسی همخوانی ندارد؛ جهت‌ها ممکن است چند درجه خطا داشته باشند."
                         else "The measured field disagrees with the World Magnetic Model here; directions may be off by several degrees.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFF59E0B)
+                        style = RedTypographyTokens.caption,
+                        color = chrome.warning
                     )
                 }
             }
@@ -357,30 +355,31 @@ private fun LiveStatusCard(status: ArSensorStatus, state: CalibrationState, isFa
 private enum class Level { GOOD, WARN, BAD, UNKNOWN }
 
 @Composable
-private fun levelColor(level: Level): Color = when (level) {
-    Level.GOOD -> StatusGood
-    Level.WARN -> Color(0xFFF59E0B)
-    Level.BAD -> RedTheme.colors.accentRed
-    Level.UNKNOWN -> Color(0xFF94A3B8)
+private fun levelColor(level: Level, chrome: ChromeTokens): Color = when (level) {
+    Level.GOOD -> chrome.success
+    Level.WARN -> chrome.warning
+    Level.BAD -> chrome.danger
+    Level.UNKNOWN -> chrome.textTertiary
 }
 
 @Composable
 private fun StatusRow(label: String, value: String, level: Level, isFa: Boolean) {
+    val chrome = chromeTokens()
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(0.45f)) {
-            Surface(shape = CircleShape, color = levelColor(level), modifier = Modifier.size(7.dp)) {}
-            Text(text = label, style = MaterialTheme.typography.labelSmall, color = RedTheme.colors.textSecondary)
+            Surface(shape = CircleShape, color = levelColor(level, chrome), modifier = Modifier.size(7.dp)) {}
+            Text(text = label, style = RedTypographyTokens.caption, color = chrome.textSecondary)
         }
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = value,
-            style = MaterialTheme.typography.labelSmall,
+            style = RedTypographyTokens.caption,
             fontWeight = FontWeight.SemiBold,
-            color = RedTheme.colors.textPrimary,
+            color = chrome.textPrimary,
             modifier = Modifier.weight(0.55f)
         )
     }
@@ -388,6 +387,7 @@ private fun StatusRow(label: String, value: String, level: Level, isFa: Boolean)
 
 @Composable
 private fun AccuracyBarsRow(status: Int, isFa: Boolean) {
+    val chrome = chromeTokens()
     val (label, bars, level) = when (status) {
         3 -> Triple(if (isFa) "بالا" else "High", 4, Level.GOOD)
         2 -> Triple(if (isFa) "متوسط" else "Medium", 3, Level.GOOD)
@@ -395,11 +395,11 @@ private fun AccuracyBarsRow(status: Int, isFa: Boolean) {
         0 -> Triple(if (isFa) "نامعتبر" else "Unreliable", 1, Level.BAD)
         else -> Triple(if (isFa) "در حال سنجش…" else "Measuring…", 0, Level.UNKNOWN)
     }
-    val color = levelColor(level)
+    val color = levelColor(level, chrome)
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text(
             text = (if (isFa) "دقت قطب‌نمای اندروید: " else "Android compass accuracy: ") + label,
-            style = MaterialTheme.typography.labelMedium,
+            style = RedTypographyTokens.caption,
             fontWeight = FontWeight.Bold,
             color = color
         )
