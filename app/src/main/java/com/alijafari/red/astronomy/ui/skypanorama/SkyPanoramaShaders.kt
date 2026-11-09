@@ -48,8 +48,8 @@ uniform float uExposure;
 uniform float uSaturation;
 uniform float uContrast;
 uniform float uVisibility;
-// Daytime palette (sRGB 0..1) and night blend. uNightWeight 0 = daytime gradient only,
-// 1 = photographic panorama only (exactly the Phase 1 output).
+// Time-of-day palette (sRGB 0..1) and night blend. At night the same deep-blue palette becomes
+// the sky behind the photograph; uNightWeight 0 = daytime gradient only, 1 = complete night composite.
 uniform vec3 uSkyZenith;
 uniform vec3 uSkyMid;
 uniform vec3 uSkyHorizon;
@@ -58,6 +58,12 @@ uniform float uNightWeight;
 const float PI = 3.14159265358979323846;
 const float MID_STOP = 0.55;
 const float HORIZON_STOP = 0.86;
+
+// Add light without replacing the atmosphere underneath it. Unlike alpha compositing a dark JPEG
+// over the sky, screen blending keeps black photographic pixels transparent to the night palette.
+vec3 screenOver(vec3 base, vec3 light) {
+    return 1.0 - (1.0 - base) * (1.0 - clamp(light, 0.0, 1.0));
+}
 
 void main() {
     // Equatorial direction of this pixel. +right is west, +up is north (see SkyPanoramaMath).
@@ -78,9 +84,9 @@ void main() {
     float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
     c = mix(vec3(luma), c, uSaturation);
     c = (c - 0.5) * uContrast + 0.5;
-    c *= uVisibility;
+    c = max(c, vec3(0.0));
 
-    // Daytime sky: the same vertical stops as the Compose Real Sky gradient (top = zenith). The top of
+    // Daytime/night atmosphere: the same vertical stops as the Compose Real Sky gradient (top = zenith). The top of
     // the viewport is NDC y = +1, so the fraction from the top is 0.5 - 0.5 * y.
     float t = 0.5 - 0.5 * vNdc.y;
     vec3 day = t < MID_STOP
@@ -89,7 +95,20 @@ void main() {
             ? mix(uSkyMid, uSkyHorizon, (t - MID_STOP) / (HORIZON_STOP - MID_STOP))
             : uSkyHorizon);
 
-    vec3 sky = mix(day, clamp(c, 0.0, 1.0), uNightWeight);
+    // Retain the NASA panorama's original clouds, dust lanes and clusters, but let its nearly-black
+    // sky floor dissolve into the realistic night palette. The soft luminance knee avoids a visible
+    // boundary around the band. Faint filaments take on cool starlight; the bright galactic core
+    // keeps more of the photograph's warm colour, as it does in a long-exposure night-sky image.
+    float photoLuma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    float cloudPresence = smoothstep(0.018, 0.14, photoLuma);
+    float warmCore = smoothstep(0.10, 0.52, photoLuma);
+    vec3 coolStarlight = vec3(photoLuma) * vec3(0.72, 0.83, 1.0);
+    vec3 naturalColour = mix(coolStarlight, c * vec3(1.03, 0.98, 0.93), warmCore * 0.65);
+    vec3 transmitted = naturalColour * mix(0.08, 1.0, cloudPresence) * 0.92;
+    vec3 nightSky = screenOver(day, transmitted) * uVisibility;
+
+    // A single smooth twilight weight joins daylight, the atmosphere and the Milky Way composite.
+    vec3 sky = mix(day, nightSky, uNightWeight);
     fragColor = vec4(clamp(sky, 0.0, 1.0), 1.0);
 }
 """

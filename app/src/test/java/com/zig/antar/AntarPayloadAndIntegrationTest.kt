@@ -46,6 +46,19 @@ class AntarPayloadAndIntegrationTest {
     }
 
     @Test
+    fun everyBlackholeStarLayerUsesFortyPercentSmallerStars() {
+        val raw = AntarSimulationPayload.rawSimulationHtml
+        val hosted = AntarSimulationPayload.buildHostedHtml()
+
+        // SIG_STAR is shared by all three starLayer calls. 0.000036 / 0.000060 = 0.60,
+        // so the angular radius is reduced by exactly 40%, independently of brightness.
+        assertTrue(raw.contains("const float SIG_STAR = 0.00006;"))
+        assertTrue(hosted.contains("const float SIG_STAR = 0.000036;"))
+        assertFalse(hosted.contains("const float SIG_STAR = 0.00006;"))
+        assertEquals(3, Regex("starLayer\\(d, ddx, ddy").findAll(hosted).count())
+    }
+
+    @Test
     fun presetsAndSettingsSerializeCleanlyForEngineAndTelemetryParserWorks() {
         for (preset in AntarPreset.entries) {
             val s = preset.applyTo(AntarSimulationSettings.DEFAULT)

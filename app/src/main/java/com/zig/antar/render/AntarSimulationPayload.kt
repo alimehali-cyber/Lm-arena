@@ -49,6 +49,10 @@ object AntarSimulationPayload {
      */
     private fun applyMobileWebViewFixes(source: String): String {
         val replacements = listOf(
+            // Every procedural star layer shares this angular sigma. Keeping 60% of the original
+            // radius makes every star exactly 40% smaller without changing its flux or lensing.
+            "const float SIG_STAR = 0.00006;" to
+                "const float SIG_STAR = 0.000036;",
             "const q=new URLSearchParams(location.search);" to
                 "const q=new URLSearchParams(location.search || new URL(document.baseURI).search);",
             "if(location.search!==('?'+q.toString())) history.replaceState(null,'',location.pathname+'?'+q.toString()+location.hash);" to
