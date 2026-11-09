@@ -61,29 +61,9 @@ enum class LabFeatureType(
         icon = Icons.Default.Public,
         isAvailable = true
     ),
-    GARGANTUA(
-        titleEn = "Gargantua",
-        titleFa = "گارگانتوا",
-        subtitleEn = "Relativistic Black Hole Laboratory",
-        subtitleFa = "آزمایشگاه نسبیتی سیاه‌چاله",
-        descriptionEn = "Interactive Kerr metric black hole laboratory: curved spacetime ray-marching, accretion disk relativistic beaming, gravitational redshift, and photon orbits.",
-        descriptionFa = "آزمایشگاه تعاملی سیاه‌چاله چرخان کر: ردیابی پرتو در فضازمان خمیده، درخشش نسبیتی قرص برافزایشی، انتقال به سرخ گرانشی و مدار فوتون‌ها.",
-        icon = Icons.Default.FilterTiltShift,
-        isAvailable = true
-    ),
-    CHAL(
-        titleEn = "Chal",
-        titleFa = "چال",
-        subtitleEn = "Interactive Black Hole Visualizer",
-        subtitleFa = "نمایشگر تعاملی سیاه‌چاله",
-        descriptionEn = "Explore a rotating black hole, accretion disk and lensing effects. Uses native rendering where supported, with an explicitly approximate OpenGL compatibility mode. Rendered physics are not independently validated.",
-        descriptionFa = "کاوش تعاملی سیاه‌چالهٔ چرخان، قرص برافزایشی و همگرایی نور. رندر بومی در دستگاه‌های سازگار و حالت تخمینی OpenGL در سایر دستگاه‌ها فعال است. دقت فیزیکی تصویر به‌طور مستقل تأیید نشده است.",
-        icon = Icons.Default.BlurCircular,
-        isAvailable = true
-    ),
-    ANTAR_BLACKHOLE(
-        titleEn = "Antar Blackhole",
-        titleFa = "سیاه‌چاله عنتر",
+    ZIG_BLACKHOLE(
+        titleEn = "ZIG's Blackhole",
+        titleFa = "سیاه‌چاله زیگ",
         subtitleEn = "Kerr–Schild Null-Geodesic Simulator",
         subtitleFa = "شبیه‌ساز ژئودزیکی کر–شیلد",
         descriptionEn = "Interactive WebGL2 Kerr–Schild black hole, TON 618 quasar, and binary black-hole merger simulator with free-fall horizon plunge, EHT 230 GHz filter, and relativistic accretion physics.",
@@ -115,26 +95,13 @@ fun LabScreen(
             startInPersian = isFa,
             startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
         )
-    } else if (selectedFeature == LabFeatureType.GARGANTUA) {
-        com.zig.gargantua.ui.GargantuaRoot(
-            onBack = { selectedFeature = null },
-            modifier = modifier,
-            startInPersian = isFa,
-            startInDarkTheme = uiState.themeMode != com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
-        )
-    } else if (selectedFeature == LabFeatureType.ANTAR_BLACKHOLE) {
+    } else if (selectedFeature == LabFeatureType.ZIG_BLACKHOLE) {
         com.zig.antar.ui.AntarRoot(
             onBack = { selectedFeature = null },
             language = uiState.language,
             uiStyle = uiState.uiStyle,
             themeMode = uiState.themeMode,
             modifier = modifier
-        )
-    } else if (selectedFeature == LabFeatureType.CHAL) {
-        com.zig.chal.ui.ChalRoot(
-            onBack = { selectedFeature = null },
-            modifier = modifier,
-            startInPersian = isFa
         )
     } else {
         LazyColumn(

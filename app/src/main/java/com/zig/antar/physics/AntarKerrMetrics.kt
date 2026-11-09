@@ -136,7 +136,7 @@ object AntarKerrMetrics {
 }
 
 /**
- * Locale-aware numeric formatter and parser for Antar Blackhole controls and telemetry.
+ * Locale-aware numeric formatter and parser for ZIG's Blackhole controls and telemetry.
  * Produces Eastern Persian digits (`۰`–`۹` and `٫`) when `isPersian == true`, and clean
  * English tabular numbers otherwise.
  */

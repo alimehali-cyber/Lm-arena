@@ -71,27 +71,27 @@ class AntarPayloadAndIntegrationTest {
     }
 
     @Test
-    fun antarBlackholeIsWiredIntoAllThreeLabStylesAndLocalizedResources() {
+    fun zigBlackholeIsWiredIntoAllThreeLabStylesAndLocalizedResources() {
         val labScreen = readSource("java/com/alijafari/red/astronomy/ui/screens/LabScreen.kt")
         val spatialLab = readSource("java/com/alijafari/red/astronomy/ui/spatial/SpatialLabScreen.kt")
         val cyberLab = readSource("java/com/alijafari/red/astronomy/ui/cyber/CyberLabScreen.kt")
         val stringsEn = readSource("res/values/strings.xml")
         val stringsFa = readSource("res/values-fa/strings.xml")
 
-        assertTrue(labScreen.contains("ANTAR_BLACKHOLE("))
-        assertTrue(labScreen.contains("titleEn = \"Antar Blackhole\""))
-        assertTrue(labScreen.contains("titleFa = \"سیاه‌چاله عنتر\""))
-        assertTrue(labScreen.contains("selectedFeature == LabFeatureType.ANTAR_BLACKHOLE"))
+        assertTrue(labScreen.contains("ZIG_BLACKHOLE("))
+        assertTrue(labScreen.contains("titleEn = \"ZIG's Blackhole\""))
+        assertTrue(labScreen.contains("titleFa = \"سیاه‌چاله زیگ\""))
+        assertTrue(labScreen.contains("selectedFeature == LabFeatureType.ZIG_BLACKHOLE"))
         assertTrue(labScreen.contains("com.zig.antar.ui.AntarRoot("))
 
-        assertTrue(spatialLab.contains("selectedFeature == LabFeatureType.ANTAR_BLACKHOLE"))
-        assertTrue(spatialLab.contains("LabFeatureType.ANTAR_BLACKHOLE ->"))
+        assertTrue(spatialLab.contains("selectedFeature == LabFeatureType.ZIG_BLACKHOLE"))
+        assertTrue(spatialLab.contains("LabFeatureType.ZIG_BLACKHOLE ->"))
 
-        assertTrue(cyberLab.contains("LabFeatureType.ANTAR_BLACKHOLE ->"))
+        assertTrue(cyberLab.contains("LabFeatureType.ZIG_BLACKHOLE ->"))
         assertTrue(cyberLab.contains("AntarRoot("))
 
-        assertTrue(stringsEn.contains("<string name=\"antar_blackhole_title\">Antar Blackhole</string>"))
-        assertTrue(stringsFa.contains("<string name=\"antar_blackhole_title\">سیاه‌چاله عنتر</string>"))
+        assertTrue(stringsEn.contains("<string name=\"zig_blackhole_title\">ZIG\\'s Blackhole</string>"))
+        assertTrue(stringsFa.contains("<string name=\"zig_blackhole_title\">سیاه‌چاله زیگ</string>"))
     }
 
     @Test

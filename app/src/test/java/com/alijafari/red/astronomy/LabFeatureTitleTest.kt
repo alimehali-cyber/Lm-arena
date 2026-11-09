@@ -72,12 +72,18 @@ class LabFeatureTitleTest {
         assertTrue("the card is still available", block.contains("isAvailable = true"))
 
         // Ordering and navigation are unchanged: the sandbox is still the second feature, and it
-        // still opens the sandbox.
+        // still opens the sandbox. The Gargantua and Chal engines are gone; the black hole the Lab
+        // offers now is ZIG's own, and it is the third and last card.
         val timeDilation = text.indexOf("    TIME_DILATION(")
         val gravity = text.indexOf("    GRAVITY_SANDBOX(")
-        val gargantua = text.indexOf("    GARGANTUA(")
-        assertTrue("all three features are still declared", minOf(timeDilation, gravity, gargantua) > 0)
-        assertTrue("and still in the same order", timeDilation < gravity && gravity < gargantua)
+        val blackhole = text.indexOf("    ZIG_BLACKHOLE(")
+        assertTrue("all three features are still declared", minOf(timeDilation, gravity, blackhole) > 0)
+        assertTrue("and still in the same order", timeDilation < gravity && gravity < blackhole)
+        assertTrue(
+            "the retired engines are gone from the Lab",
+            !text.contains("GARGANTUA(") && !text.contains("CHAL(") &&
+                !text.contains("GargantuaRoot") && !text.contains("ChalRoot")
+        )
         assertTrue(
             "the two 'Coming Soon' placeholder cards must stay removed",
             !text.contains("ORBITAL_RESONANCE") && !text.contains("STELLAR_EVOLUTION")

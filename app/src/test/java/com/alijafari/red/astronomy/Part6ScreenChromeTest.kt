@@ -79,20 +79,6 @@ class Part6ScreenChromeTest {
         val gravity = source("com/zig/gravity/ui/GravitySandboxRoot.kt")
         assertFalse("the sandbox has no back chip", gravity.contains("sandbox_back"))
         assertFalse("and no title row", gravity.contains("\"میز گرانش\" else \"Gravity table\""))
-
-        val chal = source("com/zig/chal/ui/ChalRoot.kt")
-        assertTrue("Chal's header survives", chal.contains("private fun ChalHeader("))
-        val chalHeader = chal.substring(
-            chal.indexOf("private fun ChalHeader("),
-            chal.indexOf("private fun ChalChromeButton(")
-        )
-        assertFalse("without a back button", chalHeader.contains("ArrowBack"))
-        assertFalse("and without the CHAL title", chalHeader.contains("\"CHAL\""))
-
-        val gargantua = source("com/zig/gargantua/ui/GargantuaRoot.kt")
-        assertFalse("Gargantua's top bar is gone", gargantua.contains("GargantuaTopBar"))
-        assertFalse("and its back button with it", gargantua.contains("gargantua_back_button"))
-        assertTrue("the camera reset stays, as a control", gargantua.contains("gargantua_reset_camera_button"))
     }
 
     @Test

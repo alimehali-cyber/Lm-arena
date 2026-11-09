@@ -8,9 +8,9 @@ import android.content.SharedPreferences
  * The backdrop is shown only when all of these hold:
  *  1. The user has enabled Live Sky in Settings (default OFF).
  *  2. The selected root tab is one of the eligible tabs in [ELIGIBLE_TABS]. The AR / compass tab is excluded.
- *  3. No immersive Lab sub-feature is open. Gravity Sandbox, Gargantua and Chal are Lab sub-features, not
- *     tabs. They announce themselves through [com.zig.gravity.ui.ImmersiveScreenState], so they are excluded
- *     by that signal rather than by a tab index.
+ *  3. No immersive Lab sub-feature is open. The Gravity Sandbox and the ZIG Blackhole are Lab sub-features,
+ *     not tabs. They announce themselves through [com.zig.gravity.ui.ImmersiveScreenState], so they are
+ *     excluded by that signal rather than by a tab index.
  *
  * Nothing here depends on the panorama feature gate in the skypanorama package. The backdrop draws its own sky
  * through the shared renderer, so it does not rely on that gate.
@@ -40,7 +40,8 @@ object LiveSkyPolicy {
      *
      * @param enabled the Settings preference.
      * @param selectedTab the root tab index in `MainUiState.selectedTab`.
-     * @param immersiveActive true while an immersive Lab sub-feature (Gravity Sandbox, Gargantua, Chal) is composed.
+     * @param immersiveActive true while an immersive Lab sub-feature (the Gravity Sandbox or the ZIG
+     *   Blackhole) is composed.
      */
     fun isBackdropVisible(enabled: Boolean, selectedTab: Int, immersiveActive: Boolean): Boolean {
         if (!enabled) return false

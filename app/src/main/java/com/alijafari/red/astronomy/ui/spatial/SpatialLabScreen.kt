@@ -40,8 +40,6 @@ import com.alijafari.red.astronomy.ui.theme.RedIconSize
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.zig.antar.ui.AntarRoot
-import com.zig.chal.ui.ChalRoot
-import com.zig.gargantua.ui.GargantuaRoot
 import com.zig.gravity.ui.GravitySandboxRoot
 
 /**
@@ -75,26 +73,13 @@ fun SpatialLabScreen(
             startInPersian = isFa,
             startInDarkTheme = uiState.themeMode != ThemeMode.LIGHT
         )
-    } else if (selectedFeature == LabFeatureType.GARGANTUA) {
-        GargantuaRoot(
-            onBack = { selectedFeature = null },
-            modifier = modifier,
-            startInPersian = isFa,
-            startInDarkTheme = uiState.themeMode != ThemeMode.LIGHT
-        )
-    } else if (selectedFeature == LabFeatureType.ANTAR_BLACKHOLE) {
+    } else if (selectedFeature == LabFeatureType.ZIG_BLACKHOLE) {
         AntarRoot(
             onBack = { selectedFeature = null },
             language = uiState.language,
             uiStyle = uiState.uiStyle,
             themeMode = uiState.themeMode,
             modifier = modifier
-        )
-    } else if (selectedFeature == LabFeatureType.CHAL) {
-        ChalRoot(
-            onBack = { selectedFeature = null },
-            modifier = modifier,
-            startInPersian = isFa
         )
     } else {
         LazyColumn(
@@ -153,9 +138,7 @@ private fun SpatialLabFeatureCard(
     val (meshPreset, glowAccent, engineCode) = when (feature) {
         LabFeatureType.TIME_DILATION -> Triple(SpatialMeshPreset.ROSE_TO_ORANGE, SpatialNeonRose, "SR")
         LabFeatureType.GRAVITY_SANDBOX -> Triple(SpatialMeshPreset.BLUE_TO_PURPLE, SpatialSkyBlue, "NB")
-        LabFeatureType.GARGANTUA -> Triple(SpatialMeshPreset.ROSE_TO_ORANGE, SpatialWarmPeach, "GR")
-        LabFeatureType.CHAL -> Triple(SpatialMeshPreset.BLUE_TO_PURPLE, SpatialCosmicIris, "3D")
-        LabFeatureType.ANTAR_BLACKHOLE -> Triple(SpatialMeshPreset.AURORA_PEACH, SpatialNeonRoseVibrant, "KS")
+        LabFeatureType.ZIG_BLACKHOLE -> Triple(SpatialMeshPreset.AURORA_PEACH, SpatialNeonRoseVibrant, "KS")
     }
 
     SpatialGlassCard(

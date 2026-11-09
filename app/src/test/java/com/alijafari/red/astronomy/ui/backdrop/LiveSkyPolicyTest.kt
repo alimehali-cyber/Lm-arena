@@ -54,8 +54,9 @@ class LiveSkyPolicyTest {
 
     @Test
     fun immersiveLabSubFeaturesAreExcluded() {
-        // Gravity Sandbox, Gargantua and Chal are Lab sub-features. They set ImmersiveScreenState.active while open,
-        // and that alone must hide the backdrop, whatever the tab index says.
+        // The Gravity Sandbox and the ZIG Blackhole are Lab sub-features. They set
+        // ImmersiveScreenState.active while open, and that alone must hide the backdrop, whatever the
+        // tab index says.
         assertFalse(LiveSkyPolicy.isBackdropVisible(enabled = true, selectedTab = LiveSkyPolicy.TAB_LAB, immersiveActive = true))
         assertFalse(LiveSkyPolicy.isBackdropVisible(enabled = true, selectedTab = LiveSkyPolicy.TAB_HOME, immersiveActive = true))
     }

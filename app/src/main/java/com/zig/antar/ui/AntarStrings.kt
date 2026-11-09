@@ -14,11 +14,11 @@ enum class AntarControlTab {
 }
 
 /**
- * Bilingual English & Persian (`فارسی`) copy for Antar Blackhole (`سیاه‌چاله عنتر`).
+ * Bilingual English & Persian (`فارسی`) copy for ZIG's Blackhole (`سیاه‌چاله زیگ`).
  */
 object AntarStrings {
 
-    fun title(fa: Boolean): String = if (fa) "سیاه‌چاله عنتر" else "Antar Blackhole"
+    fun title(fa: Boolean): String = if (fa) "سیاه‌چاله زیگ" else "ZIG's Blackhole"
     fun subtitle(fa: Boolean): String =
         if (fa) "ردیابی پرتو نسبیتی کر–شیلد" else "Kerr–Schild Null-Geodesic Ray Tracer"
 
@@ -116,7 +116,7 @@ object AntarStrings {
     fun paramBinaryRate(fa: Boolean): String = if (fa) "سرعت تکامل ادغام" else "Inspiral Speed"
 
     fun paramDiskEnabled(fa: Boolean): String = if (fa) "قرص برافزایشی فعال" else "Accretion Disk"
-    fun paramThickDisk(fa: Boolean): String = if (fa) "هندسه قرص ضخیم (سبک گارگنتوا)" else "Thick Torus Geometry"
+    fun paramThickDisk(fa: Boolean): String = if (fa) "هندسه قرص ضخیم" else "Thick Torus Geometry"
     fun paramPhysicalTemp(fa: Boolean): String = if (fa) "دمای فیزیکی از نسبت ادینگتون" else "Self-Consistent Eddington T(r)"
     fun paramEddington(fa: Boolean): String = if (fa) "نسبت برافزایش ادینگتون" else "Eddington Ratio (ṁ)"
     fun paramPeakTemp(fa: Boolean): String = if (fa) "دمای اوج قرص (کلوین)" else "Peak Temperature (K)"

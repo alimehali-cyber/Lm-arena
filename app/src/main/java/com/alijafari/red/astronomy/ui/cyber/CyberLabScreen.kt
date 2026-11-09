@@ -46,8 +46,6 @@ import com.alijafari.red.astronomy.ui.screens.TimeDilationCalculatorScreen
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.zig.antar.ui.AntarRoot
-import com.zig.chal.ui.ChalRoot
-import com.zig.gargantua.ui.GargantuaRoot
 import com.zig.gravity.ui.GravitySandboxRoot
 import kotlin.math.PI
 import kotlin.math.cos
@@ -90,22 +88,7 @@ fun CyberLabScreen(
                 startInDarkTheme = uiState.themeMode != ThemeMode.LIGHT
             )
         }
-        LabFeatureType.GARGANTUA -> {
-            GargantuaRoot(
-                onBack = { selectedFeature = null },
-                modifier = modifier,
-                startInPersian = isFa,
-                startInDarkTheme = uiState.themeMode != ThemeMode.LIGHT
-            )
-        }
-        LabFeatureType.CHAL -> {
-            ChalRoot(
-                onBack = { selectedFeature = null },
-                modifier = modifier,
-                startInPersian = isFa
-            )
-        }
-        LabFeatureType.ANTAR_BLACKHOLE -> {
+        LabFeatureType.ZIG_BLACKHOLE -> {
             AntarRoot(
                 onBack = { selectedFeature = null },
                 language = uiState.language,
@@ -200,9 +183,7 @@ private fun CyberLabViewportCard(
     val (meshPreset, accent, matrixTag) = when (feature) {
         LabFeatureType.TIME_DILATION -> Triple(CyberMeshPreset.CORAL_PEACH, palette.secondaryAccent, "0$index SR-GR")
         LabFeatureType.GRAVITY_SANDBOX -> Triple(CyberMeshPreset.CYAN_VIOLET, palette.primaryAccent, "0$index NBODY")
-        LabFeatureType.GARGANTUA -> Triple(CyberMeshPreset.VIOLET_PEACH, palette.tertiaryAccent, "0$index KERR")
-        LabFeatureType.CHAL -> Triple(CyberMeshPreset.EMERALD_CYAN, palette.primaryAccent, "0$index METRIC")
-        LabFeatureType.ANTAR_BLACKHOLE -> Triple(CyberMeshPreset.CORAL_PEACH, palette.secondaryAccent, "0$index ANTAR")
+        LabFeatureType.ZIG_BLACKHOLE -> Triple(CyberMeshPreset.CORAL_PEACH, palette.secondaryAccent, "0$index ZIG")
     }
 
     CyberCutoutViewportCard(
@@ -422,80 +403,7 @@ private fun CyberLabProceduralViewport(
                 )
             }
 
-            LabFeatureType.GARGANTUA -> {
-                // Kerr Black Hole Shadow, Photon Ring & Relativistic Accretion Disk
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            secondaryColor.copy(alpha = 0.50f),
-                            primaryColor.copy(alpha = 0.22f),
-                            Color.Transparent
-                        ),
-                        center = Offset(cx, cy),
-                        radius = h * 0.56f
-                    ),
-                    radius = h * 0.56f,
-                    center = Offset(cx, cy)
-                )
-                // Relativistic accretion disk ellipse
-                drawOval(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = 0.90f),
-                            secondaryColor,
-                            primaryColor.copy(alpha = 0.55f)
-                        ),
-                        startX = cx - w * 0.32f,
-                        endX = cx + w * 0.32f
-                    ),
-                    topLeft = Offset(cx - w * 0.32f, cy - h * 0.11f),
-                    size = Size(w * 0.64f, h * 0.22f),
-                    style = Stroke(width = 3.4.dp.toPx())
-                )
-                // Event horizon + photon ring
-                drawCircle(color = Color.Black, radius = h * 0.22f, center = Offset(cx, cy))
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.85f),
-                    radius = h * 0.23f,
-                    center = Offset(cx, cy),
-                    style = Stroke(width = 1.5.dp.toPx())
-                )
-            }
-
-            LabFeatureType.CHAL -> {
-                // 3D Spacetime Embedding Funnel Grid
-                val cols = 9
-                for (i in 0..cols) {
-                    val t = i.toFloat() / cols
-                    val x = w * (0.14f + 0.72f * t)
-                    val dip = sin(t * PI).toFloat() * (h * 0.26f)
-                    val p = Path().apply {
-                        moveTo(x, h * 0.24f)
-                        quadraticTo(cx, h * 0.42f + dip, x, h * 0.80f)
-                    }
-                    drawPath(
-                        path = p,
-                        color = primaryColor.copy(alpha = 0.36f),
-                        style = Stroke(width = 1.dp.toPx())
-                    )
-                }
-                for (r in 1..3) {
-                    val ry = h * (0.24f + r * 0.14f)
-                    drawOval(
-                        color = primaryColor.copy(alpha = 0.45f),
-                        topLeft = Offset(cx - (w * 0.34f / r), ry - (h * 0.08f)),
-                        size = Size((w * 0.68f / r), h * 0.18f),
-                        style = Stroke(width = 1.1.dp.toPx())
-                    )
-                }
-                drawCircle(
-                    color = secondaryColor,
-                    radius = 4.5.dp.toPx(),
-                    center = Offset(cx, cy + h * 0.12f)
-                )
-            }
-
-            LabFeatureType.ANTAR_BLACKHOLE -> {
+            LabFeatureType.ZIG_BLACKHOLE -> {
                 // Kerr–Schild D-Shadow, n=1 Photon Sub-Ring, Lensed Halo & Polar Relativistic Jet
                 drawCircle(
                     brush = Brush.radialGradient(
