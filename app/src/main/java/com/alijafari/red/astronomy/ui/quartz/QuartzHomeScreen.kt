@@ -232,7 +232,7 @@ fun QuartzHomeScreen(
         ).take(5)
     }
 
-    val showStagger by remember { mutableStateOf(false) }
+    var showStagger by remember { mutableStateOf(false) }
     val entrance by animateFloatAsState(
         targetValue = if (showStagger) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.86f, stiffness = 220f),
