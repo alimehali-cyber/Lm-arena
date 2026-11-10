@@ -108,11 +108,17 @@ enum class ThemeMode {
  * - [CYBER]: Spatial Glassmorphism 2.0 & Cyber-Minimalist (visionOS x Nothing OS x Teenage Engineering)
  *   with 4-layer cut glass, retro-futuristic dot-matrix counters, sub-frosted mesh gradient pill cards,
  *   spatial floating capsule bars, and crisp cutout viewport windows.
+ * - [AURORA]: Liquid Prism. Every surface is a refractive lens floating in a living aurora: light bends
+ *   through it, disperses at its rim and pools in its belly. Five-pass optics (body, refraction, caustic,
+ *   dispersion rim, travelling specular) over a drifting three-curtain field, with a strict concentric
+ *   squircle geometry, four spacing tiers, a seven-role type scale and a status language that never
+ *   relies on colour alone.
  */
 enum class AppUiStyle {
     DEFAULT,
     SPATIAL,
-    CYBER
+    CYBER,
+    AURORA
 }
 
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {

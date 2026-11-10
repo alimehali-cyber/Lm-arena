@@ -17,9 +17,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Verifies all three selectable UI design systems ([AppUiStyle.DEFAULT], [AppUiStyle.SPATIAL],
- * [AppUiStyle.CYBER]), the Wine ("می") burgundy theme across all three UIs, Settings switchers,
- * and MainActivity routing.
+ * Verifies all four selectable UI design systems ([AppUiStyle.DEFAULT], [AppUiStyle.SPATIAL],
+ * [AppUiStyle.CYBER], [AppUiStyle.AURORA]), the Wine ("می") burgundy theme across all four UIs,
+ * Settings switchers, and MainActivity routing.
  */
 class SpatialUiTest {
 
@@ -36,11 +36,11 @@ class SpatialUiTest {
     }
 
     @Test
-    fun defaultUiStateStartsInDefaultStyleAndListsAllThreeUisAndWineTheme() {
+    fun defaultUiStateStartsInDefaultStyleAndListsAllFourUisAndWineTheme() {
         val state = MainUiState()
         assertEquals(AppUiStyle.DEFAULT, state.uiStyle)
         assertEquals(
-            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.CYBER),
+            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.CYBER, AppUiStyle.AURORA),
             AppUiStyle.entries
         )
         assertEquals(
@@ -117,26 +117,29 @@ class SpatialUiTest {
     }
 
     @Test
-    fun allThreeSettingsMenusExposeAllThreeUiStylesAndWineTheme() {
+    fun allFourSettingsMenusExposeAllFourUiStylesAndWineTheme() {
         val defaultSettings = source("com/alijafari/red/astronomy/ui/components/SettingsDialog.kt")
         val spatialSettings = source("com/alijafari/red/astronomy/ui/spatial/SpatialSettingsModal.kt")
         val cyberSettings = source("com/alijafari/red/astronomy/ui/cyber/CyberSettingsModal.kt")
+        val auroraSettings = source("com/alijafari/red/astronomy/ui/aurora/AuroraSettingsModal.kt")
 
-        for (src in listOf(defaultSettings, spatialSettings, cyberSettings)) {
+        for (src in listOf(defaultSettings, spatialSettings, cyberSettings, auroraSettings)) {
             assertTrue(src.contains("settings_section_ui_style"))
             assertTrue(src.contains("settings_ui_style_default"))
             assertTrue(src.contains("settings_ui_style_spatial"))
             assertTrue(src.contains("settings_ui_style_cyber"))
+            assertTrue(src.contains("settings_ui_style_aurora"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.DEFAULT)"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.SPATIAL)"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.CYBER)"))
+            assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.AURORA)"))
             assertTrue(src.contains("settings_theme_wine"))
             assertTrue(src.contains("viewModel.setThemeMode(ThemeMode.WINE)"))
         }
     }
 
     @Test
-    fun mainActivityRoutesAcrossDefaultSpatialAndCyberGlassScreens() {
+    fun mainActivityRoutesAcrossDefaultSpatialCyberAndAuroraScreens() {
         val activity = source("com/alijafari/red/astronomy/MainActivity.kt")
         assertTrue(activity.contains("SpatialThemeProvider("))
         assertTrue(activity.contains("SpatialAtmosphereBackground("))
@@ -153,6 +156,14 @@ class SpatialUiTest {
         assertTrue(activity.contains("CyberLabScreen("))
         assertTrue(activity.contains("CyberFloatingNavBar("))
         assertTrue(activity.contains("CyberSettingsModal("))
+
+        assertTrue(activity.contains("AuroraThemeProvider("))
+        assertTrue(activity.contains("AuroraFieldBackground("))
+        assertTrue(activity.contains("AuroraHomeScreen("))
+        assertTrue(activity.contains("AuroraSatellitesScreen("))
+        assertTrue(activity.contains("AuroraLabScreen("))
+        assertTrue(activity.contains("AuroraFloatingNavBar("))
+        assertTrue(activity.contains("AuroraSettingsModal("))
     }
 
     @Test

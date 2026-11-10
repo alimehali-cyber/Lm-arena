@@ -62,7 +62,8 @@ import com.alijafari.red.astronomy.domain.AppUiStyle
  * from* [RedTheme]'s tokens, which are themselves already adapted by [AppUiStyle]'s Cyber and Spatial
  * providers. So the chrome follows the selected style and the selected theme automatically —
  * [AppUiStyle.DEFAULT]'s vermilion, [AppUiStyle.CYBER]'s cut-glass accents, [AppUiStyle.SPATIAL]'s
- * desert neon, dark, light or wine — with no per-style branching at the call sites.
+ * desert neon, [AppUiStyle.AURORA]'s auroral spectrum, dark, light or wine — with no per-style
+ * branching at the call sites.
  *
  * ## What makes chrome "the app's chrome"
  *
@@ -194,15 +195,19 @@ fun chromeTokens(): ChromeTokens {
         success = colors.statusSuccess,
         warning = colors.statusWarning,
         danger = colors.statusError,
-        // The three styles already differ in how tight their containers are: DEFAULT and SPATIAL wear
-        // the app's 40 dp window corner, CYBER the tighter cut-glass 36 dp. Taking the value from the
-        // style keeps a sandbox sheet visually in the same family as the page that launched it.
+        // The styles already differ in how tight their containers are: DEFAULT and SPATIAL wear
+        // the app's 40 dp window corner, CYBER the tighter cut-glass 36 dp, and AURORA its own
+        // 34 dp container — the outer step of a concentric 34/26/18/12 scale whose inner radii are
+        // always the outer radius minus the gap. Taking the value from the style keeps a sandbox
+        // sheet visually in the same family as the page that launched it.
         panelRadius = when (style) {
             AppUiStyle.CYBER -> 36.dp
+            AppUiStyle.AURORA -> 34.dp
             else -> RedCornerRadius.window
         },
         rowRadius = when (style) {
             AppUiStyle.CYBER -> 18.dp
+            AppUiStyle.AURORA -> 18.dp
             AppUiStyle.SPATIAL -> 20.dp
             AppUiStyle.DEFAULT -> 18.dp
         },

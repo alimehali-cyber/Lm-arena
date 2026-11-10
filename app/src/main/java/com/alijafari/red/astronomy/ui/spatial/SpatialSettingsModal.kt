@@ -107,6 +107,7 @@ fun SpatialSettingsModal(
         AppUiStyle.DEFAULT -> stringResource(R.string.ui_style_default)
         AppUiStyle.SPATIAL -> stringResource(R.string.ui_style_spatial)
         AppUiStyle.CYBER -> stringResource(R.string.ui_style_cyber)
+        AppUiStyle.AURORA -> stringResource(R.string.ui_style_aurora)
     }
     val languageLabel = when (uiState.language) {
         AppLanguage.PERSIAN -> stringResource(R.string.language_persian)
@@ -226,6 +227,13 @@ fun SpatialSettingsModal(
                             isSelected = uiState.uiStyle == AppUiStyle.CYBER,
                             onClick = { viewModel.setUiStyle(AppUiStyle.CYBER) },
                             modifier = Modifier.testTag("settings_ui_style_cyber")
+                        )
+                        SpatialSettingsOptionRow(
+                            title = stringResource(R.string.ui_style_aurora),
+                            subtitle = stringResource(R.string.ui_style_aurora_desc),
+                            isSelected = uiState.uiStyle == AppUiStyle.AURORA,
+                            onClick = { viewModel.setUiStyle(AppUiStyle.AURORA) },
+                            modifier = Modifier.testTag("settings_ui_style_aurora")
                         )
                     }
 

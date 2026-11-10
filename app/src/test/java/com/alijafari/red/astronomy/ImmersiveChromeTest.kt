@@ -3,6 +3,7 @@ package com.alijafari.red.astronomy
 import androidx.compose.ui.graphics.Color
 import com.alijafari.red.astronomy.domain.AppUiStyle
 import com.alijafari.red.astronomy.domain.ThemeMode
+import com.alijafari.red.astronomy.ui.aurora.auroraPaletteFor
 import com.alijafari.red.astronomy.ui.cyber.cyberPaletteFor
 import com.alijafari.red.astronomy.ui.spatial.spatialPaletteFor
 import com.alijafari.red.astronomy.ui.theme.RedDarkColorTokens
@@ -61,6 +62,23 @@ class ImmersiveChromeTest {
     // ================================ the token set ==============================================
 
     @Test
+    fun theAuroraChromeRetunesTheAppTokensRatherThanOwningAColour() {
+        val auroraProvider = source("com/alijafari/red/astronomy/ui/aurora/AuroraDesignSystem.kt")
+        assertTrue(
+            "Aurora publishes its palette through the same local the other styles use",
+            auroraProvider.contains("LocalAuroraPalette provides palette")
+        )
+        assertTrue(
+            "and harmonises the shared dialogs by adapting RedTheme's colours",
+            auroraProvider.contains("LocalRedColors provides adaptedRedColors")
+        )
+        assertTrue(
+            "so the shared chrome keeps resolving ink from the theme, never from a literal",
+            chrome.contains("val colors = RedTheme.colors")
+        )
+    }
+
+    @Test
     fun theChromeHasNoPaletteOfItsOwn() {
         // Every colour in the chrome comes from RedTheme, which is the theme the user selected and
         // already carries the Cyber / Spatial adaptation. One literal here would be a second brand.
@@ -83,6 +101,7 @@ class ImmersiveChromeTest {
         // container only where that style asks for it.
         assertTrue("panels take the window radius", chrome.contains("else -> RedCornerRadius.window"))
         assertTrue("CYBER keeps its own tighter container", chrome.contains("AppUiStyle.CYBER -> 36.dp"))
+        assertTrue("and AURORA its own", chrome.contains("AppUiStyle.AURORA -> 34.dp"))
         assertTrue("pills are capsules", chrome.contains("val pillShape: Shape get() = CircleShape"))
         assertTrue("panels squircle", chrome.contains("val panelShape: Shape get() = squircleShape(panelRadius)"))
     }
@@ -261,7 +280,10 @@ class ImmersiveChromeTest {
             "cyber wine" to cyberPaletteFor(ThemeMode.WINE).primaryAccent,
             "spatial dark" to spatialPaletteFor(ThemeMode.DARK).neonGlow,
             "spatial light" to spatialPaletteFor(ThemeMode.LIGHT).neonGlow,
-            "spatial wine" to spatialPaletteFor(ThemeMode.WINE).neonGlow
+            "spatial wine" to spatialPaletteFor(ThemeMode.WINE).neonGlow,
+            "aurora dark" to auroraPaletteFor(ThemeMode.DARK).accent,
+            "aurora light" to auroraPaletteFor(ThemeMode.LIGHT).accent,
+            "aurora wine" to auroraPaletteFor(ThemeMode.WINE).accent
         )
         accents.forEach { (name, accent) ->
             val ink = readableInkOn(accent)
@@ -276,10 +298,12 @@ class ImmersiveChromeTest {
 
     @Test
     fun everyStyleHasItsOwnGeometryAndTheDefaultsAreTheAppsOwn() {
-        // DEFAULT and SPATIAL share the app's window corner; CYBER is tighter. The styles are distinct
-        // values, so a future style cannot silently inherit another's geometry.
-        assertEquals(3, AppUiStyle.entries.size)
-        assertTrue("the chrome branches on all three", chrome.contains("AppUiStyle.CYBER ->"))
+        // DEFAULT and SPATIAL share the app's window corner; CYBER and AURORA are tighter, each by
+        // its own scale. The styles are distinct values, so a future style cannot silently inherit
+        // another's geometry.
+        assertEquals(4, AppUiStyle.entries.size)
+        assertTrue("the chrome branches on CYBER", chrome.contains("AppUiStyle.CYBER ->"))
+        assertTrue("and on AURORA", chrome.contains("AppUiStyle.AURORA ->"))
         assertTrue("and defaults the rest", chrome.contains("else -> RedCornerRadius.window"))
     }
 }

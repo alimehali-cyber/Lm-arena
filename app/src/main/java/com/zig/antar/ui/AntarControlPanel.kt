@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.domain.AppUiStyle
 import com.alijafari.red.astronomy.domain.ThemeMode
+import com.alijafari.red.astronomy.ui.aurora.AuroraTheme
 import com.alijafari.red.astronomy.ui.cyber.CyberTheme
 import com.alijafari.red.astronomy.ui.spatial.SpatialTheme
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
@@ -96,7 +97,8 @@ internal fun rememberAntarChromeTokens(
     val redColors = RedTheme.colors
     val spatial = SpatialTheme.palette
     val cyber = CyberTheme.palette
-    return remember(uiStyle, themeMode, redColors, spatial, cyber) {
+    val aurora = AuroraTheme.palette
+    return remember(uiStyle, themeMode, redColors, spatial, cyber, aurora) {
         when (uiStyle) {
             AppUiStyle.CYBER -> AntarChromeTokens(
                 sheetShape = CutCornerShape(14.dp),
@@ -117,6 +119,19 @@ internal fun rememberAntarChromeTokens(
                 accentColor = spatial.accentInk,
                 accentSubtleColor = spatial.neonGlow.copy(alpha = if (spatial.isDark) 0.24f else 0.16f),
                 signalDotColor = spatial.neonGlow
+            )
+            AppUiStyle.AURORA -> AntarChromeTokens(
+                // Aurora's own concentric steps: the sheet is the container radius, the card the
+                // card radius, and the chip a capsule, so a sandbox control reads as the same
+                // object whichever page launched it.
+                sheetShape = squircleShape(34.dp),
+                cardShape = squircleShape(26.dp),
+                chipShape = squircleShape(RedCornerRadius.pill),
+                surfaceColor = redColors.surfaceElevated,
+                borderColor = aurora.rimStrong,
+                accentColor = aurora.accent,
+                accentSubtleColor = aurora.accentSoft,
+                signalDotColor = aurora.accent
             )
             AppUiStyle.DEFAULT -> AntarChromeTokens(
                 sheetShape = squircleShape(28.dp),

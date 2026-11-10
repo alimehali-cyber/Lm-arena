@@ -63,6 +63,13 @@ import com.alijafari.red.astronomy.ui.cyber.CyberHomeScreen
 import com.alijafari.red.astronomy.ui.cyber.CyberLabScreen
 import com.alijafari.red.astronomy.ui.cyber.CyberSatellitesScreen
 import com.alijafari.red.astronomy.ui.cyber.CyberSettingsModal
+import com.alijafari.red.astronomy.ui.aurora.AuroraFieldBackground
+import com.alijafari.red.astronomy.ui.aurora.AuroraFloatingNavBar
+import com.alijafari.red.astronomy.ui.aurora.AuroraHomeScreen
+import com.alijafari.red.astronomy.ui.aurora.AuroraLabScreen
+import com.alijafari.red.astronomy.ui.aurora.AuroraSatellitesScreen
+import com.alijafari.red.astronomy.ui.aurora.AuroraSettingsModal
+import com.alijafari.red.astronomy.ui.aurora.AuroraThemeProvider
 import com.alijafari.red.astronomy.ui.cyber.CyberThemeProvider
 import com.alijafari.red.astronomy.ui.spatial.SpatialAtmosphereBackground
 import com.alijafari.red.astronomy.ui.spatial.SpatialFloatingNavBar
@@ -338,12 +345,17 @@ class MainActivity : ComponentActivity() {
                     // titles are written straight onto it and pick their ink from it (see BackdropInk).
                     val isSpatialUi = uiState.uiStyle == AppUiStyle.SPATIAL
                     val isCyberUi = uiState.uiStyle == AppUiStyle.CYBER
+                    val isAuroraUi = uiState.uiStyle == AppUiStyle.AURORA
                     SpatialThemeProvider(
                         enabled = isSpatialUi,
                         themeMode = uiState.themeMode
                     ) {
                     CyberThemeProvider(
                         enabled = isCyberUi,
+                        themeMode = uiState.themeMode
+                    ) {
+                    AuroraThemeProvider(
+                        enabled = isAuroraUi,
                         themeMode = uiState.themeMode
                     ) {
                     CompositionLocalProvider(
@@ -417,6 +429,14 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
+                            if (isAuroraUi && uiState.selectedTab != 3) {
+                                AuroraFieldBackground(
+                                    themeMode = uiState.themeMode,
+                                    isOpaqueCanvas = uiState.appBackdropMode == AppBackdropMode.NONE,
+                                    sunAltitudeDeg = sunAltitudeDeg,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                             // The screens, drawn over the backdrop.
                             Crossfade(
                                 targetState = Pair(uiState.selectedTab, uiState.uiStyle),
@@ -433,6 +453,10 @@ class MainActivity : ComponentActivity() {
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
+                                        AppUiStyle.AURORA -> AuroraLabScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
+                                        )
                                         AppUiStyle.DEFAULT -> LabScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
@@ -444,6 +468,10 @@ class MainActivity : ComponentActivity() {
                                             viewModel = viewModel
                                         )
                                         AppUiStyle.SPATIAL -> SpatialSatellitesScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
+                                        )
+                                        AppUiStyle.AURORA -> AuroraSatellitesScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
@@ -463,6 +491,11 @@ class MainActivity : ComponentActivity() {
                                             onNavigateToTab = { viewModel.selectTab(it) }
                                         )
                                         AppUiStyle.SPATIAL -> SpatialHomeScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel,
+                                            onNavigateToTab = { viewModel.selectTab(it) }
+                                        )
+                                        AppUiStyle.AURORA -> AuroraHomeScreen(
                                             uiState = uiState,
                                             viewModel = viewModel,
                                             onNavigateToTab = { viewModel.selectTab(it) }
@@ -490,6 +523,13 @@ class MainActivity : ComponentActivity() {
                                     .splashReveal(splashState, SplashRevealRole.NavigationBar)
                             )
                             AppUiStyle.SPATIAL -> SpatialFloatingNavBar(
+                                selectedTab = uiState.selectedTab,
+                                onTabSelected = { viewModel.selectTab(it) },
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .splashReveal(splashState, SplashRevealRole.NavigationBar)
+                            )
+                            AppUiStyle.AURORA -> AuroraFloatingNavBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
                                 modifier = Modifier
@@ -583,6 +623,11 @@ class MainActivity : ComponentActivity() {
                                   viewModel = viewModel,
                                   onDismiss = { viewModel.setShowSettingsDialog(false) }
                               )
+                              AppUiStyle.AURORA -> AuroraSettingsModal(
+                                  uiState = uiState,
+                                  viewModel = viewModel,
+                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
+                              )
                               AppUiStyle.DEFAULT -> SettingsDialog(
                                   uiState = uiState,
                                   viewModel = viewModel,
@@ -632,6 +677,7 @@ class MainActivity : ComponentActivity() {
                           )
                       }
                   }
+                }
                 }
                 }
                 }
