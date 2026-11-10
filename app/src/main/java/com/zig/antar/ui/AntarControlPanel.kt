@@ -118,6 +118,16 @@ internal fun rememberAntarChromeTokens(
                 accentSubtleColor = spatial.neonGlow.copy(alpha = if (spatial.isDark) 0.24f else 0.16f),
                 signalDotColor = spatial.neonGlow
             )
+            AppUiStyle.QUARTZ -> AntarChromeTokens(
+                sheetShape = squircleShape(32.dp),
+                cardShape = squircleShape(16.dp),
+                chipShape = squircleShape(RedCornerRadius.pill),
+                surfaceColor = redColors.surfaceElevated,
+                borderColor = redColors.border,
+                accentColor = redColors.accentRed,
+                accentSubtleColor = redColors.accentRedSubtle,
+                signalDotColor = redColors.accentGold
+            )
             AppUiStyle.DEFAULT -> AntarChromeTokens(
                 sheetShape = squircleShape(28.dp),
                 cardShape = squircleShape(16.dp),

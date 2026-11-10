@@ -199,10 +199,14 @@ fun chromeTokens(): ChromeTokens {
         // style keeps a sandbox sheet visually in the same family as the page that launched it.
         panelRadius = when (style) {
             AppUiStyle.CYBER -> 36.dp
+            // Quartz panels are the velvet lens family: a 32 dp squircle reads as the same
+            // machined corner as the cards it launched (see ui/quartz).
+            AppUiStyle.QUARTZ -> 32.dp
             else -> RedCornerRadius.window
         },
         rowRadius = when (style) {
             AppUiStyle.CYBER -> 18.dp
+            AppUiStyle.QUARTZ -> 16.dp
             AppUiStyle.SPATIAL -> 20.dp
             AppUiStyle.DEFAULT -> 18.dp
         },

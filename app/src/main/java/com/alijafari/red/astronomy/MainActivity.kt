@@ -71,6 +71,13 @@ import com.alijafari.red.astronomy.ui.spatial.SpatialLabScreen
 import com.alijafari.red.astronomy.ui.spatial.SpatialSatellitesScreen
 import com.alijafari.red.astronomy.ui.spatial.SpatialSettingsModal
 import com.alijafari.red.astronomy.ui.spatial.SpatialThemeProvider
+import com.alijafari.red.astronomy.ui.quartz.QuartzAtmosphereBackground
+import com.alijafari.red.astronomy.ui.quartz.QuartzFloatingNavBar
+import com.alijafari.red.astronomy.ui.quartz.QuartzHomeScreen
+import com.alijafari.red.astronomy.ui.quartz.QuartzLabScreen
+import com.alijafari.red.astronomy.ui.quartz.QuartzSatellitesScreen
+import com.alijafari.red.astronomy.ui.quartz.QuartzSettingsModal
+import com.alijafari.red.astronomy.ui.quartz.QuartzThemeProvider
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.backdrop.LiveSkyBackdrop
 import com.alijafari.red.astronomy.ui.backdrop.PhotoBackdrop
@@ -338,12 +345,17 @@ class MainActivity : ComponentActivity() {
                     // titles are written straight onto it and pick their ink from it (see BackdropInk).
                     val isSpatialUi = uiState.uiStyle == AppUiStyle.SPATIAL
                     val isCyberUi = uiState.uiStyle == AppUiStyle.CYBER
+                    val isQuartzUi = uiState.uiStyle == AppUiStyle.QUARTZ
                     SpatialThemeProvider(
                         enabled = isSpatialUi,
                         themeMode = uiState.themeMode
                     ) {
                     CyberThemeProvider(
                         enabled = isCyberUi,
+                        themeMode = uiState.themeMode
+                    ) {
+                    QuartzThemeProvider(
+                        enabled = isQuartzUi,
                         themeMode = uiState.themeMode
                     ) {
                     CompositionLocalProvider(
@@ -417,6 +429,14 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
+                            if (isQuartzUi) {
+                                // The editorial paper is the style's whole atmosphere, so it is painted
+                                // for every tab (the AR camera behind tab 3 included).
+                                QuartzAtmosphereBackground(
+                                    sunAltitudeDeg = sunAltitudeDeg,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                             // The screens, drawn over the backdrop.
                             Crossfade(
                                 targetState = Pair(uiState.selectedTab, uiState.uiStyle),
@@ -433,6 +453,10 @@ class MainActivity : ComponentActivity() {
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
+                                        AppUiStyle.QUARTZ -> QuartzLabScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
+                                        )
                                         AppUiStyle.DEFAULT -> LabScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
@@ -444,6 +468,10 @@ class MainActivity : ComponentActivity() {
                                             viewModel = viewModel
                                         )
                                         AppUiStyle.SPATIAL -> SpatialSatellitesScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
+                                        )
+                                        AppUiStyle.QUARTZ -> QuartzSatellitesScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
@@ -467,6 +495,11 @@ class MainActivity : ComponentActivity() {
                                             viewModel = viewModel,
                                             onNavigateToTab = { viewModel.selectTab(it) }
                                         )
+                                        AppUiStyle.QUARTZ -> QuartzHomeScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel,
+                                            onNavigateToTab = { viewModel.selectTab(it) }
+                                        )
                                         AppUiStyle.DEFAULT -> HomeScreen(
                                             uiState = uiState,
                                             viewModel = viewModel,
@@ -483,6 +516,13 @@ class MainActivity : ComponentActivity() {
                     if (!com.zig.gravity.ui.ImmersiveScreenState.active) {
                         when (uiState.uiStyle) {
                             AppUiStyle.CYBER -> CyberFloatingNavBar(
+                                selectedTab = uiState.selectedTab,
+                                onTabSelected = { viewModel.selectTab(it) },
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .splashReveal(splashState, SplashRevealRole.NavigationBar)
+                            )
+                            AppUiStyle.QUARTZ -> QuartzFloatingNavBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
                                 modifier = Modifier
@@ -578,6 +618,11 @@ class MainActivity : ComponentActivity() {
                                   viewModel = viewModel,
                                   onDismiss = { viewModel.setShowSettingsDialog(false) }
                               )
+                              AppUiStyle.QUARTZ -> QuartzSettingsModal(
+                                  uiState = uiState,
+                                  viewModel = viewModel,
+                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
+                              )
                               AppUiStyle.SPATIAL -> SpatialSettingsModal(
                                   uiState = uiState,
                                   viewModel = viewModel,
@@ -635,8 +680,9 @@ class MainActivity : ComponentActivity() {
                 }
                 }
                 }
+                }
+                }
             }
         }
     }
-}
 }

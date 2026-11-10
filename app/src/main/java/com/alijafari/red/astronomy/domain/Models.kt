@@ -108,11 +108,17 @@ enum class ThemeMode {
  * - [CYBER]: Spatial Glassmorphism 2.0 & Cyber-Minimalist (visionOS x Nothing OS x Teenage Engineering)
  *   with 4-layer cut glass, retro-futuristic dot-matrix counters, sub-frosted mesh gradient pill cards,
  *   spatial floating capsule bars, and crisp cutout viewport windows.
+ * - [QUARTZ]: "Obsidian Quartz & Crimson Telemetry" — an editorial industrial-design studio language
+ *   (Teenage Engineering x Nothing x Apple ID): one atmospheric mood on alabaster/obsidian paper, a
+ *   frameless velvet-crimson telemetry lens, smoked frosted quartz cards with inner dotted tracks,
+ *   optical inner-edge refraction and anodized micro-grain, procedural 5x7 LED dot-matrix readouts,
+ *   and hairline vector micro-icons only.
  */
 enum class AppUiStyle {
     DEFAULT,
     SPATIAL,
-    CYBER
+    CYBER,
+    QUARTZ
 }
 
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {

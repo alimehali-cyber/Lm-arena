@@ -40,7 +40,7 @@ class SpatialUiTest {
         val state = MainUiState()
         assertEquals(AppUiStyle.DEFAULT, state.uiStyle)
         assertEquals(
-            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.CYBER),
+            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.CYBER, AppUiStyle.QUARTZ),
             AppUiStyle.entries
         )
         assertEquals(
@@ -122,14 +122,18 @@ class SpatialUiTest {
         val spatialSettings = source("com/alijafari/red/astronomy/ui/spatial/SpatialSettingsModal.kt")
         val cyberSettings = source("com/alijafari/red/astronomy/ui/cyber/CyberSettingsModal.kt")
 
-        for (src in listOf(defaultSettings, spatialSettings, cyberSettings)) {
+        val quartzSettings = source("com/alijafari/red/astronomy/ui/quartz/QuartzSettingsModal.kt")
+
+        for (src in listOf(defaultSettings, spatialSettings, cyberSettings, quartzSettings)) {
             assertTrue(src.contains("settings_section_ui_style"))
             assertTrue(src.contains("settings_ui_style_default"))
             assertTrue(src.contains("settings_ui_style_spatial"))
             assertTrue(src.contains("settings_ui_style_cyber"))
+            assertTrue(src.contains("settings_ui_style_quartz"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.DEFAULT)"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.SPATIAL)"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.CYBER)"))
+            assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.QUARTZ)"))
             assertTrue(src.contains("settings_theme_wine"))
             assertTrue(src.contains("viewModel.setThemeMode(ThemeMode.WINE)"))
         }

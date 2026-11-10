@@ -96,6 +96,8 @@
     <string name="ui_style_spatial_desc">VisionOS spatial frost, specular rims &amp; dot-matrix gauges</string>
     <string name="ui_style_cyber">Cyber Glass UI</string>
     <string name="ui_style_cyber_desc">Glassmorphism 2.0, Nothing dot-matrix, mesh pills &amp; cutout viewports</string>
+    <string name="ui_style_quartz">Obsidian Quartz UI</string>
+    <string name="ui_style_quartz_desc">Editorial alabaster &amp; velvet-crimson telemetry, smoked frosted quartz, LED dot-matrix</string>
     <string name="theme_wine">Wine</string>
     <string name="theme_wine_desc">Wine red, merlot &amp; deep burgundy</string>
     <string name="ok">OK</string>

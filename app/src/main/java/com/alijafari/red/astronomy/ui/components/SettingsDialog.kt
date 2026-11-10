@@ -147,6 +147,7 @@ fun SettingsDialog(
         AppUiStyle.DEFAULT -> stringResource(R.string.ui_style_default)
         AppUiStyle.SPATIAL -> stringResource(R.string.ui_style_spatial)
         AppUiStyle.CYBER -> stringResource(R.string.ui_style_cyber)
+        AppUiStyle.QUARTZ -> stringResource(R.string.ui_style_quartz)
     }
 
     val languageLabel = when (uiState.language) {
@@ -254,6 +255,13 @@ fun SettingsDialog(
                         onClick = { viewModel.setUiStyle(AppUiStyle.CYBER) },
                         modifier = Modifier.testTag("settings_ui_style_cyber")
                     )
+                        SettingsOptionRow(
+                            title = stringResource(R.string.ui_style_quartz),
+                            subtitle = stringResource(R.string.ui_style_quartz_desc),
+                            isSelected = uiState.uiStyle == AppUiStyle.QUARTZ,
+                            onClick = { viewModel.setUiStyle(AppUiStyle.QUARTZ) },
+                            modifier = Modifier.testTag("settings_ui_style_quartz")
+                        )
                 }
 
                 // 1. Language Dropdown Section
