@@ -202,3 +202,29 @@ fun ObsidianFloatingNavBar(
 
     }
 }
+
+/**
+ * The signature 6.dp inset dashed inner perimeter track shared by every Obsidian capsule.
+ * Drawn behind the content, inside the already-applied clip and fill, so the dashes ride the
+ * rounded perimeter instead of squaring off at the corners.
+ */
+fun Modifier.obsidianInnerDottedTrack(
+    cornerRadius: Dp,
+    inset: Dp = 6.dp,
+    alpha: Float = 0.24f
+): Modifier = this.drawBehind {
+    val insetPx = inset.toPx()
+    if (size.width <= insetPx * 2f || size.height <= insetPx * 2f) return@drawBehind
+    val innerRadius = (cornerRadius.toPx() - insetPx).coerceAtLeast(0f)
+    drawRoundRect(
+        color = Color.White.copy(alpha = alpha),
+        topLeft = Offset(insetPx, insetPx),
+        size = Size(size.width - insetPx * 2f, size.height - insetPx * 2f),
+        cornerRadius = CornerRadius(innerRadius, innerRadius),
+        style = Stroke(
+            width = 0.8.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 7f), 0f)
+        )
+    )
+}
+

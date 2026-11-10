@@ -45,13 +45,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.asFrameworkPaint
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -647,7 +646,7 @@ private fun SynthesizerPulseWaveform(
         )
 
         // 2. Optical bloom + thick lit trough bars.
-        val bloomPaint = Paint().asFrameworkPaint().apply {
+        val bloomPaint = android.graphics.Paint().apply {
             isAntiAlias = true
             color = android.graphics.Color.WHITE
             alpha = 140

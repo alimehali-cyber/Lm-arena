@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -39,15 +40,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.asFrameworkPaint
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -228,9 +228,9 @@ fun ObsidianThemeProvider(
         content()
         return
     }
-    val palette = remember(themeMode) { obsidianPaletteFor(themeMode) }
-    val adaptedRedColors = remember(themeMode) {
-        val baseRedColors = RedTheme.colors
+    val palette = obsidianPaletteFor(themeMode)
+    val baseRedColors = RedTheme.colors
+    val adaptedRedColors = remember(themeMode, baseRedColors) {
         when (themeMode) {
             ThemeMode.LIGHT -> baseRedColors.copy(
                 isDark = false,
@@ -329,7 +329,7 @@ fun Modifier.opticalQuartzSurface(
     val radiusPx = cornerRadius.toPx()
 
     // Soft inner edge bloom (simulates thick cut quartz refracting studio light)
-    val edgeBloomPaint = Paint().asFrameworkPaint().apply {
+    val edgeBloomPaint = android.graphics.Paint().apply {
         isAntiAlias = true
         style = android.graphics.Paint.Style.STROKE
         strokeWidth = 18.dp.toPx()
