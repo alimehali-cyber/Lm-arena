@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Obsidian Quartz &amp; Crimson Telemetry — style preview</title>
+<style>
+  /* ------------------------------------------------------------------
+     Every value below is copied 1:1 from
+     app/src/main/java/com/alijafari/red/astronomy/ui/quartz/QuartzDesignSystem.kt
+     This page is a *preview* of the Compose implementation, not the app.
+     ------------------------------------------------------------------ */
+  :root{
+    --alabaster:#E8E4DE; --alabaster-deep:#DBD5CC;
+    --obsidian:#090407; --burgundy-void:#1C0913; --crimson-bleed:#59122B; --chromatic:#4E86A3;
+    --velvet-void:#170109; --velvet-mid:#4B0420; --velvet-ruby:#8C093B; --velvet-edge:#B81450;
+    --quartz-top:#1D242B; --quartz-mid:#283845; --quartz-base:#5D7687;
+    --rose:#D95B8A; --cobalt:#6B85B8; --amber:#D97236; --crimson:#9E0B45;
+    --card-ink:#FFF5F8; --canvas-ink:#1A1417;
+    --canvas:#E8E4DE; --canvas-2:#DBD5CC;
+    --ink-1:rgba(26,20,23,.92); --ink-2:rgba(26,20,23,.58); --ink-3:rgba(26,20,23,.40);
+    --hair:rgba(26,20,23,.14); --hair-strong:rgba(26,20,23,.26);
+    --grain:.55;
+  }
+  body.dark{
+    --canvas:#0A0709; --canvas-2:#050305;
+    --ink-1:rgba(244,238,241,.94); --ink-2:rgba(244,238,241,.62); --ink-3:rgba(244,238,241,.42);
+    --hair:rgba(255,255,255,.13); --hair-strong:rgba(255,255,255,.24);
+    --grain:.62;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--canvas); color:var(--ink-1);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Inter,system-ui,sans-serif;
+    display:flex; justify-content:center; padding:28px 18px 60px;
+    transition:background .5s ease;
+  }
+
+  /* ---- the editorial atmosphere: no image, no blur filter, only radial washes ---- */
+  .stage{position:fixed; inset:0; pointer-events:none; overflow:hidden}
+  .stage .head,.stage .torso,.stage .chroma,.stage .warm{position:absolute; border-radius:50%; will-change:transform}
+  .stage .head{left:50%; top:-6%; width:124vw; height:124vw; transform:translate(-50%,0);
+    background:radial-gradient(circle at 50% 50%,
+      var(--obsidian) 0%, rgba(9,4,7,.62) 42%, rgba(89,18,43,.34) 72%, transparent 100%);
+    animation:breathe 9s ease-in-out infinite alternate}
+  .stage .torso{left:46%; top:26%; width:176vw; height:176vw; transform:translate(-50%,0);
+    background:radial-gradient(circle at 50% 50%,
+      rgba(9,4,7,.86) 0%, rgba(89,18,43,.26) 46%, rgba(89,18,43,.09) 80%, transparent 100%);
+    animation:breathe2 9s ease-in-out infinite alternate}
+  .stage .chroma{left:-30%; top:20%; width:92vw; height:92vw;
+    background:radial-gradient(circle at 50% 50%, rgba(78,134,163,.30), transparent 70%)}
+  .stage .warm{right:-24%; bottom:-10%; width:104vw; height:104vw;
+    background:radial-gradient(circle at 50% 50%, rgba(217,91,138,.13), transparent 70%)}
+  @keyframes breathe{from{transform:translate(-50%,0) scale(1)}to{transform:translate(-46%,1.5%) scale(1.03)}}
+  @keyframes breathe2{from{transform:translate(-50%,0) scale(1.02)}to{transform:translate(-52%,-1%) scale(.99)}}
+
+  .phone{position:relative; width:min(430px,100%); z-index:1}
+  .topbar{display:flex; justify-content:space-between; align-items:center; padding:2px 6px 16px}
+  .topbar .kicker{font-size:10.5px; letter-spacing:.21em; font-weight:500; color:var(--ink-2)}
+  .topbar .city{font-size:9.5px; letter-spacing:.16em; color:var(--ink-3); margin-top:3px}
+  .synced{display:flex; align-items:center; gap:7px; font-size:10.5px; letter-spacing:.18em; font-weight:500; color:var(--ink-2)}
+  .dot{width:6px; height:6px; border-radius:50%; background:var(--crimson); box-shadow:0 0 0 3px rgba(158,11,69,.16),0 0 10px rgba(158,11,69,.55)}
+  body.dark .dot{background:#E84265; box-shadow:0 0 0 3px rgba(232,66,101,.18),0 0 10px rgba(232,66,101,.6)}
+
+  /* ---- Surface A: frameless velvet-crimson lens ---- */
+  .lens{
+    position:relative; border-radius:38px; padding:26px 28px;
+    background:
+      radial-gradient(128% 128% at 47% 58%, var(--velvet-void) 0%, var(--velvet-mid) 48%, var(--velvet-ruby) 82%, var(--velvet-edge) 100%);
+    box-shadow:
+      0 26px 60px -18px rgba(107,4,43,.55), 0 6px 18px -6px rgba(43,2,17,.6);
+    overflow:hidden; isolation:isolate;
+  }
+  /* (1) inner-edge light refraction: the perimeter catches the light, the centre stays deep */
+  .lens::before{
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background:
+      linear-gradient(90deg, rgba(255,122,168,.30), rgba(255,122,168,.10) 14%, transparent 34%, transparent 66%, rgba(255,122,168,.10) 86%, rgba(255,122,168,.30)),
+      linear-gradient(180deg, rgba(255,122,168,.28), rgba(255,122,168,.08) 16%, transparent 38%, transparent 62%, rgba(255,122,168,.08) 84%, rgba(255,122,168,.28));
+    mix-blend-mode:screen; filter:blur(1px);
+  }
+  /* (2) anodized grain + (3) 0.85 px directional specular rim */
+  .lens::after{
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background-image:var(--grain-url); background-size:128px 128px; opacity:var(--grain); mix-blend-mode:overlay;
+    box-shadow:inset 0 0 0 .85px rgba(255,255,255,.42), inset 0 1px 0 rgba(255,255,255,.30);
+  }
+  .lens > *{position:relative; z-index:1}
+
+  .lens-head{display:flex; justify-content:space-between; align-items:center}
+  .lens-head h1{margin:0; font-size:17px; font-weight:500; letter-spacing:-.01em; color:var(--card-ink)}
+  .lens-head .clock{font-size:11px; letter-spacing:.12em; color:rgba(255,245,248,.62)}
+
+  .readout{display:flex; justify-content:space-between; margin-top:16px}
+  .readout .left{display:flex; gap:12px; align-items:flex-start}
+  canvas.matrix{display:block}
+  .caption{margin-top:4px}
+  .caption .big{font-size:12.5px; color:rgba(255,245,248,.62); font-weight:300}
+  .caption .phase{font-size:11px; color:rgba(255,245,248,.62); margin-top:3px}
+  .legend{display:flex; flex-direction:column; gap:7px; padding-top:3px}
+  .legend .row{display:flex; align-items:center; gap:8px; font-size:11.5px; font-weight:300}
+  .legend .mark{width:6px; height:6px; border-radius:50%}
+  .legend .filled{background:var(--card-ink); color:rgba(255,245,248,.82)}
+  .legend .outline{box-shadow:inset 0 0 0 1px rgba(255,245,248,.42); color:rgba(255,245,248,.40)}
+
+  .wave{position:relative; height:52px; margin-top:22px}
+  .leds{position:absolute; top:2px; right:0; display:flex; gap:9px}
+  .leds i{width:7px; height:7px; border-radius:50%; display:block}
+  .leds i.on{background:var(--card-ink); box-shadow:0 0 8px rgba(255,245,248,.55)}
+  .leds i.off{box-shadow:inset 0 0 0 1px rgba(255,245,248,.34)}
+
+  .metric{display:flex; justify-content:space-between; align-items:flex-end; margin-top:22px}
+  .metric .value{font-size:33px; font-weight:300; letter-spacing:-.035em; color:var(--card-ink)}
+  .metric .unit{font-size:22px; font-weight:300; color:rgba(255,245,248,.62); margin-left:7px; letter-spacing:-.01em}
+  .stepper{display:flex; align-items:center; gap:0}
+  .stepper button{all:unset; width:28px; height:28px; display:grid; place-items:center; cursor:pointer}
+  .stepper .dash{width:14px; height:2.2px; border-radius:2px; background:rgba(255,245,248,.9)}
+  .stepper svg{color:rgba(255,245,248,.86)}
+
+  /* ---- Surface B: smoked frosted quartz ---- */
+  .quartz{
+    position:relative; border-radius:38px; padding:26px; margin-top:16px; overflow:hidden; isolation:isolate;
+    background:linear-gradient(146deg, rgba(29,36,43,.97) 0%, rgba(40,56,69,.94) 55%, rgba(93,118,135,.90) 100%);
+    box-shadow:0 18px 40px -20px rgba(4,8,12,.8);
+  }
+  .quartz::before{
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background:
+      linear-gradient(90deg, rgba(207,228,240,.26), transparent 20%, transparent 80%, rgba(207,228,240,.26)),
+      linear-gradient(180deg, rgba(207,228,240,.22), transparent 22%, transparent 78%, rgba(207,228,240,.18));
+    mix-blend-mode:screen;
+  }
+  .quartz::after{
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background-image:var(--grain-url); background-size:128px 128px; opacity:calc(var(--grain) * .95); mix-blend-mode:overlay;
+    box-shadow:inset 0 0 0 .85px rgba(255,255,255,.34);
+  }
+  .quartz > *{position:relative; z-index:1}
+  .quartz-head{display:flex; justify-content:space-between; align-items:center}
+  .quartz-head h2{margin:0; font-size:18px; font-weight:400; letter-spacing:-.012em; color:var(--card-ink)}
+  .subline{display:flex; align-items:center; gap:6px; margin-top:5px}
+  .subline .label{font-size:9.5px; letter-spacing:.16em; color:rgba(255,245,248,.62)}
+  .disc{width:38px; height:38px; border-radius:50%; display:grid; place-items:center;
+    box-shadow:inset 0 0 0 .8px rgba(255,245,248,.28); background:linear-gradient(140deg, rgba(255,255,255,.10), transparent)}
+
+  .days{display:flex; justify-content:space-between; margin-top:18px}
+  .days button{all:unset; width:34px; height:34px; border-radius:50%; display:grid; place-items:center;
+    font-size:11px; font-weight:300; color:rgba(255,245,248,.62); cursor:pointer;
+    box-shadow:inset 0 0 0 .8px rgba(255,245,248,.22)}
+  .days button.sel{background:var(--card-ink); color:#14181D; font-weight:600; box-shadow:none}
+  .range{display:flex; align-items:center; justify-content:center; gap:14px; margin-top:18px;
+    font-size:11.5px; font-weight:300; color:rgba(255,245,248,.62); letter-spacing:.02em}
+
+  /* ---- capsule grid with 6dp inset dotted track ---- */
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px}
+  .pill{
+    position:relative; height:96px; border-radius:999px; padding:14px 18px; overflow:hidden; isolation:isolate;
+    display:flex; flex-direction:column; justify-content:space-between;
+  }
+  .pill::before{ /* inner refraction */
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background:linear-gradient(90deg, rgba(255,255,255,.30), transparent 24%, transparent 76%, rgba(255,255,255,.30)),
+               linear-gradient(180deg, rgba(255,255,255,.26), transparent 30%, transparent 70%, rgba(255,255,255,.28));
+    mix-blend-mode:screen;
+  }
+  .pill::after{ /* grain + specular rim */
+    content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background-image:var(--grain-url); background-size:128px 128px; opacity:calc(var(--grain) * .9); mix-blend-mode:overlay;
+    box-shadow:inset 0 0 0 .85px rgba(255,255,255,.5);
+  }
+  .pill .track{ /* the 6dp inset dashed perimeter */
+    position:absolute; inset:6px; border-radius:999px; pointer-events:none; z-index:2;
+    border:.8px dashed rgba(255,255,255,.24);
+  }
+  .pill > *{position:relative; z-index:3}
+  .pill .title{align-self:center; font-size:11px; color:rgba(255,255,255,.88)}
+  .pill .foot{display:flex; justify-content:space-between; align-items:flex-end; width:100%}
+  .pill .num{display:flex; align-items:flex-end; gap:4px}
+  .pill .num .unit2{font-size:10.5px; color:rgba(255,255,255,.70); font-weight:300; padding-bottom:1px}
+  .badge{font-size:9px; letter-spacing:.04em; color:rgba(255,255,255,.92);
+    padding:2.5px 7px; border-radius:999px; box-shadow:inset 0 0 0 .8px rgba(255,255,255,.38)}
+  .pill.rose{background:radial-gradient(120% 150% at 22% 12%, rgba(217,91,138,.80), rgba(40,25,36,.94))}
+  .pill.amber{background:radial-gradient(120% 150% at 22% 12%, rgba(217,114,54,.80), rgba(45,25,18,.94))}
+  .pill.cobalt{background:radial-gradient(120% 150% at 22% 12%, rgba(107,133,184,.78), rgba(25,32,48,.95))}
+  .pill.action{background:linear-gradient(118deg,#0E0B0E 0%, rgba(93,118,135,.92) 52%, #DCEBF2 100%;
+    background:linear-gradient(118deg,#0E0B0E 0%, rgba(93,118,135,.92) 52%, #DCEBF2 100%); align-items:center; justify-content:center}
+  .pill.action .cap{font-size:9px; letter-spacing:.2em; color:rgba(255,255,255,.86); margin-top:6px}
+
+  /* ---- dock ---- */
+  .dock{
+    position:relative; display:flex; gap:4px; align-items:center; height:62px; border-radius:32px;
+    margin:18px 6px 0; padding:7px; overflow:hidden; isolation:isolate;
+    background:linear-gradient(180deg, rgba(22,26,31,.98), rgba(12,15,19,.98));
+    box-shadow:0 16px 34px -16px rgba(0,0,0,.75);
+  }
+  .dock::after{content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none;
+    background-image:var(--grain-url); background-size:128px 128px; opacity:calc(var(--grain) * .8); mix-blend-mode:overlay;
+    box-shadow:inset 0 0 0 .85px rgba(255,255,255,.28)}
+  .dock .track{position:absolute; inset:5px; border-radius:999px; border:.8px dashed rgba(255,255,255,.14); pointer-events:none; z-index:2}
+  .dock button{all:unset; position:relative; z-index:3; cursor:pointer; flex:1; height:100%; border-radius:999px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    color:rgba(255,255,255,.34); font-size:9px; font-weight:300}
+  .dock button.sel{flex:1.22; flex-direction:row; gap:7px; color:#fff; font-size:11px; font-weight:500;
+    background:rgba(255,255,255,.10); box-shadow:inset 0 0 0 .8px rgba(255,255,255,.55)}
+  .dock button svg{opacity:.9}
+
+  .toggle{position:fixed; right:18px; bottom:18px; z-index:5; all:unset; cursor:pointer;
+    display:flex; align-items:center; gap:8px; padding:10px 16px; border-radius:999px;
+    font-size:10px; letter-spacing:.16em; color:var(--ink-1);
+    box-shadow:inset 0 0 0 .75px var(--hair-strong); background:color-mix(in srgb, var(--canvas) 70%, transparent);
+    backdrop-filter:blur(12px)}
+  .note{max-width:430px; margin:22px auto 0; font-size:10.5px; line-height:1.7; color:var(--ink-3); letter-spacing:.02em}
+</style>
+</head>
+<body>
+<div class="stage" aria-hidden="true">
+  <div class="head"></div><div class="torso"></div><div class="chroma"></div><div class="warm"></div>
+</div>
+
+<main class="phone">
+  <header class="topbar">
+    <div>
+      <div class="kicker" id="kicker">TELEMETRY&nbsp;&nbsp;//&nbsp;&nbsp;21:04</div>
+      <div class="city" id="city">NURABAD MAMASANI</div>
+    </div>
+    <div class="synced"><span class="dot"></span><span>SYNCED</span></div>
+  </header>
+
+  <!-- ===== HERO: velvet-crimson lens ===== -->
+  <section class="lens">
+    <div class="lens-head">
+      <h1>Lunar Station</h1>
+      <span class="clock">21:04</span>
+    </div>
+
+    <div class="readout">
+      <div class="left">
+        <canvas class="matrix" id="m-illum" width="140" height="40"></canvas>
+        <div class="caption">
+          <div class="big">% illuminated</div>
+          <div class="phase">Waxing Gibbous</div>
+        </div>
+      </div>
+      <div class="legend">
+        <div class="row filled"><span class="mark" style="background:var(--card-ink)"></span>Risen</div>
+        <div class="row outline"><span class="mark" style="box-shadow:inset 0 0 0 1px rgba(255,245,248,.42)"></span>Below</div>
+      </div>
+    </div>
+
+    <div class="wave">
+      <div class="leds" id="leds"></div>
+      <svg width="100%" height="44" viewBox="0 0 330 44" preserveAspectRatio="none" style="position:absolute;bottom:0;left:0">
+        <!-- synthesizer arches + white trough bars, drawn exactly like QuartzPulseWaveform -->
+        <path d="M0 40 C1.5 6, 12 6, 13.5 40 L20 40 C21.5 6, 32 6, 33.5 40 L40 40 C41.5 6, 52 6, 53.5 40 L60 40 C61.5 6, 72 6, 73.5 40 L80 40"
+              fill="none" stroke="rgba(255,245,248,.46)" stroke-width="1.1" stroke-linecap="round"/>
+        <path d="M80 40 L330 40" fill="none" stroke="rgba(255,245,248,.46)" stroke-width="1.1"/>
+        <g stroke="#FFF5F8" stroke-width="3.1">
+          <line x1="13.5" y1="40" x2="20" y2="40"/><line x1="33.5" y1="40" x2="40" y2="40"/>
+          <line x1="53.5" y1="40" x2="60" y2="40"/><line x1="73.5" y1="40" x2="80" y2="40"/>
+        </g>
+        <g stroke="rgba(255,245,248,.18)" stroke-width="8" stroke-linecap="butt">
+          <line x1="13.5" y1="40" x2="20" y2="40"/><line x1="33.5" y1="40" x2="40" y2="40"/>
+          <line x1="53.5" y1="40" x2="60" y2="40"/><line x1="73.5" y1="40" x2="80" y2="40"/>
+        </g>
+      </svg>
+    </div>
+
+    <div class="metric">
+      <div>
+        <span class="value" id="dist">384 412</span><span class="unit">km</span>
+      </div>
+      <div class="stepper">
+        <button aria-label="previous day" onclick="scrub(-1)">
+          <svg width="13" height="9" viewBox="0 0 13 9" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+            <path d="M12.5 4.5H.6M.6 4.5L4 1.1M.6 4.5L4 7.9"/>
+          </svg>
+        </button>
+        <span class="dash"></span>
+        <button aria-label="next day" onclick="scrub(1)">
+          <svg width="13" height="9" viewBox="0 0 13 9" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+            <path d="M.5 4.5H12.4M12.4 4.5L9 1.1M12.4 4.5L9 7.9"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="city" id="scrubline" style="margin-top:6px;font-size:9.5px;letter-spacing:.16em;color:rgba(255,245,248,.38);opacity:.72">
+      PHASE SCRUB&nbsp;&nbsp;+0 D
+    </div>
+  </section>
+
+  <!-- ===== SMOKED QUARTZ: gaussian observability ===== -->
+  <section class="quartz">
+    <div class="quartz-head">
+      <div>
+        <h2>Weekly Observability</h2>
+        <div class="subline">
+          <canvas class="matrix" id="m-peak" width="52" height="22"></canvas>
+          <span class="label">%&nbsp;&nbsp;CLEAR SKY</span>
+        </div>
+      </div>
+      <div class="disc">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="rgba(255,245,248,.9)" stroke-width="1.2" stroke-linecap="round">
+          <path d="M2.2 9.8 9.8 2.2M4.6 2.2h5.2v5.2"/>
+        </svg>
+      </div>
+    </div>
+
+    <svg id="curve" width="100%" height="118" viewBox="0 0 330 118" preserveAspectRatio="none" style="margin-top:16px;display:block">
+      <line x1="0" y1="66" x2="330" y2="66" stroke="rgba(255,245,248,.20)" stroke-width=".8" stroke-dasharray="4 6"/>
+      <path id="curve-tail" fill="none" stroke="rgba(255,245,248,.34)" stroke-width="1" stroke-dasharray="4 5"/>
+      <path id="curve-core" fill="none" stroke="rgba(255,245,248,.95)" stroke-width="1.35" stroke-linecap="round"/>
+      <line id="drop" x1="165" y1="30" x2="165" y2="66" stroke="rgba(255,245,248,.5)" stroke-width="1" stroke-dasharray="3 4"/>
+      <circle id="halo" cx="165" cy="30" r="12" fill="rgba(255,245,248,.16)"/>
+      <circle id="ring" cx="165" cy="30" r="12" fill="none" stroke="rgba(255,245,248,.42)" stroke-width=".8"/>
+      <circle id="node" cx="165" cy="30" r="2.6" fill="#FFF5F8"/>
+    </svg>
+
+    <div class="days" id="days"></div>
+    <div class="range">
+      <svg width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="rgba(255,245,248,.42)" stroke-width="1.1" stroke-linecap="round"><path d="M6.6 1.6 2 6l4.6 4.4"/></svg>
+      Jun 6 – Jun 12
+      <svg width="8" height="12" viewBox="0 0 8 12" fill="none" stroke="rgba(255,245,248,.42)" stroke-width="1.1" stroke-linecap="round"><path d="M1.4 1.6 6 6l-4.6 4.4"/></svg>
+    </div>
+  </section>
+
+  <!-- ===== BENTO: inner-dotted refracting capsules ===== -->
+  <div class="grid">
+    <div class="pill amber"><span class="track"></span>
+      <div class="title">Sun Altitude</div>
+      <div class="foot">
+        <div class="num"><canvas class="matrix" id="m-sun" width="34" height="22"></canvas><span class="unit2">°</span></div>
+        <span class="badge">NIGHT</span>
+      </div>
+    </div>
+    <div class="pill rose"><span class="track"></span>
+      <div class="title">Moon Illum.</div>
+      <div class="foot">
+        <div class="num"><canvas class="matrix" id="m-moon" width="52" height="22"></canvas><span class="unit2">%</span></div>
+        <span class="badge">3 UP</span>
+      </div>
+    </div>
+    <div class="pill cobalt"><span class="track"></span>
+      <div class="title">Observable</div>
+      <div class="foot">
+        <div class="num"><canvas class="matrix" id="m-obs" width="34" height="22"></canvas><span class="unit2">n</span></div>
+        <span class="badge">ON</span>
+      </div>
+    </div>
+    <div class="pill action"><span class="track"></span>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="rgba(255,255,255,.92)" stroke-width="1.1">
+        <circle cx="8" cy="8" r="5.4"/><circle cx="8" cy="8" r="1.1" fill="rgba(255,255,255,.92)" stroke="none"/>
+        <path d="M8 0v2.4M8 13.6V16M0 8h2.4M13.6 8H16"/>
+      </svg>
+      <div class="cap">AR&nbsp;SKY</div>
+    </div>
+  </div>
+
+  <!-- ===== dock ===== -->
+  <nav class="dock">
+    <span class="track"></span>
+    <button>
+      <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M6.4 2.2h3.2v4.2l3.8 7.4H2.6l3.8-7.4z"/><path d="M5.4 9.6h5.2"/></svg>
+      <span>Lab</span>
+    </button>
+    <button>
+      <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="8" cy="8" r="5.4"/><path d="M8 0v2M8 14v2M0 8h2M14 8h2"/></svg>
+      <span>AR Sky</span>
+    </button>
+    <button>
+      <svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M3 13 13 3"/><rect x="7.4" y="6.2" width="3.2" height="3.2"/><path d="M3.4 8.4h3.8M3.4 11 7.4 10M12.6 7.6H9M12.6 5.2 9 6.2"/></svg>
+      <span>Satellites</span>
+    </button>
+    <button class="sel">
+      <span class="dot" style="width:5px;height:5px;box-shadow:none;background:var(--crimson)"></span>
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.15"><circle cx="7.4" cy="8.6" r="6"/><circle cx="10" cy="6.6" r="4.8" stroke="rgba(255,255,255,.42)"/></svg>
+      <span>Home</span>
+    </button>
+  </nav>
+
+  <p class="note">
+    Preview of the <strong>Obsidian Quartz &amp; Crimson Telemetry</strong> interface style
+    (Settings → Interface Style → Obsidian Quartz UI). Every gradient stop, radius, hairline weight,
+    glyph cell and inset track on this page is copied from the Compose implementation in
+    <code>ui/quartz/</code>; the numerals are the same procedural 5×7 LED dot-matrix, drawn here with
+    the same glyph table. Toggle the paper to see the dark revision of the same studio.
+  </p>
+</main>
+
+<button class="toggle" onclick="document.body.classList.toggle('dark')">LIGHT / OBSIDIAN</button>
+
+<script>
+/* ------------------------------------------------------------------
+   1. Procedural 5x7 LED dot-matrix — identical glyph table to QuartzDotMatrix.kt
+   ------------------------------------------------------------------ */
+const GLYPHS = {
+  '0':["11110","10001","10011","10101","11001","10001","01110"],
+  '1':["00100","01100","00100","00100","00100","00100","01110"],
+  '2':["01110","10001","00001","00010","00100","01000","11111"],
+  '3':["11110","00001","00001","01110","00001","00001","11110"],
+  '4':["00010","00110","01010","10010","11111","00010","00010"],
+  '5':["11111","10000","11110","00001","00001","10001","01110"],
+  '6':["00110","01000","10000","11110","10001","10001","01110"],
+  '7':["11111","00001","00010","00100","01000","01000","01000"],
+  '8':["01110","10001","10001","01110","10001","10001","01110"],
+  '9':["01110","10001","10001","01111","00001","00010","01100"],
+  ' ':"00000"
+};
+/* '0' is the slashed-zero cell used by the hardware reference (a diagonal lit through the ring). */
+GLYPHS['0'] = ["01110","10001","10011","10101","11001","10001","01110"];
+
+function drawMatrix(canvas, text, {dot = 2.1, gap = 1.05, charGap = 3.4, glow = false, ghost = 0} = {}) {
+  const dpr = window.devicePixelRatio || 1;
+  const cells = [...text].map(c => GLYPHS[c]).filter(Boolean);
+  if (!cells.length) return;
+  const step = dot + gap;
+  const cols = cells.reduce((n, g) => n + g[0].length, 0);
+  const w = step * cols - gap + (charGap - gap) * Math.max(0, cells.length - 1);
+  const h = step * 7 - gap;
+  canvas.width = Math.ceil(w * dpr); canvas.height = Math.ceil(h * dpr);
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  let x = 0;
+  for (const g of cells) {
+    const cc = g[0].length;
+    for (let r = 0; r < 7; r++) for (let c = 0; c < cc; c++) {
+      const cx = x + c * step + dot / 2, cy = r * step + dot / 2;
+      if (g[r][c] !== '1') {
+        if (ghost) { ctx.beginPath(); ctx.arc(cx, cy, dot * .21, 0, 6.284); ctx.fillStyle = `rgba(255,245,248,${ghost * .5})`; ctx.fill(); }
+        continue;
+      }
+      if (glow) {
+        const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, dot * 1.55);
+        grd.addColorStop(0, 'rgba(255,245,248,.30)'); grd.addColorStop(1, 'rgba(255,245,248,0)');
+        ctx.beginPath(); ctx.arc(cx, cy, dot * 1.55, 0, 6.284); ctx.fillStyle = grd; ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, dot * .88, 0, 6.284); ctx.fillStyle = 'rgba(255,245,248,.20)'; ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(cx, cy, dot / 2, 0, 6.284); ctx.fillStyle = '#FFF5F8'; ctx.fill();
+    }
+    x += cc * step - gap + charGap;
+  }
+}
+
+/* ------------------------------------------------------------------
+   2. A tile of fixed-seed anodized grain (the same idea as QuartzGrain.kt)
+   ------------------------------------------------------------------ */
+(function makeGrain(){
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d'); const img = x.createImageData(128, 128);
+  let s = 7411;
+  const rnd = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  for (let i = 0; i < img.data.length; i += 4) {
+    const light = rnd() > .5, a = 6 + Math.floor(rnd() * 22), v = light ? 255 : 0;
+    img.data[i] = img.data[i+1] = img.data[i+2] = v; img.data[i+3] = a;
+  }
+  x.putImageData(img, 0, 0);
+  document.documentElement.style.setProperty('--grain-url', `url(${c.toDataURL()})`);
+})();
+
+/* ------------------------------------------------------------------
+   3. Live-ish numbers (deterministic, so the preview is reproducible)
+   ------------------------------------------------------------------ */
+let offsetDays = 0;
+const DIST = 384412;
+
+function render() {
+  drawMatrix(document.getElementById('m-illum'), '84', { dot: 3.6, gap: 2.0, charGap: 7, glow: true, ghost: .10 });
+  drawMatrix(document.getElementById('m-peak'), '61', { dot: 1.9, gap: 1.0, charGap: 3.0 });
+  drawMatrix(document.getElementById('m-sun'), '18', { dot: 2.1, gap: 1.05, charGap: 3.4 });
+  drawMatrix(document.getElementById('m-moon'), '84', { dot: 2.1, gap: 1.05, charGap: 3.4 });
+  drawMatrix(document.getElementById('m-obs'), '07', { dot: 2.1, gap: 1.05, charGap: 3.4 });
+  const dist = DIST + offsetDays * 11800;
+  document.getElementById('dist').textContent = dist.toLocaleString('en-US').replace(/,/g, ' ');
+  document.getElementById('scrubline').textContent =
+    'PHASE SCRUB  ' + (offsetDays > 0 ? '+' : '') + offsetDays + ' D';
+}
+
+function scrub(delta) {
+  offsetDays = Math.max(-30, Math.min(30, offsetDays + delta));
+  render();
+}
+render();
+
+/* LED program: the Moon's phase, five dots, four filled */
+const ledsEl = document.getElementById('leds');
+for (let i = 0; i < 5; i++) {
+  const el = document.createElement('i');
+  el.className = i < 4 ? 'on' : 'off';
+  ledsEl.appendChild(el);
+}
+
+/* ------------------------------------------------------------------
+   4. The gaussian card: dotted tails, a solid centre arch, a loupe node
+      on the apex, all recomputed when the day is scrubbed.
+   ------------------------------------------------------------------ */
+let day = 3;
+const PROFILE = [0.42, 0.55, 0.48, 0.61, 0.57, 0.46, 0.38]; // measured observability per day
+
+function curve(d) {
+  const W = 330, H = 118, baseY = 104, midY = 66, sigma = W * 0.145, mu = ((d + 0.5) / 7) * W;
+  const amp = (H * 0.66) * (0.34 + 0.66 * PROFILE[d]);
+  const y = x => baseY - amp * Math.exp(-Math.pow(x - mu, 2) / (2 * sigma * sigma));
+  let full = '', core = '';
+  const lo = mu - sigma * 1.45, hi = mu + sigma * 1.45;
+  for (let i = 0; i <= 140; i++) {
+    const x = (i / 140) * W, yy = y(x);
+    full += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + yy.toFixed(1);
+    if (x >= lo && x <= hi) core += (core ? 'L' : 'M') + x.toFixed(1) + ' ' + yy.toFixed(1);
+  }
+  document.getElementById('curve-tail').setAttribute('d', full);
+  document.getElementById('curve-core').setAttribute('d', core);
+  const apex = y(mu);
+  ['drop'].forEach(id => { const e = document.getElementById(id); e.setAttribute('x1', mu); e.setAttribute('x2', mu); e.setAttribute('y1', apex); e.setAttribute('y2', midY); });
+  ['halo','ring','node'].forEach(id => { const e = document.getElementById(id); e.setAttribute('cx', mu); e.setAttribute('cy', apex); });
+  drawMatrix(document.getElementById('m-peak'), String(Math.round(PROFILE[d] * 100)), { dot: 1.9, gap: 1.0, charGap: 3.0 });
+}
+
+const DAYS = ['M','T','W','T','F','S','S'];
+const daysEl = document.getElementById('days');
+DAYS.forEach((label, i) => {
+  const b = document.createElement('button');
+  b.textContent = label;
+  if (i === day) b.classList.add('sel');
+  b.onclick = () => {
+    day = i;
+    [...daysEl.children].forEach((c, k) => c.classList.toggle('sel', k === i));
+    curve(i);
+  };
+  daysEl.appendChild(b);
+});
+curve(day);
+
+/* Scrubbing the curve by dragging, exactly like the Compose pointerInput handler */
+document.getElementById('curve').addEventListener('pointerdown', ev => {
+  const r = ev.currentTarget.getBoundingClientRect();
+  const idx = Math.max(0, Math.min(6, Math.floor(((ev.clientX - r.left) / r.width) * 7)));
+  day = idx;
+  [...daysEl.children].forEach((c, k) => c.classList.toggle('sel', k === idx));
+  curve(idx);
+});
+</script>
+</body>
+</html>
