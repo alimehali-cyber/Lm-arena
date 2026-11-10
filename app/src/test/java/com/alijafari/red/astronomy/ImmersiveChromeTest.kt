@@ -276,10 +276,10 @@ class ImmersiveChromeTest {
 
     @Test
     fun everyStyleHasItsOwnGeometryAndTheDefaultsAreTheAppsOwn() {
-        // DEFAULT and SPATIAL share the app's window corner; CYBER is tighter. The styles are distinct
-        // values, so a future style cannot silently inherit another's geometry.
-        assertEquals(3, AppUiStyle.entries.size)
-        assertTrue("the chrome branches on all three", chrome.contains("AppUiStyle.CYBER ->"))
+        // Aether shares the window geometry while using its own dark telemetry dashboard.
+        assertEquals(4, AppUiStyle.entries.size)
+        assertTrue("Aether has an explicit row geometry", chrome.contains("AppUiStyle.CYBER, AppUiStyle.AETHER -> 18.dp"))
+        assertTrue("Cyber has its own panel geometry", chrome.contains("AppUiStyle.CYBER ->"))
         assertTrue("and defaults the rest", chrome.contains("else -> RedCornerRadius.window"))
     }
 }

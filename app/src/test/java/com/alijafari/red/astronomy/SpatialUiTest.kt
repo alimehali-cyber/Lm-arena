@@ -36,11 +36,11 @@ class SpatialUiTest {
     }
 
     @Test
-    fun defaultUiStateStartsInDefaultStyleAndListsAllThreeUisAndWineTheme() {
+    fun defaultUiStateStartsInDefaultStyleAndListsAllUisAndWineTheme() {
         val state = MainUiState()
         assertEquals(AppUiStyle.DEFAULT, state.uiStyle)
         assertEquals(
-            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.CYBER),
+            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.CYBER, AppUiStyle.AETHER),
             AppUiStyle.entries
         )
         assertEquals(

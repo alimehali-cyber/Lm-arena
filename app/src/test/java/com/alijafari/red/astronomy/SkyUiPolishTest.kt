@@ -185,7 +185,7 @@ class SkyUiPolishTest {
 
         val activity = source("com/alijafari/red/astronomy/MainActivity.kt")
         assertTrue("MainActivity resolves it", activity.contains("appBackdropLuminance("))
-        assertTrue("and provides it to the tree", activity.contains("LocalBackdropLuminance provides backdropLuminance"))
+        assertTrue("and provides it to the tree", activity.contains("LocalBackdropLuminance provides if (isAetherUi && uiState.selectedTab != 3) 0f else backdropLuminance"))
     }
 
     @Test
