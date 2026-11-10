@@ -40,6 +40,7 @@ import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.astro_engine.SatelliteCategory
 import com.alijafari.red.astronomy.astro_engine.SatelliteItem
+import com.alijafari.red.astronomy.astro_engine.SatelliteLiveState
 import com.alijafari.red.astronomy.astro_engine.SatelliteEngine
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.domain.AppLanguage
@@ -100,7 +101,7 @@ fun AuroraSatellitesScreen(
     }
 
     // ---- Live positions -----------------------------------------------------
-    var states by remember { mutableStateOf<List<SatelliteEngine.SatelliteLiveState>>(emptyList()) }
+    var states by remember { mutableStateOf<List<SatelliteLiveState>>(emptyList()) }
     var isSyncing by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
@@ -120,7 +121,7 @@ fun AuroraSatellitesScreen(
                             )
                         }
                         .sortedWith(
-                            compareByDescending<SatelliteEngine.SatelliteLiveState> { it.isNakedEyeVisible }
+                            compareByDescending<SatelliteLiveState> { it.isNakedEyeVisible }
                                 .thenByDescending { it.topocentric.elevationDeg }
                         )
                 }
@@ -187,7 +188,7 @@ private enum class SatelliteCategoryFilter(val category: SatelliteCategory?) {
 private fun AuroraSatellitesList(
     isFa: Boolean,
     timezone: java.util.TimeZone,
-    states: List<SatelliteEngine.SatelliteLiveState>,
+    states: List<SatelliteLiveState>,
     isSyncing: Boolean,
     category: SatelliteCategoryFilter,
     onCategoryChange: (SatelliteCategoryFilter) -> Unit,
@@ -491,7 +492,7 @@ private fun auroraStatusForPass(classification: ISSEngine.PassClassification): A
 
 @Composable
 private fun AuroraSatelliteRow(
-    state: SatelliteEngine.SatelliteLiveState,
+    state: SatelliteLiveState,
     isFa: Boolean,
     onClick: () -> Unit
 ) {

@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -209,7 +210,7 @@ internal fun AuroraSpectrumBar(
 
 private fun Modifier.auroraSpectrumFill(palette: AuroraPalette): Modifier =
     this.then(
-        androidx.compose.ui.draw.drawBehind {
+        drawBehind {
             drawRect(
                 brush = Brush.linearGradient(
                     colors = palette.spectrum,
