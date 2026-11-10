@@ -1,7 +1,7 @@
 package com.alijafari.red.astronomy
 
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.domain.AppUiStyle
 import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.ui.MainUiState
@@ -173,22 +173,41 @@ class AuroraUiTest {
 
     @Test
     fun theFieldAndTheLensShareOneClockAndHonourReducedMotion() {
+        // Motion DR5: every animated change has an immediate form. One clock
+        // drives the field and the lens, and one answer tells both whether to
+        // travel at all.
         assertTrue(
-            "the field reads one shared phase",
-            field.contains("fun rememberAuroraPhase()")
+            "the phase clock is declared once, beside the lens",
+            designSystem.contains("fun rememberAuroraPhase()")
         )
         assertTrue(
-            "and the lens reads the same reduced-motion answer",
+            "the reduced-motion answer is declared once, beside the lens",
             designSystem.contains("fun rememberAuroraReducedMotion()")
         )
         assertTrue(
             "reduced motion pins the phase instead of removing the field",
-            field.contains("if (reduceMotion) 0.34f")
+            designSystem.contains("if (reduceMotion) 0.34f")
+        )
+        assertTrue(
+            "the field reads that shared phase rather than keeping its own",
+            field.contains("phase: Float = rememberAuroraPhase()")
         )
         assertTrue(
             "the skeleton stops its sheen under reduced motion",
             components.contains("if (reduceMotion) 0.5f else sheen.value")
         )
+    }
+
+    @Test
+    fun theFieldIsDrawnNotComposedAndFollowsTheSun() {
+        // A field of drifting curtains is far too many draws to express as
+        // composables, so it is a single Canvas pass — and it dims in daylight
+        // the way a real aurora does, rather than showing a night sky at noon.
+        assertTrue("the field is one Canvas pass", field.contains("Canvas(modifier = modifier.fillMaxSize())"))
+        assertTrue("it draws three curtains", field.contains("private const val RIBBON_COUNT = 3"))
+        assertTrue("with a deterministic starfield", field.contains("private fun auroraStars()"))
+        assertTrue("and its intensity follows the Sun", field.contains("sunAltitudeDeg: Double"))
+        assertTrue("fading out as daylight arrives", field.contains("val nightness ="))
     }
 
     // ============================ state =========================================================

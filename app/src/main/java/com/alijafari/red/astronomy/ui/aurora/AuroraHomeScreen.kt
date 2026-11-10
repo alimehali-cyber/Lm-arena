@@ -25,7 +25,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stars
-import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -481,7 +481,7 @@ private fun AuroraHeroSky(
                 AuroraStatusPill(
                     label = twilightLabel,
                     status = AuroraStatus.INFO,
-                    icon = if (palette.isDark) Icons.Default.NightsStay else Icons.Default.WbSunny
+                    icon = if (palette.isDark) Icons.Default.NightsStay else Icons.Outlined.WbSunny
                 )
                 AuroraIconAction(
                     icon = Icons.Default.Settings,
