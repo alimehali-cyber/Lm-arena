@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.domain.AppUiStyle
 import com.alijafari.red.astronomy.domain.ThemeMode
+import com.alijafari.red.astronomy.ui.aether.AetherTheme
 import com.alijafari.red.astronomy.ui.cyber.CyberTheme
 import com.alijafari.red.astronomy.ui.spatial.SpatialTheme
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
@@ -96,8 +97,19 @@ internal fun rememberAntarChromeTokens(
     val redColors = RedTheme.colors
     val spatial = SpatialTheme.palette
     val cyber = CyberTheme.palette
-    return remember(uiStyle, themeMode, redColors, spatial, cyber) {
+    val aether = AetherTheme.palette
+    return remember(uiStyle, themeMode, redColors, spatial, cyber, aether) {
         when (uiStyle) {
+            AppUiStyle.AETHER -> AntarChromeTokens(
+                sheetShape = squircleShape(36.dp),
+                cardShape = squircleShape(24.dp),
+                chipShape = squircleShape(RedCornerRadius.pill),
+                surfaceColor = redColors.surfaceElevated,
+                borderColor = aether.specularRimStart,
+                accentColor = aether.crimsonGlow,
+                accentSubtleColor = aether.crimsonGlow.copy(alpha = if (aether.isDark) 0.24f else 0.14f),
+                signalDotColor = aether.glowWhite
+            )
             AppUiStyle.CYBER -> AntarChromeTokens(
                 sheetShape = CutCornerShape(14.dp),
                 cardShape = CutCornerShape(10.dp),

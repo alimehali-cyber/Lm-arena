@@ -96,6 +96,8 @@
     <string name="ui_style_spatial_desc">طراحی فضایی VisionOS، شیشه مات درخشان و نمایشگر نقطه‌ای</string>
     <string name="ui_style_cyber">رابط سایبر گلس (Cyber Glass)</string>
     <string name="ui_style_cyber_desc">شیشه فضایی ۲.۰، شمارگر نقطه‌ای Nothing، کپسول‌های مش و پنجره برش‌خورده</string>
+    <string name="ui_style_aether">رابط تله‌متری اتر (Aether)</string>
+    <string name="ui_style_aether_desc">عدسی‌های بی‌فریم با لبه‌نور ۱ پیکسلی، کارت‌های یاقوتی، موج اسیلوسکوپ و شمارگر نقطه‌ای</string>
     <string name="theme_wine">می</string>
     <string name="theme_wine_desc">سرخ شرابی و زرشکی تیره (بورگاندی)</string>
     <string name="ok">تایید</string>

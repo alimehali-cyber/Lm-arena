@@ -3,6 +3,7 @@ package com.alijafari.red.astronomy
 import androidx.compose.ui.graphics.Color
 import com.alijafari.red.astronomy.domain.AppUiStyle
 import com.alijafari.red.astronomy.domain.ThemeMode
+import com.alijafari.red.astronomy.ui.aether.aetherPaletteFor
 import com.alijafari.red.astronomy.ui.cyber.cyberPaletteFor
 import com.alijafari.red.astronomy.ui.spatial.spatialPaletteFor
 import com.alijafari.red.astronomy.ui.theme.RedDarkColorTokens
@@ -261,7 +262,10 @@ class ImmersiveChromeTest {
             "cyber wine" to cyberPaletteFor(ThemeMode.WINE).primaryAccent,
             "spatial dark" to spatialPaletteFor(ThemeMode.DARK).neonGlow,
             "spatial light" to spatialPaletteFor(ThemeMode.LIGHT).neonGlow,
-            "spatial wine" to spatialPaletteFor(ThemeMode.WINE).neonGlow
+            "spatial wine" to spatialPaletteFor(ThemeMode.WINE).neonGlow,
+            "aether dark" to aetherPaletteFor(ThemeMode.DARK).crimsonGlow,
+            "aether light" to aetherPaletteFor(ThemeMode.LIGHT).crimsonGlow,
+            "aether wine" to aetherPaletteFor(ThemeMode.WINE).crimsonGlow
         )
         accents.forEach { (name, accent) ->
             val ink = readableInkOn(accent)
@@ -276,10 +280,11 @@ class ImmersiveChromeTest {
 
     @Test
     fun everyStyleHasItsOwnGeometryAndTheDefaultsAreTheAppsOwn() {
-        // DEFAULT and SPATIAL share the app's window corner; CYBER is tighter. The styles are distinct
-        // values, so a future style cannot silently inherit another's geometry.
-        assertEquals(3, AppUiStyle.entries.size)
-        assertTrue("the chrome branches on all three", chrome.contains("AppUiStyle.CYBER ->"))
+        // DEFAULT and SPATIAL share the app's window corner; CYBER and AETHER wear 36.dp. The styles are
+        // distinct values, so a future style cannot silently inherit another's geometry.
+        assertEquals(4, AppUiStyle.entries.size)
+        assertTrue("the chrome branches on CYBER", chrome.contains("AppUiStyle.CYBER ->"))
+        assertTrue("the chrome branches on AETHER", chrome.contains("AppUiStyle.AETHER ->"))
         assertTrue("and defaults the rest", chrome.contains("else -> RedCornerRadius.window"))
     }
 }

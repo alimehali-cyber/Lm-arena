@@ -108,11 +108,16 @@ enum class ThemeMode {
  * - [CYBER]: Spatial Glassmorphism 2.0 & Cyber-Minimalist (visionOS x Nothing OS x Teenage Engineering)
  *   with 4-layer cut glass, retro-futuristic dot-matrix counters, sub-frosted mesh gradient pill cards,
  *   spatial floating capsule bars, and crisp cutout viewport windows.
+ * - [AETHER]: Aether Telemetry UI — frameless rim-lit optical spatial lenses (`1.dp` directional specular
+ *   rim light, zero outer bezels), deep crimson/sapphire/emerald jewel radial hero cards, circular LED
+ *   dot-matrix counters, synthesizer oscilloscope waveforms with glowing bottom troughs, 60-tick radial
+ *   dial cards, glowing mesh pill cards, and tactile `← ━ →` micro-steppers.
  */
 enum class AppUiStyle {
     DEFAULT,
     SPATIAL,
-    CYBER
+    CYBER,
+    AETHER
 }
 
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {

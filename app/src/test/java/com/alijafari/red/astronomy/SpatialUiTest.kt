@@ -40,7 +40,7 @@ class SpatialUiTest {
         val state = MainUiState()
         assertEquals(AppUiStyle.DEFAULT, state.uiStyle)
         assertEquals(
-            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.CYBER),
+            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.CYBER, AppUiStyle.AETHER),
             AppUiStyle.entries
         )
         assertEquals(
@@ -121,15 +121,18 @@ class SpatialUiTest {
         val defaultSettings = source("com/alijafari/red/astronomy/ui/components/SettingsDialog.kt")
         val spatialSettings = source("com/alijafari/red/astronomy/ui/spatial/SpatialSettingsModal.kt")
         val cyberSettings = source("com/alijafari/red/astronomy/ui/cyber/CyberSettingsModal.kt")
+        val aetherSettings = source("com/alijafari/red/astronomy/ui/aether/AetherSettingsModal.kt")
 
-        for (src in listOf(defaultSettings, spatialSettings, cyberSettings)) {
+        for (src in listOf(defaultSettings, spatialSettings, cyberSettings, aetherSettings)) {
             assertTrue(src.contains("settings_section_ui_style"))
             assertTrue(src.contains("settings_ui_style_default"))
             assertTrue(src.contains("settings_ui_style_spatial"))
             assertTrue(src.contains("settings_ui_style_cyber"))
+            assertTrue(src.contains("settings_ui_style_aether"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.DEFAULT)"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.SPATIAL)"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.CYBER)"))
+            assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.AETHER)"))
             assertTrue(src.contains("settings_theme_wine"))
             assertTrue(src.contains("viewModel.setThemeMode(ThemeMode.WINE)"))
         }
@@ -153,6 +156,14 @@ class SpatialUiTest {
         assertTrue(activity.contains("CyberLabScreen("))
         assertTrue(activity.contains("CyberFloatingNavBar("))
         assertTrue(activity.contains("CyberSettingsModal("))
+
+        assertTrue(activity.contains("AetherThemeProvider("))
+        assertTrue(activity.contains("AetherAmbientBackground("))
+        assertTrue(activity.contains("AetherHomeScreen("))
+        assertTrue(activity.contains("AetherSatellitesScreen("))
+        assertTrue(activity.contains("AetherLabScreen("))
+        assertTrue(activity.contains("AetherFloatingNavBar("))
+        assertTrue(activity.contains("AetherSettingsModal("))
     }
 
     @Test

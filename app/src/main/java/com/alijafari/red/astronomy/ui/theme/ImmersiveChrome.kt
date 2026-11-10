@@ -199,10 +199,12 @@ fun chromeTokens(): ChromeTokens {
         // style keeps a sandbox sheet visually in the same family as the page that launched it.
         panelRadius = when (style) {
             AppUiStyle.CYBER -> 36.dp
+            AppUiStyle.AETHER -> 36.dp
             else -> RedCornerRadius.window
         },
         rowRadius = when (style) {
             AppUiStyle.CYBER -> 18.dp
+            AppUiStyle.AETHER -> 18.dp
             AppUiStyle.SPATIAL -> 20.dp
             AppUiStyle.DEFAULT -> 18.dp
         },
