@@ -98,7 +98,17 @@ internal fun rememberAntarChromeTokens(
     val cyber = CyberTheme.palette
     return remember(uiStyle, themeMode, redColors, spatial, cyber) {
         when (uiStyle) {
-            AppUiStyle.CYBER -> AntarChromeTokens(
+            AppUiStyle.AETHER -> AntarChromeTokens(
+            panelBg = if (isDark) Color(0xDC0B0C14) else Color(0xF0FFFFFF),
+            panelBorder = if (isDark) Color(0x66FFFFFF) else Color(0x280F172A),
+            accent = if (isDark) Color(0xFFE81E68) else Color(0xFFB80D4F),
+            accentGlow = Color(0x389E0B45),
+            textPrimary = if (isDark) Color(0xFFFFFFFF) else Color(0xFF111522),
+            textSecondary = if (isDark) Color(0x80FFFFFF) else Color(0x99334155),
+            chipFill = if (isDark) Color(0x14FFFFFF) else Color(0xFFE2E8F0),
+            cornerRadius = 36.dp
+        )
+        AppUiStyle.CYBER -> AntarChromeTokens(
                 sheetShape = CutCornerShape(14.dp),
                 cardShape = CutCornerShape(10.dp),
                 chipShape = CutCornerShape(8.dp),

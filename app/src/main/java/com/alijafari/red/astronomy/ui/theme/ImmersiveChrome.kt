@@ -198,10 +198,12 @@ fun chromeTokens(): ChromeTokens {
         // the app's 40 dp window corner, CYBER the tighter cut-glass 36 dp. Taking the value from the
         // style keeps a sandbox sheet visually in the same family as the page that launched it.
         panelRadius = when (style) {
+            AppUiStyle.AETHER -> 36.dp
             AppUiStyle.CYBER -> 36.dp
             else -> RedCornerRadius.window
         },
         rowRadius = when (style) {
+            AppUiStyle.AETHER -> 20.dp
             AppUiStyle.CYBER -> 18.dp
             AppUiStyle.SPATIAL -> 20.dp
             AppUiStyle.DEFAULT -> 18.dp

@@ -112,6 +112,7 @@ fun CyberSettingsModal(
         AppUiStyle.DEFAULT -> stringResource(R.string.ui_style_default)
         AppUiStyle.SPATIAL -> stringResource(R.string.ui_style_spatial)
         AppUiStyle.CYBER -> stringResource(R.string.ui_style_cyber)
+        AppUiStyle.AETHER -> stringResource(R.string.ui_style_aether)
     }
     val languageLabel = when (uiState.language) {
         AppLanguage.PERSIAN -> stringResource(R.string.language_persian)
@@ -252,6 +253,13 @@ fun CyberSettingsModal(
                             isSelected = uiState.uiStyle == AppUiStyle.CYBER,
                             onClick = { viewModel.setUiStyle(AppUiStyle.CYBER) },
                             modifier = Modifier.testTag("settings_ui_style_cyber")
+                        )
+                        CyberOptionRow(
+                            title = stringResource(R.string.ui_style_aether),
+                            subtitle = stringResource(R.string.ui_style_aether_desc),
+                            isSelected = uiState.uiStyle == AppUiStyle.AETHER,
+                            onClick = { viewModel.setUiStyle(AppUiStyle.AETHER) },
+                            modifier = Modifier.testTag("settings_ui_style_aether")
                         )
                     }
 

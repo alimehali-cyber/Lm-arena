@@ -114,6 +114,7 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.work.runtime.ktx)
   implementation(libs.coil.compose)
+  implementation(libs.haze)
   implementation("org.shredzone.commons:commons-suncalc:3.7")
   implementation(libs.converter.moshi)
   implementation(libs.kotlinx.coroutines.android)
