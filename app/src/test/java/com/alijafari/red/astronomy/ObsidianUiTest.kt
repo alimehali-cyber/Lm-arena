@@ -269,8 +269,8 @@ class ObsidianUiTest {
 
     @Test
     fun motionIsCriticallyDampedHardwareSprings() {
-        assertEquals(0.84f, OBSIDIAN_SPRING_DAMPING, 0.0001f)
-        assertEquals(280f, OBSIDIAN_SPRING_STIFFNESS, 0.0001f)
+        assertEquals(0.84f, OBSIDIAN_SPRING_DAMPING)
+        assertEquals(280f, OBSIDIAN_SPRING_STIFFNESS)
 
         val files = listOf(
             "ObsidianDesignSystem.kt",

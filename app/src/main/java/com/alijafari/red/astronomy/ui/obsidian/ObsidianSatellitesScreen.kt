@@ -21,8 +21,8 @@ import com.alijafari.red.astronomy.ui.screens.ISSScreen
 @Composable
 fun ObsidianSatellitesScreen(
     uiState: MainUiState,
-    viewModel: MainViewModel,
-    modifier: Modifier = Modifier
+    @Suppress("UNUSED_PARAMETER") viewModel: MainViewModel,
+    @Suppress("UNUSED_PARAMETER") modifier: Modifier = Modifier
 ) {
     ISSScreen(uiState = uiState, viewModel = viewModel)
 }
