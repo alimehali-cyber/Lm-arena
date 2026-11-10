@@ -30,13 +30,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.DrawStyle
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.drawOutline
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -808,6 +812,88 @@ fun AuroraLiquidSurface(
 }
 
 /**
+ * Paints one [Outline] in a flat colour.
+ *
+ * The platform does ship `DrawScope.drawOutline`, but it is not reachable from
+ * this module, so the three outline kinds are dispatched here instead. The
+ * generic branch is the one that actually carries Aurora: a squircle is emitted
+ * as an [Outline.Generic] path, not a rounded rectangle, because a squircle is
+ * not a rectangle with notched corners.
+ */
+private fun DrawScope.drawAuroraOutline(
+    outline: Outline,
+    color: Color,
+    alpha: Float = 1f,
+    style: DrawStyle = Fill
+) {
+    when (outline) {
+        is Outline.Rectangle -> drawRect(
+            color = color,
+            topLeft = Offset(outline.rect.left, outline.rect.top),
+            size = Size(outline.rect.width, outline.rect.height),
+            alpha = alpha,
+            style = style
+        )
+
+        is Outline.Rounded -> {
+            val r = outline.roundRect
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(r.left, r.top),
+                size = Size(r.width, r.height),
+                cornerRadius = CornerRadius(r.topLeftCornerRadius.x, r.topLeftCornerRadius.y),
+                alpha = alpha,
+                style = style
+            )
+        }
+
+        is Outline.Generic -> drawPath(
+            path = outline.path,
+            color = color,
+            alpha = alpha,
+            style = style
+        )
+    }
+}
+
+/** Paints one [Outline] with a gradient. See [drawAuroraOutline]. */
+private fun DrawScope.drawAuroraOutline(
+    outline: Outline,
+    brush: Brush,
+    alpha: Float = 1f,
+    style: DrawStyle = Fill
+) {
+    when (outline) {
+        is Outline.Rectangle -> drawRect(
+            brush = brush,
+            topLeft = Offset(outline.rect.left, outline.rect.top),
+            size = Size(outline.rect.width, outline.rect.height),
+            alpha = alpha,
+            style = style
+        )
+
+        is Outline.Rounded -> {
+            val r = outline.roundRect
+            drawRoundRect(
+                brush = brush,
+                topLeft = Offset(r.left, r.top),
+                size = Size(r.width, r.height),
+                cornerRadius = CornerRadius(r.topLeftCornerRadius.x, r.topLeftCornerRadius.y),
+                alpha = alpha,
+                style = style
+            )
+        }
+
+        is Outline.Generic -> drawPath(
+            path = outline.path,
+            brush = brush,
+            alpha = alpha,
+            style = style
+        )
+    }
+}
+
+/**
  * One lens, painted. Kept out of the composable so the five passes read as the
  * list they are rather than as an indentation.
  */
@@ -827,7 +913,7 @@ private fun DrawScope.drawAuroraLens(
 
     // 1. The glass itself.
     if (paint.top != Color.Transparent) {
-        drawOutline(
+        drawAuroraOutline(
             outline = outline,
             brush = Brush.linearGradient(
                 colors = listOf(paint.top, paint.bottom),
@@ -839,7 +925,7 @@ private fun DrawScope.drawAuroraLens(
 
     // 2. Refraction: light entering across the upper edge.
     if (paint.specularAlpha > 0f) {
-        drawOutline(
+        drawAuroraOutline(
             outline = outline,
             brush = Brush.radialGradient(
                 colors = listOf(
@@ -854,7 +940,7 @@ private fun DrawScope.drawAuroraLens(
 
     // 3. Caustic: light pooling along the lower inner edge.
     if (paint.causticAlpha > 0f) {
-        drawOutline(
+        drawAuroraOutline(
             outline = outline,
             brush = Brush.radialGradient(
                 colors = listOf(
@@ -887,7 +973,7 @@ private fun DrawScope.drawAuroraLens(
                 end = Offset(w * 0.35f, h)
             )
         }
-        drawOutline(
+        drawAuroraOutline(
             outline = outline,
             brush = rimBrush,
             style = Stroke(width = paint.rimWidth.toPx())
@@ -898,7 +984,7 @@ private fun DrawScope.drawAuroraLens(
     if (paint.specularAlpha > 0f) {
         val bandWidth = w * 0.52f
         val x = -bandWidth + (w + bandWidth) * sweepPosition
-        drawOutline(
+        drawAuroraOutline(
             outline = outline,
             brush = Brush.linearGradient(
                 colors = listOf(Color.Transparent, palette.specular, Color.Transparent),
@@ -911,12 +997,12 @@ private fun DrawScope.drawAuroraLens(
     // Selected surfaces keep their raise for the whole gesture (user-states DR3),
     // so the wash sits *under* the press rather than fighting it.
     if (selected) {
-        drawOutline(outline = outline, color = palette.selectedWash)
+        drawAuroraOutline(outline = outline, color = palette.selectedWash)
     }
 
     // Press composites over the lens: it never replaces it.
     if (pressAmount > 0f) {
-        drawOutline(
+        drawAuroraOutline(
             outline = outline,
             color = palette.pressedOverlay.copy(alpha = palette.pressedOverlay.alpha * pressAmount)
         )
@@ -926,7 +1012,7 @@ private fun DrawScope.drawAuroraLens(
     // contrast ratio against the surface it sits on instead of inheriting a
     // blanket alpha it was never measured against.
     if (dimAlpha < 1f) {
-        drawOutline(
+        drawAuroraOutline(
             outline = outline,
             color = palette.canvasBottom.copy(alpha = (1f - dimAlpha) * 0.35f)
         )
