@@ -128,4 +128,6 @@
     <string name="zig_blackhole_title">سیاه‌چاله زیگ</string>
     <string name="zig_blackhole_subtitle">شبیه‌ساز ژئودزیکی کر–شیلد</string>
     <string name="zig_blackhole_description">شبیه‌ساز تعاملی WebGL2 سیاه‌چاله کر–شیلد، اختروش TON 618 و ادغام سیاه‌چاله‌های دوتایی به همراه سقوط آزاد به درون افق رویداد، فیلتر EHT و فیزیک قرص نسبیتی.</string>
+    <string name="ui_style_aether">رابط اتر</string>
+    <string name="ui_style_aether_desc">سطوح نورانی و داده‌های زنده آسمان</string>
 </resources>

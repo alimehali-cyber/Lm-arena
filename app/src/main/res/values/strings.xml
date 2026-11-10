@@ -128,4 +128,6 @@
     <string name="zig_blackhole_title">ZIG\'s Blackhole</string>
     <string name="zig_blackhole_subtitle">Kerr–Schild Null-Geodesic Simulator</string>
     <string name="zig_blackhole_description">Interactive WebGL2 Kerr–Schild black hole, TON 618 quasar, and binary black-hole merger simulator with free-fall horizon plunge, EHT 230 GHz filter, and relativistic accretion physics.</string>
+    <string name="ui_style_aether">Aether Telemetry UI</string>
+    <string name="ui_style_aether_desc">Rim-lit jewel surfaces and live sky telemetry</string>
 </resources>

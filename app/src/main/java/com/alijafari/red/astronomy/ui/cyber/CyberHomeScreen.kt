@@ -366,6 +366,21 @@ fun CyberHomeScreen(
             contentPadding = PaddingValues(bottom = 118.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
+            if (uiState.uiStyle == com.alijafari.red.astronomy.domain.AppUiStyle.AETHER) {
+                item(key = "aether_telemetry") {
+                    com.alijafari.red.astronomy.ui.aether.AetherTelemetryDashboard(
+                        uiState = uiState,
+                        moonData = cardMoonData,
+                        sunAltitude = sunHoriz.altitudeDeg,
+                        onSettings = { viewModel.setShowSettingsDialog(true) },
+                        onLocation = { viewModel.setShowLocationSelector(true) },
+                        onMoon = { viewModel.setShowMoonWindow(true) },
+                        onNudgeMoon = { viewModel.nudgeMoonDayOffset(it) },
+                        onSky = { onNavigateToTab(3) }
+                    )
+                }
+            }
+
             // 1. UNTOUCHED FULL-BLEED SKY SCENE + SPATIAL FLOATING CAPSULE HEADER BAR
             item(key = "cyber_sky_hero") {
                 CyberSkyHeroSection(

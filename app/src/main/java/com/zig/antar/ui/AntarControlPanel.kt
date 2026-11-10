@@ -108,7 +108,7 @@ internal fun rememberAntarChromeTokens(
                 accentSubtleColor = cyber.primaryAccent.copy(alpha = if (cyber.isDark) 0.22f else 0.14f),
                 signalDotColor = cyber.signalDot
             )
-            AppUiStyle.SPATIAL -> AntarChromeTokens(
+            AppUiStyle.SPATIAL, AppUiStyle.AETHER -> AntarChromeTokens(
                 sheetShape = squircleShape(28.dp),
                 cardShape = squircleShape(18.dp),
                 chipShape = squircleShape(RedCornerRadius.pill),

@@ -202,7 +202,7 @@ fun chromeTokens(): ChromeTokens {
             else -> RedCornerRadius.window
         },
         rowRadius = when (style) {
-            AppUiStyle.CYBER -> 18.dp
+            AppUiStyle.CYBER, AppUiStyle.AETHER -> 18.dp
             AppUiStyle.SPATIAL -> 20.dp
             AppUiStyle.DEFAULT -> 18.dp
         },

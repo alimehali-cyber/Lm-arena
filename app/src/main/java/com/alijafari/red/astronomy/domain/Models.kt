@@ -108,11 +108,13 @@ enum class ThemeMode {
  * - [CYBER]: Spatial Glassmorphism 2.0 & Cyber-Minimalist (visionOS x Nothing OS x Teenage Engineering)
  *   with 4-layer cut glass, retro-futuristic dot-matrix counters, sub-frosted mesh gradient pill cards,
  *   spatial floating capsule bars, and crisp cutout viewport windows.
+ * - [AETHER]: Dark rim-lit telemetry dashboard with jewel surfaces and ambient mesh lighting.
  */
 enum class AppUiStyle {
     DEFAULT,
     SPATIAL,
-    CYBER
+    CYBER,
+    AETHER
 }
 
 enum class SkyCanvasTheme(val nameEn: String, val nameFa: String) {

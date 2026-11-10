@@ -239,7 +239,7 @@ class MainActivity : ComponentActivity() {
             }
 
             REDTheme(
-                themeMode = uiState.themeMode,
+                themeMode = if (uiState.uiStyle == AppUiStyle.AETHER) com.alijafari.red.astronomy.domain.ThemeMode.DARK else uiState.themeMode,
                 sunAltitudeDeg = sunAltitudeDeg,
                 userLatitude = uiState.userLocation.latitude,
                 userLongitude = uiState.userLocation.longitude,
@@ -337,17 +337,18 @@ class MainActivity : ComponentActivity() {
                     // The backdrop's measured brightness is still resolved and provided: the Home feed
                     // titles are written straight onto it and pick their ink from it (see BackdropInk).
                     val isSpatialUi = uiState.uiStyle == AppUiStyle.SPATIAL
-                    val isCyberUi = uiState.uiStyle == AppUiStyle.CYBER
+                    val isAetherUi = uiState.uiStyle == AppUiStyle.AETHER
+                    val isCyberUi = uiState.uiStyle == AppUiStyle.CYBER || isAetherUi
                     SpatialThemeProvider(
                         enabled = isSpatialUi,
                         themeMode = uiState.themeMode
                     ) {
                     CyberThemeProvider(
                         enabled = isCyberUi,
-                        themeMode = uiState.themeMode
+                        themeMode = if (isAetherUi) com.alijafari.red.astronomy.domain.ThemeMode.DARK else uiState.themeMode
                     ) {
                     CompositionLocalProvider(
-                        com.alijafari.red.astronomy.ui.theme.LocalBackdropLuminance provides backdropLuminance
+                        com.alijafari.red.astronomy.ui.theme.LocalBackdropLuminance provides if (isAetherUi && uiState.selectedTab != 3) 0f else backdropLuminance
                     ) {
                     Box(
                         modifier = Modifier
@@ -409,7 +410,10 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
-                            if (isCyberUi && uiState.selectedTab != 3) {
+                            if (isAetherUi && uiState.selectedTab != 3) {
+                                com.alijafari.red.astronomy.ui.aether.AetherAmbientBackground(Modifier.fillMaxSize())
+                            }
+                            if (isCyberUi && !isAetherUi && uiState.selectedTab != 3) {
                                 CyberAmbientBackground(
                                     themeMode = uiState.themeMode,
                                     isOpaqueCanvas = uiState.appBackdropMode == AppBackdropMode.NONE,
@@ -425,7 +429,7 @@ class MainActivity : ComponentActivity() {
                                 when (tab) {
                                     // Root tab 2 is retired: the Moon screen became a card on Home.
                                     0 -> when (activeStyle) {
-                                        AppUiStyle.CYBER -> CyberLabScreen(
+                                        AppUiStyle.CYBER, AppUiStyle.AETHER -> CyberLabScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
@@ -439,7 +443,7 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                     1 -> when (activeStyle) {
-                                        AppUiStyle.CYBER -> CyberSatellitesScreen(
+                                        AppUiStyle.CYBER, AppUiStyle.AETHER -> CyberSatellitesScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
@@ -457,7 +461,7 @@ class MainActivity : ComponentActivity() {
                                         viewModel = viewModel
                                     )
                                     4 -> when (activeStyle) {
-                                        AppUiStyle.CYBER -> CyberHomeScreen(
+                                        AppUiStyle.CYBER, AppUiStyle.AETHER -> CyberHomeScreen(
                                             uiState = uiState,
                                             viewModel = viewModel,
                                             onNavigateToTab = { viewModel.selectTab(it) }
@@ -482,7 +486,7 @@ class MainActivity : ComponentActivity() {
                     // Hidden while an immersive screen (the Gravity Sandbox) owns the display.
                     if (!com.zig.gravity.ui.ImmersiveScreenState.active) {
                         when (uiState.uiStyle) {
-                            AppUiStyle.CYBER -> CyberFloatingNavBar(
+                            AppUiStyle.CYBER, AppUiStyle.AETHER -> CyberFloatingNavBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
                                 modifier = Modifier
@@ -573,7 +577,7 @@ class MainActivity : ComponentActivity() {
 
                       if (uiState.showSettingsDialog) {
                           when (uiState.uiStyle) {
-                              AppUiStyle.CYBER -> CyberSettingsModal(
+                              AppUiStyle.CYBER, AppUiStyle.AETHER -> CyberSettingsModal(
                                   uiState = uiState,
                                   viewModel = viewModel,
                                   onDismiss = { viewModel.setShowSettingsDialog(false) }
