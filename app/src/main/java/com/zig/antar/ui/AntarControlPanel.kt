@@ -118,6 +118,18 @@ internal fun rememberAntarChromeTokens(
                 accentSubtleColor = spatial.neonGlow.copy(alpha = if (spatial.isDark) 0.24f else 0.16f),
                 signalDotColor = spatial.neonGlow
             )
+            AppUiStyle.OBSIDIAN -> AntarChromeTokens(
+                // Obsidian Quartz & Crimson: smoked frosted quartz sheet, Velvet Crimson accent,
+                // wide capsule chips that match the language's refracting capsule pills.
+                sheetShape = squircleShape(34.dp),
+                cardShape = squircleShape(26.dp),
+                chipShape = squircleShape(RedCornerRadius.pill),
+                surfaceColor = redColors.surfaceElevated,
+                borderColor = Color(0x8CFFFFFF),
+                accentColor = Color(0xFFB81450),
+                accentSubtleColor = Color(0x33B81450),
+                signalDotColor = Color(0xFFD95B8A)
+            )
             AppUiStyle.DEFAULT -> AntarChromeTokens(
                 sheetShape = squircleShape(28.dp),
                 cardShape = squircleShape(16.dp),

@@ -276,10 +276,11 @@ class ImmersiveChromeTest {
 
     @Test
     fun everyStyleHasItsOwnGeometryAndTheDefaultsAreTheAppsOwn() {
-        // DEFAULT and SPATIAL share the app's window corner; CYBER is tighter. The styles are distinct
-        // values, so a future style cannot silently inherit another's geometry.
-        assertEquals(3, AppUiStyle.entries.size)
-        assertTrue("the chrome branches on all three", chrome.contains("AppUiStyle.CYBER ->"))
+        // DEFAULT and SPATIAL share the app's window corner; CYBER is tighter, OBSIDIAN wider. The
+        // styles are distinct values, so a future style cannot silently inherit another's geometry.
+        assertEquals(4, AppUiStyle.entries.size)
+        assertTrue("the chrome branches on the cut-glass style", chrome.contains("AppUiStyle.CYBER ->"))
+        assertTrue("and on the obsidian style", chrome.contains("AppUiStyle.OBSIDIAN ->"))
         assertTrue("and defaults the rest", chrome.contains("else -> RedCornerRadius.window"))
     }
 }

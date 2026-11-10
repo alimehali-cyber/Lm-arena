@@ -71,6 +71,13 @@ import com.alijafari.red.astronomy.ui.spatial.SpatialLabScreen
 import com.alijafari.red.astronomy.ui.spatial.SpatialSatellitesScreen
 import com.alijafari.red.astronomy.ui.spatial.SpatialSettingsModal
 import com.alijafari.red.astronomy.ui.spatial.SpatialThemeProvider
+import com.alijafari.red.astronomy.ui.obsidian.EditorialSilhouetteBackdrop
+import com.alijafari.red.astronomy.ui.obsidian.ObsidianFloatingNavBar
+import com.alijafari.red.astronomy.ui.obsidian.ObsidianHomeScreen
+import com.alijafari.red.astronomy.ui.obsidian.ObsidianLabScreen
+import com.alijafari.red.astronomy.ui.obsidian.ObsidianSatellitesScreen
+import com.alijafari.red.astronomy.ui.obsidian.ObsidianSettingsModal
+import com.alijafari.red.astronomy.ui.obsidian.ObsidianThemeProvider
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.backdrop.LiveSkyBackdrop
 import com.alijafari.red.astronomy.ui.backdrop.PhotoBackdrop
@@ -338,12 +345,19 @@ class MainActivity : ComponentActivity() {
                     // titles are written straight onto it and pick their ink from it (see BackdropInk).
                     val isSpatialUi = uiState.uiStyle == AppUiStyle.SPATIAL
                     val isCyberUi = uiState.uiStyle == AppUiStyle.CYBER
+                    val isObsidianUi = uiState.uiStyle == AppUiStyle.OBSIDIAN
                     SpatialThemeProvider(
                         enabled = isSpatialUi,
                         themeMode = uiState.themeMode
                     ) {
                     CyberThemeProvider(
                         enabled = isCyberUi,
+                        themeMode = uiState.themeMode
+                    ) {
+                    // Obsidian Quartz & Crimson Telemetry: harmonizes the shared RedColors tokens
+                    // (dialogs, immersive chrome, sandbox sheets) with the Alabaster / Velvet palette.
+                    ObsidianThemeProvider(
+                        enabled = isObsidianUi,
                         themeMode = uiState.themeMode
                     ) {
                     CompositionLocalProvider(
@@ -417,6 +431,13 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
+                            if (isObsidianUi && uiState.selectedTab != 3) {
+                                EditorialSilhouetteBackdrop(
+                                    themeMode = uiState.themeMode,
+                                    isOpaqueCanvas = uiState.appBackdropMode == AppBackdropMode.NONE,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                             // The screens, drawn over the backdrop.
                             Crossfade(
                                 targetState = Pair(uiState.selectedTab, uiState.uiStyle),
@@ -425,6 +446,10 @@ class MainActivity : ComponentActivity() {
                                 when (tab) {
                                     // Root tab 2 is retired: the Moon screen became a card on Home.
                                     0 -> when (activeStyle) {
+                                        AppUiStyle.OBSIDIAN -> ObsidianLabScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
+                                        )
                                         AppUiStyle.CYBER -> CyberLabScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
@@ -439,6 +464,10 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                     1 -> when (activeStyle) {
+                                        AppUiStyle.OBSIDIAN -> ObsidianSatellitesScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel
+                                        )
                                         AppUiStyle.CYBER -> CyberSatellitesScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
@@ -457,6 +486,11 @@ class MainActivity : ComponentActivity() {
                                         viewModel = viewModel
                                     )
                                     4 -> when (activeStyle) {
+                                        AppUiStyle.OBSIDIAN -> ObsidianHomeScreen(
+                                            uiState = uiState,
+                                            viewModel = viewModel,
+                                            onNavigateToTab = { viewModel.selectTab(it) }
+                                        )
                                         AppUiStyle.CYBER -> CyberHomeScreen(
                                             uiState = uiState,
                                             viewModel = viewModel,
@@ -482,6 +516,13 @@ class MainActivity : ComponentActivity() {
                     // Hidden while an immersive screen (the Gravity Sandbox) owns the display.
                     if (!com.zig.gravity.ui.ImmersiveScreenState.active) {
                         when (uiState.uiStyle) {
+                            AppUiStyle.OBSIDIAN -> ObsidianFloatingNavBar(
+                                selectedTab = uiState.selectedTab,
+                                onTabSelected = { viewModel.selectTab(it) },
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .splashReveal(splashState, SplashRevealRole.NavigationBar)
+                            )
                             AppUiStyle.CYBER -> CyberFloatingNavBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
@@ -583,6 +624,11 @@ class MainActivity : ComponentActivity() {
                                   viewModel = viewModel,
                                   onDismiss = { viewModel.setShowSettingsDialog(false) }
                               )
+                              AppUiStyle.OBSIDIAN -> ObsidianSettingsModal(
+                                  uiState = uiState,
+                                  viewModel = viewModel,
+                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
+                              )
                               AppUiStyle.DEFAULT -> SettingsDialog(
                                   uiState = uiState,
                                   viewModel = viewModel,
@@ -632,6 +678,7 @@ class MainActivity : ComponentActivity() {
                           )
                       }
                   }
+                }
                 }
                 }
                 }

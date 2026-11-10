@@ -17,9 +17,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Verifies all three selectable UI design systems ([AppUiStyle.DEFAULT], [AppUiStyle.SPATIAL],
- * [AppUiStyle.CYBER]), the Wine ("می") burgundy theme across all three UIs, Settings switchers,
- * and MainActivity routing.
+ * Verifies all four selectable UI design systems ([AppUiStyle.DEFAULT], [AppUiStyle.SPATIAL],
+ * [AppUiStyle.CYBER], [AppUiStyle.OBSIDIAN]), the Wine ("می") burgundy theme across all of them,
+ * Settings switchers, and MainActivity routing.
  */
 class SpatialUiTest {
 
@@ -40,7 +40,7 @@ class SpatialUiTest {
         val state = MainUiState()
         assertEquals(AppUiStyle.DEFAULT, state.uiStyle)
         assertEquals(
-            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.CYBER),
+            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.CYBER, AppUiStyle.OBSIDIAN),
             AppUiStyle.entries
         )
         assertEquals(
@@ -117,12 +117,13 @@ class SpatialUiTest {
     }
 
     @Test
-    fun allThreeSettingsMenusExposeAllThreeUiStylesAndWineTheme() {
+    fun everySettingsMenuExposesEveryUiStyleAndWineTheme() {
         val defaultSettings = source("com/alijafari/red/astronomy/ui/components/SettingsDialog.kt")
         val spatialSettings = source("com/alijafari/red/astronomy/ui/spatial/SpatialSettingsModal.kt")
         val cyberSettings = source("com/alijafari/red/astronomy/ui/cyber/CyberSettingsModal.kt")
+        val obsidianSettings = source("com/alijafari/red/astronomy/ui/obsidian/ObsidianSettingsModal.kt")
 
-        for (src in listOf(defaultSettings, spatialSettings, cyberSettings)) {
+        for (src in listOf(defaultSettings, spatialSettings, cyberSettings, obsidianSettings)) {
             assertTrue(src.contains("settings_section_ui_style"))
             assertTrue(src.contains("settings_ui_style_default"))
             assertTrue(src.contains("settings_ui_style_spatial"))
@@ -130,13 +131,15 @@ class SpatialUiTest {
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.DEFAULT)"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.SPATIAL)"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.CYBER)"))
+            assertTrue(src.contains("settings_ui_style_obsidian"))
+            assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.OBSIDIAN)"))
             assertTrue(src.contains("settings_theme_wine"))
             assertTrue(src.contains("viewModel.setThemeMode(ThemeMode.WINE)"))
         }
     }
 
     @Test
-    fun mainActivityRoutesAcrossDefaultSpatialAndCyberGlassScreens() {
+    fun mainActivityRoutesAcrossDefaultSpatialCyberAndObsidianScreens() {
         val activity = source("com/alijafari/red/astronomy/MainActivity.kt")
         assertTrue(activity.contains("SpatialThemeProvider("))
         assertTrue(activity.contains("SpatialAtmosphereBackground("))
@@ -153,6 +156,14 @@ class SpatialUiTest {
         assertTrue(activity.contains("CyberLabScreen("))
         assertTrue(activity.contains("CyberFloatingNavBar("))
         assertTrue(activity.contains("CyberSettingsModal("))
+
+        assertTrue(activity.contains("ObsidianThemeProvider("))
+        assertTrue(activity.contains("EditorialSilhouetteBackdrop("))
+        assertTrue(activity.contains("ObsidianHomeScreen("))
+        assertTrue(activity.contains("ObsidianSatellitesScreen("))
+        assertTrue(activity.contains("ObsidianLabScreen("))
+        assertTrue(activity.contains("ObsidianFloatingNavBar("))
+        assertTrue(activity.contains("ObsidianSettingsModal("))
     }
 
     @Test

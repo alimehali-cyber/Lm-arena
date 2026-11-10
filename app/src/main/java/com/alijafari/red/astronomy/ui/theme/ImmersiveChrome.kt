@@ -62,7 +62,8 @@ import com.alijafari.red.astronomy.domain.AppUiStyle
  * from* [RedTheme]'s tokens, which are themselves already adapted by [AppUiStyle]'s Cyber and Spatial
  * providers. So the chrome follows the selected style and the selected theme automatically —
  * [AppUiStyle.DEFAULT]'s vermilion, [AppUiStyle.CYBER]'s cut-glass accents, [AppUiStyle.SPATIAL]'s
- * desert neon, dark, light or wine — with no per-style branching at the call sites.
+ * desert neon, [AppUiStyle.OBSIDIAN]'s velvet crimson, dark, light or wine — with no per-style
+ * branching at the call sites.
  *
  * ## What makes chrome "the app's chrome"
  *
@@ -194,16 +195,20 @@ fun chromeTokens(): ChromeTokens {
         success = colors.statusSuccess,
         warning = colors.statusWarning,
         danger = colors.statusError,
-        // The three styles already differ in how tight their containers are: DEFAULT and SPATIAL wear
-        // the app's 40 dp window corner, CYBER the tighter cut-glass 36 dp. Taking the value from the
-        // style keeps a sandbox sheet visually in the same family as the page that launched it.
+        // The styles already differ in how tight their containers are: DEFAULT and SPATIAL wear the
+        // app's 40 dp window corner, CYBER the tighter cut-glass 36 dp, OBSIDIAN a wider 44 dp quartz
+        // plate. Taking the value from the style keeps a sandbox sheet in the same family as the page
+        // that launched it.
         panelRadius = when (style) {
             AppUiStyle.CYBER -> 36.dp
+            // Obsidian's quartz plates run a touch wider than the app's window corner.
+            AppUiStyle.OBSIDIAN -> 44.dp
             else -> RedCornerRadius.window
         },
         rowRadius = when (style) {
             AppUiStyle.CYBER -> 18.dp
             AppUiStyle.SPATIAL -> 20.dp
+            AppUiStyle.OBSIDIAN -> 22.dp
             AppUiStyle.DEFAULT -> 18.dp
         },
         glow = when (style) {

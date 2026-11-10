@@ -112,6 +112,7 @@ fun CyberSettingsModal(
         AppUiStyle.DEFAULT -> stringResource(R.string.ui_style_default)
         AppUiStyle.SPATIAL -> stringResource(R.string.ui_style_spatial)
         AppUiStyle.CYBER -> stringResource(R.string.ui_style_cyber)
+        AppUiStyle.OBSIDIAN -> stringResource(R.string.ui_style_obsidian)
     }
     val languageLabel = when (uiState.language) {
         AppLanguage.PERSIAN -> stringResource(R.string.language_persian)
@@ -252,6 +253,13 @@ fun CyberSettingsModal(
                             isSelected = uiState.uiStyle == AppUiStyle.CYBER,
                             onClick = { viewModel.setUiStyle(AppUiStyle.CYBER) },
                             modifier = Modifier.testTag("settings_ui_style_cyber")
+                        )
+                        CyberOptionRow(
+                            title = stringResource(R.string.ui_style_obsidian),
+                            subtitle = stringResource(R.string.ui_style_obsidian_desc),
+                            isSelected = uiState.uiStyle == AppUiStyle.OBSIDIAN,
+                            onClick = { viewModel.setUiStyle(AppUiStyle.OBSIDIAN) },
+                            modifier = Modifier.testTag("settings_ui_style_obsidian")
                         )
                     }
 
