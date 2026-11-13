@@ -40,7 +40,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -69,6 +68,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -87,8 +87,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.ui.theme.LocalRedColors
+import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedTheme
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -401,7 +403,8 @@ fun AetherThemeProvider(
 // ============================================================================
 
 /**
- * Razor-thin 1.dp directional specular rim light (`RoundedCornerShape(cornerRadius)`):
+ * Razor-thin 1.dp directional specular rim light (`squircleShape(cornerRadius)` for containers,
+ * `RedShapes.capsule` for capsules/pills):
  * Bright on the top-left where light hits (40-45% white), fading to near-transparent
  * in the middle (3-8% white), with a subtle bounce reflection on the bottom-right (20-22% white).
  *
@@ -410,7 +413,8 @@ fun AetherThemeProvider(
 fun Modifier.specularRimBorder(
     cornerRadius: Dp = 36.dp,
     strokeWidth: Dp = 1.dp,
-    tiltTarget: Offset? = null
+    tiltTarget: Offset? = null,
+    shape: Shape = squircleShape(cornerRadius)
 ): Modifier {
     val startOffset = if (tiltTarget != null) {
         Offset(
@@ -441,7 +445,7 @@ fun Modifier.specularRimBorder(
             start = startOffset,
             end = endOffset
         ),
-        shape = RoundedCornerShape(cornerRadius)
+        shape = shape
     )
 }
 
@@ -450,7 +454,8 @@ fun Modifier.specularRimBorder(
 // ============================================================================
 
 /**
- * Frameless floating optical jewel lens (`RoundedCornerShape(36.dp)`):
+ * Frameless floating optical jewel lens (`squircleShape(36.dp)` by default, or `RedShapes.capsule`
+ * for vertical/horizontal pill lenses following `Squircle.kt` rules):
  * - Deep high-contrast dark center (`#1C020D`) -> mid jewel transition (`#5E052A`) ->
  *   glowing outer perimeter (`#9E0B45`).
  * - Tactile bouncy spring press physics (`0.975f` via `graphicsLayer`) + specular rim tilt
@@ -461,6 +466,7 @@ fun AetherJewelCard(
     modifier: Modifier = Modifier,
     jewelTone: AetherJewelTone = AetherJewelTone.CRIMSON,
     cornerRadius: Dp = 36.dp,
+    shape: Shape = squircleShape(cornerRadius),
     contentPadding: PaddingValues = PaddingValues(26.dp),
     elevation: Dp = 28.dp,
     onClick: (() -> Unit)? = null,
@@ -484,8 +490,6 @@ fun AetherJewelCard(
         ),
         label = "AetherJewelCardScale"
     )
-
-    val shape = RoundedCornerShape(cornerRadius)
 
     Box(
         modifier = modifier
@@ -512,7 +516,8 @@ fun AetherJewelCard(
             )
             .specularRimBorder(
                 cornerRadius = cornerRadius,
-                tiltTarget = if (isPressed) touchPoint else null
+                tiltTarget = if (isPressed) touchPoint else null,
+                shape = shape
             )
             .pointerInput(Unit) {
                 awaitEachGesture {
@@ -554,6 +559,7 @@ fun AetherJewelCard(
 fun AetherFrostedCard(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 36.dp,
+    shape: Shape = squircleShape(cornerRadius),
     contentPadding: PaddingValues = PaddingValues(22.dp),
     accentGlow: Color? = null,
     onClick: (() -> Unit)? = null,
@@ -572,8 +578,6 @@ fun AetherFrostedCard(
         ),
         label = "AetherFrostedCardScale"
     )
-
-    val shape = RoundedCornerShape(cornerRadius)
 
     Box(
         modifier = modifier
@@ -606,7 +610,8 @@ fun AetherFrostedCard(
             )
             .specularRimBorder(
                 cornerRadius = cornerRadius,
-                tiltTarget = if (isPressed) touchPoint else null
+                tiltTarget = if (isPressed) touchPoint else null,
+                shape = shape
             )
             .pointerInput(Unit) {
                 awaitEachGesture {
@@ -798,13 +803,15 @@ fun AetherRadialDialCard(
         label = "AetherDialFraction"
     )
 
+    val dialShape = squircleShape(34.dp)
+
     Box(
         modifier = modifier
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(34.dp))
+            .clip(dialShape)
             .background(palette.frostedOpticalVeil)
             .background(
                 Brush.linearGradient(
@@ -814,7 +821,7 @@ fun AetherRadialDialCard(
                     )
                 )
             )
-            .specularRimBorder(cornerRadius = 34.dp)
+            .specularRimBorder(cornerRadius = 34.dp, shape = dialShape)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
@@ -954,11 +961,11 @@ fun AetherGlowingMeshPillCard(
             }
             .shadow(
                 elevation = 14.dp,
-                shape = RoundedCornerShape(50),
+                shape = RedShapes.capsule,
                 ambientColor = glowColors.first().copy(alpha = 0.35f),
                 spotColor = glowColors.first().copy(alpha = 0.35f)
             )
-            .clip(RoundedCornerShape(50))
+            .clip(RedShapes.capsule)
             .background(
                 Brush.radialGradient(
                     colors = glowColors,
@@ -966,7 +973,7 @@ fun AetherGlowingMeshPillCard(
                     radius = 300f
                 )
             )
-            .specularRimBorder(cornerRadius = 50.dp)
+            .specularRimBorder(shape = RedShapes.capsule)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
@@ -1066,10 +1073,10 @@ fun AetherFloatingStatusCapsule(
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(100.dp))
+            .clip(RedShapes.capsule)
             .background(Color(0x5408080C))
             .background(Color.White.copy(alpha = 0.08f))
-            .specularRimBorder(cornerRadius = 100.dp)
+            .specularRimBorder(shape = RedShapes.capsule)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
@@ -1380,14 +1387,14 @@ fun AetherPillBadge(
     val haptics = LocalHapticFeedback.current
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(50))
+            .clip(RedShapes.capsule)
             .background(
                 if (selected) tint.copy(alpha = 0.18f) else Color.Transparent
             )
             .border(
                 width = 1.dp,
                 color = tint.copy(alpha = if (selected) 0.72f else 0.35f),
-                shape = RoundedCornerShape(50)
+                shape = RedShapes.capsule
             )
             .then(
                 if (onClick != null) {
@@ -1412,7 +1419,8 @@ fun AetherPillBadge(
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Light
             ),
             color = tint.copy(alpha = if (selected) 0.98f else 0.88f),
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -1493,7 +1501,7 @@ fun AetherOpticalIconLens(
                 if (isActive) palette.crimsonGlow.copy(alpha = 0.36f)
                 else Color.White.copy(alpha = 0.08f)
             )
-            .specularRimBorder(cornerRadius = 50.dp)
+            .specularRimBorder(shape = CircleShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null

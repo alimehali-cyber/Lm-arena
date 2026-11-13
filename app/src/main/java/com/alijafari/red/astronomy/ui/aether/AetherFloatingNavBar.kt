@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
@@ -52,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
+import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 
@@ -99,14 +99,14 @@ fun AetherFloatingNavBar(
                 .height(62.dp)
                 .shadow(
                     elevation = 24.dp,
-                    shape = RoundedCornerShape(100.dp),
+                    shape = RedShapes.capsule,
                     ambientColor = palette.crimsonGlow.copy(alpha = 0.28f),
                     spotColor = palette.crimsonGlow.copy(alpha = 0.28f)
                 )
-                .clip(RoundedCornerShape(100.dp))
+                .clip(RedShapes.capsule)
                 .background(palette.frostedOpticalVeil)
                 .background(palette.frostedGlassFill)
-                .specularRimBorder(cornerRadius = 100.dp)
+                .specularRimBorder(shape = RedShapes.capsule)
                 .padding(horizontal = 6.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -137,7 +137,7 @@ fun AetherFloatingNavBar(
                                 scaleX = scale
                                 scaleY = scale
                             }
-                            .clip(RoundedCornerShape(50))
+                            .clip(RedShapes.capsule)
                             .background(
                                 Brush.radialGradient(
                                     colors = listOf(
@@ -147,7 +147,7 @@ fun AetherFloatingNavBar(
                                     radius = 220f
                                 )
                             )
-                            .specularRimBorder(cornerRadius = 50.dp)
+                            .specularRimBorder(shape = RedShapes.capsule)
                             .clickable(
                                 interactionSource = interactionSource,
                                 indication = null
@@ -195,7 +195,7 @@ fun AetherFloatingNavBar(
                                 scaleX = scale
                                 scaleY = scale
                             }
-                            .clip(RoundedCornerShape(50))
+                            .clip(RedShapes.capsule)
                             .clickable(
                                 interactionSource = interactionSource,
                                 indication = null

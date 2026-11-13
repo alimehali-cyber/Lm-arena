@@ -39,7 +39,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MyLocation
@@ -68,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
@@ -75,12 +75,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -122,6 +124,7 @@ import com.alijafari.red.astronomy.ui.home.TonightEventsKey
 import com.alijafari.red.astronomy.ui.home.rememberReadyTimeMs
 import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.LocalBackdropLuminance
+import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.backdropInkFor
@@ -150,9 +153,11 @@ private enum class AetherTonightFilter {
  *   #5E052A -> #9E0B45`, 1.dp specular rim, rolling Rubik-Dots counter, `● Risen` / `○ Planned`
  *   legend, 5 LED dots, cubic-bezier `AetherOscilloscopeWaveformCanvas` with glowing white bottom
  *   troughs, rolling `31.sp` light secondary readout, and haptic `← ━ →` micro-stepper).
- * - Bento Telemetry Row: Frosted 60-Tick `AetherRadialDialCard` (`34.dp`) + stacked Pink & Amber
- *   `AetherGlowingMeshPillCard`s (`RoundedCornerShape(50)`).
- * - Frameless Sapphire & Crimson Optical Lenses for the interactive 2.5D Moon sphere and Eclipse plate.
+ * - Bento Telemetry Row: Frosted 60-Tick `AetherRadialDialCard` (`34.dp` squircle) + stacked Pink & Amber
+ *   `AetherGlowingMeshPillCard`s (`RedShapes.capsule`).
+ * - Frameless Side-by-Side Vertical Pill Optical Lenses (`RedShapes.capsule` following `Squircle.kt`
+ *   capsule rules with semicircular rounded top and bottom) housing enlarged concentric 2.5D Moon
+ *   sphere and Eclipse plate renders.
  * - Frameless Frosted Spatial "What's Up Tonight" telemetry deck with spline visibility curves.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -393,34 +398,55 @@ fun AetherHomeScreen(
                 )
             }
 
-            // 4. FRAMELESS LUNAR & ECLIPSE OPTICAL LENSES (2.5D Moon + Eclipse Plate)
+            // 4. FRAMELESS SIDE-BY-SIDE VERTICAL PILL OPTICAL LENSES (2.5D Moon + Eclipse Plate)
             item(key = "aether_moon_eclipse_lenses") {
-                Row(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = RedSpacing.lg),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        .padding(horizontal = RedSpacing.lg)
                 ) {
-                    AetherLunarOpticalCard(
-                        uiState = uiState,
-                        viewModel = viewModel,
-                        isFa = isFa,
-                        moonData = cardMoonData,
-                        sunHoriz = cardSunHoriz,
-                        onScrubDays = { delta -> viewModel.nudgeMoonDayOffset(delta) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("home_moon_card")
-                    )
+                    val density = LocalDensity.current
+                    val gap = 14.dp
+                    val availableForCards = (maxWidth - gap).coerceAtLeast(0.dp)
+                    val cardWidth = (availableForCards / 2f).coerceAtMost(214.dp)
+                    val renderInset = 10.dp
+                    val renderSize = (cardWidth - renderInset * 2).coerceAtLeast(0.dp)
+                    val fontBoost = ((density.fontScale - 1f).coerceAtLeast(0f) * 44f).dp
+                    val pillHeight = (renderInset + renderSize + 158.dp + fontBoost)
+                        .coerceAtLeast(cardWidth * 1.88f)
 
-                    AetherEclipseOpticalCard(
-                        eclipse = nextEclipse,
-                        isFa = isFa,
-                        onClick = { viewModel.setShowEclipseWindow(true) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("home_eclipse_card")
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        AetherLunarOpticalCard(
+                            uiState = uiState,
+                            viewModel = viewModel,
+                            isFa = isFa,
+                            moonData = cardMoonData,
+                            sunHoriz = cardSunHoriz,
+                            renderSize = renderSize,
+                            renderInset = renderInset,
+                            onScrubDays = { delta -> viewModel.nudgeMoonDayOffset(delta) },
+                            modifier = Modifier
+                                .width(cardWidth)
+                                .height(pillHeight)
+                                .testTag("home_moon_card")
+                        )
+
+                        AetherEclipseOpticalCard(
+                            eclipse = nextEclipse,
+                            isFa = isFa,
+                            renderSize = renderSize,
+                            renderInset = renderInset,
+                            onClick = { viewModel.setShowEclipseWindow(true) },
+                            modifier = Modifier
+                                .width(cardWidth)
+                                .height(pillHeight)
+                                .testTag("home_eclipse_card")
+                        )
+                    }
                 }
             }
 
@@ -702,10 +728,10 @@ private fun AetherSkyHeroSection(
             Row(
                 modifier = Modifier
                     .weight(1f, fill = false)
-                    .clip(RoundedCornerShape(100.dp))
+                    .clip(RedShapes.capsule)
                     .background(Color(0x5408080C))
                     .background(Color.White.copy(alpha = 0.08f))
-                    .specularRimBorder(cornerRadius = 100.dp)
+                    .specularRimBorder(shape = RedShapes.capsule)
                     .clickable { viewModel.setShowLocationSelector(true) }
                     .padding(horizontal = 14.dp, vertical = 8.dp)
                     .testTag("home_location_selector_button"),
@@ -736,10 +762,10 @@ private fun AetherSkyHeroSection(
 
             Row(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(100.dp))
+                    .clip(RedShapes.capsule)
                     .background(Color(0x5408080C))
                     .background(Color.White.copy(alpha = 0.08f))
-                    .specularRimBorder(cornerRadius = 100.dp)
+                    .specularRimBorder(shape = RedShapes.capsule)
                     .clickable { viewModel.setShowSkyViewer(true) }
                     .padding(horizontal = 12.dp, vertical = 8.dp)
                     .testTag("home_sky_expand_button"),
@@ -1033,6 +1059,8 @@ private fun AetherLunarOpticalCard(
     isFa: Boolean,
     moonData: MoonEngine.MoonData,
     sunHoriz: CoordinateEngine.Horizontal,
+    renderSize: Dp,
+    renderInset: Dp,
     onScrubDays: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1047,81 +1075,113 @@ private fun AetherLunarOpticalCard(
     AetherJewelCard(
         modifier = modifier,
         jewelTone = AetherJewelTone.SAPPHIRE,
-        cornerRadius = 36.dp,
-        contentPadding = PaddingValues(18.dp),
-        elevation = 20.dp,
+        shape = RedShapes.capsule,
+        contentPadding = PaddingValues(
+            start = renderInset,
+            top = renderInset,
+            end = renderInset,
+            bottom = 22.dp
+        ),
+        elevation = 22.dp,
         onClick = { viewModel.setShowMoonWindow(true) }
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = if (isFa) "ماه" else "Lunar Lens",
-                style = RedTypographyTokens.caption.copy(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                ),
-                color = Color.White.copy(alpha = 0.85f)
-            )
-            AetherPillBadge(text = "%")
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Box(
-            modifier = Modifier
-                .size(92.dp)
-                .align(Alignment.CenterHorizontally)
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures { change, dragAmount ->
-                        change.consume()
-                        onScrubDays(dragAmount / 16f)
+            Box(
+                modifier = Modifier
+                    .size(renderSize)
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = CircleShape,
+                        clip = false,
+                        ambientColor = Color.Black.copy(alpha = 0.50f),
+                        spotColor = AetherSapphireCoreEdge.copy(alpha = 0.45f)
+                    )
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures { change, dragAmount ->
+                            change.consume()
+                            onScrubDays(dragAmount / 16f)
+                        }
                     }
+                    .testTag("home_moon_card_render"),
+                contentAlignment = Alignment.Center
+            ) {
+                MoonPhaseRender(
+                    moonData = moonData,
+                    sunHoriz = sunHoriz,
+                    latitude = uiState.userLocation.latitude,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+                ) {
+                    Text(
+                        text = if (isFa) "ماه" else "Lunar Lens",
+                        style = RedTypographyTokens.caption.copy(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = Color.White.copy(alpha = 0.86f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    AetherPillBadge(text = if (isFa) "٪" else "%")
                 }
-                .testTag("home_moon_card_render"),
-            contentAlignment = Alignment.Center
-        ) {
-            MoonPhaseRender(
-                moonData = moonData,
-                sunHoriz = sunHoriz,
-                latitude = uiState.userLocation.latitude,
-                modifier = Modifier.fillMaxSize()
-            )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                AetherRollingDotMatrixCounter(
+                    valueText = illumText,
+                    dotSize = 2.35.dp,
+                    dotGap = 0.85.dp,
+                    charGap = 3.0.dp,
+                    color = AetherGlowWhite,
+                    glowColor = AetherSapphireCoreEdge
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = phaseName,
+                    style = RedTypographyTokens.caption.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Light
+                    ),
+                    color = Color.White.copy(alpha = 0.76f),
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Box(
+                modifier = Modifier
+                    .height(22.dp)
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                AetherMicroStepper(
+                    onDecrement = { onScrubDays(-1f) },
+                    onIncrement = { onScrubDays(1f) }
+                )
+            }
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        AetherRollingDotMatrixCounter(
-            valueText = illumText,
-            dotSize = 2.15.dp,
-            dotGap = 0.82.dp,
-            charGap = 2.8.dp,
-            color = Color.White,
-            glowColor = AetherSapphireCoreEdge
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = phaseName,
-            style = RedTypographyTokens.caption.copy(
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Light
-            ),
-            color = Color.White.copy(alpha = 0.72f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        AetherMicroStepper(
-            onDecrement = { onScrubDays(-1f) },
-            onIncrement = { onScrubDays(1f) },
-            modifier = Modifier.align(Alignment.End)
-        )
     }
 }
 
@@ -1129,6 +1189,8 @@ private fun AetherLunarOpticalCard(
 private fun AetherEclipseOpticalCard(
     eclipse: EclipseEngine.EclipseResult?,
     isFa: Boolean,
+    renderSize: Dp,
+    renderInset: Dp,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1156,81 +1218,109 @@ private fun AetherEclipseOpticalCard(
     AetherJewelCard(
         modifier = modifier,
         jewelTone = AetherJewelTone.EMERALD,
-        cornerRadius = 36.dp,
-        contentPadding = PaddingValues(18.dp),
-        elevation = 20.dp,
+        shape = RedShapes.capsule,
+        contentPadding = PaddingValues(
+            start = renderInset,
+            top = renderInset,
+            end = renderInset,
+            bottom = 22.dp
+        ),
+        elevation = 22.dp,
         onClick = onClick
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = if (isFa) "گرفت" else "Eclipse",
-                style = RedTypographyTokens.caption.copy(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                ),
-                color = Color.White.copy(alpha = 0.85f)
-            )
-            AetherPillBadge(text = if (isFa) "روز" else "DAYS")
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Box(
-            modifier = Modifier
-                .size(92.dp)
-                .align(Alignment.CenterHorizontally)
-                .testTag("home_eclipse_card_render"),
-            contentAlignment = Alignment.Center
-        ) {
-            EclipseRender(
-                type = eclipseType,
-                contentDescription = titleText,
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .aspectRatio(1f)
-            )
+                    .size(renderSize)
+                    .testTag("home_eclipse_card_render"),
+                contentAlignment = Alignment.Center
+            ) {
+                EclipseRender(
+                    type = eclipseType,
+                    contentDescription = titleText,
+                    elevationDp = 12.dp,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .aspectRatio(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+                ) {
+                    Text(
+                        text = if (isFa) "گرفت" else "Eclipse",
+                        style = RedTypographyTokens.caption.copy(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = Color.White.copy(alpha = 0.86f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    AetherPillBadge(text = if (isFa) "روز" else "DAYS")
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                AetherRollingDotMatrixCounter(
+                    valueText = daysText,
+                    dotSize = 2.35.dp,
+                    dotGap = 0.85.dp,
+                    charGap = 3.0.dp,
+                    color = AetherGlowWhite,
+                    glowColor = AetherEmeraldCoreEdge
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = titleText,
+                    style = RedTypographyTokens.caption.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Light
+                    ),
+                    color = Color.White.copy(alpha = 0.78f),
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Box(
+                modifier = Modifier
+                    .height(22.dp)
+                    .padding(horizontal = 18.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = dateSubtitle,
+                    style = RedTypographyTokens.caption.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Light
+                    ),
+                    color = Color.White.copy(alpha = 0.62f),
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        AetherRollingDotMatrixCounter(
-            valueText = daysText,
-            dotSize = 2.15.dp,
-            dotGap = 0.82.dp,
-            charGap = 2.8.dp,
-            color = Color.White,
-            glowColor = AetherEmeraldCoreEdge
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = titleText,
-            style = RedTypographyTokens.caption.copy(
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Light
-            ),
-            color = Color.White.copy(alpha = 0.78f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = dateSubtitle,
-            style = RedTypographyTokens.caption.copy(
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Light
-            ),
-            color = Color.White.copy(alpha = 0.55f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 

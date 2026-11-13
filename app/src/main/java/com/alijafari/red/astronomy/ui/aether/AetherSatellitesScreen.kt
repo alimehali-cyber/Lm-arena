@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -97,6 +96,7 @@ import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -445,13 +445,13 @@ fun AetherSatellitesScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Interactive 2:1 Earth Ground-Track & Solar Terminator Viewport
-            val viewportShape = RoundedCornerShape(24.dp)
+            val viewportShape = squircleShape(24.dp)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(2.0f)
                     .clip(viewportShape)
-                    .specularRimBorder(cornerRadius = 24.dp)
+                    .specularRimBorder(cornerRadius = 24.dp, shape = viewportShape)
             ) {
                 val subSolarPoint = remember(currentSimulationMs) {
                     SatelliteEngine.calculateSubSolarPoint(currentSimulationMs)
@@ -891,7 +891,7 @@ fun AetherSatellitesScreen(
                 modifier = Modifier
                     .clip(RedShapes.capsule)
                     .background(palette.frostedGlassFill)
-                    .specularRimBorder(cornerRadius = 100.dp)
+                    .specularRimBorder(shape = RedShapes.capsule)
                     .padding(horizontal = 4.dp, vertical = 3.dp)
                     .testTag("map_theme_selector"),
                 horizontalArrangement = Arrangement.spacedBy(2.dp)

@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -73,6 +72,7 @@ import com.alijafari.red.astronomy.ui.MainViewModel
 import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.components.SafeAppLogo
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
+import com.alijafari.red.astronomy.ui.theme.squircleShape
 
 /**
  * Aether Telemetry UI — Frameless Rim-Lit Settings Modal (`36.dp` Optical Lens):
@@ -451,12 +451,13 @@ fun AetherSettingsModal(
                     }
 
                     // 7. Developer Credit Card
+                    val creditShape = squircleShape(26.dp)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(26.dp))
+                            .clip(creditShape)
                             .background(palette.frostedGlassFill)
-                            .specularRimBorder(cornerRadius = 26.dp)
+                            .specularRimBorder(cornerRadius = 26.dp, shape = creditShape)
                             .padding(14.dp)
                             .testTag("developer_credit_card"),
                         verticalAlignment = Alignment.CenterVertically,
@@ -468,7 +469,7 @@ fun AetherSettingsModal(
                                 .size(42.dp)
                                 .clip(CircleShape)
                                 .background(palette.crimsonGlow.copy(alpha = 0.16f))
-                                .specularRimBorder(cornerRadius = 21.dp)
+                                .specularRimBorder(shape = CircleShape)
                         ) {
                             SafeAppLogo(modifier = Modifier.size(28.dp), cornerRadius = 8.dp)
                         }
@@ -542,14 +543,14 @@ private fun AetherExpandableSection(
         animationSpec = tween(180),
         label = "AetherSectionChevron"
     )
-    val shape = RoundedCornerShape(26.dp)
+    val shape = squircleShape(26.dp)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(palette.frostedGlassFill)
-            .specularRimBorder(cornerRadius = 26.dp)
+            .specularRimBorder(cornerRadius = 26.dp, shape = shape)
             .testTag(testTag)
     ) {
         Row(
@@ -628,7 +629,7 @@ private fun AetherOptionRow(
     subtitle: String? = null
 ) {
     val palette = AetherTheme.palette
-    val shape = RoundedCornerShape(20.dp)
+    val shape = squircleShape(20.dp)
 
     Row(
         modifier = modifier
@@ -637,7 +638,7 @@ private fun AetherOptionRow(
             .background(
                 if (isSelected) palette.crimsonGlow.copy(alpha = 0.20f) else palette.frostedGlassFill
             )
-            .specularRimBorder(cornerRadius = 20.dp)
+            .specularRimBorder(cornerRadius = 20.dp, shape = shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

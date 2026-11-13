@@ -15,10 +15,13 @@ import com.alijafari.red.astronomy.ui.aether.AetherSpecularRimEnd
 import com.alijafari.red.astronomy.ui.aether.AetherSpecularRimMid
 import com.alijafari.red.astronomy.ui.aether.AetherSpecularRimStart
 import com.alijafari.red.astronomy.ui.aether.aetherPaletteFor
+import com.alijafari.red.astronomy.ui.theme.RedShapes
+import com.alijafari.red.astronomy.ui.theme.SquircleShape
 import com.alijafari.red.astronomy.ui.theme.readableInkOn
 import com.alijafari.red.astronomy.ui.theme.wcagContrast
 import java.io.File
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -144,5 +147,66 @@ class AetherUiTest {
         assertTrue(settings.contains("settings_ui_style_aether"))
         assertTrue(stringsEn.contains("<string name=\"ui_style_aether\">Aether Telemetry UI</string>"))
         assertTrue(stringsFa.contains("<string name=\"ui_style_aether\">"))
+    }
+
+    @Test
+    fun aetherMoonAndEclipseCardsAreSideBySideVerticalPillsWithEnlargedConcentricRenders() {
+        val design = source("com/alijafari/red/astronomy/ui/aether/AetherDesignSystem.kt")
+        val home = source("com/alijafari/red/astronomy/ui/aether/AetherHomeScreen.kt")
+
+        // Squircle.kt rule: rectangular Aether containers use squircleShape(...),
+        // while pills/capsules use RedShapes.capsule (true semicircular caps, not SquircleShape).
+        assertFalse("Capsule must keep semicircular caps, not a squircle", RedShapes.capsule is SquircleShape)
+        assertTrue(design.contains("shape: Shape = squircleShape(cornerRadius)"))
+        assertTrue(design.contains("val dialShape = squircleShape(34.dp)"))
+        assertFalse(
+            "AetherDesignSystem should use squircleShape(...) and RedShapes.capsule instead of raw RoundedCornerShape",
+            design.lines().filterNot { it.trim().startsWith("*") || it.trim().startsWith("//") }
+                .any { it.contains("RoundedCornerShape(") }
+        )
+        assertFalse(
+            "AetherHomeScreen should use squircleShape(...) and RedShapes.capsule instead of raw RoundedCornerShape",
+            home.lines().filterNot { it.trim().startsWith("*") || it.trim().startsWith("//") }
+                .any { it.contains("RoundedCornerShape(") }
+        )
+
+        // Side-by-side vertical pill sizing & concentric top-dome render geometry
+        val lensesStart = home.indexOf("item(key = \"aether_moon_eclipse_lenses\")")
+        assertTrue("Expected side-by-side moon/eclipse item in AetherHomeScreen", lensesStart >= 0)
+        val lensesSection = home.substring(lensesStart, home.indexOf("item(key = \"aether_tonight_header\")"))
+        assertTrue(lensesSection.contains("BoxWithConstraints("))
+        assertTrue(lensesSection.contains("val renderInset = 10.dp"))
+        assertTrue(lensesSection.contains("val renderSize = (cardWidth - renderInset * 2).coerceAtLeast(0.dp)"))
+        assertTrue(lensesSection.contains(".coerceAtLeast(cardWidth * 1.88f)"))
+        assertTrue(lensesSection.contains(".width(cardWidth)"))
+        assertTrue(lensesSection.contains(".height(pillHeight)"))
+        assertTrue(lensesSection.contains(".testTag(\"home_moon_card\")"))
+        assertTrue(lensesSection.contains(".testTag(\"home_eclipse_card\")"))
+
+        // Both cards use RedShapes.capsule + enlarged .size(renderSize) renders (no old 92.dp cap)
+        val moonCardStart = home.indexOf("private fun AetherLunarOpticalCard(")
+        val eclipseCardStart = home.indexOf("private fun AetherEclipseOpticalCard(")
+        assertTrue(moonCardStart >= 0 && eclipseCardStart > moonCardStart)
+        val moonCardBody = home.substring(moonCardStart, eclipseCardStart)
+        val eclipseCardBody = home.substring(
+            eclipseCardStart,
+            home.indexOf("@Composable", eclipseCardStart + 1).let { if (it < 0) home.length else it }
+        )
+
+        for ((name, body) in listOf("Moon" to moonCardBody, "Eclipse" to eclipseCardBody)) {
+            assertTrue("$name card must use RedShapes.capsule for vertical pill caps", body.contains("shape = RedShapes.capsule"))
+            assertTrue("$name card must size its render to renderSize", body.contains(".size(renderSize)"))
+            assertFalse("$name card must not use the old 92.dp render size", body.contains("92.dp"))
+            assertTrue(
+                "$name card must inset top/sides by renderInset so the circular render is concentric with the top dome",
+                body.contains("start = renderInset") &&
+                    body.contains("top = renderInset") &&
+                    body.contains("end = renderInset")
+            )
+        }
+        assertTrue(moonCardBody.contains("MoonPhaseRender("))
+        assertTrue(moonCardBody.contains("home_moon_card_render"))
+        assertTrue(eclipseCardBody.contains("EclipseRender("))
+        assertTrue(eclipseCardBody.contains("home_eclipse_card_render"))
     }
 }
