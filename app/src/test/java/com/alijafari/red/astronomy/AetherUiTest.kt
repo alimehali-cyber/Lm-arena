@@ -129,14 +129,44 @@ class AetherUiTest {
 
         assertTrue(home.contains("presentation = SkyCanvasPresentation.SCENE"))
         assertTrue(home.contains("AetherJewelCard("))
-        assertTrue(home.contains("AetherOscilloscopeWaveformCanvas("))
-        assertTrue(home.contains("AetherRadialDialCard("))
-        assertTrue(home.contains("AetherGlowingMeshPillCard("))
-        assertTrue(home.contains("AetherFloatingStatusCapsule("))
+        assertTrue(home.contains("AetherFrostedCard("))
+        assertFalse(home.contains("AetherFloatingStatusCapsule("))
+        assertFalse(home.contains("AetherBentoDialAndPillsRow"))
+        assertFalse(home.contains("AetherRadialDialCard("))
+        assertFalse(home.contains("AetherGlowingMeshPillCard("))
+
+        // Home section order: Sky canvas -> What's Up Tonight -> Clear Red Hero Card -> Moon & Eclipses
+        val skyIdx = home.indexOf("item(key = \"aether_sky_hero\")")
+        val tonightHeaderIdx = home.indexOf("item(key = \"aether_tonight_header\")")
+        val tonightCardIdx = home.indexOf("item(key = \"aether_tonight_card\")")
+        val redCardIdx = home.indexOf("item(key = \"aether_hero_jewel_card\")")
+        val lensesIdx = home.indexOf("item(key = \"aether_moon_eclipse_lenses\")")
+        assertTrue(
+            "What's Up Tonight must sit directly beneath the sky canvas, above the clear red card and Moon/Eclipse cards",
+            skyIdx in 0 until tonightHeaderIdx &&
+                tonightHeaderIdx < tonightCardIdx &&
+                tonightCardIdx < redCardIdx &&
+                redCardIdx < lensesIdx
+        )
+
+        // The big red hero card must remain completely clear (zero text, counters, waveforms, or steppers on it)
+        val redFnStart = home.indexOf("private fun AetherFramelessSkyTelemetryCard(")
+        val moonFnStart = home.indexOf("private fun AetherLunarOpticalCard(")
+        assertTrue(redFnStart in 0 until moonFnStart)
+        val redFnBody = home.substring(redFnStart, moonFnStart)
+        assertTrue(redFnBody.contains("jewelTone = AetherJewelTone.CRIMSON"))
+        assertFalse(redFnBody.contains("Text("))
+        assertFalse(redFnBody.contains("AetherRollingDotMatrixCounter("))
+        assertFalse(redFnBody.contains("AetherOscilloscopeWaveformCanvas("))
+        assertFalse(redFnBody.contains("AetherMicroStepper("))
 
         assertTrue(satellites.contains("satellite_screen"))
         assertTrue(satellites.contains("satellite_time_scrubber_card"))
         assertTrue(satellites.contains("time_scrubber_slider"))
+        assertTrue(satellites.contains("AetherFloatingStatusCapsule("))
+        assertTrue(satellites.contains("AetherRadialDialCard("))
+        assertTrue(satellites.contains("AetherGlowingMeshPillCard("))
+        assertTrue(satellites.contains("AetherOscilloscopeWaveformCanvas("))
 
         assertTrue(lab.contains("lab_screen"))
         assertTrue(lab.contains("TimeDilationCalculatorScreen("))
@@ -144,6 +174,16 @@ class AetherUiTest {
         assertTrue(lab.contains("AntarRoot("))
 
         assertTrue(nav.contains("floating_bottom_bar"))
+        val navHomeIdx = nav.indexOf("R.string.nav_home")
+        val navArIdx = nav.indexOf("R.string.nav_arsky")
+        val navSatIdx = nav.indexOf("R.string.nav_satellites")
+        val navLabIdx = nav.indexOf("R.string.nav_lab")
+        assertTrue(
+            "Aether bottom bar order must match Home -> AR Sky -> Satellites -> Lab",
+            navHomeIdx in 0 until navArIdx &&
+                navArIdx < navSatIdx &&
+                navSatIdx < navLabIdx
+        )
         assertTrue(settings.contains("settings_ui_style_aether"))
         assertTrue(stringsEn.contains("<string name=\"ui_style_aether\">Aether Telemetry UI</string>"))
         assertTrue(stringsFa.contains("<string name=\"ui_style_aether\">"))
@@ -173,7 +213,9 @@ class AetherUiTest {
         // Side-by-side vertical pill sizing & concentric top-dome render geometry
         val lensesStart = home.indexOf("item(key = \"aether_moon_eclipse_lenses\")")
         assertTrue("Expected side-by-side moon/eclipse item in AetherHomeScreen", lensesStart >= 0)
-        val lensesSection = home.substring(lensesStart, home.indexOf("item(key = \"aether_tonight_header\")"))
+        val searchOverlayStart = home.indexOf("AnimatedVisibility(", lensesStart)
+        assertTrue(searchOverlayStart > lensesStart)
+        val lensesSection = home.substring(lensesStart, searchOverlayStart)
         assertTrue(lensesSection.contains("BoxWithConstraints("))
         assertTrue(lensesSection.contains("val renderInset = 10.dp"))
         assertTrue(lensesSection.contains("val renderSize = (cardWidth - renderInset * 2).coerceAtLeast(0.dp)"))

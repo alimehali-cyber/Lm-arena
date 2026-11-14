@@ -79,10 +79,10 @@ fun AetherFloatingNavBar(
     val haptics = LocalHapticFeedback.current
     val tabs = remember {
         listOf(
-            AetherDockTab(0, R.string.nav_lab, Icons.Filled.Science, Icons.Outlined.Science, "nav_tab_0"),
-            AetherDockTab(3, R.string.nav_arsky, Icons.Filled.Explore, Icons.Outlined.Explore, "nav_tab_3"),
-            AetherDockTab(1, R.string.nav_satellites, Icons.Filled.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_tab_1"),
-            AetherDockTab(4, R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home, "nav_tab_4")
+            AetherDockTab(4, R.string.nav_home, Icons.Filled.Home, Icons.Outlined.Home, "nav_item_home"),
+            AetherDockTab(3, R.string.nav_arsky, Icons.Filled.Explore, Icons.Outlined.Explore, "nav_item_arsky"),
+            AetherDockTab(1, R.string.nav_satellites, Icons.Filled.SatelliteAlt, Icons.Outlined.SatelliteAlt, "nav_item_satellites"),
+            AetherDockTab(0, R.string.nav_lab, Icons.Filled.Science, Icons.Outlined.Science, "nav_item_lab")
         )
     }
 

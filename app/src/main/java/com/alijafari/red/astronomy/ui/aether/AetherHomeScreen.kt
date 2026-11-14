@@ -130,7 +130,6 @@ import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.backdropInkFor
 import com.alijafari.red.astronomy.ui.theme.solidSurface
 import java.util.Locale
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private const val AETHER_MOON_REFRESH_MS = 60_000L
@@ -147,25 +146,21 @@ private enum class AetherTonightFilter {
 /**
  * Aether Telemetry UI — Spatial Telemetry Dashboard Home Screen:
  *
- * - Full-bleed edge-to-edge [HeroSkyCanvas] (`SkyCanvasPresentation.SCENE`) topped with the
- *   floating `100.dp` [AetherFloatingStatusCapsule] (`✦ ZIG • 89% • Bortle 3 ⚡`).
- * - Hero Frameless Jewel-Tone Sky Telemetry Card (`36.dp` crimson radial optical lens `#1C020D ->
- *   #5E052A -> #9E0B45`, 1.dp specular rim, rolling Rubik-Dots counter, `● Risen` / `○ Planned`
- *   legend, 5 LED dots, cubic-bezier `AetherOscilloscopeWaveformCanvas` with glowing white bottom
- *   troughs, rolling `31.sp` light secondary readout, and haptic `← ━ →` micro-stepper).
- * - Bento Telemetry Row: Frosted 60-Tick `AetherRadialDialCard` (`34.dp` squircle) + stacked Pink & Amber
- *   `AetherGlowingMeshPillCard`s (`RedShapes.capsule`).
+ * - Full-bleed edge-to-edge [HeroSkyCanvas] (`SkyCanvasPresentation.SCENE`) with floating
+ *   circular optical icon lenses and elevated rim-lit Location & 360° Sky capsules.
+ * - Frameless Frosted Spatial "What's Up Tonight" telemetry deck directly beneath the sky canvas.
+ * - Clear Frameless Crimson Jewel Hero Card (`36.dp` squircle `#1C020D -> #5E052A -> #9E0B45`,
+ *   1.dp specular rim, completely clear surface).
  * - Frameless Side-by-Side Vertical Pill Optical Lenses (`RedShapes.capsule` following `Squircle.kt`
  *   capsule rules with semicircular rounded top and bottom) housing enlarged concentric 2.5D Moon
  *   sphere and Eclipse plate renders.
- * - Frameless Frosted Spatial "What's Up Tonight" telemetry deck with spline visibility curves.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AetherHomeScreen(
     uiState: MainUiState,
     viewModel: MainViewModel,
-    onNavigateToTab: (Int) -> Unit
+    @Suppress("UNUSED_PARAMETER") onNavigateToTab: (Int) -> Unit
 ) {
     val palette = AetherTheme.palette
     val isFa = uiState.language == AppLanguage.PERSIAN
@@ -350,7 +345,9 @@ fun AetherHomeScreen(
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val sceneHeight = (maxHeight * 0.49f).coerceIn(320.dp, 460.dp)
-        val controlsBottom = 56.dp
+        // Shifted 32.dp (~5 mm) upwards from 56.dp -> 24.dp so the Location & 360° Sky capsules
+        // hug the lower edge of the sky canvas right above What's Up Tonight.
+        val controlsBottom = 24.dp
 
         LazyColumn(
             modifier = Modifier
@@ -359,98 +356,19 @@ fun AetherHomeScreen(
             contentPadding = PaddingValues(bottom = 118.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // 1. UNTOUCHED SKY SCENE + FLOATING TOP STATUS CAPSULE
+            // 1. UNTOUCHED SKY SCENE + FLOATING OPTICAL CONTROLS
             item(key = "aether_sky_hero") {
                 AetherSkyHeroSection(
                     uiState = uiState,
                     viewModel = viewModel,
                     isFa = isFa,
-                    moonIllumPercent = moonData.illuminationPercent.roundToInt(),
                     sceneHeight = sceneHeight,
                     controlsBottom = controlsBottom,
                     onOpenSearch = { isSearchOpen = true }
                 )
             }
 
-            // 2. HERO COMPONENT: FRAMELESS JEWEL-TONE CELESTIAL INTAKE / TELEMETRY CARD
-            item(key = "aether_hero_jewel_card") {
-                AetherFramelessSkyTelemetryCard(
-                    isFa = isFa,
-                    sortedObjectsWithObs = sortedObjectsWithObs,
-                    bortleClass = uiState.bortleClass,
-                    sunAltitudeDeg = sunHoriz.altitudeDeg,
-                    modifier = Modifier.padding(horizontal = RedSpacing.lg)
-                )
-            }
-
-            // 3. BENTO ROW: FROSTED 60-TICK RADIAL DIAL CARD + STACKED PINK & AMBER MESH PILLS
-            item(key = "aether_bento_dial_and_pills") {
-                AetherBentoDialAndPillsRow(
-                    uiState = uiState,
-                    isFa = isFa,
-                    sunAltitudeDeg = sunHoriz.altitudeDeg,
-                    moonIllumPercent = moonData.illuminationPercent,
-                    sortedObjectsWithObs = sortedObjectsWithObs,
-                    onOpenBortleSettings = { viewModel.setShowSettingsDialog(true) },
-                    onOpenArSky = { onNavigateToTab(3) },
-                    onOpenSatellites = { onNavigateToTab(1) },
-                    modifier = Modifier.padding(horizontal = RedSpacing.lg)
-                )
-            }
-
-            // 4. FRAMELESS SIDE-BY-SIDE VERTICAL PILL OPTICAL LENSES (2.5D Moon + Eclipse Plate)
-            item(key = "aether_moon_eclipse_lenses") {
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = RedSpacing.lg)
-                ) {
-                    val density = LocalDensity.current
-                    val gap = 14.dp
-                    val availableForCards = (maxWidth - gap).coerceAtLeast(0.dp)
-                    val cardWidth = (availableForCards / 2f).coerceAtMost(214.dp)
-                    val renderInset = 10.dp
-                    val renderSize = (cardWidth - renderInset * 2).coerceAtLeast(0.dp)
-                    val fontBoost = ((density.fontScale - 1f).coerceAtLeast(0f) * 44f).dp
-                    val pillHeight = (renderInset + renderSize + 158.dp + fontBoost)
-                        .coerceAtLeast(cardWidth * 1.88f)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        AetherLunarOpticalCard(
-                            uiState = uiState,
-                            viewModel = viewModel,
-                            isFa = isFa,
-                            moonData = cardMoonData,
-                            sunHoriz = cardSunHoriz,
-                            renderSize = renderSize,
-                            renderInset = renderInset,
-                            onScrubDays = { delta -> viewModel.nudgeMoonDayOffset(delta) },
-                            modifier = Modifier
-                                .width(cardWidth)
-                                .height(pillHeight)
-                                .testTag("home_moon_card")
-                        )
-
-                        AetherEclipseOpticalCard(
-                            eclipse = nextEclipse,
-                            isFa = isFa,
-                            renderSize = renderSize,
-                            renderInset = renderInset,
-                            onClick = { viewModel.setShowEclipseWindow(true) },
-                            modifier = Modifier
-                                .width(cardWidth)
-                                .height(pillHeight)
-                                .testTag("home_eclipse_card")
-                        )
-                    }
-                }
-            }
-
-            // 5. TONIGHT'S TELEMETRY HEADER + MINIMAL 1.DP PILL FILTERS
+            // 2. TONIGHT'S TELEMETRY HEADER + MINIMAL 1.DP PILL FILTERS (DIRECTLY UNDER SKY CANVAS)
             item(key = "aether_tonight_header") {
                 Column(
                     modifier = Modifier
@@ -529,7 +447,7 @@ fun AetherHomeScreen(
                 }
             }
 
-            // 6. FRAMELESS FROSTED SPATIAL TONIGHT CARD
+            // 3. FRAMELESS FROSTED SPATIAL TONIGHT CARD
             item(key = "aether_tonight_card") {
                 AetherFrostedCard(
                     modifier = Modifier
@@ -565,6 +483,65 @@ fun AetherHomeScreen(
                                 color = palette.mutedTelemetry.copy(alpha = 0.25f)
                             )
                         }
+                    }
+                }
+            }
+
+            // 4. HERO COMPONENT: CLEAR FRAMELESS CRIMSON JEWEL CARD
+            item(key = "aether_hero_jewel_card") {
+                AetherFramelessSkyTelemetryCard(
+                    modifier = Modifier.padding(horizontal = RedSpacing.lg)
+                )
+            }
+
+            // 5. FRAMELESS SIDE-BY-SIDE VERTICAL PILL OPTICAL LENSES (2.5D Moon + Eclipse Plate)
+            item(key = "aether_moon_eclipse_lenses") {
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = RedSpacing.lg)
+                ) {
+                    val density = LocalDensity.current
+                    val gap = 14.dp
+                    val availableForCards = (maxWidth - gap).coerceAtLeast(0.dp)
+                    val cardWidth = (availableForCards / 2f).coerceAtMost(214.dp)
+                    val renderInset = 10.dp
+                    val renderSize = (cardWidth - renderInset * 2).coerceAtLeast(0.dp)
+                    val fontBoost = ((density.fontScale - 1f).coerceAtLeast(0f) * 44f).dp
+                    val pillHeight = (renderInset + renderSize + 158.dp + fontBoost)
+                        .coerceAtLeast(cardWidth * 1.88f)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        AetherLunarOpticalCard(
+                            uiState = uiState,
+                            viewModel = viewModel,
+                            isFa = isFa,
+                            moonData = cardMoonData,
+                            sunHoriz = cardSunHoriz,
+                            renderSize = renderSize,
+                            renderInset = renderInset,
+                            onScrubDays = { delta -> viewModel.nudgeMoonDayOffset(delta) },
+                            modifier = Modifier
+                                .width(cardWidth)
+                                .height(pillHeight)
+                                .testTag("home_moon_card")
+                        )
+
+                        AetherEclipseOpticalCard(
+                            eclipse = nextEclipse,
+                            isFa = isFa,
+                            renderSize = renderSize,
+                            renderInset = renderInset,
+                            onClick = { viewModel.setShowEclipseWindow(true) },
+                            modifier = Modifier
+                                .width(cardWidth)
+                                .height(pillHeight)
+                                .testTag("home_eclipse_card")
+                        )
                     }
                 }
             }
@@ -632,21 +609,10 @@ private fun AetherSkyHeroSection(
     uiState: MainUiState,
     viewModel: MainViewModel,
     isFa: Boolean,
-    moonIllumPercent: Int,
     sceneHeight: Dp,
     controlsBottom: Dp,
     onOpenSearch: () -> Unit
 ) {
-    val capsuleText = remember(isFa, moonIllumPercent, uiState.bortleClass) {
-        if (isFa) {
-            val m = TimeEngine.formatPersianNumbers(moonIllumPercent.toString())
-            val b = TimeEngine.formatPersianNumbers(uiState.bortleClass.toString())
-            "زیگ  •  ماه $m٪  •  بورتل $b"
-        } else {
-            "ZIG  •  $moonIllumPercent% Moon  •  Bortle ${uiState.bortleClass}"
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -676,7 +642,7 @@ private fun AetherSkyHeroSection(
                 )
         )
 
-        // FLOATING TOP STATUS CAPSULE + OPTICAL ICON LENSES
+        // FLOATING TOP OPTICAL ICON LENSES
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -690,14 +656,6 @@ private fun AetherSkyHeroSection(
                 contentDescription = stringResource(R.string.favorites_and_history),
                 onClick = { viewModel.setShowFavoritesDialog(true) },
                 modifier = Modifier.testTag("top_favorites_button")
-            )
-
-            AetherFloatingStatusCapsule(
-                text = capsuleText,
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    .padding(horizontal = 8.dp)
-                    .testTag("home_red_title")
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -792,263 +750,25 @@ private fun AetherSkyHeroSection(
 }
 
 /**
- * HERO COMPONENT: Frameless Jewel-Tone Celestial Telemetry Card (`RoundedCornerShape(36.dp)`).
+ * HERO COMPONENT: Clear Frameless Crimson Jewel Card (`squircleShape(36.dp)`).
  *
- * Faithful realization of the Aether Telemetry Hero Card:
- * - Deep crimson radial optical jewel (`#1C020D` center -> `#5E052A` mid -> `#9E0B45` edge)
- * - 2-digit Rolling Dot-Matrix primary readout + `● Risen` / `○ Planned` LED legend
- * - 5 LED status array + Animated Cubic-Bezier `AetherOscilloscopeWaveformCanvas` with
- *   glowing `BlurMaskFilter` neon-white bottom troughs
- * - Rolling `30.sp` `FontWeight.Light` (`-0.8.sp`) secondary metric + haptic `← ━ →` micro-stepper
+ * Deep crimson radial optical jewel (`#1C020D` center -> `#5E052A` mid -> `#9E0B45` edge)
+ * with a 1.dp directional specular rim and a completely clear, unobstructed surface.
  */
 @Composable
 private fun AetherFramelessSkyTelemetryCard(
-    isFa: Boolean,
-    sortedObjectsWithObs: List<Triple<CelestialObject, CoordinateEngine.Horizontal, ObservabilityEngine.ObservabilityResult>>,
-    bortleClass: Int,
-    sunAltitudeDeg: Double,
     modifier: Modifier = Modifier
 ) {
-    // 5 interactive aperture/magnitude telemetry tiers (1..5)
-    var apertureTier by rememberSaveable { mutableIntStateOf(4) }
-
-    val baseLimitingMag = remember(bortleClass, sunAltitudeDeg) {
-        val bortleLimit = (7.6 - bortleClass * 0.45).coerceIn(3.2, 7.2)
-        if (sunAltitudeDeg > -6.0) 2.5 else bortleLimit
-    }
-
-    val tierMagLimit = remember(baseLimitingMag, apertureTier) {
-        baseLimitingMag + (apertureTier - 3) * 0.85
-    }
-
-    val risenTargetsCount = remember(sortedObjectsWithObs, tierMagLimit) {
-        sortedObjectsWithObs.count { (_, horiz, _) ->
-            horiz.altitudeDeg > 8.0
-        }.let { totalAbove ->
-            val filtered = sortedObjectsWithObs.count { (obj, horiz, _) ->
-                horiz.altitudeDeg > 8.0 && obj.magnitude <= tierMagLimit
-            }
-            filtered.coerceIn(1, totalAbove.coerceAtLeast(1)).coerceAtMost(99)
-        }
-    }
-
-    val primaryDigits = remember(risenTargetsCount, isFa) {
-        val padded = risenTargetsCount.toString().padStart(2, '0')
-        if (isFa) TimeEngine.formatPersianNumbers(padded) else padded
-    }
-
-    val secondaryValue = remember(tierMagLimit, isFa) {
-        val raw = String.format(Locale.US, "%.1f mag", tierMagLimit)
-        if (isFa) {
-            "${TimeEngine.formatPersianNumbers(String.format(Locale.US, "%.1f", tierMagLimit))} قدر"
-        } else {
-            raw
-        }
-    }
-
     AetherJewelCard(
         modifier = modifier
             .fillMaxWidth()
+            .height(248.dp)
             .testTag("aether_hero_telemetry_card"),
         jewelTone = AetherJewelTone.CRIMSON,
         cornerRadius = 36.dp,
         contentPadding = PaddingValues(26.dp),
         elevation = 28.dp
     ) {
-        // Card Title (17.sp, FontWeight.Medium, letterSpacing = -0.3.sp)
-        Text(
-            text = if (isFa) "تله‌متری رصد امشب" else "Sky Telemetry",
-            style = RedTypographyTokens.sectionTitle.copy(
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = (-0.3).sp
-            ),
-            color = Color.White.copy(alpha = 0.95f)
-        )
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Top Row: Rolling Dot-Matrix Readout + Risen/Planned Legend
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
-        ) {
-            Row(verticalAlignment = Alignment.Top) {
-                AetherRollingDotMatrixCounter(
-                    valueText = primaryDigits,
-                    dotSize = 3.25.dp,
-                    dotGap = 1.15.dp,
-                    charGap = 4.5.dp,
-                    color = AetherGlowWhite,
-                    glowColor = AetherCrimsonCoreEdge,
-                    showGhostGrid = false
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = if (isFa) "جرم قابل رصد" else "targets tonight",
-                    style = RedTypographyTokens.caption.copy(
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Normal
-                    ),
-                    color = Color.White.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(top = 6.dp)
-                )
-            }
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.padding(top = 4.dp)
-            ) {
-                AetherLegendDotItem(
-                    label = if (isFa) "طلوع‌کرده" else "Risen",
-                    filled = true
-                )
-                AetherLegendDotItem(
-                    label = if (isFa) "در انتظار" else "Planned",
-                    filled = false
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(22.dp))
-
-        // Middle Row: Cubic-Bezier Oscilloscope Waveform + 5 LED Status Dots
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp)
-        ) {
-            AetherLedDotArray(
-                totalDots = 5,
-                litCount = apertureTier,
-                modifier = Modifier.align(Alignment.TopEnd)
-            )
-
-            AetherOscilloscopeWaveformCanvas(
-                activeWaves = apertureTier,
-                progress = apertureTier / 5f,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(42.dp)
-                    .align(Alignment.BottomCenter)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(22.dp))
-
-        // Bottom Row: Secondary Value (30.sp Light, -0.8.sp) + Micro Stepper (← ━ →)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom
-        ) {
-            AetherRollingSecondaryMetric(
-                valueText = secondaryValue,
-                fontSizeSp = 30f
-            )
-
-            AetherMicroStepper(
-                onDecrement = { if (apertureTier > 1) apertureTier-- },
-                onIncrement = { if (apertureTier < 5) apertureTier++ },
-                canDecrement = apertureTier > 1,
-                canIncrement = apertureTier < 5,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-        }
-    }
-}
-
-/**
- * BENTO TELEMETRY ROW:
- * Left: Square `34.dp` Frosted 60-Tick Radial Gauge (`AetherRadialDialCard`)
- * Right: Stacked `RoundedCornerShape(50)` Pink & Amber Glowing Mesh Pill Cards
- */
-@Composable
-private fun AetherBentoDialAndPillsRow(
-    uiState: MainUiState,
-    isFa: Boolean,
-    sunAltitudeDeg: Double,
-    moonIllumPercent: Double,
-    sortedObjectsWithObs: List<Triple<CelestialObject, CoordinateEngine.Horizontal, ObservabilityEngine.ObservabilityResult>>,
-    onOpenBortleSettings: () -> Unit,
-    onOpenArSky: () -> Unit,
-    onOpenSatellites: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val skyScore = remember(uiState.bortleClass, sunAltitudeDeg, moonIllumPercent, sortedObjectsWithObs) {
-        val darknessBonus = ((10 - uiState.bortleClass) * 7).coerceIn(7, 63)
-        val sunBonus = when {
-            sunAltitudeDeg <= -18.0 -> 28
-            sunAltitudeDeg <= -6.0 -> 16
-            else -> 4
-        }
-        val moonPenalty = (moonIllumPercent * 0.08).roundToInt()
-        (darknessBonus + sunBonus - moonPenalty + 8).coerceIn(12, 99)
-    }
-
-    val scoreText = if (isFa) {
-        TimeEngine.formatPersianNumbers(skyScore.toString())
-    } else {
-        skyScore.toString()
-    }
-    val statusWord = when {
-        skyScore >= 75 -> if (isFa) "ایده‌آل" else "Optimal"
-        skyScore >= 50 -> if (isFa) "مطلوب" else "Clear"
-        else -> if (isFa) "روشن" else "Daylight"
-    }
-
-    val sunAbsStr = String.format(Locale.US, "%.1f", abs(sunAltitudeDeg))
-    val sunDisplay = if (isFa) TimeEngine.formatPersianNumbers(sunAbsStr) else sunAbsStr
-    val sunBadge = when {
-        sunAltitudeDeg <= -18.0 -> if (isFa) "↓ شب" else "↓ Night"
-        sunAltitudeDeg <= 0.0 -> if (isFa) "↓ شفق" else "↓ Dusk"
-        else -> if (isFa) "↑ روز" else "↑ Day"
-    }
-
-    val bortleValue = if (isFa) {
-        TimeEngine.formatPersianNumbers(uiState.bortleClass.toString().padStart(2, '0'))
-    } else {
-        uiState.bortleClass.toString().padStart(2, '0')
-    }
-
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        AetherRadialDialCard(
-            scoreText = scoreText,
-            status = statusWord,
-            highlightFraction = skyScore / 100f,
-            title = if (isFa) "شاخص آسمان" else "Sky Index",
-            onClick = onOpenBortleSettings,
-            modifier = Modifier
-                .weight(1f)
-                .aspectRatio(1f)
-        )
-
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            AetherGlowingMeshPillCard(
-                title = if (isFa) "افق خورشیدی (AR)" else "Solar Horizon (AR)",
-                value = sunDisplay,
-                unit = "deg",
-                badge = sunBadge,
-                preset = AetherMeshPillPreset.PINK_MESH,
-                onClick = onOpenArSky
-            )
-
-            AetherGlowingMeshPillCard(
-                title = if (isFa) "بورتل و مدارها" else "Bortle & Orbits",
-                value = bortleValue,
-                unit = if (isFa) "کلاس" else "cls",
-                badge = if (isFa) "مدار ←" else "SGP4 →",
-                preset = AetherMeshPillPreset.AMBER_MESH,
-                onClick = onOpenSatellites
-            )
-        }
     }
 }
 
