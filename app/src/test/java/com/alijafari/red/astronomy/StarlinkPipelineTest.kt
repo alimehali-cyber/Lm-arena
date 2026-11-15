@@ -170,12 +170,13 @@ class StarlinkPipelineTest {
         val train = trains.first()
         assertEquals("2026-042", train.groupKey)
         assertTrue("Trimmed train span (${train.angularSpanDeg}°) must be <= 90° and tight (< 12°)", train.angularSpanDeg < 12.0)
-        assertEquals(18, train.satelliteCount)
+        assertEquals(20, train.satelliteCount)
 
         // Verify Leader -> Trailer ordering: Leader (#0) had largest initial meanAnomaly in the core cluster
         val leaderNorad = StarlinkTrainManager.extractNoradId(train.memberTles.first().line1)
         val trailerNorad = StarlinkTrainManager.extractNoradId(train.memberTles.last().line1)
-        assertTrue("Leader must be ahead of Trailer along +u motion", leaderNorad > trailerNorad)
+        assertEquals(61019, leaderNorad)
+        assertEquals(61000, trailerNorad)
     }
 
     @Test

@@ -411,15 +411,40 @@ object StarlinkTrainManager {
                 }
             }
 
-            // Strict Physical Train Rule: cluster must fit within <= 90° of orbital arc
+            // Strict Physical Train Rule: 85% core cluster must fit within <= 90° of orbital arc
             if (minSpanDeg > 90.0) {
                 Log.d(TAG, "Rejected dispersed group $rawGroupKey: count=${coplanar.size}, coreSpan=${"%.1f".format(Locale.US, minSpanDeg)}° > 90°")
                 continue
             }
 
+            // Expand contiguously from the verified core to retain genuine adjacent pearls (gap <= 12°)
+            // while still trimming distant straggler/debris outliers and keeping total span <= 90°.
+            var clusterStartIdx = bestStartIdx
+            var clusterCount = coreCount
+            var clusterSpanDeg = minSpanDeg
+            while (clusterCount < n) {
+                val lastIdx = (clusterStartIdx + clusterCount - 1) % n
+                val nextIdx = (clusterStartIdx + clusterCount) % n
+                val fwdGap = ((projected[nextIdx].uDeg - projected[lastIdx].uDeg) % 360.0 + 360.0) % 360.0
+
+                val prevIdx = (clusterStartIdx - 1 + n) % n
+                val bwdGap = ((projected[clusterStartIdx].uDeg - projected[prevIdx].uDeg) % 360.0 + 360.0) % 360.0
+
+                if (fwdGap <= bwdGap && fwdGap <= 12.0 && clusterSpanDeg + fwdGap <= 90.0) {
+                    clusterCount++
+                    clusterSpanDeg += fwdGap
+                } else if (bwdGap <= 12.0 && clusterSpanDeg + bwdGap <= 90.0) {
+                    clusterStartIdx = prevIdx
+                    clusterCount++
+                    clusterSpanDeg += bwdGap
+                } else {
+                    break
+                }
+            }
+
             // Step 6: Order from Leader (furthest ahead in +u, first to rise) to Trailer (rear of train)
-            val orderedMembers = (coreCount - 1 downTo 0).map { offset ->
-                projected[(bestStartIdx + offset) % n].orbital
+            val orderedMembers = (clusterCount - 1 downTo 0).map { offset ->
+                projected[(clusterStartIdx + offset) % n].orbital
             }
 
             val displayGroup = if (rawGroupKey.startsWith("SUP-")) {
@@ -433,7 +458,7 @@ object StarlinkTrainManager {
             val avgMeanMotion = orderedMembers.map { it.meanMotion }.average()
             val avgAltKm = estimateMeanAltitudeKm(avgMeanMotion)
             val leaderOrb = orderedMembers.first()
-            val spanFormatted = String.format(Locale.US, "%.0f°", minSpanDeg)
+            val spanFormatted = String.format(Locale.US, "%.0f°", clusterSpanDeg)
             val memberCountFa = memberCount.toString().toPersianDigits()
             val displayGroupFa = displayGroup.toPersianDigits()
 
@@ -508,7 +533,7 @@ object StarlinkTrainManager {
                     groupKey = displayGroup,
                     displayLabelEn = "Starlink Train ($displayGroup)",
                     displayLabelFa = "قطار استارلینک ($displayGroupFa)",
-                    angularSpanDeg = minSpanDeg,
+                    angularSpanDeg = clusterSpanDeg,
                     medianRaanDeg = medianRaan,
                     avgAltitudeKm = avgAltKm,
                     memberTles = orderedMembers.map { it.tle },
