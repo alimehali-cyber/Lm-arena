@@ -873,7 +873,7 @@ class StarlinkPipelineTest {
                     buildSyntheticTle(
                         name = "STARLINK-LOW-$idx",
                         noradToken5 = (81000 + idx).toString(),
-                        cospar8 = "26040A", // Dispersed across 6 planes so they are individual Starlinks, not a compact train
+                        cospar8 = "25040A", // Individual non-train Starlink (excludedNorads empty) at meanMotion = 16.70
                         epochYear2 = 26,
                         epochDay = 317.45,
                         incDeg = 53.16,
