@@ -52,7 +52,9 @@ class ArDrawnItem(
     val radiusPx: Float,
     val altDeg: Double,
     /** Lower = more important (used to pick between overlapping objects). */
-    val priority: Double
+    val priority: Double,
+    /** Whether this item requests an ambient pill label when neither selected nor aimed. */
+    val autoLabel: Boolean = true
 )
 
 class ArOverlayOptions(
@@ -586,7 +588,9 @@ object ArSkyOverlay {
     ) {
         val byId = catalogue.associateBy { it.id }
         for (s in satellites) {
-            val obj = ArScreenSupport.satelliteIdsFor(s).firstNotNullOfOrNull { byId[it] } ?: continue
+            val obj = ArScreenSupport.satelliteIdsFor(s).firstNotNullOfOrNull { byId[it] }
+                ?: s.dynamicCelestialObject
+                ?: continue
             val pl = snapshot.placementOf(s.id) ?: continue
             if (pl.altDeg < -0.5 && !opts.cameraMode) continue
             if (!camera.project(pl.enu[0], pl.enu[1], pl.enu[2], state.p)) continue
@@ -612,7 +616,7 @@ object ArSkyOverlay {
                 state.linePaint.color = android.graphics.Color.argb(if (below) 50 else 110, 160, 175, 200)
                 nc.drawCircle(px, py, 4f * opts.density, state.linePaint)
             }
-            state.items.add(ArDrawnItem(obj, px, py, 6f * opts.density, pl.altDeg, if (s.noradId == 25544) 2.0 else 3.0))
+            state.items.add(ArDrawnItem(obj, px, py, 6f * opts.density, pl.altDeg, s.labelPriority, s.autoLabelInSky))
         }
     }
 
@@ -680,7 +684,7 @@ object ArSkyOverlay {
         val candidates = state.items.filter { item ->
             val sel = item.obj.id == opts.selectedId
             val aimed = item === state.aimed
-            sel || aimed || (opts.showNames && labelWorthy(item.obj))
+            sel || aimed || (opts.showNames && item.autoLabel && labelWorthy(item.obj))
         }.sortedBy { it.priority }
         var count = 0
         for (item in candidates) {

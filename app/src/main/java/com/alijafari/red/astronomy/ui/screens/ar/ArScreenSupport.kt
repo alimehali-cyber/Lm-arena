@@ -17,13 +17,17 @@ import com.alijafari.red.astronomy.astro_engine.ARCalibrationManager
 import com.alijafari.red.astronomy.astro_engine.AstroTime
 import com.alijafari.red.astronomy.astro_engine.CoordinateEngine
 import com.alijafari.red.astronomy.astro_engine.FinderData
+import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.LunarSolarEngine
 import com.alijafari.red.astronomy.astro_engine.PlanetEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.astro_engine.SatelliteEngine
+import com.alijafari.red.astronomy.astro_engine.SatelliteItem
+import com.alijafari.red.astronomy.astro_engine.StarlinkTrainManager
 import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.astro_engine.TleMetadata
 import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
+import com.alijafari.red.astronomy.data.repository.TleRepository
 import com.alijafari.red.astronomy.domain.CelestialObject
 import com.alijafari.red.astronomy.domain.ObjectType
 import java.util.Calendar
@@ -46,7 +50,13 @@ class ArSatelliteInfo(
     val magnitude: Double,
     val tle: TleMetadata?,
     /** Geometric topocentric directions 10 s and 20 s earlier (az, alt), for the motion streak. */
-    val trail: List<Pair<Double, Double>>
+    val trail: List<Pair<Double, Double>>,
+    /** Synthesized [CelestialObject] for dynamically discovered Starlinks / train pearls. */
+    val dynamicCelestialObject: CelestialObject? = null,
+    /** Whether to render an ambient pill label when not aimed/selected (prevents train pearl clutter). */
+    val autoLabelInSky: Boolean = true,
+    /** Label/hit-test priority (lower = more prominent). */
+    val labelPriority: Double = if (noradId == 25544) 2.0 else 3.0
 )
 
 object ArScreenSupport {
@@ -69,7 +79,10 @@ object ArScreenSupport {
 
     /** Satellite states (SGP4 with the best available TLE) for the AR sky. */
     fun satellites(timeMs: Long, lat: Double, lon: Double, heightM: Double): List<ArSatelliteInfo> {
-        val out = ArrayList<ArSatelliteInfo>()
+        val out = ArrayList<ArSatelliteInfo>(48)
+        val seenNorads = HashSet<Int>()
+
+        // 1. Static catalog satellites (ISS, Tiangong, Hubble, Envisat) — preserved 100% intact
         for (sat in SatelliteCatalog.getVisibleList(null)) {
             try {
                 val now = SatelliteEngine.calculateSatelliteState(sat, timeMs, lat, lon, heightM)
@@ -77,6 +90,7 @@ object ArScreenSupport {
                     val p = SatelliteEngine.calculateSatelliteState(sat, timeMs - dt, lat, lon, heightM).topocentric
                     p.azimuthDeg to p.elevationDeg
                 }
+                seenNorads.add(sat.noradId)
                 out.add(
                     ArSatelliteInfo(
                         id = "sat_${sat.noradId}",
@@ -87,15 +101,129 @@ object ArScreenSupport {
                         sunlit = now.topocentric.isSunlit,
                         magnitude = now.apparentMagnitude,
                         tle = now.tleMetadata,
-                        trail = trail
+                        trail = trail,
+                        dynamicCelestialObject = null,
+                        autoLabelInSky = true,
+                        labelPriority = if (sat.noradId == 25544) 2.0 else 3.0
                     )
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
+
+        // 2. Dynamic Starlink Trains (full string of pearls) + real-time overhead individual Starlinks
+        val starlinkTles = TleRepository.peekInstance()?.getStarlinkTles() ?: emptyList()
+        if (starlinkTles.isNotEmpty()) {
+            try {
+                val snapshot = StarlinkTrainManager.getCachedOrRefreshRealtimeSnapshot(
+                    starlinkTles = starlinkTles,
+                    userLatDeg = lat,
+                    userLonDeg = lon,
+                    userAltMeters = heightM,
+                    nowMs = timeMs,
+                    maxOverhead = StarlinkTrainManager.DEFAULT_REALTIME_OVERHEAD_LIMIT
+                )
+
+                // Active Starlink Train pearls (ordered Leader -> Trailer)
+                for (train in snapshot.activeTrains) {
+                    train.memberItems.forEachIndexed { idx, pearl ->
+                        if (!seenNorads.add(pearl.noradId)) return@forEachIndexed
+                        val now = SatelliteEngine.calculateSatelliteState(pearl, timeMs, lat, lon, heightM, pearl.defaultTle)
+                        val trail = listOf(10_000L, 20_000L).map { dt ->
+                            val topo = ISSEngine.calculateTopocentricPos(timeMs - dt, lat, lon, heightM, pearl.defaultTle)
+                            topo.azimuthDeg to topo.elevationDeg
+                        }
+                        val isLeader = idx == 0
+                        val labelEn = if (isLeader) train.displayLabelEn else pearl.nameEn
+                        val labelFa = if (isLeader) train.displayLabelFa else pearl.nameFa
+                        out.add(
+                            ArSatelliteInfo(
+                                id = "sat_${pearl.noradId}",
+                                noradId = pearl.noradId,
+                                azimuthDeg = now.topocentric.azimuthDeg,
+                                altitudeDeg = now.topocentric.elevationDeg,
+                                rangeKm = now.topocentric.rangeKm,
+                                sunlit = now.topocentric.isSunlit,
+                                magnitude = now.apparentMagnitude,
+                                tle = now.tleMetadata,
+                                trail = trail,
+                                dynamicCelestialObject = buildDynamicSatelliteCelestialObject(
+                                    sat = pearl,
+                                    nameEnOverride = labelEn,
+                                    nameFaOverride = labelFa,
+                                    magnitude = now.apparentMagnitude
+                                ),
+                                autoLabelInSky = isLeader,
+                                labelPriority = if (isLeader) 2.6 else 22.0
+                            )
+                        )
+                    }
+                }
+
+                // Real-time overhead individual Starlinks
+                for (sat in snapshot.overheadStarlinks) {
+                    if (!seenNorads.add(sat.noradId)) continue
+                    val now = SatelliteEngine.calculateSatelliteState(sat, timeMs, lat, lon, heightM, sat.defaultTle)
+                    val trail = listOf(10_000L, 20_000L).map { dt ->
+                        val topo = ISSEngine.calculateTopocentricPos(timeMs - dt, lat, lon, heightM, sat.defaultTle)
+                        topo.azimuthDeg to topo.elevationDeg
+                    }
+                    out.add(
+                        ArSatelliteInfo(
+                            id = "sat_${sat.noradId}",
+                            noradId = sat.noradId,
+                            azimuthDeg = now.topocentric.azimuthDeg,
+                            altitudeDeg = now.topocentric.elevationDeg,
+                            rangeKm = now.topocentric.rangeKm,
+                            sunlit = now.topocentric.isSunlit,
+                            magnitude = now.apparentMagnitude,
+                            tle = now.tleMetadata,
+                            trail = trail,
+                            dynamicCelestialObject = buildDynamicSatelliteCelestialObject(
+                                sat = sat,
+                                nameEnOverride = sat.nameEn,
+                                nameFaOverride = sat.nameFa,
+                                magnitude = now.apparentMagnitude
+                            ),
+                            autoLabelInSky = now.isNakedEyeVisible,
+                            labelPriority = 18.0
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
         return out
     }
+
+    private fun buildDynamicSatelliteCelestialObject(
+        sat: SatelliteItem,
+        nameEnOverride: String,
+        nameFaOverride: String,
+        magnitude: Double
+    ): CelestialObject = CelestialObject(
+        id = "sat_${sat.noradId}",
+        type = ObjectType.SATELLITE,
+        nameEn = nameEnOverride,
+        nameFa = nameFaOverride,
+        raDeg = 0.0,
+        decDeg = 0.0,
+        magnitude = magnitude,
+        constellationEn = "Low Earth Orbit",
+        constellationFa = "مدار پایین زمین",
+        distanceLightYears = 0.0,
+        category = if (sat.isTrain) "Starlink Train" else "Starlink LEO",
+        descriptionEn = sat.descriptionEn,
+        descriptionFa = sat.descriptionFa,
+        observationTipEn = "Best observed during twilight when sunlit high above a darkened sky.",
+        observationTipFa = "بهترین زمان رصد در گرگ‌ومیش است که ماهواره در ارتفاع بالا نور خورشید را بازتاب می‌دهد.",
+        catalogDesignations = listOfNotNull("NORAD ${sat.noradId}", sat.designation.takeIf { it.isNotBlank() }),
+        funFactsEn = sat.verifiedFactsEn,
+        funFactsFa = sat.verifiedFactsFa
+    )
 
     /** Ids under which a satellite may appear in the canonical catalogue. */
     fun satelliteIdsFor(info: ArSatelliteInfo): List<String> = buildList {

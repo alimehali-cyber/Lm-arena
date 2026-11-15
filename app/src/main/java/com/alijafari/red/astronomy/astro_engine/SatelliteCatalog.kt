@@ -1,6 +1,7 @@
 package com.alijafari.red.astronomy.astro_engine
 
 import com.alijafari.red.astronomy.astro_engine.ISSEngine.TLEData
+import java.util.concurrent.ConcurrentHashMap
 
 enum class SatelliteCategory(val labelEn: String, val labelFa: String) {
     ALL("All", "همه"),
@@ -204,6 +205,48 @@ object SatelliteCatalog {
         )
     )
 
+    private val dynamicStarlinksById = ConcurrentHashMap<String, SatelliteItem>()
+    private val dynamicStarlinksByNorad = ConcurrentHashMap<Int, SatelliteItem>()
+
+    /**
+     * Registers dynamically discovered Starlink trains and shortlisted visible/overhead
+     * individual Starlinks so [getById] and [SatelliteEngine.resolveSatelliteItem] resolve
+     * them without touching the immutable static [satellites] list.
+     */
+    fun registerDynamicStarlinks(items: Collection<SatelliteItem>, primaryTrain: SatelliteItem? = null) {
+        if (primaryTrain != null) {
+            dynamicStarlinksById["starlink_train"] = primaryTrain
+            dynamicStarlinksById[primaryTrain.id.lowercase()] = primaryTrain
+            if (primaryTrain.noradId > 0) {
+                dynamicStarlinksByNorad.putIfAbsent(primaryTrain.noradId, primaryTrain)
+            }
+        }
+        for (item in items) {
+            dynamicStarlinksById[item.id.lowercase()] = item
+            if (item.noradId > 0) {
+                // Individual satellite item takes precedence for direct NORAD lookups unless train-only
+                if (!item.isTrain || !dynamicStarlinksByNorad.containsKey(item.noradId)) {
+                    dynamicStarlinksByNorad[item.noradId] = item
+                }
+                dynamicStarlinksById["sat_${item.noradId}"] = item
+                dynamicStarlinksById["starlink_${item.noradId}"] = item
+            }
+        }
+    }
+
+    fun getDynamicByIdOrNorad(idOrNorad: String): SatelliteItem? {
+        val key = idOrNorad.trim().lowercase()
+        if (key.isEmpty()) return null
+        dynamicStarlinksById[key]?.let { return it }
+        val norad = when {
+            key.startsWith("sat_") -> key.removePrefix("sat_").toIntOrNull()
+            key.startsWith("starlink_") -> key.removePrefix("starlink_").toIntOrNull()
+            key.startsWith("norad_") -> key.removePrefix("norad_").toIntOrNull()
+            else -> key.toIntOrNull()
+        }
+        return if (norad != null) dynamicStarlinksByNorad[norad] else null
+    }
+
     fun getVisibleList(train: SatelliteItem? = null): List<SatelliteItem> {
         return if (train != null) {
             satellites + train
@@ -216,11 +259,16 @@ object SatelliteCatalog {
         if (train != null && (id == "starlink_train" || id == train.id)) {
             return train
         }
-        return satellites.find {
+        val staticMatch = satellites.find {
             it.id == id ||
             (id == "tiangong_space_station" && it.id == "tiangong") ||
             (id == "hubble_space_telescope" && it.id == "hubble") ||
             (id == "cosmos_1457" && it.id == "envisat")
-        } ?: satellites.first()
+        }
+        if (staticMatch != null) return staticMatch
+
+        getDynamicByIdOrNorad(id)?.let { return it }
+
+        return satellites.first()
     }
 }

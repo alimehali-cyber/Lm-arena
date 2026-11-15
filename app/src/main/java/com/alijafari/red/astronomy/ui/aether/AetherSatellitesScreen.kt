@@ -212,20 +212,41 @@ fun AetherSatellitesScreen(
     }
 
     val tleRepo = remember { TleRepository.getInstance(context) }
-    var detectedTrain by remember { mutableStateOf<SatelliteItem?>(null) }
+    val starlinkCacheVersion by tleRepo.starlinkVersion.collectAsState()
+    var activeTrains by remember { mutableStateOf<List<StarlinkTrainManager.StarlinkTrain>>(emptyList()) }
+    var overheadStarlinks by remember { mutableStateOf<List<SatelliteItem>>(emptyList()) }
+    var topPassStarlinks by remember { mutableStateOf<List<SatelliteItem>>(emptyList()) }
 
     LaunchedEffect(Unit) {
-        val initialTrain = StarlinkTrainManager.detectTrain(tleRepo.getStarlinkTles())
-        detectedTrain = initialTrain
         withContext(Dispatchers.IO) {
-            val updated = tleRepo.refreshTles()
-            if (updated || initialTrain == null) {
-                val newTrain = StarlinkTrainManager.detectTrain(tleRepo.getStarlinkTles())
-                withContext(Dispatchers.Main) {
-                    detectedTrain = newTrain
-                }
-            }
+            tleRepo.ensureStarlinkDiskCacheLoaded()
+            tleRepo.refreshTles()
         }
+    }
+
+    // Refresh real-time overhead Starlink shortlist + active physical trains every 12s on Dispatchers.Default
+    val realtimeBucketKey = currentSimulationMs / StarlinkTrainManager.REALTIME_SNAPSHOT_TTL_MS
+    LaunchedEffect(
+        starlinkCacheVersion,
+        uiState.userLocation.latitude,
+        uiState.userLocation.longitude,
+        realtimeBucketKey
+    ) {
+        val snapshot = withContext(Dispatchers.Default) {
+            StarlinkTrainManager.selectRealtimeOverheadStarlinks(
+                starlinkTles = tleRepo.getStarlinkTles(),
+                userLatDeg = uiState.userLocation.latitude,
+                userLonDeg = uiState.userLocation.longitude,
+                nowMs = currentSimulationMs,
+                maxOverhead = StarlinkTrainManager.DEFAULT_REALTIME_OVERHEAD_LIMIT
+            )
+        }
+        activeTrains = snapshot.activeTrains
+        overheadStarlinks = snapshot.overheadStarlinks
+    }
+
+    val detectedTrain = remember(activeTrains) {
+        activeTrains.firstOrNull()?.leaderItem
     }
 
     var selectedCategory by remember { mutableStateOf(SatelliteCategory.ALL) }
@@ -237,8 +258,14 @@ fun AetherSatellitesScreen(
     var panOffsetX by remember { mutableFloatStateOf(0.0f) }
     var panOffsetY by remember { mutableFloatStateOf(0.0f) }
 
-    val visibleSatellites = remember(detectedTrain) {
-        SatelliteCatalog.getVisibleList(detectedTrain)
+    // Curated fleet list: 4 static catalog satellites + active Starlink trains + top overhead/visible Starlinks
+    val visibleSatellites = remember(activeTrains, overheadStarlinks, topPassStarlinks, selectedCategory) {
+        val trainLeaders = activeTrains.map { it.leaderItem }
+        val individualLimit = if (selectedCategory == SatelliteCategory.STARLINK) 16 else 8
+        val combinedIndividuals = (overheadStarlinks + topPassStarlinks)
+            .distinctBy { it.noradId }
+            .take(individualLimit)
+        SatelliteCatalog.satellites + trainLeaders + combinedIndividuals
     }
 
     val filteredSatellites = remember(selectedCategory, visibleSatellites) {
@@ -253,10 +280,21 @@ fun AetherSatellitesScreen(
         }
     }
 
-    val selectedSatItem = remember(selectedSatelliteId, detectedTrain) {
-        selectedSatelliteId?.let { id -> SatelliteCatalog.getById(id, detectedTrain) }
+    val showStarlinkConstellationOnMap = selectedCategory == SatelliteCategory.ALL ||
+        selectedCategory == SatelliteCategory.STARLINK ||
+        selectedCategory == SatelliteCategory.VISIBLE
+
+    val selectedSatItem = remember(selectedSatelliteId, detectedTrain, activeTrains, overheadStarlinks, topPassStarlinks) {
+        selectedSatelliteId?.let { id ->
+            activeTrains.firstOrNull { it.leaderItem.id == id }?.leaderItem
+                ?: activeTrains.asSequence().flatMap { it.memberItems.asSequence() }.firstOrNull { it.id == id }
+                ?: overheadStarlinks.firstOrNull { it.id == id }
+                ?: topPassStarlinks.firstOrNull { it.id == id }
+                ?: SatelliteCatalog.getById(id, detectedTrain)
+        }
     }
 
+    // Smooth SGP4 propagation of the curated fleet list (static + train leaders + top overhead)
     val liveSatelliteStates = remember(filteredSatellites, currentSimulationMs, uiState.userLocation) {
         filteredSatellites.map { sat ->
             SatelliteEngine.calculateSatelliteState(
@@ -268,8 +306,52 @@ fun AetherSatellitesScreen(
         }
     }
 
-    val selectedLiveState = remember(liveSatelliteStates, selectedSatelliteId) {
-        liveSatelliteStates.firstOrNull { it.satellite.id == selectedSatelliteId }
+    // Smooth SGP4 propagation for every pearl in active Starlink trains (for string-of-pearls map rendering)
+    val trainPearlStatesByTrain = remember(activeTrains, showStarlinkConstellationOnMap, currentSimulationMs, uiState.userLocation) {
+        if (!showStarlinkConstellationOnMap || activeTrains.isEmpty()) {
+            emptyList()
+        } else {
+            activeTrains.map { train ->
+                train to train.memberItems.map { pearl ->
+                    SatelliteEngine.calculateSatelliteState(
+                        satellite = pearl,
+                        timestampMs = currentSimulationMs,
+                        userLatDeg = uiState.userLocation.latitude,
+                        userLonDeg = uiState.userLocation.longitude
+                    )
+                }
+            }
+        }
+    }
+
+    // Smooth SGP4 propagation for all overhead individual Starlinks on the Live Orbital Map
+    val mapOverheadStarlinkStates = remember(overheadStarlinks, showStarlinkConstellationOnMap, currentSimulationMs, uiState.userLocation) {
+        if (!showStarlinkConstellationOnMap || overheadStarlinks.isEmpty()) {
+            emptyList()
+        } else {
+            overheadStarlinks.map { sat ->
+                SatelliteEngine.calculateSatelliteState(
+                    satellite = sat,
+                    timestampMs = currentSimulationMs,
+                    userLatDeg = uiState.userLocation.latitude,
+                    userLonDeg = uiState.userLocation.longitude
+                )
+            }
+        }
+    }
+
+    val allInteractiveMapStates = remember(liveSatelliteStates, trainPearlStatesByTrain, mapOverheadStarlinkStates) {
+        val byId = LinkedHashMap<String, SatelliteLiveState>()
+        for (st in liveSatelliteStates) byId[st.satellite.id] = st
+        for ((_, pearls) in trainPearlStatesByTrain) {
+            for (p in pearls) byId.putIfAbsent(p.satellite.id, p)
+        }
+        for (st in mapOverheadStarlinkStates) byId.putIfAbsent(st.satellite.id, st)
+        byId.values.toList()
+    }
+
+    val selectedLiveState = remember(allInteractiveMapStates, liveSatelliteStates, selectedSatelliteId) {
+        allInteractiveMapStates.firstOrNull { it.satellite.id == selectedSatelliteId }
             ?: liveSatelliteStates.firstOrNull()
     }
 
@@ -473,7 +555,7 @@ fun AetherSatellitesScreen(
                                 }
                             }
                         }
-                        .pointerInput(liveSatelliteStates, zoomScale, panOffsetX, panOffsetY) {
+                        .pointerInput(allInteractiveMapStates, zoomScale, panOffsetX, panOffsetY) {
                             detectTapGestures { tapOffset ->
                                 val w = size.width.toFloat()
                                 val h = size.height.toFloat()
@@ -488,7 +570,7 @@ fun AetherSatellitesScreen(
 
                                 var hitSat: SatelliteLiveState? = null
                                 var bestDist = 42f
-                                for (st in liveSatelliteStates) {
+                                for (st in allInteractiveMapStates) {
                                     val sx = getMapX(st.topocentric.subLonDeg)
                                     val sy = getMapY(st.topocentric.subLatDeg)
                                     val d = hypot(tapOffset.x - sx, tapOffset.y - sy)
@@ -657,6 +739,90 @@ fun AetherSatellitesScreen(
                         )
                     }
 
+                    // Render real-time overhead individual Starlinks
+                    for (ovState in mapOverheadStarlinkStates) {
+                        val sat = ovState.satellite
+                        val isSelected = sat.id == selectedSatelliteId
+                        val sx = mapX(ovState.topocentric.subLonDeg)
+                        val sy = mapY(ovState.topocentric.subLatDeg)
+                        if (sx in -20f..(w + 20f) && sy in -20f..(h + 20f)) {
+                            if (isSelected) {
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(AetherGlowWhite.copy(alpha = 0.72f), Color.Transparent),
+                                        center = Offset(sx, sy),
+                                        radius = 14.dp.toPx()
+                                    ),
+                                    radius = 14.dp.toPx(),
+                                    center = Offset(sx, sy)
+                                )
+                            }
+                            val dotColor = when {
+                                isSelected -> AetherGlowWhite
+                                ovState.topocentric.isSunlit -> Color(0xFF60A5FA)
+                                else -> Color(0xFF60A5FA).copy(alpha = 0.48f)
+                            }
+                            drawCircle(
+                                color = dotColor,
+                                radius = if (isSelected) 4.8.dp.toPx() else 2.7.dp.toPx(),
+                                center = Offset(sx, sy)
+                            )
+                        }
+                    }
+
+                    // Render every individual pearl in active Starlink "String of Pearls" trains
+                    for ((_, pearls) in trainPearlStatesByTrain) {
+                        if (pearls.isEmpty()) continue
+                        val chainPath = Path()
+                        var firstPearl = true
+                        var prevLon: Double? = null
+                        for (pState in pearls) {
+                            val lon = pState.topocentric.subLonDeg
+                            val lat = pState.topocentric.subLatDeg
+                            if (prevLon != null && abs(lon - prevLon) > 180.0) {
+                                firstPearl = true
+                            }
+                            val px = mapX(lon)
+                            val py = mapY(lat)
+                            if (firstPearl) {
+                                chainPath.moveTo(px, py)
+                                firstPearl = false
+                            } else {
+                                chainPath.lineTo(px, py)
+                            }
+                            prevLon = lon
+                        }
+                        drawPath(
+                            path = chainPath,
+                            color = Color(0xFF7DD3FC).copy(alpha = 0.48f),
+                            style = Stroke(width = 2.0f)
+                        )
+                        pearls.forEachIndexed { idx, pState ->
+                            val px = mapX(pState.topocentric.subLonDeg)
+                            val py = mapY(pState.topocentric.subLatDeg)
+                            if (px in -20f..(w + 20f) && py in -20f..(h + 20f)) {
+                                val isPearlSelected = pState.satellite.id == selectedSatelliteId
+                                if (idx == 0 || isPearlSelected) {
+                                    drawCircle(
+                                        brush = Brush.radialGradient(
+                                            colors = listOf(Color(0xFF7DD3FC).copy(alpha = 0.65f), Color.Transparent),
+                                            center = Offset(px, py),
+                                            radius = 11.dp.toPx()
+                                        ),
+                                        radius = 11.dp.toPx(),
+                                        center = Offset(px, py)
+                                    )
+                                }
+                                drawCircle(
+                                    color = if (isPearlSelected || idx == 0) AetherGlowWhite else Color(0xFFBAE6FD),
+                                    radius = if (idx == 0 || isPearlSelected) 3.8.dp.toPx() else 2.4.dp.toPx(),
+                                    center = Offset(px, py)
+                                )
+                            }
+                        }
+                    }
+
+                    // Render static catalog & selected fleet satellites on top
                     for (liveState in liveSatelliteStates) {
                         val sat = liveState.satellite
                         val isSelected = sat.id == selectedSatelliteId
@@ -674,8 +840,14 @@ fun AetherSatellitesScreen(
                                     center = Offset(sx, sy)
                                 )
                             }
+                            val baseColor = when {
+                                isSelected -> AetherGlowWhite
+                                sat.isTrain -> Color(0xFF7DD3FC)
+                                sat.category == SatelliteCategory.STARLINK -> Color(0xFF60A5FA)
+                                else -> AetherPinkMeshStart
+                            }
                             drawCircle(
-                                color = if (isSelected) AetherGlowWhite else AetherPinkMeshStart,
+                                color = baseColor,
                                 radius = if (isSelected) 5.dp.toPx() else 3.5.dp.toPx(),
                                 center = Offset(sx, sy)
                             )
@@ -683,10 +855,12 @@ fun AetherSatellitesScreen(
                     }
 
                     if (anchoredSatLabelState != null) {
-                        val satState = anchoredSatLabelState!!
+                        val currentAnchored = allInteractiveMapStates.firstOrNull {
+                            it.satellite.id == anchoredSatLabelState!!.satellite.id
+                        } ?: anchoredSatLabelState!!
                         labelPosOnScreen = Offset(
-                            mapX(satState.topocentric.subLonDeg),
-                            mapY(satState.topocentric.subLatDeg)
+                            mapX(currentAnchored.topocentric.subLonDeg),
+                            mapY(currentAnchored.topocentric.subLatDeg)
                         )
                     } else {
                         labelPosOnScreen = null
@@ -973,34 +1147,89 @@ fun AetherSatellitesScreen(
         }
 
         // 6. Upcoming Visible Passes (Next 3 Days) with Oscilloscope Waveforms
-        val roundedStartMs = remember(currentSimulationMs) {
-            (currentSimulationMs / 60_000L) * 60_000L
+        val passWindowKey = remember(currentSimulationMs, timeOffsetHours) {
+            if (abs(timeOffsetHours) < 0.02f) {
+                (currentSimulationMs / 900_000L) * 900_000L // 15m stability bucket in live mode
+            } else {
+                (currentSimulationMs / 60_000L) * 60_000L
+            }
         }
         var allUpcomingPasses by remember {
             mutableStateOf<List<Pair<SatelliteItem, ISSEngine.ISSPass>>?>(null)
         }
 
-        LaunchedEffect(uiState.userLocation, roundedStartMs, detectedTrain) {
+        LaunchedEffect(
+            uiState.userLocation.latitude,
+            uiState.userLocation.longitude,
+            passWindowKey,
+            starlinkCacheVersion
+        ) {
             withContext(Dispatchers.Default) {
-                val allSats = SatelliteCatalog.getVisibleList(detectedTrain)
+                val starlinkTles = tleRepo.getStarlinkTles()
+                val detectedTrainsNow = StarlinkTrainManager.detectActiveTrains(
+                    starlinkTles = starlinkTles,
+                    nowMs = passWindowKey
+                )
+                val shortlistedStarlinks = StarlinkTrainManager.selectTopVisibleStarlinks(
+                    starlinkTles = starlinkTles,
+                    activeTrains = detectedTrainsNow,
+                    userLatDeg = uiState.userLocation.latitude,
+                    userLonDeg = uiState.userLocation.longitude,
+                    startTimeMs = passWindowKey,
+                    maxCount = StarlinkTrainManager.DEFAULT_TOP_VISIBLE_PASS_LIMIT
+                )
+
                 val combined = mutableListOf<Pair<SatelliteItem, ISSEngine.ISSPass>>()
-                for (sat in allSats) {
+
+                // 1. Static catalog + active Starlink Trains (3-day visible scan)
+                val primaryTargets = SatelliteCatalog.satellites + detectedTrainsNow.map { it.leaderItem }
+                for (sat in primaryTargets) {
                     val passes = ISSEngine.predictPasses(
                         userLatDeg = uiState.userLocation.latitude,
                         userLonDeg = uiState.userLocation.longitude,
-                        startTimestampMs = roundedStartMs,
+                        startTimestampMs = passWindowKey,
                         tle = SatelliteEngine.getEffectiveTle(sat),
                         scanDays = 3,
                         visibleOnly = true,
                         standardMag = sat.standardMagnitude
                     )
                     for (p in passes) {
-                        combined.add(Pair(sat, p))
+                        combined.add(sat to p)
                     }
                 }
+
+                // 2. Top 18 fast-preselected high-elevation individual Starlinks (48-hour visible scan)
+                for (sat in shortlistedStarlinks) {
+                    val passes = ISSEngine.predictPasses(
+                        userLatDeg = uiState.userLocation.latitude,
+                        userLonDeg = uiState.userLocation.longitude,
+                        startTimestampMs = passWindowKey,
+                        tle = sat.defaultTle,
+                        scanDays = 2,
+                        visibleOnly = true,
+                        standardMag = sat.standardMagnitude
+                    )
+                    for (p in passes) {
+                        combined.add(sat to p)
+                    }
+                }
+
                 val sorted = combined.sortedBy { it.second.startTimeMs }
                 withContext(Dispatchers.Main) {
+                    topPassStarlinks = shortlistedStarlinks
                     allUpcomingPasses = sorted
+                }
+            }
+        }
+
+        val displayedPasses = remember(allUpcomingPasses, selectedCategory) {
+            allUpcomingPasses?.filter { (sat, _) ->
+                when (selectedCategory) {
+                    SatelliteCategory.ALL -> true
+                    SatelliteCategory.ISS -> sat.category == SatelliteCategory.ISS
+                    SatelliteCategory.STARLINK -> sat.category == SatelliteCategory.STARLINK || sat.isTrain
+                    SatelliteCategory.HUBBLE -> sat.category == SatelliteCategory.HUBBLE
+                    SatelliteCategory.VISIBLE -> sat.isNakedEyeCandidate
                 }
             }
         }
@@ -1021,7 +1250,7 @@ fun AetherSatellitesScreen(
                 ),
                 color = palette.textPrimary
             )
-            allUpcomingPasses?.size?.let { count ->
+            displayedPasses?.size?.let { count ->
                 AetherPillBadge(
                     text = if (isFa) {
                         TimeEngine.formatPersianNumbers(count.toString())
@@ -1033,7 +1262,7 @@ fun AetherSatellitesScreen(
             }
         }
 
-        val currentPasses = allUpcomingPasses
+        val currentPasses = displayedPasses
         if (currentPasses == null) {
             AetherFrostedCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -1060,13 +1289,20 @@ fun AetherSatellitesScreen(
                 )
             }
         } else {
+            val maxPassCards = if (selectedCategory == SatelliteCategory.STARLINK) 12 else 10
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                currentPasses.take(8).forEach { (sat, pass) ->
+                currentPasses.take(maxPassCards).forEach { (sat, pass) ->
                     AetherVisiblePassCard(
                         satName = if (isFa) sat.nameFa else sat.nameEn,
+                        isTrainPass = sat.isTrain,
+                        trainSatelliteCount = sat.trainCount,
                         pass = pass,
                         calendarSystem = uiState.calendarSystem,
                         isFa = isFa,
+                        onCardClick = {
+                            selectedSatelliteId = sat.id
+                            activeDetailSatellite = sat
+                        },
                         onSchedulePassReminder = { leadMins ->
                             executeWithNotificationPermission {
                                 AstroNotificationManager.scheduleSpecificPassAlarm(
@@ -1178,9 +1414,12 @@ fun AetherSatellitesScreen(
 @Composable
 private fun AetherVisiblePassCard(
     satName: String,
+    isTrainPass: Boolean = false,
+    trainSatelliteCount: Int = 1,
     pass: ISSEngine.ISSPass,
     calendarSystem: CalendarSystem,
     isFa: Boolean,
+    onCardClick: (() -> Unit)? = null,
     onSchedulePassReminder: (leadMinutes: Int) -> Unit
 ) {
     val palette = AetherTheme.palette
@@ -1200,7 +1439,8 @@ private fun AetherVisiblePassCard(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 30.dp,
         contentPadding = PaddingValues(18.dp),
-        accentGlow = palette.sapphireGlow
+        accentGlow = if (isTrainPass) Color(0xFF7DD3FC) else palette.sapphireGlow,
+        onClick = onCardClick
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1208,6 +1448,19 @@ private fun AetherVisiblePassCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
+                if (isTrainPass) {
+                    val countText = if (isFa) {
+                        "قطار استارلینک • ${TimeEngine.formatPersianNumbers(trainSatelliteCount.toString())} ماهواره"
+                    } else {
+                        "STRING OF PEARLS • $trainSatelliteCount SATS"
+                    }
+                    AetherPillBadge(
+                        text = countText,
+                        selected = true,
+                        tint = Color(0xFF7DD3FC)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
                 Text(
                     text = satName,
                     style = RedTypographyTokens.bodyPrimary.copy(

@@ -236,11 +236,14 @@ fun SpatialSatellitesScreen(
     var detectedTrain by remember { mutableStateOf<SatelliteItem?>(null) }
 
     LaunchedEffect(Unit) {
-        val initialTrain = StarlinkTrainManager.detectTrain(tleRepo.getStarlinkTles())
-        detectedTrain = initialTrain
         withContext(Dispatchers.IO) {
+            tleRepo.ensureStarlinkDiskCacheLoaded()
+            val cachedTrain = StarlinkTrainManager.detectTrain(tleRepo.getStarlinkTles())
+            withContext(Dispatchers.Main) {
+                detectedTrain = cachedTrain
+            }
             val updated = tleRepo.refreshTles()
-            if (updated || initialTrain == null) {
+            if (updated || cachedTrain == null) {
                 val newTrain = StarlinkTrainManager.detectTrain(tleRepo.getStarlinkTles())
                 withContext(Dispatchers.Main) {
                     detectedTrain = newTrain

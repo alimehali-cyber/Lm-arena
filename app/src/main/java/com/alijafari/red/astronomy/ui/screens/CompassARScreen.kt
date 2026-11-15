@@ -695,9 +695,14 @@ fun CompassARScreen(
     val activeTimeMs = if (timeMachineState.mode == TimeMachineMode.LIVE) liveTimeMs else timeMachineState.simulationTimeMs
     val jd = remember(activeTimeMs) { TimeEngine.getJulianDate(activeTimeMs) }
 
-    // Live TLE background fetch for ISS orbital precision
+    // Live TLE background fetch for ISS & Starlink disk-cache / 2h-gated multi-feed sync
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
+            runCatching {
+                val repo = com.alijafari.red.astronomy.data.repository.TleRepository.getInstance(context.applicationContext)
+                repo.ensureStarlinkDiskCacheLoaded()
+                repo.refreshTles()
+            }
             ISSEngine.fetchLatestTLE()
         }
     }
@@ -925,14 +930,36 @@ fun CompassARScreen(
         }
     }
 
-    val searchResults = remember(searchQuery, observerLat, observerLon, jd) {
+    val searchResults = remember(searchQuery, observerLat, observerLon, jd, arSatellites) {
         if (searchQuery.isNotBlank()) {
-            CelestialSearchEngine.search(
+            val baseResults = CelestialSearchEngine.search(
                 query = searchQuery,
                 userLat = observerLat,
                 userLon = observerLon,
                 jd = jd
             )
+            val q = searchQuery.trim().lowercase(Locale.US)
+            val dynamicStarlinkMatches = arSatellites.mapNotNull { info ->
+                val obj = info.dynamicCelestialObject ?: return@mapNotNull null
+                val matches = obj.nameEn.lowercase(Locale.US).contains(q) ||
+                    obj.nameFa.contains(q) ||
+                    "starlink".contains(q) ||
+                    "استارلینک".contains(q) ||
+                    info.noradId.toString().contains(q)
+                if (!matches) return@mapNotNull null
+                val above = info.altitudeDeg > 0.0
+                SearchResult(
+                    celestialObject = obj,
+                    altitudeDeg = info.altitudeDeg,
+                    azimuthDeg = info.azimuthDeg,
+                    isVisibleNow = above && info.sunlit,
+                    statusFa = if (above) "بالای افق (${String.format(Locale.US, "%.0f°", info.altitudeDeg)})" else "زیر افق",
+                    statusEn = if (above) "Above horizon (${String.format(Locale.US, "%.0f°", info.altitudeDeg)})" else "Below horizon",
+                    matchScore = if (info.autoLabelInSky) 95 else 70
+                )
+            }.take(8)
+            val existingIds = baseResults.map { it.celestialObject.id }.toHashSet()
+            baseResults + dynamicStarlinkMatches.filter { it.celestialObject.id !in existingIds }
         } else {
             emptyList()
         }
