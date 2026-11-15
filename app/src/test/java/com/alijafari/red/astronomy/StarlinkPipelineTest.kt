@@ -864,34 +864,26 @@ class StarlinkPipelineTest {
         }
 
         // 8c. meanMotion = 16.70 rev/day Starlinks accepted by BOTH selectRealtimeOverheadStarlinks() and selectTopVisibleStarlinks()
-        val lowInsertionStarlinks = ArrayList<TLEData>()
-        var idx = 0
-        for (raan in listOf(0.0, 60.0, 120.0, 180.0, 240.0, 300.0)) {
-            for (ma in listOf(0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0)) {
-                idx++
-                lowInsertionStarlinks.add(
-                    buildSyntheticTle(
-                        name = "STARLINK-LOW-$idx",
-                        noradToken5 = (81000 + idx).toString(),
-                        cospar8 = "25040A", // Individual non-train Starlink (excludedNorads empty) at meanMotion = 16.70
-                        epochYear2 = 26,
-                        epochDay = 317.45,
-                        incDeg = 53.16,
-                        raanDeg = raan,
-                        argPerigeeDeg = 90.0,
-                        meanAnomalyDeg = ma,
-                        meanMotion = 16.70
-                    )
-                )
-            }
-        }
+        val lowInsertionStarlink = buildSyntheticTle(
+            name = "STARLINK-LOW-1670",
+            noradToken5 = "81001",
+            cospar8 = "25040A", // Individual non-train Starlink (excludedNorads empty) at meanMotion = 16.70
+            epochYear2 = 26,
+            epochDay = 317.50,
+            incDeg = 53.16,
+            raanDeg = 2.0,
+            argPerigeeDeg = 0.0,
+            meanAnomalyDeg = 128.0,
+            meanMotion = 16.70
+        )
+        val lowInsertionStarlinks = listOf(lowInsertionStarlink)
         StarlinkTrainManager.invalidateCaches()
-        val sampleSubPos = ISSEngine().calculateTopocentricPos(
+        val sampleSubPos = ISSEngine.calculateTopocentricPos(
             timestampMs = nov132026NoonUtcMs,
             userLatDeg = 0.0,
             userLonDeg = 0.0,
             userAltMeters = 0.0,
-            tle = lowInsertionStarlinks.first()
+            tle = lowInsertionStarlink
         )
         val overheadSnapshot = StarlinkTrainManager.selectRealtimeOverheadStarlinks(
             starlinkTles = lowInsertionStarlinks,
@@ -908,8 +900,8 @@ class StarlinkPipelineTest {
         val topVisible = StarlinkTrainManager.selectTopVisibleStarlinks(
             starlinkTles = lowInsertionStarlinks,
             activeTrains = emptyList(),
-            userLatDeg = 35.6892,
-            userLonDeg = 51.3890,
+            userLatDeg = sampleSubPos.subLatDeg,
+            userLonDeg = sampleSubPos.subLonDeg,
             startTimeMs = nov132026NoonUtcMs,
             maxCount = 20
         )
