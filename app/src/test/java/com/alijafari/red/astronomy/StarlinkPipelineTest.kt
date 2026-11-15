@@ -25,6 +25,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.zip.GZIPOutputStream
@@ -409,4 +410,53 @@ class StarlinkPipelineTest {
             assertEquals(expectedNorad, resolved!!.noradId)
         }
     }
+
+    @Test
+    fun `5 all four UI theme Satellites screens share full multi-train and individual Starlink parity`() {
+        fun readScreenSource(relative: String): String {
+            val candidates = listOf("src/main/java/$relative", "app/src/main/java/$relative")
+            return candidates.map(::File).firstOrNull { it.exists() }?.readText()
+                ?: error("Source not found: $relative")
+        }
+
+        val screens = mapOf(
+            "AetherSatellitesScreen" to readScreenSource("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt"),
+            "ISSScreen" to readScreenSource("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt"),
+            "SpatialSatellitesScreen" to readScreenSource("com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt"),
+            "CyberSatellitesScreen" to readScreenSource("com/alijafari/red/astronomy/ui/cyber/CyberSatellitesScreen.kt")
+        )
+
+        val requiredTokens = listOf(
+            "tleRepo.starlinkVersion.collectAsState()",
+            "StarlinkTrainManager.selectRealtimeOverheadStarlinks(",
+            "StarlinkTrainManager.detectActiveTrains(",
+            "StarlinkTrainManager.selectTopVisibleStarlinks(",
+            "trainPearlStatesByTrain",
+            "mapOverheadStarlinkStates",
+            "allInteractiveMapStates",
+            "isTrainPass = sat.isTrain"
+        )
+
+        for ((screenName, src) in screens) {
+            for (token in requiredTokens) {
+                assertTrue(
+                    "Expected $screenName to contain '$token' for full Starlink parity",
+                    src.contains(token)
+                )
+            }
+            // None of the 4 screens should rely on the legacy single-train detectTrain() call anymore
+            assertFalse(
+                "$screenName should use detectActiveTrains() instead of legacy single detectTrain()",
+                src.contains("StarlinkTrainManager.detectTrain(")
+            )
+        }
+
+        // Verify all 4 pass card implementations carry the STRING OF PEARLS train badge
+        val detailSrc = readScreenSource("com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt")
+        assertTrue(detailSrc.contains("STRING OF PEARLS"))
+        assertTrue(screens.getValue("AetherSatellitesScreen").contains("STRING OF PEARLS"))
+        assertTrue(screens.getValue("SpatialSatellitesScreen").contains("STRING OF PEARLS"))
+        assertTrue(screens.getValue("CyberSatellitesScreen").contains("STRING OF PEARLS"))
+    }
 }
+

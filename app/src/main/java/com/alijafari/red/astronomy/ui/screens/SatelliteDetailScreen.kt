@@ -691,6 +691,9 @@ fun DetailedVisiblePassCard(
     pass: ISSEngine.ISSPass,
     cityName: String,
     isFa: Boolean,
+    isTrainPass: Boolean = false,
+    trainSatelliteCount: Int = 1,
+    onCardClick: (() -> Unit)? = null,
     onSchedulePassReminder: (leadMinutes: Int) -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -707,18 +710,43 @@ fun DetailedVisiblePassCard(
 
     val magStr = String.format(Locale.US, "%.1f", pass.estimatedMagnitude)
     val maxElevStr = String.format(Locale.US, "%.0f°", pass.maxElevationDeg)
+    val trainAccent = Color(0xFF38BDF8)
 
     RedSurface(
         modifier = Modifier.fillMaxWidth(),
         shape = squircleShape(RedCornerRadius.window),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = BorderStroke(1.dp, Color(pass.classification.colorHex).copy(alpha = 0.4f)),
+        border = BorderStroke(
+            1.dp,
+            if (isTrainPass) trainAccent.copy(alpha = 0.65f) else Color(pass.classification.colorHex).copy(alpha = 0.4f)
+        ),
         elevation = RedElevation.none,
+        onClick = onCardClick
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            if (isTrainPass) {
+                val countLabel = if (isFa) {
+                    "قطار استارلینک • ${trainSatelliteCount.toString().toPersianDigits()} ماهواره"
+                } else {
+                    "STRING OF PEARLS • $trainSatelliteCount SATS"
+                }
+                Surface(
+                    shape = RedShapes.capsule,
+                    color = trainAccent.copy(alpha = 0.16f),
+                    border = BorderStroke(1.dp, trainAccent.copy(alpha = 0.55f))
+                ) {
+                    Text(
+                        text = countLabel,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = trainAccent,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
             // Header Row: Satellite Name & Classification Badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
