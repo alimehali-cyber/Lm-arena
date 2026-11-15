@@ -20,6 +20,11 @@ object StarlinkTrainManager {
     private const val TAG = "StarlinkTrainManager"
 
     const val MAX_ACTIVE_TRAINS = 3
+    const val TOP_RECENT_COSPAR_LAUNCH_LIMIT = 4
+    const val MAX_TRAIN_SPAN_DEG = 60.0
+    const val MAX_MEDIAN_PEARL_SPACING_DEG = 2.5
+    const val MIN_TRAIN_MEAN_MOTION = 15.12
+    const val MAX_TRAIN_MEAN_MOTION = 16.65
     const val DEFAULT_TOP_VISIBLE_PASS_LIMIT = 18
     const val DEFAULT_REALTIME_OVERHEAD_LIMIT = 28
     const val REALTIME_SNAPSHOT_TTL_MS = 12_000L
@@ -32,7 +37,7 @@ object StarlinkTrainManager {
 
     /**
      * Represents a verified physical Starlink "String of Pearls" deployment train
-     * (`angularSpanDeg <= 90.0°`), ordered from Leader (first to rise) to Trailer.
+     * (`angularSpanDeg <= 60.0°` and median pearl spacing `<= 2.5°`), ordered from Leader (first to rise) to Trailer.
      */
     data class StarlinkTrain(
         val id: String,
@@ -44,7 +49,9 @@ object StarlinkTrainManager {
         val avgAltitudeKm: Double,
         val memberTles: List<TLEData>,
         val leaderItem: SatelliteItem,
-        val memberItems: List<SatelliteItem>
+        val memberItems: List<SatelliteItem>,
+        val launchKey: Int? = null,
+        val medianSpacingDeg: Double = 0.0
     ) {
         val satelliteCount: Int get() = memberTles.size
     }
@@ -135,6 +142,23 @@ object StarlinkTrainManager {
      */
     fun extractCosparLaunchGroup(line1: String): String {
         return if (line1.length >= 14) line1.substring(9, 14).trim() else ""
+    }
+
+    /**
+     * Parses a 5-digit COSPAR launch designator (`YYNNN`, e.g. `"26068"` -> `2026068`, `"25034"` -> `2025034`).
+     * Returns `null` for blank, `"UNKNOWN"`, `"TBA"`, or placeholder (`000`) launch numbers so uncataloged
+     * launch-day `sup-gp` / `last-30-days` batches are routed to proximity orbital-plane clustering.
+     */
+    fun parseCosparLaunchKey(cospar5: String, cosparFull: String = ""): Int? {
+        val fullUpper = cosparFull.trim().uppercase(Locale.US)
+        if (fullUpper == "UNKNOWN" || fullUpper.startsWith("TBA")) return null
+        val trimmed = cospar5.trim()
+        if (trimmed.length != 5 || !trimmed.all { it.isDigit() }) return null
+        val yy = trimmed.substring(0, 2).toIntOrNull() ?: return null
+        val nnn = trimmed.substring(2, 5).toIntOrNull() ?: return null
+        if (nnn <= 0) return null
+        val fullYear = if (yy < 57) 2000 + yy else 1900 + yy
+        return fullYear * 1000 + nnn
     }
 
     fun formatCosparLaunchDisplay(cospar5: String): String {
@@ -253,8 +277,13 @@ object StarlinkTrainManager {
 
     internal fun getParsedOrbitals(starlinkTles: List<TLEData>): List<ParsedStarlinkOrbital> {
         if (starlinkTles.isEmpty()) return emptyList()
+        var contentHash = starlinkTles.size
+        for (tle in starlinkTles) {
+            contentHash = 31 * contentHash + tle.line1.hashCode()
+            contentHash = 31 * contentHash + tle.line2.hashCode()
+        }
         val key = Triple(
-            starlinkTles.size,
+            contentHash,
             starlinkTles.first().line1,
             starlinkTles.last().line1
         )
@@ -270,7 +299,10 @@ object StarlinkTrainManager {
             val l1 = tle.line1
             val l2 = tle.line2
             if (l1.length < 53 || l2.length < 63) continue
-            val noradId = extractNoradId(l1)
+            var noradId = extractNoradId(l1)
+            if (noradId <= 0 && l1.length >= 7 && l1.substring(2, 7).trim() == "00000") {
+                noradId = 900_000 + ((31 * tle.name.trim().hashCode() + l2.trim().hashCode()) and 0x0FFFF)
+            }
             if (noradId <= 0) continue
 
             val epochYr = if (tle.epochYear != 0) tle.epochYear else extractEpochYear(l1)
@@ -327,11 +359,79 @@ object StarlinkTrainManager {
     }
 
     /**
-     * Detects up to [maxTrains] genuine physical Starlink "String of Pearls" deployment trains
-     * sorted by tightest [StarlinkTrain.angularSpanDeg] ascending.
+     * Proximity orbital-plane clustering for uncataloged `sup-gp` / `last-30-days` candidates
+     * (`abs(inc1 - inc2) <= 0.6°` and `circularDistanceDeg(raan1, raan2) <= 3.5°`).
+     * Eliminates integer-bucket boundary splitting (e.g. a train straddling `123.9°..124.1°` RAAN).
+     */
+    private fun clusterUncatalogedOrbitals(
+        uncataloged: List<ParsedStarlinkOrbital>
+    ): List<Pair<String, List<ParsedStarlinkOrbital>>> {
+        if (uncataloged.size < 8) return emptyList()
+        val n = uncataloged.size
+        val visited = BooleanArray(n)
+        val result = ArrayList<Pair<String, List<ParsedStarlinkOrbital>>>()
+        val usedKeys = HashSet<String>()
+
+        for (i in 0 until n) {
+            if (visited[i]) continue
+            val component = ArrayList<ParsedStarlinkOrbital>()
+            val queue = ArrayDeque<Int>()
+            visited[i] = true
+            queue.addLast(i)
+
+            while (queue.isNotEmpty()) {
+                val curIdx = queue.removeFirst()
+                val cur = uncataloged[curIdx]
+                component.add(cur)
+                for (j in 0 until n) {
+                    if (!visited[j]) {
+                        val other = uncataloged[j]
+                        if (abs(cur.inclinationDeg - other.inclinationDeg) <= 0.6 &&
+                            circularDistanceDeg(cur.raanDeg, other.raanDeg) <= 3.5
+                        ) {
+                            visited[j] = true
+                            queue.addLast(j)
+                        }
+                    }
+                }
+            }
+
+            if (component.size >= 8) {
+                val sortedInc = component.map { it.inclinationDeg }.sorted()
+                val medianInc = sortedInc[sortedInc.size / 2]
+                val medianRaan = component.minByOrNull { center ->
+                    component.sumOf { circularDistanceDeg(center.raanDeg, it.raanDeg) }
+                }?.raanDeg ?: component.first().raanDeg
+
+                val tightPlane = component.filter {
+                    abs(it.inclinationDeg - medianInc) <= 0.6 &&
+                        circularDistanceDeg(it.raanDeg, medianRaan) <= 3.5
+                }
+                if (tightPlane.size >= 8) {
+                    val baseKey = "SUP-${medianInc.roundToInt()}-${medianRaan.roundToInt()}"
+                    var uniqueKey = baseKey
+                    var suffix = 2
+                    while (!usedKeys.add(uniqueKey)) {
+                        uniqueKey = "$baseKey-$suffix"
+                        suffix++
+                    }
+                    result.add(uniqueKey to tightPlane)
+                }
+            }
+        }
+        return result
+    }
+
+    /**
+     * Detects up to [maxTrains] genuine physical Starlink "String of Pearls" deployment trains,
+     * sorted primarily by newest launch batch (`SUP` launch-day batches and highest `YYYY-NNN`
+     * COSPAR launch designator first) and secondarily by tightest [StarlinkTrain.angularSpanDeg].
      *
-     * Rejects dispersed operational / Direct-to-Cell shells spread around 360° of their orbit
-     * via the strict `angularSpanDeg <= 90.0` circular cluster span criterion.
+     * Enforces:
+     * 1. Strict COSPAR Launch Recency Gate (top 4 most recent cataloged Starlink launch batches,
+     *    plus hard rejection of prior-year launches such as 2024/2025 Direct-to-Cell shells).
+     * 2. Tight physical train density (`angularSpanDeg <= 60.0°` AND median inter-pearl spacing `<= 2.5°`).
+     * 3. Proximity orbital-plane clustering (`<= 0.6°` inc, `<= 3.5°` RAAN) for uncataloged `sup-gp` TLEs.
      */
     fun detectActiveTrains(
         starlinkTles: List<TLEData>,
@@ -344,25 +444,86 @@ object StarlinkTrainManager {
         val orbitals = getParsedOrbitals(starlinkTles)
         if (orbitals.isEmpty()) return emptyList()
 
-        // Step 1: Filter candidates by fresh epoch age [-1.0, 7.0] days and LEO train mean motion [15.25, 16.55] rev/day
-        val candidates = orbitals.filter { orb ->
-            val epochAgeDays = nowJd - orb.epochJd
-            epochAgeDays in -1.0..7.0 && orb.meanMotion in 15.25..16.55
+        val calUtc = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+            timeInMillis = nowMs
         }
-        if (candidates.size < 8) return emptyList()
+        val currentYear = calUtc.get(java.util.Calendar.YEAR)
+        val currentDayOfYear = calUtc.get(java.util.Calendar.DAY_OF_YEAR)
 
-        // Step 2: Group by 5-digit COSPAR launch batch (or supplemental orbital-plane key if COSPAR missing/placeholder)
-        val grouped = candidates.groupBy { orb ->
-            val c5 = orb.cosparLaunch5
-            val validCospar = c5.length == 5 &&
-                c5.all { it.isDigit() } &&
-                c5 != "00000" &&
-                !orb.cosparFull.equals("UNKNOWN", ignoreCase = true)
-            if (validCospar) {
-                c5
-            } else {
-                "SUP-${(orb.inclinationDeg * 2.0).toInt()}-${(orb.raanDeg / 2.0).toInt()}"
+        // Step 1: Compute the Top 4 Most Recent Cataloged Starlink COSPAR Launch Batches across the catalog
+        val launchBatchCounts = HashMap<Int, Int>()
+        for (orb in orbitals) {
+            val lk = parseCosparLaunchKey(orb.cosparLaunch5, orb.cosparFull) ?: continue
+            val launchYr = lk / 1000
+            if (launchYr <= currentYear + 1) {
+                launchBatchCounts[lk] = (launchBatchCounts[lk] ?: 0) + 1
             }
+        }
+        val multiSatLaunchKeys = launchBatchCounts.entries
+            .filter { it.value >= 5 }
+            .map { it.key }
+            .sortedDescending()
+        val distinctCatalogLaunchKeys = if (multiSatLaunchKeys.isNotEmpty()) {
+            multiSatLaunchKeys
+        } else {
+            launchBatchCounts.keys.sortedDescending()
+        }
+        val topRecentLaunchKeys = distinctCatalogLaunchKeys
+            .take(TOP_RECENT_COSPAR_LAUNCH_LIMIT)
+            .toSet()
+        val newestCatalogYear = distinctCatalogLaunchKeys.firstOrNull()?.div(1000) ?: currentYear
+        val referenceYear = max(newestCatalogYear, currentYear)
+
+        fun passesLaunchRecencyGate(orb: ParsedStarlinkOrbital, launchKey: Int): Boolean {
+            // Hard Reject #1: Must be among the top 4 most recent cataloged Starlink launch batches
+            if (launchKey !in topRecentLaunchKeys) return false
+
+            val launchYear = launchKey / 1000
+            val launchNumber = launchKey % 1000
+
+            // Hard Reject #2: Reject prior-year launches (e.g. 2024/2025 when in 2026) unless
+            // we are in early January (day-of-year <= 20) AND the launch was in late December of Y - 1.
+            if (launchYear < referenceYear) {
+                val isEarlyJanRollover = launchYear == referenceYear - 1 &&
+                    currentDayOfYear <= 20 &&
+                    (launchNumber >= 180 || (orb.epochYear == referenceYear - 1 && orb.epochDay >= 344.0))
+                if (!isEarlyJanRollover) return false
+            }
+            return true
+        }
+
+        // Step 2: Filter candidates by fresh epoch age [-1.0, 7.0] days and LEO train mean motion [15.12, 16.65] rev/day,
+        // and split into recency-gated cataloged COSPAR batches vs uncataloged SUP proximity clusters.
+        val catalogedByCospar = LinkedHashMap<String, MutableList<ParsedStarlinkOrbital>>()
+        val uncatalogedCandidates = ArrayList<ParsedStarlinkOrbital>()
+
+        for (orb in orbitals) {
+            val epochAgeDays = nowJd - orb.epochJd
+            if (epochAgeDays !in -1.0..7.0 || orb.meanMotion !in MIN_TRAIN_MEAN_MOTION..MAX_TRAIN_MEAN_MOTION) {
+                continue
+            }
+            val launchKey = parseCosparLaunchKey(orb.cosparLaunch5, orb.cosparFull)
+            if (launchKey != null) {
+                if (passesLaunchRecencyGate(orb, launchKey)) {
+                    catalogedByCospar.getOrPut(orb.cosparLaunch5) { ArrayList() }.add(orb)
+                }
+            } else {
+                uncatalogedCandidates.add(orb)
+            }
+        }
+
+        val candidateGroups = ArrayList<Triple<String, Int?, List<ParsedStarlinkOrbital>>>()
+        for ((cospar5, list) in catalogedByCospar) {
+            if (list.size >= 8) {
+                candidateGroups.add(Triple(cospar5, parseCosparLaunchKey(cospar5), list))
+            }
+        }
+        for ((supKey, list) in clusterUncatalogedOrbitals(uncatalogedCandidates)) {
+            candidateGroups.add(Triple(supKey, null, list))
+        }
+        if (candidateGroups.isEmpty()) {
+            SatelliteCatalog.clearPrimaryTrain()
+            return emptyList()
         }
 
         data class ProjectedMember(
@@ -372,7 +533,7 @@ object StarlinkTrainManager {
 
         val detected = ArrayList<StarlinkTrain>()
 
-        for ((rawGroupKey, group) in grouped) {
+        for ((rawGroupKey, groupLaunchKey, group) in candidateGroups) {
             if (group.size < 8) continue
 
             // Step 3: Coplanar check — circular median RAAN + >= 8 satellites within 3.5°
@@ -411,14 +572,33 @@ object StarlinkTrainManager {
                 }
             }
 
-            // Strict Physical Train Rule: 85% core cluster must fit within <= 90° of orbital arc
-            if (minSpanDeg > 90.0) {
-                Log.d(TAG, "Rejected dispersed group $rawGroupKey: count=${coplanar.size}, coreSpan=${"%.1f".format(Locale.US, minSpanDeg)}° > 90°")
+            // Strict Physical Train Span Rule: 85% core cluster must fit within <= 60° of orbital arc
+            if (minSpanDeg > MAX_TRAIN_SPAN_DEG) {
+                Log.d(TAG, "Rejected dispersed group $rawGroupKey: count=${coplanar.size}, coreSpan=${"%.1f".format(Locale.US, minSpanDeg)}° > ${MAX_TRAIN_SPAN_DEG}°")
                 continue
             }
 
-            // Expand contiguously from the verified core to retain genuine adjacent pearls (gap <= 12°)
-            // while still trimming distant straggler/debris outliers and keeping total span <= 90°.
+            // Strict Pearl Density Rule: Median adjacent inter-satellite spacing along core cluster must be <= 2.5°
+            val coreGaps = DoubleArray((coreCount - 1).coerceAtLeast(0)) { k ->
+                val curU = projected[(bestStartIdx + k) % n].uDeg
+                val nxtU = projected[(bestStartIdx + k + 1) % n].uDeg
+                ((nxtU - curU) % 360.0 + 360.0) % 360.0
+            }.sortedArray()
+            val medianSpacingDeg = when {
+                coreGaps.isEmpty() -> 0.0
+                coreGaps.size % 2 == 1 -> coreGaps[coreGaps.size / 2]
+                else -> 0.5 * (coreGaps[coreGaps.size / 2 - 1] + coreGaps[coreGaps.size / 2])
+            }
+            if (medianSpacingDeg > MAX_MEDIAN_PEARL_SPACING_DEG) {
+                Log.d(
+                    TAG,
+                    "Rejected low-density sector $rawGroupKey: medianSpacing=${"%.2f".format(Locale.US, medianSpacingDeg)}° > ${MAX_MEDIAN_PEARL_SPACING_DEG}°"
+                )
+                continue
+            }
+
+            // Expand contiguously from the verified core to retain genuine adjacent pearls (gap <= 5.0°)
+            // while still trimming straggler/debris outliers and keeping total span <= 60°.
             var clusterStartIdx = bestStartIdx
             var clusterCount = coreCount
             var clusterSpanDeg = minSpanDeg
@@ -430,10 +610,10 @@ object StarlinkTrainManager {
                 val prevIdx = (clusterStartIdx - 1 + n) % n
                 val bwdGap = ((projected[clusterStartIdx].uDeg - projected[prevIdx].uDeg) % 360.0 + 360.0) % 360.0
 
-                if (fwdGap <= bwdGap && fwdGap <= 12.0 && clusterSpanDeg + fwdGap <= 90.0) {
+                if (fwdGap <= bwdGap && fwdGap <= 5.0 && clusterSpanDeg + fwdGap <= MAX_TRAIN_SPAN_DEG) {
                     clusterCount++
                     clusterSpanDeg += fwdGap
-                } else if (bwdGap <= 12.0 && clusterSpanDeg + bwdGap <= 90.0) {
+                } else if (bwdGap <= 5.0 && clusterSpanDeg + bwdGap <= MAX_TRAIN_SPAN_DEG) {
                     clusterStartIdx = prevIdx
                     clusterCount++
                     clusterSpanDeg += bwdGap
@@ -538,13 +718,20 @@ object StarlinkTrainManager {
                     avgAltitudeKm = avgAltKm,
                     memberTles = orderedMembers.map { it.tle },
                     leaderItem = leaderItem,
-                    memberItems = memberItems
+                    memberItems = memberItems,
+                    launchKey = groupLaunchKey,
+                    medianSpacingDeg = medianSpacingDeg
                 )
             )
         }
 
+        // Sort primarily by newest launch batch (uncataloged SUP launch-day batches = Int.MAX_VALUE first,
+        // then highest YYYYNNN launchKey descending), and secondarily by tightest angularSpanDeg ascending.
         val topTrains = detected
-            .sortedBy { it.angularSpanDeg }
+            .sortedWith(
+                compareByDescending<StarlinkTrain> { it.launchKey ?: Int.MAX_VALUE }
+                    .thenBy { it.angularSpanDeg }
+            )
             .take(maxTrains.coerceAtLeast(1))
 
         if (topTrains.isNotEmpty()) {
@@ -556,8 +743,10 @@ object StarlinkTrainManager {
             Log.i(
                 TAG,
                 "Detected ${topTrains.size} active Starlink train(s): " +
-                    topTrains.joinToString { "${it.groupKey} (${it.satelliteCount} sats, span=${"%.1f".format(Locale.US, it.angularSpanDeg)}°)" }
+                    topTrains.joinToString { "${it.groupKey} (${it.satelliteCount} sats, span=${"%.1f".format(Locale.US, it.angularSpanDeg)}°, spacing=${"%.2f".format(Locale.US, it.medianSpacingDeg)}°)" }
             )
+        } else {
+            SatelliteCatalog.clearPrimaryTrain()
         }
 
         return topTrains

@@ -181,13 +181,14 @@ class StarlinkPipelineTest {
     }
 
     @Test
-    fun `2b detectActiveTrains supports up to 3 trains sorted by tightest span and Alpha5 NORAD IDs`() {
+    fun `2b detectActiveTrains supports up to 3 trains sorted by newest launch then tightest span and Alpha5 NORAD IDs`() {
         val tles = ArrayList<TLEData>()
         val trainSpecs = listOf(
-            Triple("26051", 2.0, "A01"), // 10 sats * 2.0° = 18° span, Alpha-5 NORADs A0100..A0109
-            Triple("26052", 0.6, "A02"), // 10 sats * 0.6° = 5.4° span (tightest!)
-            Triple("     ", 3.5, "A03"), // Supplemental blank COSPAR -> SUP-... fallback, 31.5° span
-            Triple("26054", 6.0, "A04")  // 54° span (4th train -> capped out by max 3)
+            Triple("26051", 2.0, "A01"), // 10 sats * 2.0° = 18.0° span, launchKey 2026051
+            Triple("26052", 0.6, "A02"), // 10 sats * 0.6° = 5.4° span, launchKey 2026052 (newer than 26051!)
+            Triple("     ", 1.5, "A03"), // Supplemental blank COSPAR -> SUP-... launch-day priority #1, 13.5° span
+            Triple("26049", 1.8, "A04"), // Older 4th train (launchKey 2026049 -> capped out by max 3)
+            Triple("26053", 4.0, "A05")  // Dispersing sector with 4.0° median gap (> 2.5° limit) -> MUST be rejected!
         )
 
         trainSpecs.forEachIndexed { idx, (cospar5, stepDeg, alphaPrefix) ->
@@ -210,12 +211,12 @@ class StarlinkPipelineTest {
 
         val trains = StarlinkTrainManager.detectActiveTrains(tles, nowMs = nov132026NoonUtcMs)
         assertEquals(3, trains.size)
-        assertEquals("2026-052", trains[0].groupKey)
-        assertEquals("2026-051", trains[1].groupKey)
-        assertTrue(trains[2].groupKey.startsWith("SUP-"))
-        assertTrue(trains[0].angularSpanDeg < trains[1].angularSpanDeg)
-        assertTrue(trains[1].angularSpanDeg < trains[2].angularSpanDeg)
-        assertEquals(100209, trains[0].leaderItem.noradId)
+        // Newest launch batch first: uncataloged SUP launch-day batch -> 2026-052 -> 2026-051 (while 2026-053 was rejected for 4.0° > 2.5° spacing)
+        assertTrue(trains[0].groupKey.startsWith("SUP-"))
+        assertEquals("2026-052", trains[1].groupKey)
+        assertEquals("2026-051", trains[2].groupKey)
+        assertEquals(100309, trains[0].leaderItem.noradId)
+        assertEquals(100209, trains[1].leaderItem.noradId)
     }
 
     @Test
@@ -458,5 +459,116 @@ class StarlinkPipelineTest {
         assertTrue(screens.getValue("SpatialSatellitesScreen").contains("STRING OF PEARLS"))
         assertTrue(screens.getValue("CyberSatellitesScreen").contains("STRING OF PEARLS"))
     }
+
+    @Test
+    fun `6 detectActiveTrains rejects 2025-034 DirectToCell sector and prioritizes newest 2026 launch and unsplit SUP cluster`() {
+        val tles = ArrayList<TLEData>()
+
+        // 1. Old February 2025 Direct-to-Cell batch (2025-034A..N) at ~355 km (meanMotion = 15.70)
+        //    with 13 satellites packed inside a < 20° arc (1.2° spacing!) and fresh TODAY 2026 epoch!
+        for (i in 0 until 13) {
+            val piece = ('A'.code + i).toChar().toString()
+            tles.add(
+                buildSyntheticTle(
+                    name = "STARLINK-11350-DTC-$i",
+                    noradToken5 = (63100 + i).toString(),
+                    cospar8 = "25034$piece",
+                    epochYear2 = 26,
+                    epochDay = 317.45, // Fresh today TLE epoch!
+                    incDeg = 53.16,
+                    raanDeg = 88.5,
+                    argPerigeeDeg = 75.0,
+                    meanAnomalyDeg = 120.0 + i * 1.2, // 14.4° compact Direct-to-Cell sector (< 45°)!
+                    meanMotion = 15.70
+                )
+            )
+        }
+
+        // 2. Recent 2026 Starlink launch train (2026-068) from this week at initial orbit-raising (meanMotion = 16.35)
+        for (i in 0 until 14) {
+            val piece = ('A'.code + i).toChar().toString()
+            tles.add(
+                buildSyntheticTle(
+                    name = "STARLINK-36200-$i",
+                    noradToken5 = (68200 + i).toString(),
+                    cospar8 = "26068$piece",
+                    epochYear2 = 26,
+                    epochDay = 317.42,
+                    incDeg = 53.16,
+                    raanDeg = 162.4,
+                    argPerigeeDeg = 90.0,
+                    meanAnomalyDeg = 200.0 + i * 1.5, // 19.5° arc (wider than 2025-034, yet MUST win!)
+                    meanMotion = 16.35
+                )
+            )
+        }
+
+        val trainsCatalogedOnly = StarlinkTrainManager.detectActiveTrains(tles, nowMs = nov132026NoonUtcMs)
+        assertEquals(
+            "Old 2025-034 Direct-to-Cell sector MUST be 100% rejected; only 2026-068 may be returned",
+            1,
+            trainsCatalogedOnly.size
+        )
+        assertEquals("2026-068", trainsCatalogedOnly.first().groupKey)
+        assertFalse(trainsCatalogedOnly.any { it.groupKey.contains("2025-034") })
+
+        // 3. Also verify uncataloged launch-day SUP train straddling RAAN 123.9°..124.1° and inc 52.95°..53.05°
+        //    with temporary supplemental NORAD IDs 70001..70012 is NOT split across integer bucket boundaries!
+        StarlinkTrainManager.invalidateCaches()
+        for (i in 0 until 12) {
+            tles.add(
+                buildSyntheticTle(
+                    name = "OBJECT ${('A'.code + i).toChar()}",
+                    noradToken5 = (70001 + i).toString(),
+                    cospar8 = "UNKNOWN ",
+                    epochYear2 = 26,
+                    epochDay = 317.48,
+                    incDeg = 52.95 + i * 0.01,   // Crosses 53.00° boundary
+                    raanDeg = 123.90 + i * 0.02, // Crosses 124.00° boundary
+                    argPerigeeDeg = 60.0,
+                    meanAnomalyDeg = 15.0 + i * 0.4,
+                    meanMotion = 16.48
+                )
+            )
+        }
+
+        val trainsWithSup = StarlinkTrainManager.detectActiveTrains(tles, nowMs = nov132026NoonUtcMs)
+        assertEquals(2, trainsWithSup.size)
+        // Uncataloged launch-day SUP cluster comes first with all 12 pearls intact, followed by 2026-068!
+        assertTrue(trainsWithSup[0].groupKey.startsWith("SUP-"))
+        assertEquals("Boundary-straddling SUP train must retain all 12 satellites without splitting", 12, trainsWithSup[0].satelliteCount)
+        assertEquals("2026-068", trainsWithSup[1].groupKey)
+        assertFalse(trainsWithSup.any { it.groupKey.contains("2025-034") })
+
+        // 4. Verify Top-4 COSPAR Launch Recency Gate within 2026: when 4 newer 2026 batches exist
+        //    (26068, 26067, 26066, 26065), an older 5th batch (26012) is hard-rejected even if compact!
+        val fiveBatches2026 = ArrayList<TLEData>()
+        val batchCodes = listOf("26012", "26065", "26066", "26067", "26068")
+        batchCodes.forEachIndexed { bIdx, code ->
+            // Only 26012 (oldest, 5th) and 26068 (newest, 1st) are compact; 26065..26067 are already dispersed operational rings
+            val step = if (code == "26012" || code == "26068") 0.8 else 36.0
+            for (k in 0 until 10) {
+                fiveBatches2026.add(
+                    buildSyntheticTle(
+                        name = "STARLINK-$code-$k",
+                        noradToken5 = (80000 + bIdx * 100 + k).toString(),
+                        cospar8 = "${code}A",
+                        epochYear2 = 26,
+                        epochDay = 317.40,
+                        incDeg = 53.16,
+                        raanDeg = 20.0 + bIdx * 30.0,
+                        argPerigeeDeg = 45.0,
+                        meanAnomalyDeg = (k * step) % 360.0,
+                        meanMotion = 15.80
+                    )
+                )
+            }
+        }
+        StarlinkTrainManager.invalidateCaches()
+        val gated2026Trains = StarlinkTrainManager.detectActiveTrains(fiveBatches2026, nowMs = nov132026NoonUtcMs)
+        assertEquals("Older 5th batch 2026-012 outside top-4 recent launches MUST be rejected", 1, gated2026Trains.size)
+        assertEquals("2026-068", gated2026Trains.first().groupKey)
+    }
 }
+
 

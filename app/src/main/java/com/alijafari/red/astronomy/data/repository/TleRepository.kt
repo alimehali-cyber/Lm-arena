@@ -414,13 +414,31 @@ class TleRepository internal constructor(
 
         var anyStarlinkFeedSucceeded = false
 
-        // Feed A: Supplemental GP (SpaceX launch-day / fresh deployment TLEs)
+        // Feed A: Supplemental GP (SpaceX launch-day / fresh deployment TLEs, including 70000..99999 & Alpha-5 IDs)
+        var freshSupIds: Set<Int> = emptySet()
         try {
             val supBody = fetchRawBody(okHttpClient, supGpUrl, requestGzip = true)
             if (!supBody.isNullOrBlank()) {
-                val supParsed = parseTleFeed(supBody)
+                val supParsed = parseTleFeed(supBody, allowZeroPlaceholderNorad = true)
                 if (supParsed.isNotEmpty()) {
-                    mergePreferNewestEpoch(merged, supParsed.values)
+                    freshSupIds = supParsed.keys.toSet()
+                    // Prune stale (> 7d) temporary 70000..99999 supplemental IDs from prior cache before merging fresh sup-gp
+                    val nowJd = (clockMs() / 86_400_000.0) + 2440587.5
+                    val staleTempIds = merged.entries
+                        .filter { (id, tle) ->
+                            id in 70_000..99_999 &&
+                                id !in freshSupIds &&
+                                (nowJd - StarlinkTrainManager.epochToJulian(
+                                    if (tle.epochYear != 0) tle.epochYear else StarlinkTrainManager.extractEpochYear(tle.line1),
+                                    if (tle.epochDay != 0.0) tle.epochDay else StarlinkTrainManager.extractEpochDay(tle.line1)
+                                )) > 7.0
+                        }
+                        .map { it.key }
+                    for (staleId in staleTempIds) {
+                        merged.remove(staleId)
+                    }
+
+                    mergePreferNewestEpoch(merged, supParsed.values, allowZeroPlaceholderNorad = true)
                     anyStarlinkFeedSucceeded = true
                     Log.i(TAG, "Merged ${supParsed.size} Supplemental GP Starlink TLEs")
                 }
@@ -429,14 +447,15 @@ class TleRepository internal constructor(
             Log.w(TAG, "STARLINK_SUP_GP fetch failed (continuing with remaining feeds): ${e.message}")
         }
 
-        // Feed B: Last 30 Days launches (catches newly cataloged Starlinks & uncataloged OBJECT pieces)
+        // Feed B: Last 30 Days launches (catches newly cataloged Starlinks, temporary 70000..99999 / Alpha-5 IDs,
+        // and multi-satellite OBJECT/TBA launch clusters in Starlink inclination shells)
         try {
             val last30Body = fetchRawBody(okHttpClient, last30DaysUrl, requestGzip = true)
             if (!last30Body.isNullOrBlank()) {
-                val last30Parsed = parseTleFeed(last30Body)
-                val filteredLast30 = last30Parsed.values.filter { isStarlinkFromLast30Days(it) }
+                val last30Parsed = parseTleFeed(last30Body, allowZeroPlaceholderNorad = true)
+                val filteredLast30 = filterLast30DaysStarlinkClusterEntries(last30Parsed.values)
                 if (filteredLast30.isNotEmpty()) {
-                    mergePreferNewestEpoch(merged, filteredLast30)
+                    mergePreferNewestEpoch(merged, filteredLast30, allowZeroPlaceholderNorad = true)
                     anyStarlinkFeedSucceeded = true
                     Log.i(TAG, "Merged ${filteredLast30.size} recent Starlink/OBJECT TLEs from last-30-days")
                 }
@@ -557,31 +576,125 @@ class TleRepository internal constructor(
         fun peekInstance(): TleRepository? = INSTANCE
 
         /**
-         * Filters `GROUP=last-30-days` entries down to genuine Starlink satellites and uncataloged
-         * recent SpaceX deployment `OBJECT` pieces at known Starlink orbital inclinations
-         * (~43°, ~53°, ~70°, ~97.6°).
+         * Exact SpaceX Starlink operational & deployment inclination shells:
+         * `42°..44°`, `52.5°..53.5°`, `69.5°..70.5°`, `96.5°..98.5°`.
+         */
+        fun isInStarlinkInclinationShell(incDeg: Double): Boolean {
+            return incDeg in 42.0..44.0 ||
+                incDeg in 52.5..53.5 ||
+                incDeg in 69.5..70.5 ||
+                incDeg in 96.5..98.5
+        }
+
+        private fun resolveNoradOrSupplementalId(
+            name: String,
+            line1: String,
+            line2: String,
+            allowZeroPlaceholderNorad: Boolean
+        ): Int {
+            val parsed = StarlinkTrainManager.extractNoradId(line1)
+            if (parsed > 0) return parsed
+            if (allowZeroPlaceholderNorad && line1.length >= 7 && line1.substring(2, 7).trim() == "00000") {
+                val hash = ((31 * name.trim().hashCode() + line2.trim().hashCode()) and 0x0FFFF)
+                return 900_000 + hash
+            }
+            return 0
+        }
+
+        /**
+         * Single-entry Starlink / uncataloged Starlink-shell candidate check for `GROUP=last-30-days`.
          */
         fun isStarlinkFromLast30Days(tle: TLEData): Boolean {
             val upper = tle.name.trim().uppercase(Locale.US)
             if (upper.contains("STARLINK")) return true
-            if (upper.contains("OBJECT")) {
+            val noradId = StarlinkTrainManager.extractNoradId(tle.line1)
+            val isSupplementalOrUncataloged = noradId in 70_000..99_999 ||
+                noradId >= 100_000 ||
+                upper.contains("OBJECT") ||
+                upper.contains("TBA") ||
+                upper == "UNKNOWN"
+            if (isSupplementalOrUncataloged) {
                 val inc = StarlinkTrainManager.extractInclinationDeg(tle.line2)
                 val mm = StarlinkTrainManager.extractMeanMotion(tle.line2)
-                val matchesStarlinkShell = abs(inc - 43.0) <= 2.2 ||
-                    abs(inc - 53.0) <= 2.2 ||
-                    abs(inc - 70.0) <= 2.2 ||
-                    abs(inc - 97.6) <= 2.2
-                return matchesStarlinkShell && mm in 14.7..16.55
+                return isInStarlinkInclinationShell(inc) && mm in 14.7..16.65
             }
             return false
         }
 
         /**
+         * Filters `GROUP=last-30-days` entries down to:
+         * 1. Named `STARLINK` satellites (including 5-digit, temporary `70000..99999`, and Alpha-5 NORAD IDs).
+         * 2. Temporary supplemental NORAD IDs (`70000..99999` or Alpha-5) and `OBJECT` / `TBA` / `UNKNOWN`
+         *    entries in Starlink inclination shells (`42°..44°`, `52.5°..53.5°`, `69.5°..70.5°`, `96.5°..98.5°`)
+         *    that belong to a multi-satellite launch cluster (co-launched COSPAR batch or coplanar `<= 0.6°` inc,
+         *    `<= 3.5°` RAAN with at least one other satellite in the feed).
+         */
+        fun filterLast30DaysStarlinkClusterEntries(candidates: Collection<TLEData>): List<TLEData> {
+            val list = candidates.toList()
+            if (list.isEmpty()) return emptyList()
+
+            data class ShellCandidate(
+                val tle: TLEData,
+                val isNamedStarlink: Boolean,
+                val cospar5: String,
+                val incDeg: Double,
+                val raanDeg: Double
+            )
+
+            val shellPool = ArrayList<ShellCandidate>()
+            val cosparCounts = HashMap<String, Int>()
+
+            for (tle in list) {
+                val upper = tle.name.trim().uppercase(Locale.US)
+                val isNamed = upper.contains("STARLINK")
+                if (!isNamed && !isStarlinkFromLast30Days(tle)) continue
+                val c5 = StarlinkTrainManager.extractCosparLaunchGroup(tle.line1)
+                val inc = StarlinkTrainManager.extractInclinationDeg(tle.line2)
+                val raan = StarlinkTrainManager.extractRaanDeg(tle.line2)
+                if (c5.length == 5 && c5.all { it.isDigit() } && !c5.endsWith("000")) {
+                    cosparCounts[c5] = (cosparCounts[c5] ?: 0) + 1
+                }
+                shellPool.add(ShellCandidate(tle, isNamed, c5, inc, raan))
+            }
+
+            val accepted = ArrayList<TLEData>(shellPool.size)
+            for (i in shellPool.indices) {
+                val item = shellPool[i]
+                if (item.isNamedStarlink) {
+                    accepted.add(item.tle)
+                    continue
+                }
+                val sameCosparCluster = (cosparCounts[item.cospar5] ?: 0) >= 2
+                var samePlaneCluster = false
+                if (!sameCosparCluster) {
+                    for (j in shellPool.indices) {
+                        if (i == j) continue
+                        val other = shellPool[j]
+                        if (abs(item.incDeg - other.incDeg) <= 0.6 &&
+                            StarlinkTrainManager.circularDistanceDeg(item.raanDeg, other.raanDeg) <= 3.5
+                        ) {
+                            samePlaneCluster = true
+                            break
+                        }
+                    }
+                }
+                if (sameCosparCluster || samePlaneCluster) {
+                    accepted.add(item.tle)
+                }
+            }
+            return accepted
+        }
+
+        /**
          * Deduplicates TLEs by NORAD Catalog ID, strictly keeping whichever TLE has the newer epoch.
          */
-        fun mergePreferNewestEpoch(target: MutableMap<Int, TLEData>, incoming: Iterable<TLEData>) {
+        fun mergePreferNewestEpoch(
+            target: MutableMap<Int, TLEData>,
+            incoming: Iterable<TLEData>,
+            allowZeroPlaceholderNorad: Boolean = false
+        ) {
             for (cand in incoming) {
-                val noradId = StarlinkTrainManager.extractNoradId(cand.line1)
+                val noradId = resolveNoradOrSupplementalId(cand.name, cand.line1, cand.line2, allowZeroPlaceholderNorad)
                 if (noradId <= 0) continue
                 val existing = target[noradId]
                 if (existing == null) {
@@ -622,7 +735,7 @@ class TleRepository internal constructor(
          * Parses 3-line or 2-line TLE text, supporting both 5-digit and Alpha-5 NORAD IDs and
          * keeping the newest epoch when a NORAD ID appears multiple times.
          */
-        fun parseTleFeed(rawText: String): Map<Int, TLEData> {
+        fun parseTleFeed(rawText: String, allowZeroPlaceholderNorad: Boolean = false): Map<Int, TLEData> {
             val result = LinkedHashMap<Int, TLEData>()
             val lines = rawText.lines().map { it.trim() }.filter { it.isNotEmpty() }
 
@@ -639,7 +752,7 @@ class TleRepository internal constructor(
                     }
 
                     if (validateChecksum(line1) && validateChecksum(line2)) {
-                        val noradId = StarlinkTrainManager.extractNoradId(line1)
+                        val noradId = resolveNoradOrSupplementalId(name, line1, line2, allowZeroPlaceholderNorad)
                         if (noradId > 0) {
                             val epochYr = StarlinkTrainManager.extractEpochYear(line1)
                             val epochDay = StarlinkTrainManager.extractEpochDay(line1)

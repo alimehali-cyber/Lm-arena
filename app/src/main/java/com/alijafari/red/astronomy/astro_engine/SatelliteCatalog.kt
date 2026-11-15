@@ -213,6 +213,10 @@ object SatelliteCatalog {
      * individual Starlinks so [getById] and [SatelliteEngine.resolveSatelliteItem] resolve
      * them without touching the immutable static [satellites] list.
      */
+    fun clearPrimaryTrain() {
+        dynamicStarlinksById.remove("starlink_train")
+    }
+
     fun registerDynamicStarlinks(items: Collection<SatelliteItem>, primaryTrain: SatelliteItem? = null) {
         if (primaryTrain != null) {
             dynamicStarlinksById["starlink_train"] = primaryTrain
