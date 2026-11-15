@@ -19,6 +19,7 @@ class TleSyncWorker(
         Log.d(TAG, "Starting periodic TLE orbital data synchronization...")
         return try {
             val repository = TleRepository.getInstance(applicationContext)
+            repository.ensureStarlinkDiskCacheLoaded()
             val updated = repository.refreshTles()
             if (updated) {
                 com.alijafari.red.astronomy.notification.AstroNotificationManager.refreshSatellitePassSchedulesIfEnabled(applicationContext)

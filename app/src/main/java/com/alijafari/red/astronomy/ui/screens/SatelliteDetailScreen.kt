@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.astro_engine.*
 import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
+import com.alijafari.red.astronomy.data.repository.TleRepository
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
@@ -38,19 +39,14 @@ import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
+import com.alijafari.red.astronomy.util.formatTleStalenessBadge
+import com.alijafari.red.astronomy.util.rememberIsNetworkOnline
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
-private fun isNetworkAvailable(context: Context): Boolean {
-    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
-    val network = cm.activeNetwork ?: return false
-    val capabilities = cm.getNetworkCapabilities(network) ?: return false
-    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,14 +64,29 @@ fun SatelliteDetailScreen(
 
     val isFa = language == AppLanguage.PERSIAN
     val context = LocalContext.current
-    val isOnline = remember(context) { isNetworkAvailable(context) }
+    val isOnline by rememberIsNetworkOnline(context)
+    val tleRepo = remember { TleRepository.getInstance(context) }
+    val starlinkCacheVersion by tleRepo.starlinkVersion.collectAsState()
+    var tleRefreshTick by remember { mutableIntStateOf(0) }
+
+    var wasOnline by remember { mutableStateOf(isOnline) }
+    LaunchedEffect(isOnline) {
+        if (!wasOnline && isOnline) {
+            withContext(Dispatchers.IO) {
+                if (tleRepo.refreshTles()) {
+                    tleRefreshTick += 1
+                }
+            }
+        }
+        wasOnline = isOnline
+    }
 
     val canonicalSatellite = remember(satelliteItem) {
         CanonicalAstroCatalog.getCanonicalObject("sat_${satelliteItem.noradId}")
             ?: CanonicalAstroCatalog.getCanonicalObject(satelliteItem.id)
     }
 
-    val calculatedState = remember(canonicalSatellite, satelliteItem, simulationTimestampMs, userLocation) {
+    val calculatedState = remember(canonicalSatellite, satelliteItem, simulationTimestampMs, userLocation, starlinkCacheVersion, tleRefreshTick) {
         AstroDispatchEngine.calculateState(
             idOrAlias = canonicalSatellite?.canonicalId ?: "sat_${satelliteItem.noradId}",
             timestampMs = simulationTimestampMs,
@@ -84,7 +95,7 @@ fun SatelliteDetailScreen(
         )
     }
 
-    val state = remember(calculatedState, satelliteItem, simulationTimestampMs, userLocation) {
+    val state = remember(calculatedState, satelliteItem, simulationTimestampMs, userLocation, starlinkCacheVersion, tleRefreshTick) {
         (calculatedState?.specializedData as? SatelliteLiveState)
             ?: SatelliteEngine.calculateSatelliteState(
                 satellite = satelliteItem,
@@ -92,6 +103,19 @@ fun SatelliteDetailScreen(
                 userLatDeg = userLocation.latitude,
                 userLonDeg = userLocation.longitude
             )
+    }
+
+    val staleBadgeText = remember(satelliteItem.isTrain, state.tleMetadata, starlinkCacheVersion, tleRefreshTick, isFa) {
+        formatTleStalenessBadge(
+            isViewingActiveTrain = satelliteItem.isTrain,
+            tleMetadata = state.tleMetadata,
+            starlinkCacheAgeDays = if (satelliteItem.isTrain || satelliteItem.category == SatelliteCategory.STARLINK) {
+                tleRepo.getStarlinkCacheAgeDays()
+            } else {
+                null
+            },
+            isFa = isFa
+        )
     }
 
     val roundedStartMs = remember(simulationTimestampMs) {
@@ -130,14 +154,15 @@ fun SatelliteDetailScreen(
         }
     }
 
-    LaunchedEffect(satelliteItem.id, userLocation, roundedStartMs) {
+    LaunchedEffect(satelliteItem.id, userLocation, roundedStartMs, starlinkCacheVersion, tleRefreshTick) {
         withContext(Dispatchers.Default) {
+            val effectiveScanDays = if (satelliteItem.isTrain) 2 else 7
             val result = ISSEngine.predictPasses(
                 userLatDeg = userLocation.latitude,
                 userLonDeg = userLocation.longitude,
                 startTimestampMs = roundedStartMs,
                 tle = SatelliteEngine.getEffectiveTle(satelliteItem),
-                scanDays = 7,
+                scanDays = effectiveScanDays,
                 visibleOnly = true,
                 standardMag = satelliteItem.standardMagnitude
             )
@@ -167,27 +192,40 @@ fun SatelliteDetailScreen(
         ) {
             // The offline state used to live in the removed band. It is still worth saying, so it is a
             // chip above the data rather than a row of chrome.
-            if (!isOnline) {
-                Surface(
-                    shape = RedShapes.capsule,
-                    color = RedTheme.colors.statusError.copy(alpha = 0.15f),
-                    border = BorderStroke(0.5.dp, RedTheme.colors.statusError.copy(alpha = 0.35f))
+            if (!isOnline || staleBadgeText != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.WifiOff,
-                            contentDescription = "Offline",
-                            tint = RedTheme.colors.statusError,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Text(
-                            text = if (isFa) "آفلاین" else "Offline",
-                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
-                            color = RedTheme.colors.statusError
+                    if (!isOnline) {
+                        Surface(
+                            shape = RedShapes.capsule,
+                            color = RedTheme.colors.statusError.copy(alpha = 0.15f),
+                            border = BorderStroke(0.5.dp, RedTheme.colors.statusError.copy(alpha = 0.35f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.WifiOff,
+                                    contentDescription = "Offline",
+                                    tint = RedTheme.colors.statusError,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = if (isFa) "آفلاین" else "Offline",
+                                    style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
+                                    color = RedTheme.colors.statusError
+                                )
+                            }
+                        }
+                    }
+                    if (staleBadgeText != null) {
+                        RedBadge(
+                            text = staleBadgeText,
+                            isAccent = false
                         )
                     }
                 }

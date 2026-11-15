@@ -14,6 +14,8 @@ import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.astro_engine.SatelliteEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteItem
+import com.alijafari.red.astronomy.astro_engine.StarlinkTrainManager
+import com.alijafari.red.astronomy.data.repository.TleRepository
 import com.alijafari.red.astronomy.data.worker.IssTleWorker
 import com.alijafari.red.astronomy.data.worker.TleSyncWorker
 import com.alijafari.red.astronomy.domain.CelestialObject
@@ -45,6 +47,8 @@ object AstroNotificationManager {
     private const val KEY_ALERT_LEAD_MINUTES = "satellite_alert_lead_minutes"
     private const val KEY_ISS_LEAD_MINUTES = "iss_alert_lead_minutes"
     private const val WORK_NAME = "iss_pass_scheduler_work"
+    const val STARLINK_TRAIN_ALERT_SCAN_DAYS = 2
+    private const val STARLINK_TRAIN_ALERT_HORIZON_MS = STARLINK_TRAIN_ALERT_SCAN_DAYS * 24L * 3_600_000L
 
     /**
      * Builds a ScheduledNotificationItem for an individual satellite pass with a selected lead time.
@@ -54,9 +58,9 @@ object AstroNotificationManager {
         satellite: SatelliteItem,
         pass: ISSEngine.ISSPass,
         userLocation: UserLocation,
-        leadMinutes: Int
+        leadMinutes: Int,
+        nowMs: Long = System.currentTimeMillis()
     ): ScheduledNotificationItem? {
-        val nowMs = System.currentTimeMillis()
         val triggerTimeMs = pass.startTimeMs - (leadMinutes * 60 * 1000L)
         if (triggerTimeMs <= nowMs) return null
 
@@ -163,7 +167,9 @@ object AstroNotificationManager {
     }
 
     /**
-     * Maintains a rolling ~7-day schedule of visible satellite passes for the monitored satellites.
+     * Maintains a rolling ~7-day schedule of visible satellite passes for static monitored satellites,
+     * and a capped 48-hour (2-day) schedule for `"starlink_train"` (since actively thrusting Starlink
+     * trains shift pass timings beyond 48 hours).
      * Cancels obsolete future alarms for the target satellites and schedules newly predicted passes
      * with zero duplicates and complete offline persistence.
      */
@@ -172,48 +178,92 @@ object AstroNotificationManager {
         userLocation: UserLocation,
         selectedSatIds: Set<String>,
         leadMinutes: Int = 10,
-        scanDays: Int = 7
+        scanDays: Int = 7,
+        nowMs: Long = System.currentTimeMillis(),
+        starlinkTlesOverride: List<ISSEngine.TLEData>? = null
     ) {
+        val normalizedSelectedIds = selectedSatIds.map { id ->
+            if (id == "starlink_train" || id.startsWith("starlink_train_")) "starlink_train" else id
+        }.toSet()
+        val wantsStarlinkTrain = normalizedSelectedIds.isEmpty() || "starlink_train" in normalizedSelectedIds
+
         val allCatalog = SatelliteCatalog.satellites
-        val targetSatellites = if (selectedSatIds.isEmpty()) {
+        val staticTargets = if (normalizedSelectedIds.isEmpty()) {
             allCatalog.filter { it.isNakedEyeCandidate }
         } else {
-            allCatalog.filter { it.id in selectedSatIds || (it.id == "starlink_train" && "starlink_train" in selectedSatIds) }
+            allCatalog.filter { it.id in normalizedSelectedIds }
+        }
+
+        val primaryStarlinkTrain: SatelliteItem? = if (wantsStarlinkTrain) {
+            val starlinkTles = starlinkTlesOverride ?: run {
+                val tleRepo = TleRepository.getInstance(context)
+                tleRepo.ensureStarlinkDiskCacheLoaded()
+                tleRepo.getStarlinkTles()
+            }
+            val activeTrains = StarlinkTrainManager.detectActiveTrains(starlinkTles, nowMs)
+            activeTrains.firstOrNull()?.leaderItem?.copy(id = "starlink_train")?.also { aliased ->
+                SatelliteCatalog.registerDynamicStarlinks(listOf(aliased), primaryTrain = aliased)
+            }
+        } else {
+            null
+        }
+
+        val targetSatellites = if (primaryStarlinkTrain != null) {
+            staticTargets + primaryStarlinkTrain
+        } else {
+            staticTargets
         }
 
         val targetSatIds = targetSatellites.map { it.id }.toSet()
-        val nowMs = System.currentTimeMillis()
 
-        // 1. Cancel and remove obsolete future alarms for these satellites to avoid duplicates and outdated timings
+        // 1. Cancel and remove obsolete future alarms for these satellites (and any prior starlink_train alarms)
         val existingItems = AstroNotificationStore.getAll(context)
-        val obsoleteItems = existingItems.filter { it.objectType == "SATELLITE" && it.objectId in targetSatIds }
+        val obsoleteItems = existingItems.filter { item ->
+            item.objectType == "SATELLITE" && (
+                item.objectId in targetSatIds ||
+                    (wantsStarlinkTrain && (item.objectId == "starlink_train" || item.objectId.startsWith("starlink_train_")))
+                )
+        }
         for (obsItem in obsoleteItems) {
             cancelAlarmOnly(context, obsItem)
         }
         if (obsoleteItems.isNotEmpty()) {
             AstroNotificationStore.removeByIds(context, obsoleteItems.map { it.id }.toSet())
-            Log.d(TAG, "Cleared ${obsoleteItems.size} obsolete pass alarms before rescheduling 7-day window")
+            Log.d(TAG, "Cleared ${obsoleteItems.size} obsolete pass alarms before rescheduling window")
         }
 
-        // 2. Calculate newly predicted upcoming visible passes for next 7 days using local SGP4 & cached TLEs
+        // 2. Calculate newly predicted upcoming visible passes using local SGP4 & cached TLEs
+        //    (capped to 2 days / 48 hours for "starlink_train" due to active orbit-raising thrust)
         val newlyScheduledItems = mutableListOf<ScheduledNotificationItem>()
         for (sat in targetSatellites) {
+            val isTrainTarget = sat.id == "starlink_train" || sat.isTrain
+            val effectiveScanDays = if (isTrainTarget) {
+                scanDays.coerceAtMost(STARLINK_TRAIN_ALERT_SCAN_DAYS)
+            } else {
+                scanDays
+            }
+            val maxPassStartMs = if (isTrainTarget) {
+                nowMs + STARLINK_TRAIN_ALERT_HORIZON_MS
+            } else {
+                Long.MAX_VALUE
+            }
             val tle = SatelliteEngine.getEffectiveTle(sat)
             val passes = ISSEngine.predictPasses(
                 userLatDeg = userLocation.latitude,
                 userLonDeg = userLocation.longitude,
                 startTimestampMs = nowMs,
                 tle = tle,
-                scanDays = scanDays,
+                scanDays = effectiveScanDays,
                 visibleOnly = true,
                 standardMag = sat.standardMagnitude
             )
 
-            // Strictly visible passes meeting naked-eye observational criteria
+            // Strictly visible passes meeting naked-eye observational criteria within target lookahead
             val validPasses = passes.filter { pass ->
                 pass.isVisible &&
-                pass.maxElevationDeg >= 10.0 &&
-                pass.passDurationSec >= 30
+                    pass.startTimeMs <= maxPassStartMs &&
+                    pass.maxElevationDeg >= 10.0 &&
+                    pass.passDurationSec >= 30
             }
 
             for (pass in validPasses) {
@@ -221,7 +271,8 @@ object AstroNotificationManager {
                     satellite = sat,
                     pass = pass,
                     userLocation = userLocation,
-                    leadMinutes = leadMinutes
+                    leadMinutes = leadMinutes,
+                    nowMs = nowMs
                 )
                 if (item != null) {
                     newlyScheduledItems.add(item)
@@ -233,11 +284,17 @@ object AstroNotificationManager {
         // 3. Persist all newly scheduled items in local store
         if (newlyScheduledItems.isNotEmpty()) {
             AstroNotificationStore.saveAll(context, newlyScheduledItems)
-            Log.i(TAG, "Successfully scheduled and stored ${newlyScheduledItems.size} upcoming passes for next $scanDays days")
+            Log.i(TAG, "Successfully scheduled and stored ${newlyScheduledItems.size} upcoming passes")
         }
 
         // 4. Save configuration preferences for background sync & reboot restoration
-        savePassMonitoringPreferences(context, userLocation, targetSatIds, leadMinutes)
+        //    Preserve user-selected IDs (including "starlink_train") even if no train is active right now
+        val persistedMonitoredIds = if (normalizedSelectedIds.isNotEmpty()) {
+            normalizedSelectedIds
+        } else {
+            (staticTargets.map { it.id } + "starlink_train").toSet()
+        }
+        savePassMonitoringPreferences(context, userLocation, persistedMonitoredIds, leadMinutes)
         updateStoredLocation(context, userLocation)
         enqueueIssWorkManager(context)
     }

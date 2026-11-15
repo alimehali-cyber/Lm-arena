@@ -205,8 +205,9 @@ object SatelliteEngine {
             )
         }
 
-        // 5. Final offline fallback (hardcoded catalog default)
-        val fallback = providedTle ?: catalogDefault ?: ISSEngine.TLEData()
+        // 5. Final offline fallback (hardcoded catalog default or registered dynamic satellite default)
+        val dynamicDefault = SatelliteCatalog.getDynamicByIdOrNorad(noradId.toString())?.defaultTle
+        val fallback = providedTle ?: catalogDefault ?: dynamicDefault ?: ISSEngine.TLEData()
         val epochAge = computeTleAgeDays(fallback.line1)
         logTleSelection("hardcoded-fallback", fallback)
         return TleMetadata(
@@ -221,9 +222,14 @@ object SatelliteEngine {
 
     /**
      * Resolves the authoritative TLE info for a given SatelliteItem.
+     * For non-static dynamic satellites (e.g. Starlink items), preserves `satellite.defaultTle`
+     * as the safe fallback if [customTleMetadataResolver] returns `null`, so a dynamic Starlink
+     * never impersonates the ISS.
      */
     fun getEffectiveTleInfo(satellite: SatelliteItem, providedTle: TLEData? = null): TleMetadata {
-        return getEffectiveTleInfo(satellite.noradId, providedTle)
+        val isStaticCatalogSat = SatelliteCatalog.satellites.any { it.noradId == satellite.noradId }
+        val effectiveProvided = providedTle ?: if (!isStaticCatalogSat) satellite.defaultTle else null
+        return getEffectiveTleInfo(satellite.noradId, effectiveProvided)
     }
 
     /**
@@ -237,7 +243,7 @@ object SatelliteEngine {
      * Resolves the authoritative TLE for a given satellite.
      */
     fun getEffectiveTle(satellite: SatelliteItem, providedTle: TLEData? = null): TLEData {
-        return getEffectiveTleInfo(satellite.noradId, providedTle).tleData
+        return getEffectiveTleInfo(satellite, providedTle).tleData
     }
 
     /**

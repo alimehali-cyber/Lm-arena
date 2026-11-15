@@ -117,6 +117,8 @@ import kotlin.math.abs
 import kotlin.math.atan
 import kotlin.math.cos
 import kotlin.math.hypot
+import com.alijafari.red.astronomy.util.formatTleStalenessBadge
+import com.alijafari.red.astronomy.util.rememberIsNetworkOnline
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.tan
@@ -124,13 +126,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-private fun isCyberNetworkAvailable(context: Context): Boolean {
-    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
-    val network = cm.activeNetwork ?: return false
-    val capabilities = cm.getNetworkCapabilities(network) ?: return false
-    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-}
 
 /**
  * Cyber Glass UI Satellites & Orbital Tracking Screen:
@@ -152,7 +147,7 @@ fun CyberSatellitesScreen(
     val canvasFontFamily = LocalAppFontFamily.current
     val textMeasurer = rememberTextMeasurer()
     val context = LocalContext.current
-    val isOnline = remember(context) { isCyberNetworkAvailable(context) }
+    val isOnline by rememberIsNetworkOnline(context)
     val density = LocalDensity.current
 
     val prefs = remember { context.getSharedPreferences("astro_app_prefs", Context.MODE_PRIVATE) }
@@ -240,6 +235,16 @@ fun CyberSatellitesScreen(
             tleRepo.ensureStarlinkDiskCacheLoaded()
             tleRepo.refreshTles()
         }
+    }
+
+    var wasOnline by remember { mutableStateOf(isOnline) }
+    LaunchedEffect(isOnline) {
+        if (!wasOnline && isOnline) {
+            withContext(Dispatchers.IO) {
+                tleRepo.refreshTles()
+            }
+        }
+        wasOnline = isOnline
     }
 
     val realtimeBucketKey = currentSimulationMs / StarlinkTrainManager.REALTIME_SNAPSHOT_TTL_MS
@@ -369,6 +374,33 @@ fun CyberSatellitesScreen(
             ?: liveSatelliteStates.firstOrNull()
     }
 
+    val isViewingActiveTrain = remember(selectedLiveState, selectedSatelliteId, selectedCategory, activeTrains) {
+        selectedLiveState?.satellite?.isTrain == true ||
+            activeTrains.any { t ->
+                t.leaderItem.id == selectedSatelliteId || t.memberItems.any { m -> m.id == selectedSatelliteId }
+            } ||
+            (selectedCategory == SatelliteCategory.STARLINK && activeTrains.isNotEmpty())
+    }
+
+    val starlinkCacheAgeDays = remember(starlinkCacheVersion, realTimeNowMs) {
+        tleRepo.getStarlinkCacheAgeDays(realTimeNowMs)
+    }
+
+    val staleBadgeText = remember(isViewingActiveTrain, selectedLiveState?.tleMetadata, activeTrains, starlinkCacheAgeDays, isFa) {
+        val effectiveMeta = if (isViewingActiveTrain && selectedLiveState?.satellite?.isTrain != true) {
+            activeTrains.firstOrNull()?.leaderItem?.let { SatelliteEngine.getEffectiveTleInfo(it) }
+                ?: selectedLiveState?.tleMetadata
+        } else {
+            selectedLiveState?.tleMetadata
+        }
+        formatTleStalenessBadge(
+            isViewingActiveTrain = isViewingActiveTrain,
+            tleMetadata = effectiveMeta,
+            starlinkCacheAgeDays = starlinkCacheAgeDays,
+            isFa = isFa
+        )
+    }
+
     if (activeDetailSatellite != null) {
         SatelliteDetailScreen(
             satelliteItem = activeDetailSatellite!!,
@@ -426,6 +458,13 @@ fun CyberSatellitesScreen(
                             text = if (isFa) "• آفلاین" else "• OFFLINE",
                             style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Light, fontSize = 10.sp),
                             color = palette.textMuted
+                        )
+                    }
+                    if (staleBadgeText != null) {
+                        Text(
+                            text = "• $staleBadgeText",
+                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.Light, fontSize = 10.sp),
+                            color = palette.statusWarn
                         )
                     }
                 }
@@ -1432,15 +1471,16 @@ fun CyberSatellitesScreen(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
 
                     SatelliteCatalog.getVisibleList(detectedTrain).forEach { sat ->
-                        val isChecked = sat.id in selectedSatIdsForAlerts
+                        val satAlertId = if (sat.isTrain) "starlink_train" else sat.id
+                        val isChecked = satAlertId in selectedSatIdsForAlerts || sat.id in selectedSatIdsForAlerts
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
                                     selectedSatIdsForAlerts = if (isChecked) {
-                                        selectedSatIdsForAlerts - sat.id
+                                        selectedSatIdsForAlerts - satAlertId - sat.id
                                     } else {
-                                        selectedSatIdsForAlerts + sat.id
+                                        (selectedSatIdsForAlerts - sat.id) + satAlertId
                                     }
                                 }
                                 .padding(vertical = 2.dp),
@@ -1450,9 +1490,9 @@ fun CyberSatellitesScreen(
                                 checked = isChecked,
                                 onCheckedChange = { checked ->
                                     selectedSatIdsForAlerts = if (checked) {
-                                        selectedSatIdsForAlerts + sat.id
+                                        (selectedSatIdsForAlerts - sat.id) + satAlertId
                                     } else {
-                                        selectedSatIdsForAlerts - sat.id
+                                        selectedSatIdsForAlerts - satAlertId - sat.id
                                     }
                                 }
                             )

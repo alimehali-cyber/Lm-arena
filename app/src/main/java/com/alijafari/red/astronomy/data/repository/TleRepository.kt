@@ -109,53 +109,60 @@ class TleRepository internal constructor(
 
     fun getLastStarlinkSyncMs(): Long = prefs.getLong(KEY_LAST_STARLINK_SYNC_MS, 0L)
 
+    fun getStoredStarlinkSchemaVersion(): Int = prefs.getInt(KEY_STARLINK_CACHE_SCHEMA_VERSION, 0)
+
     /**
-     * If `starlink_cache_schema_version` in [prefs] does not match [STARLINK_CACHE_SCHEMA_VERSION],
-     * immediately deletes `starlink_merged_cache.tle`, clears in-memory Starlink TLEs, and resets
-     * `last_starlink_sync_ms = 0L` so an upgraded APK forces an immediate fresh network download.
+     * Returns the age (in hours) of the local Starlink TLE cache, or `null` if no Starlink TLEs
+     * are available on disk or in memory.
      */
-    private fun invalidateCacheIfSchemaMismatchLocked(): Boolean {
-        val storedVersion = prefs.getInt(KEY_STARLINK_CACHE_SCHEMA_VERSION, 0)
-        if (storedVersion != STARLINK_CACHE_SCHEMA_VERSION) {
-            val cacheFile = getStarlinkCacheFile()
-            if (cacheFile.exists()) {
-                runCatching { cacheFile.delete() }
-            }
-            starlinkTles.clear()
-            starlinkDiskCacheLoaded = false
-            StarlinkTrainManager.invalidateCaches()
-            SatelliteCatalog.clearPrimaryTrain()
-            prefs.edit()
-                .putLong(KEY_LAST_STARLINK_SYNC_MS, 0L)
-                .apply()
-            Log.i(
-                TAG,
-                "Invalidated stale Starlink disk cache on schema upgrade ($storedVersion -> $STARLINK_CACHE_SCHEMA_VERSION)"
-            )
-            return true
+    fun getStarlinkCacheAgeHours(nowMs: Long = clockMs()): Double? {
+        val lastSync = getLastStarlinkSyncMs()
+        if (lastSync > 0L) {
+            return ((nowMs - lastSync).coerceAtLeast(0L)) / 3_600_000.0
         }
-        return false
+        val snapshot = starlinkTles.values.toList()
+        if (snapshot.isEmpty()) return null
+        val minEpochAgeDays = snapshot.minOfOrNull { tle ->
+            SatelliteEngine.computeTleAgeDays(tle.line1).coerceAtLeast(0.0)
+        } ?: return null
+        return minEpochAgeDays * 24.0
+    }
+
+    /**
+     * Returns the age (in days) of the local Starlink TLE cache, or `null` if unavailable.
+     */
+    fun getStarlinkCacheAgeDays(nowMs: Long = clockMs()): Double? {
+        return getStarlinkCacheAgeHours(nowMs)?.div(24.0)
     }
 
     /**
      * Loads `starlink_merged_cache.tle` from disk into [starlinkTles] on cold start or offline
-     * launch before any network call runs. Thread-safe and idempotent.
+     * launch before any network call runs.
+     *
+     * Non-destructive on schema upgrades: if `starlink_cache_schema_version` differs from
+     * [STARLINK_CACHE_SCHEMA_VERSION], the existing disk cache is still loaded into memory so
+     * offline users retain working Starlink data, while [shouldFetchStarlinkFromNetwork] bypasses
+     * the 2-hour cooldown until a fresh network sync succeeds and atomically updates the file.
      */
     fun ensureStarlinkDiskCacheLoaded(): Boolean {
         synchronized(starlinkDiskLock) {
-            if (invalidateCacheIfSchemaMismatchLocked()) {
-                starlinkDiskCacheLoaded = true
-                return false
-            }
             if (starlinkDiskCacheLoaded && starlinkTles.isNotEmpty()) return true
             val cacheFile = getStarlinkCacheFile()
             if (!cacheFile.exists() || cacheFile.length() == 0L) {
                 starlinkDiskCacheLoaded = true
                 return false
             }
+            val storedSchemaVersion = getStoredStarlinkSchemaVersion()
+            if (storedSchemaVersion != STARLINK_CACHE_SCHEMA_VERSION) {
+                Log.i(
+                    TAG,
+                    "Preserving existing Starlink disk cache across schema upgrade ($storedSchemaVersion -> $STARLINK_CACHE_SCHEMA_VERSION) until online sync completes"
+                )
+            }
             return try {
                 val raw = cacheFile.readText(Charsets.UTF_8)
                 val parsed = parseTleFeed(raw, allowZeroPlaceholderNorad = true)
+                    .filterValues { !isDebrisOrRocketBody(it.name) }
                 if (parsed.isNotEmpty()) {
                     starlinkTles.clear()
                     starlinkTles.putAll(parsed)
@@ -179,9 +186,10 @@ class TleRepository internal constructor(
 
     /**
      * Enforces the strict 2-hour CelesTrak rate-limit cooldown when a valid current-schema disk cache exists.
+     * Bypasses the cooldown whenever `starlink_cache_schema_version != STARLINK_CACHE_SCHEMA_VERSION`.
      */
     fun shouldFetchStarlinkFromNetwork(nowMs: Long = clockMs()): Boolean {
-        if (prefs.getInt(KEY_STARLINK_CACHE_SCHEMA_VERSION, 0) != STARLINK_CACHE_SCHEMA_VERSION) return true
+        if (getStoredStarlinkSchemaVersion() != STARLINK_CACHE_SCHEMA_VERSION) return true
         val cacheFile = getStarlinkCacheFile()
         if (!cacheFile.exists() || cacheFile.length() == 0L) return true
         val lastSync = getLastStarlinkSyncMs()
@@ -233,9 +241,11 @@ class TleRepository internal constructor(
 
     /**
      * Gets the most up-to-date TLE along with source provenance and freshness metadata.
-     * Looks up: Memory Cache -> Room Database -> Starlink Cache -> Hardcoded Offline Fallback in SatelliteCatalog.
+     * Looks up: Memory Cache -> Room Database -> Starlink Cache -> Hardcoded Static Catalog Fallback.
+     * Returns `null` for any unknown [noradId] outside the 4 static catalog satellites when not
+     * present in any cache, so missing/pruned dynamic Starlinks never impersonate the ISS.
      */
-    fun getTleWithMetadata(noradId: Int): TleMetadata {
+    fun getTleWithMetadata(noradId: Int): TleMetadata? {
         val now = clockMs()
 
         // 1. Check in-memory cache
@@ -289,6 +299,9 @@ class TleRepository internal constructor(
         }
 
         // 3. Check Starlink cache (live network or persistent disk cache)
+        if (!starlinkDiskCacheLoaded && starlinkTles.isEmpty() && Thread.currentThread().name != "main") {
+            ensureStarlinkDiskCacheLoaded()
+        }
         val starlinkTle = starlinkTles[noradId]
         if (starlinkTle != null) {
             val epochAge = SatelliteEngine.computeTleAgeDays(starlinkTle.line1)
@@ -302,18 +315,18 @@ class TleRepository internal constructor(
             return TleMetadata(noradId, source, epochAge, syncMs, stale, starlinkTle)
         }
 
-        // 4. Fallback to hardcoded catalog default (Final offline fallback)
-        val fallback = SatelliteCatalog.satellites.find { it.noradId == noradId }?.defaultTle
-            ?: ISSEngine.TLEData()
-        val epochAge = SatelliteEngine.computeTleAgeDays(fallback.line1)
-        return TleMetadata(noradId, TleDataSource.HARDCODED_FALLBACK, epochAge, 0L, true, fallback)
+        // 4. Fallback ONLY to bundled static catalog satellites (25544, 48274, 20580, 27386)
+        val staticFallback = SatelliteCatalog.satellites.find { it.noradId == noradId }?.defaultTle
+            ?: return null
+        val epochAge = SatelliteEngine.computeTleAgeDays(staticFallback.line1)
+        return TleMetadata(noradId, TleDataSource.HARDCODED_FALLBACK, epochAge, 0L, true, staticFallback)
     }
 
     /**
-     * Gets the most up-to-date TLE for a given NORAD satellite ID.
+     * Gets the most up-to-date TLE for a given NORAD satellite ID, or `null` if unknown.
      */
-    fun getTle(noradId: Int): TLEData {
-        return getTleWithMetadata(noradId).tleData
+    fun getTle(noradId: Int): TLEData? {
+        return getTleWithMetadata(noradId)?.tleData
     }
 
     /**
@@ -375,10 +388,7 @@ class TleRepository internal constructor(
         val trackedNoradIds = SatelliteCatalog.satellites.map { it.noradId }.toSet()
         var anyUpdated = false
 
-        // Always check schema version first and warm Starlink memory cache from persistent disk if current
-        synchronized(starlinkDiskLock) {
-            invalidateCacheIfSchemaMismatchLocked()
-        }
+        // Warm Starlink memory cache from persistent disk first (non-destructive even across schema upgrades)
         val hadEmptyStarlinkMemory = starlinkTles.isEmpty()
         val loadedFromDisk = ensureStarlinkDiskCacheLoaded()
         if (hadEmptyStarlinkMemory && loadedFromDisk) {
@@ -444,7 +454,9 @@ class TleRepository internal constructor(
         // Seed merged map with existing cached TLEs so partial feed failures never lose existing data
         val merged = LinkedHashMap<Int, TLEData>(starlinkTles.size.coerceAtLeast(1024))
         for ((id, tle) in starlinkTles) {
-            merged[id] = tle
+            if (!isDebrisOrRocketBody(tle.name)) {
+                merged[id] = tle
+            }
         }
 
         var anyStarlinkFeedSucceeded = false

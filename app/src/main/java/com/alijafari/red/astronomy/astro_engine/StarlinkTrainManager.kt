@@ -935,8 +935,8 @@ object StarlinkTrainManager {
 
         for (orb in orbitals) {
             if (orb.noradId in excludedNorads) continue
-            // Operational LEO Starlink shells: skip decayed debris or ultra-high non-LEO objects
-            if (orb.meanMotion !in 14.7..16.5) continue
+            // Operational & low-insertion LEO Starlink shells (up to ~180 km Starship/V3 deployment)
+            if (orb.meanMotion !in 14.7..MAX_TRAIN_MEAN_MOTION) continue
             // Geometric latitude reachability bound for >= 40° elevation at ~350–600 km
             if (orb.inclinationDeg + 6.5 < absUserLat && (180.0 - orb.inclinationDeg) + 6.5 < absUserLat) {
                 continue
@@ -1061,7 +1061,7 @@ object StarlinkTrainManager {
 
         for (orb in orbitals) {
             if (orb.noradId in excludedNorads) continue
-            if (orb.meanMotion !in 14.5..16.55) continue
+            if (orb.meanMotion !in 14.5..MAX_TRAIN_MEAN_MOTION) continue
             // Above-horizon geometric latitude bound (~24° max ground radius at 600 km)
             if (orb.inclinationDeg + 24.0 < absUserLat && (180.0 - orb.inclinationDeg) + 24.0 < absUserLat) {
                 continue

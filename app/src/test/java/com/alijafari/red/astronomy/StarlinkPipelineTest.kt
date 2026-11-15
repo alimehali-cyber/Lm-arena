@@ -2,15 +2,22 @@ package com.alijafari.red.astronomy
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.ISSEngine.TLEData
 import com.alijafari.red.astronomy.astro_engine.SGP4Propagator
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.astro_engine.SatelliteEngine
 import com.alijafari.red.astronomy.astro_engine.StarlinkTrainManager
+import com.alijafari.red.astronomy.astro_engine.TleDataSource
+import com.alijafari.red.astronomy.astro_engine.TleMetadata
 import com.alijafari.red.astronomy.data.repository.STARLINK_GP_URL
 import com.alijafari.red.astronomy.data.repository.STARLINK_LAST_30_DAYS_URL
 import com.alijafari.red.astronomy.data.repository.STARLINK_SUP_GP_URL
 import com.alijafari.red.astronomy.data.repository.TleRepository
+import com.alijafari.red.astronomy.domain.UserLocation
+import com.alijafari.red.astronomy.notification.AstroNotificationManager
+import com.alijafari.red.astronomy.notification.AstroNotificationStore
+import com.alijafari.red.astronomy.util.formatTleStalenessBadge
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -692,8 +699,8 @@ class StarlinkPipelineTest {
         assertEquals("2026-099", fallbackTrains.first().groupKey)
         assertEquals(15, fallbackTrains.first().satelliteCount)
 
-        // 7d. Schema v4 upgrade invalidation: pre-existing v0 cache file + fresh last_starlink_sync_ms
-        //     MUST be immediately invalidated on APK upgrade!
+        // 7d. Non-destructive Schema v4 upgrade: pre-existing v0 cache file MUST be preserved & loaded
+        //     into memory for offline resilience while bypassing the 2-hour cooldown until online sync succeeds!
         val context = ApplicationProvider.getApplicationContext<Context>()
         val cacheFile = File(context.filesDir, TleRepository.STARLINK_CACHE_FILE_NAME)
         val staleTle = retained.first()
@@ -709,10 +716,298 @@ class StarlinkPipelineTest {
             clockMs = { nov132026NoonUtcMs + 60_000L }, // Only 1 minute after old APK's sync!
             autoLoadDiskAsync = false
         )
-        assertFalse("Pre-v4 cache must be invalidated on ensureStarlinkDiskCacheLoaded()", upgradedRepo.ensureStarlinkDiskCacheLoaded())
-        assertFalse("Stale cache file must be deleted on schema mismatch", cacheFile.exists())
-        assertEquals(0L, upgradedRepo.getLastStarlinkSyncMs())
+        assertTrue("Pre-v4 cache must be loaded non-destructively on ensureStarlinkDiskCacheLoaded()", upgradedRepo.ensureStarlinkDiskCacheLoaded())
+        assertTrue("Existing cache file must NOT be wiped before online sync succeeds", cacheFile.exists())
+        assertEquals("Offline upgraded user must retain cached Starlink TLE immediately", 1, upgradedRepo.getStarlinkTles().size)
+        assertEquals(0, upgradedRepo.getStoredStarlinkSchemaVersion())
         assertTrue("Upgraded APK must immediately bypass 2h cooldown to fetch fresh feeds", upgradedRepo.shouldFetchStarlinkFromNetwork(nov132026NoonUtcMs + 60_000L))
+    }
+
+    @Test
+    fun `8 Non-destructive offline schema migration unknown NORAD null meanMotion 16_70 alerts 48h cap and staleness UI`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val cacheFile = File(context.filesDir, TleRepository.STARLINK_CACHE_FILE_NAME)
+
+        // 8a. Non-destructive schema migration when offline vs online
+        val cachedPreUpgradeTle = buildSyntheticTle(
+            name = "STARLINK-PRE-V4",
+            noradToken5 = "68801",
+            cospar8 = "26088A",
+            epochYear2 = 26,
+            epochDay = 317.10,
+            incDeg = 53.16,
+            raanDeg = 120.0,
+            meanAnomalyDeg = 45.0,
+            meanMotion = 15.90
+        )
+        cacheFile.writeText("${cachedPreUpgradeTle.name}\n${cachedPreUpgradeTle.line1}\n${cachedPreUpgradeTle.line2}\n")
+        context.getSharedPreferences(TleRepository.STARLINK_PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putLong(TleRepository.KEY_LAST_STARLINK_SYNC_MS, nov132026NoonUtcMs)
+            .putInt(TleRepository.KEY_STARLINK_CACHE_SCHEMA_VERSION, 2) // Older schema version
+            .commit()
+
+        var shouldFailNetwork = true
+        val freshNetworkTle = buildSyntheticTle(
+            name = "STARLINK-FRESH-V4",
+            noradToken5 = "69901",
+            cospar8 = "26099A",
+            epochYear2 = 26,
+            epochDay = 317.48,
+            incDeg = 26.42,
+            raanDeg = 148.6,
+            meanAnomalyDeg = 90.0,
+            meanMotion = 16.70
+        )
+
+        val switchingClient = OkHttpClient.Builder()
+            .addInterceptor(Interceptor { chain ->
+                val req = chain.request()
+                if (shouldFailNetwork) {
+                    Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(503)
+                        .message("Offline / Service Unavailable")
+                        .body("".toResponseBody("text/plain".toMediaType()))
+                        .build()
+                } else {
+                    val body = when (req.url.toString()) {
+                        STARLINK_SUP_GP_URL -> "${freshNetworkTle.name}\n${freshNetworkTle.line1}\n${freshNetworkTle.line2}\n"
+                        else -> ""
+                    }
+                    Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(body.toResponseBody("text/plain".toMediaType()))
+                        .build()
+                }
+            })
+            .build()
+
+        val migrationRepo = TleRepository(
+            context = context,
+            okHttpClientOverride = switchingClient,
+            clockMs = { nov132026NoonUtcMs + 120_000L },
+            autoLoadDiskAsync = false
+        )
+
+        // Attempt refresh while offline during schema migration (v2 -> v4)
+        migrationRepo.refreshTles(refreshStaticCatalog = false)
+        assertTrue("Offline refresh during schema upgrade MUST preserve starlink_merged_cache.tle", cacheFile.exists())
+        assertEquals("Offline user must keep pre-upgrade cached Starlink TLE", 1, migrationRepo.getStarlinkTles().size)
+        assertEquals(68801, StarlinkTrainManager.extractNoradId(migrationRepo.getStarlinkTles().first().line1))
+        assertEquals("Schema version must NOT advance while network sync fails", 2, migrationRepo.getStoredStarlinkSchemaVersion())
+        assertTrue("Cooldown must remain bypassed until schema v4 network sync succeeds", migrationRepo.shouldFetchStarlinkFromNetwork(nov132026NoonUtcMs + 180_000L))
+
+        // Reconnect online -> schema v4 sync succeeds and stamps version = 4
+        shouldFailNetwork = false
+        assertTrue("Online refresh must succeed and persist merged cache", migrationRepo.refreshTles(refreshStaticCatalog = false))
+        assertEquals("Schema version must update to 4 after successful online sync", 4, migrationRepo.getStoredStarlinkSchemaVersion())
+        assertEquals(2, migrationRepo.getStarlinkTles().size)
+        assertFalse("2h cooldown must engage once schema v4 sync has succeeded", migrationRepo.shouldFetchStarlinkFromNetwork(nov132026NoonUtcMs + 180_000L))
+
+        // 8b. Unknown NORAD returns null instead of ISS TLE; 4 static satellites have refreshed 26317 checksummed TLEs
+        assertNull("Unknown NORAD ID must return null from getTle() instead of ISS TLE", migrationRepo.getTle(987654))
+        assertNull("Unknown NORAD ID must return null from getTleWithMetadata()", migrationRepo.getTleWithMetadata(987654))
+
+        val expectedStaticNorads = setOf(25544, 48274, 20580, 27386)
+        assertEquals(expectedStaticNorads, SatelliteCatalog.satellites.map { it.noradId }.toSet())
+        for (sat in SatelliteCatalog.satellites) {
+            assertTrue("Line 1 checksum must be valid for ${sat.id}", TleRepository.validateChecksum(sat.defaultTle.line1))
+            assertTrue("Line 2 checksum must be valid for ${sat.id}", TleRepository.validateChecksum(sat.defaultTle.line2))
+            assertTrue("Bundled fallback TLE for ${sat.id} must be mid-November 2026 (26317)", sat.defaultTle.line1.contains("26317.50000000"))
+        }
+        assertTrue(ISSEngine.TLEData().line1.contains("26317.50000000"))
+        assertTrue(TleRepository.validateChecksum(ISSEngine.TLEData().line1))
+        assertTrue(TleRepository.validateChecksum(ISSEngine.TLEData().line2))
+
+        // Verify SatelliteEngine.getEffectiveTle(dynamicStarlinkItem) preserves the Starlink's own TLE when resolver returns null
+        val prevResolver = SatelliteEngine.customTleResolver
+        val prevMetaResolver = SatelliteEngine.customTleMetadataResolver
+        try {
+            SatelliteEngine.customTleResolver = { id -> migrationRepo.getTle(id) }
+            SatelliteEngine.customTleMetadataResolver = { id -> migrationRepo.getTleWithMetadata(id) }
+            val prunedDynamicItem = StarlinkTrainManager.selectRealtimeOverheadStarlinks(
+                starlinkTles = listOf(freshNetworkTle),
+                userLatDeg = 0.0,
+                userLonDeg = 0.0,
+                nowMs = nov132026NoonUtcMs,
+                maxOverhead = 10
+            ).let {
+                // Build a dynamic item with an uncached NORAD 77777
+                val uncachedTle = buildSyntheticTle(
+                    name = "STARLINK-UNCACHED",
+                    noradToken5 = "77777",
+                    cospar8 = "26099Z",
+                    epochYear2 = 26,
+                    epochDay = 317.45,
+                    incDeg = 53.16,
+                    raanDeg = 40.0,
+                    meanAnomalyDeg = 10.0,
+                    meanMotion = 16.70
+                )
+                SatelliteCatalog.satellites.first().copy(
+                    id = "starlink_77777",
+                    noradId = 77777,
+                    nameEn = "Starlink-77777",
+                    defaultTle = uncachedTle
+                )
+            }
+            val effective = SatelliteEngine.getEffectiveTle(prunedDynamicItem)
+            assertEquals("Uncached dynamic Starlink must keep its own TLE, never ISS 25544", prunedDynamicItem.defaultTle.line1, effective.line1)
+        } finally {
+            SatelliteEngine.customTleResolver = prevResolver
+            SatelliteEngine.customTleMetadataResolver = prevMetaResolver
+        }
+
+        // 8c. meanMotion = 16.70 rev/day Starlinks accepted by BOTH selectRealtimeOverheadStarlinks() and selectTopVisibleStarlinks()
+        val lowInsertionStarlinks = ArrayList<TLEData>()
+        var idx = 0
+        for (raan in listOf(0.0, 60.0, 120.0, 180.0, 240.0, 300.0)) {
+            for (ma in listOf(0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0)) {
+                idx++
+                lowInsertionStarlinks.add(
+                    buildSyntheticTle(
+                        name = "STARLINK-LOW-$idx",
+                        noradToken5 = (81000 + idx).toString(),
+                        cospar8 = "26040A", // Dispersed across 6 planes so they are individual Starlinks, not a compact train
+                        epochYear2 = 26,
+                        epochDay = 317.45,
+                        incDeg = 53.16,
+                        raanDeg = raan,
+                        argPerigeeDeg = 90.0,
+                        meanAnomalyDeg = ma,
+                        meanMotion = 16.70
+                    )
+                )
+            }
+        }
+        StarlinkTrainManager.invalidateCaches()
+        val sampleSubPos = ISSEngine().calculateTopocentricPos(
+            timestampMs = nov132026NoonUtcMs,
+            userLatDeg = 0.0,
+            userLonDeg = 0.0,
+            userAltMeters = 0.0,
+            tle = lowInsertionStarlinks.first()
+        )
+        val overheadSnapshot = StarlinkTrainManager.selectRealtimeOverheadStarlinks(
+            starlinkTles = lowInsertionStarlinks,
+            userLatDeg = sampleSubPos.subLatDeg,
+            userLonDeg = sampleSubPos.subLonDeg,
+            nowMs = nov132026NoonUtcMs,
+            maxOverhead = 20
+        )
+        assertTrue(
+            "meanMotion = 16.70 Starlinks must be accepted by selectRealtimeOverheadStarlinks()",
+            overheadSnapshot.overheadStarlinks.isNotEmpty()
+        )
+
+        val topVisible = StarlinkTrainManager.selectTopVisibleStarlinks(
+            starlinkTles = lowInsertionStarlinks,
+            activeTrains = emptyList(),
+            userLatDeg = 35.6892,
+            userLonDeg = 51.3890,
+            startTimeMs = nov132026NoonUtcMs,
+            maxCount = 20
+        )
+        assertTrue(
+            "meanMotion = 16.70 Starlinks must be accepted by selectTopVisibleStarlinks()",
+            topVisible.isNotEmpty()
+        )
+
+        // 8d. Automated "starlink_train" alerts in AstroNotificationManager cap lookahead to 48 hours (2 days)
+        val alertTrainTles = ArrayList<TLEData>()
+        for (i in 0 until 12) {
+            alertTrainTles.add(
+                buildSyntheticTle(
+                    name = "STARLINK-ALERT-$i",
+                    noradToken5 = (82000 + i).toString(),
+                    cospar8 = "26099${('A'.code + i).toChar()}",
+                    epochYear2 = 26,
+                    epochDay = 317.45,
+                    incDeg = 53.16,
+                    raanDeg = 289.0, // Passes directly over Tehran during evening twilight!
+                    argPerigeeDeg = 0.0,
+                    meanAnomalyDeg = 46.8 + i * 1.2,
+                    meanMotion = 15.60
+                )
+            )
+        }
+        AstroNotificationManager.cancelAllPassNotifications(context)
+        val observerLoc = UserLocation(
+            cityNameFa = "تهران",
+            cityNameEn = "Tehran",
+            latitude = 35.6892,
+            longitude = 51.3890
+        )
+        AstroNotificationManager.scheduleRollingSatellitePasses(
+            context = context,
+            userLocation = observerLoc,
+            selectedSatIds = setOf("iss_zarya", "starlink_train"),
+            leadMinutes = 10,
+            scanDays = 7,
+            nowMs = nov132026NoonUtcMs,
+            starlinkTlesOverride = alertTrainTles
+        )
+        val registeredTrain = SatelliteCatalog.getById("starlink_train")
+        assertTrue("Primary Starlink train must be registered under 'starlink_train'", registeredTrain.isTrain)
+        val raw7DayTrainPasses = ISSEngine.predictPasses(
+            userLatDeg = observerLoc.latitude,
+            userLonDeg = observerLoc.longitude,
+            startTimestampMs = nov132026NoonUtcMs,
+            tle = registeredTrain.defaultTle,
+            scanDays = 7,
+            visibleOnly = true,
+            standardMag = registeredTrain.standardMagnitude
+        )
+        assertTrue(
+            "7-day un-capped train prediction must contain passes beyond +48h",
+            raw7DayTrainPasses.any { it.startTimeMs > nov132026NoonUtcMs + 48L * 3_600_000L }
+        )
+        val scheduledTrainPasses = AstroNotificationStore.getAll(context).filter { it.objectId == "starlink_train" }
+        assertTrue("Starlink train must schedule upcoming visible passes within 48h", scheduledTrainPasses.isNotEmpty())
+        for (item in scheduledTrainPasses) {
+            assertTrue(
+                "Scheduled starlink_train pass must be capped within +48 hours",
+                item.eventTimeMs <= nov132026NoonUtcMs + 48L * 3_600_000L
+            )
+        }
+        val savedMonitored = context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
+            .getStringSet("monitored_satellite_ids", emptySet()).orEmpty()
+        assertTrue("monitored_satellite_ids must retain 'starlink_train'", "starlink_train" in savedMonitored)
+
+        // 8e. TLE staleness / train drift badge thresholds & reactive network observer wiring
+        val dummyTle = ISSEngine.TLEData()
+        val freshTrainMeta = TleMetadata(69901, TleDataSource.LIVE_NETWORK, 1.4, nov132026NoonUtcMs, false, dummyTle)
+        val driftingTrainMeta = TleMetadata(69901, TleDataSource.PERSISTED_CACHE, 2.6, nov132026NoonUtcMs, false, dummyTle)
+        val fourDayStaticMeta = TleMetadata(25544, TleDataSource.PERSISTED_CACHE, 4.0, nov132026NoonUtcMs, false, dummyTle)
+        val eightDayStaticMeta = TleMetadata(25544, TleDataSource.PERSISTED_CACHE, 8.3, nov132026NoonUtcMs, false, dummyTle)
+
+        assertNull(formatTleStalenessBadge(isViewingActiveTrain = true, tleMetadata = freshTrainMeta, isFa = false))
+        assertEquals("TLE 2.6d • Drift", formatTleStalenessBadge(isViewingActiveTrain = true, tleMetadata = driftingTrainMeta, isFa = false))
+        assertNull(formatTleStalenessBadge(isViewingActiveTrain = false, tleMetadata = fourDayStaticMeta, isFa = false))
+        assertEquals("TLE: 8.3d old", formatTleStalenessBadge(isViewingActiveTrain = false, tleMetadata = eightDayStaticMeta, isFa = false))
+
+        fun readSrc(rel: String): String {
+            return listOf("src/main/java/$rel", "app/src/main/java/$rel")
+                .map(::File)
+                .first { it.exists() }
+                .readText()
+        }
+        for (relPath in listOf(
+            "com/alijafari/red/astronomy/ui/screens/ISSScreen.kt",
+            "com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt",
+            "com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt",
+            "com/alijafari/red/astronomy/ui/cyber/CyberSatellitesScreen.kt",
+            "com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt"
+        )) {
+            val src = readSrc(relPath)
+            assertTrue("Expected $relPath to use reactive rememberIsNetworkOnline(context)", src.contains("rememberIsNetworkOnline(context)"))
+            assertTrue("Expected $relPath to use formatTleStalenessBadge(", src.contains("formatTleStalenessBadge("))
+        }
     }
 }
 

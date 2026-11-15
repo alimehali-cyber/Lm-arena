@@ -57,6 +57,8 @@ import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
+import com.alijafari.red.astronomy.util.formatTleStalenessBadge
+import com.alijafari.red.astronomy.util.rememberIsNetworkOnline
 import com.alijafari.red.astronomy.util.toPersianDigits
 import java.text.SimpleDateFormat
 import java.util.*
@@ -65,13 +67,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-private fun isNetworkAvailable(context: Context): Boolean {
-    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
-    val network = cm.activeNetwork ?: return false
-    val capabilities = cm.getNetworkCapabilities(network) ?: return false
-    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-}
 
 enum class MapTheme {
     AUTO,
@@ -106,7 +101,7 @@ fun ISSScreen(
     // face is taken from the theme here and handed to each measure() call below.
     val canvasFontFamily = LocalAppFontFamily.current
     val context = LocalContext.current
-    val isOnline = remember(context) { isNetworkAvailable(context) }
+    val isOnline by rememberIsNetworkOnline(context)
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
 
@@ -269,6 +264,16 @@ fun ISSScreen(
         }
     }
 
+    var wasOnline by remember { mutableStateOf(isOnline) }
+    LaunchedEffect(isOnline) {
+        if (!wasOnline && isOnline) {
+            withContext(Dispatchers.IO) {
+                tleRepo.refreshTles()
+            }
+        }
+        wasOnline = isOnline
+    }
+
     val realtimeBucketKey = currentSimulationMs / StarlinkTrainManager.REALTIME_SNAPSHOT_TTL_MS
     LaunchedEffect(
         starlinkCacheVersion,
@@ -404,6 +409,38 @@ fun ISSScreen(
         byId.values.toList()
     }
 
+    val selectedLiveState = remember(allInteractiveMapStates, liveSatelliteStates, selectedSatelliteId) {
+        allInteractiveMapStates.firstOrNull { it.satellite.id == selectedSatelliteId }
+            ?: liveSatelliteStates.firstOrNull()
+    }
+
+    val isViewingActiveTrain = remember(selectedLiveState, selectedSatelliteId, selectedCategory, activeTrains) {
+        selectedLiveState?.satellite?.isTrain == true ||
+            activeTrains.any { t ->
+                t.leaderItem.id == selectedSatelliteId || t.memberItems.any { m -> m.id == selectedSatelliteId }
+            } ||
+            (selectedCategory == SatelliteCategory.STARLINK && activeTrains.isNotEmpty())
+    }
+
+    val starlinkCacheAgeDays = remember(starlinkCacheVersion, realTimeNowMs) {
+        tleRepo.getStarlinkCacheAgeDays(realTimeNowMs)
+    }
+
+    val staleBadgeText = remember(isViewingActiveTrain, selectedLiveState?.tleMetadata, activeTrains, starlinkCacheAgeDays, isFa) {
+        val effectiveMeta = if (isViewingActiveTrain && selectedLiveState?.satellite?.isTrain != true) {
+            activeTrains.firstOrNull()?.leaderItem?.let { SatelliteEngine.getEffectiveTleInfo(it) }
+                ?: selectedLiveState?.tleMetadata
+        } else {
+            selectedLiveState?.tleMetadata
+        }
+        formatTleStalenessBadge(
+            isViewingActiveTrain = isViewingActiveTrain,
+            tleMetadata = effectiveMeta,
+            starlinkCacheAgeDays = starlinkCacheAgeDays,
+            isFa = isFa
+        )
+    }
+
     // Handle full-screen Detail Screen navigation
     if (activeDetailSatellite != null) {
         SatelliteDetailScreen(
@@ -448,6 +485,12 @@ fun ISSScreen(
                     if (!isOnline) {
                         RedBadge(
                             text = if (isFa) "آفلاین" else "Offline",
+                            isAccent = false
+                        )
+                    }
+                    if (staleBadgeText != null) {
+                        RedBadge(
+                            text = staleBadgeText,
                             isAccent = false
                         )
                     }
@@ -1471,15 +1514,16 @@ fun ISSScreen(
                     )
 
                     com.alijafari.red.astronomy.astro_engine.SatelliteCatalog.getVisibleList(detectedTrain).forEach { sat ->
-                        val isChecked = sat.id in selectedSatIdsForAlerts
+                        val satAlertId = if (sat.isTrain) "starlink_train" else sat.id
+                        val isChecked = satAlertId in selectedSatIdsForAlerts || sat.id in selectedSatIdsForAlerts
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
                                     selectedSatIdsForAlerts = if (isChecked) {
-                                        selectedSatIdsForAlerts - sat.id
+                                        selectedSatIdsForAlerts - satAlertId - sat.id
                                     } else {
-                                        selectedSatIdsForAlerts + sat.id
+                                        (selectedSatIdsForAlerts - sat.id) + satAlertId
                                     }
                                 }
                                 .padding(vertical = 2.dp),
@@ -1494,9 +1538,9 @@ fun ISSScreen(
                                     checked = isChecked,
                                     onCheckedChange = { checked ->
                                         selectedSatIdsForAlerts = if (checked) {
-                                            selectedSatIdsForAlerts + sat.id
+                                            (selectedSatIdsForAlerts - sat.id) + satAlertId
                                         } else {
-                                            selectedSatIdsForAlerts - sat.id
+                                            selectedSatIdsForAlerts - satAlertId - sat.id
                                         }
                                     }
                                 )

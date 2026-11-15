@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -98,8 +99,11 @@ import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
+import com.alijafari.red.astronomy.util.formatTleStalenessBadge
+import com.alijafari.red.astronomy.util.rememberIsNetworkOnline
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.math.abs
@@ -109,13 +113,6 @@ import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.tan
-
-private fun isAetherNetworkAvailable(context: Context): Boolean {
-    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
-    val network = cm.activeNetwork ?: return false
-    val capabilities = cm.getNetworkCapabilities(network) ?: return false
-    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-}
 
 /**
  * Aether Telemetry UI — Satellites & ISS Orbital Telemetry Screen:
@@ -141,8 +138,9 @@ fun AetherSatellitesScreen(
     val canvasFontFamily = LocalAppFontFamily.current
     val textMeasurer = rememberTextMeasurer()
     val context = LocalContext.current
-    val isOnline = remember(context) { isAetherNetworkAvailable(context) }
+    val isOnline by rememberIsNetworkOnline(context)
     val density = LocalDensity.current
+    val coroutineScope = rememberCoroutineScope()
 
     val prefs = remember { context.getSharedPreferences("astro_app_prefs", Context.MODE_PRIVATE) }
     var isAutoAlertEnabled by remember {
@@ -223,6 +221,16 @@ fun AetherSatellitesScreen(
             tleRepo.ensureStarlinkDiskCacheLoaded()
             tleRepo.refreshTles()
         }
+    }
+
+    var wasOnline by remember { mutableStateOf(isOnline) }
+    LaunchedEffect(isOnline) {
+        if (!wasOnline && isOnline) {
+            withContext(Dispatchers.IO) {
+                tleRepo.refreshTles()
+            }
+        }
+        wasOnline = isOnline
     }
 
     // Refresh real-time overhead Starlink shortlist + active physical trains every 12s on Dispatchers.Default
@@ -372,7 +380,34 @@ fun AetherSatellitesScreen(
     val azDeg = selectedLiveState?.topocentric?.azimuthDeg ?: 0.0
     val isAboveHorizon = elevDeg > 0.0
 
-    val statusCapsuleText = remember(altInt, timeOffsetHours, isOnline, isFa) {
+    val isViewingActiveTrain = remember(selectedLiveState, selectedSatelliteId, selectedCategory, activeTrains) {
+        selectedLiveState?.satellite?.isTrain == true ||
+            activeTrains.any { t ->
+                t.leaderItem.id == selectedSatelliteId || t.memberItems.any { m -> m.id == selectedSatelliteId }
+            } ||
+            (selectedCategory == SatelliteCategory.STARLINK && activeTrains.isNotEmpty())
+    }
+
+    val starlinkCacheAgeDays = remember(starlinkCacheVersion, realTimeNowMs) {
+        tleRepo.getStarlinkCacheAgeDays(realTimeNowMs)
+    }
+
+    val staleBadgeText = remember(isViewingActiveTrain, selectedLiveState?.tleMetadata, activeTrains, starlinkCacheAgeDays, isFa) {
+        val effectiveMeta = if (isViewingActiveTrain && selectedLiveState?.satellite?.isTrain != true) {
+            activeTrains.firstOrNull()?.leaderItem?.let { SatelliteEngine.getEffectiveTleInfo(it) }
+                ?: selectedLiveState?.tleMetadata
+        } else {
+            selectedLiveState?.tleMetadata
+        }
+        formatTleStalenessBadge(
+            isViewingActiveTrain = isViewingActiveTrain,
+            tleMetadata = effectiveMeta,
+            starlinkCacheAgeDays = starlinkCacheAgeDays,
+            isFa = isFa
+        )
+    }
+
+    val statusCapsuleText = remember(altInt, timeOffsetHours, isOnline, staleBadgeText, isFa) {
         val orbitMode = if (abs(timeOffsetHours) < 0.02f) {
             if (isFa) "مدار زنده SGP4" else "SGP4 Live Orbit"
         } else {
@@ -385,7 +420,8 @@ fun AetherSatellitesScreen(
             "$altInt km"
         }
         val netSuffix = if (!isOnline) (if (isFa) " • آفلاین" else " • Offline") else ""
-        "$orbitMode  •  $altLabel$netSuffix"
+        val staleSuffix = if (staleBadgeText != null) " • $staleBadgeText" else ""
+        "$orbitMode  •  $altLabel$netSuffix$staleSuffix"
     }
 
     Column(
@@ -415,8 +451,25 @@ fun AetherSatellitesScreen(
                 isActive = isAutoAlertEnabled,
                 onClick = {
                     executeWithNotificationPermission {
-                        isAutoAlertEnabled = !isAutoAlertEnabled
-                        prefs.edit().putBoolean("auto_satellite_alerts_enabled", isAutoAlertEnabled).apply()
+                        val nextEnabled = !isAutoAlertEnabled
+                        isAutoAlertEnabled = nextEnabled
+                        prefs.edit().putBoolean("auto_satellite_alerts_enabled", nextEnabled).apply()
+                        coroutineScope.launch(Dispatchers.Default) {
+                            if (nextEnabled) {
+                                val astroPrefs = context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE)
+                                val satIds = astroPrefs.getStringSet("monitored_satellite_ids", null)
+                                    ?: setOf("iss_zarya", "tiangong", "starlink_train", "hubble")
+                                AstroNotificationManager.scheduleRollingSatellitePasses(
+                                    context = context,
+                                    userLocation = uiState.userLocation,
+                                    selectedSatIds = satIds,
+                                    leadMinutes = 10,
+                                    scanDays = 7
+                                )
+                            } else {
+                                AstroNotificationManager.cancelAllPassNotifications(context)
+                            }
+                        }
                     }
                 },
                 modifier = Modifier.testTag("satellite_alerts_toggle")
