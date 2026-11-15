@@ -20,11 +20,14 @@ object StarlinkTrainManager {
     private const val TAG = "StarlinkTrainManager"
 
     const val MAX_ACTIVE_TRAINS = 3
-    const val TOP_RECENT_COSPAR_LAUNCH_LIMIT = 4
-    const val MAX_TRAIN_SPAN_DEG = 60.0
-    const val MAX_MEDIAN_PEARL_SPACING_DEG = 2.5
-    const val MIN_TRAIN_MEAN_MOTION = 15.12
-    const val MAX_TRAIN_MEAN_MOTION = 16.65
+    const val TOP_RECENT_COSPAR_LAUNCH_LIMIT = 8
+    const val MIN_TRAIN_SATELLITES = 5
+    const val MAX_TRAIN_SPAN_DEG = 110.0
+    const val MAX_MEDIAN_PEARL_SPACING_DEG = 8.0
+    const val MIN_TRAIN_MEAN_MOTION = 15.00
+    const val MAX_TRAIN_MEAN_MOTION = 16.75
+    const val FALLBACK_MIN_MEAN_MOTION = 15.05
+    const val MAX_SUP_EPOCH_AGE_DAYS = 5.0
     const val DEFAULT_TOP_VISIBLE_PASS_LIMIT = 18
     const val DEFAULT_REALTIME_OVERHEAD_LIMIT = 28
     const val REALTIME_SNAPSHOT_TTL_MS = 12_000L
@@ -37,7 +40,8 @@ object StarlinkTrainManager {
 
     /**
      * Represents a verified physical Starlink "String of Pearls" deployment train
-     * (`angularSpanDeg <= 60.0°` and median pearl spacing `<= 2.5°`), ordered from Leader (first to rise) to Trailer.
+     * (`angularSpanDeg <= 110.0°` and median pearl spacing `<= 8.0°`, or newest-launch fallback),
+     * ordered from Leader (first to rise) to Trailer.
      */
     data class StarlinkTrain(
         val id: String,
@@ -145,9 +149,13 @@ object StarlinkTrainManager {
     }
 
     /**
-     * Parses a 5-digit COSPAR launch designator (`YYNNN`, e.g. `"26068"` -> `2026068`, `"25034"` -> `2025034`).
-     * Returns `null` for blank, `"UNKNOWN"`, `"TBA"`, or placeholder (`000`) launch numbers so uncataloged
-     * launch-day `sup-gp` / `last-30-days` batches are routed to proximity orbital-plane clustering.
+     * Parses a real US Space Force 5-digit COSPAR launch designator (`YYNNN`, where `NNN in 001..499`,
+     * e.g. `"26068"` -> `2026068`, `"25034"` -> `2025034`).
+     *
+     * Returns `null` for blank, `"UNKNOWN"`, `"TBA"`, placeholder (`000`), OR CelesTrak 500-series
+     * synthetic supplemental launch numbers (`NNN >= 500`, e.g. `26501..26999`) so synthetic `sup-gp`
+     * IDs never consume slots in `topRecentLaunchKeys` and instead route into the uncataloged
+     * supplemental proximity cluster pipeline.
      */
     fun parseCosparLaunchKey(cospar5: String, cosparFull: String = ""): Int? {
         val fullUpper = cosparFull.trim().uppercase(Locale.US)
@@ -156,7 +164,7 @@ object StarlinkTrainManager {
         if (trimmed.length != 5 || !trimmed.all { it.isDigit() }) return null
         val yy = trimmed.substring(0, 2).toIntOrNull() ?: return null
         val nnn = trimmed.substring(2, 5).toIntOrNull() ?: return null
-        if (nnn <= 0) return null
+        if (nnn !in 1..499) return null
         val fullYear = if (yy < 57) 2000 + yy else 1900 + yy
         return fullYear * 1000 + nnn
     }
@@ -359,14 +367,14 @@ object StarlinkTrainManager {
     }
 
     /**
-     * Proximity orbital-plane clustering for uncataloged `sup-gp` / `last-30-days` candidates
+     * Proximity orbital-plane clustering for uncataloged `sup-gp` / `last-30-days` / `YY500+` candidates
      * (`abs(inc1 - inc2) <= 0.6°` and `circularDistanceDeg(raan1, raan2) <= 3.5°`).
      * Eliminates integer-bucket boundary splitting (e.g. a train straddling `123.9°..124.1°` RAAN).
      */
     private fun clusterUncatalogedOrbitals(
         uncataloged: List<ParsedStarlinkOrbital>
     ): List<Pair<String, List<ParsedStarlinkOrbital>>> {
-        if (uncataloged.size < 8) return emptyList()
+        if (uncataloged.size < MIN_TRAIN_SATELLITES) return emptyList()
         val n = uncataloged.size
         val visited = BooleanArray(n)
         val result = ArrayList<Pair<String, List<ParsedStarlinkOrbital>>>()
@@ -396,7 +404,7 @@ object StarlinkTrainManager {
                 }
             }
 
-            if (component.size >= 8) {
+            if (component.size >= MIN_TRAIN_SATELLITES) {
                 val sortedInc = component.map { it.inclinationDeg }.sorted()
                 val medianInc = sortedInc[sortedInc.size / 2]
                 val medianRaan = component.minByOrNull { center ->
@@ -407,7 +415,7 @@ object StarlinkTrainManager {
                     abs(it.inclinationDeg - medianInc) <= 0.6 &&
                         circularDistanceDeg(it.raanDeg, medianRaan) <= 3.5
                 }
-                if (tightPlane.size >= 8) {
+                if (tightPlane.size >= MIN_TRAIN_SATELLITES) {
                     val baseKey = "SUP-${medianInc.roundToInt()}-${medianRaan.roundToInt()}"
                     var uniqueKey = baseKey
                     var suffix = 2
@@ -422,16 +430,124 @@ object StarlinkTrainManager {
         return result
     }
 
+    private fun buildStarlinkTrainInstance(
+        rawGroupKey: String,
+        groupLaunchKey: Int?,
+        medianRaan: Double,
+        clusterSpanDeg: Double,
+        medianSpacingDeg: Double,
+        orderedMembers: List<ParsedStarlinkOrbital>
+    ): StarlinkTrain {
+        val displayGroup = if (rawGroupKey.startsWith("SUP-")) {
+            rawGroupKey
+        } else {
+            formatCosparLaunchDisplay(rawGroupKey)
+        }
+        val safeIdSuffix = displayGroup.lowercase(Locale.US).replace(Regex("[^a-z0-9_-]"), "_")
+        val trainId = "starlink_train_$safeIdSuffix"
+        val memberCount = orderedMembers.size
+        val avgMeanMotion = orderedMembers.map { it.meanMotion }.average()
+        val avgAltKm = estimateMeanAltitudeKm(avgMeanMotion)
+        val leaderOrb = orderedMembers.first()
+        val spanFormatted = String.format(Locale.US, "%.0f°", clusterSpanDeg)
+        val memberCountFa = memberCount.toString().toPersianDigits()
+        val displayGroupFa = displayGroup.toPersianDigits()
+
+        val leaderItem = SatelliteItem(
+            id = trainId,
+            noradId = leaderOrb.noradId,
+            nameEn = "Starlink Train ($displayGroup • $memberCount sats)",
+            nameFa = "قطار استارلینک ($displayGroupFa • $memberCountFa ماهواره)",
+            category = SatelliteCategory.STARLINK,
+            designation = leaderOrb.cosparFull.ifEmpty { displayGroup },
+            defaultTle = leaderOrb.tle,
+            isConstellation = true,
+            isTrain = true,
+            trainCount = memberCount,
+            starlinkTrainCount = memberCount,
+            standardMagnitude = 1.6,
+            isNakedEyeCandidate = true,
+            descriptionEn = "Active SpaceX deployment train ($displayGroup) of $memberCount Starlink satellites flying in a $spanFormatted string-of-pearls arc.",
+            descriptionFa = "قطار فعال استقرار اسپیس‌ایکس ($displayGroupFa) شامل $memberCountFa ماهواره استارلینک در کمان متراکم ${spanFormatted.toPersianDigits()}.",
+            launchDate = "Recent deployment ($displayGroup)",
+            operatorEn = "SpaceX",
+            operatorFa = "اسپیس‌ایکس (SpaceX)",
+            missionPurposeEn = "Low-Earth-orbit deployment formation prior to ion-thruster orbit raising.",
+            missionPurposeFa = "آرایش خطی استقرار در مدار پایین زمین پیش از صعود با پیشران یونی.",
+            scientificSignificanceEn = "Observable as a bright 'string of pearls' gliding in unison shortly after dusk or before dawn.",
+            scientificSignificanceFa = "قابل مشاهده به صورت «رشته مروارید» درخشان پس از غروب یا پیش از طلوع خورشید.",
+            verifiedFactsEn = listOf(
+                "Cluster spans $spanFormatted along orbital plane ${String.format(Locale.US, "%.1f°", medianRaan)} RAAN at ~${avgAltKm.roundToInt()} km altitude.",
+                "Ordered from leading satellite (${cleanStarlinkNameEn(leaderOrb.tle.name, leaderOrb.noradId)}) to trailing pearl.",
+                "Brightest in the first days after launch while solar arrays fly in low-drag 'open-book' attitude."
+            ),
+            verifiedFactsFa = listOf(
+                "گستردگی زاویه‌ای خوشه تنها ${spanFormatted.toPersianDigits()} در ارتفاع حدود ${avgAltKm.roundToInt().toString().toPersianDigits()} کیلومتر است.",
+                "مرتب‌شده از ماهواره پیشرو تا آخرین مروارید دنباله‌رو در جهت حرکت مداری.",
+                "در روزهای نخست پس از پرتاب به دلیل حالت کم‌پسا بیشترین درخشندگی را دارد."
+            )
+        )
+
+        val memberItems = orderedMembers.mapIndexed { idx, orb ->
+            val cleanEn = cleanStarlinkNameEn(orb.tle.name, orb.noradId)
+            val cleanFa = cleanStarlinkNameFa(orb.tle.name, orb.noradId)
+            val rank = idx + 1
+            val roleEn = if (idx == 0) "Leader #1" else "#$rank/$memberCount"
+            val roleFa = if (idx == 0) "پیشرو ۱" else "${rank.toString().toPersianDigits()} از $memberCountFa"
+            SatelliteItem(
+                id = "starlink_pearl_${orb.noradId}",
+                noradId = orb.noradId,
+                nameEn = if (idx == 0) "Starlink Train ($displayGroup) • $cleanEn" else "$cleanEn (Train $roleEn)",
+                nameFa = if (idx == 0) "قطار استارلینک ($displayGroupFa) • $cleanFa" else "$cleanFa (قطار $roleFa)",
+                category = SatelliteCategory.STARLINK,
+                designation = orb.cosparFull.ifEmpty { displayGroup },
+                defaultTle = orb.tle,
+                isConstellation = true,
+                isTrain = idx == 0,
+                trainCount = memberCount,
+                starlinkTrainCount = memberCount,
+                standardMagnitude = 1.8,
+                isNakedEyeCandidate = true,
+                descriptionEn = "Member #$rank of $memberCount in active Starlink Train $displayGroup ($spanFormatted arc).",
+                descriptionFa = "عضو شماره ${rank.toString().toPersianDigits()} از $memberCountFa در قطار استارلینک $displayGroupFa.",
+                launchDate = "Recent deployment ($displayGroup)",
+                operatorEn = "SpaceX",
+                operatorFa = "اسپیس‌ایکس (SpaceX)",
+                missionPurposeEn = "Low-Earth-orbit broadband constellation deployment.",
+                missionPurposeFa = "منظومه اینترنت پهن‌باند مدار پایین زمین."
+            )
+        }
+
+        return StarlinkTrain(
+            id = trainId,
+            groupKey = displayGroup,
+            displayLabelEn = "Starlink Train ($displayGroup)",
+            displayLabelFa = "قطار استارلینک ($displayGroupFa)",
+            angularSpanDeg = clusterSpanDeg,
+            medianRaanDeg = medianRaan,
+            avgAltitudeKm = avgAltKm,
+            memberTles = orderedMembers.map { it.tle },
+            leaderItem = leaderItem,
+            memberItems = memberItems,
+            launchKey = groupLaunchKey,
+            medianSpacingDeg = medianSpacingDeg
+        )
+    }
+
     /**
-     * Detects up to [maxTrains] genuine physical Starlink "String of Pearls" deployment trains,
+     * Detects up to [maxTrains] genuine physical Starlink / Starship V3 "String of Pearls" deployment trains,
      * sorted primarily by newest launch batch (`SUP` launch-day batches and highest `YYYY-NNN`
      * COSPAR launch designator first) and secondarily by tightest [StarlinkTrain.angularSpanDeg].
      *
      * Enforces:
-     * 1. Strict COSPAR Launch Recency Gate (top 4 most recent cataloged Starlink launch batches,
-     *    plus hard rejection of prior-year launches such as 2024/2025 Direct-to-Cell shells).
-     * 2. Tight physical train density (`angularSpanDeg <= 60.0°` AND median inter-pearl spacing `<= 2.5°`).
-     * 3. Proximity orbital-plane clustering (`<= 0.6°` inc, `<= 3.5°` RAAN) for uncataloged `sup-gp` TLEs.
+     * 1. Strict COSPAR Launch Recency Gate (top 8 real US Space Force `001..499` COSPAR launch batches,
+     *    routing `>= 500` synthetic `sup-gp` IDs to supplemental clustering, and hard-rejecting prior-year
+     *    launches such as 2024/2025 Direct-to-Cell shells).
+     * 2. Physical train cluster window (`>= 5` coplanar satellites, `angularSpanDeg <= 110.0°`,
+     *    median inter-pearl spacing `<= 8.0°`, `meanMotion in 15.00..16.75`).
+     * 3. Guaranteed Newest-Launch Fallback: if no batch fits `<= 110.0°`, selects the newest current-year
+     *    launch batch (or newest fresh `SUP` cluster with `>= 5` coplanar satellites and `meanMotion >= 15.05`)
+     *    and returns its densest contiguous `5..26` satellite arc.
      */
     fun detectActiveTrains(
         starlinkTles: List<TLEData>,
@@ -450,7 +566,7 @@ object StarlinkTrainManager {
         val currentYear = calUtc.get(java.util.Calendar.YEAR)
         val currentDayOfYear = calUtc.get(java.util.Calendar.DAY_OF_YEAR)
 
-        // Step 1: Compute the Top 4 Most Recent Cataloged Starlink COSPAR Launch Batches across the catalog
+        // Step 1: Compute the Top 8 Most Recent Real US Space Force COSPAR Launch Batches (NNN in 001..499)
         val launchBatchCounts = HashMap<Int, Int>()
         for (orb in orbitals) {
             val lk = parseCosparLaunchKey(orb.cosparLaunch5, orb.cosparFull) ?: continue
@@ -460,7 +576,7 @@ object StarlinkTrainManager {
             }
         }
         val multiSatLaunchKeys = launchBatchCounts.entries
-            .filter { it.value >= 5 }
+            .filter { it.value >= MIN_TRAIN_SATELLITES }
             .map { it.key }
             .sortedDescending()
         val distinctCatalogLaunchKeys = if (multiSatLaunchKeys.isNotEmpty()) {
@@ -475,7 +591,7 @@ object StarlinkTrainManager {
         val referenceYear = max(newestCatalogYear, currentYear)
 
         fun passesLaunchRecencyGate(orb: ParsedStarlinkOrbital, launchKey: Int): Boolean {
-            // Hard Reject #1: Must be among the top 4 most recent cataloged Starlink launch batches
+            // Hard Reject #1: Must be among the top 8 most recent cataloged Starlink launch batches
             if (launchKey !in topRecentLaunchKeys) return false
 
             val launchYear = launchKey / 1000
@@ -492,29 +608,28 @@ object StarlinkTrainManager {
             return true
         }
 
-        // Step 2: Filter candidates by fresh epoch age [-1.0, 7.0] days and LEO train mean motion [15.12, 16.65] rev/day,
-        // and split into recency-gated cataloged COSPAR batches vs uncataloged SUP proximity clusters.
+        // Step 2: Filter candidates by fresh epoch age and LEO deployment mean motion [15.00, 16.75] rev/day,
+        // routing real COSPAR (001..499) through Top-8 Recency Gate and uncataloged / YY500+ through SUP (epochAge <= 5.0d).
         val catalogedByCospar = LinkedHashMap<String, MutableList<ParsedStarlinkOrbital>>()
         val uncatalogedCandidates = ArrayList<ParsedStarlinkOrbital>()
 
         for (orb in orbitals) {
             val epochAgeDays = nowJd - orb.epochJd
-            if (epochAgeDays !in -1.0..7.0 || orb.meanMotion !in MIN_TRAIN_MEAN_MOTION..MAX_TRAIN_MEAN_MOTION) {
-                continue
-            }
+            if (orb.meanMotion !in MIN_TRAIN_MEAN_MOTION..MAX_TRAIN_MEAN_MOTION) continue
+
             val launchKey = parseCosparLaunchKey(orb.cosparLaunch5, orb.cosparFull)
             if (launchKey != null) {
-                if (passesLaunchRecencyGate(orb, launchKey)) {
+                if (epochAgeDays in -1.0..10.0 && passesLaunchRecencyGate(orb, launchKey)) {
                     catalogedByCospar.getOrPut(orb.cosparLaunch5) { ArrayList() }.add(orb)
                 }
-            } else {
+            } else if (epochAgeDays in -1.0..MAX_SUP_EPOCH_AGE_DAYS) {
                 uncatalogedCandidates.add(orb)
             }
         }
 
         val candidateGroups = ArrayList<Triple<String, Int?, List<ParsedStarlinkOrbital>>>()
         for ((cospar5, list) in catalogedByCospar) {
-            if (list.size >= 8) {
+            if (list.size >= MIN_TRAIN_SATELLITES) {
                 candidateGroups.add(Triple(cospar5, parseCosparLaunchKey(cospar5), list))
             }
         }
@@ -534,15 +649,15 @@ object StarlinkTrainManager {
         val detected = ArrayList<StarlinkTrain>()
 
         for ((rawGroupKey, groupLaunchKey, group) in candidateGroups) {
-            if (group.size < 8) continue
+            if (group.size < MIN_TRAIN_SATELLITES) continue
 
-            // Step 3: Coplanar check — circular median RAAN + >= 8 satellites within 3.5°
+            // Step 3: Coplanar check — circular median RAAN + >= 5 satellites within 3.5°
             val medianRaan = group.minByOrNull { center ->
                 group.sumOf { circularDistanceDeg(center.raanDeg, it.raanDeg) }
             }?.raanDeg ?: continue
 
             val coplanar = group.filter { circularDistanceDeg(it.raanDeg, medianRaan) <= 3.5 }
-            if (coplanar.size < 8) continue
+            if (coplanar.size < MIN_TRAIN_SATELLITES) continue
 
             // Step 4: Project along-track Argument of Latitude u to nowJd
             val projected = coplanar.map { orb ->
@@ -551,9 +666,9 @@ object StarlinkTrainManager {
                 ProjectedMember(orb, u)
             }.sortedBy { it.uDeg }
 
-            // Step 5: Trim up to 15% outliers by finding the densest contiguous core of max(8, floor(0.85 * N)) satellites
+            // Step 5: Trim up to 15% outliers by finding the densest contiguous core of max(5, floor(0.85 * N)) satellites
             val n = projected.size
-            val coreCount = max(8, (n * 0.85).toInt()).coerceAtMost(n)
+            val coreCount = max(MIN_TRAIN_SATELLITES, (n * 0.85).toInt()).coerceAtMost(n)
             var bestStartIdx = 0
             var minSpanDeg = Double.POSITIVE_INFINITY
 
@@ -572,13 +687,13 @@ object StarlinkTrainManager {
                 }
             }
 
-            // Strict Physical Train Span Rule: 85% core cluster must fit within <= 60° of orbital arc
+            // Physical Train Span Rule: 85% core cluster must fit within <= 110° of orbital arc
             if (minSpanDeg > MAX_TRAIN_SPAN_DEG) {
                 Log.d(TAG, "Rejected dispersed group $rawGroupKey: count=${coplanar.size}, coreSpan=${"%.1f".format(Locale.US, minSpanDeg)}° > ${MAX_TRAIN_SPAN_DEG}°")
                 continue
             }
 
-            // Strict Pearl Density Rule: Median adjacent inter-satellite spacing along core cluster must be <= 2.5°
+            // Pearl Density Rule: Median adjacent inter-satellite spacing along core cluster must be <= 8.0°
             val coreGaps = DoubleArray((coreCount - 1).coerceAtLeast(0)) { k ->
                 val curU = projected[(bestStartIdx + k) % n].uDeg
                 val nxtU = projected[(bestStartIdx + k + 1) % n].uDeg
@@ -597,8 +712,8 @@ object StarlinkTrainManager {
                 continue
             }
 
-            // Expand contiguously from the verified core to retain genuine adjacent pearls (gap <= 5.0°)
-            // while still trimming straggler/debris outliers and keeping total span <= 60°.
+            // Expand contiguously from the verified core to retain genuine adjacent pearls (gap <= 12.0°)
+            // while still trimming straggler/debris outliers and keeping total span <= 110°.
             var clusterStartIdx = bestStartIdx
             var clusterCount = coreCount
             var clusterSpanDeg = minSpanDeg
@@ -610,10 +725,10 @@ object StarlinkTrainManager {
                 val prevIdx = (clusterStartIdx - 1 + n) % n
                 val bwdGap = ((projected[clusterStartIdx].uDeg - projected[prevIdx].uDeg) % 360.0 + 360.0) % 360.0
 
-                if (fwdGap <= bwdGap && fwdGap <= 5.0 && clusterSpanDeg + fwdGap <= MAX_TRAIN_SPAN_DEG) {
+                if (fwdGap <= bwdGap && fwdGap <= 12.0 && clusterSpanDeg + fwdGap <= MAX_TRAIN_SPAN_DEG) {
                     clusterCount++
                     clusterSpanDeg += fwdGap
-                } else if (bwdGap <= 5.0 && clusterSpanDeg + bwdGap <= MAX_TRAIN_SPAN_DEG) {
+                } else if (bwdGap <= 12.0 && clusterSpanDeg + bwdGap <= MAX_TRAIN_SPAN_DEG) {
                     clusterStartIdx = prevIdx
                     clusterCount++
                     clusterSpanDeg += bwdGap
@@ -622,107 +737,112 @@ object StarlinkTrainManager {
                 }
             }
 
-            // Step 6: Order from Leader (furthest ahead in +u, first to rise) to Trailer (rear of train)
             val orderedMembers = (clusterCount - 1 downTo 0).map { offset ->
                 projected[(clusterStartIdx + offset) % n].orbital
             }
 
-            val displayGroup = if (rawGroupKey.startsWith("SUP-")) {
-                rawGroupKey
-            } else {
-                formatCosparLaunchDisplay(rawGroupKey)
-            }
-            val safeIdSuffix = displayGroup.lowercase(Locale.US).replace(Regex("[^a-z0-9_-]"), "_")
-            val trainId = "starlink_train_$safeIdSuffix"
-            val memberCount = orderedMembers.size
-            val avgMeanMotion = orderedMembers.map { it.meanMotion }.average()
-            val avgAltKm = estimateMeanAltitudeKm(avgMeanMotion)
-            val leaderOrb = orderedMembers.first()
-            val spanFormatted = String.format(Locale.US, "%.0f°", clusterSpanDeg)
-            val memberCountFa = memberCount.toString().toPersianDigits()
-            val displayGroupFa = displayGroup.toPersianDigits()
-
-            val leaderItem = SatelliteItem(
-                id = trainId,
-                noradId = leaderOrb.noradId,
-                nameEn = "Starlink Train ($displayGroup • $memberCount sats)",
-                nameFa = "قطار استارلینک ($displayGroupFa • $memberCountFa ماهواره)",
-                category = SatelliteCategory.STARLINK,
-                designation = leaderOrb.cosparFull.ifEmpty { displayGroup },
-                defaultTle = leaderOrb.tle,
-                isConstellation = true,
-                isTrain = true,
-                trainCount = memberCount,
-                starlinkTrainCount = memberCount,
-                standardMagnitude = 1.6,
-                isNakedEyeCandidate = true,
-                descriptionEn = "Active SpaceX deployment train ($displayGroup) of $memberCount Starlink satellites flying in a $spanFormatted string-of-pearls arc.",
-                descriptionFa = "قطار فعال استقرار اسپیس‌ایکس ($displayGroupFa) شامل $memberCountFa ماهواره استارلینک در کمان متراکم ${spanFormatted.toPersianDigits()}.",
-                launchDate = "Recent deployment ($displayGroup)",
-                operatorEn = "SpaceX",
-                operatorFa = "اسپیس‌ایکس (SpaceX)",
-                missionPurposeEn = "Low-Earth-orbit deployment formation prior to ion-thruster orbit raising.",
-                missionPurposeFa = "آرایش خطی استقرار در مدار پایین زمین پیش از صعود با پیشران یونی.",
-                scientificSignificanceEn = "Observable as a bright 'string of pearls' gliding in unison shortly after dusk or before dawn.",
-                scientificSignificanceFa = "قابل مشاهده به صورت «رشته مروارید» درخشان پس از غروب یا پیش از طلوع خورشید.",
-                verifiedFactsEn = listOf(
-                    "Cluster spans $spanFormatted along orbital plane ${String.format(Locale.US, "%.1f°", medianRaan)} RAAN at ~${avgAltKm.roundToInt()} km altitude.",
-                    "Ordered from leading satellite (${cleanStarlinkNameEn(leaderOrb.tle.name, leaderOrb.noradId)}) to trailing pearl.",
-                    "Brightest in the first days after launch while solar arrays fly in low-drag 'open-book' attitude."
-                ),
-                verifiedFactsFa = listOf(
-                    "گستردگی زاویه‌ای خوشه تنها ${spanFormatted.toPersianDigits()} در ارتفاع حدود ${avgAltKm.roundToInt().toString().toPersianDigits()} کیلومتر است.",
-                    "مرتب‌شده از ماهواره پیشرو تا آخرین مروارید دنباله‌رو در جهت حرکت مداری.",
-                    "در روزهای نخست پس از پرتاب به دلیل حالت کم‌پسا بیشترین درخشندگی را دارد."
-                )
-            )
-
-            val memberItems = orderedMembers.mapIndexed { idx, orb ->
-                val cleanEn = cleanStarlinkNameEn(orb.tle.name, orb.noradId)
-                val cleanFa = cleanStarlinkNameFa(orb.tle.name, orb.noradId)
-                val rank = idx + 1
-                val roleEn = if (idx == 0) "Leader #1" else "#$rank/$memberCount"
-                val roleFa = if (idx == 0) "پیشرو ۱" else "${rank.toString().toPersianDigits()} از $memberCountFa"
-                SatelliteItem(
-                    id = "starlink_pearl_${orb.noradId}",
-                    noradId = orb.noradId,
-                    nameEn = if (idx == 0) "Starlink Train ($displayGroup) • $cleanEn" else "$cleanEn (Train $roleEn)",
-                    nameFa = if (idx == 0) "قطار استارلینک ($displayGroupFa) • $cleanFa" else "$cleanFa (قطار $roleFa)",
-                    category = SatelliteCategory.STARLINK,
-                    designation = orb.cosparFull.ifEmpty { displayGroup },
-                    defaultTle = orb.tle,
-                    isConstellation = true,
-                    isTrain = idx == 0,
-                    trainCount = memberCount,
-                    starlinkTrainCount = memberCount,
-                    standardMagnitude = 1.8,
-                    isNakedEyeCandidate = true,
-                    descriptionEn = "Member #$rank of $memberCount in active Starlink Train $displayGroup ($spanFormatted arc).",
-                    descriptionFa = "عضو شماره ${rank.toString().toPersianDigits()} از $memberCountFa در قطار استارلینک $displayGroupFa.",
-                    launchDate = "Recent deployment ($displayGroup)",
-                    operatorEn = "SpaceX",
-                    operatorFa = "اسپیس‌ایکس (SpaceX)",
-                    missionPurposeEn = "Low-Earth-orbit broadband constellation deployment.",
-                    missionPurposeFa = "منظومه اینترنت پهن‌باند مدار پایین زمین."
-                )
-            }
-
             detected.add(
-                StarlinkTrain(
-                    id = trainId,
-                    groupKey = displayGroup,
-                    displayLabelEn = "Starlink Train ($displayGroup)",
-                    displayLabelFa = "قطار استارلینک ($displayGroupFa)",
-                    angularSpanDeg = clusterSpanDeg,
-                    medianRaanDeg = medianRaan,
-                    avgAltitudeKm = avgAltKm,
-                    memberTles = orderedMembers.map { it.tle },
-                    leaderItem = leaderItem,
-                    memberItems = memberItems,
-                    launchKey = groupLaunchKey,
-                    medianSpacingDeg = medianSpacingDeg
+                buildStarlinkTrainInstance(
+                    rawGroupKey = rawGroupKey,
+                    groupLaunchKey = groupLaunchKey,
+                    medianRaan = medianRaan,
+                    clusterSpanDeg = clusterSpanDeg,
+                    medianSpacingDeg = medianSpacingDeg,
+                    orderedMembers = orderedMembers
                 )
             )
+        }
+
+        // Step 7: Guaranteed Newest-Launch Fallback — if no train met the 110° gate, select the single
+        // newest current-year launch batch (max launchKey or newest fresh SUP cluster) with >= 5 coplanar
+        // orbit-raising satellites (meanMotion >= 15.05) and extract its densest contiguous 5..26 satellite arc.
+        if (detected.isEmpty()) {
+            val fallbackCandidates = candidateGroups
+                .mapNotNull { (rawKey, lk, group) ->
+                    val raising = group.filter { it.meanMotion >= FALLBACK_MIN_MEAN_MOTION }
+                    if (raising.size < MIN_TRAIN_SATELLITES) return@mapNotNull null
+                    val medRaan = raising.minByOrNull { center ->
+                        raising.sumOf { circularDistanceDeg(center.raanDeg, it.raanDeg) }
+                    }?.raanDeg ?: return@mapNotNull null
+                    val coplanar = raising.filter { circularDistanceDeg(it.raanDeg, medRaan) <= 3.5 }
+                    if (coplanar.size < MIN_TRAIN_SATELLITES) return@mapNotNull null
+                    Triple(rawKey, lk, medRaan to coplanar)
+                }
+                .sortedWith(
+                    compareByDescending<Triple<String, Int?, Pair<Double, List<ParsedStarlinkOrbital>>>> {
+                        it.second ?: Int.MAX_VALUE
+                    }.thenByDescending { entry ->
+                        entry.third.second.maxOfOrNull { it.epochJd } ?: 0.0
+                    }
+                )
+
+            val newestBatch = fallbackCandidates.firstOrNull()
+            if (newestBatch != null) {
+                val (rawKey, lk, planePair) = newestBatch
+                val (medRaan, coplanar) = planePair
+                val projected = coplanar.map { orb ->
+                    val dtDays = nowJd - orb.epochJd
+                    val u = ((orb.argPerigeeDeg + orb.meanAnomalyDeg + orb.meanMotion * 360.0 * dtDays) % 360.0 + 360.0) % 360.0
+                    ProjectedMember(orb, u)
+                }.sortedBy { it.uDeg }
+
+                val n = projected.size
+                val maxWindow = n.coerceIn(MIN_TRAIN_SATELLITES, 26)
+                var chosenCount = MIN_TRAIN_SATELLITES
+                var chosenStartIdx = 0
+                var chosenSpanDeg = Double.POSITIVE_INFINITY
+
+                // Prefer the largest contiguous 5..26 satellite arc fitting within <= 180°,
+                // or the tightest 5-satellite contiguous sub-arc if spread wider than 180°.
+                for (winSize in maxWindow downTo MIN_TRAIN_SATELLITES) {
+                    var bestIdx = 0
+                    var bestSpan = Double.POSITIVE_INFINITY
+                    for (startIdx in 0 until n) {
+                        val endIdx = (startIdx + winSize - 1) % n
+                        val span = if (startIdx + winSize - 1 < n) {
+                            projected[endIdx].uDeg - projected[startIdx].uDeg
+                        } else {
+                            (360.0 - projected[startIdx].uDeg) + projected[endIdx].uDeg
+                        }
+                        if (span < bestSpan) {
+                            bestSpan = span
+                            bestIdx = startIdx
+                        }
+                    }
+                    if (bestSpan <= 180.0 || winSize == MIN_TRAIN_SATELLITES) {
+                        chosenCount = winSize
+                        chosenStartIdx = bestIdx
+                        chosenSpanDeg = bestSpan
+                        break
+                    }
+                }
+
+                val gaps = DoubleArray((chosenCount - 1).coerceAtLeast(0)) { k ->
+                    val curU = projected[(chosenStartIdx + k) % n].uDeg
+                    val nxtU = projected[(chosenStartIdx + k + 1) % n].uDeg
+                    ((nxtU - curU) % 360.0 + 360.0) % 360.0
+                }.sortedArray()
+                val medGap = when {
+                    gaps.isEmpty() -> 0.0
+                    gaps.size % 2 == 1 -> gaps[gaps.size / 2]
+                    else -> 0.5 * (gaps[gaps.size / 2 - 1] + gaps[gaps.size / 2])
+                }
+
+                val orderedMembers = (chosenCount - 1 downTo 0).map { offset ->
+                    projected[(chosenStartIdx + offset) % n].orbital
+                }
+
+                detected.add(
+                    buildStarlinkTrainInstance(
+                        rawGroupKey = rawKey,
+                        groupLaunchKey = lk,
+                        medianRaan = medRaan,
+                        clusterSpanDeg = chosenSpanDeg,
+                        medianSpacingDeg = medGap,
+                        orderedMembers = orderedMembers
+                    )
+                )
+            }
         }
 
         // Sort primarily by newest launch batch (uncataloged SUP launch-day batches = Int.MAX_VALUE first,

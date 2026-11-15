@@ -188,7 +188,7 @@ class StarlinkPipelineTest {
             Triple("26052", 0.6, "A02"), // 10 sats * 0.6° = 5.4° span, launchKey 2026052 (newer than 26051!)
             Triple("     ", 1.5, "A03"), // Supplemental blank COSPAR -> SUP-... launch-day priority #1, 13.5° span
             Triple("26049", 1.8, "A04"), // Older 4th train (launchKey 2026049 -> capped out by max 3)
-            Triple("26053", 4.0, "A05")  // Dispersing sector with 4.0° median gap (> 2.5° limit) -> MUST be rejected!
+            Triple("26053", 10.0, "A05") // Dispersing sector with 10.0° median gap (> 8.0° limit) -> MUST be rejected!
         )
 
         trainSpecs.forEachIndexed { idx, (cospar5, stepDeg, alphaPrefix) ->
@@ -540,15 +540,15 @@ class StarlinkPipelineTest {
         assertEquals("2026-068", trainsWithSup[1].groupKey)
         assertFalse(trainsWithSup.any { it.groupKey.contains("2025-034") })
 
-        // 4. Verify Top-4 COSPAR Launch Recency Gate within 2026: when 4 newer 2026 batches exist
-        //    (26068, 26067, 26066, 26065), an older 5th batch (26012) is hard-rejected even if compact!
-        val fiveBatches2026 = ArrayList<TLEData>()
-        val batchCodes = listOf("26012", "26065", "26066", "26067", "26068")
+        // 4. Verify Top-8 COSPAR Launch Recency Gate within 2026: when 8 newer 2026 batches exist
+        //    (26061..26068), an older 9th batch (26012) is hard-rejected even if compact!
+        val nineBatches2026 = ArrayList<TLEData>()
+        val batchCodes = listOf("26012", "26061", "26062", "26063", "26064", "26065", "26066", "26067", "26068")
         batchCodes.forEachIndexed { bIdx, code ->
-            // Only 26012 (oldest, 5th) and 26068 (newest, 1st) are compact; 26065..26067 are already dispersed operational rings
+            // Only 26012 (oldest, 9th) and 26068 (newest, 1st) are compact; 26061..26067 are already dispersed operational rings
             val step = if (code == "26012" || code == "26068") 0.8 else 36.0
             for (k in 0 until 10) {
-                fiveBatches2026.add(
+                nineBatches2026.add(
                     buildSyntheticTle(
                         name = "STARLINK-$code-$k",
                         noradToken5 = (80000 + bIdx * 100 + k).toString(),
@@ -556,7 +556,7 @@ class StarlinkPipelineTest {
                         epochYear2 = 26,
                         epochDay = 317.40,
                         incDeg = 53.16,
-                        raanDeg = 20.0 + bIdx * 30.0,
+                        raanDeg = (20.0 + bIdx * 30.0) % 360.0,
                         argPerigeeDeg = 45.0,
                         meanAnomalyDeg = (k * step) % 360.0,
                         meanMotion = 15.80
@@ -565,9 +565,154 @@ class StarlinkPipelineTest {
             }
         }
         StarlinkTrainManager.invalidateCaches()
-        val gated2026Trains = StarlinkTrainManager.detectActiveTrains(fiveBatches2026, nowMs = nov132026NoonUtcMs)
-        assertEquals("Older 5th batch 2026-012 outside top-4 recent launches MUST be rejected", 1, gated2026Trains.size)
+        val gated2026Trains = StarlinkTrainManager.detectActiveTrains(nineBatches2026, nowMs = nov132026NoonUtcMs)
+        assertEquals("Older 9th batch 2026-012 outside top-8 recent launches MUST be rejected", 1, gated2026Trains.size)
         assertEquals("2026-068", gated2026Trains.first().groupKey)
+    }
+
+    @Test
+    fun `7 Starship Flight 15 26-Starlink Starbase deployment 500-series COSPAR schema v4 invalidation and fallback`() {
+        // 7a. CelesTrak 500-series synthetic COSPAR numbers (26500..26999) MUST return null from parseCosparLaunchKey
+        assertNull(StarlinkTrainManager.parseCosparLaunchKey("26500", "26500A"))
+        assertNull(StarlinkTrainManager.parseCosparLaunchKey("26501", "26501B"))
+        assertNull(StarlinkTrainManager.parseCosparLaunchKey("26999", "26999Z"))
+        assertEquals(2026099, StarlinkTrainManager.parseCosparLaunchKey("26099", "26099A"))
+
+        // 7b. Starship Flight 15 (Ship 42) deploys 26 Starlinks out of Starbase Boca Chica (~26.4° inclination)
+        //     listed in GROUP=last-30-days as OBJECT A..OBJECT Z + STARSHIP R/B + STARSHIP DEB
+        val rawLast30Feed = ArrayList<TLEData>()
+        for (i in 0 until 26) {
+            val piece = ('A'.code + i).toChar().toString()
+            rawLast30Feed.add(
+                buildSyntheticTle(
+                    name = "OBJECT $piece",
+                    noradToken5 = (69100 + i).toString(),
+                    cospar8 = "26099$piece",
+                    epochYear2 = 26,
+                    epochDay = 317.35,
+                    incDeg = 26.42, // Starbase Boca Chica inclination (outside narrow 4-band Falcon 9 shells!)
+                    raanDeg = 148.6,
+                    argPerigeeDeg = 70.0,
+                    meanAnomalyDeg = 10.0 + i * 3.2, // 80.0° spread 3 days after deployment (3.2° spacing)
+                    meanMotion = 16.58               // ~215 km Starship deployment altitude
+                )
+            )
+        }
+        // Add R/B and DEB on same launch -> MUST be excluded!
+        rawLast30Feed.add(
+            buildSyntheticTle(
+                name = "STARSHIP R/B",
+                noradToken5 = "69150",
+                cospar8 = "26099AA",
+                epochYear2 = 26,
+                epochDay = 317.35,
+                incDeg = 26.42,
+                raanDeg = 148.6,
+                meanMotion = 16.58
+            )
+        )
+        rawLast30Feed.add(
+            buildSyntheticTle(
+                name = "OBJECT DEB",
+                noradToken5 = "69151",
+                cospar8 = "26099AB",
+                epochYear2 = 26,
+                epochDay = 317.35,
+                incDeg = 26.42,
+                raanDeg = 148.6,
+                meanMotion = 16.58
+            )
+        )
+
+        val retained = TleRepository.filterLast30DaysStarlinkClusterEntries(rawLast30Feed)
+        assertEquals("All 26 Starbase OBJECT payloads must be retained while R/B and DEB are excluded", 26, retained.size)
+
+        // Even if 9 stale CelesTrak 500-series synthetic COSPAR batches (26501..26509, > 5d old) exist in catalog,
+        // they must NOT consume Top-8 COSPAR slots or block 2026-099!
+        val catalogWithSynthetic500 = ArrayList<TLEData>(retained)
+        for (sIdx in 1..9) {
+            for (k in 0 until 6) {
+                catalogWithSynthetic500.add(
+                    buildSyntheticTle(
+                        name = "STARLINK-SUP-$sIdx-$k",
+                        noradToken5 = (75000 + sIdx * 10 + k).toString(),
+                        cospar8 = "2650${sIdx}A",
+                        epochYear2 = 26,
+                        epochDay = 310.0, // > 5.0 days old synthetic sup-gp
+                        incDeg = 53.15,
+                        raanDeg = 10.0 * sIdx,
+                        meanAnomalyDeg = k * 1.0,
+                        meanMotion = 15.90
+                    )
+                )
+            }
+        }
+
+        val starshipTrains = StarlinkTrainManager.detectActiveTrains(catalogWithSynthetic500, nowMs = nov132026NoonUtcMs)
+        assertEquals(1, starshipTrains.size)
+        assertEquals("2026-099", starshipTrains.first().groupKey)
+        assertEquals(26, starshipTrains.first().satelliteCount)
+
+        // 7c. Guaranteed Newest-Launch Fallback: when 2026-099 spreads to 145° (> 110°) during late raising,
+        //     fallback still selects 2026-099 (and still rejects 2025-034)!
+        val lateDispersing = ArrayList<TLEData>()
+        for (i in 0 until 12) {
+            lateDispersing.add(
+                buildSyntheticTle(
+                    name = "STARLINK-DTC-2025-$i",
+                    noradToken5 = (63200 + i).toString(),
+                    cospar8 = "25034A",
+                    epochYear2 = 26,
+                    epochDay = 317.40,
+                    incDeg = 53.16,
+                    raanDeg = 88.5,
+                    meanAnomalyDeg = 50.0 + i * 1.0,
+                    meanMotion = 15.70
+                )
+            )
+        }
+        for (i in 0 until 15) {
+            lateDispersing.add(
+                buildSyntheticTle(
+                    name = "STARLINK-V3-$i",
+                    noradToken5 = (69300 + i).toString(),
+                    cospar8 = "26099A",
+                    epochYear2 = 26,
+                    epochDay = 317.40,
+                    incDeg = 26.42,
+                    raanDeg = 148.6,
+                    meanAnomalyDeg = 20.0 + i * 10.0, // 140° arc (> 110° primary gate, <= 180° fallback arc!)
+                    meanMotion = 15.25
+                )
+            )
+        }
+        StarlinkTrainManager.invalidateCaches()
+        val fallbackTrains = StarlinkTrainManager.detectActiveTrains(lateDispersing, nowMs = nov132026NoonUtcMs)
+        assertEquals(1, fallbackTrains.size)
+        assertEquals("2026-099", fallbackTrains.first().groupKey)
+        assertEquals(15, fallbackTrains.first().satelliteCount)
+
+        // 7d. Schema v4 upgrade invalidation: pre-existing v0 cache file + fresh last_starlink_sync_ms
+        //     MUST be immediately invalidated on APK upgrade!
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val cacheFile = File(context.filesDir, TleRepository.STARLINK_CACHE_FILE_NAME)
+        val staleTle = retained.first()
+        cacheFile.writeText("${staleTle.name}\n${staleTle.line1}\n${staleTle.line2}\n")
+        context.getSharedPreferences(TleRepository.STARLINK_PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putLong(TleRepository.KEY_LAST_STARLINK_SYNC_MS, nov132026NoonUtcMs)
+            .remove(TleRepository.KEY_STARLINK_CACHE_SCHEMA_VERSION) // Simulates upgrade from pre-v4 APK!
+            .commit()
+
+        val upgradedRepo = TleRepository(
+            context = context,
+            clockMs = { nov132026NoonUtcMs + 60_000L }, // Only 1 minute after old APK's sync!
+            autoLoadDiskAsync = false
+        )
+        assertFalse("Pre-v4 cache must be invalidated on ensureStarlinkDiskCacheLoaded()", upgradedRepo.ensureStarlinkDiskCacheLoaded())
+        assertFalse("Stale cache file must be deleted on schema mismatch", cacheFile.exists())
+        assertEquals(0L, upgradedRepo.getLastStarlinkSyncMs())
+        assertTrue("Upgraded APK must immediately bypass 2h cooldown to fetch fresh feeds", upgradedRepo.shouldFetchStarlinkFromNetwork(nov132026NoonUtcMs + 60_000L))
     }
 }
 

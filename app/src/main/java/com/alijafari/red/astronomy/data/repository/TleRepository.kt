@@ -110,12 +110,43 @@ class TleRepository internal constructor(
     fun getLastStarlinkSyncMs(): Long = prefs.getLong(KEY_LAST_STARLINK_SYNC_MS, 0L)
 
     /**
+     * If `starlink_cache_schema_version` in [prefs] does not match [STARLINK_CACHE_SCHEMA_VERSION],
+     * immediately deletes `starlink_merged_cache.tle`, clears in-memory Starlink TLEs, and resets
+     * `last_starlink_sync_ms = 0L` so an upgraded APK forces an immediate fresh network download.
+     */
+    private fun invalidateCacheIfSchemaMismatchLocked(): Boolean {
+        val storedVersion = prefs.getInt(KEY_STARLINK_CACHE_SCHEMA_VERSION, 0)
+        if (storedVersion != STARLINK_CACHE_SCHEMA_VERSION) {
+            val cacheFile = getStarlinkCacheFile()
+            if (cacheFile.exists()) {
+                runCatching { cacheFile.delete() }
+            }
+            starlinkTles.clear()
+            starlinkDiskCacheLoaded = false
+            StarlinkTrainManager.invalidateCaches()
+            SatelliteCatalog.clearPrimaryTrain()
+            prefs.edit()
+                .putLong(KEY_LAST_STARLINK_SYNC_MS, 0L)
+                .apply()
+            Log.i(
+                TAG,
+                "Invalidated stale Starlink disk cache on schema upgrade ($storedVersion -> $STARLINK_CACHE_SCHEMA_VERSION)"
+            )
+            return true
+        }
+        return false
+    }
+
+    /**
      * Loads `starlink_merged_cache.tle` from disk into [starlinkTles] on cold start or offline
      * launch before any network call runs. Thread-safe and idempotent.
      */
     fun ensureStarlinkDiskCacheLoaded(): Boolean {
-        if (starlinkDiskCacheLoaded && starlinkTles.isNotEmpty()) return true
         synchronized(starlinkDiskLock) {
+            if (invalidateCacheIfSchemaMismatchLocked()) {
+                starlinkDiskCacheLoaded = true
+                return false
+            }
             if (starlinkDiskCacheLoaded && starlinkTles.isNotEmpty()) return true
             val cacheFile = getStarlinkCacheFile()
             if (!cacheFile.exists() || cacheFile.length() == 0L) {
@@ -124,7 +155,7 @@ class TleRepository internal constructor(
             }
             return try {
                 val raw = cacheFile.readText(Charsets.UTF_8)
-                val parsed = parseTleFeed(raw)
+                val parsed = parseTleFeed(raw, allowZeroPlaceholderNorad = true)
                 if (parsed.isNotEmpty()) {
                     starlinkTles.clear()
                     starlinkTles.putAll(parsed)
@@ -147,9 +178,10 @@ class TleRepository internal constructor(
     }
 
     /**
-     * Enforces the strict 2-hour CelesTrak rate-limit cooldown when a non-empty disk cache exists.
+     * Enforces the strict 2-hour CelesTrak rate-limit cooldown when a valid current-schema disk cache exists.
      */
     fun shouldFetchStarlinkFromNetwork(nowMs: Long = clockMs()): Boolean {
+        if (prefs.getInt(KEY_STARLINK_CACHE_SCHEMA_VERSION, 0) != STARLINK_CACHE_SCHEMA_VERSION) return true
         val cacheFile = getStarlinkCacheFile()
         if (!cacheFile.exists() || cacheFile.length() == 0L) return true
         val lastSync = getLastStarlinkSyncMs()
@@ -343,7 +375,10 @@ class TleRepository internal constructor(
         val trackedNoradIds = SatelliteCatalog.satellites.map { it.noradId }.toSet()
         var anyUpdated = false
 
-        // Always warm Starlink memory cache from persistent disk first
+        // Always check schema version first and warm Starlink memory cache from persistent disk if current
+        synchronized(starlinkDiskLock) {
+            invalidateCacheIfSchemaMismatchLocked()
+        }
         val hadEmptyStarlinkMemory = starlinkTles.isEmpty()
         val loadedFromDisk = ensureStarlinkDiskCacheLoaded()
         if (hadEmptyStarlinkMemory && loadedFromDisk) {
@@ -420,7 +455,8 @@ class TleRepository internal constructor(
             val supBody = fetchRawBody(okHttpClient, supGpUrl, requestGzip = true)
             if (!supBody.isNullOrBlank()) {
                 val supParsed = parseTleFeed(supBody, allowZeroPlaceholderNorad = true)
-                if (supParsed.isNotEmpty()) {
+                val validSupValues = supParsed.values.filterNot { isDebrisOrRocketBody(it.name) }
+                if (validSupValues.isNotEmpty()) {
                     freshSupIds = supParsed.keys.toSet()
                     // Prune stale (> 7d) temporary 70000..99999 supplemental IDs from prior cache before merging fresh sup-gp
                     val nowJd = (clockMs() / 86_400_000.0) + 2440587.5
@@ -438,9 +474,9 @@ class TleRepository internal constructor(
                         merged.remove(staleId)
                     }
 
-                    mergePreferNewestEpoch(merged, supParsed.values, allowZeroPlaceholderNorad = true)
+                    mergePreferNewestEpoch(merged, validSupValues, allowZeroPlaceholderNorad = true)
                     anyStarlinkFeedSucceeded = true
-                    Log.i(TAG, "Merged ${supParsed.size} Supplemental GP Starlink TLEs")
+                    Log.i(TAG, "Merged ${validSupValues.size} Supplemental GP Starlink TLEs")
                 }
             }
         } catch (e: Exception) {
@@ -486,7 +522,10 @@ class TleRepository internal constructor(
         synchronized(starlinkDiskLock) {
             writeMergedCacheAtomically(merged.values)
             val syncTime = clockMs()
-            prefs.edit().putLong(KEY_LAST_STARLINK_SYNC_MS, syncTime).apply()
+            prefs.edit()
+                .putLong(KEY_LAST_STARLINK_SYNC_MS, syncTime)
+                .putInt(KEY_STARLINK_CACHE_SCHEMA_VERSION, STARLINK_CACHE_SCHEMA_VERSION)
+                .apply()
 
             starlinkTles.clear()
             starlinkTles.putAll(merged)
@@ -554,11 +593,15 @@ class TleRepository internal constructor(
 
     companion object {
         private const val TAG = "TleRepository"
+        private const val STARLINK_CACHE_SCHEMA_VERSION = 4
 
         const val STARLINK_CACHE_FILE_NAME = "starlink_merged_cache.tle"
         const val STARLINK_PREFS_NAME = "zig_starlink_tle_prefs"
         const val KEY_LAST_STARLINK_SYNC_MS = "last_starlink_sync_ms"
+        const val KEY_STARLINK_CACHE_SCHEMA_VERSION = "starlink_cache_schema_version"
         const val STARLINK_SYNC_COOLDOWN_MS = 2 * 60 * 60 * 1000L // 2 hours
+
+        private val DEB_TOKEN_REGEX = Regex("(^|[^A-Z0-9])DEB($|[^A-Z0-9])")
 
         @Volatile
         private var INSTANCE: TleRepository? = null
@@ -576,14 +619,36 @@ class TleRepository internal constructor(
         fun peekInstance(): TleRepository? = INSTANCE
 
         /**
-         * Exact SpaceX Starlink operational & deployment inclination shells:
-         * `42°..44°`, `52.5°..53.5°`, `69.5°..70.5°`, `96.5°..98.5°`.
+         * Returns `true` only if an object name is expressly labeled `DEB` (debris) or `R/B` (rocket body).
+         */
+        fun isDebrisOrRocketBody(rawName: String): Boolean {
+            val upper = rawName.trim().uppercase(Locale.US)
+            return upper.contains("R/B") || DEB_TOKEN_REGEX.containsMatchIn(upper)
+        }
+
+        /**
+         * Broad LEO Starlink / Starship V3 deployment inclination envelope (`24.0°..100.0°`),
+         * covering Starbase Boca Chica (`~26°..40°`), classic Falcon 9 shells (`43°`, `53°`, `70°`),
+         * and polar/SSO shells (`97.6°`).
          */
         fun isInStarlinkInclinationShell(incDeg: Double): Boolean {
+            return incDeg in 24.0..100.0
+        }
+
+        private fun isClassicFalconStarlinkBand(incDeg: Double): Boolean {
             return incDeg in 42.0..44.0 ||
                 incDeg in 52.5..53.5 ||
                 incDeg in 69.5..70.5 ||
                 incDeg in 96.5..98.5
+        }
+
+        private fun isDeploymentPayloadName(upperName: String): Boolean {
+            return upperName.startsWith("STARLINK") ||
+                upperName.contains("STARLINK") ||
+                upperName.startsWith("OBJECT") ||
+                upperName.startsWith("TBA") ||
+                upperName.startsWith("UNKNOWN") ||
+                upperName.startsWith("STARSHIP")
         }
 
         private fun resolveNoradOrSupplementalId(
@@ -602,32 +667,32 @@ class TleRepository internal constructor(
         }
 
         /**
-         * Single-entry Starlink / uncataloged Starlink-shell candidate check for `GROUP=last-30-days`.
+         * Single-entry Starlink / Starship / uncataloged LEO payload candidate check for `GROUP=last-30-days`.
          */
         fun isStarlinkFromLast30Days(tle: TLEData): Boolean {
             val upper = tle.name.trim().uppercase(Locale.US)
-            if (upper.contains("STARLINK")) return true
+            if (isDebrisOrRocketBody(upper)) return false
+            if (upper.contains("STARLINK") || upper.startsWith("STARSHIP")) return true
             val noradId = StarlinkTrainManager.extractNoradId(tle.line1)
             val isSupplementalOrUncataloged = noradId in 70_000..99_999 ||
                 noradId >= 100_000 ||
-                upper.contains("OBJECT") ||
-                upper.contains("TBA") ||
-                upper == "UNKNOWN"
+                isDeploymentPayloadName(upper)
             if (isSupplementalOrUncataloged) {
                 val inc = StarlinkTrainManager.extractInclinationDeg(tle.line2)
                 val mm = StarlinkTrainManager.extractMeanMotion(tle.line2)
-                return isInStarlinkInclinationShell(inc) && mm in 14.7..16.65
+                return isInStarlinkInclinationShell(inc) && mm in 14.90..16.75
             }
             return false
         }
 
         /**
          * Filters `GROUP=last-30-days` entries down to:
-         * 1. Named `STARLINK` satellites (including 5-digit, temporary `70000..99999`, and Alpha-5 NORAD IDs).
-         * 2. Temporary supplemental NORAD IDs (`70000..99999` or Alpha-5) and `OBJECT` / `TBA` / `UNKNOWN`
-         *    entries in Starlink inclination shells (`42°..44°`, `52.5°..53.5°`, `69.5°..70.5°`, `96.5°..98.5°`)
-         *    that belong to a multi-satellite launch cluster (co-launched COSPAR batch or coplanar `<= 0.6°` inc,
-         *    `<= 3.5°` RAAN with at least one other satellite in the feed).
+         * 1. Named `STARLINK` / `STARSHIP` payloads (excluding `DEB` and `R/B`).
+         * 2. Any multi-satellite launch cluster with `>= 6` coplanar/co-launched LEO payloads
+         *    (`meanMotion in 14.90..16.75`, `inclination in 24.0°..100.0°`) whose names start with
+         *    `STARLINK`, `OBJECT`, `TBA`, `UNKNOWN`, or `STARSHIP` — regardless of inclination
+         *    (capturing Starbase Starship V3 deployments at ~26°..40° as well as 43°/53°/70°/97.6°).
+         * 3. Coplanar/co-launched `OBJECT` / `TBA` entries (`>= 2`) in classic Falcon 9 Starlink bands.
          */
         fun filterLast30DaysStarlinkClusterEntries(candidates: Collection<TLEData>): List<TLEData> {
             val list = candidates.toList()
@@ -635,7 +700,7 @@ class TleRepository internal constructor(
 
             data class ShellCandidate(
                 val tle: TLEData,
-                val isNamedStarlink: Boolean,
+                val isExplicitStarlink: Boolean,
                 val cospar5: String,
                 val incDeg: Double,
                 val raanDeg: Double
@@ -646,39 +711,40 @@ class TleRepository internal constructor(
 
             for (tle in list) {
                 val upper = tle.name.trim().uppercase(Locale.US)
-                val isNamed = upper.contains("STARLINK")
-                if (!isNamed && !isStarlinkFromLast30Days(tle)) continue
+                if (isDebrisOrRocketBody(upper)) continue
+                val isExplicit = upper.contains("STARLINK") || upper.startsWith("STARSHIP")
+                if (!isExplicit && !isStarlinkFromLast30Days(tle)) continue
                 val c5 = StarlinkTrainManager.extractCosparLaunchGroup(tle.line1)
                 val inc = StarlinkTrainManager.extractInclinationDeg(tle.line2)
                 val raan = StarlinkTrainManager.extractRaanDeg(tle.line2)
                 if (c5.length == 5 && c5.all { it.isDigit() } && !c5.endsWith("000")) {
                     cosparCounts[c5] = (cosparCounts[c5] ?: 0) + 1
                 }
-                shellPool.add(ShellCandidate(tle, isNamed, c5, inc, raan))
+                shellPool.add(ShellCandidate(tle, isExplicit, c5, inc, raan))
             }
 
             val accepted = ArrayList<TLEData>(shellPool.size)
             for (i in shellPool.indices) {
                 val item = shellPool[i]
-                if (item.isNamedStarlink) {
+                if (item.isExplicitStarlink) {
                     accepted.add(item.tle)
                     continue
                 }
-                val sameCosparCluster = (cosparCounts[item.cospar5] ?: 0) >= 2
-                var samePlaneCluster = false
-                if (!sameCosparCluster) {
-                    for (j in shellPool.indices) {
-                        if (i == j) continue
-                        val other = shellPool[j]
-                        if (abs(item.incDeg - other.incDeg) <= 0.6 &&
-                            StarlinkTrainManager.circularDistanceDeg(item.raanDeg, other.raanDeg) <= 3.5
-                        ) {
-                            samePlaneCluster = true
-                            break
-                        }
+                val sameCosparCount = cosparCounts[item.cospar5] ?: 0
+                var coplanarCount = 1
+                for (j in shellPool.indices) {
+                    if (i == j) continue
+                    val other = shellPool[j]
+                    if (abs(item.incDeg - other.incDeg) <= 0.6 &&
+                        StarlinkTrainManager.circularDistanceDeg(item.raanDeg, other.raanDeg) <= 3.5
+                    ) {
+                        coplanarCount++
                     }
                 }
-                if (sameCosparCluster || samePlaneCluster) {
+                val clusterSize = kotlin.math.max(sameCosparCount, coplanarCount)
+                val keepBroadMultiSatCluster = clusterSize >= 6
+                val keepClassicShellCluster = clusterSize >= 2 && isClassicFalconStarlinkBand(item.incDeg)
+                if (keepBroadMultiSatCluster || keepClassicShellCluster) {
                     accepted.add(item.tle)
                 }
             }
