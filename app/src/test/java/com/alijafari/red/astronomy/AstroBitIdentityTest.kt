@@ -2,6 +2,7 @@ package com.alijafari.red.astronomy
 
 import com.alijafari.red.astronomy.astro_engine.AstroTime
 import com.alijafari.red.astronomy.astro_engine.EclipseEngine
+import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.LunarSolarEngine
 import com.alijafari.red.astronomy.astro_engine.MoonEngine
 import com.alijafari.red.astronomy.astro_engine.WhatsUpTonightEngine
@@ -102,6 +103,14 @@ class AstroBitIdentityTest {
         }
 
         // 4. What's Up Tonight, both languages.
+        //    Pin the ISS TLE to the exact 2026-10-15 element set (`26288`) active when
+        //    `astro-goldens.txt` was recorded, so refreshing the bundled offline fallback TLE in
+        //    `SatelliteCatalog` / `ISSEngine.TLEData` does not invalidate engine bit-identity.
+        val recordedBaselineIssTle = ISSEngine.TLEData(
+            name = "ISS (ZARYA)",
+            line1 = "1 25544U 98067A   26288.82192346  .00005580  00000+0  10980-3 0  9999",
+            line2 = "2 25544  51.6317  63.1136 0006755 265.8514  94.1703 15.48879905590452"
+        )
         for (site in sites) {
             for ((index, nowMs) in instants.withIndex()) {
                 val jd = nowMs / 86400000.0 + 2440587.5
@@ -110,7 +119,8 @@ class AstroBitIdentityTest {
                         jd = jd,
                         userLatDeg = site.lat,
                         userLonDeg = site.lon,
-                        isFa = isFa
+                        isFa = isFa,
+                        issTle = recordedBaselineIssTle
                     )
                     out["tonight.${site.name}.$index.${if (isFa) "fa" else "en"}"] = sha(events.toString())
                 }
