@@ -121,6 +121,9 @@ class AetherUiTest {
     fun aetherScreensAndLocalizedStringsAreWiredEndToEnd() {
         val home = source("com/alijafari/red/astronomy/ui/aether/AetherHomeScreen.kt")
         val satellites = source("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt")
+        // The redesigned Aether satellites skin shares the one stage with Default and Spatial.
+        val stage = source("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
+        val components = source("com/alijafari/red/astronomy/ui/satellites/SatelliteComponents.kt")
         val lab = source("com/alijafari/red/astronomy/ui/aether/AetherLabScreen.kt")
         val nav = source("com/alijafari/red/astronomy/ui/aether/AetherFloatingNavBar.kt")
         val settings = source("com/alijafari/red/astronomy/ui/aether/AetherSettingsModal.kt")
@@ -160,13 +163,13 @@ class AetherUiTest {
         assertFalse(redFnBody.contains("AetherOscilloscopeWaveformCanvas("))
         assertFalse(redFnBody.contains("AetherMicroStepper("))
 
-        assertTrue(satellites.contains("satellite_screen"))
-        assertTrue(satellites.contains("satellite_time_scrubber_card"))
-        assertTrue(satellites.contains("time_scrubber_slider"))
-        assertTrue(satellites.contains("AetherFloatingStatusCapsule("))
-        assertTrue(satellites.contains("AetherRadialDialCard("))
-        assertTrue(satellites.contains("AetherGlowingMeshPillCard("))
-        assertTrue(satellites.contains("AetherOscilloscopeWaveformCanvas("))
+        assertTrue(satellites.contains("SatellitesStage("))
+        assertTrue(satellites.contains("SatSkin.AETHER"))
+        assertTrue(stage.contains("satellite_screen"))
+        assertTrue(stage.contains("satellite_time_scrubber_card"))
+        assertTrue(components.contains("time_scrubber_slider"))
+        // Aether's status capsule is now the shared status chip (one capsule, no altitude in it).
+        assertTrue(components.contains("satellite_status_chip"))
 
         assertTrue(lab.contains("lab_screen"))
         assertTrue(lab.contains("TimeDilationCalculatorScreen("))

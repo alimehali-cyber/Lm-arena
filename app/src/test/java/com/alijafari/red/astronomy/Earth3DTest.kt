@@ -379,20 +379,30 @@ class Earth3DTest {
         assertTrue(overlay.contains("trainPearlStatesByTrain"))
         assertTrue(overlay.contains("liveSatelliteStates"))
 
+        // One stage, three skins: the map contract lives on the single shared stage that all three
+        // skins render, so it cannot drift between them. Each skin's screen names its skin and is a
+        // thin entry point into that stage.
+        val stage = readSource("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
+        assertTrue("the stage renders SatelliteEarth3D", stage.contains("SatelliteEarth3D("))
+        assertTrue("with the live scrubber timestamp", stage.contains("currentSimulationMs = currentSimulationMs"))
+        assertTrue("the map theme toggle", stage.contains("mapTheme = mapTheme"))
+        val stageComponents = readSource("com/alijafari/red/astronomy/ui/satellites/SatelliteComponents.kt")
+        assertTrue("the map theme selector", stageComponents.contains("testTag = \"map_theme_selector\""))
+        assertTrue("the time scrubber", stageComponents.contains("testTag(\"time_scrubber_slider\")"))
+        assertTrue("the status chip", stageComponents.contains("testTag(\"satellite_status_chip\")"))
+        assertTrue("and the satellite focus wiring", stage.contains("focusTarget = earthFocusTarget"))
+        assertTrue("notification deep links", stage.contains("uiState.selectedSatelliteId"))
+        assertTrue("and the detail screen opening", stage.contains("onOpenSatelliteDetail"))
+
         val screens = mapOf(
-            "ISSScreen" to readSource("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt"),
-            "SpatialSatellitesScreen" to readSource("com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt"),
-            "AetherSatellitesScreen" to readSource("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt"),
+            "ISSScreen" to (readSource("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt") to "SatSkin.DEFAULT"),
+            "SpatialSatellitesScreen" to (readSource("com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt") to "SatSkin.SPATIAL"),
+            "AetherSatellitesScreen" to (readSource("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt") to "SatSkin.AETHER"),
         )
-        screens.forEach { (name, src) ->
-            assertTrue("$name must render SatelliteEarth3D", src.contains("SatelliteEarth3D("))
-            assertTrue("$name must pass live scrubber timestamp", src.contains("currentSimulationMs = currentSimulationMs"))
-            assertTrue("$name must pass map theme toggle", src.contains("mapTheme = mapTheme"))
-            assertTrue("$name must keep map theme selector", src.contains("testTag(\"map_theme_selector\")"))
-            assertTrue("$name must keep time scrubber", src.contains("testTag(\"time_scrubber_slider\")"))
-            assertTrue("$name must keep satellite focus wiring", src.contains("focusTarget = earthFocusTarget"))
-            assertTrue("$name must support notification deep-link selection", src.contains("uiState.selectedSatelliteId"))
-            assertTrue("$name must wire SatelliteDetailScreen opening", src.contains("onOpenSatelliteDetail"))
+        screens.forEach { (name, pair) ->
+            val (src, skin) = pair
+            assertTrue("$name must render the shared stage", src.contains("SatellitesStage("))
+            assertTrue("$name must declare its skin", src.contains(skin))
         }
     }
 

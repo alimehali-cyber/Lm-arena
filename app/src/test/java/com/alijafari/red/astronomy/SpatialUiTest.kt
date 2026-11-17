@@ -192,25 +192,26 @@ class SpatialUiTest {
 
     @Test
     fun satelliteWorldMapsAreBorderlessFullBleedAndKeepTheGeographicAspectRatio() {
+        val stage = source("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
+        val components = source("com/alijafari/red/astronomy/ui/satellites/SatelliteComponents.kt")
         val iss = source("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt")
         val spatial = source("com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt")
         val aether = source("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt")
-        val mapScreens = listOf(iss, spatial, aether)
 
-        mapScreens.forEach { screen ->
-            assertTrue(screen.contains("SatelliteEarth3D("))
-            assertTrue(screen.contains(".aspectRatio(SATELLITE_EARTH_ASPECT_RATIO)"))
-            assertTrue(screen.contains("requiredWidth("))
+        // The globe is full-bleed on the shared stage and framed at the geographic 1.16:1 ratio.
+        assertTrue(stage.contains("SatelliteEarth3D("))
+        assertTrue(components.contains(".aspectRatio(1.16f)"))
+        assertTrue(stage.contains("globeModifier"))
+        listOf(iss, spatial, aether).forEach { screen ->
+            assertTrue(screen.contains("globeModifier"))
             assertFalse(screen.contains("WorldGeographyData.normalizedPaths"))
         }
-        listOf(iss, spatial).forEach { screen ->
-            assertTrue(screen.contains(".offset(x = -RedSpacing.lg)"))
-            assertTrue(screen.contains("requiredWidth(LocalConfiguration.current.screenWidthDp.dp)"))
-        }
-        assertTrue(aether.contains(".offset(x = (-22).dp)"))
-        assertFalse(iss.contains("containerBg"))
-        assertFalse(spatial.contains("mapRimBrush"))
-        assertFalse(spatial.contains(".shadow(16.dp, mapShape"))
+        assertTrue(iss.contains("offset(x = (-16).dp)"))
+        assertTrue(spatial.contains("offset(x = (-16).dp)"))
+        assertTrue(aether.contains("offset(x = (-20).dp)"))
+        // Default is flat by contract: the stage never paints a shadow or a blur on a card.
+        assertFalse(components.contains("Modifier.shadow("))
+        assertFalse(components.contains("blur("))
         assertFalse(aether.contains("viewportShape"))
     }
 

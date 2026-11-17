@@ -64,8 +64,8 @@ class Part6ScreenChromeTest {
         val lab = source("com/alijafari/red/astronomy/ui/screens/LabScreen.kt")
         assertTrue("the Lab list starts below the clock", lab.contains(".statusBarsPadding()"))
 
-        val iss = source("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt")
-        assertTrue("so does the satellite index", iss.contains(".statusBarsPadding()"))
+        val stage = source("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
+        assertTrue("so does the satellite index", stage.contains(".statusBarsPadding()"))
     }
 
     @Test
@@ -106,7 +106,11 @@ class Part6ScreenChromeTest {
             surface.contains("LocalRedColors provides surfaceColors")
         )
         assertTrue("Lab's tool cards use it", lab.contains("RedSurface("))
-        assertTrue("the satellite cards use it", iss.contains("RedSurface("))
+        assertTrue("the satellite cards use it", iss.contains("SatellitesStage("))
+        assertTrue(
+            "and the stage renders every card through the one surface",
+            source("com/alijafari/red/astronomy/ui/satellites/SatelliteDesign.kt").contains("RedSurface(")
+        )
         assertTrue("Home's cards use it", home.contains("private fun MoonCard("))
         assertTrue("including the eclipse card", home.contains("private fun EclipseCard("))
         assertTrue(
@@ -123,7 +127,10 @@ class Part6ScreenChromeTest {
             "com/alijafari/red/astronomy/MainActivity.kt" to activity,
             "com/alijafari/red/astronomy/ui/screens/HomeScreen.kt" to home,
             "com/alijafari/red/astronomy/ui/screens/LabScreen.kt" to lab,
-            "com/alijafari/red/astronomy/ui/screens/ISSScreen.kt" to iss,
+            "com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt" to
+                source("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt"),
+            "com/alijafari/red/astronomy/ui/satellites/SatelliteDesign.kt" to
+                source("com/alijafari/red/astronomy/ui/satellites/SatelliteDesign.kt"),
             "com/alijafari/red/astronomy/ui/components/SettingsDialog.kt" to settings
         ).forEach { (name, text) ->
             assertFalse("$name samples no backdrop", text.contains("layerBackdrop"))

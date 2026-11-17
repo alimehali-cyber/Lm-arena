@@ -427,11 +427,11 @@ class StarlinkPipelineTest {
                 ?: error("Source not found: $relative")
         }
 
-        val screens = mapOf(
-            "AetherSatellitesScreen" to readScreenSource("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt"),
-            "ISSScreen" to readScreenSource("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt"),
-            "SpatialSatellitesScreen" to readScreenSource("com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt")
-        )
+        // One stage, three skins: the whole Starlink pipeline lives on the shared stage, so there is
+        // exactly one implementation of it instead of three that can drift apart.
+        val stage = readScreenSource("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
+        val components = readScreenSource("com/alijafari/red/astronomy/ui/satellites/SatelliteComponents.kt")
+        val aether = readScreenSource("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt")
 
         val requiredTokens = listOf(
             "tleRepo.starlinkVersion.collectAsState()",
@@ -441,28 +441,29 @@ class StarlinkPipelineTest {
             "trainPearlStatesByTrain",
             "mapOverheadStarlinkStates",
             "allInteractiveMapStates",
-            "isTrainPass = sat.isTrain"
+            "isTrain = state.satellite.isTrain"
         )
 
-        for ((screenName, src) in screens) {
-            for (token in requiredTokens) {
-                assertTrue(
-                    "Expected $screenName to contain '$token' for full Starlink parity",
-                    src.contains(token)
-                )
-            }
-            // None of the 3 screens should rely on the legacy single-train detectTrain() call anymore
-            assertFalse(
-                "$screenName should use detectActiveTrains() instead of legacy single detectTrain()",
-                src.contains("StarlinkTrainManager.detectTrain(")
+        for (token in requiredTokens) {
+            assertTrue(
+                "Expected the shared stage to contain '$token' for full Starlink parity",
+                stage.contains(token)
             )
         }
+        // The legacy single-train detectTrain() call is gone for good.
+        assertFalse(
+            "the stage should use detectActiveTrains() instead of legacy single detectTrain()",
+            stage.contains("StarlinkTrainManager.detectTrain(")
+        )
+        // Aether is a thin entry point into that pipeline, not a fork of it.
+        assertTrue(aether.contains("SatellitesStage("))
+        assertTrue(aether.contains("SatSkin.AETHER"))
 
-        // Verify all 3 pass card implementations carry the STRING OF PEARLS train badge
+        // The STRING OF PEARLS train badge is drawn once, by the shared spotlight / compact pass card,
+        // and the detail screen keeps its own coat for the selected train.
         val detailSrc = readScreenSource("com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt")
         assertTrue(detailSrc.contains("STRING OF PEARLS"))
-        assertTrue(screens.getValue("AetherSatellitesScreen").contains("STRING OF PEARLS"))
-        assertTrue(screens.getValue("SpatialSatellitesScreen").contains("STRING OF PEARLS"))
+        assertTrue(components.contains("STRING OF PEARLS"))
     }
 
     @Test
@@ -988,9 +989,7 @@ class StarlinkPipelineTest {
                 .readText()
         }
         for (relPath in listOf(
-            "com/alijafari/red/astronomy/ui/screens/ISSScreen.kt",
-            "com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt",
-            "com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt",
+            "com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt",
             "com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt"
         )) {
             val src = readSrc(relPath)
