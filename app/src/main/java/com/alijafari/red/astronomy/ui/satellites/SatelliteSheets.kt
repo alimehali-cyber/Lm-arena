@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.astro_engine.SatelliteItem
+import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
@@ -601,6 +602,7 @@ fun SatFleetSheet(
             onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(fontFamily = LocalAppFontFamily.current),
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = tokens.inkTertiary) },
             placeholder = { Text(if (isFa) "جستجو" else "Search", color = tokens.inkTertiary) },
         )

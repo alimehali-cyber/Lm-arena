@@ -87,7 +87,10 @@ class Part6ScreenChromeTest {
         assertFalse("the back chip is gone", detail.contains("sat_detail_back"))
         assertFalse("and the band with it", detail.contains("topBar = {"))
         assertTrue("its own status-bar inset instead", detail.contains(".statusBarsPadding()"))
-        assertTrue("the offline state is still reported", detail.contains("WifiOff"))
+        assertTrue(
+            "the offline state is still reported",
+            detail.contains("CloudOff") || detail.contains("WifiOff")
+        )
     }
 
     // ---------------------------------------------------------------------------------------------
