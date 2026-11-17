@@ -66,3 +66,22 @@ B−V); visibility from Crumey (2014, MNRAS 442, 2600) contrast thresholds and C
   on the monument pages only (`ui/monuments/MonumentScreen.kt`). Body copy keeps Vazirmatn.
 * Provenance: the upstream static TTF shipped with the `persian-writing` skill's `assets/fonts`
   directory, copied byte-for-byte. sha256 `87ac2cefad76a91adbe9286a6d3d683741c781a7ddf841914479674d7939a8cd`.
+
+## 3D Earth (Satellites screen) — surface, night lights, clouds, and elevation maps
+
+* Source: Solar System Scope (`https://www.solarsystemscope.com/textures/`), equirectangular maps
+  derived from NASA Blue Marble / Earth Observatory data, retrieved from the verified resized and
+  channel-packed plates in `https://github.com/mrdoob/three.js` (`examples/textures/planets/`).
+* Licence: Creative Commons Attribution 4.0 International (`https://creativecommons.org/licenses/by/4.0/`) —
+  attribution: "Textures © Solar System Scope, CC BY 4.0". Modifications: downsampling to
+  power-of-two `2048×1024` and separation of the packed elevation (R) and cloud (B) channels as noted
+  below.
+* Used by `Earth3D.kt` and `ui/components/SatelliteEarth3D.kt` across the Satellites screens
+  (`ISSScreen.kt`, `SpatialSatellitesScreen.kt`, `AetherSatellitesScreen.kt`).
+
+| file | dimensions | bytes | upstream blob (sha1) | sha256 |
+|---|---|---|---|---|
+| `assets/earth_day_4k.jpg` | `4096×2048` | 473,093 | `earth_day_4096.jpg` (`b9410c7bea22e43c368b0757582160d0cf4cff03`, verbatim) | `cd7712d3e891425d9948ea5ac18d3bb1e7e834ea038188587897e689a7b35d0f` |
+| `assets/earth_night_2k.jpg` | `2048×1024` | 138,850 | `earth_night_4096.jpg` (`d5cfb85a9aba6f42d637d88cef4171f610abc0fe`, Lanczos 2k) | `2912445dd071ef6796980cdce6fbecf0b0d7e911e47343d26c582ad9fdec9ef8` |
+| `assets/earth_clouds.jpg` | `2048×1024` | 490,238 | `earth_bump_roughness_clouds_4096.jpg` B channel (`155558847a495729e7d5200fb07c0e93ffdddbd1`, Lanczos 2k) | `6743d375184af6ff69bb5f75be1a2d2b969617ead89881260d5bb0b208435fcf` |
+| `assets/earth_bump_2k.jpg` | `2048×1024` | 244,187 | `earth_bump_roughness_clouds_4096.jpg` R channel (`155558847a495729e7d5200fb07c0e93ffdddbd1`, Lanczos 2k) | `4a40da0e5a992b83bc8d6055fd190f0b16cd9cb560e8adfcfa47dd86dfc32211` |

@@ -13,8 +13,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -38,12 +36,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,6 +48,10 @@ import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
 import com.alijafari.red.astronomy.ui.MainUiState
 import com.alijafari.red.astronomy.ui.MainViewModel
+import com.alijafari.red.astronomy.ui.components.EarthFocusTarget
+import com.alijafari.red.astronomy.ui.components.SATELLITE_EARTH_ASPECT_RATIO
+import com.alijafari.red.astronomy.ui.components.SatelliteEarth3D
+import com.alijafari.red.astronomy.ui.components.SatelliteEarthOverlayStyle
 import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedSurface
@@ -96,13 +94,8 @@ fun ISSScreen(
     viewModel: MainViewModel
 ) {
     val isFa = uiState.language == AppLanguage.PERSIAN
-    // Text measured straight onto a Canvas never merges the theme's LocalTextStyle, so the locale
-    // face is taken from the theme here and handed to each measure() call below.
-    val canvasFontFamily = LocalAppFontFamily.current
     val context = LocalContext.current
     val isOnline by rememberIsNetworkOnline(context)
-    val density = LocalDensity.current
-    val textMeasurer = rememberTextMeasurer()
 
     // Notification & Map Prefs
     val prefs = remember { context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE) }
@@ -299,10 +292,9 @@ fun ISSScreen(
     // Temporary anchored label state (shown when tapping a satellite)
     var anchoredSatLabelState by remember { mutableStateOf<SatelliteLiveState?>(null) }
 
-    // Map Camera Gestures State
-    var zoomScale by remember { mutableFloatStateOf(1.0f) }
-    var panOffsetX by remember { mutableFloatStateOf(0.0f) }
-    var panOffsetY by remember { mutableFloatStateOf(0.0f) }
+    // 3D Earth camera focus target (smoothly rotates the globe when choosing a satellite)
+    var earthFocusTarget by remember { mutableStateOf<EarthFocusTarget?>(null) }
+    var focusSequence by remember { mutableLongStateOf(0L) }
 
     // Dialog Modals
     var showTutorialDialog by remember { mutableStateOf(false) }
@@ -403,6 +395,25 @@ fun ISSScreen(
     val selectedLiveState = remember(allInteractiveMapStates, liveSatelliteStates, selectedSatelliteId) {
         allInteractiveMapStates.firstOrNull { it.satellite.id == selectedSatelliteId }
             ?: liveSatelliteStates.firstOrNull()
+    }
+
+    LaunchedEffect(uiState.selectedSatelliteId) {
+        val targetId = uiState.selectedSatelliteId ?: return@LaunchedEffect
+        selectedSatelliteId = targetId
+        val match = allInteractiveMapStates.firstOrNull {
+            it.satellite.id == targetId || "sat_${it.satellite.noradId}" == targetId
+        }
+        if (match != null) {
+            selectedSatelliteId = match.satellite.id
+            anchoredSatLabelState = match
+            focusSequence += 1L
+            earthFocusTarget = EarthFocusTarget(
+                latDeg = match.topocentric.subLatDeg,
+                lonDeg = match.topocentric.subLonDeg,
+                requestId = focusSequence,
+            )
+        }
+        viewModel.selectSatelliteById(null)
     }
 
     val isViewingActiveTrain = remember(selectedLiveState, selectedSatelliteId, selectedCategory, activeTrains) {
@@ -537,474 +548,72 @@ fun ISSScreen(
                 }
             }
 
-            // 1. MAIN FEATURE: SCIENTIFICALLY ACCURATE 2D EARTH MAP
-            Box(
+            // 1. MAIN FEATURE: INTERACTIVE 3D EARTH GLOBE (GLES 2.0 + SGP4 ORBITAL OVERLAY)
+            val earthOverlayStyle = remember(mapPalette, activeThemeMode) {
+                val selectedAccent = when (activeThemeMode) {
+                    ThemeMode.WINE -> WineAccentCrimson
+                    else -> AccentPrimary
+                }
+                SatelliteEarthOverlayStyle(
+                    gridColor = mapPalette.gridColor,
+                    equatorColor = mapPalette.equatorColor.copy(alpha = 0.42f),
+                    limbRimColor = if (mapPalette.isDarkBackground) {
+                        Color.White.copy(alpha = 0.14f)
+                    } else {
+                        OldMoneyNavy.copy(alpha = 0.22f)
+                    },
+                    cityLightAccent = mapPalette.cityLightColor.copy(alpha = 0.42f),
+                    userPinColor = mapPalette.userPinColor,
+                    userLabelColor = Color.White,
+                    orbitTrackColor = mapPalette.orbitTrackColor.copy(alpha = 0.90f),
+                    orbitGlowColor = mapPalette.orbitTrackColor.copy(alpha = 0.24f),
+                    selectedMarkerColor = selectedAccent,
+                    selectedGlowColor = selectedAccent.copy(alpha = 0.55f),
+                    starlinkColor = Color(0xFF38BDF8),
+                    trainChainColor = Color(0xFF38BDF8).copy(alpha = 0.54f),
+                    trainLeaderColor = Color.White,
+                    trainMemberColor = Color(0xFFBAE6FD),
+                    nakedEyeMarkerColor = Color(0xFF2DC653),
+                    defaultMarkerColor = Color(0xFFFFB703),
+                    resetButtonContainerColor = Color.Black.copy(alpha = 0.65f),
+                    popoverContainerColor = Color(0xF20F172A),
+                    popoverBorderColor = selectedAccent,
+                    popoverAccentColor = selectedAccent,
+                    popoverShape = squircleShape(12.dp),
+                    showPopoverLeadingIcon = true,
+                )
+            }
+
+            SatelliteEarth3D(
+                currentSimulationMs = currentSimulationMs,
+                userLocation = uiState.userLocation,
+                isFa = isFa,
+                mapTheme = mapTheme,
+                appThemeMode = uiState.themeMode,
+                selectedSatelliteId = selectedSatelliteId,
+                selectedSatItem = selectedSatItem,
+                liveSatelliteStates = liveSatelliteStates,
+                mapOverheadStarlinkStates = mapOverheadStarlinkStates,
+                trainPearlStatesByTrain = trainPearlStatesByTrain,
+                allInteractiveMapStates = allInteractiveMapStates,
+                anchoredSatLabelState = anchoredSatLabelState,
+                overlayStyle = earthOverlayStyle,
+                focusTarget = earthFocusTarget,
+                onSelectSatellite = { satState ->
+                    selectedSatelliteId = satState.satellite.id
+                    anchoredSatLabelState = satState
+                },
+                onDismissAnchoredLabel = {
+                    anchoredSatLabelState = null
+                },
+                onOpenSatelliteDetail = { sat ->
+                    activeDetailSatellite = sat
+                },
                 modifier = Modifier
                     .offset(x = -RedSpacing.lg)
                     .requiredWidth(LocalConfiguration.current.screenWidthDp.dp)
-                    .aspectRatio(2.0f) // Full-bleed, while preserving the true 2:1 world-map projection
-            ) {
-                // Solar position for astronomical terminator & city illumination
-                val subSolarPoint = remember(currentSimulationMs) {
-                    SatelliteEngine.calculateSubSolarPoint(currentSimulationMs)
-                }
-
-                // Temporary label screen position tracking
-                var labelPosOnScreen by remember { mutableStateOf<Offset?>(null) }
-
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                zoomScale = (zoomScale * zoom).coerceIn(1.0f, 6.0f)
-                                if (zoomScale > 1.0f) {
-                                    panOffsetX = (panOffsetX + pan.x).coerceIn(-300f * zoomScale, 300f * zoomScale)
-                                    panOffsetY = (panOffsetY + pan.y).coerceIn(-150f * zoomScale, 150f * zoomScale)
-                                } else {
-                                    panOffsetX = 0f
-                                    panOffsetY = 0f
-                                }
-                            }
-                        }
-                        .pointerInput(allInteractiveMapStates, zoomScale, panOffsetX, panOffsetY) {
-                            detectTapGestures { tapOffset ->
-                                val w = size.width.toFloat()
-                                val h = size.height.toFloat()
-                                val pxPerDeg = w / 360.0f
-                                val centerX = w / 2f
-                                val centerY = h / 2f
-
-                                fun getMapX(lon: Double): Float =
-                                    centerX + (lon.toFloat() * pxPerDeg) * zoomScale + panOffsetX
-
-                                fun getMapY(lat: Double): Float =
-                                    centerY - (lat.toFloat() * pxPerDeg) * zoomScale + panOffsetY
-
-                                // Check tap on anchored label first
-                                if (labelPosOnScreen != null && anchoredSatLabelState != null) {
-                                    val lPos = labelPosOnScreen!!
-                                    val labelBounds = Rect(
-                                        left = lPos.x - 90f,
-                                        top = lPos.y - 45f,
-                                        right = lPos.x + 90f,
-                                        bottom = lPos.y + 10f
-                                    )
-                                    if (labelBounds.contains(tapOffset)) {
-                                        activeDetailSatellite = anchoredSatLabelState!!.satellite
-                                        return@detectTapGestures
-                                    }
-                                }
-
-                                // Check tap on satellite markers
-                                var closest: SatelliteLiveState? = null
-                                var minDist = with(density) { 32.dp.toPx() }
-
-                                for (satState in allInteractiveMapStates) {
-                                    val sx = getMapX(satState.topocentric.subLonDeg)
-                                    val sy = getMapY(satState.topocentric.subLatDeg)
-                                    val dist = hypot(tapOffset.x - sx, tapOffset.y - sy)
-                                    if (dist < minDist) {
-                                        minDist = dist
-                                        closest = satState
-                                    }
-                                }
-
-                                if (closest != null) {
-                                    selectedSatelliteId = closest.satellite.id
-                                    anchoredSatLabelState = closest
-                                } else {
-                                    anchoredSatLabelState = null
-                                }
-                            }
-                        }
-                ) {
-                    val w = size.width
-                    val h = size.height
-                    if (w <= 0f || h <= 0f) return@Canvas
-
-                    // 0. Ocean Background
-                    drawRect(color = mapPalette.oceanColor)
-
-                    // Geographic Coordinate Proportions: 360° longitude, 180° latitude
-                    val pxPerDeg = w / 360.0f
-                    val centerX = w / 2f
-                    val centerY = h / 2f
-
-                    fun mapX(lon: Double): Float =
-                        centerX + (lon.toFloat() * pxPerDeg) * zoomScale + panOffsetX
-
-                    fun mapY(lat: Double): Float =
-                        centerY - (lat.toFloat() * pxPerDeg) * zoomScale + panOffsetY
-
-                    val landColor = mapPalette.landColor
-                    val landStroke = mapPalette.landStroke
-                    val gridColor = mapPalette.gridColor
-                    val equatorColor = mapPalette.equatorColor
-                    val nightShadowColor = mapPalette.nightShadowColor
-                    val cityLightColor = mapPalette.cityLightColor
-
-                    // 1. Geographic Lat/Lon Grid Lines
-                    for (gLon in -150..150 step 30) {
-                        val gx = mapX(gLon.toDouble())
-                        if (gx in 0f..w) drawLine(gridColor, start = Offset(gx, 0f), end = Offset(gx, h), strokeWidth = 1f)
-                    }
-                    for (gLat in -60..60 step 30) {
-                        val gy = mapY(gLat.toDouble())
-                        if (gy in 0f..h) drawLine(gridColor, start = Offset(0f, gy), end = Offset(w, gy), strokeWidth = 1f)
-                    }
-
-                    // Equator Line
-                    val eqY = mapY(0.0)
-                    if (eqY in 0f..h) {
-                        drawLine(
-                            color = equatorColor,
-                            start = Offset(0f, eqY),
-                            end = Offset(w, eqY),
-                            strokeWidth = 1.5f
-                        )
-                    }
-
-                    // 2. Draw Accurate Earth Continents & Landmasses
-                    val scaleX = (w * zoomScale).coerceAtLeast(0.001f)
-                    val scaleY = (h * zoomScale).coerceAtLeast(0.001f)
-                    val translateX = centerX * (1f - zoomScale) + panOffsetX
-                    val translateY = centerY * (1f - zoomScale) + panOffsetY
-
-                    drawContext.canvas.save()
-                    drawContext.canvas.translate(translateX, translateY)
-                    drawContext.canvas.scale(scaleX, scaleY)
-
-                    val strokeW = ((if (mapPalette.isDarkBackground) 1.2f else 1.0f) / scaleX).coerceIn(0.001f, 5.0f)
-                    for (unitPath in WorldGeographyData.normalizedPaths) {
-                        drawPath(path = unitPath, color = landColor, style = Fill)
-                        drawPath(
-                            path = unitPath,
-                            color = landStroke,
-                            style = Stroke(width = strokeW)
-                        )
-                    }
-                    drawContext.canvas.restore()
-
-                    // 3. Astronomical Day/Night Terminator & Night Shade Region
-                    val subLatRad = Math.toRadians(subSolarPoint.latDeg)
-                    val tanSubLat = tan(subLatRad)
-
-                    val nightPath = Path()
-                    if (subSolarPoint.latDeg >= 0) {
-                        // Sun in Northern Hemisphere -> South Pole is night
-                        nightPath.moveTo(mapX(-180.0), mapY(-90.0))
-                        nightPath.lineTo(mapX(180.0), mapY(-90.0))
-                        for (lon in 180 downTo -180 step 4) {
-                            val dLonRad = Math.toRadians(lon - subSolarPoint.lonDeg)
-                            val termLatRad = atan(-cos(dLonRad) / if (abs(tanSubLat) < 1e-4) 1e-4 else tanSubLat)
-                            val termLatDeg = Math.toDegrees(termLatRad)
-                            nightPath.lineTo(mapX(lon.toDouble()), mapY(termLatDeg))
-                        }
-                    } else {
-                        // Sun in Southern Hemisphere -> North Pole is night
-                        nightPath.moveTo(mapX(-180.0), mapY(90.0))
-                        nightPath.lineTo(mapX(180.0), mapY(90.0))
-                        for (lon in 180 downTo -180 step 4) {
-                            val dLonRad = Math.toRadians(lon - subSolarPoint.lonDeg)
-                            val termLatRad = atan(-cos(dLonRad) / if (abs(tanSubLat) < 1e-4) 1e-4 else tanSubLat)
-                            val termLatDeg = Math.toDegrees(termLatRad)
-                            nightPath.lineTo(mapX(lon.toDouble()), mapY(termLatDeg))
-                        }
-                    }
-                    nightPath.close()
-
-                    drawPath(path = nightPath, color = nightShadowColor)
-
-                    // 4. Night-Side City Lights (appear ONLY on night side)
-                    for (city in SatelliteEngine.majorCityLights) {
-                        val cLatRad = Math.toRadians(city.lat)
-                        val dLonRad = Math.toRadians(city.lon - subSolarPoint.lonDeg)
-                        val cosPsi = sin(cLatRad) * sin(subLatRad) + cos(cLatRad) * cos(subLatRad) * cos(dLonRad)
-
-                        if (cosPsi < 0.0) { // On night side
-                            val alpha = (abs(cosPsi) / 0.12f).coerceAtMost(1.0).toFloat()
-                            val cx = mapX(city.lon)
-                            val cy = mapY(city.lat)
-
-                            if (cx in 0f..w && cy in 0f..h) {
-                                drawCircle(
-                                    color = cityLightColor.copy(alpha = 0.85f * alpha),
-                                    radius = city.sizeDp * zoomScale * 0.75f,
-                                    center = Offset(cx, cy)
-                                )
-                            }
-                        }
-                    }
-
-                    // 5. User Location Pin & City Name Label
-                    val userX = mapX(uiState.userLocation.longitude)
-                    val userY = mapY(uiState.userLocation.latitude)
-                    if (userX in 0f..w && userY in 0f..h) {
-                        drawCircle(
-                            color = mapPalette.userPinColor.copy(alpha = 0.35f),
-                            radius = 12.dp.toPx(),
-                            center = Offset(userX, userY)
-                        )
-                        drawCircle(
-                            color = mapPalette.userPinColor,
-                            radius = 4.dp.toPx(),
-                            center = Offset(userX, userY)
-                        )
-
-                        val cityName = if (isFa) uiState.userLocation.cityNameFa else uiState.userLocation.cityNameEn
-                        val textLayoutResult = textMeasurer.measure(
-                            text = if (isFa) cityName.toPersianDigits() else cityName,
-                            style = TextStyle(
-                                fontFamily = canvasFontFamily,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = mapPalette.userTextColor
-                            )
-                        )
-                        drawText(
-                            textLayoutResult = textLayoutResult,
-                            topLeft = Offset(userX - textLayoutResult.size.width / 2f, userY - 18.dp.toPx())
-                        )
-                    }
-
-                    // 6. Selected Satellite Ground Track (ONLY if a satellite is selected)
-                    if (selectedSatItem != null) {
-                        val trackPoints = SatelliteEngine.calculateGroundTrack(
-                            satellite = selectedSatItem,
-                            currentTimestampMs = currentSimulationMs
-                        )
-                        val trackPath = Path()
-                        var isFirst = true
-                        var prevLon: Double? = null
-
-                        for ((tLat, tLon) in trackPoints) {
-                            if (prevLon != null && abs(tLon - prevLon) > 180.0) {
-                                isFirst = true // handle antimeridian wrap
-                            }
-                            val tx = mapX(tLon)
-                            val ty = mapY(tLat)
-                            if (isFirst) {
-                                trackPath.moveTo(tx, ty)
-                                isFirst = false
-                            } else {
-                                trackPath.lineTo(tx, ty)
-                            }
-                            prevLon = tLon
-                        }
-
-                        drawPath(
-                            path = trackPath,
-                            color = mapPalette.orbitTrackColor.copy(alpha = 0.85f),
-                            style = Stroke(
-                                width = 2.5f,
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
-                            )
-                        )
-                    }
-
-                    // 7a. Overhead Individual Starlinks
-                    for (ovState in mapOverheadStarlinkStates) {
-                        val sat = ovState.satellite
-                        val isSelected = sat.id == selectedSatelliteId
-                        val sx = mapX(ovState.topocentric.subLonDeg)
-                        val sy = mapY(ovState.topocentric.subLatDeg)
-                        if (sx in -20f..(w + 20f) && sy in -20f..(h + 20f)) {
-                            if (isSelected) {
-                                drawCircle(
-                                    color = AccentPrimary.copy(alpha = 0.28f),
-                                    radius = 13.dp.toPx(),
-                                    center = Offset(sx, sy)
-                                )
-                            }
-                            val dotColor = when {
-                                isSelected -> AccentPrimary
-                                ovState.topocentric.isSunlit -> Color(0xFF38BDF8)
-                                else -> Color(0xFF38BDF8).copy(alpha = 0.45f)
-                            }
-                            drawCircle(
-                                color = dotColor,
-                                radius = if (isSelected) 5.dp.toPx() else 2.8.dp.toPx(),
-                                center = Offset(sx, sy)
-                            )
-                        }
-                    }
-
-                    // 7b. Active Starlink "String of Pearls" Train Chains
-                    for ((_, pearls) in trainPearlStatesByTrain) {
-                        if (pearls.isEmpty()) continue
-                        val chainPath = Path()
-                        var firstPearl = true
-                        var prevLon: Double? = null
-                        for (pState in pearls) {
-                            val lon = pState.topocentric.subLonDeg
-                            val lat = pState.topocentric.subLatDeg
-                            if (prevLon != null && abs(lon - prevLon) > 180.0) {
-                                firstPearl = true
-                            }
-                            val px = mapX(lon)
-                            val py = mapY(lat)
-                            if (firstPearl) {
-                                chainPath.moveTo(px, py)
-                                firstPearl = false
-                            } else {
-                                chainPath.lineTo(px, py)
-                            }
-                            prevLon = lon
-                        }
-                        drawPath(
-                            path = chainPath,
-                            color = Color(0xFF38BDF8).copy(alpha = 0.52f),
-                            style = Stroke(width = 2.0f)
-                        )
-                        pearls.forEachIndexed { idx, pState ->
-                            val px = mapX(pState.topocentric.subLonDeg)
-                            val py = mapY(pState.topocentric.subLatDeg)
-                            if (px in -20f..(w + 20f) && py in -20f..(h + 20f)) {
-                                val isPearlSelected = pState.satellite.id == selectedSatelliteId
-                                if (idx == 0 || isPearlSelected) {
-                                    drawCircle(
-                                        color = (if (isPearlSelected) AccentPrimary else Color(0xFF38BDF8)).copy(alpha = 0.30f),
-                                        radius = 10.dp.toPx(),
-                                        center = Offset(px, py)
-                                    )
-                                }
-                                drawCircle(
-                                    color = when {
-                                        isPearlSelected -> AccentPrimary
-                                        idx == 0 -> Color.White
-                                        else -> Color(0xFFBAE6FD)
-                                    },
-                                    radius = if (idx == 0 || isPearlSelected) 4.dp.toPx() else 2.5.dp.toPx(),
-                                    center = Offset(px, py)
-                                )
-                            }
-                        }
-                    }
-
-                    // 7c. Filtered Static & Fleet Satellite Markers
-                    for (liveState in liveSatelliteStates) {
-                        val sat = liveState.satellite
-                        val isSelected = sat.id == selectedSatelliteId
-                        val sx = mapX(liveState.topocentric.subLonDeg)
-                        val sy = mapY(liveState.topocentric.subLatDeg)
-
-                        if (sx in -20f..(w + 20f) && sy in -20f..(h + 20f)) {
-                            val markerColor = when {
-                                isSelected -> AccentPrimary
-                                sat.isTrain -> Color(0xFF38BDF8)
-                                sat.category == SatelliteCategory.STARLINK -> Color(0xFF38BDF8)
-                                sat.isNakedEyeCandidate -> Color(0xFF2DC653)
-                                else -> Color(0xFFFFB703)
-                            }
-
-                            if (isSelected) {
-                                drawCircle(
-                                    color = markerColor.copy(alpha = 0.25f),
-                                    radius = 14.dp.toPx(),
-                                    center = Offset(sx, sy)
-                                )
-                            }
-
-                            drawCircle(
-                                color = markerColor,
-                                radius = if (isSelected) 5.5f.dp.toPx() else 4.dp.toPx(),
-                                center = Offset(sx, sy)
-                            )
-                        }
-                    }
-
-                    // 8. Track screen position for temporary anchored label if active
-                    if (anchoredSatLabelState != null) {
-                        val satState = allInteractiveMapStates.firstOrNull {
-                            it.satellite.id == anchoredSatLabelState!!.satellite.id
-                        } ?: anchoredSatLabelState!!
-                        val ax = mapX(satState.topocentric.subLonDeg)
-                        val ay = mapY(satState.topocentric.subLatDeg)
-                        labelPosOnScreen = Offset(ax, ay)
-                    } else {
-                        labelPosOnScreen = null
-                    }
-                }
-
-                // ONLY Reset Button Overlay on Map (Top Right)
-                SmallFloatingActionButton(
-                    onClick = {
-                        zoomScale = 1.0f
-                        panOffsetX = 0f
-                        panOffsetY = 0f
-                    },
-                    containerColor = Color.Black.copy(alpha = 0.65f),
-                    contentColor = Color.White,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(10.dp)
-                        .size(32.dp)
-                        .testTag("map_reset_view")
-                ) {
-                    Icon(Icons.Default.CenterFocusWeak, contentDescription = "Reset", modifier = Modifier.size(16.dp))
-                }
-
-                // Temporary Anchored Label on Satellite Tap
-                if (anchoredSatLabelState != null && labelPosOnScreen != null) {
-                    val satState = anchoredSatLabelState!!
-                    val lPos = labelPosOnScreen!!
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(0.dp)
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .offset(
-                                    x = with(density) { (lPos.x - 75f).toDp() },
-                                    y = with(density) { (lPos.y - 48f).toDp() }
-                                )
-                                .width(150.dp)
-                                .clickable { activeDetailSatellite = satState.satellite }
-                                .testTag("anchored_sat_label"),
-                            shape = squircleShape(12.dp),
-                            color = Color(0xF20F172A),
-                            border = BorderStroke(1.dp, AccentPrimary)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.SatelliteAlt,
-                                    contentDescription = null,
-                                    tint = AccentPrimary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = if (isFa) satState.satellite.nameFa else satState.satellite.nameEn,
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = Color.White,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    val altStr = String.format(Locale.US, "%.0f km", satState.topocentric.satAltKm)
-                                    Text(
-                                        text = if (isFa) "ارتفاع $altStr".toPersianDigits() else "Alt $altStr",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                        color = Color.White.copy(alpha = 0.75f)
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "Detail",
-                                    tint = AccentPrimary,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+                    .aspectRatio(SATELLITE_EARTH_ASPECT_RATIO),
+            )
 
             // 2. MAP THEME & CATEGORY CONTROLS AREA (Outside Map Canvas)
             Row(
@@ -1358,8 +967,19 @@ fun ISSScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                selectedSatelliteId = if (isSelected) null else sat.id
-                                anchoredSatLabelState = if (isSelected) null else state
+                                if (isSelected) {
+                                    selectedSatelliteId = null
+                                    anchoredSatLabelState = null
+                                } else {
+                                    selectedSatelliteId = sat.id
+                                    anchoredSatLabelState = state
+                                    focusSequence += 1L
+                                    earthFocusTarget = EarthFocusTarget(
+                                        latDeg = state.topocentric.subLatDeg,
+                                        lonDeg = state.topocentric.subLonDeg,
+                                        requestId = focusSequence,
+                                    )
+                                }
                             }
                             .testTag("sat_card_${sat.id}")
                     ) {
@@ -1629,9 +1249,9 @@ fun ISSScreen(
                     modifier = Modifier.verticalScroll(rememberScrollState())
                 ) {
                     TutorialBullet(
-                        title = if (isFa) "نقشه دقیق زمین:" else "Accurate Earth Map:",
-                        desc = if (isFa) "نمایش قاره‌ها با پروژکسیون دقیق جغرافیایی، خط مرز روز و شب واقعی و روشنایی شهرهای شب."
-                        else "Displays accurate geographic continents, real astronomical terminator boundary, and night-side city lights."
+                        title = if (isFa) "کره سه‌بعدی زمین:" else "Interactive 3D Earth:",
+                        desc = if (isFa) "چرخش با لمس و بزرگ‌نمایی دو انگشتی روی کره سه‌بعدی با مرز واقعی روز و شب، ابرها، پستی‌وبلندی و چراغ شهرهای شب."
+                        else "Drag to rotate and pinch or double-tap to zoom the 3D Earth with real-time solar terminator, clouds, terrain relief, and night-side city lights."
                     )
                     TutorialBullet(
                         title = if (isFa) "پوسته نقشه:" else "Map Theme:",

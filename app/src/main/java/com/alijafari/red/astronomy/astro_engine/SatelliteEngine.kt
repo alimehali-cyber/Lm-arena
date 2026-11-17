@@ -600,6 +600,13 @@ object SatelliteEngine {
         )
     }
 
+    data class OrbitTrackPoint(
+        val latDeg: Double,
+        val lonDeg: Double,
+        val altKm: Double,
+        val timestampMs: Long,
+    )
+
     /**
      * Computes satellite ground track for past 45 mins and future 90 mins.
      */
@@ -618,6 +625,38 @@ object SatelliteEngine {
         while (t <= endMs) {
             val topo = ISSEngine.calculateTopocentricPos(t, 0.0, 0.0, tle = effectiveTle)
             points.add(Pair(topo.subLatDeg, topo.subLonDeg))
+            t += stepMs
+        }
+        return points
+    }
+
+    /**
+     * Computes smooth 3D SGP4 orbital trajectory (latitude, longitude, and true altitude in km)
+     * across the past 45 minutes and next 90 minutes (~1.5 LEO revolutions) for [Earth3D].
+     */
+    fun calculateOrbitTrack3D(
+        satellite: SatelliteItem,
+        currentTimestampMs: Long,
+        stepSeconds: Int = 60,
+        tle: TLEData? = null,
+    ): List<OrbitTrackPoint> {
+        val effectiveTle = getEffectiveTle(satellite, tle)
+        val stepMs = stepSeconds.coerceAtLeast(15) * 1000L
+        val startMs = currentTimestampMs - 45 * 60 * 1000L
+        val endMs = currentTimestampMs + 90 * 60 * 1000L
+        val points = ArrayList<OrbitTrackPoint>(((endMs - startMs) / stepMs).toInt() + 3)
+
+        var insertedNow = false
+        var t = startMs
+        while (t <= endMs) {
+            if (!insertedNow && t > currentTimestampMs) {
+                val nowTopo = ISSEngine.calculateTopocentricPos(currentTimestampMs, 0.0, 0.0, tle = effectiveTle)
+                points.add(OrbitTrackPoint(nowTopo.subLatDeg, nowTopo.subLonDeg, nowTopo.satAltKm, currentTimestampMs))
+                insertedNow = true
+            }
+            if (t == currentTimestampMs) insertedNow = true
+            val topo = ISSEngine.calculateTopocentricPos(t, 0.0, 0.0, tle = effectiveTle)
+            points.add(OrbitTrackPoint(topo.subLatDeg, topo.subLonDeg, topo.satAltKm, t))
             t += stepMs
         }
         return points

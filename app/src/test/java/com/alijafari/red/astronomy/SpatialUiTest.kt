@@ -192,22 +192,26 @@ class SpatialUiTest {
 
     @Test
     fun satelliteWorldMapsAreBorderlessFullBleedAndKeepTheGeographicAspectRatio() {
-        val mapScreens = listOf(
-            source("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt"),
-            source("com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt"),
-            source("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt")
-        )
+        val iss = source("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt")
+        val spatial = source("com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt")
+        val aether = source("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt")
+        val mapScreens = listOf(iss, spatial, aether)
+
         mapScreens.forEach { screen ->
+            assertTrue(screen.contains("SatelliteEarth3D("))
+            assertTrue(screen.contains(".aspectRatio(SATELLITE_EARTH_ASPECT_RATIO)"))
+            assertTrue(screen.contains("requiredWidth("))
+            assertFalse(screen.contains("WorldGeographyData.normalizedPaths"))
+        }
+        listOf(iss, spatial).forEach { screen ->
             assertTrue(screen.contains(".offset(x = -RedSpacing.lg)"))
             assertTrue(screen.contains("requiredWidth(LocalConfiguration.current.screenWidthDp.dp)"))
-            assertTrue(screen.contains(".aspectRatio(2.0f)"))
-            assertTrue(screen.contains("WorldGeographyData.normalizedPaths"))
         }
-        assertFalse(mapScreens[0].contains("containerBg"))
-        val spatial = mapScreens[1]
+        assertTrue(aether.contains(".offset(x = (-22).dp)"))
+        assertFalse(iss.contains("containerBg"))
         assertFalse(spatial.contains("mapRimBrush"))
         assertFalse(spatial.contains(".shadow(16.dp, mapShape"))
-        assertFalse(mapScreens[2].contains("viewportShape"))
+        assertFalse(aether.contains("viewportShape"))
     }
 
     @Test
