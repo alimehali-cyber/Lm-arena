@@ -144,6 +144,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun loadSavedUiStyle(): AppUiStyle {
+        val saved = prefs.getString("app_ui_style", AppUiStyle.DEFAULT.name) ?: AppUiStyle.DEFAULT.name
+        if (saved == "CYBER") {
+            // The removed style must not strand existing installs on an unparseable preference.
+            prefs.edit().putString("app_ui_style", AppUiStyle.DEFAULT.name).apply()
+            return AppUiStyle.DEFAULT
+        }
+        return runCatching { AppUiStyle.valueOf(saved) }.getOrDefault(AppUiStyle.DEFAULT)
+    }
+
     private val _uiState = MutableStateFlow(
         MainUiState(
             language = try {
@@ -166,11 +176,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 ThemeMode.DARK
             },
-            uiStyle = try {
-                AppUiStyle.valueOf(prefs.getString("app_ui_style", AppUiStyle.DEFAULT.name) ?: AppUiStyle.DEFAULT.name)
-            } catch (e: Exception) {
-                AppUiStyle.DEFAULT
-            },
+            uiStyle = loadSavedUiStyle(),
             bortleClass = prefs.getInt("bortle_class", 3),
             isLiveGpsLocation = prefs.getBoolean("user_location_is_live_gps", false),
             userLocation = run {

@@ -328,7 +328,7 @@ fun CompassARScreen(
     // ---- the chrome this screen wears -----------------------------------------------------------
     //
     // Everything floating over the sky is the app's chrome, resolved from the theme in force — which
-    // is already the selected AppUiStyle's palette (the Cyber and Spatial providers adapt the tokens)
+    // is already the selected AppUiStyle's palette (the Spatial and Aether providers adapt the tokens)
     // and the selected ThemeMode. It is captured as plain values here because the overlay canvas, the
     // reticle and every pointer lambda need the accent and the inks, and none of those is composable.
     val chrome = chromeTokens()

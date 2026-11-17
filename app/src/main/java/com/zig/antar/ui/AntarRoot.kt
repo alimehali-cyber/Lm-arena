@@ -92,7 +92,7 @@ import kotlinx.coroutines.delay
  * - Owns the full screen via [ImmersiveScreenState] (no top header bar, no back button; system back
  *   collapses the control sheet first, then returns to the Lab tab).
  * - Adapts chrome geometry, surfaces, and contrast-safe inks across [AppUiStyle.DEFAULT],
- *   [AppUiStyle.SPATIAL], and [AppUiStyle.CYBER], as well as [ThemeMode.LIGHT], [ThemeMode.DARK],
+ *   [AppUiStyle.SPATIAL], as well as [ThemeMode.LIGHT], [ThemeMode.DARK],
  *   and [ThemeMode.WINE], in both English and Persian (`Vazirmatn` + RTL + `tnum` numerals).
  */
 @Composable

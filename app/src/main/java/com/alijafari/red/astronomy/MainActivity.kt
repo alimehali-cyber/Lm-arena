@@ -64,13 +64,6 @@ import com.alijafari.red.astronomy.ui.aether.AetherLabScreen
 import com.alijafari.red.astronomy.ui.aether.AetherSatellitesScreen
 import com.alijafari.red.astronomy.ui.aether.AetherSettingsModal
 import com.alijafari.red.astronomy.ui.aether.AetherThemeProvider
-import com.alijafari.red.astronomy.ui.cyber.CyberAmbientBackground
-import com.alijafari.red.astronomy.ui.cyber.CyberFloatingNavBar
-import com.alijafari.red.astronomy.ui.cyber.CyberHomeScreen
-import com.alijafari.red.astronomy.ui.cyber.CyberLabScreen
-import com.alijafari.red.astronomy.ui.cyber.CyberSatellitesScreen
-import com.alijafari.red.astronomy.ui.cyber.CyberSettingsModal
-import com.alijafari.red.astronomy.ui.cyber.CyberThemeProvider
 import com.alijafari.red.astronomy.ui.spatial.SpatialAtmosphereBackground
 import com.alijafari.red.astronomy.ui.spatial.SpatialFloatingNavBar
 import com.alijafari.red.astronomy.ui.spatial.SpatialHomeScreen
@@ -344,14 +337,9 @@ class MainActivity : ComponentActivity() {
                     // The backdrop's measured brightness is still resolved and provided: the Home feed
                     // titles are written straight onto it and pick their ink from it (see BackdropInk).
                     val isSpatialUi = uiState.uiStyle == AppUiStyle.SPATIAL
-                    val isCyberUi = uiState.uiStyle == AppUiStyle.CYBER
                     val isAetherUi = uiState.uiStyle == AppUiStyle.AETHER
                     SpatialThemeProvider(
                         enabled = isSpatialUi,
-                        themeMode = uiState.themeMode
-                    ) {
-                    CyberThemeProvider(
-                        enabled = isCyberUi,
                         themeMode = uiState.themeMode
                     ) {
                     AetherThemeProvider(
@@ -421,14 +409,6 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
-                            if (isCyberUi && uiState.selectedTab != 3) {
-                                CyberAmbientBackground(
-                                    themeMode = uiState.themeMode,
-                                    isOpaqueCanvas = uiState.appBackdropMode == AppBackdropMode.NONE,
-                                    sunAltitudeDeg = sunAltitudeDeg,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
                             if (isAetherUi && uiState.selectedTab != 3) {
                                 AetherAmbientBackground(
                                     themeMode = uiState.themeMode,
@@ -449,10 +429,6 @@ class MainActivity : ComponentActivity() {
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
-                                        AppUiStyle.CYBER -> CyberLabScreen(
-                                            uiState = uiState,
-                                            viewModel = viewModel
-                                        )
                                         AppUiStyle.SPATIAL -> SpatialLabScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
@@ -464,10 +440,6 @@ class MainActivity : ComponentActivity() {
                                     }
                                     1 -> when (activeStyle) {
                                         AppUiStyle.AETHER -> AetherSatellitesScreen(
-                                            uiState = uiState,
-                                            viewModel = viewModel
-                                        )
-                                        AppUiStyle.CYBER -> CyberSatellitesScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
@@ -486,11 +458,6 @@ class MainActivity : ComponentActivity() {
                                     )
                                     4 -> when (activeStyle) {
                                         AppUiStyle.AETHER -> AetherHomeScreen(
-                                            uiState = uiState,
-                                            viewModel = viewModel,
-                                            onNavigateToTab = { viewModel.selectTab(it) }
-                                        )
-                                        AppUiStyle.CYBER -> CyberHomeScreen(
                                             uiState = uiState,
                                             viewModel = viewModel,
                                             onNavigateToTab = { viewModel.selectTab(it) }
@@ -516,13 +483,6 @@ class MainActivity : ComponentActivity() {
                     if (!com.zig.gravity.ui.ImmersiveScreenState.active) {
                         when (uiState.uiStyle) {
                             AppUiStyle.AETHER -> AetherFloatingNavBar(
-                                selectedTab = uiState.selectedTab,
-                                onTabSelected = { viewModel.selectTab(it) },
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .splashReveal(splashState, SplashRevealRole.NavigationBar)
-                            )
-                            AppUiStyle.CYBER -> CyberFloatingNavBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
                                 modifier = Modifier
@@ -618,11 +578,6 @@ class MainActivity : ComponentActivity() {
                                   viewModel = viewModel,
                                   onDismiss = { viewModel.setShowSettingsDialog(false) }
                               )
-                              AppUiStyle.CYBER -> CyberSettingsModal(
-                                  uiState = uiState,
-                                  viewModel = viewModel,
-                                  onDismiss = { viewModel.setShowSettingsDialog(false) }
-                              )
                               AppUiStyle.SPATIAL -> SpatialSettingsModal(
                                   uiState = uiState,
                                   viewModel = viewModel,
@@ -677,7 +632,6 @@ class MainActivity : ComponentActivity() {
                           )
                       }
                   }
-                }
                 }
                 }
                 }

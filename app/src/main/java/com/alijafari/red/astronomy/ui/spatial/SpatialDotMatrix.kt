@@ -33,7 +33,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 // ============================================================================
-// Cyber Glass-style 5x7 DOT-MATRIX TYPOGRAPHY & SPATIAL RADIAL METERS
+// Shared 5x7 DOT-MATRIX TYPOGRAPHY & SPATIAL RADIAL METERS
 // ============================================================================
 
 /**

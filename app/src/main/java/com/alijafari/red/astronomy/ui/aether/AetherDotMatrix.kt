@@ -18,15 +18,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 // ============================================================================
-// AETHER TELEMETRY DOT-MATRIX DISPLAY SYSTEM (CYBER GLASS 5x7 CIRCULAR DOT STYLE)
+// AETHER TELEMETRY DOT-MATRIX DISPLAY SYSTEM (5x7 CIRCULAR DOT STYLE)
 // ============================================================================
 
 /**
- * Cyber Glass-style 5x7 circular dot-matrix typography renderer tailored for
+ * Custom 5x7 circular dot-matrix typography renderer tailored for
  * Aether Telemetry UI's primary live readouts (`04`, `37`, `16.2`, `76`).
  *
- * Uses the same hand-authored 5x7 bitmap glyphs, dot spacing, and glow/ghost treatment as
- * Cyber Glass. Active ink and glow remain sourced from Aether's own theme palette. It supports
+ * Uses hand-authored 5x7 bitmap glyphs and a consistent circular-dot glow/ghost treatment.
+ * Active ink and glow remain sourced from Aether's own theme palette. It supports
  * Latin (`0-9`, `A-Z`) and Persian (`۰-۹`, `٪`, `٫`) telemetry without a system font.
  */
 @Composable

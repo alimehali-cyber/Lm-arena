@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -84,6 +85,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -416,13 +418,6 @@ fun SpatialSatellitesScreen(
         return
     }
 
-    val mapShape = squircleShape(RedCornerRadius.lg)
-    val mapRimBrush = remember(palette) {
-        Brush.verticalGradient(
-            listOf(palette.rimTopHighlight, palette.rimSideBorder, palette.rimBottomReflection)
-        )
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -527,23 +522,9 @@ fun SpatialSatellitesScreen(
             // 1. SCIENTIFICALLY ACCURATE 2D EARTH MAP (Exact 2:1 Aspect Ratio)
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2.0f)
-                    .shadow(16.dp, mapShape, ambientColor = palette.ambientDropShadow, spotColor = palette.ambientDropShadow)
-                    .clip(mapShape)
-                    .drawWithContent {
-                        drawContent()
-                        val bevel = 2.dp.toPx()
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Color.White.copy(alpha = 0.55f), Color.Transparent),
-                                startY = 0f,
-                                endY = bevel * 2.2f
-                            ),
-                            size = Size(size.width, bevel * 2.2f)
-                        )
-                    }
-                    .border(BorderStroke(1.dp, mapRimBrush), mapShape)
+                    .offset(x = -RedSpacing.lg)
+                    .requiredWidth(LocalConfiguration.current.screenWidthDp.dp)
+                    .aspectRatio(2.0f) // Edge-to-edge without distorting geographic proportions
             ) {
                 val subSolarPoint = remember(currentSimulationMs) {
                     SatelliteEngine.calculateSubSolarPoint(currentSimulationMs)

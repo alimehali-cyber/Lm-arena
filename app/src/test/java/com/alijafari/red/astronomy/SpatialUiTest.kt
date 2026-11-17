@@ -4,8 +4,6 @@ import androidx.compose.ui.graphics.Color
 import com.alijafari.red.astronomy.domain.AppUiStyle
 import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.ui.MainUiState
-import com.alijafari.red.astronomy.ui.cyber.CyberMeshPreset
-import com.alijafari.red.astronomy.ui.cyber.cyberPaletteFor
 import com.alijafari.red.astronomy.ui.spatial.SpatialMeshPreset
 import com.alijafari.red.astronomy.ui.spatial.SpatialNeonRose
 import com.alijafari.red.astronomy.ui.spatial.spatialPaletteFor
@@ -18,8 +16,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Verifies all three selectable UI design systems ([AppUiStyle.DEFAULT], [AppUiStyle.SPATIAL],
- * [AppUiStyle.CYBER]), the Wine ("می") burgundy theme across all three UIs, Settings switchers,
+ * Verifies the selectable UI design systems ([AppUiStyle.DEFAULT], [AppUiStyle.SPATIAL],
+ * [AppUiStyle.AETHER]), the Wine ("می") burgundy theme, Settings switchers,
  * and MainActivity routing.
  */
 class SpatialUiTest {
@@ -41,7 +39,7 @@ class SpatialUiTest {
         val state = MainUiState()
         assertEquals(AppUiStyle.DEFAULT, state.uiStyle)
         assertEquals(
-            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.CYBER, AppUiStyle.AETHER),
+            listOf(AppUiStyle.DEFAULT, AppUiStyle.SPATIAL, AppUiStyle.AETHER),
             AppUiStyle.entries
         )
         assertEquals(
@@ -74,27 +72,6 @@ class SpatialUiTest {
         assertTrue(SpatialMeshPreset.WINE_VELVET.colors.size >= 3)
     }
 
-    @Test
-    fun cyberGlassPalettesImplementFourLayerCutGlassAndWineBurgundy() {
-        val dark = cyberPaletteFor(ThemeMode.DARK)
-        assertTrue(dark.isDark)
-        // Exact Section 3A recipe: rgba(255, 255, 255, 0.07) = 0x12FFFFFF, border white/18 = 0x2EFFFFFF
-        assertEquals(Color(0x12FFFFFF), dark.glassFill)
-        assertEquals(Color(0x2EFFFFFF), dark.glassBorder)
-        assertTrue("Top inner refraction highlight present", dark.innerTopHighlight.alpha >= 0.28f)
-        assertTrue("Bottom inner shadow present", dark.innerBottomShadow.alpha >= 0.10f)
-
-        val light = cyberPaletteFor(ThemeMode.LIGHT)
-        assertTrue(!light.isDark)
-        assertTrue(light.glassFill.alpha in 0.55f..0.80f)
-
-        val wine = cyberPaletteFor(ThemeMode.WINE)
-        assertTrue(wine.isDark && wine.isWine)
-        assertTrue("Wine Cyber canvas is deep cabernet burgundy", wine.canvasBg.red > wine.canvasBg.green)
-        assertTrue("Wine Cyber signal dot is crimson", wine.signalDot.red > 0.9f)
-        assertTrue(CyberMeshPreset.CORAL_PEACH.wineColors.size >= 3)
-        assertTrue(CyberMeshPreset.CYAN_VIOLET.wineColors.size >= 3)
-    }
 
     @Test
     fun defaultUiWineThemeIsBurgundyAndMeetsWcagContrast() {
@@ -118,21 +95,18 @@ class SpatialUiTest {
     }
 
     @Test
-    fun allThreeSettingsMenusExposeAllThreeUiStylesAndWineTheme() {
+    fun allRemainingSettingsMenusExposeAllUiStylesAndWineTheme() {
         val defaultSettings = source("com/alijafari/red/astronomy/ui/components/SettingsDialog.kt")
         val spatialSettings = source("com/alijafari/red/astronomy/ui/spatial/SpatialSettingsModal.kt")
-        val cyberSettings = source("com/alijafari/red/astronomy/ui/cyber/CyberSettingsModal.kt")
         val aetherSettings = source("com/alijafari/red/astronomy/ui/aether/AetherSettingsModal.kt")
 
-        for (src in listOf(defaultSettings, spatialSettings, cyberSettings, aetherSettings)) {
+        for (src in listOf(defaultSettings, spatialSettings, aetherSettings)) {
             assertTrue(src.contains("settings_section_ui_style"))
             assertTrue(src.contains("settings_ui_style_default"))
             assertTrue(src.contains("settings_ui_style_spatial"))
-            assertTrue(src.contains("settings_ui_style_cyber"))
             assertTrue(src.contains("settings_ui_style_aether"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.DEFAULT)"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.SPATIAL)"))
-            assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.CYBER)"))
             assertTrue(src.contains("viewModel.setUiStyle(AppUiStyle.AETHER)"))
             assertTrue(src.contains("settings_theme_wine"))
             assertTrue(src.contains("viewModel.setThemeMode(ThemeMode.WINE)"))
@@ -140,7 +114,7 @@ class SpatialUiTest {
     }
 
     @Test
-    fun mainActivityRoutesAcrossDefaultSpatialAndCyberGlassScreens() {
+    fun mainActivityRoutesOnlyRemainingDefaultSpatialAndAetherScreens() {
         val activity = source("com/alijafari/red/astronomy/MainActivity.kt")
         assertTrue(activity.contains("SpatialThemeProvider("))
         assertTrue(activity.contains("SpatialAtmosphereBackground("))
@@ -150,13 +124,6 @@ class SpatialUiTest {
         assertTrue(activity.contains("SpatialFloatingNavBar("))
         assertTrue(activity.contains("SpatialSettingsModal("))
 
-        assertTrue(activity.contains("CyberThemeProvider("))
-        assertTrue(activity.contains("CyberAmbientBackground("))
-        assertTrue(activity.contains("CyberHomeScreen("))
-        assertTrue(activity.contains("CyberSatellitesScreen("))
-        assertTrue(activity.contains("CyberLabScreen("))
-        assertTrue(activity.contains("CyberFloatingNavBar("))
-        assertTrue(activity.contains("CyberSettingsModal("))
 
         assertTrue(activity.contains("AetherThemeProvider("))
         assertTrue(activity.contains("AetherAmbientBackground("))
@@ -168,15 +135,11 @@ class SpatialUiTest {
     }
 
     @Test
-    fun spatialAndAetherDotMatricesUseCyberGlassGlyphsAndRenderingStyle() {
-        val cyber = source("com/alijafari/red/astronomy/ui/cyber/CyberDotMatrix.kt")
+    fun spatialAndAetherDotMatricesShareGlyphsAndRenderingStyle() {
         val spatial = source("com/alijafari/red/astronomy/ui/spatial/SpatialDotMatrix.kt")
         val aether = source("com/alijafari/red/astronomy/ui/aether/AetherDotMatrix.kt")
 
-        // All three modes must stay on the same seven-row circular-dot bitmap family.
-        assertTrue(cyber.contains("dotSize: Dp = 2.6.dp"))
-        assertTrue(cyber.contains("dotGap: Dp = 1.05.dp"))
-        assertTrue(cyber.contains("charGap: Dp = 3.2.dp"))
+        // The two non-default styles share the seven-row circular-dot bitmap family.
         assertTrue(spatial.contains("dotSize: Dp = 2.6.dp"))
         assertTrue(spatial.contains("dotGap: Dp = 1.05.dp"))
         assertTrue(spatial.contains("charGap: Dp = 3.2.dp"))
@@ -187,7 +150,7 @@ class SpatialUiTest {
         assertTrue(aether.contains("private fun glyph5("))
         assertFalse(aether.contains("g6("))
 
-        // Active-dot halos and unlit-cell sizes now follow Cyber Glass; palette colors stay local.
+        // Active-dot halos and unlit-cell sizes match; palette colors remain style-specific.
         for (renderer in listOf(spatial, aether)) {
             assertTrue(renderer.contains("copy(alpha = 0.24f)"))
             assertTrue(renderer.contains("radius = r * 2.0f") || renderer.contains("radius = radius * 2.0f"))
@@ -204,40 +167,54 @@ class SpatialUiTest {
                     normalized.substringBefore(" -> ") to normalized
                 }
 
-        val cyberGlyphs = glyphEntries(cyber, "cyberGlyphFor")
         val spatialGlyphs = glyphEntries(spatial, "glyphFor")
         val aetherGlyphs = glyphEntries(aether, "aetherGlyphFor")
-        assertEquals(cyberGlyphs, spatialGlyphs.filterKeys(cyberGlyphs::containsKey))
-        assertEquals(cyberGlyphs, aetherGlyphs.filterKeys(cyberGlyphs::containsKey))
+        assertEquals(spatialGlyphs, aetherGlyphs.filterKeys(spatialGlyphs::containsKey))
 
-        // Pin the user-approved Persian forms explicitly, not merely parity between the UIs.
+        // Pin the approved Persian forms explicitly, not merely parity between the UIs.
         val expectedPersianFour = "g5(0x07, 0x14, 0x1F, 0x10, 0x10, 0x10, 0x10)"
         val expectedPersianSix = "g5(0x06, 0x08, 0x07, 0x04, 0x08, 0x10, 0x10)"
-        for (glyphs in listOf(cyberGlyphs, spatialGlyphs, aetherGlyphs)) {
+        for (glyphs in listOf(spatialGlyphs, aetherGlyphs)) {
             assertEquals(expectedPersianFour, glyphs["'۴', '٤'"]?.substringAfter(" -> "))
             assertEquals(expectedPersianSix, glyphs["'۶', '٦'"]?.substringAfter(" -> "))
         }
     }
 
     @Test
-    fun spatialAndCyberScreensPreserveInvariantsAndSignatureComponents() {
+    fun spatialScreenPreservesItsSkyCanvasInvariants() {
         val spatialHome = source("com/alijafari/red/astronomy/ui/spatial/SpatialHomeScreen.kt")
         assertTrue(spatialHome.contains("presentation = SkyCanvasPresentation.SCENE"))
         assertTrue(spatialHome.contains("bottomTailHeight = controlsBottom"))
         assertTrue(spatialHome.contains("HomeTextShift.moonCard"))
         assertTrue(spatialHome.contains("HomeTextShift.eclipseCard"))
 
-        val cyberDesign = source("com/alijafari/red/astronomy/ui/cyber/CyberDesignSystem.kt")
-        assertTrue(cyberDesign.contains("fun CyberGlassWidget("))
-        assertTrue(cyberDesign.contains("fun CyberMeshPillCard("))
-        assertTrue(cyberDesign.contains("fun CyberFloatingCapsuleBar("))
-        assertTrue(cyberDesign.contains("fun CyberCutoutViewportCard("))
+    }
 
-        val cyberHome = source("com/alijafari/red/astronomy/ui/cyber/CyberHomeScreen.kt")
-        assertTrue(cyberHome.contains("presentation = SkyCanvasPresentation.SCENE"))
-        assertTrue(cyberHome.contains("CyberCutoutViewportCard("))
-        assertTrue(cyberHome.contains("CyberMeshPillCard("))
-        assertTrue(cyberHome.contains("CyberFloatingCapsuleBar("))
-        assertTrue(cyberHome.contains("CyberMatrixText("))
+    @Test
+    fun satelliteWorldMapsAreBorderlessFullBleedAndKeepTheGeographicAspectRatio() {
+        val mapScreens = listOf(
+            source("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt"),
+            source("com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt"),
+            source("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt")
+        )
+        mapScreens.forEach { screen ->
+            assertTrue(screen.contains(".offset(x = -RedSpacing.lg)"))
+            assertTrue(screen.contains("requiredWidth(LocalConfiguration.current.screenWidthDp.dp)"))
+            assertTrue(screen.contains(".aspectRatio(2.0f)"))
+            assertTrue(screen.contains("WorldGeographyData.normalizedPaths"))
+        }
+        assertFalse(mapScreens[0].contains("containerBg"))
+        val spatial = mapScreens[1]
+        assertFalse(spatial.contains("mapRimBrush"))
+        assertFalse(spatial.contains(".shadow(16.dp, mapShape"))
+        assertFalse(mapScreens[2].contains("viewportShape"))
+    }
+
+    @Test
+    fun savedCyberStyleMigratesToDefault() {
+        val viewModel = source("com/alijafari/red/astronomy/ui/MainViewModel.kt")
+        assertTrue(viewModel.contains("if (saved == \"CYBER\")"))
+        assertTrue(viewModel.contains("putString(\"app_ui_style\", AppUiStyle.DEFAULT.name)"))
+        assertTrue(viewModel.contains("return AppUiStyle.DEFAULT"))
     }
 }

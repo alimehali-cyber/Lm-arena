@@ -59,9 +59,9 @@ import com.alijafari.red.astronomy.domain.AppUiStyle
  * defaults. That is exactly why they read as a different app from the rest of ZIG.
  *
  * This file is their shared answer. It is not a second design system: every value here is *derived
- * from* [RedTheme]'s tokens, which are themselves already adapted by [AppUiStyle]'s Cyber and Spatial
+ * from* [RedTheme]'s tokens, which are themselves already adapted by [AppUiStyle]'s Spatial
  * providers. So the chrome follows the selected style and the selected theme automatically —
- * [AppUiStyle.DEFAULT]'s vermilion, [AppUiStyle.CYBER]'s cut-glass accents, [AppUiStyle.SPATIAL]'s
+ * [AppUiStyle.DEFAULT]'s vermilion, [AppUiStyle.SPATIAL]'s
  * desert neon, dark, light or wine — with no per-style branching at the call sites.
  *
  * ## What makes chrome "the app's chrome"
@@ -194,16 +194,12 @@ fun chromeTokens(): ChromeTokens {
         success = colors.statusSuccess,
         warning = colors.statusWarning,
         danger = colors.statusError,
-        // The three styles already differ in how tight their containers are: DEFAULT and SPATIAL wear
-        // the app's 40 dp window corner, CYBER the tighter cut-glass 36 dp. Taking the value from the
-        // style keeps a sandbox sheet visually in the same family as the page that launched it.
+        // The remaining styles differ slightly in their preferred container geometry.
         panelRadius = when (style) {
-            AppUiStyle.CYBER -> 36.dp
             AppUiStyle.AETHER -> 36.dp
             else -> RedCornerRadius.window
         },
         rowRadius = when (style) {
-            AppUiStyle.CYBER -> 18.dp
             AppUiStyle.AETHER -> 18.dp
             AppUiStyle.SPATIAL -> 20.dp
             AppUiStyle.DEFAULT -> 18.dp

@@ -60,7 +60,7 @@ import com.zig.gravity.util.PersianDigits
  * [ChromeIconDisc] for every control, so a press springs the same way here as it does on the AR sky.
  *
  * The accent comes from the theme as well — no teal, no literal — which means the sandbox's own
- * `AppUiStyle` (DEFAULT / CYBER / SPATIAL) and `ThemeMode` (dark / light / wine) are respected by the
+ * `AppUiStyle` (DEFAULT / SPATIAL / AETHER) and `ThemeMode` (dark / light / wine) are respected by the
  * one control bar the screen has.
  */
 @Composable

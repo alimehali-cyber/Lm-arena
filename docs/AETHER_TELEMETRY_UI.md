@@ -2,12 +2,12 @@
 
 ## 1. Aesthetic & Architectural Philosophy
 
-**Aether Telemetry UI** (`com.alijafari.red.astronomy.ui.aether`) is ZIG's fourth selectable interface design system (`AppUiStyle.AETHER`), fusing **Apple visionOS Spatial Optical Glass**, **Nothing OS Dot-Matrix Telemetry**, and **Teenage Engineering Analog-Synthesizer Oscilloscopes** into frameless, rim-lit optical lenses floating directly over deep obsidian space.
+**Aether Telemetry UI** (`com.alijafari.red.astronomy.ui.aether`) is ZIG's third selectable interface design system (`AppUiStyle.AETHER`), fusing **Apple visionOS Spatial Optical Glass**, **Nothing OS Dot-Matrix Telemetry**, and **Teenage Engineering Analog-Synthesizer Oscilloscopes** into frameless, rim-lit optical lenses floating directly over deep obsidian space.
 
 ### Core Invariants
 1. **Frameless Rim-Lit Spatial Lenses (Zero Outer Bezels):** Every hero card (`squircleShape(36.dp)`), radial bento dial (`squircleShape(34.dp)`), and vertical/horizontal pill capsule (`RedShapes.capsule`, following `Squircle.kt` capsule rules) is a single frameless optical slab bounded solely by a razor-thin `1.dp` directional specular rim (`Modifier.specularRimBorder`) — never wrapped inside double borders or bulky chassis frames.
 2. **Jewel-Tone Radial Optical Cores & Twin Vertical Pill Celestial Lenses:** Hero telemetry cards (`AetherJewelCard`) use radial core gradients (`AetherCrimsonCoreCenter` `#1C020D` -> `AetherCrimsonCoreMid` `#5E052A` -> `AetherCrimsonCoreEdge` `#9E0B45`, plus `SAPPHIRE`, `EMERALD`, and `WINE_RUBY`) that remain near-black in the center for crisp contrast while blooming richly along the inner perimeter. On `AetherHomeScreen`, the side-by-side Lunar (`SAPPHIRE`) and Eclipse (`EMERALD`) cards are sculpted as twin vertical pill capsules (`shape = RedShapes.capsule`) whose semicircular top domes frame enlarged concentric circular `MoonPhaseRender` and `EclipseRender` plates (`renderSize = cardWidth - 20.dp`).
-3. **Cyber Glass-Style Dot-Matrix Readouts & Tactile Micro-Controls:** Primary 2–3 digit live counters (`AetherDotMatrixText`, `AetherRollingDotMatrixCounter`) use the same circular 5x7 bitmap glyphs and dot-rendering treatment as Cyber Glass, with Aether's own active-ink and crimson-glow palette and both ASCII and Persian (`۰–۹`, `٪`, `٫`) glyphs. Chunky Material 3 filled buttons are replaced inside cards by `← ━ →` micro-steppers (`AetherMicroStepper`), `1.dp` pill badges (`AetherPillBadge`), and `6.dp` filled/hollow LED legend dots (`●` / `○`).
+3. **Dot-Matrix Readouts & Tactile Micro-Controls:** Primary 2–3 digit live counters (`AetherDotMatrixText`, `AetherRollingDotMatrixCounter`) use the circular 5x7 bitmap glyphs and dot-rendering treatment, with Aether's own active-ink and crimson-glow palette and both ASCII and Persian (`۰–۹`, `٪`, `٫`) glyphs. Chunky Material 3 filled buttons are replaced inside cards by `← ━ →` micro-steppers (`AetherMicroStepper`), `1.dp` pill badges (`AetherPillBadge`), and `6.dp` filled/hollow LED legend dots (`●` / `○`).
 
 ---
 
@@ -53,4 +53,4 @@
   - `AetherSatellitesScreen.kt`
   - `AetherLabScreen.kt`
   - `AetherSettingsModal.kt`
-- **Selectable Across All UI Styles:** Registered as `AppUiStyle.AETHER` in `Models.kt`, persisted via `MainViewModel.setUiStyle`, routed in `MainActivity.kt`, `ImmersiveChrome.kt`, and `AntarControlPanel.kt`, and exposed (`settings_ui_style_aether`) in `SettingsDialog.kt`, `SpatialSettingsModal.kt`, `CyberSettingsModal.kt`, and `AetherSettingsModal.kt` in both English (`strings.xml`) and Persian (`values-fa/strings.xml`).
+- **Selectable Across All UI Styles:** Registered as `AppUiStyle.AETHER` in `Models.kt`, persisted via `MainViewModel.setUiStyle`, routed in `MainActivity.kt`, `ImmersiveChrome.kt`, and `AntarControlPanel.kt`, and exposed (`settings_ui_style_aether`) in `SettingsDialog.kt`, `SpatialSettingsModal.kt`, and `AetherSettingsModal.kt` in both English (`strings.xml`) and Persian (`values-fa/strings.xml`).

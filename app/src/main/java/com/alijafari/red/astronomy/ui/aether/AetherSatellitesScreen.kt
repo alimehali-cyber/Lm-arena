@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -65,6 +66,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -581,13 +583,11 @@ fun AetherSatellitesScreen(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Interactive 2:1 Earth Ground-Track & Solar Terminator Viewport
-            val viewportShape = squircleShape(24.dp)
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2.0f)
-                    .clip(viewportShape)
-                    .specularRimBorder(cornerRadius = 24.dp, shape = viewportShape)
+                    .offset(x = -RedSpacing.lg)
+                    .requiredWidth(LocalConfiguration.current.screenWidthDp.dp)
+                    .aspectRatio(2.0f) // Edge-to-edge with the native 2:1 equirectangular map ratio
             ) {
                 val subSolarPoint = remember(currentSimulationMs) {
                     SatelliteEngine.calculateSubSolarPoint(currentSimulationMs)

@@ -146,7 +146,6 @@ fun SettingsDialog(
     val uiStyleLabel = when (uiState.uiStyle) {
         AppUiStyle.DEFAULT -> stringResource(R.string.ui_style_default)
         AppUiStyle.SPATIAL -> stringResource(R.string.ui_style_spatial)
-        AppUiStyle.CYBER -> stringResource(R.string.ui_style_cyber)
         AppUiStyle.AETHER -> stringResource(R.string.ui_style_aether)
     }
 
@@ -247,13 +246,6 @@ fun SettingsDialog(
                         isSelected = uiState.uiStyle == AppUiStyle.SPATIAL,
                         onClick = { viewModel.setUiStyle(AppUiStyle.SPATIAL) },
                         modifier = Modifier.testTag("settings_ui_style_spatial")
-                    )
-                    SettingsOptionRow(
-                        title = stringResource(R.string.ui_style_cyber),
-                        subtitle = stringResource(R.string.ui_style_cyber_desc),
-                        isSelected = uiState.uiStyle == AppUiStyle.CYBER,
-                        onClick = { viewModel.setUiStyle(AppUiStyle.CYBER) },
-                        modifier = Modifier.testTag("settings_ui_style_cyber")
                     )
                     SettingsOptionRow(
                         title = stringResource(R.string.ui_style_aether),

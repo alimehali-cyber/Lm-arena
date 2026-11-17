@@ -206,7 +206,7 @@ fun SurfaceGradient.brushFor(size: Size): Brush {
  *
  * So the chrome accent becomes `RedTheme.colors.accentRed`, the ink becomes the theme's text inks, the
  * panel fill becomes the theme's elevated surface and the hairline becomes the theme's border. In
- * `AppUiStyle.DEFAULT` that is vermilion on obsidian; under the CYBER and SPATIAL providers the same
+ * `AppUiStyle.DEFAULT` that is vermilion on obsidian; under the SPATIAL and AETHER providers the same
  * fields already resolve to their own adapted tokens, so the sandbox follows the selected style without
  * knowing that a style exists.
  *

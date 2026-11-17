@@ -4,7 +4,6 @@ import androidx.compose.ui.graphics.Color
 import com.alijafari.red.astronomy.domain.AppUiStyle
 import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.ui.aether.aetherPaletteFor
-import com.alijafari.red.astronomy.ui.cyber.cyberPaletteFor
 import com.alijafari.red.astronomy.ui.spatial.spatialPaletteFor
 import com.alijafari.red.astronomy.ui.theme.RedDarkColorTokens
 import com.alijafari.red.astronomy.ui.theme.RedLightColorTokens
@@ -64,7 +63,7 @@ class ImmersiveChromeTest {
     @Test
     fun theChromeHasNoPaletteOfItsOwn() {
         // Every colour in the chrome comes from RedTheme, which is the theme the user selected and
-        // already carries the Cyber / Spatial adaptation. One literal here would be a second brand.
+        // already carries the Spatial / Aether adaptation. One literal here would be a second brand.
         assertFalse("the chrome declares no literal colour", chrome.contains("Color(0xFF"))
         assertFalse("and no translucent literal either", chrome.contains("Color(0x"))
         assertTrue("the accent is the theme's", chrome.contains("accent = colors.accentRed"))
@@ -80,10 +79,8 @@ class ImmersiveChromeTest {
 
     @Test
     fun theCornerGeometryIsTheAppsCornerGeometry() {
-        // Panels, rows and pills: the same three steps every other screen uses, and CYBER's tighter
-        // container only where that style asks for it.
+        // Panels, rows and pills share the app's common geometry.
         assertTrue("panels take the window radius", chrome.contains("else -> RedCornerRadius.window"))
-        assertTrue("CYBER keeps its own tighter container", chrome.contains("AppUiStyle.CYBER -> 36.dp"))
         assertTrue("pills are capsules", chrome.contains("val pillShape: Shape get() = CircleShape"))
         assertTrue("panels squircle", chrome.contains("val panelShape: Shape get() = squircleShape(panelRadius)"))
     }
@@ -252,14 +249,11 @@ class ImmersiveChromeTest {
     @Test
     fun theAccentFillAlwaysCarriesReadableInk() {
         // A selected capsule, a selected chip and a primary action are all "accent fill, on-accent ink".
-        // That pairing has to read in every palette the app ships, in all three interface styles.
+        // That pairing has to read in every palette the app ships, in the remaining interface styles.
         val accents = linkedMapOf(
             "default dark" to RedDarkColorTokens.accentRed,
             "default light" to RedLightColorTokens.accentRed,
             "wine" to RedWineColorTokens.accentRed,
-            "cyber dark" to cyberPaletteFor(ThemeMode.DARK).primaryAccent,
-            "cyber light" to cyberPaletteFor(ThemeMode.LIGHT).primaryAccent,
-            "cyber wine" to cyberPaletteFor(ThemeMode.WINE).primaryAccent,
             "spatial dark" to spatialPaletteFor(ThemeMode.DARK).neonGlow,
             "spatial light" to spatialPaletteFor(ThemeMode.LIGHT).neonGlow,
             "spatial wine" to spatialPaletteFor(ThemeMode.WINE).neonGlow,
@@ -279,11 +273,10 @@ class ImmersiveChromeTest {
     }
 
     @Test
-    fun everyStyleHasItsOwnGeometryAndTheDefaultsAreTheAppsOwn() {
-        // DEFAULT and SPATIAL share the app's window corner; CYBER and AETHER wear 36.dp. The styles are
-        // distinct values, so a future style cannot silently inherit another's geometry.
-        assertEquals(4, AppUiStyle.entries.size)
-        assertTrue("the chrome branches on CYBER", chrome.contains("AppUiStyle.CYBER ->"))
+    fun aetherKeepsItsTighterRadiusAndTheDefaultsUseAppGeometry() {
+        // The styles are distinct values; AETHER keeps its intentional tighter panel radius.
+        assertEquals(3, AppUiStyle.entries.size)
+        assertFalse("the retired style no longer has geometry branches", chrome.contains("AppUiStyle.CYBER"))
         assertTrue("the chrome branches on AETHER", chrome.contains("AppUiStyle.AETHER ->"))
         assertTrue("and defaults the rest", chrome.contains("else -> RedCornerRadius.window"))
     }

@@ -420,7 +420,7 @@ class StarlinkPipelineTest {
     }
 
     @Test
-    fun `5 all four UI theme Satellites screens share full multi-train and individual Starlink parity`() {
+    fun `5 all remaining Satellites screens share full multi-train and individual Starlink parity`() {
         fun readScreenSource(relative: String): String {
             val candidates = listOf("src/main/java/$relative", "app/src/main/java/$relative")
             return candidates.map(::File).firstOrNull { it.exists() }?.readText()
@@ -430,8 +430,7 @@ class StarlinkPipelineTest {
         val screens = mapOf(
             "AetherSatellitesScreen" to readScreenSource("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt"),
             "ISSScreen" to readScreenSource("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt"),
-            "SpatialSatellitesScreen" to readScreenSource("com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt"),
-            "CyberSatellitesScreen" to readScreenSource("com/alijafari/red/astronomy/ui/cyber/CyberSatellitesScreen.kt")
+            "SpatialSatellitesScreen" to readScreenSource("com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt")
         )
 
         val requiredTokens = listOf(
@@ -452,19 +451,18 @@ class StarlinkPipelineTest {
                     src.contains(token)
                 )
             }
-            // None of the 4 screens should rely on the legacy single-train detectTrain() call anymore
+            // None of the 3 screens should rely on the legacy single-train detectTrain() call anymore
             assertFalse(
                 "$screenName should use detectActiveTrains() instead of legacy single detectTrain()",
                 src.contains("StarlinkTrainManager.detectTrain(")
             )
         }
 
-        // Verify all 4 pass card implementations carry the STRING OF PEARLS train badge
+        // Verify all 3 pass card implementations carry the STRING OF PEARLS train badge
         val detailSrc = readScreenSource("com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt")
         assertTrue(detailSrc.contains("STRING OF PEARLS"))
         assertTrue(screens.getValue("AetherSatellitesScreen").contains("STRING OF PEARLS"))
         assertTrue(screens.getValue("SpatialSatellitesScreen").contains("STRING OF PEARLS"))
-        assertTrue(screens.getValue("CyberSatellitesScreen").contains("STRING OF PEARLS"))
     }
 
     @Test
@@ -993,7 +991,6 @@ class StarlinkPipelineTest {
             "com/alijafari/red/astronomy/ui/screens/ISSScreen.kt",
             "com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt",
             "com/alijafari/red/astronomy/ui/spatial/SpatialSatellitesScreen.kt",
-            "com/alijafari/red/astronomy/ui/cyber/CyberSatellitesScreen.kt",
             "com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt"
         )) {
             val src = readSrc(relPath)

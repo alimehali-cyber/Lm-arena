@@ -103,7 +103,6 @@ fun AetherSettingsModal(
     val uiStyleLabel = when (uiState.uiStyle) {
         AppUiStyle.DEFAULT -> stringResource(R.string.ui_style_default)
         AppUiStyle.SPATIAL -> stringResource(R.string.ui_style_spatial)
-        AppUiStyle.CYBER -> stringResource(R.string.ui_style_cyber)
         AppUiStyle.AETHER -> stringResource(R.string.ui_style_aether)
     }
     val languageLabel = when (uiState.language) {
@@ -213,7 +212,7 @@ fun AetherSettingsModal(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // 0. Interface Style (Default, Spatial, Cyber Glass, Aether Telemetry)
+                    // 0. Interface Style (Default, Spatial, Aether Telemetry)
                     AetherExpandableSection(
                         title = stringResource(R.string.ui_style_title),
                         valueLabel = uiStyleLabel,
@@ -235,13 +234,6 @@ fun AetherSettingsModal(
                             isSelected = uiState.uiStyle == AppUiStyle.SPATIAL,
                             onClick = { viewModel.setUiStyle(AppUiStyle.SPATIAL) },
                             modifier = Modifier.testTag("settings_ui_style_spatial")
-                        )
-                        AetherOptionRow(
-                            title = stringResource(R.string.ui_style_cyber),
-                            subtitle = stringResource(R.string.ui_style_cyber_desc),
-                            isSelected = uiState.uiStyle == AppUiStyle.CYBER,
-                            onClick = { viewModel.setUiStyle(AppUiStyle.CYBER) },
-                            modifier = Modifier.testTag("settings_ui_style_cyber")
                         )
                         AetherOptionRow(
                             title = stringResource(R.string.ui_style_aether),

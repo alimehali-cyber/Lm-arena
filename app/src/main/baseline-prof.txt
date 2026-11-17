@@ -17,7 +17,6 @@ HSPLcom/alijafari/red/astronomy/data/catalog/**->**(**)**
 HSPLcom/alijafari/red/astronomy/domain/**->**(**)**
 # Home's first frame: the three Home variants, the hero sky, backdrop and theme.
 HSPLcom/alijafari/red/astronomy/ui/screens/HomeScreen**->**(**)**
-HSPLcom/alijafari/red/astronomy/ui/cyber/CyberHomeScreen**->**(**)**
 HSPLcom/alijafari/red/astronomy/ui/spatial/SpatialHomeScreen**->**(**)**
 HSPLcom/alijafari/red/astronomy/ui/rendering/**->**(**)**
 HSPLcom/alijafari/red/astronomy/ui/backdrop/**->**(**)**

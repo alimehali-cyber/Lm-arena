@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -85,8 +86,6 @@ data class SatelliteMapPalette(
     val orbitTrackColor: Color,
     val userPinColor: Color,
     val userTextColor: Color,
-    val containerBg: Color,
-    val containerBorder: Color,
     val isDarkBackground: Boolean
 )
 
@@ -148,8 +147,6 @@ fun ISSScreen(
                     orbitTrackColor = OldMoneyBurgundy,
                     userPinColor = OldMoneyNavy,
                     userTextColor = OldMoneySlate,
-                    containerBg = SoftCreamSurface,
-                    containerBorder = SoftCreamCardBorder,
                     isDarkBackground = false
                 )
             }
@@ -165,8 +162,6 @@ fun ISSScreen(
                     orbitTrackColor = AccentPrimary,
                     userPinColor = Color(0xFF00F0FF),
                     userTextColor = Color(0xFFFFFFFF),
-                    containerBg = Color(0xFF000000),
-                    containerBorder = Color(0xFF27272A),
                     isDarkBackground = true
                 )
             }
@@ -182,8 +177,6 @@ fun ISSScreen(
                     orbitTrackColor = WineAccentCrimson,
                     userPinColor = WineVintageRose,
                     userTextColor = WineTextPrimary,
-                    containerBg = WineSurface,
-                    containerBorder = WineOutline,
                     isDarkBackground = true
                 )
             }
@@ -199,8 +192,6 @@ fun ISSScreen(
                     orbitTrackColor = AccentPrimary,
                     userPinColor = Color(0xFF00F0FF),
                     userTextColor = Color(0xFF00F0FF),
-                    containerBg = Color(0xFF1E293B),
-                    containerBorder = Color.White.copy(alpha = 0.15f),
                     isDarkBackground = true
                 )
             }
@@ -549,15 +540,9 @@ fun ISSScreen(
             // 1. MAIN FEATURE: SCIENTIFICALLY ACCURATE 2D EARTH MAP
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(2.0f) // Strictly preserve true geographic 2:1 aspect ratio
-                    .clip(squircleShape(RedCornerRadius.lg))
-                    .background(mapPalette.containerBg)
-                    .border(
-                        1.dp,
-                        RedTheme.colors.border,
-                        squircleShape(RedCornerRadius.lg)
-                    )
+                    .offset(x = -RedSpacing.lg)
+                    .requiredWidth(LocalConfiguration.current.screenWidthDp.dp)
+                    .aspectRatio(2.0f) // Full-bleed, while preserving the true 2:1 world-map projection
             ) {
                 // Solar position for astronomical terminator & city illumination
                 val subSolarPoint = remember(currentSimulationMs) {

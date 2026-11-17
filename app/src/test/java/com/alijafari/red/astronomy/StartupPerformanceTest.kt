@@ -223,7 +223,6 @@ class StartupPerformanceTest {
     fun everyHomeVariantUsesTheSharedBucketsAndMemo() {
         val variants = mapOf(
             "com/alijafari/red/astronomy/ui/screens/HomeScreen.kt" to "",
-            "com/alijafari/red/astronomy/ui/cyber/CyberHomeScreen.kt" to "CYBER_",
             "com/alijafari/red/astronomy/ui/spatial/SpatialHomeScreen.kt" to "SPATIAL_",
             "com/alijafari/red/astronomy/ui/aether/AetherHomeScreen.kt" to "AETHER_"
         )

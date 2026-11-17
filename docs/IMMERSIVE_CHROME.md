@@ -34,18 +34,18 @@ chromeTokens()
  ├─ textPrimary/Secondary/Tertiary ← the theme's own ink steps
  ├─ success/warning/danger         ← statusSuccess / statusWarning / statusError
  ├─ panel/row/pill geometry        ← RedCornerRadius.window + RedCornerRadius via squircleShape
- └─ glow                          ← transparent in DEFAULT, an accent wash in CYBER / SPATIAL
+ └─ glow                          ← transparent in DEFAULT, an accent wash in SPATIAL / AETHER
 ```
 
-Because the theme it reads is the theme the user selected *after* the Cyber and Spatial providers have
-adapted it (`CyberThemeProvider`, `SpatialThemeProvider` copy `RedColorTokens`), the immersive chrome
-follows all three interface styles and all three theme modes with **no branching at the call sites**:
+Because the theme it reads is the theme the user selected *after* the Spatial and Aether providers have
+adapted it, the immersive chrome follows all three interface styles and all three theme modes with
+**no branching at the call sites**:
 
 | selected style | accent the chrome wears | panel geometry |
 | --- | --- | --- |
 | `DEFAULT` | the vermilion `accentRed` of the theme | 40 dp window squircle |
-| `CYBER` | Cyber's `NothingRed` / `#E14938` / garnet | 36 dp (cut-glass), accent glow on |
 | `SPATIAL` | Spatial's neon rose / sky blue, warm paper | 40 dp window, accent glow on |
+| `AETHER` | Aether's adapted theme accent | 36 dp window, accent glow on |
 
 | theme mode | accent | panel fill |
 | --- | --- | --- |
@@ -122,7 +122,7 @@ app/src/test/java/com/alijafari/red/astronomy/ImmersiveChromeTest.kt        ← 
 
 1. the chrome declares **no** literal colour, reads the theme's accent / inks / fills / border / status
    tokens, and measures the on-accent ink;
-2. panels take `RedCornerRadius.window` (36 dp in CYBER), pills are capsules;
+2. panels take `RedCornerRadius.window` (Aether uses a 36 dp radius), pills are capsules;
 3. `MainActivity` publishes the selected `AppUiStyle`;
 4. the AR screen calls the shared components and **no longer** calls `MaterialTheme.typography`,
    `FilterChip`, `TextButton`, `ButtonDefaults`, `AccentPrimary`, `StatusGood`, `Color(0xDD…)`,

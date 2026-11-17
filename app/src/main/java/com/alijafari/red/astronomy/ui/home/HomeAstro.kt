@@ -25,7 +25,7 @@ import java.util.concurrent.FutureTask
 // ------------------------------------------------------------------------------------------------
 // Home's heavy astronomy, computed once per input and shared.
 //
-// Every Home variant (Default, Cyber, Spatial) derives the same four expensive results: the whole
+// Every Home variant (Default, Spatial, Aether) derives the same four expensive results: the whole
 // catalog with positions, the Moon, the eclipse series and What's Up Tonight. They used to be
 // computed inside `remember` on the main thread, during the very first composition of the app,
 // which is what kept the launch screen blank. They now go through [HomeAstroMemo]:

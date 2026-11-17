@@ -84,10 +84,9 @@ class AntarPayloadAndIntegrationTest {
     }
 
     @Test
-    fun zigBlackholeIsWiredIntoAllThreeLabStylesAndLocalizedResources() {
+    fun zigBlackholeIsWiredIntoAllRemainingLabStylesAndLocalizedResources() {
         val labScreen = readSource("java/com/alijafari/red/astronomy/ui/screens/LabScreen.kt")
         val spatialLab = readSource("java/com/alijafari/red/astronomy/ui/spatial/SpatialLabScreen.kt")
-        val cyberLab = readSource("java/com/alijafari/red/astronomy/ui/cyber/CyberLabScreen.kt")
         val aetherLab = readSource("java/com/alijafari/red/astronomy/ui/aether/AetherLabScreen.kt")
         val stringsEn = readSource("res/values/strings.xml")
         val stringsFa = readSource("res/values-fa/strings.xml")
@@ -100,9 +99,6 @@ class AntarPayloadAndIntegrationTest {
 
         assertTrue(spatialLab.contains("selectedFeature == LabFeatureType.ZIG_BLACKHOLE"))
         assertTrue(spatialLab.contains("LabFeatureType.ZIG_BLACKHOLE ->"))
-
-        assertTrue(cyberLab.contains("LabFeatureType.ZIG_BLACKHOLE ->"))
-        assertTrue(cyberLab.contains("AntarRoot("))
 
         assertTrue(aetherLab.contains("LabFeatureType.ZIG_BLACKHOLE ->"))
         assertTrue(aetherLab.contains("AntarRoot("))
