@@ -1,5 +1,10 @@
 package com.alijafari.red.astronomy.ui.satellites
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -754,13 +760,13 @@ fun ZigSatIconButton(
 @Composable
 fun ZigStatusDot(color: Color, pulse: Boolean, size: Dp = 8.dp) {
     val alpha = if (pulse && !LocalSatReduceMotion.current) {
-        val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "SatLivePulse")
+        val transition = rememberInfiniteTransition(label = "SatLivePulse")
         val animated by transition.animateFloat(
             initialValue = 1f,
             targetValue = 0.55f,
-            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                animation = androidx.compose.animation.core.tween(1200),
-                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200),
+                repeatMode = RepeatMode.Reverse,
             ),
             label = "SatLivePulseAlpha",
         )
@@ -778,7 +784,7 @@ fun ZigStatusDot(color: Color, pulse: Boolean, size: Dp = 8.dp) {
 
 /** Micro-caps label: uppercase with tracking in EN, never uppercase in FA. */
 @Composable
-fun ZigMicroCaps(text: String, tokens: ZigSatTokens, color: Color? = null, isFa: Boolean = false): Text {
+fun ZigMicroCaps(text: String, tokens: ZigSatTokens, color: Color? = null, isFa: Boolean = false) {
     Text(
         text = if (isFa) text else text.uppercase(Locale.US),
         style = RedTypographyTokens.badge.copy(

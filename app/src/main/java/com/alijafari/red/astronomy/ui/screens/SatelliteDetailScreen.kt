@@ -88,6 +88,7 @@ import com.alijafari.red.astronomy.ui.satellites.ZigMicroCaps
 import com.alijafari.red.astronomy.ui.satellites.ZigSatCard
 import com.alijafari.red.astronomy.ui.satellites.ZigSatIconButton
 import com.alijafari.red.astronomy.ui.satellites.passKey
+import com.alijafari.red.astronomy.ui.satellites.tabular
 import com.alijafari.red.astronomy.ui.satellites.zigSatTokens
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens

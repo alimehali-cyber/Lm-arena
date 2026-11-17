@@ -1210,6 +1210,7 @@ fun SatSpotlightCard(
                     sub = SatFmt.compass(pass.startAzimuthDeg, isFa),
                     tokens = tokens,
                     isFa = isFa,
+                    modifier = Modifier.weight(1f),
                 )
                 SpotlightStat(
                     label = if (isFa) "اوج" else "Max",
@@ -1217,6 +1218,7 @@ fun SatSpotlightCard(
                     sub = SatFmt.degrees(pass.maxElevationDeg, isFa),
                     tokens = tokens,
                     isFa = isFa,
+                    modifier = Modifier.weight(1f),
                     accent = tokens.live,
                 )
                 SpotlightStat(
@@ -1225,6 +1227,7 @@ fun SatSpotlightCard(
                     sub = SatFmt.compass(pass.endAzimuthDeg, isFa),
                     tokens = tokens,
                     isFa = isFa,
+                    modifier = Modifier.weight(1f),
                 )
             }
 
@@ -1290,9 +1293,10 @@ private fun SpotlightStat(
     sub: String,
     tokens: ZigSatTokens,
     isFa: Boolean,
+    modifier: Modifier = Modifier,
     accent: Color? = null,
 ) {
-    Column(modifier = Modifier.weight(1f)) {
+    Column(modifier = modifier) {
         ZigMicroCaps(text = label, tokens = tokens, isFa = isFa)
         Text(
             text = value,
