@@ -205,8 +205,18 @@ class SpatialUiTest {
                 }
 
         val cyberGlyphs = glyphEntries(cyber, "cyberGlyphFor")
-        assertEquals(cyberGlyphs, glyphEntries(spatial, "glyphFor").filterKeys(cyberGlyphs::containsKey))
-        assertEquals(cyberGlyphs, glyphEntries(aether, "aetherGlyphFor").filterKeys(cyberGlyphs::containsKey))
+        val spatialGlyphs = glyphEntries(spatial, "glyphFor")
+        val aetherGlyphs = glyphEntries(aether, "aetherGlyphFor")
+        assertEquals(cyberGlyphs, spatialGlyphs.filterKeys(cyberGlyphs::containsKey))
+        assertEquals(cyberGlyphs, aetherGlyphs.filterKeys(cyberGlyphs::containsKey))
+
+        // Pin the user-approved Persian forms explicitly, not merely parity between the UIs.
+        val expectedPersianFour = "g5(0x07, 0x14, 0x1F, 0x10, 0x10, 0x10, 0x10)"
+        val expectedPersianSix = "g5(0x06, 0x08, 0x07, 0x04, 0x08, 0x10, 0x10)"
+        for (glyphs in listOf(cyberGlyphs, spatialGlyphs, aetherGlyphs)) {
+            assertEquals(expectedPersianFour, glyphs["'۴', '٤'"]?.substringAfter(" -> "))
+            assertEquals(expectedPersianSix, glyphs["'۶', '٦'"]?.substringAfter(" -> "))
+        }
     }
 
     @Test
