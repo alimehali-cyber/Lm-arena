@@ -167,6 +167,48 @@ class SpatialUiTest {
     }
 
     @Test
+    fun spatialAndAetherDotMatricesUseCyberGlassGlyphsAndRenderingStyle() {
+        val cyber = source("com/alijafari/red/astronomy/ui/cyber/CyberDotMatrix.kt")
+        val spatial = source("com/alijafari/red/astronomy/ui/spatial/SpatialDotMatrix.kt")
+        val aether = source("com/alijafari/red/astronomy/ui/aether/AetherDotMatrix.kt")
+
+        // All three modes must stay on the same seven-row circular-dot bitmap family.
+        assertTrue(cyber.contains("dotSize: Dp = 2.6.dp"))
+        assertTrue(cyber.contains("dotGap: Dp = 1.05.dp"))
+        assertTrue(cyber.contains("charGap: Dp = 3.2.dp"))
+        assertTrue(spatial.contains("dotSize: Dp = 2.6.dp"))
+        assertTrue(spatial.contains("dotGap: Dp = 1.05.dp"))
+        assertTrue(spatial.contains("charGap: Dp = 3.2.dp"))
+        assertTrue(aether.contains("dotSize: Dp = 2.6.dp"))
+        assertTrue(aether.contains("dotGap: Dp = 1.05.dp"))
+        assertTrue(aether.contains("charGap: Dp = 3.2.dp"))
+        assertTrue(aether.contains("private const val AETHER_GLYPH_ROWS = 7"))
+        assertTrue(aether.contains("private fun glyph5("))
+        assertFalse(aether.contains("g6("))
+
+        // Active-dot halos and unlit-cell sizes now follow Cyber Glass; palette colors stay local.
+        for (renderer in listOf(spatial, aether)) {
+            assertTrue(renderer.contains("copy(alpha = 0.24f)"))
+            assertTrue(renderer.contains("radius = r * 2.0f") || renderer.contains("radius = radius * 2.0f"))
+            assertTrue(renderer.contains("radius = r * 0.58f") || renderer.contains("radius = radius * 0.58f"))
+        }
+
+        fun glyphEntries(source: String, functionName: String): Map<String, String> =
+            source.substringAfter("private fun $functionName")
+                .lineSequence()
+                .map(String::trim)
+                .filter { " -> " in it }
+                .associate { line ->
+                    val normalized = line.replace("glyph5(", "g5(").replace("glyph3(", "g3(")
+                    normalized.substringBefore(" -> ") to normalized
+                }
+
+        val cyberGlyphs = glyphEntries(cyber, "cyberGlyphFor")
+        assertEquals(cyberGlyphs, glyphEntries(spatial, "glyphFor").filterKeys(cyberGlyphs::containsKey))
+        assertEquals(cyberGlyphs, glyphEntries(aether, "aetherGlyphFor").filterKeys(cyberGlyphs::containsKey))
+    }
+
+    @Test
     fun spatialAndCyberScreensPreserveInvariantsAndSignatureComponents() {
         val spatialHome = source("com/alijafari/red/astronomy/ui/spatial/SpatialHomeScreen.kt")
         assertTrue(spatialHome.contains("presentation = SkyCanvasPresentation.SCENE"))

@@ -33,7 +33,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 // ============================================================================
-// 5x7 LED DOT-MATRIX DISPLAY TYPOGRAPHY & CIRCULAR RADIAL DOT METERS
+// Cyber Glass-style 5x7 DOT-MATRIX TYPOGRAPHY & SPATIAL RADIAL METERS
 // ============================================================================
 
 /**
@@ -48,7 +48,7 @@ fun DotMatrixText(
     text: String,
     modifier: Modifier = Modifier,
     dotSize: Dp = 2.6.dp,
-    dotGap: Dp = 1.1.dp,
+    dotGap: Dp = 1.05.dp,
     charGap: Dp = 3.2.dp,
     activeColor: Color = SpatialTheme.palette.dotMatrixInk,
     glowColor: Color? = SpatialNeonRose,
@@ -90,8 +90,8 @@ fun DotMatrixText(
                     if (isLit) {
                         if (glowColor != null) {
                             drawCircle(
-                                color = glowColor.copy(alpha = 0.28f),
-                                radius = r * 2.1f,
+                                color = glowColor.copy(alpha = 0.24f),
+                                radius = r * 2.0f,
                                 center = Offset(cx, cy)
                             )
                         }
@@ -103,7 +103,7 @@ fun DotMatrixText(
                     } else if (showGhostMatrix && !glyph.isNarrowPunctuation) {
                         drawCircle(
                             color = ghostColor,
-                            radius = r * 0.72f,
+                            radius = r * 0.58f,
                             center = Offset(cx, cy)
                         )
                     }
