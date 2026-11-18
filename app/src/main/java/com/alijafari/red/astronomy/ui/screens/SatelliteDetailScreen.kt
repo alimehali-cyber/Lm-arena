@@ -57,8 +57,6 @@ import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.formatTleStalenessBadge
 import com.alijafari.red.astronomy.util.rememberIsNetworkOnline
 import java.util.Calendar
-import java.util.TimeZone
-import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -121,8 +119,7 @@ internal fun SatelliteDetailContent(
     val reduce = LocalSatReduceMotion.current
     val nights = remember(location.latitude, location.longitude, tz) { SatObserverNights(location.latitude, location.longitude, tz) }
     fun passUi(pass: ISSEngine.ISSPass): SatPassUi {
-        val matching = alarms.filter { (it.objectId == satelliteItem.id || satelliteItem.isTrain && it.objectId == "starlink_train") &&
-            abs(it.eventTimeMs - pass.startTimeMs) <= 30_000L }
+        val matching = alarms.filter { it.triggerTimeMs > realNow && it.coversSatellitePass(satelliteItem, pass.startTimeMs) }
         return SatPassUi(passKey(satelliteItem, pass), satelliteItem, shortNameOf(satelliteItem, isFa), pass,
             nights.key(pass.maxTimeMs), matching.firstOrNull { it.manualPass }?.leadMinutes, matching.any { !it.manualPass })
     }
@@ -344,7 +341,7 @@ private fun DetailHero(
                         style = RedTypographyTokens.screenTitle.copy(
                             fontSize = 24.sp, lineHeight = 30.sp,
                             fontWeight = FontWeight.Bold,
-                        ),
+                        ).satOptical(),
                         color = tokens.inkPrimary,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,

@@ -25,7 +25,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsNone
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -410,14 +415,14 @@ object SatFmt {
     private fun decimal(raw: String, isFa: Boolean): String =
         if (isFa) digits(raw.replace('.', '\u066B').replace(',', '\u066C'), true) else raw
 
-    fun int(value: Int, isFa: Boolean): String = digits(value.toString(), isFa)
+    fun int(value: Int, isFa: Boolean): String = digits(value.toString().replace('-', MINUS), isFa)
 
     fun intPadded(value: Int, width: Int, isFa: Boolean): String =
         digits(value.toString().padStart(width, '0'), isFa)
 
     fun kilometers(km: Double, isFa: Boolean, decimals: Int = 0): String {
-        val grouped = String.format(Locale.US, "%,.${decimals}f", km)
-        return decimal(grouped, isFa)
+        if (!km.isFinite()) return "—"
+        return decimal(String.format(Locale.US, "%,.${decimals}f", km).replace('-', MINUS), isFa)
     }
 
     fun speed(kmS: Double, isFa: Boolean): String =
@@ -427,7 +432,7 @@ object SatFmt {
         if (signed) {
             signed(value, decimals, "°", isFa)
         } else {
-            digits(String.format(Locale.US, "%.${decimals}f", kotlin.math.abs(value)) + "°", isFa)
+            number(kotlin.math.abs(value), decimals, isFa) + "°"
         }
 
     fun magnitude(value: Double, isFa: Boolean): String = signed(value, 1, "", isFa)
@@ -468,12 +473,16 @@ object SatFmt {
         }
     }
 
-    fun offsetMinutes(minutes: Int, isFa: Boolean): String =
-        when {
-            minutes == 0 -> if (isFa) "زنده" else "Live"
-            kotlin.math.abs(minutes) >= 60 -> signed(minutes / 60.0, 1, if (isFa) " س" else "h", isFa)
-            else -> signed(minutes.toDouble(), 0, if (isFa) " د" else "m", isFa)
-        }
+    fun offsetMinutes(minutes: Int, isFa: Boolean): String {
+        if (minutes == 0) return if (isFa) "زنده" else "Live"
+        val magnitude = kotlin.math.abs(minutes)
+        val hours = magnitude / 60
+        val remainder = magnitude % 60
+        val first = if (hours > 0) hours else remainder
+        val firstUnit = if (hours > 0) (if (isFa) " س" else "h") else (if (isFa) " د" else "m")
+        val extra = if (hours > 0 && remainder > 0) (if (isFa) " ${int(remainder, true)} د" else " ${remainder}m") else ""
+        return signed((if (minutes < 0) -first else first).toDouble(), 0, firstUnit, isFa) + extra
+    }
 
     fun compass(azDeg: Double, isFa: Boolean): String {
         val norm = ((azDeg % 360.0) + 360.0) % 360.0
@@ -716,7 +725,8 @@ fun ZigSatChip(
     }
 }
 
-/** A 40 dp visual / 48 dp hit-area circular control in the skin's treatment. */
+/** Visual chrome and the 48 dp target are deliberately independent. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ZigSatIconButton(
     icon: ImageVector,
@@ -730,23 +740,31 @@ fun ZigSatIconButton(
     dot: Color? = null,
     enabled: Boolean = true,
     hud: Boolean = false,
+    tooltip: String? = null,
+    pulseDot: Boolean = false,
 ) {
     val tagged = if (testTag != null) modifier.testTag(testTag) else modifier
-    Box(
-        modifier = tagged.size(SatGrid.minTouchTarget).clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(Modifier.size(visualSize).satMaterial(tokens, SatSlot.RailButton, CircleShape,
-            backing = if (hud) tokens.hudFill else tokens.cardAlt,
-            accent = if (active) tokens.live else null), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription,
-                tint = (if (hud) tokens.hudInk else tokens.inkPrimary).copy(alpha = if (enabled) 1f else 0.4f),
-                modifier = Modifier.size(20.dp))
-            if (dot != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
-                ZigStatusDot(color = dot, pulse = false, size = 7.dp)
+    val content: @Composable () -> Unit = {
+        Box(
+            modifier = tagged.size(SatGrid.minTouchTarget).clickable(enabled = enabled, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(visualSize).satMaterial(tokens, SatSlot.RailButton, CircleShape,
+                backing = if (hud) tokens.hudFill else tokens.cardAlt,
+                accent = if (active) tokens.live else null), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription,
+                    tint = (if (hud) tokens.hudInk else tokens.inkPrimary).copy(alpha = if (enabled) 1f else 0.4f),
+                    modifier = Modifier.size(20.dp))
+                if (dot != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
+                    ZigStatusDot(color = dot, pulse = pulseDot, size = 7.dp)
+                }
             }
         }
     }
+    if (tooltip == null) content()
+    else TooltipBox(positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip(containerColor = tokens.hudFill, contentColor = tokens.hudInk) { SatText(tooltip, tokens.hudInk) } },
+        state = rememberTooltipState(), content = content)
 }
 
 /** Live/Simulation status dot: pulsing 2.4 s, static under reduce motion. */
@@ -794,6 +812,10 @@ fun ZigMicroCaps(text: String, tokens: ZigSatTokens, color: Color? = null, isFa:
 /** Tabular numerals for every live number, so layout never jitters. */
 fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = "tnum")
 
+@Composable
+internal fun TextStyle.satOptical(): TextStyle = if (LocalConfiguration.current.locales[0]?.language == "fa")
+    copy(fontSize = (fontSize.value + 1).sp, lineHeight = (lineHeight.value + 1.5f).sp) else this
+
 /** Quality as a tinted capsule: hue in the fill and ring, label always in onSurface ink. */
 @Composable
 fun ZigQualityChip(quality: SatQuality, score: Int, tokens: ZigSatTokens, isFa: Boolean, full: Boolean = true) {
@@ -815,7 +837,7 @@ fun ZigQualityChip(quality: SatQuality, score: Int, tokens: ZigSatTokens, isFa: 
         )
         Text(
             text = "${if (compact) quality.shortLabel(isFa) else quality.label(isFa)} · ${SatFmt.int(score, isFa)}",
-            style = RedTypographyTokens.badge.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+            style = RedTypographyTokens.badge.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium).satOptical(),
             color = tokens.inkPrimary,
             maxLines = 1,
         )
@@ -856,7 +878,7 @@ fun ZigBellButton(
         val micro = when {
             !enabled -> null
             isAutoCovered && leadMinutes == null -> stringResource(R.string.sat_reminder_auto)
-            leadMinutes != null -> if (leadMinutes == 1440) (if (isFa) "۱ روز" else "1d") else SatFmt.digits("${leadMinutes}m", isFa)
+            leadMinutes != null -> if (isFa) satLeadLabel(leadMinutes, true) else if (leadMinutes == 1440) "1d" else "${leadMinutes}m"
             else -> null
         }
         if (micro != null) {

@@ -1,5 +1,8 @@
 package com.alijafari.red.astronomy
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.astro_engine.SatelliteCategory
@@ -155,6 +158,33 @@ class SatellitesRedesignTest {
         }.timeInMillis
         assertEquals(23 * 3_600_000L, nights.plusDays(noon(Calendar.MARCH, 28), 1) - noon(Calendar.MARCH, 28))
         assertNull(nights.window(noon(Calendar.JUNE, 21)))
+    }
+
+    @Test
+    fun skyBearingsCrossNorthAlongTheShortArc() {
+        assertEquals(0.0, satBearingBetween(350.0, 10.0, .5f), .001)
+        assertEquals(0.0, satBearingBetween(10.0, 350.0, .5f), .001)
+        assertEquals(180.0, satBearingBetween(130.0, 230.0, .5f), .001)
+    }
+
+    @Test
+    fun normalTextContrastMeetsAAForEverySkinAndPalette() {
+        fun ratio(ink: Color, paper: Color): Float {
+            val a = ink.compositeOver(paper).luminance() + .05f
+            val b = paper.luminance() + .05f
+            return maxOf(a, b) / minOf(a, b)
+        }
+        for (skin in SatSkin.entries) for (theme in ThemeMode.entries) {
+            val t = zigSatTokens(skin, theme)
+            for (background in listOf(t.canvas, t.card, t.cardAlt, t.hudFill)) {
+                for (ink in listOf(t.inkPrimary, t.inkSecondary, t.inkTertiary, t.accentInk)) {
+                    assertTrue("$skin $theme: $ink on $background", ratio(ink, background) >= 4.5f)
+                }
+            }
+            assertTrue(ratio(t.hudInk, t.hudFill) >= 4.5f)
+            assertTrue(ratio(Color.White, t.selectedChip) >= 4.5f)
+            assertTrue(ratio(Color.White, t.popoverFill) >= 4.5f)
+        }
     }
 
     @Test

@@ -154,4 +154,7 @@
     <string name="sat_illumination">روشنایی</string>
     <string name="sat_detection_yes">قابل رؤیت با چشم</string>
     <string name="sat_detection_no">قابل رؤیت نیست</string>
+    <string name="sat_speed_spoken">کیلومتر بر ثانیه</string>
+    <string name="sat_passes_cached">آفلاین · بر پایهٔ داده‌های مداری ذخیره‌شده</string>
+    <string name="sat_sky_description">مسیر در آسمان: طلوع از %1$s، اوج در ارتفاع %2$s، غروب در %3$s.</string>
 </resources>

@@ -61,6 +61,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,7 +89,7 @@ internal fun SatText(text: String, color: Color, modifier: Modifier = Modifier, 
     Text(text, modifier = modifier, color = color, style = RedTypographyTokens.badge.copy(
         fontSize = size.sp, lineHeight = (size * 1.25f).sp,
         fontWeight = if (strong) FontWeight.SemiBold else FontWeight.Medium,
-    ).tabular())
+    ).tabular().satOptical())
 }
 
 @Composable
@@ -108,7 +110,7 @@ internal fun SatStatusPill(data: SatStatusData, tokens: ZigSatTokens, onClick: (
                 ZigStatusDot(statusColor, data.isLive)
                 Text(if (data.isLive) stringResource(R.string.sat_live) else SatFmt.offsetMinutes(data.offsetMinutes, data.isFa),
                     color = tokens.hudInk, softWrap = false,
-                    style = RedTypographyTokens.badge.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold).tabular())
+                    style = RedTypographyTokens.badge.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold).tabular().satOptical())
                 if (offline) Icon(Icons.Filled.WifiOff, stringResource(R.string.sat_offline), Modifier.size(14.dp), tint = tokens.hudInk)
                 if (stale && !collapse) Icon(Icons.Filled.Schedule, stringResource(R.string.sat_stale_tle), Modifier.size(14.dp),
                     tint = if ((data.tleAgeDays ?: 0.0) > 7.0) tokens.accentInk else tokens.sim)
@@ -192,8 +194,8 @@ internal fun SatFocusCard(
                 SatAvatar(focus.satellite, tokens)
                 Column(Modifier.weight(1f)) {
                     Text(shortNameOf(focus.satellite, isFa), color = tokens.inkPrimary,
-                        style = RedTypographyTokens.sectionTitle.copy(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        style = RedTypographyTokens.sectionTitle.copy(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold).satOptical(),
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
                     if (offline) SatText(stringResource(R.string.sat_cached), tokens.inkSecondary, size = 10)
                 }
             }
@@ -219,8 +221,9 @@ internal fun SatFocusCard(
                 if (state.elevationDeg < 0.0) stringResource(R.string.sat_below) else "",
                 stringResource(R.string.sat_elevation), tokens, Modifier.weight(1f), muted = state.elevationDeg < 0.0)
             if (!compact) SatMetric(SatFmt.speed(state.velocityKmS, isFa), stringResource(R.string.sat_speed_unit),
-                stringResource(R.string.sat_speed), tokens, Modifier.weight(if (isFa) 1.65f else 1.15f))
-            if (wide) SatMetric(SatFmt.magnitude(focus.apparentMagnitude, isFa), stringResource(R.string.sat_mag_short),
+                stringResource(R.string.sat_speed), tokens, Modifier.weight(if (isFa) 1.65f else 1.15f),
+                spokenUnit = stringResource(R.string.sat_speed_spoken))
+            if (wide && !compact) SatMetric(SatFmt.magnitude(focus.apparentMagnitude, isFa), stringResource(R.string.sat_mag_short),
                 stringResource(R.string.sat_magnitude), tokens, Modifier.weight(.85f))
         }
         val pass = nextPass?.pass
@@ -328,7 +331,8 @@ internal fun SatTimeTray(
             SatStepButton((if (LocalLayoutDirection.current == LayoutDirection.Rtl) Icons.Filled.KeyboardArrowLeft else Icons.Filled.KeyboardArrowRight), stringResource(R.string.sat_step_next),
                 stringResource(R.string.sat_hour_next), tokens, { actions.onStep(15) }, { actions.onStep(60) })
             ZigSatIconButton(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Icons.Filled.SkipPrevious else Icons.Filled.SkipNext,
-                stringResource(if (available) R.string.sat_next_pass else R.string.sat_no_pass_range), tokens, actions.onNextPass, enabled = available)
+                stringResource(if (available) R.string.sat_next_pass else R.string.sat_no_pass_range), tokens, actions.onNextPass, enabled = available,
+                tooltip = if (available) null else stringResource(R.string.sat_no_pass_range))
         }
         if (!compactHeight) Row(Modifier.fillMaxWidth().padding(start = 48.dp, end = 96.dp, bottom = 3.dp),
             horizontalArrangement = Arrangement.SpaceBetween) {
@@ -549,7 +553,7 @@ fun SatSpotlightCard(
             } else {
                 SatText(stringResource(R.string.sat_starts_in), tokens.inkSecondary)
                 Text(SatFmt.countdown(pass.startTimeMs - nowMs, isFa),
-                    style = RedTypographyTokens.sectionHeading.copy(fontSize = 32.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold).tabular(),
+                    style = RedTypographyTokens.sectionHeading.copy(fontSize = 32.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold).tabular().satOptical(),
                     color = tokens.inkPrimary, modifier = Modifier.testTag("spotlight_countdown"))
             }
             if (data.simulatedInsidePass) SatText(stringResource(R.string.sat_sim_inside), tokens.inkSecondary)
@@ -561,7 +565,7 @@ fun SatSpotlightCard(
                 SpotlightStat(
                     label = stringResource(R.string.sat_rise),
                     value = SatFmt.clock(pass.startTimeMs, isFa, tz),
-                    sub = SatFmt.compass(pass.startAzimuthDeg, isFa),
+                    sub = "${SatFmt.degrees(pass.startAzimuthDeg, isFa)} · ${SatFmt.compass(pass.startAzimuthDeg, isFa)}",
                     tokens = tokens,
                     isFa = isFa,
                     modifier = Modifier.weight(1f),
@@ -569,7 +573,7 @@ fun SatSpotlightCard(
                 SpotlightStat(
                     label = stringResource(R.string.sat_max),
                     value = SatFmt.clock(pass.maxTimeMs, isFa, tz),
-                    sub = SatFmt.degrees(pass.maxElevationDeg, isFa),
+                    sub = "${SatFmt.degrees(pass.maxAzimuthDeg, isFa)} · ${SatFmt.compass(pass.maxAzimuthDeg, isFa)}",
                     tokens = tokens,
                     isFa = isFa,
                     modifier = Modifier.weight(1f),
@@ -578,7 +582,7 @@ fun SatSpotlightCard(
                 SpotlightStat(
                     label = stringResource(R.string.sat_set),
                     value = SatFmt.clock(pass.endTimeMs, isFa, tz),
-                    sub = SatFmt.compass(pass.endAzimuthDeg, isFa),
+                    sub = "${SatFmt.degrees(pass.endAzimuthDeg, isFa)} · ${SatFmt.compass(pass.endAzimuthDeg, isFa)}",
                     tokens = tokens,
                     isFa = isFa,
                     modifier = Modifier.weight(1f),
@@ -608,12 +612,12 @@ fun SatMetaLine(pass: ISSEngine.ISSPass, tokens: ZigSatTokens, isFa: Boolean) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = "${stringResource(R.string.sat_mag_short)} ${SatFmt.magnitude(pass.estimatedMagnitude, isFa)}",
-            style = RedTypographyTokens.badge.copy(fontSize = 11.sp).tabular(),
+            style = RedTypographyTokens.badge.copy(fontSize = 11.sp).tabular().satOptical(),
             color = tokens.inkSecondary,
         )
         Text(
             text = SatFmt.duration(((pass.endTimeMs - pass.startTimeMs) / 60_000L).toInt(), isFa),
-            style = RedTypographyTokens.badge.copy(fontSize = 11.sp).tabular(),
+            style = RedTypographyTokens.badge.copy(fontSize = 11.sp).tabular().satOptical(),
             color = tokens.inkSecondary,
         )
         Text(
@@ -638,7 +642,7 @@ private fun SpotlightStat(
         ZigMicroCaps(text = label, tokens = tokens, isFa = isFa)
         Text(
             text = value,
-            style = RedTypographyTokens.badge.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold).tabular(),
+            style = RedTypographyTokens.badge.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold).tabular().satOptical(),
             color = accent ?: tokens.inkPrimary,
             maxLines = 1,
         )
@@ -646,16 +650,11 @@ private fun SpotlightStat(
             text = sub,
             style = RedTypographyTokens.badge.copy(fontSize = 11.sp),
             color = tokens.inkTertiary,
-            maxLines = 1,
         )
     }
 }
 
-/**
- * The sky dome. Geography never mirrors, so the canvas is pinned to LTR: rise stays at the geometric
- * left, the dome runs to set, the peak sits at the max elevation, and shadow entry/exit are dashed
- * in `umbra`. During a pass a live dot travels the arc.
- */
+/** The horizon is physical: north stays at the back and east at right in both locales. */
 @Composable
 fun SatSkyArc(pass: ISSEngine.ISSPass, tokens: ZigSatTokens, isFa: Boolean, height: Dp = 112.dp,
     nowMs: Long = System.currentTimeMillis(), showCompassMarks: Boolean = false, train: Boolean = false) {
@@ -663,62 +662,97 @@ fun SatSkyArc(pass: ISSEngine.ISSPass, tokens: ZigSatTokens, isFa: Boolean, heig
     val span = (pass.endTimeMs - pass.startTimeMs).coerceAtLeast(1L).toFloat()
     fun fraction(ms: Long) = ((ms - pass.startTimeMs) / span).coerceIn(0f, 1f)
     val peak = fraction(pass.maxTimeMs).coerceIn(.06f, .94f)
-    val elevation = (pass.maxElevationDeg / 90.0).toFloat().coerceIn(.06f, 1f)
+    val magElevation = SatFmt.degrees(pass.maxElevationDeg, isFa)
+    val description = stringResource(R.string.sat_sky_description,
+        SatFmt.compass(pass.startAzimuthDeg, isFa), magElevation, SatFmt.compass(pass.endAzimuthDeg, isFa))
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        BoxWithConstraints(Modifier.fillMaxWidth().height(height).testTag("next_pass_sky_arc")) {
-            Canvas(Modifier.matchParentSize()) {
-                val left = 6.dp.toPx()
-                val right = size.width - left
-                val floor = size.height - 22.dp.toPx()
-                val rise = (floor - 18.dp.toPx()) * elevation
-                fun point(t: Float): Offset {
-                    val argument = if (t <= peak) t / peak else (1f - t) / (1f - peak)
-                    return Offset(left + (right - left) * t, floor - rise * kotlin.math.sin(argument * (kotlin.math.PI / 2)).toFloat())
+        val measurer = rememberTextMeasurer()
+        val labelStyle = RedTypographyTokens.badge.copy(fontSize = 10.sp).satOptical()
+        val peakLabel = measurer.measure(magElevation, labelStyle)
+        val cardinalLabels = if (showCompassMarks) listOf(0.0, 90.0, 180.0, 270.0).map { az ->
+            az to measurer.measure(SatFmt.compass(az, isFa), labelStyle)
+        } else emptyList()
+        Canvas(Modifier.fillMaxWidth().height(height).testTag("next_pass_sky_arc")
+            .semantics { contentDescription = description }) {
+            val rimX = (size.width / 2 - (if (showCompassMarks) 31.dp else 14.dp).toPx()).coerceAtLeast(1f)
+            val rimY = size.height * .13f
+            val horizon = Offset(size.width / 2, size.height * if (showCompassMarks) .72f else .79f)
+            val riseHeight = horizon.y - 19.dp.toPx()
+            fun skyPoint(azimuth: Double, elevation: Double): Offset {
+                val az = Math.toRadians(azimuth)
+                val el = Math.toRadians(elevation)
+                val cosEl = kotlin.math.cos(el).toFloat()
+                return Offset(horizon.x + rimX * kotlin.math.sin(az).toFloat() * cosEl,
+                    horizon.y - rimY * kotlin.math.cos(az).toFloat() * cosEl - riseHeight * kotlin.math.sin(el).toFloat())
+            }
+            fun point(t: Float): Offset {
+                val phase = if (t <= peak) t / peak else (1f - t) / (1f - peak)
+                val bearing = if (t <= peak) satBearingBetween(pass.startAzimuthDeg, pass.maxAzimuthDeg, phase)
+                    else satBearingBetween(pass.maxAzimuthDeg, pass.endAzimuthDeg, 1f - phase)
+                val elev = pass.maxElevationDeg * kotlin.math.sin(phase * (kotlin.math.PI / 2))
+                return skyPoint(bearing, elev)
+            }
+            drawOval(tokens.border, horizon - Offset(rimX, rimY), Size(rimX * 2, rimY * 2), style = Stroke(1.dp.toPx()))
+            val apex = point(peak)
+            val belowPeak = skyPoint(pass.maxAzimuthDeg, 0.0)
+            drawLine(tokens.inkTertiary.copy(alpha = .6f), apex, belowPeak, 1.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 4.dp.toPx())))
+            val entry = pass.shadowEntryMs?.let(::fraction)
+            val exit = pass.shadowExitMs?.let(::fraction)
+            fun inShadow(mid: Float): Boolean = when {
+                entry != null && exit != null -> if (entry < exit) mid in entry..exit else mid < exit || mid > entry
+                entry != null -> mid >= entry
+                exit != null -> mid <= exit
+                else -> !pass.isIssSunlitAtMax
+            }
+            val cuts = (listOf(0f, 1f) + listOfNotNull(peak, entry, exit)).distinct().sorted()
+            cuts.zipWithNext().forEach { (start, end) ->
+                val shadow = inShadow((start + end) * .5f)
+                val path = Path().apply {
+                    val first = point(start)
+                    moveTo(first.x, first.y)
+                    repeat(32) { i -> val p = point(start + (end - start) * (i + 1) / 32f); lineTo(p.x, p.y) }
                 }
-                drawLine(tokens.inkTertiary.copy(alpha = .5f), Offset(left, floor), Offset(right, floor), 1.dp.toPx())
-                val apex = point(peak)
-                drawLine(tokens.inkTertiary.copy(alpha = .55f), apex, Offset(apex.x, floor), 1.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 4.dp.toPx())))
-                val entry = pass.shadowEntryMs?.let(::fraction)
-                val exit = pass.shadowExitMs?.let(::fraction)
-                val cuts = (listOf(0f, 1f) + listOfNotNull(entry, exit)).distinct().sorted()
-                cuts.zipWithNext().forEach { (start, end) ->
-                    val mid = (start + end) * .5f
-                    val shadow = when {
-                        entry != null && exit != null -> if (entry < exit) mid in entry..exit else mid < exit || mid > entry
-                        entry != null -> mid >= entry
-                        exit != null -> mid <= exit
-                        else -> !pass.isIssSunlitAtMax
-                    }
-                    val path = Path().apply {
-                        val first = point(start)
-                        moveTo(first.x, first.y)
-                        repeat(48) { i -> val p = point(start + (end - start) * (i + 1) / 48f); lineTo(p.x, p.y) }
-                    }
-                    if (!shadow && tokens.skin == SatSkin.AETHER) drawPath(path, color.copy(alpha = .15f), style = Stroke(7.dp.toPx()))
-                    val dash = if (shadow) PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())) else null
-                    drawPath(path, if (shadow) tokens.umbra else color, style = Stroke(1.8.dp.toPx(), cap = StrokeCap.Round, pathEffect = dash))
-                }
-                listOfNotNull(entry, exit).filter { it > 0f && it < 1f }.forEach { drawCircle(tokens.umbra, 3.dp.toPx(), point(it)) }
-                drawCircle(color, 3.8.dp.toPx(), apex)
-                drawCircle(tokens.inkSecondary, 2.dp.toPx(), point(0f)); drawCircle(tokens.inkSecondary, 2.dp.toPx(), point(1f))
-                if (train) {
-                    for (i in 1..7) drawCircle(color, 2.dp.toPx(), point(i / 8f))
-                }
-                if (nowMs in pass.startTimeMs..pass.endTimeMs) {
-                    drawCircle(tokens.inkPrimary, 4.5.dp.toPx(), point(fraction(nowMs)))
-                    drawCircle(color, 2.5.dp.toPx(), point(fraction(nowMs)))
+                if (!shadow && tokens.skin == SatSkin.AETHER) drawPath(path, color.copy(alpha = .15f), style = Stroke(7.dp.toPx()))
+                val dash = if (shadow) PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())) else null
+                drawPath(path, if (shadow) tokens.umbra else color, style = Stroke(1.8.dp.toPx(), cap = StrokeCap.Round, pathEffect = dash))
+            }
+            listOfNotNull(entry, exit).filter { it > 0f && it < 1f }.forEach { drawCircle(tokens.umbra, 3.dp.toPx(), point(it)) }
+            drawCircle(color, 3.8.dp.toPx(), apex)
+            drawCircle(tokens.inkSecondary, 2.dp.toPx(), point(0f))
+            drawCircle(tokens.inkSecondary, 2.dp.toPx(), point(1f))
+            if (train) {
+                for (i in 1..7) {
+                    val f = i / 8f
+                    drawCircle(if (inShadow(f)) tokens.umbra else color, 2.dp.toPx(), point(f))
                 }
             }
-            SatText(SatFmt.degrees(pass.maxElevationDeg, isFa), tokens.inkPrimary,
-                Modifier.absoluteOffset((maxWidth * peak - 12.dp).coerceIn(0.dp, (maxWidth - 30.dp).coerceAtLeast(0.dp)),
-                    ((height - 40.dp) * (1f - elevation)).coerceAtLeast(0.dp)), size = 11, strong = true)
-            Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                val points = if (showCompassMarks) listOf(0.0, 90.0, 180.0, 270.0) else listOf(pass.startAzimuthDeg, pass.endAzimuthDeg)
-                points.forEach { az -> SatText(SatFmt.compass(az, isFa), tokens.inkSecondary, size = 10) }
+            if (nowMs in pass.startTimeMs..pass.endTimeMs) {
+                drawCircle(tokens.inkPrimary, 4.5.dp.toPx(), point(fraction(nowMs)))
+                drawCircle(color, 2.5.dp.toPx(), point(fraction(nowMs)))
+            }
+            drawText(peakLabel, color = tokens.inkPrimary, topLeft = Offset(
+                (apex.x - peakLabel.size.width / 2f).coerceIn(0f, (size.width - peakLabel.size.width).coerceAtLeast(0f)),
+                (apex.y - peakLabel.size.height - 5.dp.toPx()).coerceAtLeast(0f)))
+            cardinalLabels.forEach { (az, label) ->
+                val at = skyPoint(az, 0.0)
+                val x = when (az) {
+                    90.0 -> at.x + 4.dp.toPx()
+                    270.0 -> at.x - label.size.width - 4.dp.toPx()
+                    else -> at.x - label.size.width / 2f
+                }
+                val y = if (az == 180.0) at.y + 2.dp.toPx() else at.y - label.size.height * .63f
+                drawText(label, color = tokens.inkSecondary, topLeft = Offset(
+                    x.coerceIn(0f, (size.width - label.size.width).coerceAtLeast(0f)),
+                    y.coerceIn(0f, (size.height - label.size.height).coerceAtLeast(0f))))
             }
         }
     }
+}
+
+internal fun satBearingBetween(from: Double, to: Double, fraction: Float): Double {
+    val delta = ((to - from + 540.0) % 360.0) - 180.0
+    return (from + fraction * delta + 360.0) % 360.0
 }
 
 @Composable
@@ -838,7 +872,7 @@ private fun PassQuality(data: SatPassUi, tokens: ZigSatTokens, isFa: Boolean) {
 internal fun SatPassesSheet(tokens: ZigSatTokens, isFa: Boolean, scope: SatelliteCategory, count: Int?,
     groups: List<SatNightGroup>, spotlight: SatSpotlightUi?, now: Long, realNow: Long, side: Boolean, onClose: () -> Unit,
     onClearScope: () -> Unit, onOpenSevenDay: () -> Unit, actionsFor: (SatPassUi) -> SatPassActions,
-    sourceModifier: @Composable (String) -> Modifier, tz: TimeZone) {
+    sourceModifier: @Composable (String) -> Modifier, tz: TimeZone, isOnline: Boolean = true) {
     val title = stringResource(R.string.sat_passes)
     val days = stringResource(if (count != null && groups.flatMap { it.passes }.let { it.isNotEmpty() && it.all { pass -> pass.isTrain } })
         R.string.sat_two_days else R.string.sat_three_days)
@@ -854,8 +888,12 @@ internal fun SatPassesSheet(tokens: ZigSatTokens, isFa: Boolean, scope: Satellit
                 Icon(Icons.Filled.Close, stringResource(R.string.sat_show_all), Modifier.size(14.dp), tint = tokens.inkPrimary)
             })
         }
-        spotlight?.let { SatSpotlightCard(it, tokens, isFa, actionsFor(it.pass), arcHeight = 96.dp,
-            nowMs = now, realNowMs = realNow, tz = tz) }
+        if (!isOnline && count != null) SatText(stringResource(R.string.sat_passes_cached), tokens.inkSecondary, size = 11)
+        spotlight?.let {
+            ZigMicroCaps(stringResource(if (it.isInProgress) R.string.sat_now else R.string.sat_soon), tokens, isFa = isFa)
+            SatSpotlightCard(it, tokens, isFa, actionsFor(it.pass), arcHeight = 96.dp, nowMs = now, realNowMs = realNow, tz = tz)
+            if (groups.isNotEmpty()) ZigMicroCaps(stringResource(R.string.sat_later), tokens, isFa = isFa)
+        }
         when (count) {
             null -> SatPassSkeletons(tokens)
             0 -> SatPassEmpty(tokens, isFa, if (scope == SatelliteCategory.ALL) null else SatFmt.categoryLabel(scope, isFa), onClearScope, onOpenSevenDay)

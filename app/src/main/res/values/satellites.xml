@@ -154,4 +154,7 @@
     <string name="sat_illumination">Illumination</string>
     <string name="sat_detection_yes">Naked-eye visible</string>
     <string name="sat_detection_no">Not visible</string>
+    <string name="sat_speed_spoken">kilometers per second</string>
+    <string name="sat_passes_cached">Offline · based on cached orbital data</string>
+    <string name="sat_sky_description">Sky path: rises %1$s, peaks at %2$s elevation, sets %3$s.</string>
 </resources>

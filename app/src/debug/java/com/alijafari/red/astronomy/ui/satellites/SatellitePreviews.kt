@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -67,8 +70,30 @@ private annotation class SatLocales
 @Preview(name = "Aether · Persian 130%", locale = "fa", widthDp = 340, heightDp = 730, fontScale = 1.3f)
 @Composable private fun AetherDetailCompact() = SatPreview(ThemeMode.LIGHT, detail = true, skin = SatSkin.AETHER)
 
-@SatLocales @Composable private fun AetherGlobe() = SatPreview(ThemeMode.DARK, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun SpatialPasses() = SatPreview(ThemeMode.WINE, SatPanel.Passes, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialDarkGlobe() = SatPreview(ThemeMode.DARK, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialDarkTime() = SatPreview(ThemeMode.DARK, SatPanel.Time, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialDarkPasses() = SatPreview(ThemeMode.DARK, SatPanel.Passes, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialDarkDetail() = SatPreview(ThemeMode.DARK, detail = true, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialLightGlobe() = SatPreview(ThemeMode.LIGHT, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialLightTime() = SatPreview(ThemeMode.LIGHT, SatPanel.Time, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialLightPasses() = SatPreview(ThemeMode.LIGHT, SatPanel.Passes, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialLightDetail() = SatPreview(ThemeMode.LIGHT, detail = true, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialWineGlobe() = SatPreview(ThemeMode.WINE, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialWineTime() = SatPreview(ThemeMode.WINE, SatPanel.Time, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialWinePasses() = SatPreview(ThemeMode.WINE, SatPanel.Passes, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun SpatialWineDetail() = SatPreview(ThemeMode.WINE, detail = true, skin = SatSkin.SPATIAL)
+@SatLocales @Composable private fun AetherDarkGlobe() = SatPreview(ThemeMode.DARK, skin = SatSkin.AETHER)
+@SatLocales @Composable private fun AetherDarkTime() = SatPreview(ThemeMode.DARK, SatPanel.Time, skin = SatSkin.AETHER)
+@SatLocales @Composable private fun AetherDarkPasses() = SatPreview(ThemeMode.DARK, SatPanel.Passes, skin = SatSkin.AETHER)
+@SatLocales @Composable private fun AetherDarkDetail() = SatPreview(ThemeMode.DARK, detail = true, skin = SatSkin.AETHER)
+@SatLocales @Composable private fun AetherLightGlobe() = SatPreview(ThemeMode.LIGHT, skin = SatSkin.AETHER)
+@SatLocales @Composable private fun AetherLightTime() = SatPreview(ThemeMode.LIGHT, SatPanel.Time, skin = SatSkin.AETHER)
+@SatLocales @Composable private fun AetherLightPasses() = SatPreview(ThemeMode.LIGHT, SatPanel.Passes, skin = SatSkin.AETHER)
+@SatLocales @Composable private fun AetherLightDetail() = SatPreview(ThemeMode.LIGHT, detail = true, skin = SatSkin.AETHER)
+@SatLocales @Composable private fun AetherWineGlobe() = SatPreview(ThemeMode.WINE, skin = SatSkin.AETHER)
+@SatLocales @Composable private fun AetherWineTime() = SatPreview(ThemeMode.WINE, SatPanel.Time, skin = SatSkin.AETHER)
+@SatLocales @Composable private fun AetherWinePasses() = SatPreview(ThemeMode.WINE, SatPanel.Passes, skin = SatSkin.AETHER)
+@SatLocales @Composable private fun AetherWineDetail() = SatPreview(ThemeMode.WINE, detail = true, skin = SatSkin.AETHER)
 
 private val tz = TimeZone.getTimeZone("Europe/London")
 private val now = Calendar.getInstance(tz).apply { clear(); set(2025, Calendar.NOVEMBER, 17, 18, 42) }.timeInMillis
@@ -100,7 +125,6 @@ internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detai
         listOf(samplePass(134, 68.0, 78), samplePass(229, 39.0, 65), samplePass(1440, 52.0, 73), samplePass(2880, 40.0, 58))
             .map { SatPassUi(passKey(live.satellite, it), live.satellite, shortNameOf(live.satellite, fa), it, SatNights.nightKey(it.startTimeMs, tz), null, false) }
     }
-    val offset = if (panel == SatPanel.Time) 70 else 0
     REDTheme(themeMode = theme, isPersian = fa, timestampMs = now) {
         SpatialThemeProvider(enabled = skin == SatSkin.SPATIAL, themeMode = theme) {
             AetherThemeProvider(enabled = skin == SatSkin.AETHER, themeMode = theme) {
@@ -110,16 +134,21 @@ internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detai
                         passes.map { it.pass }, null, emptyList(), now, now, false, {}, { _, _, _ -> }, null, {}, {})
                     else Box(Modifier.fillMaxSize().background(tokens.canvas)) {
                         val actions = SatPassActions({}, {}, {}, {})
-                        val state = SatellitesUiState(activePanel = panel, timeOffsetMin = offset)
+                        var state by remember(panel) { mutableStateOf(SatellitesUiState(activePanel = panel, timeOffsetMin = if (panel == SatPanel.Time) 70 else 0)) }
+                        val offset = state.timeOffsetMin
+                        val markers = listOf(SatTimeMarker(137, SatQuality.EXCELLENT), SatTimeMarker(232, SatQuality.VERY_GOOD))
+                        val setOffset: (Int) -> Unit = { state = state.copy(timeOffsetMin = it.coerceIn(-720, 720)) }
                         SatelliteHud(state, SatStatusData(offset == 0, offset, true, .8, now - 69_120_000L, TleDataSource.LIVE_NETWORK, fa),
-                            tokens, SatAlertsConfig(), live, passes.first(), now, tz, listOf(SatTimeMarker(137, SatQuality.EXCELLENT),
-                                SatTimeMarker(232, SatQuality.VERY_GOOD)), false, false, SatTimeActions({}, {}, {}, {}),
-                            onPanel = {}, onClose = {}, onLive = {}, onLocate = {}, onCycle = {}, onDetail = {}, onLighting = {}, onLegend = {},
+                            tokens, SatAlertsConfig(), live, passes.first(), now, tz, markers, false, false,
+                            SatTimeActions(setOffset, { setOffset(0) }, { nextSatelliteTime(markers, offset)?.let(setOffset) }, { setOffset(offset + it) }),
+                            onPanel = { state = state.copy(activePanel = if (state.activePanel == it) SatPanel.None else it) },
+                            onClose = { state = state.copy(activePanel = SatPanel.None) }, onLive = { setOffset(0) },
+                            onLocate = {}, onCycle = {}, onDetail = {}, onLighting = {}, onLegend = {},
                             globe = { projection, _, _ -> PreviewEarth(projection, tokens) },
                             sheet = { current, side -> if (current == SatPanel.Passes) SatPassesSheet(tokens, fa, state.scope, passes.size,
                                 SatNights.group(passes, now, tz, fa), SatNights.spotlight(passes, now, tz, fa), now, now,
-                                side, {}, {}, {}, { actions }, { Modifier }, tz) })
-                        if (panel != SatPanel.Passes) {
+                                side, { state = state.copy(activePanel = SatPanel.None) }, {}, {}, { actions }, { Modifier }, tz) })
+                        if (state.activePanel != SatPanel.Passes) {
                             val modifier = Modifier.align(Alignment.BottomCenter)
                             when (skin) {
                                 SatSkin.DEFAULT -> FloatingBottomBar(1, {}, modifier)

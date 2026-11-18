@@ -1,6 +1,9 @@
 package com.alijafari.red.astronomy.notification
 
 import android.content.Context
+import android.content.SharedPreferences
+import com.alijafari.red.astronomy.astro_engine.SatelliteItem
+import kotlin.math.abs
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -35,8 +38,14 @@ data class ScheduledNotificationItem(
     val contentEn: String = "",
     val contentFa: String = "",
     val deepLinkRoute: String = "",   // e.g. "satellite/iss_zarya" or "object/moon"
-    val manualPass: Boolean = false
+    val manualPass: Boolean = false,
+    val satelliteNoradId: Int = 0,
 ) {
+    fun coversSatellitePass(satellite: SatelliteItem, riseMs: Long): Boolean =
+        objectType == "SATELLITE" && abs(eventTimeMs - riseMs) <= 30_000L &&
+            (if (satelliteNoradId != 0) satelliteNoradId == satellite.noradId else
+                objectId == satellite.id || satellite.isTrain && objectId == "starlink_train")
+
     fun toJsonObject(): JSONObject {
         return JSONObject().apply {
             put("id", id)
@@ -65,6 +74,7 @@ data class ScheduledNotificationItem(
             put("contentFa", contentFa)
             put("deepLinkRoute", deepLinkRoute)
             put("manualPass", manualPass)
+            put("satelliteNoradId", satelliteNoradId)
         }
     }
 
@@ -96,7 +106,8 @@ data class ScheduledNotificationItem(
                 contentEn = json.optString("contentEn", ""),
                 contentFa = json.optString("contentFa", ""),
                 deepLinkRoute = json.optString("deepLinkRoute", ""),
-                manualPass = json.optBoolean("manualPass", false)
+                manualPass = json.optBoolean("manualPass", false),
+                satelliteNoradId = json.optInt("satelliteNoradId", 0),
             )
         }
     }
@@ -108,6 +119,16 @@ data class ScheduledNotificationItem(
 object AstroNotificationStore {
     private const val PREFS_NAME = "astro_notification_engine_prefs"
     private const val KEY_NOTIFICATIONS = "scheduled_notifications_json"
+
+    /** Preference callbacks are delivered on the main thread, including updates by workers. */
+    fun observe(context: Context, onChanged: () -> Unit): () -> Unit {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == null || key == KEY_NOTIFICATIONS) onChanged()
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        return { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
 
     @Synchronized
     fun getAll(context: Context): List<ScheduledNotificationItem> {

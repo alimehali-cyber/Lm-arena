@@ -55,7 +55,6 @@ import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.formatTleStalenessBadge
 import com.alijafari.red.astronomy.util.rememberIsNetworkOnline
 import java.util.TimeZone
-import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -270,35 +269,33 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     }
 
     var alarms by remember { mutableStateOf(AstroNotificationStore.getAll(context).filter { it.objectType == "SATELLITE" }) }
-    fun refreshAlarms() { alarms = AstroNotificationStore.getAll(context).filter { it.objectType == "SATELLITE" } }
-    fun refreshMonitoring(new: SatAlertsConfig, clearOld: Boolean = true) {
-        scope.launch {
-            withContext(Dispatchers.Default) {
-                if (clearOld) AstroNotificationManager.cancelRollingPassNotifications(context)
-                if (new.enabled) AstroNotificationManager.scheduleRollingSatellitePasses(context, location, new.satelliteIds, new.leadMinutes, scanDays = 7)
-            }
-            refreshAlarms()
+    DisposableEffect(context) {
+        val unsubscribe = AstroNotificationStore.observe(context) {
+            alarms = AstroNotificationStore.getAll(context).filter { it.objectType == "SATELLITE" }
         }
+        onDispose { unsubscribe() }
     }
     fun saveAlerts(new: SatAlertsConfig) {
         val persist = {
+            AstroNotificationManager.configureSatelliteMonitoring(context, new.enabled, location, new.satelliteIds, new.leadMinutes)
             config = new
-            listOf(prefs, legacy).forEach { store -> store.edit()
-                .putBoolean("auto_satellite_alerts_enabled", new.enabled).putBoolean("iss_auto_alerts_enabled", new.enabled)
-                .putStringSet("monitored_satellite_ids", new.satelliteIds)
-                .putInt("satellite_alert_lead_minutes", new.leadMinutes).putInt("iss_alert_lead_minutes", new.leadMinutes)
-                .putString("user_city_name_en", location.cityNameEn).putString("user_city_name_fa", location.cityNameFa)
-                .putFloat("user_lat", location.latitude.toFloat()).putFloat("user_lon", location.longitude.toFloat()).apply()
-            }
-            refreshMonitoring(new)
             screen.dismiss()
         }
         if (new.enabled) withNotificationPermission(persist) else persist()
     }
+    var alertPredictions by remember(location) { mutableStateOf<List<Pair<SatelliteItem, ISSEngine.ISSPass>>?>(null) }
+    val showAlerts = state.activePanel == SatPanel.Alerts
+    LaunchedEffect(showAlerts, location, tleRefreshTick, starlinkCacheVersion) {
+        if (showAlerts) {
+            alertPredictions = withContext(Dispatchers.Default) {
+                val ids = (SatelliteCatalog.satellites.map { it.id } + "starlink_train").toSet()
+                AstroNotificationManager.predictRollingPasses(context, location, ids, realTimeNowMs)
+            }
+        }
+    }
     val basePasses = remember(allUpcomingPasses, alarms, config, isFa, nights) {
         allUpcomingPasses?.map { (sat, pass) ->
-            val matching = alarms.filter { alarm -> (alarm.objectId == sat.id || sat.isTrain && alarm.objectId == "starlink_train") &&
-                abs(alarm.eventTimeMs - pass.startTimeMs) <= 30_000L }
+            val matching = alarms.filter { it.triggerTimeMs > realTimeNowMs && it.coversSatellitePass(sat, pass.startTimeMs) }
             SatPassUi(passKey(sat, pass), sat, shortNameOf(sat, isFa), pass, nights.key(pass.maxTimeMs),
                 matching.firstOrNull { it.manualPass }?.leadMinutes, config.enabled && matching.any { !it.manualPass })
         }
@@ -334,23 +331,20 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     val removedMessage = stringResource(R.string.sat_reminder_removed)
     val scheduledMessage = stringResource(R.string.sat_reminder_set, "%s")
     fun removeReminder(sat: SatelliteItem, pass: ISSEngine.ISSPass) {
-        AstroNotificationManager.cancelSpecificPassAlarm(context, sat.id, pass.startTimeMs)
-        refreshAlarms()
-        if (config.enabled) refreshMonitoring(config, clearOld = false)
+        AstroNotificationManager.cancelSpecificPassAlarm(context, sat, pass.startTimeMs)
+        if (config.enabled) AstroNotificationManager.requestRollingPassRefresh(context)
         feedback = SatFeedback(removedMessage)
     }
     fun setReminder(sat: SatelliteItem, pass: ISSEngine.ISSPass, lead: Int) {
         withNotificationPermission {
-            val prior = alarms.firstOrNull { it.manualPass && it.objectId == sat.id && abs(it.eventTimeMs - pass.startTimeMs) <= 30_000L }
+            val prior = alarms.firstOrNull { it.manualPass && it.coversSatellitePass(sat, pass.startTimeMs) }
             if (AstroNotificationManager.scheduleSpecificPassAlarm(context, sat, pass, location, lead)) {
-                refreshAlarms()
                 view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                 val at = SatFmt.clock(pass.startTimeMs - lead * MINUTE, isFa, tz)
                 feedback = SatFeedback(scheduledMessage.replace("%s", at)) {
-                    AstroNotificationManager.cancelSpecificPassAlarm(context, sat.id, pass.startTimeMs)
+                    AstroNotificationManager.cancelSpecificPassAlarm(context, sat, pass.startTimeMs)
                     if (prior != null) AstroNotificationManager.scheduleSpecificPassAlarm(context, sat, pass, location, prior.leadMinutes)
-                    refreshAlarms()
-                    if (config.enabled && prior == null) refreshMonitoring(config, clearOld = false)
+                    if (prior == null) AstroNotificationManager.requestRollingPassRefresh(context)
                     feedback = null
                 }
             }
@@ -453,11 +447,12 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                                         { focusItem(it.satellite) }, ::closePanel)
                                     SatPanel.Passes -> SatPassesSheet(tokens, isFa, selectedCategory, scopedPasses?.size, passesByNight,
                                         spotlight, currentSimulationMs, realTimeNowMs, side, ::closePanel, { screen.scope(SatelliteCategory.ALL) },
-                                        { selectedLiveState?.satellite?.let { detail(it) } }, ::passActions, sourceModifier, tz)
+                                        { selectedLiveState?.satellite?.let { detail(it) } }, ::passActions, sourceModifier, tz, isOnline)
                                     SatPanel.Alerts -> SatAlertsSheet(tokens, isFa, config, { ids, lead ->
-                                        basePasses.orEmpty().firstOrNull { row -> monitored(row.sat, ids) && row.pass.startTimeMs - lead * MINUTE > realTimeNowMs }
-                                            ?.let { row -> "${row.satName} · ${SatNights.title(row.nightKey, realTimeNowMs, tz, isFa)} " +
-                                                SatFmt.clock(row.pass.startTimeMs - lead * MINUTE, isFa, tz) }
+                                        alertPredictions.orEmpty().firstOrNull { (sat, pass) -> monitored(sat, ids) &&
+                                            pass.startTimeMs - lead * MINUTE > realTimeNowMs &&
+                                            alarms.none { it.manualPass && it.coversSatellitePass(sat, pass.startTimeMs) } }
+                                            ?.let { (sat, pass) -> "${shortNameOf(sat, isFa)} · " + SatFmt.dateTime(pass.startTimeMs - lead * MINUTE, isFa, tz) }
                                     }, ::closePanel, ::saveAlerts)
                                     SatPanel.Guide -> SatGuideSheet(tokens, isFa, ::closePanel)
                                     else -> Unit
@@ -469,8 +464,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
             }
             val pending = reminderTarget
             if (pending != null && activeDetail == null) {
-                val manual = alarms.firstOrNull { it.manualPass && it.objectId == pending.pass.sat.id &&
-                    abs(it.eventTimeMs - pending.pass.pass.startTimeMs) <= 30_000L }
+                val manual = alarms.firstOrNull { it.manualPass && it.coversSatellitePass(pending.pass.sat, pending.pass.pass.startTimeMs) }
                 SatReminderPopover(tokens, isFa, pending, manual?.leadMinutes, realTimeNowMs, tz,
                     onChoose = { lead -> setReminder(pending.pass.sat, pending.pass.pass, lead); reminderTarget = null },
                     onRemove = manual?.let { { removeReminder(pending.pass.sat, pending.pass.pass); reminderTarget = null } },
@@ -509,7 +503,10 @@ internal fun SatelliteHud(
         var focusHeight by remember { mutableStateOf(126.dp) }
         val bottom = navClearance + focusHeight + 3.dp
         val framing = with(density) { satelliteViewport(width.toPx(), height.toPx(), top.toPx(), (height - bottom).toPx()) }
-        val railTop = (height * framing.centerY - 90.dp).coerceIn(top, (height - navClearance - 228.dp).coerceAtLeast(top))
+        val railHeight = 228.dp
+        val tightHeight = height - bottom < top + railHeight
+        val railTop = (height * framing.centerY - 90.dp).coerceIn(top,
+            (height - railHeight - if (tightHeight) bottomInset else bottom).coerceAtLeast(top))
         val isFa = status.isFa
         val panel = state.activePanel
         val simulated = state.timeOffsetMin != 0
@@ -524,9 +521,9 @@ internal fun SatelliteHud(
             val alerts = if (config.enabled) stringResource(R.string.sat_alerts_tooltip, satLeadLabel(config.leadMinutes, isFa),
                 SatFmt.int(config.satelliteIds.size, isFa)) else stringResource(R.string.sat_alerts)
             ZigSatIconButton(Icons.Filled.NotificationsNone, alerts, tokens, { onPanel(SatPanel.Alerts) },
-                dot = if (config.enabled) tokens.live else null, hud = true, testTag = "sat_alerts")
+                dot = if (config.enabled) tokens.live else null, hud = true, tooltip = alerts, testTag = "sat_alerts")
             ZigSatIconButton(Icons.Filled.HelpOutline, stringResource(R.string.sat_help), tokens, { onPanel(SatPanel.Guide) },
-                hud = true, testTag = "sat_guide")
+                hud = true, dot = if (firstRun) tokens.live else null, pulseDot = firstRun, testTag = "sat_guide")
         }
         AnimatedVisibility(firstRun && panel == SatPanel.None,
             Modifier.align(Alignment.TopEnd).padding(top = top, end = padding), enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
@@ -544,7 +541,8 @@ internal fun SatelliteHud(
             ZigSatIconButton(Icons.Filled.CenterFocusWeak, stringResource(R.string.sat_locate), tokens, onLocate,
                 visualSize = 44.dp, hud = true, enabled = !centered, testTag = "map_reset_view")
         }
-        Box(Modifier.align(Alignment.BottomCenter).padding(start = padding, end = padding, bottom = navClearance)) {
+        Box(Modifier.align(Alignment.BottomCenter).padding(start = padding,
+            end = if (tightHeight) 68.dp else padding, bottom = navClearance)) {
             AnimatedContent(targetState = panel == SatPanel.Time, transitionSpec = {
                 if (reduce) fadeIn(tween(120)) togetherWith fadeOut(tween(120))
                 else if (targetState) (slideInVertically(tween(240)) { it / 4 } + fadeIn(tween(210))) togetherWith fadeOut(tween(160))

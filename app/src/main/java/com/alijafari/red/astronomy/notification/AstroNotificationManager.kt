@@ -8,6 +8,8 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.alijafari.red.astronomy.astro_engine.ISSEngine
@@ -15,6 +17,7 @@ import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.astro_engine.SatelliteEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteItem
 import com.alijafari.red.astronomy.astro_engine.StarlinkTrainManager
+import com.alijafari.red.astronomy.astro_engine.TimeEngine
 import com.alijafari.red.astronomy.data.repository.TleRepository
 import com.alijafari.red.astronomy.data.worker.IssTleWorker
 import com.alijafari.red.astronomy.data.worker.TleSyncWorker
@@ -47,6 +50,10 @@ object AstroNotificationManager {
     private const val KEY_ALERT_LEAD_MINUTES = "satellite_alert_lead_minutes"
     private const val KEY_ISS_LEAD_MINUTES = "iss_alert_lead_minutes"
     private const val WORK_NAME = "iss_pass_scheduler_work"
+    private const val REFRESH_WORK_NAME = "satellite_pass_refresh"
+    // Serialize updates, but do not hold the lock during multi-day orbital prediction.
+    private val passLock = Any()
+    private var rollingRevision = 0L
     const val STARLINK_TRAIN_ALERT_SCAN_DAYS = 2
     private const val STARLINK_TRAIN_ALERT_HORIZON_MS = STARLINK_TRAIN_ALERT_SCAN_DAYS * 24L * 3_600_000L
 
@@ -73,8 +80,9 @@ object AstroNotificationManager {
         val endDirEn = getAzimuthCardinalEn(pass.endAzimuthDeg)
         val durMinutes = (pass.passDurationSec / 60).coerceAtLeast(1)
 
-        val formattedTimeFa = formatTimeMs(pass.startTimeMs, isFa = true)
-        val formattedTimeEn = formatTimeMs(pass.startTimeMs, isFa = false)
+        val zone = TimeEngine.resolveTimeZone(userLocation.timezoneId)
+        val formattedTimeEn = SimpleDateFormat("HH:mm", Locale.US).apply { timeZone = zone }.format(Date(pass.startTimeMs))
+        val formattedTimeFa = TimeEngine.formatPersianNumbers(formattedTimeEn)
 
         val leadStrFa = if (leadMinutes == 1440) "۱ روز" else "$leadMinutes دقیقه"
         val leadStrEn = if (leadMinutes == 1440) "1 day" else "$leadMinutes min"
@@ -107,10 +115,11 @@ object AstroNotificationManager {
             endDirEn = endDirEn,
             durationSec = pass.passDurationSec.toInt(),
             titleEn = titleEn,
-            titleFa = titleFa,
+            titleFa = TimeEngine.formatPersianNumbers(titleFa),
             contentEn = contentEn,
-            contentFa = contentFa,
-            deepLinkRoute = "satellite/${satellite.id}"
+            contentFa = TimeEngine.formatPersianNumbers(contentFa),
+            deepLinkRoute = "satellite/${satellite.id}",
+            satelliteNoradId = satellite.noradId
         )
     }
 
@@ -124,27 +133,37 @@ object AstroNotificationManager {
         pass: ISSEngine.ISSPass,
         userLocation: UserLocation,
         leadMinutes: Int
-    ): Boolean {
-        val item = createScheduledPassItem(satellite, pass, userLocation, leadMinutes) ?: return false
-        cancelSpecificPassAlarm(context, satellite.id, pass.startTimeMs)
-        cancelNotification(context, item.id)
-        AstroNotificationStore.save(context, item.copy(manualPass = true))
+    ): Boolean = synchronized(passLock) {
+        val item = createScheduledPassItem(satellite, pass, userLocation, leadMinutes)?.copy(manualPass = true)
+            ?: return@synchronized false
+        // A manual lead replaces rolling coverage instead of sending two notifications for one rise.
+        removePassAlarms(context, AstroNotificationStore.getAll(context).filter { it.coversSatellitePass(satellite, pass.startTimeMs) })
+        AstroNotificationStore.save(context, item)
         setAlarmWithAndroidSystem(context, item)
-        Log.i(TAG, "Scheduled individual pass notification for ${satellite.nameEn} at ${Date(item.triggerTimeMs)}")
-        return true
+        true
     }
 
-    fun cancelSpecificPassAlarm(context: Context, satelliteId: String, riseMs: Long) {
-        AstroNotificationStore.getAll(context)
-            .filter { it.manualPass && it.objectId == satelliteId && kotlin.math.abs(it.eventTimeMs - riseMs) <= 30_000L }
-            .forEach { cancelNotification(context, it.id) }
+    fun cancelSpecificPassAlarm(context: Context, satellite: SatelliteItem, riseMs: Long) = synchronized(passLock) {
+        removePassAlarms(context, AstroNotificationStore.getAll(context).filter { it.manualPass && it.coversSatellitePass(satellite, riseMs) })
     }
 
-    fun cancelRollingPassNotifications(context: Context) {
-        AstroNotificationStore.getAll(context)
-            .filter { it.objectType == "SATELLITE" && !it.manualPass }
-            .forEach { cancelNotification(context, it.id) }
-        cancelIssWorkManager(context)
+    /** Persist before dispatch, so leaving the tab or a process restart cannot undo Save. */
+    fun configureSatelliteMonitoring(context: Context, enabled: Boolean, userLocation: UserLocation,
+        selectedIds: Set<String>, leadMinutes: Int) = synchronized(passLock) {
+        rollingRevision++
+        val actuallyEnabled = enabled && selectedIds.isNotEmpty()
+        savePassMonitoringPreferences(context, userLocation, selectedIds, leadMinutes, actuallyEnabled)
+        updateStoredLocation(context, userLocation)
+        removePassAlarms(context, AstroNotificationStore.getAll(context).filter { it.objectType == "SATELLITE" && !it.manualPass })
+        if (actuallyEnabled) {
+            enqueueIssWorkManager(context)
+            requestRollingPassRefresh(context)
+        } else cancelIssWorkManager(context)
+    }
+
+    private fun removePassAlarms(context: Context, items: List<ScheduledNotificationItem>) {
+        items.forEach { cancelAlarmOnly(context, it) }
+        AstroNotificationStore.removeByIds(context, items.map { it.id }.toSet())
     }
 
     /**
@@ -196,158 +215,85 @@ object AstroNotificationManager {
         nowMs: Long = System.currentTimeMillis(),
         starlinkTlesOverride: List<ISSEngine.TLEData>? = null
     ) {
-        val normalizedSelectedIds = selectedSatIds.map { id ->
-            if (id == "starlink_train" || id.startsWith("starlink_train_")) "starlink_train" else id
-        }.toSet()
-        val wantsStarlinkTrain = normalizedSelectedIds.isEmpty() || "starlink_train" in normalizedSelectedIds
-
-        val allCatalog = SatelliteCatalog.satellites
-        val staticTargets = if (normalizedSelectedIds.isEmpty()) {
-            allCatalog.filter { it.isNakedEyeCandidate }
-        } else {
-            allCatalog.filter { it.id in normalizedSelectedIds }
+        val requested = selectedSatIds.ifEmpty {
+            (SatelliteCatalog.satellites.filter { it.isNakedEyeCandidate }.map { it.id } + "starlink_train").toSet()
+        }.map { if (it.startsWith("starlink_train_")) "starlink_train" else it }.toSet()
+        val revision = synchronized(passLock) {
+            savePassMonitoringPreferences(context, userLocation, requested, leadMinutes, enabled = true)
+            updateStoredLocation(context, userLocation)
+            enqueueIssWorkManager(context)
+            ++rollingRevision
         }
-
-        val primaryStarlinkTrain: SatelliteItem? = if (wantsStarlinkTrain) {
-            val starlinkTles = starlinkTlesOverride ?: run {
-                val tleRepo = TleRepository.getInstance(context)
-                tleRepo.ensureStarlinkDiskCacheLoaded()
-                tleRepo.getStarlinkTles()
-            }
-            val activeTrains = StarlinkTrainManager.detectActiveTrains(starlinkTles, nowMs)
-            activeTrains.firstOrNull()?.leaderItem?.copy(id = "starlink_train")?.also { aliased ->
-                SatelliteCatalog.registerDynamicStarlinks(listOf(aliased), primaryTrain = aliased)
-            }
-        } else {
-            null
-        }
-
-        val targetSatellites = if (primaryStarlinkTrain != null) {
-            staticTargets + primaryStarlinkTrain
-        } else {
-            staticTargets
-        }
-
-        val targetSatIds = targetSatellites.map { it.id }.toSet()
-
-        // 1. Cancel and remove obsolete future alarms for these satellites (and any prior starlink_train alarms)
-        val existingItems = AstroNotificationStore.getAll(context)
-        val obsoleteItems = existingItems.filter { item ->
-            item.objectType == "SATELLITE" && !item.manualPass && (
-                item.objectId in targetSatIds ||
-                    (wantsStarlinkTrain && (item.objectId == "starlink_train" || item.objectId.startsWith("starlink_train_")))
-                )
-        }
-        for (obsItem in obsoleteItems) {
-            cancelAlarmOnly(context, obsItem)
-        }
-        if (obsoleteItems.isNotEmpty()) {
-            AstroNotificationStore.removeByIds(context, obsoleteItems.map { it.id }.toSet())
-            Log.d(TAG, "Cleared ${obsoleteItems.size} obsolete pass alarms before rescheduling window")
-        }
-
-        // 2. Calculate newly predicted upcoming visible passes using local SGP4 & cached TLEs
-        //    (capped to 2 days / 48 hours for "starlink_train" due to active orbit-raising thrust)
-        val newlyScheduledItems = mutableListOf<ScheduledNotificationItem>()
-        for (sat in targetSatellites) {
-            val isTrainTarget = sat.id == "starlink_train" || sat.isTrain
-            val effectiveScanDays = if (isTrainTarget) {
-                scanDays.coerceAtMost(STARLINK_TRAIN_ALERT_SCAN_DAYS)
-            } else {
-                scanDays
-            }
-            val maxPassStartMs = if (isTrainTarget) {
-                nowMs + STARLINK_TRAIN_ALERT_HORIZON_MS
-            } else {
-                Long.MAX_VALUE
-            }
-            val tle = SatelliteEngine.getEffectiveTle(sat)
-            val passes = ISSEngine.predictPasses(
-                userLatDeg = userLocation.latitude,
-                userLonDeg = userLocation.longitude,
-                startTimestampMs = nowMs,
-                tle = tle,
-                scanDays = effectiveScanDays,
-                visibleOnly = true,
-                standardMag = sat.standardMagnitude
-            )
-
-            // Strictly visible passes meeting naked-eye observational criteria within target lookahead
-            val validPasses = passes.filter { pass ->
-                pass.isVisible &&
-                    pass.startTimeMs <= maxPassStartMs &&
-                    pass.maxElevationDeg >= 10.0 &&
-                    pass.passDurationSec >= 30
-            }
-
-            for (pass in validPasses) {
-                if (existingItems.any { it.manualPass && it.objectId == sat.id &&
-                        kotlin.math.abs(it.eventTimeMs - pass.startTimeMs) <= 30_000L }) continue
-                val item = createScheduledPassItem(
-                    satellite = sat,
-                    pass = pass,
-                    userLocation = userLocation,
-                    leadMinutes = leadMinutes,
-                    nowMs = nowMs
-                )
-                if (item != null) {
-                    newlyScheduledItems.add(item)
-                    setAlarmWithAndroidSystem(context, item)
-                }
-            }
-        }
-
-        // 3. Persist all newly scheduled items in local store
-        if (newlyScheduledItems.isNotEmpty()) {
-            AstroNotificationStore.saveAll(context, newlyScheduledItems)
-            Log.i(TAG, "Successfully scheduled and stored ${newlyScheduledItems.size} upcoming passes")
-        }
-
-        // 4. Save configuration preferences for background sync & reboot restoration
-        //    Preserve user-selected IDs (including "starlink_train") even if no train is active right now
-        val persistedMonitoredIds = if (normalizedSelectedIds.isNotEmpty()) {
-            normalizedSelectedIds
-        } else {
-            (staticTargets.map { it.id } + "starlink_train").toSet()
-        }
-        savePassMonitoringPreferences(context, userLocation, persistedMonitoredIds, leadMinutes)
-        updateStoredLocation(context, userLocation)
-        enqueueIssWorkManager(context)
+        replaceRollingPasses(context, userLocation, requested, leadMinutes, scanDays, nowMs, revision, starlinkTlesOverride)
     }
 
-    /**
-     * Refreshes satellite pass schedules when updated TLE orbital data is retrieved online
-     * or when triggered by background workers.
-     */
+    internal fun predictRollingPasses(context: Context, location: UserLocation, ids: Set<String>, nowMs: Long,
+        scanDays: Int = 7, starlinkTlesOverride: List<ISSEngine.TLEData>? = null): List<Pair<SatelliteItem, ISSEngine.ISSPass>> {
+        val targets = SatelliteCatalog.satellites.filter { it.id in ids }.toMutableList()
+        if ("starlink_train" in ids) {
+            val tles = starlinkTlesOverride ?: TleRepository.getInstance(context).run {
+                ensureStarlinkDiskCacheLoaded()
+                getStarlinkTles()
+            }
+            StarlinkTrainManager.detectActiveTrains(tles, nowMs).firstOrNull()?.leaderItem?.copy(id = "starlink_train")?.let { train ->
+                SatelliteCatalog.registerDynamicStarlinks(listOf(train), primaryTrain = train)
+                targets.add(train)
+            }
+        }
+        return targets.flatMap { sat ->
+            val days = if (sat.isTrain) scanDays.coerceAtMost(STARLINK_TRAIN_ALERT_SCAN_DAYS) else scanDays
+            ISSEngine.predictPasses(location.latitude, location.longitude, nowMs, tle = SatelliteEngine.getEffectiveTle(sat),
+                scanDays = days, visibleOnly = true, standardMag = sat.standardMagnitude).asSequence()
+                .filter { it.isVisible && it.maxElevationDeg >= 10.0 && it.passDurationSec >= 30 &&
+                    (!sat.isTrain || it.startTimeMs <= nowMs + STARLINK_TRAIN_ALERT_HORIZON_MS) }
+                .map { sat to it }.toList()
+        }.sortedBy { it.second.startTimeMs }
+    }
+
+    private fun replaceRollingPasses(context: Context, location: UserLocation, ids: Set<String>, leadMinutes: Int,
+        scanDays: Int, nowMs: Long, revision: Long, starlinkTlesOverride: List<ISSEngine.TLEData>? = null) {
+        val predicted = predictRollingPasses(context, location, ids, nowMs, scanDays, starlinkTlesOverride)
+        synchronized(passLock) {
+            // A newer settings change/refresh supersedes this prediction, including switching off.
+            if (revision != rollingRevision) return
+            val existing = AstroNotificationStore.getAll(context).filter { it.objectType == "SATELLITE" }
+            val manual = existing.filter { it.manualPass }
+            val next = predicted.mapNotNull { (sat, pass) ->
+                if (manual.any { it.coversSatellitePass(sat, pass.startTimeMs) }) null
+                else createScheduledPassItem(sat, pass, location, leadMinutes, nowMs)
+            }
+            val nextIds = next.map { it.id }.toSet()
+            removePassAlarms(context, existing.filter { !it.manualPass && it.id !in nextIds })
+            if (next.isNotEmpty()) AstroNotificationStore.saveAll(context, next)
+            next.forEach { setAlarmWithAndroidSystem(context, it) }
+        }
+    }
+
+    private data class RollingSettings(val revision: Long, val location: UserLocation, val ids: Set<String>, val lead: Int)
+
+    /** A refresh (from TLE sync or WorkManager) never changes the user's enabling preference. */
     fun refreshSatellitePassSchedulesIfEnabled(context: Context) {
-        val prefs = context.getSharedPreferences(ASTRO_PREFS, Context.MODE_PRIVATE)
-        val isAutoEnabled = prefs.getBoolean(KEY_AUTO_SATELLITE_ALERTS, false) ||
-                prefs.getBoolean(KEY_ISS_AUTO_ALERTS, false)
+        val settings = synchronized(passLock) {
+            val prefs = context.getSharedPreferences(ASTRO_PREFS, Context.MODE_PRIVATE)
+            if (!prefs.getBoolean(KEY_AUTO_SATELLITE_ALERTS, prefs.getBoolean(KEY_ISS_AUTO_ALERTS, false))) return
+            val ids = prefs.getStringSet(KEY_MONITORED_SAT_IDS, null)?.toSet() ?: setOf("iss_zarya")
+            val location = UserLocation(
+                cityNameFa = prefs.getString("user_city_name_fa", null) ?: "نورآباد ممسنی",
+                cityNameEn = prefs.getString("user_city_name_en", null) ?: "Noorabad Mamasani",
+                latitude = prefs.getFloat("user_lat", 30.1132f).toDouble(),
+                longitude = prefs.getFloat("user_lon", 51.5217f).toDouble(),
+                timezoneId = prefs.getString("user_timezone_id", null) ?: java.util.TimeZone.getDefault().id,
+            )
+            RollingSettings(++rollingRevision, location, ids, prefs.getInt(KEY_ALERT_LEAD_MINUTES, prefs.getInt(KEY_ISS_LEAD_MINUTES, 10)))
+        }
+        replaceRollingPasses(context, settings.location, settings.ids, settings.lead, 7, System.currentTimeMillis(), settings.revision)
+    }
 
-        if (!isAutoEnabled) return
-
-        val satIds = prefs.getStringSet(KEY_MONITORED_SAT_IDS, null) ?: setOf("iss_zarya")
-        val leadMinutes = prefs.getInt(KEY_ALERT_LEAD_MINUTES, prefs.getInt(KEY_ISS_LEAD_MINUTES, 10))
-        val lat = prefs.getFloat("user_lat", 30.1132f).toDouble()
-        val lon = prefs.getFloat("user_lon", 51.5217f).toDouble()
-        val cityNameFa = prefs.getString("user_city_name_fa", "نورآباد ممسنی") ?: "نورآباد ممسنی"
-        val cityNameEn = prefs.getString("user_city_name_en", "Noorabad Mamasani") ?: "Noorabad Mamasani"
-
-        val location = UserLocation(
-            cityNameFa = cityNameFa,
-            cityNameEn = cityNameEn,
-            latitude = lat,
-            longitude = lon
-        )
-
-        Log.i(TAG, "Refreshing satellite pass schedule with updated orbital data for ${satIds.size} satellites...")
-        scheduleRollingSatellitePasses(
-            context = context,
-            userLocation = location,
-            selectedSatIds = satIds,
-            leadMinutes = leadMinutes,
-            scanDays = 7
-        )
+    fun requestRollingPassRefresh(context: Context) {
+        runCatching {
+            WorkManager.getInstance(context).enqueueUniqueWork(REFRESH_WORK_NAME, ExistingWorkPolicy.REPLACE,
+                OneTimeWorkRequestBuilder<IssPassSchedulerWorker>().build())
+        }.onFailure { Log.w(TAG, "Could not enqueue pass refresh", it) }
     }
 
     /**
@@ -545,7 +491,8 @@ object AstroNotificationManager {
     /**
      * Cancels all scheduled satellite pass notifications across all satellites.
      */
-    fun cancelAllPassNotifications(context: Context) {
+    fun cancelAllPassNotifications(context: Context) = synchronized(passLock) {
+        rollingRevision++
         val items = AstroNotificationStore.getAll(context).filter { it.objectType == "SATELLITE" }
         for (item in items) {
             cancelAlarmOnly(context, item)
@@ -647,7 +594,7 @@ object AstroNotificationManager {
     fun enqueueIssWorkManager(context: Context) {
         try {
             val workRequest = PeriodicWorkRequestBuilder<IssPassSchedulerWorker>(12, TimeUnit.HOURS)
-                .build()
+                .setInitialDelay(12, TimeUnit.HOURS).build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
                 ExistingPeriodicWorkPolicy.UPDATE,
@@ -660,30 +607,27 @@ object AstroNotificationManager {
 
     fun cancelIssWorkManager(context: Context) {
         try {
-            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+            WorkManager.getInstance(context).also {
+                it.cancelUniqueWork(WORK_NAME)
+                it.cancelUniqueWork(REFRESH_WORK_NAME)
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    private fun savePassMonitoringPreferences(
-        context: Context,
-        userLocation: UserLocation,
-        selectedSatIds: Set<String>,
-        leadMinutes: Int
-    ) {
-        val astroPrefs = context.getSharedPreferences(ASTRO_PREFS, Context.MODE_PRIVATE)
-        astroPrefs.edit()
-            .putBoolean(KEY_AUTO_SATELLITE_ALERTS, true)
-            .putBoolean(KEY_ISS_AUTO_ALERTS, true)
-            .putStringSet(KEY_MONITORED_SAT_IDS, selectedSatIds)
-            .putInt(KEY_ALERT_LEAD_MINUTES, leadMinutes)
-            .putInt(KEY_ISS_LEAD_MINUTES, leadMinutes)
-            .putString("user_city_name_fa", userLocation.cityNameFa)
-            .putString("user_city_name_en", userLocation.cityNameEn)
-            .putFloat("user_lat", userLocation.latitude.toFloat())
-            .putFloat("user_lon", userLocation.longitude.toFloat())
-            .apply()
+    private fun savePassMonitoringPreferences(context: Context, location: UserLocation,
+        selectedSatIds: Set<String>, leadMinutes: Int, enabled: Boolean) {
+        listOf(ASTRO_PREFS, "astro_app_prefs").forEach { name ->
+            context.getSharedPreferences(name, Context.MODE_PRIVATE).edit()
+                .putBoolean(KEY_AUTO_SATELLITE_ALERTS, enabled)
+                .putBoolean(KEY_ISS_AUTO_ALERTS, enabled)
+                .putStringSet(KEY_MONITORED_SAT_IDS, selectedSatIds)
+                .putInt(KEY_ALERT_LEAD_MINUTES, leadMinutes)
+                .putInt(KEY_ISS_LEAD_MINUTES, leadMinutes)
+                .putString("user_timezone_id", location.timezoneId)
+                .apply()
+        }
     }
 
     private fun updateStoredLocation(context: Context, loc: UserLocation) {
@@ -697,6 +641,7 @@ object AstroNotificationManager {
         astroPrefs.edit()
             .putString("user_city_name_fa", loc.cityNameFa)
             .putString("user_city_name_en", loc.cityNameEn)
+            .putString("user_timezone_id", loc.timezoneId)
             .putFloat("user_lat", loc.latitude.toFloat())
             .putFloat("user_lon", loc.longitude.toFloat())
             .apply()
@@ -719,12 +664,6 @@ object AstroNotificationManager {
                 Math.sin(dLon / 2) * Math.sin(dLon / 2)
         val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
         return r * c
-    }
-
-    private fun formatTimeMs(timeMs: Long, isFa: Boolean): String {
-        val locale = if (isFa) Locale("fa") else Locale.ENGLISH
-        val sdf = SimpleDateFormat("HH:mm", locale)
-        return sdf.format(Date(timeMs))
     }
 
     private fun getAzimuthCardinalFa(azDeg: Double): String {
