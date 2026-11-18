@@ -23,11 +23,13 @@ import java.time.Instant
  * Every group below runs a real engine entry point over a fixed grid of inputs and fingerprints the
  * complete output (`toString()` of the result data classes, which prints every Double in its exact
  * round-trip form) with SHA-256. The fingerprints in `src/test/resources/astro-goldens.txt` were
- * recorded by `.github/workflows/astro-goldens.yml` from the engine code *before* the start-up
- * performance changes, so this test fails if any later change alters any output at all.
+ * recorded by `.github/workflows/astro-goldens.yml` from a reviewed engine/catalog revision, so this
+ * test fails if any later change alters any output at all. The checked-in baseline may be regenerated
+ * only for an intentional output change (for example, a reviewed catalog addition), never as a way to
+ * silence an unexplained test failure.
  *
- * Recording: set `ASTRO_GOLDENS_RECORD=true`. Recording refuses to overwrite an existing file, so a
- * re-baseline is always a deliberate act (delete the file first).
+ * Recording: set `ASTRO_GOLDENS_RECORD=true`. Recording refuses to overwrite an existing file; the
+ * workflow requires an explicit rebaseline request before replacing it.
  */
 class AstroBitIdentityTest {
 
