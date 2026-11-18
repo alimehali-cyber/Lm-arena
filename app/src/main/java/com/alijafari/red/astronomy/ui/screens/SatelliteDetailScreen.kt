@@ -74,10 +74,14 @@ fun SatelliteDetailScreen(
     val isFa = language == AppLanguage.PERSIAN
     // Preserve the selected dynamic SatelliteItem: an unresolved catalogue ID must not fall
     // through a generic lookup and accidentally display the ISS in another craft's Detail.
-    val state = remember(satelliteItem, simulationTimestampMs, userLocation, starlinkCacheVersion) {
-        SatelliteEngine.calculateSatelliteState(satelliteItem, simulationTimestampMs, userLocation.latitude,
-            userLocation.longitude, userLocation.elevationMeters)
+    val latestState by produceState<SatelliteLiveState?>(null, satelliteItem, simulationTimestampMs, userLocation, starlinkCacheVersion) {
+        value = withContext(Dispatchers.Default) {
+            SatelliteEngine.calculateSatelliteState(satelliteItem, simulationTimestampMs, userLocation.latitude,
+                userLocation.longitude, userLocation.elevationMeters)
+        }
     }
+    // Do not show a previous craft while the new one is being propagated.
+    val state = latestState?.takeIf { it.satellite.id == satelliteItem.id }
     val futurePosition by produceState<Geo?>(null, satelliteItem, simulationTimestampMs, starlinkCacheVersion) {
         value = withContext(Dispatchers.Default) {
             runCatching { sgp4Ephemeris(satelliteItem).at(simulationTimestampMs + 10_000L) }.getOrNull()
@@ -86,7 +90,7 @@ fun SatelliteDetailScreen(
     var predicted by remember(satelliteItem.id, userLocation) { mutableStateOf<List<ISSEngine.ISSPass>?>(null) }
     val days = 7
     val bucket = simulationTimestampMs / 900_000L * 900_000L - 900_000L
-    LaunchedEffect(satelliteItem.id, userLocation, bucket, starlinkCacheVersion, state.tleMetadata?.tleData) {
+    LaunchedEffect(satelliteItem.id, userLocation, bucket, starlinkCacheVersion, state?.tleMetadata?.tleData) {
         predicted = withContext(Dispatchers.Default) {
             ISSEngine.predictPasses(userLocation.latitude, userLocation.longitude, bucket,
                 tle = SatelliteEngine.getEffectiveTle(satelliteItem), scanDays = days + 1,
@@ -95,10 +99,20 @@ fun SatelliteDetailScreen(
     }
     val start = simulationTimestampMs
     val upcoming = predicted?.filter { it.endTimeMs > start && it.startTimeMs <= start + days * 86_400_000L }
-    SatelliteDetailContent(satelliteItem, state, userLocation, isFa, skin, themeMode, upcoming,
-        preselectedPass, reminderAlarms, start, System.currentTimeMillis(), isSimulated, onBack, onSetReminder,
-        onRemoveReminder, { onShowOnGlobe?.invoke(satelliteItem) }, { onSpotInAr?.invoke(satelliteItem) }, modifier,
-        futurePosition = futurePosition)
+    if (state != null) {
+        SatelliteDetailContent(satelliteItem, state, userLocation, isFa, skin, themeMode, upcoming,
+            preselectedPass, reminderAlarms, start, System.currentTimeMillis(), isSimulated, onBack, onSetReminder,
+            onRemoveReminder, { onShowOnGlobe?.invoke(satelliteItem) }, { onSpotInAr?.invoke(satelliteItem) }, modifier,
+            futurePosition = futurePosition)
+    } else {
+        BackHandler(onBack = onBack)
+        val tokens = remember(skin, themeMode) { zigSatTokens(skin, themeMode) }
+        Box(Modifier.fillMaxSize().background(tokens.canvas).statusBarsPadding().padding(16.dp)) {
+            ZigSatIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.sat_detail_back), tokens, onBack,
+                modifier = Modifier.align(Alignment.TopStart).layoutRole(LayoutRole.Mirrors))
+            SatText(stringResource(R.string.sat_loading), tokens.inkSecondary, Modifier.align(Alignment.Center))
+        }
+    }
 }
 
 /** Presentation-only body also used by the deterministic preview matrix. */

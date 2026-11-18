@@ -241,4 +241,5 @@
     <string name="sat_scope_all">All %1$s</string>
     <string name="sat_low_elevation_reason">Elevation %1$s is above or at the horizon but below the 10° observing threshold.</string>
     <string name="sat_tianhe_module">Tianhe module</string>
+    <string name="sat_loading">Calculating position…</string>
 </resources>

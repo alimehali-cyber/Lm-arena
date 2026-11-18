@@ -241,4 +241,5 @@
     <string name="sat_scope_all">همهٔ %1$s مورد</string>
     <string name="sat_low_elevation_reason">زاویهٔ %1$s در افق یا بالای آن است، اما از آستانهٔ رصد ۱۰ درجه کمتر است.</string>
     <string name="sat_tianhe_module">ماژول تیانهه</string>
+    <string name="sat_loading">در حال محاسبهٔ موقعیت…</string>
 </resources>
