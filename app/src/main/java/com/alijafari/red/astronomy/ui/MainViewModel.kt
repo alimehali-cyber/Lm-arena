@@ -89,6 +89,10 @@ data class MainUiState(
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+    private val _satellitesChromeOccluded = MutableStateFlow(false)
+    val satellitesChromeOccluded: StateFlow<Boolean> = _satellitesChromeOccluded.asStateFlow()
+    fun setSatellitesChromeOccluded(occluded: Boolean) { _satellitesChromeOccluded.value = occluded }
+
 
     private val repository = AppRepository(AppDatabase.getDatabase(application))
     private val prefs = application.getSharedPreferences("astro_app_prefs", Context.MODE_PRIVATE)

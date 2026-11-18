@@ -124,13 +124,27 @@ object AstroNotificationManager {
         pass: ISSEngine.ISSPass,
         userLocation: UserLocation,
         leadMinutes: Int
-    ) {
-        val item = createScheduledPassItem(satellite, pass, userLocation, leadMinutes) ?: return
-        // Cancel existing identical pass alarm if already present before saving
+    ): Boolean {
+        val item = createScheduledPassItem(satellite, pass, userLocation, leadMinutes) ?: return false
+        cancelSpecificPassAlarm(context, satellite.id, pass.startTimeMs)
         cancelNotification(context, item.id)
-        AstroNotificationStore.save(context, item)
+        AstroNotificationStore.save(context, item.copy(manualPass = true))
         setAlarmWithAndroidSystem(context, item)
         Log.i(TAG, "Scheduled individual pass notification for ${satellite.nameEn} at ${Date(item.triggerTimeMs)}")
+        return true
+    }
+
+    fun cancelSpecificPassAlarm(context: Context, satelliteId: String, riseMs: Long) {
+        AstroNotificationStore.getAll(context)
+            .filter { it.manualPass && it.objectId == satelliteId && kotlin.math.abs(it.eventTimeMs - riseMs) <= 30_000L }
+            .forEach { cancelNotification(context, it.id) }
+    }
+
+    fun cancelRollingPassNotifications(context: Context) {
+        AstroNotificationStore.getAll(context)
+            .filter { it.objectType == "SATELLITE" && !it.manualPass }
+            .forEach { cancelNotification(context, it.id) }
+        cancelIssWorkManager(context)
     }
 
     /**
@@ -219,7 +233,7 @@ object AstroNotificationManager {
         // 1. Cancel and remove obsolete future alarms for these satellites (and any prior starlink_train alarms)
         val existingItems = AstroNotificationStore.getAll(context)
         val obsoleteItems = existingItems.filter { item ->
-            item.objectType == "SATELLITE" && (
+            item.objectType == "SATELLITE" && !item.manualPass && (
                 item.objectId in targetSatIds ||
                     (wantsStarlinkTrain && (item.objectId == "starlink_train" || item.objectId.startsWith("starlink_train_")))
                 )
@@ -267,6 +281,8 @@ object AstroNotificationManager {
             }
 
             for (pass in validPasses) {
+                if (existingItems.any { it.manualPass && it.objectId == sat.id &&
+                        kotlin.math.abs(it.eventTimeMs - pass.startTimeMs) <= 30_000L }) continue
                 val item = createScheduledPassItem(
                     satellite = sat,
                     pass = pass,

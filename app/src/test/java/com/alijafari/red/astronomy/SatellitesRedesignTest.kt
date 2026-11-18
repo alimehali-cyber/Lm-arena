@@ -3,6 +3,11 @@ package com.alijafari.red.astronomy
 import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.astro_engine.SatelliteCategory
+import com.alijafari.red.astronomy.ui.satellites.*
+import com.alijafari.red.astronomy.Earth3DMath
+import com.alijafari.red.astronomy.ui.components.satelliteViewport
+import com.alijafari.red.astronomy.ui.components.SATELLITE_EARTH_DEFAULT_DISTANCE
+import com.alijafari.red.astronomy.ui.screens.MapTheme
 import com.alijafari.red.astronomy.ui.satellites.SatFmt
 import com.alijafari.red.astronomy.ui.satellites.SatNights
 import com.alijafari.red.astronomy.ui.satellites.SatPassUi
@@ -280,106 +285,81 @@ class SatellitesRedesignTest {
             assertTrue(src.contains("SatellitesStage("))
             assertTrue(src.contains(skin))
         }
-        // The stage owns the anatomy order in one place.
-        listOf("\"header\"", "\"globe\"", "\"dock\"", "\"timestrip\"", "\"scope\"", "\"fleet\"", "\"spotlight\"", "\"passes\"").forEach {
-            assertTrue("the stage orders $it", stage.contains("item(key = $it") || stage.contains("item(key = $it)"))
+        assertTrue(stage.contains("SatelliteHud("))
+        assertFalse("Only Detail or panel content scrolls", stage.contains("LazyColumn("))
+        assertTrue(stage.contains("SatelliteEarth3D("))
+    }
+
+    @Test
+    fun aSecondPanelReplacesTheFirstAndDismissPreservesTheOffset() {
+        val state = SatellitesState(SatellitesUiState())
+        state.panel(SatPanel.Time)
+        state.offset(150)
+        state.panel(SatPanel.Layers)
+        assertEquals(SatPanel.Layers, state.ui.activePanel)
+        state.lighting(MapTheme.LIGHT)
+        assertEquals(SatPanel.None, state.ui.activePanel)
+        assertEquals(MapTheme.LIGHT, state.ui.mapTheme)
+        assertEquals(150, state.ui.timeOffsetMin)
+        state.offset(-900)
+        assertEquals(-720, state.ui.timeOffsetMin)
+    }
+
+    @Test
+    fun selectingThreeTimesCannotOpenADetailOrPanel() {
+        val state = SatellitesState(SatellitesUiState())
+        state.panel(SatPanel.Fleet)
+        listOf("hubble", "tiangong", "iss_zarya").forEach { id ->
+            state.focus(id)
+            assertEquals(id, state.ui.focusId)
+            assertEquals(SatPanel.None, state.ui.activePanel)
         }
     }
 
     @Test
-    fun everyInteractiveControlIsAtLeastFortyEightDp() {
-        assertTrue("the grid sets the target once", design.contains("val minTouchTarget: Dp = 48.dp"))
-        // Any visual smaller than 48 dp is wrapped in a 48 dp hit area (the globe controls and
-        // the icon buttons are 40/44 dp visuals inside a full-size target).
-        assertTrue(components.contains(".size(44.dp)") && components.contains(".size(SatGrid.minTouchTarget)"))
-        assertTrue(design.contains(".size(40.dp)") && design.contains(".size(SatGrid.minTouchTarget)"))
-        // The chip, the icon button, the bell, the fleet sheet row and the step buttons all size from it.
-        assertTrue(design.contains("ZigSatChip"))
-        assertTrue(design.contains(".height(SatGrid.minTouchTarget)"))
-        assertTrue(components.contains(".size(SatGrid.minTouchTarget)"))
-        assertTrue(design.contains("sizeIn(minWidth = SatGrid.minTouchTarget"))
-        assertTrue(sheets.contains(".height(56.dp)"))
+    fun timeDetentsAndJumpStayInsideTheTwelveHourWindow() {
+        val markers = listOf(SatTimeMarker(2, SatQuality.GOOD), SatTimeMarker(93, SatQuality.EXCELLENT), SatTimeMarker(750, SatQuality.GOOD))
+        assertEquals(0, snapSatelliteTime(4f, markers))
+        assertEquals(93, snapSatelliteTime(90f, markers))
+        assertEquals(89, snapSatelliteTime(89f, markers))
+        assertEquals(720, snapSatelliteTime(1000f, markers))
+        assertEquals(93, nextSatelliteTime(markers, 10))
+        assertNull(nextSatelliteTime(markers, 93))
     }
 
     @Test
-    fun thereIsNoPlusMinusSignConcatentationLeftAnywhere() {
-        listOf(stage, design, components, sheets, detail).forEach { text ->
-            assertFalse("a formatted sign is never prefixed by hand", text.contains("\"+-\""))
-            assertFalse(text.contains("\"+-"))
-            assertFalse("not via a %+.1f format either", text.contains("%+.1f"))
-        }
-        assertTrue("the one formatter does it", design.contains("val MINUS = '\\u2212'"))
+    fun portraitViewportFitsBetweenTheHeaderAndCard() {
+        val width = 390f
+        val height = 844f
+        val top = 92f
+        val bottom = 609f
+        val projection = satelliteViewport(width, height, top, bottom)
+        val radius = Earth3DMath.projectedGlobeRadiusPx(SATELLITE_EARTH_DEFAULT_DISTANCE, height, projection.focalScale)
+        assertTrue(radius * 2 >= .86f * width)
+        assertEquals((top + bottom) / 2f, projection.centerY * height, .001f)
+        assertTrue(projection.centerY * height + radius < bottom)
     }
 
     @Test
-    fun theTimeStripIsTheOnlyTimeControlAndTheDockIsTheOnlyAltitudeHome() {
-        // Time: one strip, its Live capsule and its steppers — no second scrubber anywhere.
-        assertEquals(
-            "exactly one time strip in the app",
-            1,
-            Regex("SatTimeStrip\\(").findAll(stage).count()
-        )
-        assertEquals(
-            "exactly one scrubber implementation",
-            1,
-            Regex("private fun SatScrubber\\(").findAll(components).count()
-        )
-        // The status chip is read-only state: it carries no altitude and no scrub affordance.
-        val chip = components.substring(
-            components.indexOf("fun SatStatusChip("),
-            components.indexOf("// 2. GLOBE STAGE"),
-        )
-        assertFalse("the status chip carries no altitude", chip.contains("altKm"))
-        assertFalse("and no scrub control", chip.contains("Slider"))
-        // The dock is where altitude lives on the main screen.
-        assertTrue(components.contains("altLabel to"))
+    fun theFocusCardAndTimeTrayAreTheOnlyMainScreenReadouts() {
+        val pill = components.substringAfter("fun SatStatusPill").substringBefore("fun SatAvatar")
+        assertFalse(pill.contains("satAltKm"))
+        assertFalse(pill.contains("SatScrubber("))
+        assertTrue(components.substringAfter("fun SatFocusCard").substringBefore("fun SatMetric").contains("satAltKm"))
+        assertEquals(1, Regex("SatTimeTray\\(").findAll(stage).count())
+        assertFalse(stage.contains("satellite_mini_dock"))
+        assertTrue(stage.contains("tokens.sim.copy(alpha = 0.35f)"))
     }
 
     @Test
-    fun focusIsNotOpenAndEveryEntryPointObeysIt() {
-        // Rail token, popover and pass card all go through the same rule: focus first, open second.
-        assertTrue("a second tap on the same rail token opens detail", stage.contains("if (tokenUi.id == selectedSatelliteId)"))
-        assertTrue("a second tap on the same marker opens detail", stage.contains("if (state.satellite.id == selectedSatelliteId)"))
-        assertTrue("the explicit dock control opens detail", components.contains("testTag = \"dock_details\""))
-    }
-
-    @Test
-    fun everyPreservedFeatureStillHasAHome() {
-        assertTrue("globe", stage.contains("SatelliteEarth3D("))
-        assertTrue("reset", components.contains("map_reset_view_stage"))
-        assertTrue("map theme Auto/Dark/Light", stage.contains("MapTheme.AUTO -> MapTheme.DARK"))
-        assertTrue("categories", components.contains("SatelliteCategory.entries"))
-        assertTrue("±12h one-minute scrub", components.contains("1440f") && components.contains("(-720, 720)"))
-        assertTrue("live detent", components.contains("if (kotlin.math.abs(raw) <= 4f) 0f else raw"))
-        assertTrue("pass markers on the scrubber", components.contains("passMarkers.forEach"))
-        assertTrue("offline transparency", components.contains("CloudOff"))
-        assertTrue("TLE transparency", stage.contains("formatTleStalenessBadge("))
-        assertTrue("7-day rolling alerts", sheets.contains("Rolling 7 days") && sheets.contains("۷ روزه"))
-        assertTrue("lead times 10m / 30m / 1d", sheets.contains("1440 to"))
-        assertTrue("reminder states on the card", components.contains("isAutoCovered"))
-        assertTrue("train badge", components.contains("STRING OF PEARLS"))
-        assertTrue("legend", components.contains("globe_legend_panel"))
-        assertTrue("guide", sheets.contains("guide_sheet"))
-    }
-
-    @Test
-    fun theDetailScreenRendersInTheActiveSkinWithNoHardCodedNavy() {
-        assertTrue(detail.contains("skin: SatSkin = SatSkin.DEFAULT"))
-        assertTrue("the host passes the real theme", stage.contains("themeMode = uiState.themeMode"))
-        assertFalse("no navy hero anymore", detail.contains("Color(0xFF0F172A)"))
-        assertTrue("a floating back button, not an app bar", detail.contains("detail_floating_back"))
-        assertFalse("no top bar", detail.contains("topBar = {"))
-        assertTrue("live telemetry panel", detail.contains("Live orbital telemetry"))
-        assertTrue("visibility assessment", detail.contains("conditions met"))
-        assertTrue("mission dossier", detail.contains("Mission dossier"))
-        assertTrue("pass preview", detail.contains("Back to next"))
-    }
-
-    @Test
-    fun theMiniDockAndSimulationVignetteExist() {
-        assertTrue(stage.contains("satellite_mini_dock"))
-        assertTrue(stage.contains("derivedStateOf { listState.firstVisibleItemIndex > 1 }"))
-        assertTrue("the mini dock can always exit simulation", stage.contains("onReturnToLive"))
-        assertTrue("the globe shows the sim vignette", components.contains("tokens.sim.copy(alpha = 0.35f)"))
+    fun remindersAreAnchoredAndTheDetailUsesTheSharedMaterial() {
+        assertTrue(sheets.contains("PopupPositionProvider"))
+        assertTrue(sheets.contains("listOf(10, 30, 1440)"))
+        assertTrue(stage.contains("scheduleSpecificPassAlarm("))
+        assertTrue(stage.contains("cancelSpecificPassAlarm("))
+        assertTrue(stage.contains("SharedTransitionLayout("))
+        assertTrue(detail.contains("detail_floating_back"))
+        assertFalse(detail.contains("Color(0xFF0F172A)"))
+        assertTrue(detail.contains("Mission dossier"))
     }
 }

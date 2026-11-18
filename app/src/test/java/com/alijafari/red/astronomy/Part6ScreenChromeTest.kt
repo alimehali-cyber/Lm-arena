@@ -84,7 +84,7 @@ class Part6ScreenChromeTest {
     @Test
     fun theSatelliteDetailScreenHasNoHeaderEither() {
         val detail = source("com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt")
-        assertFalse("the back chip is gone", detail.contains("sat_detail_back"))
+        assertTrue("Detail uses floating back rather than an app bar", detail.contains("detail_floating_back"))
         assertFalse("and the band with it", detail.contains("topBar = {"))
         assertTrue("its own status-bar inset instead", detail.contains(".statusBarsPadding()"))
         assertTrue(

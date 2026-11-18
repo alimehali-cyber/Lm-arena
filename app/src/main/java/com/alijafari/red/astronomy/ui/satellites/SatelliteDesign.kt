@@ -35,6 +35,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import com.alijafari.red.astronomy.R
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -65,13 +70,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-/**
- * ZIG · Satellites — "One Stage, Three Skins".
- *
- * Every skin renders the same anatomy (header → globe stage → dock → time strip → scope → fleet rail →
- * spotlight → passes by night). Only surfaces, numerals, shape language and motion change, and they
- * change through [ZigSatTokens] rather than through forked layouts.
- */
+/** One globe and one HUD, with three treatments of the same material slots. */
 enum class SatSkin {
     DEFAULT,
     SPATIAL,
@@ -130,12 +129,18 @@ data class ZigSatTokens(
     val popoverFill: Color,
     val popoverBorder: Color,
     val glassy: Boolean,
+    val hudFill: Color,
+    val hudInk: Color,
+    val accentInk: Color,
+    val selectedChip: Color,
+    val timeAccent: Color,
+    val stars: Color,
 ) {
     /** Selected ring colour for the fleet rail token. */
     val selectedRing: Color get() = selected
 
     fun qualityChipFill(quality: SatQuality): Color =
-        quality.hue.copy(alpha = if (isDark) 0.16f else 0.12f)
+        quality.hue.copy(alpha = if (isWine) 0.18f else if (isDark) 0.16f else 0.12f)
 
     fun qualityChipBorder(quality: SatQuality): Color =
         quality.hue.copy(alpha = if (isDark) 0.55f else 0.45f)
@@ -151,7 +156,7 @@ fun zigSatTokens(skin: SatSkin, themeMode: ThemeMode): ZigSatTokens {
     val canvas = when {
         isWine -> Color(0xFF120408)
         isDark -> Color(0xFF090A0F)
-        else -> Color(0xFFFAF8F5)
+        else -> Color.White
     }
     val card = when {
         isWine -> Color(0xFF1B070E)
@@ -224,11 +229,26 @@ fun zigSatTokens(skin: SatSkin, themeMode: ThemeMode): ZigSatTokens {
             else -> Color(0xFF5B6B8C)
         },
         popoverFill = when {
+            skin == SatSkin.AETHER -> Color(0xFF0B0D18)
             isWine -> Color(0xFF1A1228)
             else -> Color(0xFF0F172A)
         },
         popoverBorder = if (isWine) Color(0xFFE04263) else Color(0xFFD32F2F),
         glassy = skin != SatSkin.DEFAULT,
+        hudFill = when (themeMode) {
+            ThemeMode.LIGHT -> Color(0xFFFDFBF7)
+            ThemeMode.WINE -> Color(0xFF261019)
+            else -> Color(0xFF171923)
+        },
+        hudInk = inkPrimary,
+        accentInk = if (isDark) Color(0xFFFF899B) else Color(0xFF9B2038),
+        selectedChip = if (isWine) Color(0xFFA62045) else Color(0xFFAC243D),
+        timeAccent = when (skin) {
+            SatSkin.AETHER -> if (isDark) Color(0xFF86AFFF) else Color(0xFF2350AB)
+            SatSkin.SPATIAL -> if (isDark) Color(0xFFFF739C) else Color(0xFFC12960)
+            SatSkin.DEFAULT -> live
+        },
+        stars = if (isDark) Color(0xFF9DA9C6) else Color(0xFF576784),
     )
 }
 
@@ -274,28 +294,8 @@ data class SatStatusData(
     val offsetMinutes: Int,
     val isOnline: Boolean,
     val tleAgeDays: Double?,
-    val usingCachedTle: Boolean,
-    val sourceLabel: String,
-    val isFa: Boolean,
-)
-
-@Immutable
-data class SatDockData(
-    val shortName: String,
-    val fullName: String,
-    val categoryLabel: String,
-    val isSunlit: Boolean,
-    val isAboveHorizon: Boolean,
-    val altitudeKm: Double,
-    val speedKmS: Double,
-    val elevationDeg: Double,
-    val rangeKm: Double,
-    val azimuthDeg: Double,
-    val magnitude: Double,
-    val subLatDeg: Double,
-    val subLonDeg: Double,
-    val isSimulated: Boolean,
-    val isCached: Boolean,
+    val tleEpochMillis: Long?,
+    val tleSource: com.alijafari.red.astronomy.astro_engine.TleDataSource?,
     val isFa: Boolean,
 )
 
@@ -309,6 +309,7 @@ data class SatTokenUi(
     val elevationDeg: Double,
     val isNakedEye: Boolean,
     val isSelected: Boolean,
+    val satellite: SatelliteItem,
 )
 
 @Immutable
@@ -323,7 +324,7 @@ data class SatPassUi(
 ) {
     val quality: SatQuality get() = qualityOf(pass)
     val isTrain: Boolean get() = sat.isTrain
-    val isFinished: Boolean get() = pass.endTimeMs <= System.currentTimeMillis()
+    val canRemind: Boolean get() = pass.startTimeMs - 10 * 60_000L > System.currentTimeMillis()
 }
 
 @Immutable
@@ -349,8 +350,7 @@ data class SatPassActions(
     val onOpenDetail: () -> Unit,
     val onShowOnGlobe: () -> Unit,
     val onAr: () -> Unit,
-    val onRemind: (Int) -> Unit,
-    val onRemoveReminder: () -> Unit,
+    val onRemind: (androidx.compose.ui.unit.IntRect) -> Unit,
     val isReminderEnabled: Boolean = true,
 )
 
@@ -360,14 +360,6 @@ data class SatTimeActions(
     val onLive: () -> Unit,
     val onNextPass: () -> Unit,
     val onStep: (Int) -> Unit,
-)
-
-/** Skin slots for the three places where the skins genuinely diverge in *content*, not just paint. */
-class SatSkinSlots(
-    val statusChip: @Composable (Modifier, SatStatusData, () -> Unit) -> Unit,
-    val dock: @Composable (SatDockData, () -> Unit, () -> Unit, () -> Unit) -> Unit,
-    val passCard: @Composable (Modifier, SatPassUi, SatPassActions) -> Unit,
-    val spotlight: @Composable (Modifier, SatSpotlightUi, SatPassActions) -> Unit,
 )
 
 /** Reduce-motion flag, set once by the host from the platform animator scale. */
@@ -389,6 +381,7 @@ object SatFmt {
 
     /** Formats a signed value with U+2212 for minus, an explicit `+` for positives, bidi-isolated. */
     fun signed(value: Double, decimals: Int, unit: String = "", isFa: Boolean, forceSign: Boolean = true): String {
+        if (!value.isFinite()) return "—"
         val magnitude = kotlin.math.abs(value)
         val body = String.format(Locale.US, "%.${decimals}f", magnitude)
         val sign = when {
@@ -397,12 +390,19 @@ object SatFmt {
             else -> ""
         }
         val decimal = if (isFa) body.replace('.', '\u066B') else body
-        val signed = digits("$sign$decimal$unit", isFa)
-        return "$FSI$signed$PDI"
+        val signed = digits("$sign$decimal", isFa)
+        // The inner LTR embedding keeps the sign next to the digits even in an RTL paragraph.
+        val embedded = androidx.core.text.BidiFormatter.getInstance(true).unicodeWrap(
+            signed, androidx.core.text.TextDirectionHeuristicsCompat.LTR, false,
+        )
+        return "$FSI$embedded$unit$PDI"
     }
 
     fun number(value: Double, decimals: Int, isFa: Boolean): String =
-        digits(String.format(Locale.US, "%.${decimals}f", value), isFa)
+        signed(value, decimals, isFa = isFa, forceSign = false).let { if (value < 0) it else decimal(String.format(Locale.US, "%.${decimals}f", value), isFa) }
+
+    private fun decimal(raw: String, isFa: Boolean): String =
+        if (isFa) digits(raw.replace('.', '\u066B').replace(',', '\u066C'), true) else raw
 
     fun int(value: Int, isFa: Boolean): String = digits(value.toString(), isFa)
 
@@ -411,11 +411,11 @@ object SatFmt {
 
     fun kilometers(km: Double, isFa: Boolean, decimals: Int = 0): String {
         val grouped = String.format(Locale.US, "%,.${decimals}f", km)
-        return digits(grouped, isFa)
+        return decimal(grouped, isFa)
     }
 
     fun speed(kmS: Double, isFa: Boolean): String =
-        digits(String.format(Locale.US, "%.2f", kmS), isFa)
+        number(kmS, 2, isFa)
 
     fun degrees(value: Double, isFa: Boolean, decimals: Int = 0, signed: Boolean = false): String =
         if (signed) {
@@ -465,8 +465,8 @@ object SatFmt {
     fun offsetMinutes(minutes: Int, isFa: Boolean): String =
         when {
             minutes == 0 -> if (isFa) "زنده" else "Live"
-            kotlin.math.abs(minutes) >= 60 -> signed(minutes / 60.0, 1, "h", isFa)
-            else -> signed(minutes.toDouble(), 0, "m", isFa)
+            kotlin.math.abs(minutes) >= 60 -> signed(minutes / 60.0, 1, if (isFa) " س" else "h", isFa)
+            else -> signed(minutes.toDouble(), 0, if (isFa) " د" else "m", isFa)
         }
 
     fun compass(azDeg: Double, isFa: Boolean): String {
@@ -488,8 +488,8 @@ object SatFmt {
         val from = compass(fromAz, isFa)
         val to = compass(toAz, isFa)
         if (isFa) {
-            val f = if (compact) from.replace("\u200Cی", "\u200C") else from
-            return "$f \u2190 $to"
+            fun directionWord(word: String) = if (compact || '‌' !in word) word else word + "ی"
+            return "${directionWord(from)} \u2190 ${directionWord(to)}"
         }
         return "$from \u2192 $to"
     }
@@ -500,8 +500,9 @@ object SatFmt {
         return when {
             isFa -> {
                 val sh = TimeEngine.toSolarHijri(ms, tz)
-                val faDate = "${sh.day} ${sh.monthNameFa}"
-                digits("$faDate · $time", true)
+                val weekday = arrayOf("یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه")
+                val dayOfWeek = Calendar.getInstance(tz).apply { timeInMillis = ms }.get(Calendar.DAY_OF_WEEK)
+                digits("${weekday[dayOfWeek - 1]} ${sh.day} ${sh.monthNameFa} · $time", true)
             }
             else -> "$date · $time"
         }
@@ -510,7 +511,7 @@ object SatFmt {
     /** Secondary (Gregorian or Solar Hijri, whichever is not primary) date line for group headers. */
     fun secondaryDate(ms: Long, isFa: Boolean, tz: TimeZone): String {
         val gregorian = SimpleDateFormat("EEE d MMM", Locale.US).apply { timeZone = tz }.format(Date(ms))
-        return if (isFa) gregorian else {
+        return if (isFa) digits(gregorian, true) else {
             val sh = TimeEngine.toSolarHijri(ms, tz)
             "${sh.day} ${sh.monthNameEn}"
         }
@@ -541,20 +542,18 @@ object SatNights {
 
     fun title(nightKeyMs: Long, nowMs: Long, tz: TimeZone, isFa: Boolean): String {
         val todayKey = nightKey(nowMs, tz)
-        val dayMs = 24L * 60L * 60L * 1000L
+        val tomorrow = Calendar.getInstance(tz).apply { timeInMillis = todayKey; add(Calendar.DATE, 1) }.timeInMillis
         return when (nightKeyMs) {
-            todayKey -> if (isFa) "امشب" else "Tonight"
-            todayKey + dayMs -> if (isFa) "شب فردا" else "Tomorrow night"
-            else -> {
-                val raw = SimpleDateFormat("EEE d MMM", Locale.US).apply { timeZone = tz }
-                    .format(Date(nightKeyMs))
-                if (isFa) {
-                    val sh = TimeEngine.toSolarHijri(nightKeyMs, tz)
-                    "${sh.day} ${sh.monthNameFa}"
-                } else raw
-            }
+            todayKey -> (if (isFa) "امشب" else "Tonight") + " · " + date(nightKeyMs, tz, isFa)
+            tomorrow -> if (isFa) "شب فردا" else "Tomorrow night"
+            else -> date(nightKeyMs, tz, isFa)
         }
     }
+
+    private fun date(ms: Long, tz: TimeZone, isFa: Boolean): String = if (isFa) {
+        val date = TimeEngine.toSolarHijri(ms, tz)
+        "${SatFmt.int(date.day, true)} ${date.monthNameFa}"
+    } else SimpleDateFormat("EEE d MMM", Locale.US).apply { timeZone = tz }.format(Date(ms))
 
     /** Groups sorted passes into observer nights, preserving stable (satId, riseTime) keys. */
     fun group(
@@ -562,10 +561,11 @@ object SatNights {
         nowMs: Long,
         tz: TimeZone,
         isFa: Boolean,
+        includeSolarHijri: Boolean = false,
     ): List<SatNightGroup> {
         val byNight = LinkedHashMap<Long, MutableList<SatPassUi>>()
         for (p in passes.sortedBy { it.pass.startTimeMs }) {
-            val key = nightKey(p.pass.startTimeMs, tz)
+            val key = p.nightKey
             byNight.getOrPut(key) { mutableListOf() }.add(p)
         }
         return byNight.map { (key, items) ->
@@ -573,7 +573,7 @@ object SatNights {
             SatNightGroup(
                 nightKey = key,
                 title = title(key, nowMs, tz, isFa),
-                subtitle = if (isFa) SatFmt.secondaryDate(key, true, tz) else SatFmt.secondaryDate(key, false, tz),
+                subtitle = if (isFa || includeSolarHijri) SatFmt.secondaryDate(key, isFa, tz) else null,
                 best = best,
                 passes = items,
             )
@@ -589,6 +589,7 @@ object SatNights {
         nowMs: Long,
         tz: TimeZone,
         isFa: Boolean,
+        simulated: Boolean = false,
     ): SatSpotlightUi? {
         val eligible = passes
             .filter { it.pass.endTimeMs > nowMs }
@@ -601,12 +602,11 @@ object SatNights {
                 pass = inProgress,
                 isInProgress = true,
                 remainingMinutes = ((inProgress.pass.endTimeMs - nowMs) / 60_000L).toInt().coerceAtLeast(0),
-                simulatedInsidePass = true,
+                simulatedInsidePass = simulated,
             )
         }
 
-        val firstGood = eligible.firstOrNull { it.quality.rank <= SatQuality.GOOD.rank }
-            ?: eligible.first()
+        val firstGood = eligible.firstOrNull { it.quality.rank <= SatQuality.GOOD.rank } ?: return null
         val windowEnd = firstGood.pass.startTimeMs + 6L * 60L * 60L * 1000L
         val brighter = eligible
             .filter { it.pass.startTimeMs <= windowEnd && it.quality.rank <= SatQuality.VERY_GOOD.rank }
@@ -648,29 +648,19 @@ fun ZigSatCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val tagged = if (testTag != null) modifier.testTag(testTag) else modifier
-    val fill = if (accent != null && tokens.skin == SatSkin.DEFAULT) {
-        accent.copy(alpha = if (tokens.isDark) 0.10f else 0.08f)
-    } else if (tokens.skin == SatSkin.DEFAULT) {
-        tokens.cardAlt
+    val kind = when (shape) {
+        squircleShape(SatRadius.sheet) -> SatSlot.Spotlight
+        squircleShape(SatRadius.compactCard) -> SatSlot.PassCard
+        else -> SatSlot.FocusCard
+    }
+    val base = if (accent != null) accent.copy(alpha = 0.08f).compositeOver(tokens.cardAlt) else tokens.cardAlt
+    if (tokens.skin == SatSkin.DEFAULT) {
+        RedSurface(modifier = tagged.fillMaxWidth(), shape = shape, color = base,
+            border = BorderStroke(1.dp, accent?.copy(alpha = 0.40f) ?: tokens.border),
+            elevation = 0.dp, onClick = onClick) { Column(content = content) }
     } else {
-        tokens.card.copy(alpha = if (tokens.isDark) 0.72f else 0.92f)
-    }
-    val stroke = when {
-        accent != null -> BorderStroke(1.dp, accent.copy(alpha = 0.45f))
-        tokens.skin == SatSkin.DEFAULT -> BorderStroke(1.dp, tokens.border)
-        else -> BorderStroke(1.dp, tokens.inkPrimary.copy(alpha = 0.16f))
-    }
-    // Default is flat by contract: zero blur, zero shadow. The shared surface keeps that promise,
-    // and hands the ink it resolved to every child (see RedSurface's surfaceInkFor).
-    RedSurface(
-        modifier = tagged.fillMaxWidth(),
-        shape = shape,
-        color = fill,
-        border = stroke,
-        elevation = 0.dp,
-        onClick = onClick,
-    ) {
-        Column(content = content)
+        Column(tagged.fillMaxWidth().satMaterial(tokens, kind, shape, accent = accent)
+            .then(if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)), content = content)
     }
 }
 
@@ -689,14 +679,14 @@ fun ZigSatChip(
     val tagged = if (testTag != null) modifier.testTag(testTag) else modifier
     Box(
         modifier = tagged
-            .height(SatGrid.minTouchTarget)
+            .sizeIn(minWidth = SatGrid.minTouchTarget, minHeight = SatGrid.minTouchTarget)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Row(
             modifier = Modifier
                 .clip(RedShapes.capsule)
-                .background(if (selected) tokens.live else tokens.cardAlt)
+                .background(if (selected) tokens.selectedChip else tokens.cardAlt)
                 .border(
                     1.dp,
                     if (selected) tokens.live else tokens.border,
@@ -731,27 +721,25 @@ fun ZigSatIconButton(
     modifier: Modifier = Modifier,
     active: Boolean = false,
     testTag: String? = null,
+    visualSize: Dp = 40.dp,
+    dot: Color? = null,
+    enabled: Boolean = true,
+    hud: Boolean = false,
 ) {
     val tagged = if (testTag != null) modifier.testTag(testTag) else modifier
     Box(
-        modifier = tagged.size(SatGrid.minTouchTarget),
+        modifier = tagged.size(SatGrid.minTouchTarget).clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(if (active) tokens.live.copy(alpha = 0.16f) else tokens.cardAlt)
-                .border(1.dp, if (active) tokens.live.copy(alpha = 0.55f) else tokens.border, CircleShape)
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = if (active) tokens.live else tokens.inkSecondary,
-                modifier = Modifier.size(18.dp),
-            )
+        Box(Modifier.size(visualSize).satMaterial(tokens, SatSlot.RailButton, CircleShape,
+            backing = if (hud) tokens.hudFill else tokens.cardAlt,
+            accent = if (active) tokens.live else null), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription,
+                tint = (if (hud) tokens.hudInk else tokens.inkPrimary).copy(alpha = if (enabled) 1f else 0.4f),
+                modifier = Modifier.size(20.dp))
+            if (dot != null) Box(Modifier.align(Alignment.TopEnd).padding(6.dp)) {
+                ZigStatusDot(color = dot, pulse = false, size = 7.dp)
+            }
         }
     }
 }
@@ -804,6 +792,7 @@ fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = "tnum")
 /** Quality as a tinted capsule: hue in the fill and ring, label always in onSurface ink. */
 @Composable
 fun ZigQualityChip(quality: SatQuality, score: Int, tokens: ZigSatTokens, isFa: Boolean, full: Boolean = true) {
+    val compact = !full || LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale >= 1.3f
     Row(
         modifier = Modifier
             .clip(RedShapes.capsule)
@@ -820,7 +809,7 @@ fun ZigQualityChip(quality: SatQuality, score: Int, tokens: ZigSatTokens, isFa: 
                 .background(quality.hue),
         )
         Text(
-            text = if (full) "${quality.label(isFa)} · ${SatFmt.int(score, isFa)}" else quality.shortLabel(isFa),
+            text = "${if (compact) quality.shortLabel(isFa) else quality.label(isFa)} · ${SatFmt.int(score, isFa)}",
             style = RedTypographyTokens.badge.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
             color = tokens.inkPrimary,
             maxLines = 1,
@@ -851,7 +840,7 @@ fun ZigBellButton(
     ) {
         Icon(
             imageVector = if (active) Icons.Filled.NotificationsActive else Icons.Filled.NotificationsNone,
-            contentDescription = if (isFa) "یادآوری گذر" else "Pass reminder",
+            contentDescription = stringResource(R.string.sat_reminder),
             tint = when {
                 !enabled -> tokens.inkTertiary.copy(alpha = 0.38f)
                 active -> tokens.live
@@ -861,7 +850,7 @@ fun ZigBellButton(
         )
         val micro = when {
             !enabled -> null
-            isAutoCovered && leadMinutes == null -> if (isFa) "خودکار" else "auto"
+            isAutoCovered && leadMinutes == null -> stringResource(R.string.sat_reminder_auto)
             leadMinutes != null -> if (leadMinutes == 1440) (if (isFa) "۱ روز" else "1d") else SatFmt.digits("${leadMinutes}m", isFa)
             else -> null
         }
@@ -869,7 +858,7 @@ fun ZigBellButton(
             Text(
                 text = micro,
                 style = RedTypographyTokens.badge.copy(fontSize = 9.sp, fontWeight = FontWeight.Medium),
-                color = if (active) tokens.live else tokens.inkTertiary,
+                color = if (active) tokens.accentInk else tokens.inkTertiary,
                 maxLines = 1,
             )
         }

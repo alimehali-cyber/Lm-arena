@@ -441,7 +441,7 @@ class StarlinkPipelineTest {
             "trainPearlStatesByTrain",
             "mapOverheadStarlinkStates",
             "allInteractiveMapStates",
-            "isTrain = state.satellite.isTrain"
+            "live.satellite.isTrain"
         )
 
         for (token in requiredTokens) {
@@ -462,8 +462,8 @@ class StarlinkPipelineTest {
         // The STRING OF PEARLS train badge is drawn once, by the shared spotlight / compact pass card,
         // and the detail screen keeps its own coat for the selected train.
         val detailSrc = readScreenSource("com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt")
-        assertTrue(detailSrc.contains("STRING OF PEARLS"))
-        assertTrue(components.contains("STRING OF PEARLS"))
+        assertTrue(detailSrc.contains("SatSpotlightCard("))
+        assertTrue(components.contains("R.string.sat_train_long"))
     }
 
     @Test

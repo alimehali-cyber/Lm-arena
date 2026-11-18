@@ -480,7 +480,8 @@ class MainActivity : ComponentActivity() {
 
                     // Floating Navigation Bar.
                     // Hidden while an immersive screen (the Gravity Sandbox) owns the display.
-                    if (!com.zig.gravity.ui.ImmersiveScreenState.active) {
+                    val satellitesChromeOccluded by viewModel.satellitesChromeOccluded.collectAsStateWithLifecycle()
+                    if (!com.zig.gravity.ui.ImmersiveScreenState.active && !(uiState.selectedTab == 1 && satellitesChromeOccluded)) {
                         when (uiState.uiStyle) {
                             AppUiStyle.AETHER -> AetherFloatingNavBar(
                                 selectedTab = uiState.selectedTab,

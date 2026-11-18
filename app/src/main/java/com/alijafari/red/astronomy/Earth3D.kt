@@ -101,6 +101,8 @@ data class EarthStyle(
      * floats borderlessly over the surrounding screen backdrop or card.
      */
     val transparentBackground: Boolean = false,
+    val viewportProjection: EarthViewportProjection = EarthViewportProjection(),
+    val fullViewportGestures: Boolean = false,
 ) {
     fun sanitized(): EarthStyle = copy(
         rotationSpeed = rotationSpeed.coerceIn(-1.2f, 1.2f),
@@ -112,12 +114,17 @@ data class EarthStyle(
     )
 }
 
+/** Optical framing shared by the GLES sphere and its CPU-projected annotations. */
+@Immutable
+data class EarthViewportProjection(val centerY: Float = 0.5f, val focalScale: Float = 1f)
+
 /** Immutable snapshot of the 3D Earth orbit camera, shared with synchronized overlays. */
 @Immutable
 data class EarthCameraSnapshot(
     val yawRad: Float,
     val pitchRad: Float,
     val distance: Float,
+    val projection: EarthViewportProjection = EarthViewportProjection(),
 )
 
 /** Result of projecting a geographic `(lat, lon, altKm)` coordinate through the 3D Earth camera. */
@@ -329,11 +336,11 @@ object Earth3DMath {
     }
 
     /** Screen-space radius (in pixels) of Earth's perspective horizon disc. */
-    fun projectedGlobeRadiusPx(cameraDistance: Float, viewportHeight: Float): Float {
+    fun projectedGlobeRadiusPx(cameraDistance: Float, viewportHeight: Float, focalScale: Float = 1f): Float {
         if (viewportHeight <= 0f) return 0f
         val d = cameraDistance.coerceAtLeast(1.05f)
         val ndcRadiusY = (1f / sqrt(d * d - 1f)) / TAN_HALF_FOV_Y
-        return ndcRadiusY * viewportHeight * 0.5f
+        return ndcRadiusY * viewportHeight * 0.5f * focalScale
     }
 
     /**
@@ -378,8 +385,8 @@ object Earth3DMath {
         val aspect = viewportWidth / viewportHeight
         val ndcX = (wx / (aspect * TAN_HALF_FOV_Y)) / depth
         val ndcY = (wy / TAN_HALF_FOV_Y) / depth
-        val sx = (ndcX * 0.5f + 0.5f) * viewportWidth
-        val syPx = (0.5f - ndcY * 0.5f) * viewportHeight
+        val sx = (ndcX * camera.projection.focalScale * 0.5f + 0.5f) * viewportWidth
+        val syPx = (camera.projection.centerY - ndcY * camera.projection.focalScale * 0.5f) * viewportHeight
 
         val occluded = isOccludedByEarth(wx, wy, wz, distance, occluderRadius)
         if (occluded) {
@@ -426,8 +433,10 @@ class EarthCameraController(
     @Volatile var userZoomed: Boolean = false
         private set
 
+    private var projection = EarthViewportProjection()
+
     var snapshot: EarthCameraSnapshot by mutableStateOf(
-        EarthCameraSnapshot(yawRad = yawRad, pitchRad = pitchRad, distance = distance)
+        EarthCameraSnapshot(yawRad = yawRad, pitchRad = pitchRad, distance = distance, projection = projection)
     )
         private set
 
@@ -435,7 +444,7 @@ class EarthCameraController(
     internal var onUserGestureStart: (() -> Unit)? = null
 
     private fun publishAndInvalidate() {
-        snapshot = EarthCameraSnapshot(yawRad = yawRad, pitchRad = pitchRad, distance = distance)
+        snapshot = EarthCameraSnapshot(yawRad = yawRad, pitchRad = pitchRad, distance = distance, projection = projection)
         onInvalidateRender?.invoke()
     }
 
@@ -496,10 +505,17 @@ class EarthCameraController(
         publishAndInvalidate()
     }
 
+    internal fun syncViewportProjection(next: EarthViewportProjection) {
+        if (projection != next) {
+            projection = next
+            publishAndInvalidate()
+        }
+    }
+
     internal fun syncStyleCameraDistance(previousDistance: Float, newDistance: Float) {
         if (!userZoomed || newDistance != previousDistance) {
             distance = newDistance.coerceIn(2.25f, Earth3DMath.MAX_ZOOM_DISTANCE)
-            snapshot = EarthCameraSnapshot(yawRad = yawRad, pitchRad = pitchRad, distance = distance)
+            snapshot = EarthCameraSnapshot(yawRad = yawRad, pitchRad = pitchRad, distance = distance, projection = projection)
         }
     }
 }
@@ -599,6 +615,7 @@ private class EarthSurface(
     private var isDraggingGlobe = false
     private var capturedGesture = false
     private var lastTapConsumedByOverlay = false
+    private var overlayDoubleTap = false
 
     var tapHandler: ((Offset) -> Boolean)? = null
 
@@ -632,11 +649,21 @@ private class EarthSurface(
             }
 
             override fun onDoubleTap(event: MotionEvent): Boolean {
-                if (!lastTapConsumedByOverlay) {
+                overlayDoubleTap = lastTapConsumedByOverlay
+                if (!overlayDoubleTap) {
                     controller.onUserGestureStart?.invoke()
                     controller.toggleZoom(currentStyle.cameraDistance)
                 }
                 lastTapConsumedByOverlay = false
+                return true
+            }
+
+            override fun onDoubleTapEvent(event: MotionEvent): Boolean {
+                // A double tap on empty space still zooms. A second marker tap cycles overlapping hits.
+                if (overlayDoubleTap && event.actionMasked == MotionEvent.ACTION_UP) {
+                    tapHandler?.invoke(Offset(event.x, event.y))
+                    overlayDoubleTap = false
+                }
                 return true
             }
         }
@@ -665,6 +692,7 @@ private class EarthSurface(
         currentStyle = sanitized
         controller.syncStyleCameraDistance(prevDistance, sanitized.cameraDistance)
         scene.style = sanitized
+        controller.syncViewportProjection(sanitized.viewportProjection)
         updateAutoRotateLoop()
         if (changed) requestRenderFrame()
     }
@@ -742,7 +770,7 @@ private class EarthSurface(
         val w = width.toFloat()
         val h = height.toFloat()
         if (w <= 0f || h <= 0f) return true
-        if (!currentStyle.transparentBackground) return true
+        if (!currentStyle.transparentBackground || currentStyle.fullViewportGestures) return true
         val globeRadius = Earth3DMath.projectedGlobeRadiusPx(controller.distance, h)
         val distFromCenter = hypot(x - w * 0.5f, y - h * 0.5f)
         // Include full globe plus LEO orbital halo so dragging anywhere on/around Earth orbits smoothly,
@@ -1152,6 +1180,11 @@ private class EarthScene(private val context: Context) {
 
     fun draw(yawRad: Float, pitchRad: Float, distance: Float) {
         val options = style
+        val framing = options.viewportProjection
+        val focal = framing.focalScale / tan(Math.toRadians(Earth3DMath.FOV_Y_DEGREES / 2.0)).toFloat()
+        projection[0] = focal * viewportHeight / viewportWidth
+        projection[5] = focal
+        projection[9] = framing.centerY * 2f - 1f
         if (options.transparentBackground) {
             GLES20.glClearColor(0f, 0f, 0f, 0f)
         } else {

@@ -34,7 +34,8 @@ data class ScheduledNotificationItem(
     val titleFa: String = "",
     val contentEn: String = "",
     val contentFa: String = "",
-    val deepLinkRoute: String = ""   // e.g. "satellite/iss_zarya" or "object/moon"
+    val deepLinkRoute: String = "",   // e.g. "satellite/iss_zarya" or "object/moon"
+    val manualPass: Boolean = false
 ) {
     fun toJsonObject(): JSONObject {
         return JSONObject().apply {
@@ -63,6 +64,7 @@ data class ScheduledNotificationItem(
             put("contentEn", contentEn)
             put("contentFa", contentFa)
             put("deepLinkRoute", deepLinkRoute)
+            put("manualPass", manualPass)
         }
     }
 
@@ -93,7 +95,8 @@ data class ScheduledNotificationItem(
                 titleFa = json.optString("titleFa", ""),
                 contentEn = json.optString("contentEn", ""),
                 contentFa = json.optString("contentFa", ""),
-                deepLinkRoute = json.optString("deepLinkRoute", "")
+                deepLinkRoute = json.optString("deepLinkRoute", ""),
+                manualPass = json.optBoolean("manualPass", false)
             )
         }
     }
