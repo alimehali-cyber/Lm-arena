@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.ui.theme.REDTheme
-import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -65,16 +64,21 @@ class SatelliteMirrorRenderTest {
         return image.asImageBitmap().toPixelMap()
     }
 
-    private fun changedFraction(a: PixelMap, b: PixelMap): Float {
+    private fun bright(p: Color) = p.red > .84f && p.green > .84f && p.blue > .84f
+
+    /** Compare the light plotted path, independently of localized label shaping and antialiasing. */
+    private fun pathSimilarity(a: PixelMap, b: PixelMap): Pair<Int, Float> {
         assertEquals(a.width, b.width)
         assertEquals(a.height, b.height)
-        var different = 0
-        for (y in 0 until a.height) for (x in 0 until a.width) {
-            val p = a[x, y]
-            val q = b[x, y]
-            if (abs(p.red - q.red) + abs(p.green - q.green) + abs(p.blue - q.blue) > .08f) different++
+        var total = 0
+        var matching = 0
+        for (y in 1 until a.height - 1) for (x in 1 until a.width - 1) {
+            if (bright(a[x, y])) {
+                total++
+                if ((-1..1).any { dx -> (-1..1).any { dy -> bright(b[x + dx, y + dy]) } }) matching++
+            }
         }
-        return different.toFloat() / (a.width * a.height)
+        return total to if (total == 0) 0f else matching.toFloat() / total
     }
 
     @Test
@@ -99,7 +103,9 @@ class SatelliteMirrorRenderTest {
             .fetchSemanticsNode().config[LayoutRoleKey])
         compose.runOnIdle { mode.value = Mode(rtl = true, polar = true) }
         val polarRtl = pixels("polar_chart")
-        assertTrue("physical polar chart must not flip", changedFraction(polarLtr, polarRtl) < .01f)
+        val polarMatch = pathSimilarity(polarLtr, polarRtl)
+        assertTrue("physical chart needs a visible path: $polarMatch", polarMatch.first > 30)
+        assertTrue("physical polar path must not flip: $polarMatch", polarMatch.second >= .9f)
 
         compose.runOnIdle { mode.value = Mode(rtl = false, polar = false) }
         val timeLtr = pixels("pass_curve")
@@ -123,6 +129,7 @@ class SatelliteMirrorRenderTest {
         assertTrue("fixture must actually draw an arc", bright > 30)
         assertTrue("the time curve should mirror in RTL", mirrored >= bright * .8f)
         compose.runOnIdle { mode.value = Mode(rtl = true, polar = false, follow = false) }
-        assertTrue("axis flag forces LTR in either language", changedFraction(timeLtr, pixels("pass_curve")) < .01f)
+        val forcedLtr = pathSimilarity(timeLtr, pixels("pass_curve"))
+        assertTrue("axis flag forces the LTR path in either language: $forcedLtr", forcedLtr.first > 30 && forcedLtr.second >= .9f)
     }
 }
