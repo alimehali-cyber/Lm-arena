@@ -40,7 +40,7 @@ jobs:
       - name: Record the baseline
         env:
           ASTRO_GOLDENS_RECORD: "true"
-          REBASELINE: ${{ inputs.rebaseline }}
+          REBASELINE: ${{ inputs.rebaseline || (github.event_name == 'push' && startsWith(github.event.head_commit.message, 'test(astro): rebaseline')) }}
         run: |
           if [ "$REBASELINE" = "true" ]; then
             echo "Explicit rebaseline requested; replacing the fingerprint file from this commit."
