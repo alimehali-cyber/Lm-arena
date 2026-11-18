@@ -899,7 +899,7 @@ internal fun SatPassesSheet(tokens: ZigSatTokens, isFa: Boolean, scope: Satellit
             0 -> SatPassEmpty(tokens, isFa, if (scope == SatelliteCategory.ALL) null else SatFmt.categoryLabel(scope, isFa), onClearScope, onOpenSevenDay)
             else -> groups.forEachIndexed { i, group -> key(group.nightKey) {
                 SatNightSection(group, overrides[group.nightKey] ?: (i == 0), if (group.nightKey in shown) Int.MAX_VALUE else 3,
-                    if (scope == SatelliteCategory.STARLINK) 12 else 10, tokens, isFa, actionsFor,
+                    if (group.passes.all { it.isTrain }) 12 else 10, tokens, isFa, actionsFor,
                     onToggle = { overrides = overrides + (group.nightKey to !(overrides[group.nightKey] ?: (i == 0))) },
                     onMore = { shown = shown + group.nightKey }, realNow = realNow, sourceModifier = sourceModifier, tz = tz)
             } }

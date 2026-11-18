@@ -1,5 +1,6 @@
 package com.alijafari.red.astronomy.ui.satellites
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -34,6 +35,10 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -75,6 +80,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import kotlinx.coroutines.delay
 
 /** One globe and one HUD, with three treatments of the same material slots. */
 enum class SatSkin {
@@ -559,7 +565,7 @@ object SatNights {
         val tomorrow = Calendar.getInstance(tz).apply { timeInMillis = todayKey; add(Calendar.DATE, 1) }.timeInMillis
         return when (nightKeyMs) {
             todayKey -> (if (isFa) "امشب" else "Tonight") + " · " + date(nightKeyMs, tz, isFa)
-            tomorrow -> if (isFa) "شب فردا" else "Tomorrow night"
+            tomorrow -> (if (isFa) "شب فردا" else "Tomorrow night") + " · " + date(nightKeyMs, tz, isFa)
             else -> date(nightKeyMs, tz, isFa)
         }
     }
@@ -623,14 +629,12 @@ object SatNights {
 
         val firstGood = eligible.firstOrNull { it.quality.rank <= SatQuality.GOOD.rank } ?: return null
         val windowEnd = firstGood.pass.startTimeMs + 6L * 60L * 60L * 1000L
-        val brighter = eligible
+        val byBrightness = compareBy<SatPassUi> { it.pass.estimatedMagnitude.takeIf(Double::isFinite) ?: Double.POSITIVE_INFINITY }
+            .thenByDescending { it.pass.visibilityScore }
+        val brighter = eligible.asSequence()
             .filter { it.pass.startTimeMs <= windowEnd && it.quality.rank <= SatQuality.VERY_GOOD.rank }
-            .maxByOrNull { it.pass.visibilityScore }
-        val chosen = if (brighter != null && brighter.pass.visibilityScore > firstGood.pass.visibilityScore) {
-            brighter
-        } else {
-            firstGood
-        }
+            .minWithOrNull(byBrightness)
+        val chosen = if (brighter != null && byBrightness.compare(brighter, firstGood) < 0) brighter else firstGood
         return SatSpotlightUi(
             pass = chosen,
             isInProgress = false,
@@ -857,10 +861,25 @@ fun ZigBellButton(
 ) {
     val enabled = !isPast
     val active = leadMinutes != null || isAutoCovered
+    var previousLead by remember { mutableStateOf(leadMinutes) }
+    var flash by remember { mutableStateOf(false) }
+    val reduce = LocalSatReduceMotion.current
+    LaunchedEffect(leadMinutes) {
+        val changed = previousLead != leadMinutes
+        previousLead = leadMinutes
+        if (changed && !reduce) {
+            flash = true
+            delay(180)
+        }
+        flash = false
+    }
+    val highlight by animateColorAsState(if (flash) tokens.live.copy(alpha = .22f) else Color.Transparent,
+        tween(if (flash) 0 else 120), label = "pass-reminder-confirmation")
     Column(
         modifier = modifier
             .sizeIn(minWidth = SatGrid.minTouchTarget, minHeight = SatGrid.minTouchTarget)
-            .clickable(enabled = enabled, onClick = onClick)
+            .background(highlight, CircleShape)
+            .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .testTag("pass_reminder_bell"),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

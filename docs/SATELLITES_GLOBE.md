@@ -4,7 +4,7 @@ The tab is an edge-to-edge Earth3D viewport with an inset-aware HUD, not a feed.
 
 ## Preview matrix
 
-Open [`SatellitePreviews.kt`](../app/src/debug/java/com/alijafari/red/astronomy/ui/satellites/SatellitePreviews.kt) with the **debug** build variant in Android Studio and choose **Split** or **Design**. It provides the 24 reference previews, plus Spatial and Aether examples and two narrow Persian 130% cases:
+Open [`SatellitePreviews.kt`](../app/src/debug/java/com/alijafari/red/astronomy/ui/satellites/SatellitePreviews.kt) with the **debug** build variant in Android Studio and choose **Split** or **Design**. It provides a 72-preview matrix (3 skins × 3 palettes × 2 languages × 4 states), plus two narrow Persian 130% cases. The Default entry points are below; Spatial and Aether use the same names prefixed by their skin:
 
 | Palette | Globe at rest | Time tray | Passes (half) | Detail |
 |---|---|---|---|---|
@@ -16,11 +16,14 @@ Each reference preview has variants for English LTR and Persian RTL at 390 × 84
 
 ## Checks
 
-- `SatellitesRedesignTest`: state exclusivity and restoration inputs, signed and localized numbers, spotlight ordering, time magnets, and free-area globe framing.
+- `SatellitesRedesignTest`: state exclusivity, spotlight ordering, observer sunset/sunrise (including DST and polar day), time magnets, geographic bearings, contrast ratios, and free-area globe framing.
+- `SatSignedTextTest`: the real Android bidi formatter, Persian numerals and the Unicode minus.
+- `SatelliteHudRenderTest`: production HUD layout, floating-nav clearance, panel switching, and an RTL scrubber at 130% font size. Use `./gradlew testDebugUnitTest --tests '*SatelliteHudRenderTest*' -Proborazzi.test.record=true -Pgravity.ci.tests=false` to save review frames to `app/build/outputs/satellite-previews/`.
+- `SatReminderPersistenceTest`: one manual lead replaces rolling coverage, and turning monitoring off preserves manual alarms.
 - `Earth3DTest` and `StarlinkPipelineTest`: projection and occlusion, and preservation of the existing Earth and orbit data paths.
 - On-device review: verify pinch and double-tap outside the HUD, tap overlapping markers twice, cycle three satellites with Focus Card swipes, scrub while watching the Earth and dismiss without returning to Live, and verify a scheduled reminder after leaving and re-entering the tab. Repeat on a narrow Persian screen at 130% font scale and with device animations disabled.
 
-For short landscape/large windows, the resting globe fits the height available between the header and Focus Card instead of cropping a width-sized sphere. Pinch remains available to zoom in.
+The tests use a still globe, not the native touch/render surface. For short landscape/large windows, the resting globe fits the height available between the header and Focus Card instead of cropping a width-sized sphere. Pinch remains available to zoom in.
 
 ```sh
 ./gradlew testDebugUnitTest -Pgravity.ci.tests=false

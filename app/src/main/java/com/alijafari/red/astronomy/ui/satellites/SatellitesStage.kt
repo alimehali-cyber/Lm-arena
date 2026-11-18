@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.EarthViewportProjection
@@ -165,7 +166,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
         if (timeOffsetMinutes != 0) delay(140)
         val snapshot = withContext(Dispatchers.Default) {
             StarlinkTrainManager.selectRealtimeOverheadStarlinks(tleRepo.getStarlinkTles(), location.latitude,
-                location.longitude, nowMs = currentSimulationMs, maxOverhead = StarlinkTrainManager.DEFAULT_REALTIME_OVERHEAD_LIMIT)
+                location.longitude, location.elevationMeters, nowMs = currentSimulationMs, maxOverhead = StarlinkTrainManager.DEFAULT_REALTIME_OVERHEAD_LIMIT)
         }
         activeTrains = snapshot.activeTrains
         overheadStarlinks = snapshot.overheadStarlinks
@@ -187,6 +188,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     }
     fun propagate(sat: SatelliteItem) = SatelliteEngine.calculateSatelliteState(
         satellite = sat, timestampMs = currentSimulationMs, userLatDeg = location.latitude, userLonDeg = location.longitude,
+        userAltMeters = location.elevationMeters,
     )
     val liveSatelliteStates = remember(filteredSatellites, currentSimulationMs, location, tleRefreshTick) { filteredSatellites.map(::propagate) }
     val trainPearlStatesByTrain = remember(activeTrains, showStarlinks, currentSimulationMs, location) {
@@ -331,9 +333,14 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     val removedMessage = stringResource(R.string.sat_reminder_removed)
     val scheduledMessage = stringResource(R.string.sat_reminder_set, "%s")
     fun removeReminder(sat: SatelliteItem, pass: ISSEngine.ISSPass) {
+        val removed = alarms.firstOrNull { it.manualPass && it.coversSatellitePass(sat, pass.startTimeMs) } ?: return
         AstroNotificationManager.cancelSpecificPassAlarm(context, sat, pass.startTimeMs)
         if (config.enabled) AstroNotificationManager.requestRollingPassRefresh(context)
-        feedback = SatFeedback(removedMessage)
+        view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+        feedback = SatFeedback(removedMessage) {
+            AstroNotificationManager.scheduleSpecificPassAlarm(context, sat, pass, location, removed.leadMinutes)
+            feedback = null
+        }
     }
     fun setReminder(sat: SatelliteItem, pass: ISSEngine.ISSPass, lead: Int) {
         withNotificationPermission {
@@ -410,7 +417,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                             nextFocused = nextFocused, now = realTimeNowMs, tz = tz, markers = markers, centered = centered,
                             firstRun = firstRun, timeActions = timeActions, onPanel = { panel ->
                                 reminderTarget = null
-                                if (panel != SatPanel.Passes) anchorId = null
+                                anchorId = null
                                 screen.toggle(panel)
                                 if (panel == SatPanel.Guide) firstRun = false
                             }, onClose = ::closePanel, onLive = returnLive,
@@ -510,69 +517,73 @@ internal fun SatelliteHud(
         val isFa = status.isFa
         val panel = state.activePanel
         val simulated = state.timeOffsetMin != 0
-        SatelliteStarfield(tokens)
-        globe(framing, top, bottom)
-        if (simulated) Box(Modifier.matchParentSize().border(2.dp, tokens.sim.copy(alpha = 0.35f)))
+        val modal = panel == SatPanel.Fleet || panel == SatPanel.Passes || panel == SatPanel.Alerts || panel == SatPanel.Guide
+        // Sheets block the globe and its HUD for touch *and* for accessibility. Time and Layers don't.
+        Box(Modifier.matchParentSize().then(if (modal) Modifier.clearAndSetSemantics {} else Modifier)) {
+            SatelliteStarfield(tokens)
+            globe(framing, top, bottom)
+            if (simulated) Box(Modifier.matchParentSize().border(2.dp, tokens.sim.copy(alpha = 0.35f)))
 
-        Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(start = padding, end = padding, top = 16.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            SatStatusPill(status, tokens, { onPanel(SatPanel.DataStatus) }, onLive)
-            Spacer(Modifier.weight(1f))
-            val alerts = if (config.enabled) stringResource(R.string.sat_alerts_tooltip, satLeadLabel(config.leadMinutes, isFa),
-                SatFmt.int(config.satelliteIds.size, isFa)) else stringResource(R.string.sat_alerts)
-            ZigSatIconButton(Icons.Filled.NotificationsNone, alerts, tokens, { onPanel(SatPanel.Alerts) },
-                dot = if (config.enabled) tokens.live else null, hud = true, tooltip = alerts, testTag = "sat_alerts")
-            ZigSatIconButton(Icons.Filled.HelpOutline, stringResource(R.string.sat_help), tokens, { onPanel(SatPanel.Guide) },
-                hud = true, dot = if (firstRun) tokens.live else null, pulseDot = firstRun, testTag = "sat_guide")
-        }
-        AnimatedVisibility(firstRun && panel == SatPanel.None,
-            Modifier.align(Alignment.TopEnd).padding(top = top, end = padding), enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
-            SatText(stringResource(R.string.sat_hint), tokens.inkPrimary,
-                Modifier.satMaterial(tokens, SatSlot.Popover, androidx.compose.foundation.shape.CircleShape).padding(horizontal = 9.dp, vertical = 6.dp))
-        }
-        Column(Modifier.align(Alignment.TopEnd).padding(top = railTop, end = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            ZigSatIconButton(Icons.Filled.SatelliteAlt, stringResource(R.string.sat_fleet), tokens, { onPanel(SatPanel.Fleet) },
-                visualSize = 44.dp, hud = true, testTag = "sat_fleet")
-            ZigSatIconButton(Icons.Filled.Schedule, stringResource(R.string.sat_time), tokens, { onPanel(SatPanel.Time) },
-                visualSize = 44.dp, dot = if (simulated) tokens.sim else null, hud = true, active = panel == SatPanel.Time, testTag = "sat_time")
-            ZigSatIconButton(Icons.Filled.Layers, stringResource(R.string.sat_layers), tokens, { onPanel(SatPanel.Layers) },
-                visualSize = 44.dp, hud = true, active = panel == SatPanel.Layers, testTag = "sat_layers")
-            ZigSatIconButton(Icons.Filled.CenterFocusWeak, stringResource(R.string.sat_locate), tokens, onLocate,
-                visualSize = 44.dp, hud = true, enabled = !centered, testTag = "map_reset_view")
-        }
-        Box(Modifier.align(Alignment.BottomCenter).padding(start = padding,
-            end = if (tightHeight) 68.dp else padding, bottom = navClearance)) {
-            AnimatedContent(targetState = panel == SatPanel.Time, transitionSpec = {
-                if (reduce) fadeIn(tween(120)) togetherWith fadeOut(tween(120))
-                else if (targetState) (slideInVertically(tween(240)) { it / 4 } + fadeIn(tween(210))) togetherWith fadeOut(tween(160))
-                else fadeIn(tween(160)) togetherWith (slideOutVertically(tween(230)) { it / 4 } + fadeOut(tween(180)))
-            }, label = "hud-bottom") { showTime ->
-                if (showTime) SatTimeTray(tokens, state.timeOffsetMin, now, tz, markers, isFa, compact, timeActions, onClose)
-                else if (focused != null) {
-                    val span = stringResource(if (focused.satellite.isTrain) R.string.sat_two_days else R.string.sat_three_days)
-                    Crossfade(focused.satellite.id, focusModifier, animationSpec = tween(if (reduce) 120 else 160), label = "satellite-focus") { id ->
-                        var presented by remember(id) { mutableStateOf(focused) }
-                        SideEffect { if (id == focused.satellite.id) presented = focused }
-                        SatFocusCard(presented, tokens, isFa, compact, width >= 412.dp, simulated, !status.isOnline, nextFocused,
-                            now + state.timeOffsetMin * MINUTE, span, firstRun, { onPanel(SatPanel.Fleet) }, onDetail,
-                            { onPanel(SatPanel.Passes) }, onCycle,
-                            Modifier.onSizeChanged { focusHeight = with(density) { it.height.toDp() } })
+            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(start = padding, end = padding, top = 16.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                SatStatusPill(status, tokens, { onPanel(SatPanel.DataStatus) }, onLive)
+                Spacer(Modifier.weight(1f))
+                val alerts = if (config.enabled) stringResource(R.string.sat_alerts_tooltip, satLeadLabel(config.leadMinutes, isFa),
+                    SatFmt.int(config.satelliteIds.size, isFa)) else stringResource(R.string.sat_alerts)
+                ZigSatIconButton(Icons.Filled.NotificationsNone, alerts, tokens, { onPanel(SatPanel.Alerts) },
+                    dot = if (config.enabled) tokens.live else null, hud = true, tooltip = alerts, testTag = "sat_alerts")
+                ZigSatIconButton(Icons.Filled.HelpOutline, stringResource(R.string.sat_help), tokens, { onPanel(SatPanel.Guide) },
+                    hud = true, dot = if (firstRun) tokens.live else null, pulseDot = firstRun, testTag = "sat_guide")
+            }
+            AnimatedVisibility(firstRun && panel == SatPanel.None,
+                Modifier.align(Alignment.TopEnd).padding(top = top, end = padding), enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
+                SatText(stringResource(R.string.sat_hint), tokens.inkPrimary,
+                    Modifier.satMaterial(tokens, SatSlot.Popover, androidx.compose.foundation.shape.CircleShape).padding(horizontal = 9.dp, vertical = 6.dp))
+            }
+            Column(Modifier.align(Alignment.TopEnd).padding(top = railTop, end = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                ZigSatIconButton(Icons.Filled.SatelliteAlt, stringResource(R.string.sat_fleet), tokens, { onPanel(SatPanel.Fleet) },
+                    visualSize = 44.dp, hud = true, testTag = "sat_fleet")
+                ZigSatIconButton(Icons.Filled.Schedule, stringResource(R.string.sat_time), tokens, { onPanel(SatPanel.Time) },
+                    visualSize = 44.dp, dot = if (simulated) tokens.sim else null, hud = true, active = panel == SatPanel.Time, testTag = "sat_time")
+                ZigSatIconButton(Icons.Filled.Layers, stringResource(R.string.sat_layers), tokens, { onPanel(SatPanel.Layers) },
+                    visualSize = 44.dp, hud = true, active = panel == SatPanel.Layers, testTag = "sat_layers")
+                ZigSatIconButton(Icons.Filled.CenterFocusWeak, stringResource(R.string.sat_locate), tokens, onLocate,
+                    visualSize = 44.dp, hud = true, enabled = !centered, testTag = "map_reset_view")
+            }
+            Box(Modifier.align(Alignment.BottomCenter).padding(start = padding,
+                end = if (tightHeight) 68.dp else padding, bottom = navClearance)) {
+                AnimatedContent(targetState = panel == SatPanel.Time, transitionSpec = {
+                    if (reduce) fadeIn(tween(120)) togetherWith fadeOut(tween(120))
+                    else if (targetState) (slideInVertically(tween(240)) { it / 4 } + fadeIn(tween(210))) togetherWith fadeOut(tween(160))
+                    else fadeIn(tween(160)) togetherWith (slideOutVertically(tween(230)) { it / 4 } + fadeOut(tween(180)))
+                }, label = "hud-bottom") { showTime ->
+                    if (showTime) SatTimeTray(tokens, state.timeOffsetMin, now, tz, markers, isFa, compact, timeActions, onClose)
+                    else if (focused != null) {
+                        val span = stringResource(if (focused.satellite.isTrain) R.string.sat_two_days else R.string.sat_three_days)
+                        Crossfade(focused.satellite.id, focusModifier, animationSpec = tween(if (reduce) 120 else 160), label = "satellite-focus") { id ->
+                            var presented by remember(id) { mutableStateOf(focused) }
+                            SideEffect { if (id == focused.satellite.id) presented = focused }
+                            SatFocusCard(presented, tokens, isFa, compact, width >= 412.dp, simulated, !status.isOnline, nextFocused,
+                                now + state.timeOffsetMin * MINUTE, span, firstRun, { onPanel(SatPanel.Fleet) }, onDetail,
+                                { onPanel(SatPanel.Passes) }, onCycle,
+                                Modifier.onSizeChanged { focusHeight = with(density) { it.height.toDp() } })
+                        }
                     }
                 }
             }
-        }
-        if (state.legend && panel == SatPanel.None) SatLegendPanel(tokens, isFa,
-            Modifier.align(Alignment.BottomStart).padding(start = padding, bottom = bottom + 8.dp).width(172.dp))
+            if (state.legend && panel == SatPanel.None) SatLegendPanel(tokens, isFa,
+                Modifier.align(Alignment.BottomStart).padding(start = padding, bottom = bottom + 8.dp).width(172.dp))
 
-        when (panel) {
-            SatPanel.DataStatus -> SatDataStatusPopover(status, tokens, tz, onClose, { onLive(); onClose() },
-                Modifier.align(Alignment.TopStart).padding(start = padding, end = padding, top = top))
-            SatPanel.Layers -> SatLayersPopover(tokens, state.mapTheme, state.legend, onLighting, onLegend,
-                Modifier.align(Alignment.TopEnd).padding(end = 66.dp, top = (railTop + 91.dp).coerceAtMost((height - bottom - 106.dp).coerceAtLeast(top))))
-            SatPanel.Fleet, SatPanel.Passes, SatPanel.Alerts, SatPanel.Guide -> sheet(panel, width >= 600.dp)
-            else -> Unit
+            when (panel) {
+                SatPanel.DataStatus -> SatDataStatusPopover(status, tokens, tz, onClose, { onLive(); onClose() },
+                    Modifier.align(Alignment.TopStart).padding(start = padding, end = padding, top = top))
+                SatPanel.Layers -> SatLayersPopover(tokens, state.mapTheme, state.legend, onLighting, onLegend,
+                    Modifier.align(Alignment.TopEnd).padding(end = 66.dp, top = (railTop + 91.dp).coerceAtMost((height - bottom - 106.dp).coerceAtLeast(top))))
+                else -> Unit
+            }
         }
+        if (modal) sheet(panel, width >= 600.dp)
     }
 }
 

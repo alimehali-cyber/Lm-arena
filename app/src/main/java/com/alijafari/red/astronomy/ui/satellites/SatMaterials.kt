@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -59,6 +62,28 @@ internal fun Modifier.satMaterial(
         SatSkin.SPATIAL -> SpatialSatMaterial
         SatSkin.AETHER -> AetherSatMaterial
     }
+    val detailMaterial = when {
+        tokens.skin == SatSkin.AETHER && slot == SatSlot.DetailHero -> Modifier.drawBehind {
+            val glint = Path().apply {
+                moveTo(size.width * .63f, 0f)
+                lineTo(size.width, 0f)
+                lineTo(size.width, size.height * .52f)
+                lineTo(size.width * .57f, size.height * .31f)
+                close()
+            }
+            drawPath(glint, tokens.timeAccent.copy(alpha = .075f))
+        }
+        tokens.skin == SatSkin.SPATIAL && slot in setOf(SatSlot.FocusCard, SatSlot.TimeTray, SatSlot.Spotlight) -> Modifier.drawBehind {
+            // Sparse low-alpha glints give the glass a mesh without putting texture under glyphs.
+            val start = size.width * .78f
+            for (i in 0..5) {
+                val y = (i + 1) * size.height / 8
+                drawLine(tokens.inkPrimary.copy(alpha = .033f), Offset(start, y),
+                    Offset(size.width, y + size.height * .20f), 1.dp.toPx())
+            }
+        }
+        else -> Modifier
+    }
     return clip(shape).background(material.fill(tokens, slot, backing, accent))
-        .border(1.dp, material.rim(tokens, slot, accent), shape)
+        .then(detailMaterial).border(1.dp, material.rim(tokens, slot, accent), shape)
 }

@@ -31,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,7 +75,7 @@ internal fun SatBottomSheet(
         })
         Column(Modifier.align(if (side) Alignment.CenterEnd else Alignment.BottomCenter)
             .then(if (side) Modifier.padding(end = 12.dp).width(380.dp) else Modifier.fillMaxWidth())
-            .height(height).testTag(tag).semantics { paneTitle = title }
+            .height(height).testTag(tag).semantics { paneTitle = title; isTraversalGroup = true }
             .satMaterial(tokens, SatSlot.Sheet, shape, backing = tokens.card)
             .pointerInput(Unit) { detectTapGestures { /* Do not send taps on sheet chrome to the scrim. */ } }
             .navigationBarsPadding().imePadding().padding(horizontal = 20.dp)) {
@@ -128,7 +129,8 @@ fun SatDialogButton(label: String, tokens: ZigSatTokens, onClick: () -> Unit, pr
 internal fun SatDataStatusPopover(data: SatStatusData, tokens: ZigSatTokens, tz: TimeZone,
     onClose: () -> Unit, onReturnToLive: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.widthIn(max = 330.dp).fillMaxWidth().testTag("data_status_popover")
-        .satMaterial(tokens, SatSlot.Popover, squircleShape(16.dp)).padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        .satMaterial(tokens, SatSlot.Popover, squircleShape(16.dp))
+        .pointerInput(Unit) { detectTapGestures {} }.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SatSheetTitle(stringResource(R.string.sat_status), null, tokens,
             trailing = { ZigSatIconButton(Icons.Filled.Close, stringResource(R.string.sat_close), tokens, onClose) })
         val source = stringResource(when (data.tleSource) {
@@ -161,7 +163,7 @@ private fun StatusRow(label: String, value: String, tokens: ZigSatTokens) {
 internal fun SatLayersPopover(tokens: ZigSatTokens, lighting: MapTheme, legend: Boolean, onLighting: (MapTheme) -> Unit,
     onLegend: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.width(224.dp).testTag("map_theme_selector").satMaterial(tokens, SatSlot.Popover, squircleShape(16.dp))
-        .padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        .pointerInput(Unit) { detectTapGestures {} }.padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         SatText(stringResource(R.string.sat_lighting), tokens.inkPrimary, size = 13, strong = true)
         Row(Modifier.background(tokens.cardAlt, CircleShape), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             MapTheme.entries.forEach { mode ->
@@ -204,8 +206,10 @@ internal fun SatFleetSheet(fleet: List<SatTokenUi>, category: SatelliteCategory,
         })
         val above = fleet.count { it.elevationDeg > 0 }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            repeat(fleet.size.coerceIn(4, 10)) { index ->
-                ZigStatusDot(if (index < above) tokens.nakedEye else tokens.border, false, 5.dp)
+            val segments = fleet.size.coerceIn(4, 10)
+            val filled = kotlin.math.ceil(segments * above.toDouble() / fleet.size.coerceAtLeast(1)).toInt()
+            repeat(segments) { index ->
+                ZigStatusDot(if (index < filled) tokens.nakedEye else tokens.border, false, 5.dp)
             }
             SatText(stringResource(R.string.sat_above, SatFmt.int(above, isFa)), tokens.inkSecondary)
         }

@@ -209,6 +209,14 @@ class SatellitesRedesignTest {
     }
 
     @Test
+    fun spotlightDoesNotTradeBrightnessForAHigherSoftwareScore() {
+        val now = 1_800_000_000_000L
+        val soon = passUi(now + 60_000L, score = 60)
+        val later = passUi(now + 600_000L, score = 84).let { it.copy(pass = it.pass.copy(estimatedMagnitude = 0.5)) }
+        assertEquals(soon.key, SatNights.spotlight(listOf(soon, later), now, TimeZone.getTimeZone("UTC"), false)?.pass?.key)
+    }
+
+    @Test
     fun spotlightReportsAPassInProgress() {
         val now = 1_800_000_000_000L
         val running = passUi(now - 2 * 60_000L)

@@ -82,8 +82,9 @@ fun SatelliteDetailScreen(
     }
     val state = remember(satelliteItem, simulationTimestampMs, userLocation, starlinkCacheVersion) {
         (AstroDispatchEngine.calculateState(canonicalSatellite?.canonicalId ?: "sat_${satelliteItem.noradId}",
-            simulationTimestampMs, userLocation.latitude, userLocation.longitude)?.specializedData as? SatelliteLiveState)
-            ?: SatelliteEngine.calculateSatelliteState(satelliteItem, simulationTimestampMs, userLocation.latitude, userLocation.longitude)
+            simulationTimestampMs, userLocation.latitude, userLocation.longitude, userLocation.elevationMeters)?.specializedData as? SatelliteLiveState)
+            ?: SatelliteEngine.calculateSatelliteState(satelliteItem, simulationTimestampMs, userLocation.latitude,
+                userLocation.longitude, userLocation.elevationMeters)
     }
     val stale = formatTleStalenessBadge(satelliteItem.isTrain, state.tleMetadata,
         if (satelliteItem.isTrain || satelliteItem.category == SatelliteCategory.STARLINK) tleRepo.getStarlinkCacheAgeDays() else null, isFa)
@@ -222,7 +223,8 @@ internal fun SatelliteDetailContent(
                 itemsIndexed(groups, key = { _, group -> group.nightKey }) { index, g ->
                     val isOpen = expanded[g.nightKey] ?: (index < 3)
                     SatNightSection(g, isOpen, if (g.nightKey in showMaximum) Int.MAX_VALUE else 3,
-                        if (satelliteItem.isTrain) 12 else 10, tokens, isFa, ::actions,
+                        if (g.nightKey in showMaximum) Int.MAX_VALUE else if (satelliteItem.isTrain) 12 else 10,
+                        tokens, isFa, ::actions,
                         { expanded = expanded + (g.nightKey to !isOpen) }, { showMaximum = showMaximum + g.nightKey }, realNow, tz = tz)
                 }
                 item("dossier") { DetailDossier(satelliteItem, tokens, isFa) }
