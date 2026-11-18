@@ -2,13 +2,19 @@ name: Astronomy bit-identity baseline
 
 # Records the SHA-256 fingerprints AstroBitIdentityTest compares against, from the engine code of the
 # commit that triggered the run, and commits them to app/src/test/resources/astro-goldens.txt.
-# The test refuses to overwrite an existing baseline, so this can only ever record the first one (or a
-# deliberate re-baseline after the file has been deleted). Runs only when this workflow file changes.
+# Re-recording an existing baseline requires an explicit workflow_dispatch input; ordinary runs never
+# overwrite it. Runs on workflow changes or when manually dispatched.
 on:
   push:
     paths:
       - ".github/workflows/astro-goldens.yml"
   workflow_dispatch:
+    inputs:
+      rebaseline:
+        description: "Explicitly regenerate the astronomy fingerprint baseline from this branch"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -34,9 +40,14 @@ jobs:
       - name: Record the baseline
         env:
           ASTRO_GOLDENS_RECORD: "true"
+          REBASELINE: ${{ inputs.rebaseline }}
         run: |
+          if [ "$REBASELINE" = "true" ]; then
+            echo "Explicit rebaseline requested; replacing the fingerprint file from this commit."
+            rm -f app/src/test/resources/astro-goldens.txt
+          fi
           if [ -f app/src/test/resources/astro-goldens.txt ]; then
-            echo "baseline already recorded; nothing to do"
+            echo "baseline already recorded; no rebaseline requested"
             exit 0
           fi
           chmod +x gradlew || true
