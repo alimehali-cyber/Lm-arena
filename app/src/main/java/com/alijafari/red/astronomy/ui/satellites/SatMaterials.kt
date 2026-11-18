@@ -1,55 +1,74 @@
 package com.alijafari.red.astronomy.ui.satellites
 
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.*
 
-/** All slots take the same content and geometry in each skin. Only their paint changes. */
-internal enum class SatSlot { StatusPill, RailButton, FocusCard, TimeTray, Sheet, Spotlight, PassCard, Popover, DetailHero }
-
-private interface SatMaterial {
-    fun fill(tokens: ZigSatTokens, slot: SatSlot, base: Color, accent: Color?): Brush
-    fun rim(tokens: ZigSatTokens, slot: SatSlot, accent: Color?): Brush
+internal enum class SatSlot {
+    StatusPill,
+    Toolbar,
+    FocusCard,
+    Sheet,
+    Tray,
+    SatRow,
+    PassRow,
+    Spotlight,
+    Chip,
+    Popover,
+    DetailHero,
 }
 
-private fun flat(color: Color): Brush = Brush.linearGradient(listOf(color, color))
+internal val LocalFlatSatGlass = compositionLocalOf { false }
 
-private object DefaultSatMaterial : SatMaterial {
-    override fun fill(tokens: ZigSatTokens, slot: SatSlot, base: Color, accent: Color?) =
-        flat(if (slot == SatSlot.Popover) base else accent?.copy(alpha = 0.08f)?.compositeOver(base) ?: base)
-    override fun rim(tokens: ZigSatTokens, slot: SatSlot, accent: Color?) =
-        flat(accent?.copy(alpha = if (slot == SatSlot.Popover) 1f else 0.4f) ?: tokens.border)
+internal class Frost(val layer: GraphicsLayer) {
+    var origin by mutableStateOf(Offset.Zero)
 }
 
-private object SpatialSatMaterial : SatMaterial {
-    override fun fill(tokens: ZigSatTokens, slot: SatSlot, base: Color, accent: Color?) = Brush.linearGradient(
-        listOf((accent ?: tokens.timeAccent).copy(alpha = 0.10f).compositeOver(base), base.copy(alpha = 0.96f), base),
-    )
-    override fun rim(tokens: ZigSatTokens, slot: SatSlot, accent: Color?) = Brush.linearGradient(
-        listOf(tokens.inkPrimary.copy(alpha = 0.32f), (accent ?: tokens.timeAccent).copy(alpha = 0.33f), tokens.border),
-    )
-}
+internal val LocalFrost = compositionLocalOf<Frost?> { null }
 
-private object AetherSatMaterial : SatMaterial {
-    override fun fill(tokens: ZigSatTokens, slot: SatSlot, base: Color, accent: Color?): Brush {
-        val tint = (accent ?: tokens.timeAccent).copy(alpha = if (slot == SatSlot.DetailHero) 0.22f else 0.12f)
-        return if (slot == SatSlot.DetailHero) Brush.linearGradient(listOf(tint.compositeOver(base), base, tint.copy(alpha = .10f).compositeOver(base)))
-        else Brush.verticalGradient(listOf(tint.compositeOver(base), base, tint.copy(alpha = .06f).compositeOver(base)))
+/**
+ * The panels only ever sit on free space. Sample the space backdrop, not the expensive EGL surface, and blur that *one*
+ * layer, never the content, glyphs, or the user's whole window.
+ */
+@Composable
+internal fun FrostProvider(tokens: ZigSatTokens, content: @Composable () -> Unit) {
+    if (!tokens.glassy || LocalFlatSatGlass.current || Build.VERSION.SDK_INT < 31) {
+        content()
+        return
     }
-    override fun rim(tokens: ZigSatTokens, slot: SatSlot, accent: Color?) = Brush.linearGradient(
-        listOf((accent ?: tokens.timeAccent).copy(alpha = 0.52f), tokens.border, tokens.inkPrimary.copy(alpha = 0.22f)),
-    )
+    val layer = rememberGraphicsLayer()
+    val frost = remember(layer) { Frost(layer) }
+    val blur = with(LocalDensity.current) { if (tokens.skin == SatSkin.AETHER) 14.dp.toPx() else 8.dp.toPx() }
+    SideEffect { layer.renderEffect = BlurEffect(blur, blur, TileMode.Clamp) }
+    CompositionLocalProvider(LocalFrost provides frost, content = content)
 }
 
+@Composable
+internal fun Modifier.captureSpace(): Modifier {
+    val frost = LocalFrost.current ?: return this
+    return onGloballyPositioned { frost.origin = it.positionInRoot() }
+        .drawWithContent {
+            frost.layer.record { this@drawWithContent.drawContent() }
+            drawContent()
+        }
+}
+
+/** Flat fill under every glyph; skin lighting lives on the rim, not in a wash over the content. */
+@Composable
 internal fun Modifier.satMaterial(
     tokens: ZigSatTokens,
     slot: SatSlot,
@@ -57,33 +76,26 @@ internal fun Modifier.satMaterial(
     backing: Color = tokens.card,
     accent: Color? = null,
 ): Modifier {
-    val material = when (tokens.skin) {
-        SatSkin.DEFAULT -> DefaultSatMaterial
-        SatSkin.SPATIAL -> SpatialSatMaterial
-        SatSkin.AETHER -> AetherSatMaterial
-    }
-    val detailMaterial = when {
-        tokens.skin == SatSkin.AETHER && slot == SatSlot.DetailHero -> Modifier.drawBehind {
-            val glint = Path().apply {
-                moveTo(size.width * .63f, 0f)
-                lineTo(size.width, 0f)
-                lineTo(size.width, size.height * .52f)
-                lineTo(size.width * .57f, size.height * .31f)
-                close()
-            }
-            drawPath(glint, tokens.timeAccent.copy(alpha = .075f))
+    val frost = LocalFrost.current
+    val base =
+        if (frost == null || slot == SatSlot.DetailHero) clip(shape).background(backing)
+        else {
+            var at by remember { mutableStateOf(Offset.Zero) }
+            clip(shape)
+                .onGloballyPositioned { at = it.positionInRoot() }
+                .drawBehind {
+                    val offset = frost.origin - at
+                    translate(offset.x, offset.y) { drawLayer(frost.layer) }
+                    drawRect(backing.copy(alpha = if (tokens.skin == SatSkin.AETHER) .89f else .82f))
+                }
         }
-        tokens.skin == SatSkin.SPATIAL && slot in setOf(SatSlot.FocusCard, SatSlot.TimeTray, SatSlot.Spotlight) -> Modifier.drawBehind {
-            // Sparse low-alpha glints give the glass a mesh without putting texture under glyphs.
-            val start = size.width * .78f
-            for (i in 0..5) {
-                val y = (i + 1) * size.height / 8
-                drawLine(tokens.inkPrimary.copy(alpha = .033f), Offset(start, y),
-                    Offset(size.width, y + size.height * .20f), 1.dp.toPx())
-            }
+    val flat = tokens.skin == SatSkin.DEFAULT || LocalFlatSatGlass.current
+    if (flat) return base.border(Dp.Hairline, accent ?: tokens.border, shape)
+    val rim =
+        when {
+            slot == SatSlot.StatusPill && accent == tokens.sim -> listOf(Color(0xff709df4), Color(0xffb29be1))
+            slot == SatSlot.StatusPill && accent == tokens.live -> listOf(Color(0xffe18d9f), Color(0xffe4aa88))
+            else -> listOf(tokens.inkPrimary.copy(alpha = .31f), tokens.border, tokens.inkSecondary.copy(alpha = .19f))
         }
-        else -> Modifier
-    }
-    return clip(shape).background(material.fill(tokens, slot, backing, accent))
-        .then(detailMaterial).border(1.dp, material.rim(tokens, slot, accent), shape)
+    return base.border(Dp.Hairline, Brush.linearGradient(rim), shape)
 }

@@ -7,8 +7,8 @@ import com.alijafari.red.astronomy.astro_engine.ISSEngine
 import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
 import com.alijafari.red.astronomy.astro_engine.SatelliteCategory
 import com.alijafari.red.astronomy.ui.satellites.*
+import com.alijafari.red.astronomy.ui.satellites.core.*
 import com.alijafari.red.astronomy.Earth3DMath
-import com.alijafari.red.astronomy.ui.components.satelliteViewport
 import com.alijafari.red.astronomy.ui.components.SATELLITE_EARTH_DEFAULT_DISTANCE
 import com.alijafari.red.astronomy.ui.screens.MapTheme
 import com.alijafari.red.astronomy.ui.satellites.SatFmt
@@ -55,6 +55,9 @@ class SatellitesRedesignTest {
     private val design by lazy { source("com/alijafari/red/astronomy/ui/satellites/SatelliteDesign.kt") }
     private val components by lazy { source("com/alijafari/red/astronomy/ui/satellites/SatelliteComponents.kt") }
     private val sheets by lazy { source("com/alijafari/red/astronomy/ui/satellites/SatelliteSheets.kt") }
+    private val hud by lazy { source("com/alijafari/red/astronomy/ui/satellites/SatelliteHud.kt") }
+    private val focus by lazy { source("com/alijafari/red/astronomy/ui/satellites/FocusHud.kt") }
+    private val passes by lazy { source("com/alijafari/red/astronomy/ui/satellites/PassPanels.kt") }
     private val detail by lazy { source("com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt") }
 
     private fun pass(
@@ -106,6 +109,19 @@ class SatellitesRedesignTest {
         )
     }
 
+    @Test
+    fun savedStateRestoresLegacyAndToleratesUnknownFields() {
+        val legacy = restoreSatelliteState(listOf("iss_zarya", "ALL", "90", "DARK")).ui
+        assertEquals("iss_zarya", legacy.focusId)
+        assertEquals(90, legacy.timeOffsetMin)
+        assertEquals(MapTheme.DARK, legacy.mapTheme)
+        assertEquals(SatPanel.None, legacy.activePanel)
+        val damaged = restoreSatelliteState(listOf("", "9999", "future-theme", "future-panel")).ui
+        assertEquals(720, damaged.timeOffsetMin)
+        assertEquals(MapTheme.AUTO, damaged.mapTheme)
+        assertEquals(SatPanel.None, damaged.activePanel)
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Numbers: signs are bidi-safe and there is never a `+-`
     // ---------------------------------------------------------------------------------------------
@@ -118,14 +134,15 @@ class SatellitesRedesignTest {
     }
 
     @Test
-    fun directionTextMirrorsInPersianAndKeepsTheCompassWords() {
-        val en = SatFmt.direction(225.0, 45.0, isFa = false)
-        assertEquals("SW \u2192 NE", en)
-        val fa = SatFmt.direction(225.0, 45.0, isFa = true)
-        // Persian word order is the source order; the arrow points the other way so the reading
-        // direction still runs rise → set.
-        assertTrue("rise sits at the start edge in RTL", fa.startsWith("جنوب\u200Cغرب"))
-        assertTrue("and the arrow flips", fa.contains('\u2190'))
+    fun compassWordsAndDirectionVectorHaveSeparateSemantics() {
+        assertEquals("SW", SatFmt.compass(225.0, isFa = false))
+        assertEquals("NE", SatFmt.compass(45.0, isFa = false))
+        assertEquals("جنوب‌غرب", SatFmt.compass(225.0, isFa = true))
+        assertEquals("شمال‌شرق", SatFmt.compass(45.0, isFa = true))
+        assertTrue(passes.contains("Icons.AutoMirrored.Rounded.ArrowForward"))
+        assertTrue(passes.contains("LayoutRole.Mirrors"))
+        assertFalse(passes.contains('\u2192'))
+        assertFalse(passes.contains('\u2190'))
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -183,7 +200,7 @@ class SatellitesRedesignTest {
             }
             assertTrue(ratio(t.hudInk, t.hudFill) >= 4.5f)
             assertTrue(ratio(Color.White, t.selectedChip) >= 4.5f)
-            assertTrue(ratio(Color.White, t.popoverFill) >= 4.5f)
+            assertTrue(ratio(t.inkPrimary, t.popoverFill) >= 4.5f)
         }
     }
 
@@ -209,11 +226,11 @@ class SatellitesRedesignTest {
     }
 
     @Test
-    fun spotlightDoesNotTradeBrightnessForAHigherSoftwareScore() {
+    fun spotlightUpgradeUsesQualityRatherThanMagnitude() {
         val now = 1_800_000_000_000L
         val soon = passUi(now + 60_000L, score = 60)
         val later = passUi(now + 600_000L, score = 84).let { it.copy(pass = it.pass.copy(estimatedMagnitude = 0.5)) }
-        assertEquals(soon.key, SatNights.spotlight(listOf(soon, later), now, TimeZone.getTimeZone("UTC"), false)?.pass?.key)
+        assertEquals(later.key, SatNights.spotlight(listOf(soon, later), now, TimeZone.getTimeZone("UTC"), false)?.pass?.key)
     }
 
     @Test
@@ -323,8 +340,10 @@ class SatellitesRedesignTest {
         state.panel(SatPanel.Layers)
         assertEquals(SatPanel.Layers, state.ui.activePanel)
         state.lighting(MapTheme.LIGHT)
-        assertEquals(SatPanel.None, state.ui.activePanel)
+        assertEquals(SatPanel.Layers, state.ui.activePanel)
         assertEquals(MapTheme.LIGHT, state.ui.mapTheme)
+        state.dismiss()
+        assertEquals(SatPanel.None, state.ui.activePanel)
         assertEquals(150, state.ui.timeOffsetMin)
         state.offset(-900)
         assertEquals(-720, state.ui.timeOffsetMin)
@@ -337,7 +356,7 @@ class SatellitesRedesignTest {
         listOf("hubble", "tiangong", "iss_zarya").forEach { id ->
             state.focus(id)
             assertEquals(id, state.ui.focusId)
-            assertEquals(SatPanel.None, state.ui.activePanel)
+            assertEquals("focus does not dismiss the catalogue or open Detail", SatPanel.Fleet, state.ui.activePanel)
         }
     }
 
@@ -353,27 +372,40 @@ class SatellitesRedesignTest {
     }
 
     @Test
-    fun portraitViewportFitsBetweenTheHeaderAndCard() {
+    fun productionAndPureProjectionsShareTheMeasuredFrame() {
         val width = 390f
         val height = 844f
-        val top = 92f
-        val bottom = 609f
-        val projection = satelliteViewport(width, height, top, bottom)
-        val radius = Earth3DMath.projectedGlobeRadiusPx(SATELLITE_EARTH_DEFAULT_DISTANCE, height, projection.focalScale)
-        assertTrue(radius * 2 >= .86f * width)
-        assertEquals((top + bottom) / 2f, projection.centerY * height, .001f)
-        assertTrue(projection.centerY * height + radius < bottom)
+        val layout = HudLayout.measure(width, height, 24f, 80f, 150f, recenter = true)
+        val poses = listOf(Camera(0f, 0f, 3.22f), Camera(.8f, -.6f, 2.4f),
+            Camera(-2.3f, .4f, 4f), Camera(2.1f, -.9f, 3f))
+        val points = listOf(Geo(0.0, 0.0, 420.0), Geo(35.0, 60.0, 600.0), Geo(-30.0, -150.0, 420.0))
+        for (pose in poses) {
+            val frame = layout.frameAtDistance(SATELLITE_EARTH_DEFAULT_DISTANCE, pose.distance)
+            val focal = frame.diameter / (2 * Earth3DMath.projectedGlobeRadiusPx(pose.distance, height))
+            val native = EarthCameraSnapshot(pose.yaw, pose.pitch, pose.distance,
+                EarthViewportProjection(frame.center.y / height, focal))
+            val pure = GlobeProjection(frame, pose)
+            for (geo in points) {
+                val expected = Earth3DMath.projectLatLon(geo.lat, geo.lon,
+                    Earth3DMath.altitudeKmToRadius(geo.altKm), native, width, height)
+                val actual = pure.project(geo)
+                assertEquals(expected.screenX, actual.point.x, .02f)
+                assertEquals(expected.screenY, actual.point.y, .02f)
+                assertEquals(expected.visible, !actual.occluded)
+            }
+            layout.recenter?.let { assertTrue(it.distanceTo(frame.center) > frame.diameter / 2) }
+        }
     }
 
     @Test
     fun theFocusCardAndTimeTrayAreTheOnlyMainScreenReadouts() {
-        val pill = components.substringAfter("fun SatStatusPill").substringBefore("fun SatAvatar")
+        val pill = components.substringAfter("fun SatStatusPill").substringBefore("fun SatMetric")
         assertFalse(pill.contains("satAltKm"))
         assertFalse(pill.contains("SatScrubber("))
-        assertTrue(components.substringAfter("fun SatFocusCard").substringBefore("fun SatMetric").contains("satAltKm"))
-        assertEquals(1, Regex("SatTimeTray\\(").findAll(stage).count())
+        assertTrue(focus.contains("pos.satAltKm"))
+        assertEquals(1, Regex("SatTimeTray\\(").findAll(hud).count())
         assertFalse(stage.contains("satellite_mini_dock"))
-        assertTrue(stage.contains("tokens.sim.copy(alpha = 0.35f)"))
+        assertTrue(hud.contains("tokens.sim.copy(alpha=.35f)"))
     }
 
     @Test
@@ -385,6 +417,6 @@ class SatellitesRedesignTest {
         assertTrue(stage.contains("SharedTransitionLayout("))
         assertTrue(detail.contains("detail_floating_back"))
         assertFalse(detail.contains("Color(0xFF0F172A)"))
-        assertTrue(detail.contains("Mission dossier"))
+        assertTrue(detail.contains("R.string.sat_dossier"))
     }
 }

@@ -1,193 +1,89 @@
 package com.alijafari.red.astronomy.ui.satellites
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.res.imageResource
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.dp
-import com.alijafari.red.astronomy.Earth3DMath
-import com.alijafari.red.astronomy.EarthViewportProjection
-import com.alijafari.red.astronomy.R
-import com.alijafari.red.astronomy.astro_engine.ISSEngine
-import com.alijafari.red.astronomy.astro_engine.SatelliteCatalog
-import com.alijafari.red.astronomy.astro_engine.SatelliteLiveState
-import com.alijafari.red.astronomy.astro_engine.TleDataSource
-import com.alijafari.red.astronomy.domain.ThemeMode
-import com.alijafari.red.astronomy.domain.UserLocation
-import com.alijafari.red.astronomy.ui.aether.AetherFloatingNavBar
-import com.alijafari.red.astronomy.ui.aether.AetherThemeProvider
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.*
+import androidx.compose.ui.*
+import androidx.compose.ui.platform.*
+import androidx.compose.ui.unit.*
+import androidx.compose.ui.tooling.preview.*
+import com.alijafari.red.astronomy.astro_engine.*
+import com.alijafari.red.astronomy.domain.*
+import com.alijafari.red.astronomy.ui.aether.*
 import com.alijafari.red.astronomy.ui.components.FloatingBottomBar
-import com.alijafari.red.astronomy.ui.components.SATELLITE_EARTH_DEFAULT_DISTANCE
 import com.alijafari.red.astronomy.ui.screens.SatelliteDetailContent
-import com.alijafari.red.astronomy.ui.spatial.SpatialFloatingNavBar
-import com.alijafari.red.astronomy.ui.spatial.SpatialThemeProvider
+import com.alijafari.red.astronomy.ui.satellites.core.*
+import com.alijafari.red.astronomy.ui.spatial.*
 import com.alijafari.red.astronomy.ui.theme.REDTheme
-import java.util.Calendar
 import java.util.TimeZone
-import kotlin.math.roundToInt
 
-@Preview(name = "English", locale = "en", widthDp = 390, heightDp = 844, showSystemUi = true)
-@Preview(name = "فارسی", locale = "fa", widthDp = 390, heightDp = 844, showSystemUi = true)
+@Preview(name="EN",locale="en",widthDp=360,heightDp=800)
+@Preview(name="FA",locale="fa",widthDp=360,heightDp=800)
+@Preview(name="EN large text",locale="en",widthDp=360,heightDp=800,fontScale=1.3f)
+@Preview(name="FA large text",locale="fa",widthDp=360,heightDp=800,fontScale=1.3f)
 private annotation class SatLocales
+internal enum class ReviewPage { Rest, Recenter, FirstRun, Offline, Catalogue, Category, Search, Customize, Editor, Passes, EmptyPasses, Alerts, Time, Map, Guide, DataStatus, Iss, Tiangong, Hubble, Starlink, Generic, Polar, Shapes }
+internal class PreviewPages:PreviewParameterProvider<ReviewPage>{override val values=ReviewPage.entries.asSequence()}
+@SatLocales @Composable private fun DefaultDark(@PreviewParameter(PreviewPages::class) page:ReviewPage)=SatPreview(ThemeMode.DARK,skin=SatSkin.DEFAULT,page=page)
+@SatLocales @Composable private fun DefaultLight(@PreviewParameter(PreviewPages::class) page:ReviewPage)=SatPreview(ThemeMode.LIGHT,skin=SatSkin.DEFAULT,page=page)
+@SatLocales @Composable private fun DefaultWine(@PreviewParameter(PreviewPages::class) page:ReviewPage)=SatPreview(ThemeMode.WINE,skin=SatSkin.DEFAULT,page=page)
+@SatLocales @Composable private fun SpatialDark(@PreviewParameter(PreviewPages::class) page:ReviewPage)=SatPreview(ThemeMode.DARK,skin=SatSkin.SPATIAL,page=page)
+@SatLocales @Composable private fun SpatialLight(@PreviewParameter(PreviewPages::class) page:ReviewPage)=SatPreview(ThemeMode.LIGHT,skin=SatSkin.SPATIAL,page=page)
+@SatLocales @Composable private fun SpatialWine(@PreviewParameter(PreviewPages::class) page:ReviewPage)=SatPreview(ThemeMode.WINE,skin=SatSkin.SPATIAL,page=page)
+@SatLocales @Composable private fun AetherDark(@PreviewParameter(PreviewPages::class) page:ReviewPage)=SatPreview(ThemeMode.DARK,skin=SatSkin.AETHER,page=page)
+@SatLocales @Composable private fun AetherLight(@PreviewParameter(PreviewPages::class) page:ReviewPage)=SatPreview(ThemeMode.LIGHT,skin=SatSkin.AETHER,page=page)
+@SatLocales @Composable private fun AetherWine(@PreviewParameter(PreviewPages::class) page:ReviewPage)=SatPreview(ThemeMode.WINE,skin=SatSkin.AETHER,page=page)
 
-@SatLocales @Composable private fun DarkGlobe() = SatPreview(ThemeMode.DARK)
-@SatLocales @Composable private fun DarkTime() = SatPreview(ThemeMode.DARK, SatPanel.Time)
-@SatLocales @Composable private fun DarkPasses() = SatPreview(ThemeMode.DARK, SatPanel.Passes)
-@SatLocales @Composable private fun DarkDetail() = SatPreview(ThemeMode.DARK, detail = true)
-@SatLocales @Composable private fun LightGlobe() = SatPreview(ThemeMode.LIGHT)
-@SatLocales @Composable private fun LightTime() = SatPreview(ThemeMode.LIGHT, SatPanel.Time)
-@SatLocales @Composable private fun LightPasses() = SatPreview(ThemeMode.LIGHT, SatPanel.Passes)
-@SatLocales @Composable private fun LightDetail() = SatPreview(ThemeMode.LIGHT, detail = true)
-@SatLocales @Composable private fun WineGlobe() = SatPreview(ThemeMode.WINE)
-@SatLocales @Composable private fun WineTime() = SatPreview(ThemeMode.WINE, SatPanel.Time)
-@SatLocales @Composable private fun WinePasses() = SatPreview(ThemeMode.WINE, SatPanel.Passes)
-@SatLocales @Composable private fun WineDetail() = SatPreview(ThemeMode.WINE, detail = true)
+private const val NOW=1_795_026_600_000L
+private val tz=TimeZone.getTimeZone("UTC")
+private val location=UserLocation(cityNameEn="London",cityNameFa="لندن",latitude=51.5,longitude=0.0,timezoneId="UTC",countryCode="GB")
+private fun orbit(index:Int)=Ephemeris { ms->val phase=(ms-NOW)/5_400_000.0*360+index*25
+    Geo(35*kotlin.math.sin(Math.toRadians(phase+17)),(phase+20)%360,418.0) }
+private val fixtureItems= SatelliteCatalog.satellites+(1..5).map{i->SatelliteCatalog.satellites.last().copy(id="fixture_$i",noradId=0,
+    nameEn="Starlink sample $i",nameFa="استارلینک نمونهٔ ${SatFmt.int(i,true)}",tleGroup="starlink",category=SatelliteCategory.STARLINK,designation="")}
+private fun live(s:SatelliteItem,i:Int,ms:Long):SatelliteLiveState {val p=orbit(i).at(ms);return SatelliteLiveState(s,
+    ISSEngine.TopocentricPosition(if(i%2==0)34.0 else -68.0,225.0,679.0,p.lat,p.lon,p.altKm,7.66,i%3!=1,0.0,0.0,0.0),
+    -1.5,true,"","","","",null)}
+private fun pass(i:Int)=ISSEngine.ISSPass(NOW+(55L+i*35)*60_000,NOW+(58L+i*35)*60_000,NOW+(61L+i*35)*60_000,68.0,418.0,330.0,225.0,45.0,-1.5,360,-12.0,true,true,
+    shadowEntryMs=NOW+(60L+i*35)*60_000,classification=ISSEngine.PassClassification.GOOD,visibilityScore=61,summaryReasonEn="",summaryReasonFa="",detailedReasonsEn=emptyList(),detailedReasonsFa=emptyList(),isVisible=true)
 
-@Preview(name = "Spatial · Persian 130%", locale = "fa", widthDp = 340, heightDp = 730, fontScale = 1.3f)
-@Composable private fun SpatialTimeCompact() = SatPreview(ThemeMode.DARK, SatPanel.Time, skin = SatSkin.SPATIAL)
-
-@Preview(name = "Aether · Persian 130%", locale = "fa", widthDp = 340, heightDp = 730, fontScale = 1.3f)
-@Composable private fun AetherDetailCompact() = SatPreview(ThemeMode.LIGHT, detail = true, skin = SatSkin.AETHER)
-
-@SatLocales @Composable private fun SpatialDarkGlobe() = SatPreview(ThemeMode.DARK, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun SpatialDarkTime() = SatPreview(ThemeMode.DARK, SatPanel.Time, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun SpatialDarkPasses() = SatPreview(ThemeMode.DARK, SatPanel.Passes, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun SpatialDarkDetail() = SatPreview(ThemeMode.DARK, detail = true, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun SpatialLightGlobe() = SatPreview(ThemeMode.LIGHT, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun SpatialLightTime() = SatPreview(ThemeMode.LIGHT, SatPanel.Time, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun SpatialLightPasses() = SatPreview(ThemeMode.LIGHT, SatPanel.Passes, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun SpatialLightDetail() = SatPreview(ThemeMode.LIGHT, detail = true, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun SpatialWineGlobe() = SatPreview(ThemeMode.WINE, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun SpatialWineTime() = SatPreview(ThemeMode.WINE, SatPanel.Time, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun SpatialWinePasses() = SatPreview(ThemeMode.WINE, SatPanel.Passes, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun SpatialWineDetail() = SatPreview(ThemeMode.WINE, detail = true, skin = SatSkin.SPATIAL)
-@SatLocales @Composable private fun AetherDarkGlobe() = SatPreview(ThemeMode.DARK, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun AetherDarkTime() = SatPreview(ThemeMode.DARK, SatPanel.Time, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun AetherDarkPasses() = SatPreview(ThemeMode.DARK, SatPanel.Passes, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun AetherDarkDetail() = SatPreview(ThemeMode.DARK, detail = true, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun AetherLightGlobe() = SatPreview(ThemeMode.LIGHT, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun AetherLightTime() = SatPreview(ThemeMode.LIGHT, SatPanel.Time, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun AetherLightPasses() = SatPreview(ThemeMode.LIGHT, SatPanel.Passes, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun AetherLightDetail() = SatPreview(ThemeMode.LIGHT, detail = true, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun AetherWineGlobe() = SatPreview(ThemeMode.WINE, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun AetherWineTime() = SatPreview(ThemeMode.WINE, SatPanel.Time, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun AetherWinePasses() = SatPreview(ThemeMode.WINE, SatPanel.Passes, skin = SatSkin.AETHER)
-@SatLocales @Composable private fun AetherWineDetail() = SatPreview(ThemeMode.WINE, detail = true, skin = SatSkin.AETHER)
-
-private val tz = TimeZone.getTimeZone("Europe/London")
-private val now = Calendar.getInstance(tz).apply { clear(); set(2025, Calendar.NOVEMBER, 17, 18, 42) }.timeInMillis
-private val location = UserLocation(cityNameEn = "London", cityNameFa = "لندن", latitude = 51.5072, longitude = -.1276,
-    timezoneId = tz.id, countryCode = "GB")
-private const val MINUTE = 60_000L
-
-private fun samplePass(minutes: Int, height: Double, score: Int) = ISSEngine.ISSPass(
-    startTimeMs = now + minutes * MINUTE, maxTimeMs = now + (minutes + 3) * MINUTE, endTimeMs = now + (minutes + 6) * MINUTE,
-    maxElevationDeg = height, maxAltitudeKm = 418.0, maxAzimuthDeg = 320.0, startAzimuthDeg = 225.0, endAzimuthDeg = 45.0,
-    estimatedMagnitude = -3.4, passDurationSec = 360, sunAltitudeDegAtMax = -12.0, isObserverInDarkness = true,
-    isIssSunlitAtMax = true, shadowEntryMs = now + (minutes + 5) * MINUTE, classification = ISSEngine.PassClassification.GOOD,
-    visibilityScore = score, summaryReasonEn = "", summaryReasonFa = "", detailedReasonsEn = emptyList(),
-    detailedReasonsFa = emptyList(), isVisible = true,
-)
-
-/** Fixed inputs and the production Compose UI; only the unavailable EGL surface is substituted. */
-@Composable
-internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detail: Boolean = false, skin: SatSkin = SatSkin.DEFAULT) {
-    val fa = LocalConfiguration.current.locales[0]?.language == "fa"
-    val tokens = remember(skin, theme) { zigSatTokens(skin, theme) }
-    val live = remember {
-        SatelliteLiveState(SatelliteCatalog.getById("iss_zarya"),
-            ISSEngine.TopocentricPosition(34.0, 225.0, 679.0, 25.7, 18.2, 418.0, 7.66, true, 0.0, 0.0, 0.0),
-            -3.4, true, "Naked eye visible", "قابل مشاهده با چشم",
-            "The sunlit station is above your horizon, against a dark sky.", "ایستگاه روشن، بالای افق و در آسمان تاریک دیده می‌شود.")
-    }
-    val passes = remember(fa) {
-        listOf(samplePass(134, 68.0, 78), samplePass(229, 39.0, 65), samplePass(1440, 52.0, 73), samplePass(2880, 40.0, 58))
-            .map { SatPassUi(passKey(live.satellite, it), live.satellite, shortNameOf(live.satellite, fa), it, SatNights.nightKey(it.startTimeMs, tz), null, false) }
-    }
-    REDTheme(themeMode = theme, isPersian = fa, timestampMs = now) {
-        SpatialThemeProvider(enabled = skin == SatSkin.SPATIAL, themeMode = theme) {
-            AetherThemeProvider(enabled = skin == SatSkin.AETHER, themeMode = theme) {
-                CompositionLocalProvider(LocalLayoutDirection provides if (fa) LayoutDirection.Rtl else LayoutDirection.Ltr,
-                    LocalZigSatTokens provides tokens, LocalSatSkin provides skin, LocalSatReduceMotion provides true) {
-                    if (detail) SatelliteDetailContent(live.satellite, live, location, fa, skin, theme, true, null,
-                        passes.map { it.pass }, null, emptyList(), now, now, false, {}, { _, _, _ -> }, null, {}, {})
-                    else Box(Modifier.fillMaxSize().background(tokens.canvas)) {
-                        val actions = SatPassActions({}, {}, {}, {})
-                        var state by remember(panel) { mutableStateOf(SatellitesUiState(activePanel = panel, timeOffsetMin = if (panel == SatPanel.Time) 70 else 0)) }
-                        val offset = state.timeOffsetMin
-                        val markers = listOf(SatTimeMarker(137, SatQuality.EXCELLENT), SatTimeMarker(232, SatQuality.VERY_GOOD))
-                        val setOffset: (Int) -> Unit = { state = state.copy(timeOffsetMin = it.coerceIn(-720, 720)) }
-                        SatelliteHud(state, SatStatusData(offset == 0, offset, true, .8, now - 69_120_000L, TleDataSource.LIVE_NETWORK, fa),
-                            tokens, SatAlertsConfig(), live, passes.first(), now, tz, markers, false, false,
-                            SatTimeActions(setOffset, { setOffset(0) }, { nextSatelliteTime(markers, offset)?.let(setOffset) }, { setOffset(offset + it) }),
-                            onPanel = { state = state.copy(activePanel = if (state.activePanel == it) SatPanel.None else it) },
-                            onClose = { state = state.copy(activePanel = SatPanel.None) }, onLive = { setOffset(0) },
-                            onLocate = {}, onCycle = {}, onDetail = {}, onLighting = {}, onLegend = {},
-                            globe = { projection, _, _ -> PreviewEarth(projection, tokens) },
-                            sheet = { current, side -> if (current == SatPanel.Passes) SatPassesSheet(tokens, fa, state.scope, passes.size,
-                                SatNights.group(passes, now, tz, fa), SatNights.spotlight(passes, now, tz, fa), now, now,
-                                side, { state = state.copy(activePanel = SatPanel.None) }, {}, {}, { actions }, { Modifier }, tz) })
-                        if (state.activePanel != SatPanel.Passes) {
-                            val modifier = Modifier.align(Alignment.BottomCenter)
-                            when (skin) {
-                                SatSkin.DEFAULT -> FloatingBottomBar(1, {}, modifier)
-                                SatSkin.SPATIAL -> SpatialFloatingNavBar(1, {}, modifier)
-                                SatSkin.AETHER -> AetherFloatingNavBar(1, {}, modifier)
-                            }
-                        }
+@Composable internal fun SatPreview(theme:ThemeMode, panel:SatPanel=SatPanel.None,detail:Boolean=false,skin:SatSkin=SatSkin.DEFAULT,page:ReviewPage=ReviewPage.Rest,initiallyCentered:Boolean=true) {
+    val fa=LocalConfiguration.current.locales[0].language=="fa"
+    val t=remember(skin,theme){zigSatTokens(skin,theme)}
+    val initial=when(page){ReviewPage.Catalogue,ReviewPage.Category,ReviewPage.Search->SatPanel.Fleet;ReviewPage.Customize->SatPanel.Customize;ReviewPage.Editor->SatPanel.Editor;ReviewPage.Passes,ReviewPage.EmptyPasses->SatPanel.Passes;ReviewPage.Alerts->SatPanel.Alerts;ReviewPage.Time->SatPanel.Time;ReviewPage.Map->SatPanel.Layers;ReviewPage.Guide->SatPanel.Guide;ReviewPage.DataStatus->SatPanel.DataStatus;else->panel}
+    val screen=remember(page,panel){SatellitesState(SatellitesUiState(activePanel=initial,query=if(page==ReviewPage.Search)if(fa)"هابل" else "hub" else "",detent=if(page==ReviewPage.Search)Detent.Full else Detent.Half,timeOffsetMin=if(initial==SatPanel.Time)150 else 0))}
+    var lib by remember(page){mutableStateOf(Library(active=if(page==ReviewPage.Category)SatCategory.STATION.name else Library.ALL))};val update:LibraryUpdate={lib=it(lib)}
+    val repo=remember{CatalogueRepository(fixtureItems)};val offset=screen.ui.timeOffsetMin;val now=NOW+offset*60_000L
+    val fleet=remember(now){fixtureItems.mapIndexed{i,s->live(s,i,now)}};val angles=remember(fleet){fleet.associate{it.satellite.id to it.topocentric.elevationDeg}}
+    val focus=fleet.firstOrNull{it.satellite.id==screen.ui.focusId} ?: fleet.first()
+    val rows by remember(repo,lib,screen.ui.query,fa){repo.rows(screen.ui.query,lib,angles,emptyMap(),fa)}.collectAsState(emptyList())
+    val passes=remember(fa,page){if(page==ReviewPage.EmptyPasses) emptyList() else fixtureItems.mapIndexed{i,s->val p=pass(i);SatPassUi(passKey(s,p),s,shortNameOf(s,fa),p,SatNights.nightKey(p.maxTimeMs,tz),null,false)}}
+    val markers=remember{passes.map{SatTimeMarker(((it.pass.maxTimeMs-NOW)/60_000).toInt(),it.quality)}}
+    val initialDetail=when(page){ReviewPage.Iss->0;ReviewPage.Tiangong->1;ReviewPage.Hubble->2;ReviewPage.Generic->3;ReviewPage.Starlink->4;else->if(detail)0 else -1}
+    var opened by remember(page,detail){mutableStateOf(fixtureItems.getOrNull(initialDetail))};val inspection=LocalInspectionMode.current
+    if(!inspection)BackHandler(opened==null && screen.ui.activePanel!=SatPanel.None){screen.back()}
+    REDTheme(themeMode=theme,isPersian=fa,timestampMs=NOW){ SpatialThemeProvider(enabled=skin==SatSkin.SPATIAL,themeMode=theme){AetherThemeProvider(enabled=skin==SatSkin.AETHER,themeMode=theme){
+        CompositionLocalProvider(LocalLayoutDirection provides if(fa)LayoutDirection.Rtl else LayoutDirection.Ltr,LocalZigSatTokens provides t,LocalSatSkin provides skin,LocalSatReduceMotion provides true,LocalFlatSatGlass provides true){
+            Box(Modifier.fillMaxSize().background(t.canvas)) {val active=opened
+                when {page==ReviewPage.Shapes->Column(Modifier.padding(16.dp)){shapeRules.filter{it.tier==1}.forEach{r->Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
+                    listOf(Lod.M to 18,Lod.L to 28,Lod.XL to 160).forEach{(lod,size)->Icon(SpacecraftArt.vector(r.id,lod),r.id,Modifier.size(size.dp),t.selected)} }}}
+                    page==ReviewPage.Polar->PassChart(passes.first().pass,t,fa,true,Modifier.fillMaxWidth().height(160.dp))
+                    active!=null->SatelliteDetailContent(active,fleet.first{it.satellite.id==active.id},location,fa,skin,theme,
+                        passes.map{it.pass},null,emptyList(),now,NOW,offset!=0,{opened=null},{_,_,_->},null,{},{},
+                        futurePosition=orbit(fixtureItems.indexOf(active)).at(now+10_000))
+                    else->{val stub=GlobeStub(fleet,focus.satellite.id,remember(now,focus.satellite.id){sampleTrail(focus.satellite,now,null,orbit(fixtureItems.indexOf(focus.satellite)))},t,fa,detail={opened=it})
+                        SatelliteHud(screen,SatStatusData(offset==0,offset,page!=ReviewPage.Offline,if(page==ReviewPage.Offline) 9.0 else .7,NOW-60_000_000,TleDataSource.MEMORY_CACHE,fa),t,SatAlertsConfig(),focus,passes.firstOrNull{it.sat.id==focus.satellite.id},NOW,tz,markers,initiallyCentered && page!=ReviewPage.Recenter,page==ReviewPage.FirstRun,
+                            SatTimeActions(screen::offset,{screen.offset(0)},{nextSatelliteTime(markers,offset)?.let(screen::offset)},{screen.offset(offset+it)}),{},{delta->screen.focus(fixtureItems[(fixtureItems.indexOf(focus.satellite)+delta+fixtureItems.size)%fixtureItems.size].id)},{opened=focus.satellite},{},stub,
+                            sheet={p->when(p){SatPanel.Fleet->CataloguePanel(screen,repo,rows,lib,update,t,fa,angles.count{it.value>0},{screen.focus(it.id)},{opened=it},{screen.focus(it.id);screen.dismiss()});SatPanel.Customize->CustomizePanel(screen,lib,update,t){id->update{it.delete(id)}}
+                                SatPanel.Editor->EditorPanel(screen,repo,lib,update,t,fa);SatPanel.Layers->MapPanel(screen,t,screen::lighting);SatPanel.Guide->SatGuideSheet(t,fa,screen::back);SatPanel.Alerts->SatAlertsSheet(t,fa,SatAlertsConfig(),{_,_->null},screen::back,{screen.back()})
+                                SatPanel.Passes->SatPassesSheet(screen,lib,t,fa,passes.size,SatNights.group(passes,now,tz,fa),SatNights.spotlight(passes,now,tz,fa),now,NOW,tz,{r->SatPassActions({opened=r.sat},{},{},{})},{lib=lib.copy(active=Library.ALL)})
+                                else->Unit}},rising=true)
+                        if(!screen.ui.activePanel.sheet){val mod=Modifier.align(Alignment.BottomCenter);when(skin){SatSkin.DEFAULT->FloatingBottomBar(1,{},mod);SatSkin.SPATIAL->SpatialFloatingNavBar(1,{},mod);SatSkin.AETHER->AetherFloatingNavBar(1,{},mod)}}
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun PreviewEarth(projection: EarthViewportProjection, tokens: ZigSatTokens) {
-    val image = ImageBitmap.imageResource(if (tokens.isDark) R.drawable.satellite_preview_night else R.drawable.satellite_preview_day)
-    Canvas(Modifier.fillMaxSize()) {
-        val r = Earth3DMath.projectedGlobeRadiusPx(SATELLITE_EARTH_DEFAULT_DISTANCE, size.height, projection.focalScale)
-        val at = Offset(size.width / 2, size.height * projection.centerY)
-        val d = (2 * r).roundToInt().coerceAtLeast(1)
-        drawImage(image, dstOffset = IntOffset((at.x - r).roundToInt(), (at.y - r).roundToInt()), dstSize = IntSize(d, d))
-        drawCircle(tokens.starlink.copy(alpha = .30f), r, at, style = Stroke(1.dp.toPx()))
-        fun px(x: Float, y: Float) = at + Offset(x * r, y * r)
-        val path = Path().apply {
-            val start = px(-.94f, .47f)
-            moveTo(start.x, start.y)
-            val control = px(-.45f, .95f)
-            val control2 = px(.54f, .12f)
-            val end = px(.95f, -.62f)
-            cubicTo(control.x, control.y, control2.x, control2.y, end.x, end.y)
-        }
-        drawPath(path, tokens.live.copy(alpha = .28f), style = Stroke(4.dp.toPx()))
-        drawPath(path, tokens.live, style = Stroke(1.35.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))))
-        val marker = px(.15f, .28f)
-        drawCircle(tokens.selectedHalo.copy(alpha = .42f), 9.dp.toPx(), marker)
-        drawCircle(Color.White, 3.dp.toPx(), marker)
-        val you = px(-.18f, -.43f)
-        drawCircle(tokens.starlink, 5.dp.toPx(), you, style = Stroke(1.dp.toPx())); drawCircle(tokens.starlink, 2.dp.toPx(), you)
-        listOf(px(-.47f, .48f), px(.33f, -.26f), px(.19f, -.13f)).forEach { drawCircle(tokens.starlink.copy(alpha = .72f), 2.1.dp.toPx(), it) }
-    }
+    } } }
 }

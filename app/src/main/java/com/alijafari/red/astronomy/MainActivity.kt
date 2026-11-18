@@ -261,6 +261,14 @@ class MainActivity : ComponentActivity() {
                     var showSplashScreen by rememberSaveable { mutableStateOf(true) }
                     // The splash clock, shared with the UI so the UI slides in on the same timeline as
                     // the splash leaves. Null once the splash is gone (every reveal is then a no-op).
+                    if (!showSplashScreen && uiState.selectedTab==1) {
+                        DisposableEffect(uiState.themeMode) {
+                            val bars=androidx.core.view.WindowCompat.getInsetsController(window,window.decorView)
+                            val previous=bars.isAppearanceLightStatusBars
+                            bars.isAppearanceLightStatusBars=uiState.themeMode==com.alijafari.red.astronomy.domain.ThemeMode.LIGHT
+                            onDispose {bars.isAppearanceLightStatusBars=previous}
+                        }
+                    }
                     val splashState = if (showSplashScreen) rememberPremiumSplashState(waitForContent = true) else null
                     // On a Home launch, the app is composed under the splash once Home's astronomy
                     // is ready (the warm-up) and the Z has landed. Other launch routes don't wait for
@@ -481,27 +489,25 @@ class MainActivity : ComponentActivity() {
                     // Floating Navigation Bar.
                     // Hidden while an immersive screen (the Gravity Sandbox) owns the display.
                     val satellitesChromeOccluded by viewModel.satellitesChromeOccluded.collectAsStateWithLifecycle()
-                    if (!com.zig.gravity.ui.ImmersiveScreenState.active && !(uiState.selectedTab == 1 && satellitesChromeOccluded)) {
+                    AnimatedVisibility(visible=!com.zig.gravity.ui.ImmersiveScreenState.active && !(uiState.selectedTab == 1 && satellitesChromeOccluded),
+                        modifier=Modifier.align(Alignment.BottomCenter), enter=slideInVertically(tween(200)){it},exit=slideOutVertically(tween(200)){it}) {
                         when (uiState.uiStyle) {
                             AppUiStyle.AETHER -> AetherFloatingNavBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
                                 modifier = Modifier
-                                    .align(Alignment.BottomCenter)
                                     .splashReveal(splashState, SplashRevealRole.NavigationBar)
                             )
                             AppUiStyle.SPATIAL -> SpatialFloatingNavBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
                                 modifier = Modifier
-                                    .align(Alignment.BottomCenter)
                                     .splashReveal(splashState, SplashRevealRole.NavigationBar)
                             )
                             AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
                                 selectedTab = uiState.selectedTab,
                                 onTabSelected = { viewModel.selectTab(it) },
                                 modifier = Modifier
-                                    .align(Alignment.BottomCenter)
                                     .splashReveal(splashState, SplashRevealRole.NavigationBar)
                             )
                         }

@@ -35,7 +35,8 @@ data class SatelliteItem(
     val scientificSignificanceEn: String = "",
     val scientificSignificanceFa: String = "",
     val verifiedFactsEn: List<String> = emptyList(),
-    val verifiedFactsFa: List<String> = emptyList()
+    val verifiedFactsFa: List<String> = emptyList(),
+    val tleGroup: String = if (category == SatelliteCategory.STARLINK) "starlink" else ""
 )
 
 object SatelliteCatalog {
@@ -52,6 +53,7 @@ object SatelliteCatalog {
     val satellites: List<SatelliteItem> = listOf(
         SatelliteItem(
             id = "iss_zarya",
+            tleGroup = "stations",
             noradId = 25544,
             nameEn = "ISS (International Space Station)",
             nameFa = "ایستگاه فضایی بین‌المللی",
@@ -90,6 +92,7 @@ object SatelliteCatalog {
         ),
         SatelliteItem(
             id = "tiangong",
+            tleGroup = "stations",
             noradId = 48274,
             nameEn = "Tiangong Space Station (CSS)",
             nameFa = "ایستگاه فضایی تیانگونگ (چین)",
@@ -110,7 +113,7 @@ object SatelliteCatalog {
             isNakedEyeCandidate = true,
             launchDate = "April 29, 2021 (Tianhe Module)",
             operatorEn = "CNSA (China National Space Administration)",
-            operatorFa = "آژانس فضایی ملی چین (CNSA)",
+            operatorFa = "آژانس فضایی ملی چین",
             missionPurposeEn = "Long-term modular human orbital outpost and microgravity laboratory.",
             missionPurposeFa = "ایستگاه مداری سرنشین‌دار و آزمایشگاه دائمی فضایی.",
             scientificSignificanceEn = "China's third-generation modular space station, permanently occupied by crews of 3 taikonauts.",
@@ -128,6 +131,7 @@ object SatelliteCatalog {
         ),
         SatelliteItem(
             id = "hubble",
+            tleGroup = "science",
             noradId = 20580,
             nameEn = "Hubble Space Telescope (HST)",
             nameFa = "تلسکوپ فضایی هابل",
@@ -166,6 +170,7 @@ object SatelliteCatalog {
         ),
         SatelliteItem(
             id = "envisat",
+            tleGroup = "earth-resources",
             noradId = 27386,
             nameEn = "Envisat / Earth Observation Sat",
             nameFa = "ماهواره سنجش از دور انویسات",
@@ -186,7 +191,7 @@ object SatelliteCatalog {
             isNakedEyeCandidate = true,
             launchDate = "March 1, 2002",
             operatorEn = "ESA (European Space Agency)",
-            operatorFa = "آژانس فضایی اروپا (ESA)",
+            operatorFa = "آژانس فضایی اروپا",
             missionPurposeEn = "Earth observation, global environmental, oceanographic, and atmospheric monitoring.",
             missionPurposeFa = "سنجش از دور، پایش تغییرات اقلیمی، اقیانوس‌شناسی و جو کره زمین.",
             scientificSignificanceEn = "The largest civilian Earth observation satellite ever built (8.2 metric tons, 25 meters long).",

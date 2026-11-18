@@ -171,6 +171,9 @@ class Earth3DTest {
         assertTrue("Light map theme should raise ambient over Dark theme", lightStyle.ambientLight > darkStyle.ambientLight)
         assertTrue(autoWineStyle.transparentBackground)
         assertTrue(autoWineStyle.showNightLights)
+        assertEquals("HUD theme must not recolor Earth", autoWineStyle,
+            buildSatelliteEarthStyle(MapTheme.AUTO, ThemeMode.DARK, subSolar))
+        assertEquals(autoWineStyle, buildSatelliteEarthStyle(MapTheme.AUTO, ThemeMode.LIGHT, subSolar))
     }
 
     @Test
@@ -368,31 +371,32 @@ class Earth3DTest {
     @Test
     fun allThreeSatellitesScreensPreserveEveryMapFeatureOnSatelliteEarth3D() {
         val overlay = readSource("com/alijafari/red/astronomy/ui/components/SatelliteEarth3D.kt")
+        val orbit = readSource("com/alijafari/red/astronomy/ui/satellites/OrbitOverlay.kt")
+        val stage = readSource("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
+        val hud = readSource("com/alijafari/red/astronomy/ui/satellites/SatelliteHud.kt")
+        val components = readSource("com/alijafari/red/astronomy/ui/satellites/SatelliteComponents.kt")
+        val mapPanel = readSource("com/alijafari/red/astronomy/ui/satellites/MapPanel.kt")
         assertTrue(overlay.contains("Earth3D("))
         assertTrue(overlay.contains("testTag(\"satellite_earth_3d\")"))
-        assertTrue(overlay.contains("testTag(\"anchored_sat_label\")"))
+        assertTrue(orbit.contains("testTag(\"anchored_sat_label\")"))
         assertTrue(overlay.contains("SatelliteEngine.calculateSubSolarPoint"))
-        assertTrue(overlay.contains("SatelliteEngine.calculateOrbitTrack3D"))
         assertTrue(overlay.contains("SatelliteEngine.majorCityLights"))
-        assertTrue(overlay.contains("mapOverheadStarlinkStates"))
-        assertTrue(overlay.contains("trainPearlStatesByTrain"))
-        assertTrue(overlay.contains("liveSatelliteStates"))
-
-        // One stage, three skins: the map contract lives on the single shared stage that all three
-        // skins render, so it cannot drift between them. Each skin's screen names its skin and is a
-        // thin entry point into that stage.
-        val stage = readSource("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
-        assertTrue("the stage renders SatelliteEarth3D", stage.contains("SatelliteEarth3D("))
-        assertTrue("with the live scrubber timestamp", stage.contains("currentSimulationMs = currentSimulationMs"))
+        assertTrue(overlay.contains("sampleTrail("))
+        assertTrue(overlay.contains("trainMembers.forEach"))
+        assertTrue(overlay.contains("priorityFleet("))
+        for (layer in listOf("GRID", "EQUATOR", "CITIES", "OBSERVER", "ORBIT", "TRAIN", "TETHER")) {
+            assertTrue("native globe uses $layer", overlay.contains("MapLayer.$layer"))
+        }
+        assertTrue("the stage renders the globe", stage.contains("SatelliteEarth3D("))
+        assertTrue("with a coherent live simulation batch", stage.contains("batch.first.takeIf"))
         assertTrue("the map theme toggle", stage.contains("mapTheme = mapTheme"))
-        val stageComponents = readSource("com/alijafari/red/astronomy/ui/satellites/SatelliteComponents.kt")
-        assertTrue("the map theme selector", readSource("com/alijafari/red/astronomy/ui/satellites/SatelliteSheets.kt").contains("testTag(\"map_theme_selector\")"))
-        assertTrue("Locate is the only reset", stage.contains("testTag = \"map_reset_view\""))
-        assertTrue("the time scrubber", stageComponents.contains("testTag(\"time_scrubber_slider\")"))
-        assertTrue("the status chip", stageComponents.contains("testTag(\"satellite_status_chip\")"))
-        assertTrue("and the satellite focus wiring", stage.contains("focusTarget = earthFocusTarget"))
+        assertTrue("the map theme selector", mapPanel.contains("testTag(\"map_theme_selector\")"))
+        assertTrue("Locate is the only reset", hud.contains("testTag=\"map_reset_view\""))
+        assertTrue("the time scrubber", components.contains("testTag(\"time_scrubber_slider\")"))
+        assertTrue("the status chip", components.contains("testTag(\"satellite_status_chip\")"))
+        assertTrue("satellite focus wiring", stage.contains("focusTarget = earthFocusTarget"))
         assertTrue("notification deep links", stage.contains("uiState.selectedSatelliteId"))
-        assertTrue("and the detail screen opening", stage.contains("onOpenSatelliteDetail"))
+        assertTrue("detail opens deliberately", stage.contains("onOpenSatelliteDetail"))
 
         val screens = mapOf(
             "ISSScreen" to (readSource("com/alijafari/red/astronomy/ui/screens/ISSScreen.kt") to "SatSkin.DEFAULT"),

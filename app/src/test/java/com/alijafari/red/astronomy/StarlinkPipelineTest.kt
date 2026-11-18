@@ -430,7 +430,7 @@ class StarlinkPipelineTest {
         // One stage, three skins: the whole Starlink pipeline lives on the shared stage, so there is
         // exactly one implementation of it instead of three that can drift apart.
         val stage = readScreenSource("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
-        val components = readScreenSource("com/alijafari/red/astronomy/ui/satellites/SatelliteComponents.kt")
+        val passPanels = readScreenSource("com/alijafari/red/astronomy/ui/satellites/PassPanels.kt")
         val aether = readScreenSource("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt")
 
         val requiredTokens = listOf(
@@ -438,10 +438,11 @@ class StarlinkPipelineTest {
             "StarlinkTrainManager.selectRealtimeOverheadStarlinks(",
             "StarlinkTrainManager.detectActiveTrains(",
             "StarlinkTrainManager.selectTopVisibleStarlinks(",
-            "trainPearlStatesByTrain",
-            "mapOverheadStarlinkStates",
+            "trainMemberIds",
+            "overheadStarlinks",
+            "topPassStarlinks",
             "allInteractiveMapStates",
-            "live.satellite.isTrain"
+            "selectedLiveState?.satellite?.isTrain"
         )
 
         for (token in requiredTokens) {
@@ -463,7 +464,7 @@ class StarlinkPipelineTest {
         // and the detail screen keeps its own coat for the selected train.
         val detailSrc = readScreenSource("com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt")
         assertTrue(detailSrc.contains("SatSpotlightCard("))
-        assertTrue(components.contains("R.string.sat_train_long"))
+        assertTrue(passPanels.contains("R.string.sat_train_long"))
     }
 
     @Test
@@ -988,14 +989,15 @@ class StarlinkPipelineTest {
                 .first { it.exists() }
                 .readText()
         }
-        for (relPath in listOf(
-            "com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt",
-            "com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt"
-        )) {
-            val src = readSrc(relPath)
-            assertTrue("Expected $relPath to use reactive rememberIsNetworkOnline(context)", src.contains("rememberIsNetworkOnline(context)"))
-            assertTrue("Expected $relPath to use formatTleStalenessBadge(", src.contains("formatTleStalenessBadge("))
-        }
+        val stage = readSrc("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
+        val detail = readSrc("com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt")
+        // The redesign centralizes connection and TLE status on the HUD instead of duplicating it
+        // in Detail; Detail still reacts to Starlink cache updates and uses the effective elements.
+        assertTrue(stage.contains("rememberIsNetworkOnline(context)"))
+        assertTrue(stage.contains("formatTleStalenessBadge("))
+        assertTrue(detail.contains("tleRepo.starlinkVersion.collectAsState()"))
+        assertTrue(detail.contains("SatelliteEngine.calculateSatelliteState("))
+        assertTrue(detail.contains("SatelliteEngine.getEffectiveTle("))
     }
 }
 

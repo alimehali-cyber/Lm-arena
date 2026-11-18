@@ -20,3 +20,6 @@ debug.keystore
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Optional generated satellite review captures
+/review/generated/

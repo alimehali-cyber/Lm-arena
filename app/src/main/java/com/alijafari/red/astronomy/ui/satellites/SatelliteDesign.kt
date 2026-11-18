@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -43,6 +42,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
@@ -74,7 +74,7 @@ import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.RedTheme
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.WineAccentCrimson
-import com.alijafari.red.astronomy.ui.theme.squircleShape
+import com.alijafari.red.astronomy.ui.satellites.core.*
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -106,7 +106,7 @@ object SatGrid {
 object SatRadius {
     val card: Dp = 24.dp
     val compactCard: Dp = 20.dp
-    val tile: Dp = 20.dp
+    val tile: Dp = 12.dp
     val popover: Dp = 16.dp
     val sheet: Dp = 28.dp
     val aetherFrosted: Dp = 32.dp
@@ -178,7 +178,7 @@ fun zigSatTokens(skin: SatSkin, themeMode: ThemeMode): ZigSatTokens {
     val cardAlt = when {
         isWine -> Color(0xFF260B15)
         isDark -> Color(0xFF1A1B26)
-        else -> Color(0xFFFFFDFA)
+        else -> Color(0xFFF0ECE5)
     }
     val border = when {
         isWine -> Color(0xFF3A1220)
@@ -198,7 +198,7 @@ fun zigSatTokens(skin: SatSkin, themeMode: ThemeMode): ZigSatTokens {
     val inkTertiary = when {
         isWine -> Color(0x99EDD2D9)
         isDark -> Color(0xFF8E8E9A)
-        else -> Color(0xFF6B6B7A)
+        else -> Color(0xFF666675)
     }
     val live = if (isWine) Color(0xFFE04263) else Color(0xFFD32F2F)
     val sim = when {
@@ -240,12 +240,8 @@ fun zigSatTokens(skin: SatSkin, themeMode: ThemeMode): ZigSatTokens {
             isDark -> Color(0xFF8FA3C7)
             else -> Color(0xFF5B6B8C)
         },
-        popoverFill = when {
-            skin == SatSkin.AETHER -> Color(0xFF0B0D18)
-            isWine -> Color(0xFF1A1228)
-            else -> Color(0xFF0F172A)
-        },
-        popoverBorder = if (isWine) Color(0xFFE04263) else Color(0xFFD32F2F),
+        popoverFill = card,
+        popoverBorder = selected,
         glassy = skin != SatSkin.DEFAULT,
         hudFill = when (themeMode) {
             ThemeMode.LIGHT -> Color(0xFFFDFBF7)
@@ -311,6 +307,7 @@ data class SatStatusData(
     val tleEpochMillis: Long?,
     val tleSource: com.alijafari.red.astronomy.astro_engine.TleDataSource?,
     val isFa: Boolean,
+    val lastFixMs: Long? = null,
 )
 
 @Immutable
@@ -338,7 +335,6 @@ data class SatPassUi(
 ) {
     val quality: SatQuality get() = qualityOf(pass)
     val isTrain: Boolean get() = sat.isTrain
-    val canRemind: Boolean get() = pass.startTimeMs - 10 * 60_000L > System.currentTimeMillis()
 }
 
 @Immutable
@@ -384,33 +380,13 @@ val LocalSatReduceMotion = compositionLocalOf { false }
 // ------------------------------------------------------------------------------------------------
 
 /** Bidirectional isolate markers, so a signed number never jumps to the wrong side in RTL. */
-private const val FSI = "\u2068"
-private const val PDI = "\u2069"
 private const val MINUS = '\u2212'
 
 object SatFmt {
 
-    fun digits(raw: String, isFa: Boolean): String =
-        if (isFa) TimeEngine.formatPersianNumbers(raw) else raw
-
-    /** Formats a signed value with U+2212 for minus, an explicit `+` for positives, bidi-isolated. */
-    fun signed(value: Double, decimals: Int, unit: String = "", isFa: Boolean, forceSign: Boolean = true): String {
-        if (!value.isFinite()) return "—"
-        val magnitude = kotlin.math.abs(value)
-        val body = String.format(Locale.US, "%.${decimals}f", magnitude)
-        val sign = when {
-            value < -1e-9 -> MINUS.toString()
-            forceSign -> "+"
-            else -> ""
-        }
-        val decimal = if (isFa) body.replace('.', '\u066B') else body
-        val signed = digits("$sign$decimal", isFa)
-        // The inner LTR embedding keeps the sign next to the digits even in an RTL paragraph.
-        val embedded = androidx.core.text.BidiFormatter.getInstance(true).unicodeWrap(
-            signed, androidx.core.text.TextDirectionHeuristicsCompat.LTR, false,
-        )
-        return "$FSI$embedded$unit$PDI"
-    }
+    fun digits(raw: String,isFa: Boolean) = com.alijafari.red.astronomy.ui.satellites.core.digits(raw,isFa)
+    fun signed(value: Double, decimals: Int, unit: String = "", isFa: Boolean, forceSign: Boolean = true) =
+        fmtSigned(value,decimals,isFa,forceSign,unit)
 
     fun number(value: Double, decimals: Int, isFa: Boolean): String = when {
         !value.isFinite() -> "—"
@@ -435,11 +411,7 @@ object SatFmt {
         number(kmS, 2, isFa)
 
     fun degrees(value: Double, isFa: Boolean, decimals: Int = 0, signed: Boolean = false): String =
-        if (signed) {
-            signed(value, decimals, "°", isFa)
-        } else {
-            number(kotlin.math.abs(value), decimals, isFa) + "°"
-        }
+        fmtSigned(value, decimals, isFa, suffix = "°")
 
     fun magnitude(value: Double, isFa: Boolean): String = signed(value, 1, "", isFa)
 
@@ -452,11 +424,12 @@ object SatFmt {
         val h = m / 60
         val mm = m % 60
         return if (isFa) {
-            when {
-                h > 0 && mm > 0 -> "${digits(h.toString(), true)} ساعت ${digits(mm.toString(), true)} دقیقه"
-                h > 0 -> "${digits(h.toString(), true)} ساعت"
-                else -> "${digits(mm.toString(), true)} دقیقه"
+            val measures = buildList {
+                if (h > 0) add(android.icu.util.Measure(h, android.icu.util.MeasureUnit.HOUR))
+                if (mm != 0 || h == 0) add(android.icu.util.Measure(mm, android.icu.util.MeasureUnit.MINUTE))
             }
+            android.icu.text.MeasureFormat.getInstance(android.icu.util.ULocale("fa_IR"),
+                android.icu.text.MeasureFormat.FormatWidth.WIDE).formatMeasures(*measures.toTypedArray())
         } else {
             when {
                 h > 0 && mm > 0 -> "${h}h ${mm}m"
@@ -481,13 +454,9 @@ object SatFmt {
 
     fun offsetMinutes(minutes: Int, isFa: Boolean): String {
         if (minutes == 0) return if (isFa) "زنده" else "Live"
-        val magnitude = kotlin.math.abs(minutes)
-        val hours = magnitude / 60
-        val remainder = magnitude % 60
-        val first = if (hours > 0) hours else remainder
-        val firstUnit = if (hours > 0) (if (isFa) " س" else "h") else (if (isFa) " د" else "m")
-        val extra = if (hours > 0 && remainder > 0) (if (isFa) " ${int(remainder, true)} د" else " ${remainder}m") else ""
-        return signed((if (minutes < 0) -first else first).toDouble(), 0, firstUnit, isFa) + extra
+        val wholeHours=minutes % 60==0
+        return if(kotlin.math.abs(minutes)>=60 && (minutes % 6==0)) fmtSigned(minutes/60.0,if(wholeHours)0 else 1,isFa,true,if(isFa) " ساعت" else "h")
+        else fmtSigned(minutes.toDouble(),0,isFa,true,if(isFa) " دقیقه" else "m")
     }
 
     fun compass(azDeg: Double, isFa: Boolean): String {
@@ -505,34 +474,43 @@ object SatFmt {
     }
 
     /** Reading order mirrors in RTL: rise at the start edge, arrow flipped. */
-    fun direction(fromAz: Double, toAz: Double, isFa: Boolean, compact: Boolean = false): String {
-        val from = compass(fromAz, isFa)
-        val to = compass(toAz, isFa)
-        if (isFa) {
-            fun directionWord(word: String) = if (compact || '‌' !in word) word else word + "ی"
-            return "${directionWord(from)} \u2190 ${directionWord(to)}"
-        }
-        return "$from \u2192 $to"
-    }
-
     fun dateTime(ms: Long, isFa: Boolean, tz: TimeZone): String {
         val date = SimpleDateFormat("EEE d MMM", Locale.US).apply { timeZone = tz }.format(Date(ms))
         val time = SimpleDateFormat("HH:mm", Locale.US).apply { timeZone = tz }.format(Date(ms))
         return when {
             isFa -> {
-                val sh = TimeEngine.toSolarHijri(ms, tz)
-                val weekday = arrayOf("یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه")
-                val dayOfWeek = Calendar.getInstance(tz).apply { timeInMillis = ms }.get(Calendar.DAY_OF_WEEK)
-                digits("${weekday[dayOfWeek - 1]} ${sh.day} ${sh.monthNameFa} · $time", true)
+                val format = android.icu.text.SimpleDateFormat("EEEE d MMMM · HH:mm", android.icu.util.ULocale("fa_IR@calendar=persian"))
+                format.timeZone = android.icu.util.TimeZone.getTimeZone(tz.id)
+                digits(format.format(Date(ms)),true)
+
             }
             else -> "$date · $time"
         }
     }
 
+    /** Existing catalogue launch dates are English strings. Do not mistake a COSPAR sequence
+     * or "recent deployment" for a calendar date when presenting them in Persian. */
+    fun launchDate(raw: String, isFa: Boolean): String? {
+        val value = raw.trim().takeIf { it.isNotEmpty() } ?: return null
+        if (!isFa) return value
+        val datePart = value.substringBefore(" (")
+        val parser = SimpleDateFormat("MMMM d, yyyy", Locale.US).apply {
+            isLenient = false
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+        val position = java.text.ParsePosition(0)
+        val date = parser.parse(datePart, position) ?: return null
+        if (position.index != datePart.length) return null
+        val solar = android.icu.text.SimpleDateFormat("EEEE d MMMM y", android.icu.util.ULocale("fa_IR@calendar=persian"))
+        solar.timeZone = android.icu.util.TimeZone.getTimeZone("UTC")
+        val utc = TimeZone.getTimeZone("UTC")
+        val year = Calendar.getInstance(utc).apply { time = date }.get(Calendar.YEAR)
+        return digits(solar.format(date), true) + " · " + gregorianFa(date.time, utc) + " " + int(year, true)
+    }
+
     /** Secondary (Gregorian or Solar Hijri, whichever is not primary) date line for group headers. */
     fun secondaryDate(ms: Long, isFa: Boolean, tz: TimeZone): String {
-        val gregorian = SimpleDateFormat("EEE d MMM", Locale.US).apply { timeZone = tz }.format(Date(ms))
-        return if (isFa) digits(gregorian, true) else {
+        return if (isFa) gregorianFa(ms,tz) else {
             val sh = TimeEngine.toSolarHijri(ms, tz)
             "${sh.day} ${sh.monthNameEn}"
         }
@@ -584,11 +562,7 @@ object SatNights {
         includeSolarHijri: Boolean = false,
         referenceNight: Long = nightKey(nowMs, tz),
     ): List<SatNightGroup> {
-        val byNight = LinkedHashMap<Long, MutableList<SatPassUi>>()
-        for (p in passes.sortedBy { it.pass.startTimeMs }) {
-            val key = p.nightKey
-            byNight.getOrPut(key) { mutableListOf() }.add(p)
-        }
+        val byNight = PassGrouping.nights(passes.sortedBy { it.pass.startTimeMs }, SatPassUi::nightKey)
         return byNight.map { (key, items) ->
             val best = items.maxByOrNull { it.pass.visibilityScore }
             SatNightGroup(
@@ -612,35 +586,10 @@ object SatNights {
         isFa: Boolean,
         simulated: Boolean = false,
     ): SatSpotlightUi? {
-        val eligible = passes
-            .filter { it.pass.endTimeMs > nowMs }
-            .sortedBy { it.pass.startTimeMs }
-        if (eligible.isEmpty()) return null
-
-        val inProgress = eligible.firstOrNull { it.pass.startTimeMs <= nowMs && it.pass.endTimeMs > nowMs }
-        if (inProgress != null) {
-            return SatSpotlightUi(
-                pass = inProgress,
-                isInProgress = true,
-                remainingMinutes = ((inProgress.pass.endTimeMs - nowMs) / 60_000L).toInt().coerceAtLeast(0),
-                simulatedInsidePass = simulated,
-            )
-        }
-
-        val firstGood = eligible.firstOrNull { it.quality.rank <= SatQuality.GOOD.rank } ?: return null
-        val windowEnd = firstGood.pass.startTimeMs + 6L * 60L * 60L * 1000L
-        val byBrightness = compareBy<SatPassUi> { it.pass.estimatedMagnitude.takeIf(Double::isFinite) ?: Double.POSITIVE_INFINITY }
-            .thenByDescending { it.pass.visibilityScore }
-        val brighter = eligible.asSequence()
-            .filter { it.pass.startTimeMs <= windowEnd && it.quality.rank <= SatQuality.VERY_GOOD.rank }
-            .minWithOrNull(byBrightness)
-        val chosen = if (brighter != null && byBrightness.compare(brighter, firstGood) < 0) brighter else firstGood
-        return SatSpotlightUi(
-            pass = chosen,
-            isInProgress = false,
-            remainingMinutes = ((chosen.pass.startTimeMs - nowMs) / 60_000L).toInt().coerceAtLeast(0),
-            simulatedInsidePass = false,
-        )
+        val chosen = PassGrouping.spotlight(passes, nowMs, {it.pass.startTimeMs}, {it.pass.endTimeMs}, {it.pass.visibilityScore}) ?: return null
+        val running = chosen.pass.startTimeMs <= nowMs
+        val remaining = if(running) chosen.pass.endTimeMs-nowMs else chosen.pass.startTimeMs-nowMs
+        return SatSpotlightUi(chosen,running,(remaining/60_000L).toInt(),simulated && running)
     }
 
     /** Indexes the pass that follows a simulated instant, for the ⏭ control. */
@@ -661,26 +610,14 @@ fun ZigSatCard(
     modifier: Modifier = Modifier,
     tokens: ZigSatTokens,
     accent: Color? = null,
-    shape: Shape = squircleShape(SatRadius.card),
+    shape: Shape = SatShapes.card,
     onClick: (() -> Unit)? = null,
     testTag: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val tagged = if (testTag != null) modifier.testTag(testTag) else modifier
-    val kind = when (shape) {
-        squircleShape(SatRadius.sheet) -> SatSlot.Spotlight
-        squircleShape(SatRadius.compactCard) -> SatSlot.PassCard
-        else -> SatSlot.FocusCard
-    }
-    val base = if (accent != null) accent.copy(alpha = 0.08f).compositeOver(tokens.cardAlt) else tokens.cardAlt
-    if (tokens.skin == SatSkin.DEFAULT) {
-        RedSurface(modifier = tagged.fillMaxWidth(), shape = shape, color = base,
-            border = BorderStroke(1.dp, accent?.copy(alpha = 0.40f) ?: tokens.border),
-            elevation = 0.dp, onClick = onClick) { Column(content = content) }
-    } else {
-        Column(tagged.fillMaxWidth().satMaterial(tokens, kind, shape, accent = accent)
-            .then(if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)), content = content)
-    }
+    Column(tagged.fillMaxWidth().satMaterial(tokens,SatSlot.FocusCard,shape)
+        .then(if(onClick==null) Modifier else Modifier.clickable(onClick=onClick)), content=content)
 }
 
 /** A true capsule chip, text-only, ≥48 dp hit area with a compact visual body. */
@@ -704,12 +641,12 @@ fun ZigSatChip(
     ) {
         Row(
             modifier = Modifier
-                .clip(RedShapes.capsule)
+                .clip(SatShapes.capsule)
                 .background(if (selected) tokens.selectedChip else tokens.cardAlt)
                 .border(
                     1.dp,
                     if (selected) tokens.live else tokens.border,
-                    RedShapes.capsule,
+                    SatShapes.capsule,
                 )
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -753,7 +690,7 @@ fun ZigSatIconButton(
             modifier = tagged.size(SatGrid.minTouchTarget).clickable(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.size(visualSize).satMaterial(tokens, SatSlot.RailButton, CircleShape,
+            Box(Modifier.size(visualSize).satMaterial(tokens, SatSlot.Toolbar, SatShapes.capsule,
                 backing = if (hud) tokens.hudFill else tokens.cardAlt,
                 accent = if (active) tokens.live else null), contentAlignment = Alignment.Center) {
                 Icon(icon, contentDescription,
@@ -792,7 +729,7 @@ fun ZigStatusDot(color: Color, pulse: Boolean, size: Dp = 8.dp) {
     Box(
         modifier = Modifier
             .size(size)
-            .clip(CircleShape)
+            .clip(SatShapes.capsule)
             .background(color.copy(alpha = alpha)),
     )
 }
@@ -801,7 +738,7 @@ fun ZigStatusDot(color: Color, pulse: Boolean, size: Dp = 8.dp) {
 @Composable
 fun ZigMicroCaps(text: String, tokens: ZigSatTokens, color: Color? = null, isFa: Boolean = false) {
     Text(
-        text = if (isFa) text else text.uppercase(Locale.US),
+        text = text,
         style = RedTypographyTokens.badge.copy(
             fontSize = if (isFa) 11.sp else 10.sp,
             letterSpacing = if (isFa) 0.sp else 0.2.sp,
@@ -818,7 +755,7 @@ fun TextStyle.tabular(): TextStyle = copy(fontFeatureSettings = "tnum")
 
 @Composable
 internal fun TextStyle.satOptical(): TextStyle = if (LocalConfiguration.current.locales[0]?.language == "fa")
-    copy(fontSize = (fontSize.value + 1).sp, lineHeight = (lineHeight.value + 1.5f).sp) else this
+    copy(lineHeight = ((if (lineHeight.value.isFinite()) lineHeight.value else fontSize.value * 1.25f) + 4f).sp) else this
 
 /** Quality as a tinted capsule: hue in the fill and ring, label always in onSurface ink. */
 @Composable
@@ -826,9 +763,9 @@ fun ZigQualityChip(quality: SatQuality, score: Int, tokens: ZigSatTokens, isFa: 
     val compact = !full || LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale >= 1.3f
     Row(
         modifier = Modifier
-            .clip(RedShapes.capsule)
-            .background(tokens.qualityChipFill(quality))
-            .border(1.dp, tokens.qualityChipBorder(quality), RedShapes.capsule)
+            .clip(SatShapes.capsule)
+            .background(tokens.cardAlt)
+            .border(Dp.Hairline, tokens.border, SatShapes.capsule)
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -836,11 +773,11 @@ fun ZigQualityChip(quality: SatQuality, score: Int, tokens: ZigSatTokens, isFa: 
         Box(
             modifier = Modifier
                 .size(6.dp)
-                .clip(CircleShape)
+                .clip(SatShapes.capsule)
                 .background(quality.graphic(tokens)),
         )
         Text(
-            text = "${if (compact) quality.shortLabel(isFa) else quality.label(isFa)} · ${SatFmt.int(score, isFa)}",
+            text = quality.label(isFa),
             style = RedTypographyTokens.badge.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium).satOptical(),
             color = tokens.inkPrimary,
             maxLines = 1,
@@ -861,24 +798,14 @@ fun ZigBellButton(
 ) {
     val enabled = !isPast
     val active = leadMinutes != null || isAutoCovered
-    var previousLead by remember { mutableStateOf(leadMinutes) }
-    var flash by remember { mutableStateOf(false) }
-    val reduce = LocalSatReduceMotion.current
-    LaunchedEffect(leadMinutes) {
-        val changed = previousLead != leadMinutes
-        previousLead = leadMinutes
-        if (changed && !reduce) {
-            flash = true
-            delay(180)
-        }
-        flash = false
-    }
-    val highlight by animateColorAsState(if (flash) tokens.live.copy(alpha = .22f) else Color.Transparent,
-        tween(if (flash) 0 else 120), label = "pass-reminder-confirmation")
+    val wobble=remember{androidx.compose.animation.core.Animatable(0f)}
+    var previous by remember{mutableStateOf(leadMinutes)};val reduce=LocalSatReduceMotion.current
+    LaunchedEffect(leadMinutes){val changed=previous!=leadMinutes;previous=leadMinutes
+        if(changed && !reduce){wobble.animateTo(-12f,tween(70));wobble.animateTo(9f,tween(100));wobble.animateTo(0f,tween(130))}}
     Column(
         modifier = modifier
             .sizeIn(minWidth = SatGrid.minTouchTarget, minHeight = SatGrid.minTouchTarget)
-            .background(highlight, CircleShape)
+
             .clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .testTag("pass_reminder_bell"),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -892,7 +819,7 @@ fun ZigBellButton(
                 active -> tokens.live
                 else -> tokens.inkSecondary
             },
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(24.dp).rotate(wobble.value),
         )
         val micro = when {
             !enabled -> null

@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.astro_engine.*
-import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.data.repository.TleRepository
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.ThemeMode
@@ -53,9 +52,7 @@ import com.alijafari.red.astronomy.notification.ScheduledNotificationItem
 import com.alijafari.red.astronomy.ui.satellites.*
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
-import com.alijafari.red.astronomy.ui.theme.squircleShape
-import com.alijafari.red.astronomy.util.formatTleStalenessBadge
-import com.alijafari.red.astronomy.util.rememberIsNetworkOnline
+import com.alijafari.red.astronomy.ui.satellites.core.*
 import java.util.Calendar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -72,24 +69,22 @@ fun SatelliteDetailScreen(
     themeMode: ThemeMode = ThemeMode.DARK, modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val isOnline by rememberIsNetworkOnline(context)
     val tleRepo = remember { TleRepository.getInstance(context) }
     val starlinkCacheVersion by tleRepo.starlinkVersion.collectAsState()
     val isFa = language == AppLanguage.PERSIAN
-    val canonicalSatellite = remember(satelliteItem) {
-        CanonicalAstroCatalog.getCanonicalObject("sat_${satelliteItem.noradId}")
-            ?: CanonicalAstroCatalog.getCanonicalObject(satelliteItem.id)
-    }
+    // Preserve the selected dynamic SatelliteItem: an unresolved catalogue ID must not fall
+    // through a generic lookup and accidentally display the ISS in another craft's Detail.
     val state = remember(satelliteItem, simulationTimestampMs, userLocation, starlinkCacheVersion) {
-        (AstroDispatchEngine.calculateState(canonicalSatellite?.canonicalId ?: "sat_${satelliteItem.noradId}",
-            simulationTimestampMs, userLocation.latitude, userLocation.longitude, userLocation.elevationMeters)?.specializedData as? SatelliteLiveState)
-            ?: SatelliteEngine.calculateSatelliteState(satelliteItem, simulationTimestampMs, userLocation.latitude,
-                userLocation.longitude, userLocation.elevationMeters)
+        SatelliteEngine.calculateSatelliteState(satelliteItem, simulationTimestampMs, userLocation.latitude,
+            userLocation.longitude, userLocation.elevationMeters)
     }
-    val stale = formatTleStalenessBadge(satelliteItem.isTrain, state.tleMetadata,
-        if (satelliteItem.isTrain || satelliteItem.category == SatelliteCategory.STARLINK) tleRepo.getStarlinkCacheAgeDays() else null, isFa)
+    val futurePosition by produceState<Geo?>(null, satelliteItem, simulationTimestampMs, starlinkCacheVersion) {
+        value = withContext(Dispatchers.Default) {
+            runCatching { sgp4Ephemeris(satelliteItem).at(simulationTimestampMs + 10_000L) }.getOrNull()
+        }
+    }
     var predicted by remember(satelliteItem.id, userLocation) { mutableStateOf<List<ISSEngine.ISSPass>?>(null) }
-    val days = if (satelliteItem.isTrain) 2 else 7
+    val days = 7
     val bucket = simulationTimestampMs / 900_000L * 900_000L - 900_000L
     LaunchedEffect(satelliteItem.id, userLocation, bucket, starlinkCacheVersion, state.tleMetadata?.tleData) {
         predicted = withContext(Dispatchers.Default) {
@@ -100,9 +95,10 @@ fun SatelliteDetailScreen(
     }
     val start = simulationTimestampMs
     val upcoming = predicted?.filter { it.endTimeMs > start && it.startTimeMs <= start + days * 86_400_000L }
-    SatelliteDetailContent(satelliteItem, state, userLocation, isFa, skin, themeMode, isOnline, stale, upcoming,
+    SatelliteDetailContent(satelliteItem, state, userLocation, isFa, skin, themeMode, upcoming,
         preselectedPass, reminderAlarms, start, System.currentTimeMillis(), isSimulated, onBack, onSetReminder,
-        onRemoveReminder, { onShowOnGlobe?.invoke(satelliteItem) }, { onSpotInAr?.invoke(satelliteItem) }, modifier)
+        onRemoveReminder, { onShowOnGlobe?.invoke(satelliteItem) }, { onSpotInAr?.invoke(satelliteItem) }, modifier,
+        futurePosition = futurePosition)
 }
 
 /** Presentation-only body also used by the deterministic preview matrix. */
@@ -110,10 +106,10 @@ fun SatelliteDetailScreen(
 @Composable
 internal fun SatelliteDetailContent(
     satelliteItem: SatelliteItem, state: SatelliteLiveState, location: UserLocation, isFa: Boolean, skin: SatSkin,
-    themeMode: ThemeMode, isOnline: Boolean, stale: String?, predicted: List<ISSEngine.ISSPass>?, preselected: ISSEngine.ISSPass?,
+    themeMode: ThemeMode, predicted: List<ISSEngine.ISSPass>?, preselected: ISSEngine.ISSPass?,
     alarms: List<ScheduledNotificationItem>, simNow: Long, realNow: Long, isSimulated: Boolean, onBack: () -> Unit,
     onSetReminder: ((SatelliteItem, ISSEngine.ISSPass, Int) -> Unit)?, onRemoveReminder: ((SatelliteItem, ISSEngine.ISSPass) -> Unit)?,
-    onShow: () -> Unit, onAr: () -> Unit, modifier: Modifier = Modifier,
+    onShow: () -> Unit, onAr: () -> Unit, modifier: Modifier = Modifier, futurePosition: Geo? = null,
 ) {
     val tokens = remember(skin, themeMode) { zigSatTokens(skin, themeMode) }
     val tz = remember(location.timezoneId) { TimeEngine.resolveTimeZone(location.timezoneId) }
@@ -147,7 +143,7 @@ internal fun SatelliteDetailContent(
     var pending by remember { mutableStateOf<SatReminderTarget?>(null) }
     var heroBell by remember { mutableStateOf(IntRect.Zero) }
     if (!LocalInspectionMode.current) BackHandler(enabled = pending == null, onBack = onBack)
-    val dayCount = if (satelliteItem.isTrain) 2 else 7
+    val dayCount = 7
     val days = remember(firstNight, nights, dayCount, groups) {
         (List(dayCount) { nights.plusDays(firstNight, it) } + groups.map { it.nightKey }).distinct().sorted()
     }
@@ -161,19 +157,16 @@ internal fun SatelliteDetailContent(
         onRemind = { pending = SatReminderTarget(pass, it) }, isReminderEnabled = onSetReminder != null,
     )
     CompositionLocalProvider(LocalZigSatTokens provides tokens, LocalSatSkin provides skin) {
-        Box(modifier.fillMaxSize().background(tokens.canvas).testTag("satellite_detail_screen")) {
+        Box(Modifier.fillMaxSize().background(tokens.canvas).testTag("satellite_detail_screen")) {
             LazyColumn(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(), state = listState,
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 74.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item("hero") {
-                    val next = passes?.firstOrNull { it.pass.startTimeMs > simNow } ?: spotlight?.pass
-                    DetailHero(satelliteItem, state, isFa, isOnline, stale, onAr, onShow,
-                        { next?.let { pending = SatReminderTarget(it, heroBell) } },
-                        next?.pass?.takeIf { it.startTimeMs > simNow }?.let {
-                            val dir = SatFmt.compass(it.startAzimuthDeg, isFa)
-                            stringResource(R.string.sat_detail_rises, dir, SatFmt.countdown(it.startTimeMs - simNow, isFa))
-                        }, Modifier.onGloballyPositioned { heroBell = it.anchorInWindow() },
-                        onSetReminder != null && next != null && next.pass.startTimeMs > realNow)
+                    MediaHero(satelliteItem,tokens,isFa,listState.firstVisibleItemScrollOffset,modifier)
+                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        SatDialogButton(stringResource(R.string.sat_ar),tokens,onAr,modifier=Modifier.weight(1f))
+                        SatDialogButton(stringResource(R.string.sat_show_on_globe),tokens,onShow,modifier=Modifier.weight(1f))
+                    }
                 }
                 item("next_pass") {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -196,7 +189,7 @@ internal fun SatelliteDetailContent(
                         else SatText(stringResource(R.string.sat_detail_empty), tokens.inkSecondary)
                     }
                 }
-                item("telemetry") { DetailTelemetryPanel(state, tokens, isFa, stale, isOnline) }
+                item("telemetry") { DetailTelemetryPanel(state, tokens, isFa, futurePosition) }
                 item("visibility") { DetailVisibilityPanel(state, tokens, isFa, location, simNow) }
                 item("passes_header") {
                     SatSheetTitle(stringResource(R.string.sat_detail_passes, SatFmt.int(dayCount, isFa)),
@@ -232,9 +225,9 @@ internal fun SatelliteDetailContent(
             Row(Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 16.dp, top = 16.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 ZigSatIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.sat_detail_back), tokens, onBack,
-                    testTag = "detail_floating_back")
+                    modifier=Modifier.layoutRole(LayoutRole.Mirrors), testTag = "detail_floating_back")
                 AnimatedVisibility(showsTitle, enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
-                    SatText(shortNameOf(satelliteItem, isFa), tokens.inkPrimary, Modifier.satMaterial(tokens, SatSlot.Popover, CircleShape)
+                    SatText(shortNameOf(satelliteItem, isFa), tokens.inkPrimary, Modifier.satMaterial(tokens, SatSlot.Popover, SatShapes.capsule)
                         .padding(horizontal = 12.dp, vertical = 8.dp), strong = true)
                 }
             }
@@ -250,295 +243,35 @@ internal fun SatelliteDetailContent(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DetailHero(
-    satelliteItem: SatelliteItem,
-    state: SatelliteLiveState,
-    isFa: Boolean,
-    isOnline: Boolean,
-    staleBadgeText: String?,
-    onAr: () -> Unit,
-    onShowOnGlobe: () -> Unit,
-    onRemind: () -> Unit,
-    riseSubtitle: String?,
-    reminderModifier: Modifier,
-    reminderEnabled: Boolean,
-) {
-    val tokens = LocalZigSatTokens.current
-    var overviewExpanded by remember { mutableStateOf(false) }
-    var hasMore by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().satMaterial(tokens, SatSlot.DetailHero, squircleShape(SatRadius.card),
-        accent = if (tokens.skin == SatSkin.AETHER) tokens.timeAccent else null)) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (!isOnline || staleBadgeText != null) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (!isOnline) {
-                        Row(
-                            modifier = Modifier
-                                .clip(RedShapes.capsule)
-                                .background(tokens.accentInk.copy(alpha = 0.14f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.CloudOff,
-                                contentDescription = if (isFa) "آفلاین" else "Offline",
-                                tint = tokens.accentInk,
-                                modifier = Modifier.size(12.dp),
-                            )
-                            Text(
-                                text = if (isFa) "آفلاین" else "Offline",
-                                style = RedTypographyTokens.badge.copy(fontSize = 11.sp),
-                                color = tokens.accentInk,
-                            )
-                        }
-                    }
-                    if (staleBadgeText != null) {
-                        Text(
-                            text = staleBadgeText,
-                            style = RedTypographyTokens.badge.copy(fontSize = 11.sp),
-                            color = tokens.sim,
-                            modifier = Modifier
-                                .clip(RedShapes.capsule)
-                                .background(tokens.sim.copy(alpha = 0.14f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                        )
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(tokens.live.copy(alpha = 0.16f))
-                        .border(1.dp, tokens.live.copy(alpha = 0.45f), CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.SatelliteAlt,
-                        contentDescription = null,
-                        tint = tokens.accentInk,
-                        modifier = Modifier.size(24.dp),
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = SatFmt.categoryLabel(satelliteItem.category, isFa),
-                        style = RedTypographyTokens.badge.copy(fontSize = 11.sp),
-                        color = tokens.accentInk,
-                    )
-                    Text(
-                        text = fullNameOf(satelliteItem, isFa),
-                        style = RedTypographyTokens.screenTitle.copy(
-                            fontSize = 24.sp, lineHeight = 30.sp,
-                            fontWeight = FontWeight.Bold,
-                        ).satOptical(),
-                        color = tokens.inkPrimary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .clip(RedShapes.capsule)
-                    .background(
-                        if (state.isNakedEyeVisible) tokens.nakedEye.copy(alpha = 0.16f) else tokens.cardAlt
-                    )
-                    .border(
-                        1.dp,
-                        if (state.isNakedEyeVisible) tokens.nakedEye.copy(alpha = 0.5f) else tokens.border,
-                        RedShapes.capsule,
-                    )
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(if (state.isNakedEyeVisible) tokens.nakedEye else tokens.telescopic),
-                )
-                Text(
-                    text = if (state.isNakedEyeVisible) {
-                        if (isFa) "قابل مشاهده با چشم" else "Naked eye visible"
-                    } else {
-                        if (isFa) "قابل مشاهده نیست" else "Not visible"
-                    },
-                    style = RedTypographyTokens.badge.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
-                    color = tokens.inkPrimary,
-                )
-            }
-
-            val overview = SatFmt.digits(if (isFa) satelliteItem.descriptionFa else satelliteItem.descriptionEn, isFa)
-            if (overview.isNotBlank()) {
-                Text(
-                    text = overview,
-                    style = RedTypographyTokens.bodySecondary,
-                    color = tokens.inkSecondary,
-                    maxLines = if (overviewExpanded) Int.MAX_VALUE else 3,
-                    overflow = TextOverflow.Ellipsis,
-                    onTextLayout = { if (!overviewExpanded) hasMore = it.hasVisualOverflow },
-                )
-                if (hasMore || overviewExpanded) {
-                    Text(
-                        text = if (overviewExpanded) {
-                            if (isFa) "کمتر" else "Less"
-                        } else {
-                            if (isFa) "بیشتر" else "More"
-                        },
-                        style = RedTypographyTokens.badge.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
-                        color = tokens.accentInk,
-                        modifier = Modifier
-                            .sizeIn(minWidth = SatGrid.minTouchTarget, minHeight = SatGrid.minTouchTarget)
-                            .clickable { overviewExpanded = !overviewExpanded }
-                            .padding(top = 12.dp),
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .sizeIn(minWidth = SatGrid.minTouchTarget, minHeight = SatGrid.minTouchTarget)
-                        .clip(RedShapes.capsule)
-                        .background(tokens.selectedChip)
-                        .clickable(onClick = onAr)
-                        .testTag("detail_spot_in_ar").padding(horizontal = 9.dp, vertical = 4.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Visibility,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Text(
-                            text = stringResource(R.string.sat_detail_ar),
-                            style = RedTypographyTokens.badge.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
-                            color = Color.White,
-                        )
-                    }
-                }
-                ZigSatIconButton(
-                    icon = Icons.Filled.CenterFocusWeak,
-                    contentDescription = if (isFa) "نمایش روی کره" else "Show on globe",
-                    tokens = tokens,
-                    onClick = onShowOnGlobe,
-                    testTag = "detail_show_on_globe",
-                )
-                ZigSatIconButton(
-                    icon = Icons.Filled.NotificationsActive,
-                    contentDescription = if (isFa) "یادآوری گذر بعدی" else "Remind next pass",
-                    tokens = tokens,
-                    onClick = onRemind,
-                    testTag = "detail_remind_next", modifier = reminderModifier, enabled = reminderEnabled,
-                )
-            }
-            if (state.topocentric.elevationDeg <= 0.0 && riseSubtitle != null) {
-                SatText(riseSubtitle, tokens.inkSecondary, size = 11)
-            }
+private fun DetailTelemetryPanel(state:SatelliteLiveState,t:ZigSatTokens,fa:Boolean,next:Geo?) {
+    val pos=state.topocentric;val geo=pos.geo()
+    val heading=next?.let { MotionCues.bearing(geo,it) };var expanded by remember {mutableStateOf(false)}
+    Column {
+        SatSheetTitle(stringResource(R.string.sat_telemetry),null,t)
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            val direction = if (heading != null && next != null) SatFmt.compass(heading,fa)+" · "+
+                stringResource(if(next.lat>=geo.lat)R.string.sat_ascending else R.string.sat_descending)
+                else stringResource(R.string.sat_unknown)
+            TelemetryTile(stringResource(R.string.sat_heading),direction,t,Modifier.weight(1f),azimuth=heading)
+            TelemetryTile(stringResource(R.string.sat_range),SatFmt.kilometers(pos.rangeKm,fa)+" "+stringResource(R.string.sat_kilometers),t,Modifier.weight(1f))
         }
-    }
-}
-
-@Composable
-private fun DetailTelemetryPanel(state: SatelliteLiveState, tokens: ZigSatTokens, isFa: Boolean, staleBadgeText: String?, isOnline: Boolean) {
-    var expanded by remember { mutableStateOf(false) }
-    val topo = state.topocentric
-    ZigSatCard(tokens = tokens, shape = squircleShape(SatRadius.card)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SatText(stringResource(R.string.sat_telemetry), tokens.inkPrimary, size = 18, strong = true)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TelemetryHeroTile(stringResource(R.string.sat_altitude), SatFmt.kilometers(topo.satAltKm, isFa),
-                    stringResource(R.string.sat_kilometers), tokens, Modifier.weight(1f))
-                TelemetryHeroTile(stringResource(R.string.sat_velocity), SatFmt.speed(topo.velocityKmS, isFa),
-                    stringResource(R.string.sat_speed_unit), tokens, Modifier.weight(1f),
-                    SatFmt.kilometers(topo.velocityKmS * 3600.0, isFa) + " " + stringResource(R.string.sat_speed_hour))
-            }
-            SatDialogButton(stringResource(if (expanded) R.string.sat_telemetry_reduce else R.string.sat_telemetry_more),
-                tokens, { expanded = !expanded }, modifier = Modifier.fillMaxWidth().testTag("detail_more_telemetry"))
-            AnimatedVisibility(expanded, enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        TelemetryTile(stringResource(R.string.sat_azimuth),
-                            SatFmt.degrees(topo.azimuthDeg, isFa) + " · " + SatFmt.compass(topo.azimuthDeg, isFa),
-                            tokens, Modifier.weight(1f), azimuth = topo.azimuthDeg)
-                        TelemetryTile(stringResource(R.string.sat_elevation), SatFmt.signed(topo.elevationDeg, 0, "°", isFa),
-                            tokens, Modifier.weight(1f), muted = topo.elevationDeg <= 0.0)
-                        TelemetryTile(stringResource(R.string.sat_range), SatFmt.kilometers(topo.rangeKm, isFa) + " " +
-                            stringResource(R.string.sat_kilometers), tokens, Modifier.weight(1f))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        fun coordinate(deg: Double, positive: String, negative: String): String =
-                            SatFmt.degrees(deg, isFa, 1) + " " + if (deg >= 0) positive else negative
-                        val lat = coordinate(topo.subLatDeg, SatFmt.compass(0.0, isFa), SatFmt.compass(180.0, isFa))
-                        val lon = coordinate(topo.subLonDeg, SatFmt.compass(90.0, isFa), SatFmt.compass(270.0, isFa))
-                        TelemetryTile(stringResource(R.string.sat_subpoint), "$lat\n$lon", tokens, Modifier.weight(1f))
-                        TelemetryTile(stringResource(R.string.sat_illumination),
-                            (if (topo.isSunlit) "☀ " else "☾ ") + stringResource(if (topo.isSunlit) R.string.sat_sunlit else R.string.sat_shadow),
-                            tokens, Modifier.weight(1f))
-                        val source = stringResource(when (state.tleMetadata?.source) {
-                            TleDataSource.LIVE_NETWORK -> R.string.sat_source_live
-                            TleDataSource.PERSISTED_CACHE, TleDataSource.MEMORY_CACHE -> R.string.sat_source_cache
-                            else -> R.string.sat_source_bundled
-                        })
-                        val age = state.tleMetadata?.epochAgeDays?.let { stringResource(R.string.sat_age_days, SatFmt.number(it, 1, isFa)) }
-                            ?: stringResource(R.string.sat_unknown)
-                        TelemetryTile(stringResource(R.string.sat_epoch), "$age · $source", tokens, Modifier.weight(1f),
-                            muted = staleBadgeText != null || !isOnline)
-                    }
-                }
-            }
+        SatDialogButton(stringResource(if(expanded)R.string.sat_telemetry_reduce else R.string.sat_telemetry_more),t,{expanded=!expanded},modifier=Modifier.fillMaxWidth().testTag("detail_more_telemetry"))
+        if(expanded) {
+            TelemetryTile(stringResource(R.string.sat_subpoint),SatFmt.degrees(pos.subLatDeg,fa,1)+" · "+SatFmt.degrees(pos.subLonDeg,fa,1),t,Modifier.fillMaxWidth())
+            TelemetryTile(stringResource(R.string.sat_azimuth),SatFmt.compass(pos.azimuthDeg,fa)+" · "+SatFmt.degrees(pos.azimuthDeg,fa),t,Modifier.fillMaxWidth())
+            SatText(stringResource(if(pos.isSunlit) R.string.sat_sunlit else R.string.sat_shadow),t.inkSecondary)
         }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TelemetryHeroTile(label: String, value: String, unit: String, tokens: ZigSatTokens, modifier: Modifier, sub: String? = null) {
-    Column(modifier.heightIn(min = 88.dp).satMaterial(tokens, SatSlot.PassCard, squircleShape(SatRadius.tile),
-        backing = tokens.cardAlt, accent = if (tokens.skin == SatSkin.AETHER) tokens.timeAccent else null).padding(10.dp)) {
-        SatText(label, tokens.inkSecondary, size = 11)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (tokens.skin == SatSkin.AETHER && LocalDensity.current.fontScale < 1.3f) {
-                SatMetric(value, "", label, tokens, Modifier.padding(top = 3.dp), roll = true)
-            } else SatText(value, tokens.inkPrimary, size = 20, strong = true)
-            SatText(unit, tokens.inkSecondary, Modifier.padding(top = 3.dp), size = 11)
-        }
-        if (sub != null) SatText(sub, tokens.inkSecondary, size = 10)
     }
 }
 
 @Composable
 private fun TelemetryTile(label: String, value: String, tokens: ZigSatTokens, modifier: Modifier,
     azimuth: Double? = null, muted: Boolean = false) {
-    Column(modifier.heightIn(min = 76.dp).satMaterial(tokens, SatSlot.PassCard, squircleShape(14.dp), tokens.cardAlt)
+    Column(modifier.heightIn(min = 76.dp).satMaterial(tokens, SatSlot.PassRow, SatShapes.of(14.dp), tokens.cardAlt)
         .padding(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SatText(label, tokens.inkSecondary, size = 11)
-        if (azimuth != null) Canvas(Modifier.align(Alignment.CenterHorizontally).size(if (tokens.skin == SatSkin.AETHER) 36.dp else 24.dp)) {
+        if (azimuth != null) Canvas(Modifier.layoutRole(LayoutRole.Physical).align(Alignment.CenterHorizontally).size(if (tokens.skin == SatSkin.AETHER) 36.dp else 24.dp)) {
             val r = size.minDimension * .43f
             val color = if (tokens.skin == SatSkin.AETHER) tokens.timeAccent else tokens.inkSecondary
             drawCircle(color.copy(alpha = .66f), r, style = Stroke(1.dp.toPx()))
@@ -574,7 +307,7 @@ private fun DetailVisibilityPanel(
     val aboveHorizon = state.topocentric.elevationDeg > 0.0
     val met = listOf(sunlit, darkEnough, aboveHorizon).count { it }
 
-    ZigSatCard(tokens = tokens, shape = squircleShape(SatRadius.card)) {
+    ZigSatCard(tokens = tokens, shape = SatShapes.of(SatRadius.card)) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -601,7 +334,7 @@ private fun DetailVisibilityPanel(
                     },
                     style = RedTypographyTokens.badge.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
                     color = tokens.inkSecondary,
-                    modifier = Modifier.background(tokens.cardAlt, CircleShape).padding(horizontal = 8.dp, vertical = 5.dp),
+                    modifier = Modifier.background(tokens.cardAlt, SatShapes.capsule).padding(horizontal = 8.dp, vertical = 5.dp),
                 )
             CheckRow(
                 passed = sunlit,
@@ -622,11 +355,12 @@ private fun DetailVisibilityPanel(
                 text = if (isFa) "بالای افق ناظر" else "Above the observer's horizon",
                 tokens = tokens,
             )
-            Text(
-                text = SatFmt.digits(if (isFa) state.reasonFa else state.reasonEn, isFa),
-                style = RedTypographyTokens.bodySecondary,
-                color = tokens.inkSecondary,
-            )
+            // The engine's observing threshold is 10°, not the geometric horizon. Its legacy
+            // reason says "below horizon" even for 0–10°; avoid repeating that incorrect wording.
+            val reason = if (state.topocentric.elevationDeg >= 0.0 && state.topocentric.elevationDeg < 10.0)
+                stringResource(R.string.sat_low_elevation_reason, SatFmt.degrees(state.topocentric.elevationDeg, isFa, 1))
+                else SatFmt.digits(if (isFa) state.reasonFa else state.reasonEn, isFa)
+            Text(text = reason, style = RedTypographyTokens.bodySecondary, color = tokens.inkSecondary)
         }
     }
 }
@@ -642,7 +376,7 @@ private fun CheckRow(passed: Boolean, text: String, tokens: com.alijafari.red.as
                 .size(20.dp)
                 .clip(CircleShape)
                 .background(if (passed) tokens.nakedEye.copy(alpha = 0.18f) else tokens.cardAlt)
-                .border(1.dp, if (passed) tokens.nakedEye.copy(alpha = 0.5f) else tokens.border, CircleShape),
+                .border(1.dp, if (passed) tokens.nakedEye.copy(alpha = 0.5f) else tokens.border, SatShapes.capsule),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -675,9 +409,9 @@ private fun DayChip(
         modifier = Modifier
             .width(56.dp)
             .heightIn(min = 64.dp)
-            .clip(squircleShape(SatRadius.tile))
+            .clip(SatShapes.of(SatRadius.tile))
             .background(tokens.cardAlt)
-            .border(1.dp, if (selected) tokens.accentInk else tokens.border, squircleShape(SatRadius.tile))
+            .border(1.dp, if (selected) tokens.accentInk else tokens.border, SatShapes.of(SatRadius.tile))
             .clickable(enabled = enabled, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -713,7 +447,7 @@ private fun DetailDossier(
     var expanded by remember { mutableStateOf(false) }
     var significanceExpanded by remember { mutableStateOf(false) }
 
-    ZigSatCard(tokens = tokens, shape = squircleShape(SatRadius.card)) {
+    ZigSatCard(tokens = tokens, shape = SatShapes.of(SatRadius.card)) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -726,35 +460,35 @@ private fun DetailDossier(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = if (isFa) "شناسنامه ماموریت" else "Mission dossier",
+                    text = stringResource(R.string.sat_dossier),
                     style = RedTypographyTokens.sectionTitle.copy(fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
                     color = tokens.inkPrimary,
                     modifier = Modifier.weight(1f),
                 )
-                Text(
-                    text = if (expanded) "\u25B4" else "\u25BE",
-                    style = RedTypographyTokens.badge.copy(fontSize = 12.sp),
-                    color = tokens.inkTertiary,
-                )
+                Glyph(if(expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,LayoutRole.Neutral,tokens.inkSecondary)
             }
 
             if (expanded) {
                 val unknown = stringResource(R.string.sat_unknown)
                 val operator = (if (isFa) satelliteItem.operatorFa else satelliteItem.operatorEn).ifBlank { unknown }
-                val launch = satelliteItem.launchDate.ifBlank { unknown }
+                val launch = SatFmt.launchDate(satelliteItem.launchDate, isFa)?.let {
+                    if (isFa && satelliteItem.id == "tiangong") it + " (" + stringResource(R.string.sat_tianhe_module) + ")" else it
+                } ?: unknown
                 val clipboard = LocalClipboardManager.current
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DossierCell(if (isFa) "اپراتور" else "Operator", SatFmt.digits(operator, isFa), tokens, Modifier.weight(1f), isFa)
                     DossierCell(if (isFa) "تاریخ پرتاب" else "Launch date", SatFmt.digits(launch, isFa), tokens, Modifier.weight(1f), isFa)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DossierCell("NORAD ID", SatFmt.int(satelliteItem.noradId, isFa), tokens, Modifier.weight(1f), isFa) {
+                    DossierCell(stringResource(R.string.sat_norad), isolate(satelliteItem.noradId.toString()), tokens, Modifier.weight(1f), isFa) {
                         clipboard.setText(AnnotatedString(satelliteItem.noradId.toString()))
                     }
-                    DossierCell(if (isFa) "کد بین‌المللی" else "Int’l designation", SatFmt.digits(satelliteItem.designation, isFa),
+                    DossierCell(if (isFa) "کد بین‌المللی" else "Int’l designation", isolate(satelliteItem.designation),
                         tokens, Modifier.weight(1f), isFa) { clipboard.setText(AnnotatedString(satelliteItem.designation)) }
                 }
 
+                val overview=if(isFa)satelliteItem.descriptionFa else satelliteItem.descriptionEn
+                if(overview.isNotBlank()) SatText(SatFmt.digits(overview,isFa),tokens.inkSecondary)
                 val purpose = if (isFa) satelliteItem.missionPurposeFa else satelliteItem.missionPurposeEn
                 if (purpose.isNotBlank()) {
                     ZigMicroCaps(text = if (isFa) "هدف ماموریت" else "Mission purpose", tokens = tokens, isFa = isFa)
@@ -804,7 +538,7 @@ private fun DetailDossier(
                                     .background(tokens.live),
                             )
                             Text(
-                                text = SatFmt.digits(fact, isFa),
+                                text = localizedProse(fact, isFa),
                                 style = RedTypographyTokens.bodySecondary,
                                 color = tokens.inkSecondary,
                             )
@@ -819,7 +553,7 @@ private fun DetailDossier(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DossierCell(label: String, value: String, tokens: ZigSatTokens, modifier: Modifier, isFa: Boolean, copy: (() -> Unit)? = null) {
-    Column(modifier.heightIn(min = 48.dp).satMaterial(tokens, SatSlot.PassCard, squircleShape(14.dp))
+    Column(modifier.heightIn(min = 48.dp).satMaterial(tokens, SatSlot.PassRow, SatShapes.of(14.dp))
         .then(if (copy == null) Modifier else Modifier.combinedClickable(onClick = {}, onLongClick = copy)).padding(8.dp)) {
         ZigMicroCaps(label, tokens, isFa = isFa)
         SatText(value, tokens.inkPrimary, size = 13)

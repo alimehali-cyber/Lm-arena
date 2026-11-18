@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "spacecraft": {
+    "iss": {
+      "status": "TODO",
+      "images": []
+    },
+    "tiangong": {
+      "status": "TODO",
+      "images": []
+    },
+    "hubble": {
+      "status": "TODO",
+      "images": []
+    },
+    "starlink": {
+      "status": "TODO",
+      "images": []
+    }
+  }
+}

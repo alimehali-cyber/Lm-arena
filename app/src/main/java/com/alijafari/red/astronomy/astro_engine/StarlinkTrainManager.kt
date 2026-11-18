@@ -451,7 +451,8 @@ object StarlinkTrainManager {
         val leaderOrb = orderedMembers.first()
         val spanFormatted = String.format(Locale.US, "%.0f°", clusterSpanDeg)
         val memberCountFa = memberCount.toString().toPersianDigits()
-        val displayGroupFa = displayGroup.toPersianDigits()
+        // The launch-group code is an identifier inside Persian prose, not a translated word.
+        val displayGroupFa = "\u2066${displayGroup.toPersianDigits()}\u2069"
 
         val leaderItem = SatelliteItem(
             id = trainId,
@@ -471,7 +472,7 @@ object StarlinkTrainManager {
             descriptionFa = "قطار فعال استقرار اسپیس‌ایکس ($displayGroupFa) شامل $memberCountFa ماهواره استارلینک در کمان متراکم ${spanFormatted.toPersianDigits()}.",
             launchDate = "Recent deployment ($displayGroup)",
             operatorEn = "SpaceX",
-            operatorFa = "اسپیس‌ایکس (SpaceX)",
+            operatorFa = "اسپیس‌ایکس",
             missionPurposeEn = "Low-Earth-orbit deployment formation prior to ion-thruster orbit raising.",
             missionPurposeFa = "آرایش خطی استقرار در مدار پایین زمین پیش از صعود با پیشران یونی.",
             scientificSignificanceEn = "Observable as a bright 'string of pearls' gliding in unison shortly after dusk or before dawn.",
@@ -512,7 +513,7 @@ object StarlinkTrainManager {
                 descriptionFa = "عضو شماره ${rank.toString().toPersianDigits()} از $memberCountFa در قطار استارلینک $displayGroupFa.",
                 launchDate = "Recent deployment ($displayGroup)",
                 operatorEn = "SpaceX",
-                operatorFa = "اسپیس‌ایکس (SpaceX)",
+                operatorFa = "اسپیس‌ایکس",
                 missionPurposeEn = "Low-Earth-orbit broadband constellation deployment.",
                 missionPurposeFa = "منظومه اینترنت پهن‌باند مدار پایین زمین."
             )
@@ -1223,7 +1224,7 @@ object StarlinkTrainManager {
             descriptionFa = "$nameFa در منظومه مدار پایین زمین اسپیس‌ایکس در ارتفاع حدود ${altKm.toString().toPersianDigits()} کیلومتری.",
             launchDate = formatCosparLaunchDisplay(orb.cosparLaunch5),
             operatorEn = "SpaceX",
-            operatorFa = "اسپیس‌ایکس (SpaceX)",
+            operatorFa = "اسپیس‌ایکس",
             missionPurposeEn = "Global low-latency broadband and direct-to-cell LEO satellite.",
             missionPurposeFa = "ماهواره اینترنت پهن‌باند کم‌تاخیر در مدار نزدیک زمین.",
             scientificSignificanceEn = "Uses autonomous Hall-effect ion propulsion and optical inter-satellite laser mesh links.",

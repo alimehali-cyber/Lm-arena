@@ -105,7 +105,7 @@ dependencies {
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
   implementation(libs.androidx.core.ktx)
-  // implementation(libs.androidx.datastore.preferences)
+  implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -207,3 +207,20 @@ if (gravityCiTests) {
   tasks.matching { it.name == "testDebugUnitTest" }.configureEach { finalizedBy(gravityTestReport) }
   tasks.matching { it.name == "assembleDebug" }.configureEach { dependsOn("testDebugUnitTest") }
 }
+
+// The generated Kotlin table is checked in so IDE previews work before the first build.
+val compileSatPlates by tasks.registering(Exec::class) {
+    workingDir(rootDir)
+    inputs.dir(rootProject.file("tools/satellites/shapes"))
+    inputs.files(rootProject.file("tools/satellites/build_shapes.py"), file("src/main/assets/satellites/sat_shape_manifest.json"))
+    outputs.file(file("src/main/java/com/alijafari/red/astronomy/ui/satellites/core/GeneratedPlates.kt"))
+    commandLine("python3", "tools/satellites/build_shapes.py")
+}
+// This is structural validation only; human review must verify each asset's rights separately.
+val auditSatMedia by tasks.registering(Exec::class) {
+    workingDir(rootDir)
+    inputs.files(rootProject.file("tools/satellites/audit.py"), file("src/main/assets/satellites/sat_media_manifest.json"))
+    inputs.files(fileTree("src/main/assets/satellites/media"))
+    commandLine("python3", "tools/satellites/audit.py")
+}
+tasks.named("preBuild").configure { dependsOn(compileSatPlates, auditSatMedia) }

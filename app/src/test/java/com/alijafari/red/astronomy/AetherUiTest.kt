@@ -165,7 +165,8 @@ class AetherUiTest {
 
         assertTrue(satellites.contains("SatellitesStage("))
         assertTrue(satellites.contains("SatSkin.AETHER"))
-        assertTrue(stage.contains("satellite_screen"))
+        val hud = source("com/alijafari/red/astronomy/ui/satellites/SatelliteHud.kt")
+        assertTrue(hud.contains("satellite_screen"))
         assertTrue(components.contains("satellite_time_scrubber_card"))
         assertTrue(components.contains("time_scrubber_slider"))
         // Aether's status capsule is now the shared status chip (one capsule, no altitude in it).

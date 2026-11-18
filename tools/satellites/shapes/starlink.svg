@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill-rule="evenodd">
+  <path id="M" d="M0 25H40V28H47V17H64V47H47V36H40V39H0Z"/>
+  <path id="L-cuts" d="M12 27H13V37H12Z M26 27H27V37H26Z"/>
+  <path id="XL-cuts" d="M49 21H62V22H49Z M49 42H62V43H49Z"/>
+</svg>

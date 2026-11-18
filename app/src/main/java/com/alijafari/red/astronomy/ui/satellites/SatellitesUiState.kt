@@ -11,7 +11,11 @@ import com.alijafari.red.astronomy.ui.screens.MapTheme
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-internal enum class SatPanel { None, Fleet, Time, Passes, Layers, Alerts, Guide, DataStatus }
+internal enum class SatPanel { None, Fleet, Customize, Editor, Time, Passes, Layers, Alerts, Guide, DataStatus;
+    val sheet get() = this !in listOf(None, Time, DataStatus)
+}
+internal enum class MapLayer { GRID, EQUATOR, CITIES, OBSERVER, ORBIT, TRAIN, TETHER }
+internal enum class Detent { Half, Full }
 
 @Immutable
 internal data class SatAlertsConfig(
@@ -25,11 +29,17 @@ internal data class SatAlertsConfig(
 @Immutable
 internal data class SatellitesUiState(
     val focusId: String = "iss_zarya",
-    val scope: SatelliteCategory = SatelliteCategory.ALL,
     val timeOffsetMin: Int = 0,
     val mapTheme: MapTheme = MapTheme.AUTO,
     val activePanel: SatPanel = SatPanel.None,
-    val legend: Boolean = false,
+    val detent: Detent = Detent.Half,
+    val query: String = "",
+    val editorId: String? = null,
+    val drill: String? = null,
+    val visibleOnly: Boolean = true,
+    val windowDays: Int = 3,
+    val layers: Set<MapLayer> = MapLayer.entries.toSet(),
+    val hudHushed: Boolean = false,
 )
 
 @Stable
@@ -37,21 +47,54 @@ internal class SatellitesState(initial: SatellitesUiState) {
     var ui by mutableStateOf(initial)
         private set
 
-    fun panel(panel: SatPanel) { ui = ui.copy(activePanel = panel) }
+    fun panel(panel: SatPanel) { ui = ui.copy(activePanel = panel, detent = Detent.Half, drill = null, query = "") }
     fun toggle(panel: SatPanel) = panel(if (ui.activePanel == panel) SatPanel.None else panel)
     fun dismiss() = panel(SatPanel.None)
-    fun focus(id: String) { ui = ui.copy(focusId = id, activePanel = SatPanel.None) }
-    fun scope(category: SatelliteCategory) { ui = ui.copy(scope = category) }
+    fun back() { when (ui.activePanel) {
+        SatPanel.Editor -> sub(SatPanel.Customize); SatPanel.Customize -> sub(SatPanel.Fleet)
+        SatPanel.Alerts -> sub(SatPanel.Passes); SatPanel.Guide -> sub(SatPanel.Layers)
+        SatPanel.Fleet -> if (ui.drill != null) drill(null) else dismiss(); else -> dismiss()
+    } }
+    fun sub(panel: SatPanel, id: String? = null) { ui = ui.copy(activePanel = panel, editorId = id) }
+    fun full(value: Boolean) { ui = ui.copy(detent = if(value) Detent.Full else Detent.Half) }
+    fun drill(id: String?) { ui = ui.copy(drill = id) }
+    fun query(text: String) { ui = ui.copy(query = text, drill = null) }
+    fun filterVisible(value: Boolean) { ui = ui.copy(visibleOnly=value) }
+    fun days(value: Int) { require(value in listOf(3,7,30)); ui=ui.copy(windowDays=value) }
+    fun layer(layer: MapLayer) { ui=ui.copy(layers=if(layer in ui.layers) ui.layers-layer else ui.layers+layer) }
+    fun hush(value: Boolean) { ui = ui.copy(hudHushed=value) }
+    fun focus(id: String) { ui = ui.copy(focusId = id) }
     fun offset(minutes: Int) { ui = ui.copy(timeOffsetMin = minutes.coerceIn(-720, 720)) }
-    fun lighting(theme: MapTheme) { ui = ui.copy(mapTheme = theme, activePanel = SatPanel.None) }
-    fun legend(visible: Boolean) { ui = ui.copy(legend = visible) }
+    fun lighting(theme: MapTheme) { ui = ui.copy(mapTheme = theme) }
 
     companion object {
         val Saver = listSaver<SatellitesState, String>(
-            save = { listOf(it.ui.focusId, it.ui.scope.name, it.ui.timeOffsetMin.toString(), it.ui.mapTheme.name) },
-            restore = { SatellitesState(SatellitesUiState(it[0], SatelliteCategory.valueOf(it[1]), it[2].toInt(), MapTheme.valueOf(it[3]))) },
+            save = { with(it.ui) { listOf(focusId,timeOffsetMin.toString(),mapTheme.name,activePanel.name,detent.name,query,editorId.orEmpty(),drill.orEmpty(),
+                visibleOnly.toString(),windowDays.toString(),layers.joinToString(","){l->l.name}) } },
+            restore = { restoreSatelliteState(it) },
         )
     }
+}
+
+/** Restore both this version and the old four-field focus/scope/offset/map bundle. */
+internal fun restoreSatelliteState(v: List<String>): SatellitesState {
+    val defaults = SatellitesUiState()
+    val legacy = v.size == 4 && SatelliteCategory.entries.any { it.name == v.getOrNull(1) }
+    val offsetIndex = if (legacy) 2 else 1
+    val themeIndex = if (legacy) 3 else 2
+    val layers = v.getOrNull(10)?.split(',')?.filter(String::isNotBlank)
+        ?.mapNotNull { name -> MapLayer.entries.firstOrNull { it.name == name } }?.toSet() ?: defaults.layers
+    val days = v.getOrNull(9)?.toIntOrNull()?.takeIf { it in listOf(3, 7, 30) } ?: defaults.windowDays
+    return SatellitesState(defaults.copy(
+        focusId = v.getOrNull(0)?.takeIf(String::isNotBlank) ?: defaults.focusId,
+        timeOffsetMin = (v.getOrNull(offsetIndex)?.toIntOrNull() ?: 0).coerceIn(-720, 720),
+        mapTheme = MapTheme.entries.firstOrNull { it.name == v.getOrNull(themeIndex) } ?: defaults.mapTheme,
+        activePanel = if (legacy) SatPanel.None else SatPanel.entries.firstOrNull { it.name == v.getOrNull(3) } ?: SatPanel.None,
+        detent = Detent.entries.firstOrNull { it.name == v.getOrNull(4) } ?: Detent.Half,
+        query = v.getOrNull(5).orEmpty(), editorId = v.getOrNull(6)?.ifEmpty { null },
+        drill = v.getOrNull(7)?.ifEmpty { null }, visibleOnly = v.getOrNull(8)?.toBooleanStrictOrNull() ?: true,
+        windowDays = days, layers = layers,
+    ))
 }
 
 @Immutable

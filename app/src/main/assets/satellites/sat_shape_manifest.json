@@ -1,0 +1,137 @@
+[
+  {
+    "id": "iss",
+    "tier": 1,
+    "refAspect": 1.45455,
+    "refVerified": false,
+    "norad": [
+      25544
+    ],
+    "names": [
+      "^ISS\\b"
+    ],
+    "categories": []
+  },
+  {
+    "id": "tiangong",
+    "tier": 1,
+    "refAspect": 1.33333,
+    "refVerified": false,
+    "norad": [
+      48274
+    ],
+    "names": [
+      "TIANGONG"
+    ],
+    "categories": []
+  },
+  {
+    "id": "hubble",
+    "tier": 1,
+    "refAspect": 0.875,
+    "refVerified": false,
+    "norad": [
+      20580
+    ],
+    "names": [
+      "HUBBLE",
+      "^HST$"
+    ],
+    "categories": []
+  },
+  {
+    "id": "starlink",
+    "tier": 2,
+    "refAspect": 2.13333,
+    "refVerified": false,
+    "norad": [],
+    "names": [
+      "^STARLINK[- ]"
+    ],
+    "categories": [
+      "STARLINK"
+    ]
+  },
+  {
+    "id": "bus",
+    "tier": 3,
+    "refAspect": 2.0,
+    "refVerified": false,
+    "norad": [],
+    "names": [],
+    "categories": [
+      "STATION",
+      "NAVIGATION",
+      "SCIENCE",
+      "OTHER"
+    ]
+  },
+  {
+    "id": "eo",
+    "tier": 3,
+    "refAspect": 2.0,
+    "refVerified": false,
+    "norad": [],
+    "names": [],
+    "categories": [
+      "WEATHER_EO"
+    ]
+  },
+  {
+    "id": "comms",
+    "tier": 3,
+    "refAspect": 1.6,
+    "refVerified": false,
+    "norad": [],
+    "names": [],
+    "categories": [
+      "COMMS"
+    ]
+  },
+  {
+    "id": "cubesat",
+    "tier": 3,
+    "refAspect": 0.84375,
+    "refVerified": false,
+    "norad": [],
+    "names": [],
+    "categories": [
+      "AMATEUR_CUBESAT"
+    ]
+  },
+  {
+    "id": "slab",
+    "tier": 3,
+    "refAspect": 2.66667,
+    "refVerified": false,
+    "norad": [],
+    "names": [],
+    "categories": [
+      "OTHER_CONSTELLATION"
+    ]
+  },
+  {
+    "id": "rocket",
+    "tier": 3,
+    "refAspect": 0.46875,
+    "refVerified": false,
+    "norad": [],
+    "names": [
+      "R/B"
+    ],
+    "categories": []
+  },
+  {
+    "id": "shard",
+    "tier": 3,
+    "refAspect": 1.33333,
+    "refVerified": false,
+    "norad": [],
+    "names": [
+      "DEB"
+    ],
+    "categories": [
+      "DEBRIS"
+    ]
+  }
+]

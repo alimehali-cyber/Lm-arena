@@ -44,7 +44,9 @@ class SatelliteHudRenderTest {
         slider.assertIsDisplayed()
         assertEquals(0f, slider.fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo].current)
         compose.onNodeWithTag("sat_time").performClick()
-        compose.onNodeWithTag("sat_focus_passes").performClick()
+        // Focus is a single TalkBack node with equivalent custom actions; its touch subrow lives
+        // in the unmerged tree.
+        compose.onNodeWithTag("sat_focus_passes", useUnmergedTree = true).performClick()
         compose.onNodeWithTag("passes_sheet").assertIsDisplayed()
         compose.onNodeWithTag("main_bottom_navigation_surface").assertDoesNotExist()
         compose.onRoot().captureRoboImage("build/outputs/satellite-previews/dark-en-passes.png")

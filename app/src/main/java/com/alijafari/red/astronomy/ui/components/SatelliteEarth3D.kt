@@ -1,5 +1,10 @@
 package com.alijafari.red.astronomy.ui.components
 
+import com.alijafari.red.astronomy.ui.satellites.*
+import com.alijafari.red.astronomy.ui.satellites.core.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.*
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -143,55 +148,11 @@ fun buildSatelliteEarthStyle(
     subSolarPoint: SubSolarPoint,
     cameraDistance: Float = SATELLITE_EARTH_DEFAULT_DISTANCE,
 ): EarthStyle {
-    val resolvedMode = when (mapTheme) {
-        MapTheme.DARK -> ThemeMode.DARK
-        MapTheme.LIGHT -> ThemeMode.LIGHT
-        MapTheme.AUTO -> appThemeMode
-    }
-    return when (resolvedMode) {
-        ThemeMode.LIGHT -> EarthStyle(
-            showClouds = true,
-            showNightLights = true,
-            autoRotate = false,
-            rotationSpeed = 0f,
-            ambientLight = 0.34f,
-            cameraDistance = cameraDistance,
-            cloudOpacity = 0.44f,
-            exposureEV = 0.20f,
-            saturation = 1.06f,
-            subSolarLatitudeDegrees = subSolarPoint.latDeg.toFloat(),
-            subSolarLongitudeDegrees = subSolarPoint.lonDeg.toFloat(),
-            transparentBackground = true,
-        )
-        ThemeMode.WINE -> EarthStyle(
-            showClouds = true,
-            showNightLights = true,
-            autoRotate = false,
-            rotationSpeed = 0f,
-            ambientLight = 0.11f,
-            cameraDistance = cameraDistance,
-            cloudOpacity = 0.46f,
-            exposureEV = 0.08f,
-            saturation = 1.12f,
-            subSolarLatitudeDegrees = subSolarPoint.latDeg.toFloat(),
-            subSolarLongitudeDegrees = subSolarPoint.lonDeg.toFloat(),
-            transparentBackground = true,
-        )
-        ThemeMode.DARK -> EarthStyle(
-            showClouds = true,
-            showNightLights = true,
-            autoRotate = false,
-            rotationSpeed = 0f,
-            ambientLight = 0.09f,
-            cameraDistance = cameraDistance,
-            cloudOpacity = 0.48f,
-            exposureEV = 0.06f,
-            saturation = 1.08f,
-            subSolarLatitudeDegrees = subSolarPoint.latDeg.toFloat(),
-            subSolarLongitudeDegrees = subSolarPoint.lonDeg.toFloat(),
-            transparentBackground = true,
-        )
-    }
+    // Lighting follows the Sun, not the HUD palette. Forced modes alter exposure only.
+    return EarthStyle(showClouds=true,showNightLights=true,autoRotate=false,rotationSpeed=0f,
+        ambientLight=when(mapTheme){MapTheme.AUTO -> .18f;MapTheme.LIGHT -> .34f;MapTheme.DARK -> .09f},
+        cameraDistance=cameraDistance,cloudOpacity=.44f,exposureEV=if(mapTheme==MapTheme.LIGHT).2f else .06f,
+        saturation=1f,subSolarLatitudeDegrees=subSolarPoint.latDeg.toFloat(),subSolarLongitudeDegrees=subSolarPoint.lonDeg.toFloat(),transparentBackground=true)
 }
 
 /**
@@ -222,15 +183,6 @@ internal fun satelliteHits(
     }.sortedBy { it.first }.map { it.second }
 }
 
-internal fun satelliteViewport(width: Float, height: Float, top: Float, bottom: Float): EarthViewportProjection {
-    if (width <= 0 || height <= 0) return EarthViewportProjection()
-    val usableBottom = bottom.coerceIn(0f, height)
-    val usableTop = top.coerceIn(0f, usableBottom)
-    val diameter = minOf(width * 0.92f, usableBottom - usableTop).coerceAtLeast(1f)
-    val baseDiameter = Earth3DMath.projectedGlobeRadiusPx(SATELLITE_EARTH_DEFAULT_DISTANCE, height) * 2f
-    return EarthViewportProjection((usableTop + usableBottom) / (2 * height), diameter / baseDiameter)
-}
-
 /**
  * Full-featured interactive 3D Earth satellite tracker combining [Earth3D]'s native GLES 2.0
  * sphere renderer (4K Blue Marble day map, topographic bump relief, real astronomical solar
@@ -245,7 +197,7 @@ internal fun satelliteViewport(width: Float, height: Float, top: Float, bottom: 
  * - Dark / Light / Auto / Wine map theme support
  */
 @Composable
-fun SatelliteEarth3D(
+internal fun SatelliteEarth3D(
     currentSimulationMs: Long,
     userLocation: UserLocation,
     isFa: Boolean,
@@ -253,11 +205,9 @@ fun SatelliteEarth3D(
     appThemeMode: ThemeMode,
     selectedSatelliteId: String?,
     selectedSatItem: SatelliteItem?,
-    liveSatelliteStates: List<SatelliteLiveState>,
-    mapOverheadStarlinkStates: List<SatelliteLiveState>,
-    trainPearlStatesByTrain: List<Pair<StarlinkTrainManager.StarlinkTrain, List<SatelliteLiveState>>>,
-    allInteractiveMapStates: List<SatelliteLiveState>,
-    anchoredSatLabelState: SatelliteLiveState?,
+    candidates: List<SatelliteLiveState>, members: Set<String>?, favorites: Set<String>, layers: Set<MapLayer>,
+    trainMembers: List<List<String>>,
+    viewport: GlobeViewport, activePass: com.alijafari.red.astronomy.astro_engine.ISSEngine.ISSPass?,
     overlayStyle: SatelliteEarthOverlayStyle,
     onSelectSatellite: (SatelliteLiveState) -> Unit,
     onDismissAnchoredLabel: () -> Unit,
@@ -265,9 +215,6 @@ fun SatelliteEarth3D(
     modifier: Modifier = Modifier,
     focusTarget: EarthFocusTarget? = null,
     onFocusConsumed: () -> Unit = {},
-    framing: EarthViewportProjection = EarthViewportProjection(),
-    hudTop: Dp = 72.dp,
-    hudBottom: Dp = 240.dp,
     controller: EarthCameraController = rememberEarthCameraController(
         initialLatDeg = userLocation.latitude,
         initialLonDeg = userLocation.longitude,
@@ -275,9 +222,10 @@ fun SatelliteEarth3D(
     ),
     tokens: ZigSatTokens,
     reduceMotion: Boolean = false,
-    onGlobeGesture: () -> Unit = {},
+    onGlobeGesture: (Boolean) -> Unit = {},
     onCenteredChanged: (Boolean) -> Unit = {},
     popoverModifier: Modifier = Modifier,
+    showSelectedLabel: Boolean = true,
 ) {
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
@@ -288,21 +236,23 @@ fun SatelliteEarth3D(
     var activeFocusJob by remember { mutableStateOf<Job?>(null) }
 
     val currentGesture by rememberUpdatedState(onGlobeGesture)
+    var wasCentered by remember { mutableStateOf(true) }
     val centered by remember(controller, userLocation) { derivedStateOf {
         val (yaw, pitch) = Earth3DMath.cameraAnglesForLatLon(userLocation.latitude, userLocation.longitude)
         val snapshot = controller.snapshot
-        abs(Earth3DMath.shortestAngleDeltaRad(snapshot.yawRad, yaw)) < .025f &&
-            abs(snapshot.pitchRad - pitch.coerceIn(Earth3DMath.MIN_PITCH_RAD, Earth3DMath.MAX_PITCH_RAD)) < .025f &&
-            abs(snapshot.distance - SATELLITE_EARTH_DEFAULT_DISTANCE) < .05f
+        abs(Earth3DMath.shortestAngleDeltaRad(snapshot.yawRad, yaw)) < (if(wasCentered) .035f else .018f) &&
+            abs(snapshot.pitchRad - pitch.coerceIn(Earth3DMath.MIN_PITCH_RAD, Earth3DMath.MAX_PITCH_RAD)) < (if(wasCentered) .035f else .018f) &&
+            abs(snapshot.distance - SATELLITE_EARTH_DEFAULT_DISTANCE) < (if(wasCentered) .06f else .03f)
     } }
-    LaunchedEffect(centered) { onCenteredChanged(centered) }
+    LaunchedEffect(centered) { wasCentered=centered;onCenteredChanged(centered) }
     androidx.compose.runtime.DisposableEffect(controller) {
         controller.onUserGestureStart = {
             activeFocusJob?.cancel()
             activeFocusJob = null
-            currentGesture()
+            currentGesture(true)
         }
-        onDispose { controller.onUserGestureStart = null }
+        controller.onUserGestureEnd = { currentGesture(false) }
+        onDispose { controller.onUserGestureStart = null;controller.onUserGestureEnd=null;currentGesture(false) }
     }
 
     fun animateCameraTo(
@@ -329,7 +279,7 @@ fun SatelliteEarth3D(
             val anim = Animatable(0f)
             anim.animateTo(
                 targetValue = 1f,
-                animationSpec = tween(durationMillis = if (locate) 700 else 600, easing = CubicBezierEasing(0.05f, 0.65f, 0.15f, 1f)),
+                animationSpec = tween(durationMillis = if (locate) 700 else 320, easing = CubicBezierEasing(0.05f, 0.65f, 0.15f, 1f)),
             ) {
                 val t = value
                 controller.setCamera(
@@ -365,27 +315,48 @@ fun SatelliteEarth3D(
         SatelliteEngine.calculateSubSolarPoint(currentSimulationMs)
     }
 
-    val earthStyle = remember(mapTheme, appThemeMode, subSolarPoint, framing) {
+    val cam=controller.snapshot
+    val frame=viewport.layout.frameAtDistance(SATELLITE_EARTH_DEFAULT_DISTANCE,cam.distance)
+    val framing=EarthViewportProjection(frame.center.y/viewport.height.coerceAtLeast(1f),frame.diameter.coerceAtLeast(.01f)/(2*Earth3DMath.projectedGlobeRadiusPx(cam.distance,viewport.height.coerceAtLeast(1f))))
+    val earthStyle = remember(mapTheme, appThemeMode, subSolarPoint, framing, layers) {
         buildSatelliteEarthStyle(
             mapTheme = mapTheme,
             appThemeMode = appThemeMode,
             subSolarPoint = subSolarPoint,
             cameraDistance = SATELLITE_EARTH_DEFAULT_DISTANCE,
-        ).copy(viewportProjection = framing, fullViewportGestures = true)
+        ).copy(viewportProjection = framing, fullViewportGestures = true, showNightLights=MapLayer.CITIES in layers)
     }
 
-    // Precompute smooth 3D orbital track for the selected satellite (refreshed every 15s or on scrub).
-    val orbitBucket = currentSimulationMs / 15_000L
-    val selectedOrbitTrack = remember(selectedSatItem?.id, selectedSatItem?.noradId, orbitBucket) {
-        selectedSatItem?.let { sat ->
-            SatelliteEngine.calculateOrbitTrack3D(
-                satellite = sat,
-                currentTimestampMs = currentSimulationMs,
-                stepSeconds = 60,
-            )
-        }.orEmpty()
+    val allInteractiveMapStates=remember(candidates,members,favorites,selectedSatelliteId,layers) {
+        priorityFleet(candidates.filter { MapLayer.TRAIN in layers || !it.satellite.isTrain || it.satellite.id==selectedSatelliteId },selectedSatelliteId,members,favorites)
     }
-
+    val fleetById = remember(allInteractiveMapStates) { allInteractiveMapStates.associateBy { it.satellite.id } }
+    val orbitBucket=currentSimulationMs/15_000
+    val track by produceState<Trail?>(null,selectedSatItem,orbitBucket,activePass) {
+        val sat=selectedSatItem ?: return@produceState
+        value=withContext(Dispatchers.Default) { sampleTrail(sat,orbitBucket*15_000,activePass,sgp4Ephemeris(sat)) }
+    }
+    // The 10s/30s samples are tied to the live tick rather than the 15s path bucket. Propagation
+    // stays off the UI thread, including the optional member tails.
+    val liveTrack by produceState<Trail?>(null, track, selectedSatItem, currentSimulationMs) {
+        val baseTrack = track
+        val sat = selectedSatItem
+        value = if (baseTrack == null || sat == null) null else withContext(Dispatchers.Default) {
+            val ephemeris = sgp4Ephemeris(sat)
+            baseTrack.copy(later = ephemeris.at(currentSimulationMs + 10_000),
+                longer = ephemeris.at(currentSimulationMs + 30_000))
+        }
+    }
+    val tailCandidates = remember(orbitBucket, members, selectedSatelliteId, allInteractiveMapStates.map { it.satellite.id }) {
+        if (members == null) emptyList() else allInteractiveMapStates
+            .filter { it.satellite.id != selectedSatelliteId && it.satellite.id in members }
+            .sortedBy { it.topocentric.rangeKm }.take(12)
+    }
+    val tails by produceState(emptyMap<String, Geo>(), orbitBucket, tailCandidates) {
+        value = withContext(Dispatchers.Default) {
+            tailCandidates.associate { it.satellite.id to sgp4Ephemeris(it.satellite).at(currentSimulationMs - 30_000) }
+        }
+    }
     val hitRadiusPx = with(density) { 22.dp.toPx() }
     var previousTap by remember { mutableStateOf<Offset?>(null) }
     var previousTapMs by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
@@ -433,8 +404,6 @@ fun SatelliteEarth3D(
         // Reusable paths so frame draws stay allocation-light while dragging the globe.
         val graticulePath = remember { Path() }
         val equatorPath = remember { Path() }
-        val pastOrbitPath = remember { Path() }
-        val futureOrbitPath = remember { Path() }
         val trainPath = remember { Path() }
 
         // 2. Synchronized 3D Scientific Telemetry Overlay (orbits, satellites, trains, user pin, grid)
@@ -461,35 +430,20 @@ fun SatelliteEarth3D(
                 cam = cam,
                 w = w,
                 h = h,
-                gridColor = overlayStyle.gridColor,
-                equatorColor = overlayStyle.equatorColor,
+                gridColor = if(MapLayer.GRID in layers)overlayStyle.gridColor else Color.Transparent,
+                equatorColor = if(MapLayer.EQUATOR in layers)overlayStyle.equatorColor else Color.Transparent,
                 gridPath = graticulePath,
                 equatorPath = equatorPath,
             )
 
             // 2c. Subtle night-side city light highlights for catalogued world/Iranian hubs
-            drawNightCityAccents3D(
+            if(MapLayer.CITIES in layers) drawNightCityAccents3D(
                 cam = cam,
                 w = w,
                 h = h,
                 subSolarPoint = subSolarPoint,
                 cityColor = overlayStyle.cityLightAccent,
             )
-
-            // 2d. Selected Satellite 3D LEO Orbital Track (past 45m + future 90m)
-            if (selectedOrbitTrack.size >= 2) {
-                drawOrbitTrack3D(
-                    points = selectedOrbitTrack,
-                    nowMs = currentSimulationMs,
-                    cam = cam,
-                    w = w,
-                    h = h,
-                    trackColor = overlayStyle.orbitTrackColor,
-                    glowColor = overlayStyle.orbitGlowColor,
-                    pastPath = pastOrbitPath,
-                    futurePath = futureOrbitPath,
-                )
-            }
 
             // 2e. User Location Pin & Localized City Label on Earth's surface
             val userProj = Earth3DMath.projectLatLon(
@@ -500,7 +454,7 @@ fun SatelliteEarth3D(
                 viewportWidth = w,
                 viewportHeight = h,
             )
-            if (userProj.visible) {
+            if (MapLayer.OBSERVER in layers && userProj.visible) {
                 val fade = userProj.limbFade
                 val center = Offset(userProj.screenX, userProj.screenY)
                 drawCircle(
@@ -550,285 +504,34 @@ fun SatelliteEarth3D(
                 }
             }
 
-            // 2f. Real-time Overhead Individual Starlinks in 3D LEO
-            for (ovState in mapOverheadStarlinkStates) {
-                val sat = ovState.satellite
-                val isSelected = sat.id == selectedSatelliteId
-                val proj = Earth3DMath.projectLatLon(
-                    latDeg = ovState.topocentric.subLatDeg,
-                    lonDeg = ovState.topocentric.subLonDeg,
-                    radius = Earth3DMath.altitudeKmToRadius(ovState.topocentric.satAltKm),
-                    camera = cam,
-                    viewportWidth = w,
-                    viewportHeight = h,
-                )
-                if (!proj.visible) continue
-                val pos = Offset(proj.screenX, proj.screenY)
-                if (pos.x !in -24f..(w + 24f) || pos.y !in -24f..(h + 24f)) continue
-
-                if (isSelected) {
-                    drawNadirTether3D(
-                        latDeg = ovState.topocentric.subLatDeg,
-                        lonDeg = ovState.topocentric.subLonDeg,
-                        satScreenPos = pos,
-                        cam = cam,
-                        w = w,
-                        h = h,
-                        color = overlayStyle.selectedMarkerColor,
-                    )
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(overlayStyle.selectedGlowColor, Color.Transparent),
-                            center = pos,
-                            radius = 14.dp.toPx(),
-                        ),
-                        radius = 14.dp.toPx(),
-                        center = pos,
-                    )
-                }
-                val dotColor = when {
-                    isSelected -> overlayStyle.selectedMarkerColor
-                    ovState.topocentric.isSunlit -> overlayStyle.starlinkColor
-                    else -> overlayStyle.starlinkColor.copy(alpha = 0.48f)
-                }
-                drawCircle(
-                    color = dotColor,
-                    radius = (if (isSelected) 5.5.dp else 2.8.dp).toPx(),
-                    center = pos,
-                )
-                if (isSelected) drawCircle(Color.White, 2.dp.toPx(), pos)
-            }
-
-            // 2g. Active Starlink "String of Pearls" Train Chains in 3D LEO
-            for ((_, pearls) in trainPearlStatesByTrain) {
-                if (pearls.isEmpty()) continue
+            // Preserve each detected train's physical member order. The 60-marker budget can
+            // omit members; a missing or occluded member breaks the line rather than inventing a
+            // connection across the gap or through the Earth.
+            if (MapLayer.TRAIN in layers) trainMembers.forEach { ids ->
                 trainPath.reset()
-                var segmentOpen = false
-                for (pState in pearls) {
-                    val proj = Earth3DMath.projectLatLon(
-                        latDeg = pState.topocentric.subLatDeg,
-                        lonDeg = pState.topocentric.subLonDeg,
-                        radius = Earth3DMath.altitudeKmToRadius(pState.topocentric.satAltKm),
-                        camera = cam,
-                        viewportWidth = w,
-                        viewportHeight = h,
-                    )
-                    if (proj.visible) {
-                        if (!segmentOpen) {
-                            trainPath.moveTo(proj.screenX, proj.screenY)
-                            segmentOpen = true
-                        } else {
-                            trainPath.lineTo(proj.screenX, proj.screenY)
-                        }
-                    } else {
-                        segmentOpen = false
+                var open = false
+                ids.forEach { id ->
+                    val topo = fleetById[id]?.topocentric
+                    val p = topo?.let { Earth3DMath.projectLatLon(it.subLatDeg, it.subLonDeg,
+                        Earth3DMath.altitudeKmToRadius(it.satAltKm), cam, w, h) }
+                    if (p == null || !p.visible) open = false else {
+                        if (open) trainPath.lineTo(p.screenX, p.screenY) else trainPath.moveTo(p.screenX, p.screenY)
+                        open = true
                     }
                 }
-                drawPath(
-                    path = trainPath,
-                    color = overlayStyle.trainChainColor,
-                    style = Stroke(width = 2.0f, cap = StrokeCap.Round),
-                )
-
-                pearls.forEachIndexed { idx, pState ->
-                    val proj = Earth3DMath.projectLatLon(
-                        latDeg = pState.topocentric.subLatDeg,
-                        lonDeg = pState.topocentric.subLonDeg,
-                        radius = Earth3DMath.altitudeKmToRadius(pState.topocentric.satAltKm),
-                        camera = cam,
-                        viewportWidth = w,
-                        viewportHeight = h,
-                    )
-                    if (!proj.visible) return@forEachIndexed
-                    val pos = Offset(proj.screenX, proj.screenY)
-                    if (pos.x !in -24f..(w + 24f) || pos.y !in -24f..(h + 24f)) return@forEachIndexed
-
-                    val isPearlSelected = pState.satellite.id == selectedSatelliteId
-                    if (isPearlSelected) {
-                        drawNadirTether3D(
-                            latDeg = pState.topocentric.subLatDeg,
-                            lonDeg = pState.topocentric.subLonDeg,
-                            satScreenPos = pos,
-                            cam = cam,
-                            w = w,
-                            h = h,
-                            color = overlayStyle.selectedMarkerColor,
-                        )
-                    }
-                    if (idx == 0 || isPearlSelected) {
-                        val haloColor = if (isPearlSelected) {
-                            overlayStyle.selectedGlowColor
-                        } else {
-                            overlayStyle.trainChainColor.copy(alpha = 0.55f)
-                        }
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(haloColor, Color.Transparent),
-                                center = pos,
-                                radius = 11.dp.toPx(),
-                            ),
-                            radius = 11.dp.toPx(),
-                            center = pos,
-                        )
-                    }
-                    drawCircle(
-                        color = when {
-                            isPearlSelected -> overlayStyle.selectedMarkerColor
-                            idx == 0 -> overlayStyle.trainLeaderColor
-                            else -> overlayStyle.trainMemberColor
-                        },
-                        radius = (if (isPearlSelected) 5.5.dp else if (idx == 0) 4.dp else 2.5.dp).toPx(),
-                        center = pos,
-                    )
-                    if (isPearlSelected) drawCircle(Color.White, 2.dp.toPx(), pos)
-                }
+                drawPath(trainPath, overlayStyle.trainChainColor, style = Stroke(width = 1.dp.toPx()))
             }
 
-            // 2h. Static Catalog & Curated Fleet Satellite Markers (ISS, Tiangong, Hubble, leaders)
-            for (liveState in liveSatelliteStates) {
-                val sat = liveState.satellite
-                if (mapOverheadStarlinkStates.any { it.satellite.id == sat.id } ||
-                    sat.isTrain && trainPearlStatesByTrain.any { it.first.leaderItem.id == sat.id }) continue
-                val isSelected = sat.id == selectedSatelliteId
-                val proj = Earth3DMath.projectLatLon(
-                    latDeg = liveState.topocentric.subLatDeg,
-                    lonDeg = liveState.topocentric.subLonDeg,
-                    radius = Earth3DMath.altitudeKmToRadius(liveState.topocentric.satAltKm),
-                    camera = cam,
-                    viewportWidth = w,
-                    viewportHeight = h,
-                )
-                if (!proj.visible) continue
-                val pos = Offset(proj.screenX, proj.screenY)
-                if (pos.x !in -24f..(w + 24f) || pos.y !in -24f..(h + 24f)) continue
-
-                val markerColor = when {
-                    isSelected -> overlayStyle.selectedMarkerColor
-                    sat.isTrain -> overlayStyle.trainMemberColor
-                    sat.category == SatelliteCategory.STARLINK -> overlayStyle.starlinkColor
-                    sat.isNakedEyeCandidate -> overlayStyle.nakedEyeMarkerColor
-                    else -> overlayStyle.defaultMarkerColor
-                }
-
-                if (isSelected) {
-                    drawNadirTether3D(
-                        latDeg = liveState.topocentric.subLatDeg,
-                        lonDeg = liveState.topocentric.subLonDeg,
-                        satScreenPos = pos,
-                        cam = cam,
-                        w = w,
-                        h = h,
-                        color = overlayStyle.selectedMarkerColor,
-                    )
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(overlayStyle.selectedGlowColor, Color.Transparent),
-                            center = pos,
-                            radius = 16.dp.toPx(),
-                        ),
-                        radius = 16.dp.toPx(),
-                        center = pos,
-                    )
-                } else if (sat.isNakedEyeCandidate && sat.category != SatelliteCategory.STARLINK) {
-                    drawCircle(
-                        color = markerColor.copy(alpha = 0.26f),
-                        radius = 8.dp.toPx(),
-                        center = pos,
-                    )
-                }
-
-                drawCircle(
-                    color = markerColor,
-                    radius = (if (isSelected) 5.5.dp else if (sat.isNakedEyeCandidate) 4.dp else 3.dp).toPx(),
-                    center = pos,
-                )
-                if (isSelected) {
-                    drawCircle(
-                        color = Color.White,
-                        radius = 2.dp.toPx(),
-                        center = pos,
-                    )
-                }
+            if(MapLayer.TETHER in layers) allInteractiveMapStates.firstOrNull { it.satellite.id==selectedSatelliteId }?.let { selected ->
+                val topo=selected.topocentric
+                val p=Earth3DMath.projectLatLon(topo.subLatDeg,topo.subLonDeg,Earth3DMath.altitudeKmToRadius(topo.satAltKm),cam,w,h)
+                if(p.visible)drawNadirTether3D(topo.subLatDeg,topo.subLonDeg,Offset(p.screenX,p.screenY),cam,w,h,tokens.inkSecondary)
             }
         }
-
-        // HUD only: the projection and physical tail placement are never mirrored.
-        val anchor = anchoredSatLabelState?.let { selected ->
-            allInteractiveMapStates.firstOrNull { it.satellite.id == selected.satellite.id } ?: selected
-        }
-        val cam = controller.snapshot
-        val position = anchor?.let {
-            Earth3DMath.projectLatLon(it.topocentric.subLatDeg, it.topocentric.subLonDeg,
-                Earth3DMath.altitudeKmToRadius(it.topocentric.satAltKm), cam,
-                viewportSize.width.toFloat(), viewportSize.height.toFloat())
-        }
-        val limb = Earth3DMath.projectedGlobeRadiusPx(cam.distance, viewportSize.height.toFloat(), cam.projection.focalScale)
-        val edgeDistance = position?.let { hypot(it.screenX - viewportSize.width * .5f,
-            it.screenY - viewportSize.height * cam.projection.centerY) } ?: 0f
-        val visible = anchor != null && position?.visible == true && edgeDistance <= limb * 1.06f
-        var lastDisplay by remember { mutableStateOf<Pair<SatelliteLiveState, Offset>?>(null) }
-        androidx.compose.runtime.SideEffect {
-            if (visible && anchor != null && position != null) lastDisplay = anchor to Offset(position.screenX, position.screenY)
-        }
-        val display = if (visible && anchor != null && position != null) anchor to Offset(position.screenX, position.screenY) else lastDisplay
-        if (display != null) {
-            val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-            val shape = overlayStyle.popoverShape
-            val width = with(density) { viewportSize.width.toDp() }
-            val popupWidth = (width * 0.49f).coerceIn(148.dp, 232.dp)
-            val popupHeight = 48.dp
-            val point = display.second
-            val tail = 6.dp
-            val margin = 12.dp
-            val railReserve = 64.dp
-            val (x, top, tailX, above) = with(density) {
-                val safeStart = if (rtl) railReserve else margin
-                val safeEnd = if (rtl) margin else railReserve
-                val left = (point.x.toDp() - popupWidth / 2).coerceIn(safeStart, (width - safeEnd - popupWidth).coerceAtLeast(safeStart))
-                val bottom = viewportSize.height.toDp() - hudBottom - popupHeight - tail
-                val placeAbove = point.y.toDp() - popupHeight - tail >= hudTop
-                val y = if (placeAbove) point.y.toDp() - popupHeight - tail else point.y.toDp() + tail
-                PopoverPosition(left, y.coerceIn(hudTop, bottom.coerceAtLeast(hudTop)),
-                    (point.x.toDp() - left).coerceIn(12.dp, popupWidth - 12.dp), placeAbove)
-            }
-            AnimatedVisibility(visible = visible,
-                modifier = Modifier.align(AbsoluteAlignment.TopLeft).absoluteOffset(x, top).width(popupWidth),
-                enter = if (reduceMotion) fadeIn(tween(110)) else fadeIn(tween(160)) +
-                    scaleIn(tween(160), initialScale = .92f, transformOrigin = TransformOrigin(tailX / popupWidth, if (above) 1f else 0f)),
-                exit = fadeOut(tween(120))) {
-                Box(Modifier.heightIn(min = popupHeight)) {
-                    Canvas(Modifier.matchParentSize()) {
-                        val y = if (above) size.height - 1.dp.toPx() else 1.dp.toPx()
-                        val dir = if (above) 1 else -1
-                        val cx = tailX.toPx()
-                        val path = Path().apply {
-                            moveTo(cx - tail.toPx(), y)
-                            lineTo(cx, y + dir * tail.toPx())
-                            lineTo(cx + tail.toPx(), y)
-                            close()
-                        }
-                        drawPath(path, overlayStyle.popoverContainerColor)
-                        drawPath(path, overlayStyle.popoverBorderColor, style = Stroke(1.dp.toPx()))
-                    }
-                    Row(popoverModifier.fillMaxWidth().heightIn(min = popupHeight)
-                        .satMaterial(tokens, SatSlot.Popover, shape, overlayStyle.popoverContainerColor, overlayStyle.popoverBorderColor)
-                        .clickable { onOpenSatelliteDetail(display.first.satellite) }.testTag("anchored_sat_label")
-                        .padding(horizontal = 11.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Filled.SatelliteAlt, null, Modifier.size(14.dp), tint = Color.White)
-                        Text(shortNameOf(display.first.satellite, isFa), Modifier.weight(1f), color = Color.White,
-                            style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (!display.first.topocentric.isSunlit) Icon(Icons.Filled.DarkMode, null, Modifier.size(12.dp), tint = Color.White)
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.size(14.dp), tint = Color.White)
-                    }
-                }
-            }
-        }
+        OrbitOverlay(viewport,Camera(cam.yawRad,cam.pitchRad,cam.distance),frame,allInteractiveMapStates,selectedSatelliteId,
+            members,liveTrack,tails,MapLayer.ORBIT in layers,tokens,isFa,onOpenSatelliteDetail,popoverModifier,showSelectedLabel)
     }
 }
-
-private data class PopoverPosition(val x: Dp, val top: Dp, val tailX: Dp, val above: Boolean)
 
 private fun DrawScope.drawGraticule3D(
     cam: EarthCameraSnapshot,
@@ -936,90 +639,6 @@ private fun DrawScope.drawNightCityAccents3D(
             center = Offset(proj.screenX, proj.screenY),
         )
     }
-}
-
-private fun DrawScope.drawOrbitTrack3D(
-    points: List<SatelliteEngine.OrbitTrackPoint>,
-    nowMs: Long,
-    cam: EarthCameraSnapshot,
-    w: Float,
-    h: Float,
-    trackColor: Color,
-    glowColor: Color,
-    pastPath: Path,
-    futurePath: Path,
-) {
-    pastPath.reset()
-    futurePath.reset()
-    var pastOpen = false
-    var futureOpen = false
-
-    for (pt in points) {
-        val proj = Earth3DMath.projectLatLon(
-            latDeg = pt.latDeg,
-            lonDeg = pt.lonDeg,
-            radius = Earth3DMath.altitudeKmToRadius(pt.altKm),
-            camera = cam,
-            viewportWidth = w,
-            viewportHeight = h,
-        )
-        val isPast = pt.timestampMs <= nowMs
-        val isFuture = pt.timestampMs >= nowMs
-
-        if (isPast) {
-            if (proj.visible) {
-                if (!pastOpen) {
-                    pastPath.moveTo(proj.screenX, proj.screenY)
-                    pastOpen = true
-                } else {
-                    pastPath.lineTo(proj.screenX, proj.screenY)
-                }
-            } else {
-                pastOpen = false
-            }
-        }
-        if (isFuture) {
-            if (proj.visible) {
-                if (!futureOpen) {
-                    futurePath.moveTo(proj.screenX, proj.screenY)
-                    futureOpen = true
-                } else {
-                    futurePath.lineTo(proj.screenX, proj.screenY)
-                }
-            } else {
-                futureOpen = false
-            }
-        }
-    }
-
-    // Past 45-minute orbital wake
-    drawPath(
-        path = pastPath,
-        color = trackColor.copy(alpha = 0.50f),
-        style = Stroke(
-            width = 1.9f,
-            cap = StrokeCap.Round,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 7f)),
-        ),
-    )
-
-    // Future 90-minute orbital trajectory with soft glow + crisp dashed line
-    if (glowColor.alpha > 0f) {
-        drawPath(
-            path = futurePath,
-            color = glowColor,
-            style = Stroke(width = 5.5f, cap = StrokeCap.Round),
-        )
-    }
-    drawPath(
-        path = futurePath,
-        color = trackColor,
-        style = Stroke(
-            width = 2.4f,
-            cap = StrokeCap.Round,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(9f, 7f)),
-        ),
-    )
 }
 
 private fun DrawScope.drawNadirTether3D(

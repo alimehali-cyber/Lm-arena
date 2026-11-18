@@ -1,6 +1,8 @@
 package com.alijafari.red.astronomy.ui.satellites
 
 import android.content.Context
+import com.alijafari.red.astronomy.ui.satellites.core.*
+import kotlinx.coroutines.flow.collect
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
@@ -37,6 +39,7 @@ import com.alijafari.red.astronomy.EarthViewportProjection
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.astro_engine.*
 import com.alijafari.red.astronomy.data.repository.TleRepository
+import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.notification.AstroNotificationManager
@@ -48,11 +51,9 @@ import com.alijafari.red.astronomy.ui.components.EarthFocusTarget
 import com.alijafari.red.astronomy.ui.components.SATELLITE_EARTH_DEFAULT_DISTANCE
 import com.alijafari.red.astronomy.ui.components.SatelliteEarth3D
 import com.alijafari.red.astronomy.ui.components.SatelliteEarthOverlayStyle
-import com.alijafari.red.astronomy.ui.components.satelliteViewport
 import com.alijafari.red.astronomy.ui.screens.MapTheme
 import com.alijafari.red.astronomy.ui.screens.SatelliteDetailScreen
 import com.alijafari.red.astronomy.ui.screens.ar.ArScreenSupport
-import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.formatTleStalenessBadge
 import com.alijafari.red.astronomy.util.rememberIsNetworkOnline
 import java.util.TimeZone
@@ -73,7 +74,7 @@ private data class SatFeedback(val label: String, val undo: (() -> Unit)? = null
 /** The data/interaction owner for all three entry points. Renderers do not own navigation state. */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSkin) {
+internal fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSkin, clock: Clock = Clock.System) {
     val context = LocalContext.current
     val view = LocalView.current
     val location = uiState.userLocation
@@ -94,7 +95,11 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     }
     val state = screen.ui
     val mapTheme = state.mapTheme
-    val selectedCategory = state.scope
+    val lib by context.satelliteLibrary.data.collectAsState(initial=Library())
+    val update: LibraryUpdate = { change -> scope.launch { context.satelliteLibrary.updateData(change) }; Unit }
+    // Permission alone is not a fix, and a manually chosen city needs no GPS permission.
+    val hasLocation = (prefs.contains("user_latitude") && prefs.contains("user_longitude")) ||
+        (prefs.contains("user_lat") && prefs.contains("user_lon"))
     val selectedSatelliteId = state.focusId
     val timeOffsetMinutes = state.timeOffsetMin
     var config by remember(prefs, legacy) {
@@ -108,14 +113,8 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                 ?: legacy.getStringSet("monitored_satellite_ids", null)?.toSet() ?: defaults.satelliteIds,
         ))
     }
-    var firstRun by remember(prefs) { mutableStateOf(!prefs.getBoolean("satellite_globe_hud_seen", false)) }
-    LaunchedEffect(Unit) {
-        if (firstRun) {
-            prefs.edit().putBoolean("satellite_globe_hud_seen", true).apply()
-            delay(8000)
-            firstRun = false
-        }
-    }
+    var firstRun by remember(prefs) { mutableStateOf(!prefs.getBoolean("satellite_coach_v2",false)) }
+    fun finishCoach() { firstRun=false;prefs.edit().putBoolean("satellite_coach_v2",true).apply() }
     val permissionMessage = stringResource(R.string.sat_permission)
     var pendingPermission by remember { mutableStateOf<(() -> Unit)?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -131,11 +130,11 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
         }
     }
 
-    var realTimeNowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var realTimeNowMs by remember { mutableLongStateOf(clock.nowMs()) }
     LaunchedEffect(Unit) {
         while (true) {
-            delay(1000L - System.currentTimeMillis() % 1000L)
-            realTimeNowMs = System.currentTimeMillis()
+            delay(1000L - clock.nowMs() % 1000L)
+            realTimeNowMs = clock.nowMs()
         }
     }
     val currentSimulationMs = realTimeNowMs + timeOffsetMinutes * MINUTE
@@ -172,97 +171,109 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
         overheadStarlinks = snapshot.overheadStarlinks
     }
     val detectedTrain = activeTrains.firstOrNull()?.leaderItem
-    val visibleSatellites = remember(activeTrains, overheadStarlinks, topPassStarlinks, selectedCategory) {
-        val individuals = (overheadStarlinks + topPassStarlinks).distinctBy { it.noradId }
-            .take(if (selectedCategory == SatelliteCategory.STARLINK) 16 else 8)
-        SatelliteCatalog.getVisibleList(null) + activeTrains.map { it.leaderItem } + individuals
+    val trainMemberIds = remember(activeTrains) { activeTrains.map { train -> train.memberItems.map { it.id } } }
+    // Build static search keys once per catalogue revision, never per tick or keystroke.
+    val starItems by produceState(emptyList<SatelliteItem>(),starlinkCacheVersion) {
+        value=withContext(Dispatchers.Default) { StarlinkTrainManager.getParsedOrbitals(tleRepo.getStarlinkTles()).map(StarlinkTrainManager::buildIndividualStarlinkItem) }
     }
-    val filteredSatellites = remember(visibleSatellites, selectedCategory) { visibleSatellites.filter { matchesScope(it, selectedCategory) } }
-    val showStarlinks = selectedCategory == SatelliteCategory.ALL || selectedCategory == SatelliteCategory.STARLINK || selectedCategory == SatelliteCategory.VISIBLE
+    val repo by produceState(remember { CatalogueRepository(SatelliteCatalog.satellites) },starItems,activeTrains) {
+        value=withContext(Dispatchers.Default){ CatalogueRepository(SatelliteCatalog.satellites+activeTrains.map{it.leaderItem}+starItems) }
+    }
+    // Full-catalogue horizon and brightness samples are amortised; only the budgeted camera fleet runs at 1 Hz.
+    val snapshot by produceState(emptyMap<String,Pair<Double,Double>>(),repo,location,currentSimulationMs/60_000,tleRefreshTick) {
+        val time=currentSimulationMs
+        value=withContext(Dispatchers.Default){repo.rows.associate { r->ensureActive()
+            val live=SatelliteEngine.calculateSatelliteState(r.item,time,location.latitude,location.longitude,location.elevationMeters)
+            r.item.id to (live.topocentric.elevationDeg to live.apparentMagnitude) }}
+    }
+    val angles=remember(snapshot){snapshot.mapValues{it.value.first}}; val mags=remember(snapshot){snapshot.mapValues{it.value.second}}
+    val scoped=remember(repo,lib,angles){repo.rows.filter {lib.accepts(lib.active,it.craft,(angles[it.item.id] ?: -90.0)>0)}}
+    val members=remember(scoped,lib.active){ if(lib.active==Library.ALL)null else scoped.mapTo(HashSet()){it.item.id} }
     var retainedFocus by remember { mutableStateOf<SatelliteItem?>(null) }
-    val selectedSatItem = remember(selectedSatelliteId, visibleSatellites, activeTrains, retainedFocus) {
-        visibleSatellites.firstOrNull { it.id == selectedSatelliteId }
-            ?: activeTrains.asSequence().flatMap { it.memberItems.asSequence() }.firstOrNull { it.id == selectedSatelliteId }
-            ?: retainedFocus?.takeIf { it.id == selectedSatelliteId }
-            ?: SatelliteCatalog.getById(selectedSatelliteId, detectedTrain)
+    val selectedSatItem=remember(selectedSatelliteId,repo,retainedFocus){repo.rows.firstOrNull{it.item.id==selectedSatelliteId}?.item
+        ?: retainedFocus?.takeIf{it.id==selectedSatelliteId} ?: SatelliteCatalog.getById(selectedSatelliteId,detectedTrain)}
+    fun propagate(sat:SatelliteItem)=SatelliteEngine.calculateSatelliteState(sat,currentSimulationMs,location.latitude,location.longitude,location.elevationMeters)
+    val visibleSatellites=remember(repo,members,lib.favorites,selectedSatItem,activeTrains,overheadStarlinks,topPassStarlinks,angles,state.layers){
+        val pearls=if(MapLayer.TRAIN in state.layers)activeTrains.flatMap{it.memberItems} else emptyList()
+        (listOf(selectedSatItem)+SatelliteCatalog.satellites+activeTrains.map{it.leaderItem}+overheadStarlinks+pearls+topPassStarlinks+repo.rows.map{it.item})
+            .distinctBy{it.id}.sortedWith(compareBy<SatelliteItem>{ when {it.id==selectedSatelliteId->0;it.id in lib.favorites || members?.contains(it.id)==true->1;
+                it.isNakedEyeCandidate && (angles[it.id] ?: -90.0)>0->2;else->3} }.thenByDescending{angles[it.id] ?: -90.0}).take(60)
     }
-    fun propagate(sat: SatelliteItem) = SatelliteEngine.calculateSatelliteState(
-        satellite = sat, timestampMs = currentSimulationMs, userLatDeg = location.latitude, userLonDeg = location.longitude,
-        userAltMeters = location.elevationMeters,
-    )
-    val liveSatelliteStates = remember(filteredSatellites, currentSimulationMs, location, tleRefreshTick) { filteredSatellites.map(::propagate) }
-    val trainPearlStatesByTrain = remember(activeTrains, showStarlinks, currentSimulationMs, location) {
-        if (showStarlinks) activeTrains.map { train -> train to train.memberItems.map(::propagate) } else emptyList()
+    val batch by produceState(0L to emptyList<SatelliteLiveState>(),visibleSatellites,currentSimulationMs,location,tleRefreshTick) {
+        val time=currentSimulationMs
+        value=time to withContext(Dispatchers.Default){visibleSatellites.map { ensureActive();propagate(it) }}
     }
-    val mapOverheadStarlinkStates = remember(overheadStarlinks, showStarlinks, currentSimulationMs, location) {
-        if (showStarlinks) overheadStarlinks.map(::propagate) else emptyList()
-    }
-    val selectedLiveState = remember(selectedSatItem, liveSatelliteStates, currentSimulationMs, location, tleRefreshTick) {
-        liveSatelliteStates.firstOrNull { it.satellite.id == selectedSatelliteId } ?: selectedSatItem?.let(::propagate)
-            ?: liveSatelliteStates.firstOrNull()
-    }
-    val globeFleet = remember(liveSatelliteStates, selectedLiveState) { (liveSatelliteStates + listOfNotNull(selectedLiveState)).distinctBy { it.satellite.id } }
-    val allInteractiveMapStates = remember(globeFleet, trainPearlStatesByTrain, mapOverheadStarlinkStates) {
-        (globeFleet + trainPearlStatesByTrain.flatMap { it.second } + mapOverheadStarlinkStates).distinctBy { it.satellite.id }
-    }
-    var anchorId by remember { mutableStateOf<String?>(null) }
+    val allInteractiveMapStates=batch.second
+    val selectedLiveState=allInteractiveMapStates.firstOrNull { it.satellite.id==selectedSatelliteId }
+    var activeArc by remember { mutableStateOf<SatPassUi?>(null) }
+    var hushJob by remember { mutableStateOf<Job?>(null) }
     var focusSequence by remember { mutableLongStateOf(0L) }
     var earthFocusTarget by remember { mutableStateOf<EarthFocusTarget?>(null) }
     var centered by remember { mutableStateOf(true) }
+    var showSelectedLabel by remember { mutableStateOf(true) }
     val camera = rememberEarthCameraController(location.latitude, location.longitude, SATELLITE_EARTH_DEFAULT_DISTANCE)
     fun focusSatellite(live: SatelliteLiveState) {
+        showSelectedLabel = true
         screen.focus(live.satellite.id)
         retainedFocus = live.satellite
-        anchorId = live.satellite.id
+        if(activeArc?.sat?.id!=live.satellite.id) activeArc=null
         earthFocusTarget = EarthFocusTarget(live.topocentric.subLatDeg, live.topocentric.subLonDeg,
             SATELLITE_EARTH_DEFAULT_DISTANCE * .974f, ++focusSequence)
-        firstRun = false
+        if(firstRun)finishCoach()
     }
     fun focusItem(satellite: SatelliteItem) = focusSatellite(allInteractiveMapStates.firstOrNull { it.satellite.id == satellite.id } ?: propagate(satellite))
     fun cycle(delta: Int) {
-        if (liveSatelliteStates.isEmpty()) return
-        val index = liveSatelliteStates.indexOfFirst { it.satellite.id == screen.ui.focusId }
-        val next = if (index < 0) (if (delta > 0) 0 else liveSatelliteStates.lastIndex)
-            else (index + delta + liveSatelliteStates.size) % liveSatelliteStates.size
-        focusSatellite(liveSatelliteStates[next])
+        if(scoped.isEmpty()) return
+        val index=scoped.indexOfFirst{it.item.id==screen.ui.focusId}
+        val next=if(index<0) (if(delta>0)0 else scoped.lastIndex) else (index+delta+scoped.size)%scoped.size
+        focusItem(scoped[next].item)
     }
-    LaunchedEffect(uiState.selectedSatelliteId, uiState.selectedTab, starlinkCacheVersion) {
+    LaunchedEffect(uiState.selectedSatelliteId, uiState.selectedTab, repo, detectedTrain) {
         if (uiState.selectedTab != 1) return@LaunchedEffect
         val id = uiState.selectedSatelliteId ?: return@LaunchedEffect
-        val known = allInteractiveMapStates.firstOrNull { it.satellite.id == id || "sat_${it.satellite.noradId}" == id }?.satellite
-            ?: SatelliteCatalog.getById(id, detectedTrain)
-        if (known.id == id || "sat_${known.noradId}" == id || id == "starlink_train") {
+        // Catalogue.getById intentionally falls back to ISS for unknown IDs. A notification must
+        // not silently focus ISS while a dynamic train or satellite has not loaded yet.
+        val canonical = CanonicalAstroCatalog.getCanonicalObject(CanonicalAstroCatalog.resolveCanonicalId(id))
+        val norad = canonical?.scientificIdentifiers?.noradId ?: id.removePrefix("sat_").toIntOrNull()
+        val known = if (id == "starlink_train") detectedTrain else
+            repo.rows.firstOrNull { it.item.id == id || (norad != null && it.item.noradId == norad) }?.item
+                ?: SatelliteCatalog.getDynamicByIdOrNorad(id)
+        if (known != null) {
             focusItem(known)
             viewModel.selectSatelliteById(null)
         }
     }
 
     val meta = selectedLiveState?.tleMetadata
-    val tleAge = meta?.epochAgeDays
+    val epoch = remember(meta?.tleData) {
+        meta?.tleData?.takeIf { it.epochDay >= 1.0 && it.epochDay < 367.0 }
+            ?.let { SGP4Propagator().tleEpochToMs(it.epochYear, it.epochDay) }
+    }
+    val tleAge = epoch?.let { (realTimeNowMs - it) / DAY.toDouble() } ?: meta?.epochAgeDays
     val cachedAge = remember(starlinkCacheVersion, realTimeNowMs / MINUTE) { tleRepo.getStarlinkCacheAgeDays(realTimeNowMs) }
     val trainSelected = selectedLiveState?.satellite?.isTrain == true
     // Keep train drift transparency in addition to the standard age bucket.
     val trainDrift = trainSelected && formatTleStalenessBadge(trainSelected, meta, cachedAge, isFa) != null
     val statusAge = if (trainDrift) maxOf(tleAge ?: 0.0, cachedAge ?: 0.0) else tleAge
     val status = SatStatusData(timeOffsetMinutes == 0, timeOffsetMinutes, isOnline, statusAge,
-        tleAge?.let { realTimeNowMs - (it * DAY).toLong() }, meta?.source, isFa)
+        epoch, meta?.source, isFa)
 
     // Cache a superset of the ±12h scrub window and the three-day feed. Scrubbing only changes
     // the filtering and live propagation, never launches a fresh multi-day search per slider tick.
     val passWindowKey = realTimeNowMs / (15 * MINUTE) * (15 * MINUTE) - 12 * 60 * MINUTE
     var allUpcomingPasses by remember(location) { mutableStateOf<List<Pair<SatelliteItem, ISSEngine.ISSPass>>?>(null) }
-    LaunchedEffect(location, passWindowKey, starlinkCacheVersion, tleRefreshTick) {
+    LaunchedEffect(location, passWindowKey, starlinkCacheVersion, tleRefreshTick, state.windowDays, selectedSatItem.id) {
         val (shortlist, sorted) = withContext(Dispatchers.Default) {
             val tles = tleRepo.getStarlinkTles()
             val trains = StarlinkTrainManager.detectActiveTrains(tles, realTimeNowMs)
             val individuals = StarlinkTrainManager.selectTopVisibleStarlinks(tles, trains, location.latitude, location.longitude,
                 realTimeNowMs, maxCount = StarlinkTrainManager.DEFAULT_TOP_VISIBLE_PASS_LIMIT)
-            val targets = SatelliteCatalog.satellites + trains.map { it.leaderItem } + individuals
+            val targets = SatelliteCatalog.satellites + trains.map { it.leaderItem } + individuals + selectedSatItem
             val passes = targets.distinctBy { it.id }.flatMap { sat ->
                 ensureActive()
                 ISSEngine.predictPasses(location.latitude, location.longitude, passWindowKey,
-                    tle = SatelliteEngine.getEffectiveTle(sat), scanDays = if (sat.isTrain) 3 else 5,
-                    visibleOnly = true, standardMag = sat.standardMagnitude).map { sat to it }
+                    tle = SatelliteEngine.getEffectiveTle(sat), scanDays = state.windowDays + 2,
+                    visibleOnly = false, standardMag = sat.standardMagnitude).map { sat to it }
             }.sortedBy { it.second.startTimeMs }
             individuals to passes
         }
@@ -281,7 +292,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
         val persist = {
             AstroNotificationManager.configureSatelliteMonitoring(context, new.enabled, location, new.satelliteIds, new.leadMinutes)
             config = new
-            screen.dismiss()
+            screen.sub(SatPanel.Passes)
         }
         if (new.enabled) withNotificationPermission(persist) else persist()
     }
@@ -295,34 +306,39 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
             }
         }
     }
-    val basePasses = remember(allUpcomingPasses, alarms, config, isFa, nights) {
+    val basePasses = remember(allUpcomingPasses, alarms, config, isFa, nights, realTimeNowMs / MINUTE) {
         allUpcomingPasses?.map { (sat, pass) ->
             val matching = alarms.filter { it.triggerTimeMs > realTimeNowMs && it.coversSatellitePass(sat, pass.startTimeMs) }
             SatPassUi(passKey(sat, pass), sat, shortNameOf(sat, isFa), pass, nights.key(pass.maxTimeMs),
                 matching.firstOrNull { it.manualPass }?.leadMinutes, config.enabled && matching.any { !it.manualPass })
         }
     }
-    val windowPasses = remember(basePasses, currentSimulationMs) { basePasses?.filter { row ->
-        row.pass.endTimeMs > currentSimulationMs && row.pass.startTimeMs <= currentSimulationMs + (if (row.isTrain) 2L else 3L) * DAY
+    val windowPasses = remember(basePasses, currentSimulationMs, state.windowDays) { basePasses?.filter { row ->
+        row.pass.endTimeMs > currentSimulationMs && row.pass.startTimeMs <= currentSimulationMs + state.windowDays * DAY
     } }
-    val scopedPasses = remember(windowPasses, selectedCategory) { windowPasses?.filter { matchesScope(it.sat, selectedCategory) } }
+    val allScoped=remember(windowPasses,members){windowPasses?.filter {members==null || it.sat.id in members}}
+    val scopedPasses=remember(allScoped,state.visibleOnly){allScoped?.filter {
+        !state.visibleOnly || (it.pass.isVisible && it.quality.rank<=SatQuality.GOOD.rank)
+    }}
     val currentNight = remember(nights, currentSimulationMs / MINUTE) { nights.key(currentSimulationMs) }
     val passesByNight = remember(scopedPasses, currentNight, isFa, tz) {
         SatNights.group(scopedPasses.orEmpty(), currentSimulationMs, tz, isFa, referenceNight = currentNight)
     }
     val spotlight = remember(scopedPasses, currentSimulationMs, isFa, tz, timeOffsetMinutes) {
-        SatNights.spotlight(scopedPasses.orEmpty(), currentSimulationMs, tz, isFa, timeOffsetMinutes != 0)
+        SatNights.spotlight(scopedPasses.orEmpty().filter { it.pass.isVisible }, currentSimulationMs, tz, isFa, timeOffsetMinutes != 0)
     }
-    val markers = remember(basePasses, selectedCategory, realTimeNowMs / MINUTE) { basePasses.orEmpty().asSequence()
-        .filter { matchesScope(it.sat, selectedCategory) }
+    val markers = remember(basePasses, members, realTimeNowMs / MINUTE) { basePasses.orEmpty().asSequence()
+        .filter { members==null || it.sat.id in members }
         .map { SatTimeMarker(((it.pass.maxTimeMs - realTimeNowMs) / 60_000.0).roundToInt(), it.quality) }
         .filter { it.minute in -720..720 }.distinctBy { it.minute }.toList() }
-    val fleet = remember(liveSatelliteStates, selectedSatelliteId, isFa) { liveSatelliteStates.map { live ->
-        SatTokenUi(live.satellite.id, shortNameOf(live.satellite, isFa), fullNameOf(live.satellite, isFa), live.satellite.isTrain,
-            live.satellite.trainCount, live.topocentric.elevationDeg, live.satellite.isNakedEyeCandidate,
-            live.satellite.id == selectedSatelliteId, live.satellite)
-    } }
-    val nextFocused = windowPasses?.firstOrNull { it.sat.id == selectedLiveState?.satellite?.id }
+    val nextFocused = windowPasses?.firstOrNull { it.sat.id == selectedSatelliteId && it.pass.isVisible && it.quality.rank<=SatQuality.GOOD.rank }
+    val nextTimes=remember(basePasses,currentSimulationMs/MINUTE){basePasses.orEmpty().filter{it.pass.endTimeMs>currentSimulationMs}.groupBy{it.sat.id}.mapValues{it.value.first().pass.startTimeMs}}
+    var debounced by remember {mutableStateOf("")}
+    LaunchedEffect(state.query){ if(state.query.isNotEmpty())delay(150);debounced=state.query }
+    val results by remember(repo,debounced,lib,angles,nextTimes,isFa,mags){repo.rows(debounced,lib,angles,nextTimes,isFa,mags)}.collectAsState(emptyList())
+    val rising=remember(selectedLiveState,batch.first){ selectedLiveState?.let { s->
+        val next=ISSEngine.calculateTopocentricPos(batch.first+10_000,location.latitude,location.longitude,location.elevationMeters,tle=SatelliteEngine.getEffectiveTle(s.satellite))
+        next.elevationDeg>s.topocentric.elevationDeg } }
 
     var activeDetail by remember { mutableStateOf<SatDetailEntry?>(null) }
     var detailSource by remember { mutableStateOf("focus") }
@@ -368,19 +384,15 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     }
     fun passActions(pass: SatPassUi) = SatPassActions(
         onOpenDetail = { detail(pass.sat, pass.pass, pass.key) },
-        onShowOnGlobe = { focusItem(pass.sat) },
+        onShowOnGlobe = { activeArc=pass;screen.dismiss();focusItem(pass.sat) },
         onAr = { showOnAr(pass.sat) },
         onRemind = { bounds -> reminderTarget = SatReminderTarget(pass, bounds) },
     )
-    fun closePanel() {
-        reminderTarget = null
-        anchorId = null
-        screen.dismiss()
-    }
-    val activeModal = state.activePanel in setOf(SatPanel.Fleet, SatPanel.Passes, SatPanel.Alerts, SatPanel.Guide)
+    val activeModal = state.activePanel.sheet
     SideEffect { viewModel.setSatellitesChromeOccluded(uiState.selectedTab == 1 && (activeModal || activeDetail != null)) }
     DisposableEffect(viewModel) { onDispose { viewModel.setSatellitesChromeOccluded(false) } }
-    BackHandler(uiState.selectedTab == 1 && activeDetail == null && (state.activePanel != SatPanel.None || anchorId != null)) { closePanel() }
+    BackHandler(uiState.selectedTab==1 && activeDetail==null && state.activePanel!=SatPanel.None && reminderTarget==null) { screen.back() }
+    val removedCollection=stringResource(R.string.sat_collection_removed)
     val returnLive = { setTime(0, animate = true) }
     val timeActions = SatTimeActions({ setTime(it) }, returnLive,
         { nextSatelliteTime(markers, screen.ui.timeOffsetMin)?.let { setTime(it, animate = true) } },
@@ -407,65 +419,39 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                             skin = skin, themeMode = uiState.themeMode, preselectedPass = entry.pass,
                             reminderAlarms = alarms, isSimulated = timeOffsetMinutes != 0,
                             onRemoveReminder = ::removeReminder, onSetReminder = ::setReminder,
-                            onShowOnGlobe = { satellite -> activeDetail = null; focusItem(satellite) },
+                            onShowOnGlobe = { satellite -> activeDetail = null; screen.dismiss();focusItem(satellite) },
                             onSpotInAr = ::showOnAr,
                             modifier = sourceModifier(detailSource),
                         )
                     } else {
-                        SatelliteHud(
-                            state = state, status = status, tokens = tokens, config = config, focused = selectedLiveState,
-                            nextFocused = nextFocused, now = realTimeNowMs, tz = tz, markers = markers, centered = centered,
-                            firstRun = firstRun, timeActions = timeActions, onPanel = { panel ->
-                                reminderTarget = null
-                                anchorId = null
-                                screen.toggle(panel)
-                                if (panel == SatPanel.Guide) firstRun = false
-                            }, onClose = ::closePanel, onLive = returnLive,
-                            onLocate = {
-                                closePanel()
-                                earthFocusTarget = EarthFocusTarget(location.latitude, location.longitude,
-                                    SATELLITE_EARTH_DEFAULT_DISTANCE, ++focusSequence, locate = true)
-                            }, onCycle = ::cycle, onDetail = { selectedLiveState?.satellite?.let { detail(it) } },
-                            onLighting = { theme ->
-                                screen.lighting(theme)
-                                prefs.edit().putString("satellite_map_theme", theme.name).apply()
-                                legacy.edit().putString("satellite_map_theme", theme.name).apply()
-                            }, onLegend = { screen.legend(it); screen.dismiss() },
-                            focusModifier = sourceModifier("focus"),
-                            globe = { framing, top, bottom ->
-                                SatelliteEarth3D(
-                                    currentSimulationMs = currentSimulationMs, userLocation = location, isFa = isFa,
-                                    mapTheme = mapTheme, appThemeMode = uiState.themeMode, selectedSatelliteId = selectedSatelliteId,
-                                    selectedSatItem = selectedSatItem, liveSatelliteStates = globeFleet,
-                                    mapOverheadStarlinkStates = mapOverheadStarlinkStates, trainPearlStatesByTrain = trainPearlStatesByTrain,
-                                    allInteractiveMapStates = allInteractiveMapStates,
-                                    anchoredSatLabelState = allInteractiveMapStates.firstOrNull { it.satellite.id == anchorId },
-                                    overlayStyle = earthOverlayStyle(tokens, uiState.themeMode), focusTarget = earthFocusTarget,
-                                    onFocusConsumed = { earthFocusTarget = null }, onSelectSatellite = ::focusSatellite,
-                                    onDismissAnchoredLabel = ::closePanel,
-                                    onOpenSatelliteDetail = { detail(it, source = "marker") }, modifier = Modifier.fillMaxSize(),
-                                    framing = framing, hudTop = top, hudBottom = bottom, controller = camera, tokens = tokens,
-                                    reduceMotion = reduce, onGlobeGesture = { screen.legend(false) }, onCenteredChanged = { centered = it },
-                                    popoverModifier = sourceModifier("marker"),
-                                )
-                            }, sheet = { panel, side ->
-                                when (panel) {
-                                    SatPanel.Fleet -> SatFleetSheet(fleet, selectedCategory, tokens, isFa, screen::scope,
-                                        { focusItem(it.satellite) }, ::closePanel)
-                                    SatPanel.Passes -> SatPassesSheet(tokens, isFa, selectedCategory, scopedPasses?.size, passesByNight,
-                                        spotlight, currentSimulationMs, realTimeNowMs, side, ::closePanel, { screen.scope(SatelliteCategory.ALL) },
-                                        { selectedLiveState?.satellite?.let { detail(it) } }, ::passActions, sourceModifier, tz, isOnline)
-                                    SatPanel.Alerts -> SatAlertsSheet(tokens, isFa, config, { ids, lead ->
-                                        alertPredictions.orEmpty().firstOrNull { (sat, pass) -> monitored(sat, ids) &&
-                                            pass.startTimeMs - lead * MINUTE > realTimeNowMs &&
-                                            alarms.none { it.manualPass && it.coversSatellitePass(sat, pass.startTimeMs) } }
-                                            ?.let { (sat, pass) -> "${shortNameOf(sat, isFa)} · " + SatFmt.dateTime(pass.startTimeMs - lead * MINUTE, isFa, tz) }
-                                    }, ::closePanel, ::saveAlerts)
-                                    SatPanel.Guide -> SatGuideSheet(tokens, isFa, ::closePanel)
-                                    else -> Unit
-                                }
-                            },
-                        )
+                        SatelliteHud(screen,status,tokens,config,selectedLiveState,nextFocused,realTimeNowMs,tz,markers,centered,firstRun,timeActions,
+                            onLocate={earthFocusTarget=EarthFocusTarget(location.latitude,location.longitude,SATELLITE_EARTH_DEFAULT_DISTANCE,++focusSequence,locate=true)},
+                            onCycle=::cycle,onDetail={detail(selectedSatItem)},onCoachDone=::finishCoach,rising=rising,avatarModifier=sourceModifier("focus"),
+                            globe=GlobeSurface { viewport ->
+                                SatelliteEarth3D(currentSimulationMs = batch.first.takeIf{it!=0L} ?: currentSimulationMs, userLocation = location, isFa = isFa,
+                                    mapTheme = mapTheme, appThemeMode = uiState.themeMode,selectedSatelliteId=selectedSatelliteId,selectedSatItem=selectedSatItem,
+                                    candidates=allInteractiveMapStates,members=members,favorites=lib.favorites,layers=state.layers,
+                                    trainMembers=trainMemberIds,viewport=viewport,
+                                    activePass=activeArc?.takeIf{it.sat.id==selectedSatelliteId}?.pass ?: nextFocused?.pass?.takeIf{currentSimulationMs in it.startTimeMs..it.endTimeMs},
+                                    overlayStyle=earthOverlayStyle(tokens,uiState.themeMode),focusTarget = earthFocusTarget,onFocusConsumed={earthFocusTarget=null},
+                                    onSelectSatellite=::focusSatellite,onDismissAnchoredLabel={showSelectedLabel=false},onOpenSatelliteDetail={detail(it,source="marker")},
+                                    modifier=Modifier.fillMaxSize(),controller=camera,tokens=tokens,reduceMotion=reduce,onCenteredChanged={centered=it},
+                                    onGlobeGesture={ down ->hushJob?.cancel();if(down)screen.hush(true) else hushJob=scope.launch{delay(200);screen.hush(false)} },
+                                    popoverModifier=sourceModifier("marker"),showSelectedLabel=showSelectedLabel)
+                            },sheet={ panel ->when(panel){
+                                SatPanel.Fleet -> CataloguePanel(screen,repo,results,lib,update,tokens,isFa,angles.count{it.value>0},::focusItem,{detail(it)},{screen.dismiss();focusItem(it)})
+                                SatPanel.Customize -> CustomizePanel(screen,lib,update,tokens){id->val original=lib;val def=lib.custom.firstOrNull{it.id==id}
+                                    update{it.delete(id)}; feedback=SatFeedback(removedCollection) {if(def!=null)update{l->l.copy(custom=l.custom+def,
+                                        order=l.order.toMutableList().apply {add(original.order.indexOf(id).coerceIn(0,size),id)},hidden=if(id in original.hidden)l.hidden+id else l.hidden)};feedback=null} }
+                                SatPanel.Editor -> EditorPanel(screen,repo,lib,update,tokens,isFa)
+                                SatPanel.Passes -> SatPassesSheet(screen,lib,tokens,isFa,allScoped?.size,passesByNight,spotlight,currentSimulationMs,realTimeNowMs,tz,::passActions,
+                                    {update{it.copy(active=Library.ALL)}},if(hasLocation)null else {{viewModel.setShowLocationSelector(true)}})
+                                SatPanel.Alerts -> SatAlertsSheet(tokens,isFa,config,{ids,lead->alertPredictions.orEmpty().firstOrNull{(sat,p)->monitored(sat,ids)&&p.startTimeMs-lead*MINUTE>realTimeNowMs}
+                                    ?.let{(sat,p)->shortNameOf(sat,isFa)+" · "+SatFmt.dateTime(p.startTimeMs-lead*MINUTE,isFa,tz)}},screen::back,::saveAlerts)
+                                SatPanel.Layers -> MapPanel(screen,tokens){theme->screen.lighting(theme);prefs.edit().putString("satellite_map_theme",theme.name).apply()}
+                                SatPanel.Guide -> SatGuideSheet(tokens,isFa,screen::back)
+                                else -> Unit
+                            }})
                     }
                 }
             }
@@ -482,120 +468,6 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                 enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
                 feedback?.let { SatSnackbar(it.label, tokens, it.undo) }
             }
-        }
-    }
-}
-
-/** Reusable, non-scrolling UI. Previews substitute only the native globe viewport and live inputs. */
-@Composable
-internal fun SatelliteHud(
-    state: SatellitesUiState, status: SatStatusData, tokens: ZigSatTokens, config: SatAlertsConfig,
-    focused: SatelliteLiveState?, nextFocused: SatPassUi?, now: Long, tz: TimeZone, markers: List<SatTimeMarker>,
-    centered: Boolean, firstRun: Boolean, timeActions: SatTimeActions, onPanel: (SatPanel) -> Unit, onClose: () -> Unit,
-    onLive: () -> Unit, onLocate: () -> Unit, onCycle: (Int) -> Unit, onDetail: () -> Unit,
-    onLighting: (MapTheme) -> Unit, onLegend: (Boolean) -> Unit, focusModifier: Modifier = Modifier,
-    globe: @Composable (EarthViewportProjection, Dp, Dp) -> Unit, sheet: @Composable (SatPanel, Boolean) -> Unit,
-) {
-    BoxWithConstraints(Modifier.fillMaxSize().clipToBounds().testTag("satellite_screen")) {
-        val reduce = LocalSatReduceMotion.current
-        val density = LocalDensity.current
-        val width = maxWidth
-        val height = maxHeight
-        val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-        val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        val top = topInset + 68.dp
-        val navClearance = bottomInset + 84.dp
-        val compact = width < 360.dp || height - topInset - bottomInset < 700.dp
-        val padding = if (width >= 412.dp) 20.dp else 16.dp
-        var focusHeight by remember { mutableStateOf(126.dp) }
-        val bottom = navClearance + focusHeight + 3.dp
-        val framing = with(density) { satelliteViewport(width.toPx(), height.toPx(), top.toPx(), (height - bottom).toPx()) }
-        val railHeight = 228.dp
-        val tightHeight = height - bottom < top + railHeight
-        val railTop = (height * framing.centerY - 90.dp).coerceIn(top,
-            (height - railHeight - if (tightHeight) bottomInset else bottom).coerceAtLeast(top))
-        val isFa = status.isFa
-        val panel = state.activePanel
-        val simulated = state.timeOffsetMin != 0
-        val modal = panel == SatPanel.Fleet || panel == SatPanel.Passes || panel == SatPanel.Alerts || panel == SatPanel.Guide
-        // Sheets block the globe and its HUD for touch *and* for accessibility. Time and Layers don't.
-        Box(Modifier.matchParentSize().then(if (modal) Modifier.clearAndSetSemantics {} else Modifier)) {
-            SatelliteStarfield(tokens)
-            globe(framing, top, bottom)
-            if (simulated) Box(Modifier.matchParentSize().border(2.dp, tokens.sim.copy(alpha = 0.35f)))
-
-            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(start = padding, end = padding, top = 16.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                SatStatusPill(status, tokens, { onPanel(SatPanel.DataStatus) }, onLive)
-                Spacer(Modifier.weight(1f))
-                val alerts = if (config.enabled) stringResource(R.string.sat_alerts_tooltip, satLeadLabel(config.leadMinutes, isFa),
-                    SatFmt.int(config.satelliteIds.size, isFa)) else stringResource(R.string.sat_alerts)
-                ZigSatIconButton(Icons.Filled.NotificationsNone, alerts, tokens, { onPanel(SatPanel.Alerts) },
-                    dot = if (config.enabled) tokens.live else null, hud = true, tooltip = alerts, testTag = "sat_alerts")
-                ZigSatIconButton(Icons.Filled.HelpOutline, stringResource(R.string.sat_help), tokens, { onPanel(SatPanel.Guide) },
-                    hud = true, dot = if (firstRun) tokens.live else null, pulseDot = firstRun, testTag = "sat_guide")
-            }
-            AnimatedVisibility(firstRun && panel == SatPanel.None,
-                Modifier.align(Alignment.TopEnd).padding(top = top, end = padding), enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
-                SatText(stringResource(R.string.sat_hint), tokens.inkPrimary,
-                    Modifier.satMaterial(tokens, SatSlot.Popover, androidx.compose.foundation.shape.CircleShape).padding(horizontal = 9.dp, vertical = 6.dp))
-            }
-            Column(Modifier.align(Alignment.TopEnd).padding(top = railTop, end = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                ZigSatIconButton(Icons.Filled.SatelliteAlt, stringResource(R.string.sat_fleet), tokens, { onPanel(SatPanel.Fleet) },
-                    visualSize = 44.dp, hud = true, testTag = "sat_fleet")
-                ZigSatIconButton(Icons.Filled.Schedule, stringResource(R.string.sat_time), tokens, { onPanel(SatPanel.Time) },
-                    visualSize = 44.dp, dot = if (simulated) tokens.sim else null, hud = true, active = panel == SatPanel.Time, testTag = "sat_time")
-                ZigSatIconButton(Icons.Filled.Layers, stringResource(R.string.sat_layers), tokens, { onPanel(SatPanel.Layers) },
-                    visualSize = 44.dp, hud = true, active = panel == SatPanel.Layers, testTag = "sat_layers")
-                ZigSatIconButton(Icons.Filled.CenterFocusWeak, stringResource(R.string.sat_locate), tokens, onLocate,
-                    visualSize = 44.dp, hud = true, enabled = !centered, testTag = "map_reset_view")
-            }
-            Box(Modifier.align(Alignment.BottomCenter).padding(start = padding,
-                end = if (tightHeight) 68.dp else padding, bottom = navClearance)) {
-                AnimatedContent(targetState = panel == SatPanel.Time, transitionSpec = {
-                    if (reduce) fadeIn(tween(120)) togetherWith fadeOut(tween(120))
-                    else if (targetState) (slideInVertically(tween(240)) { it / 4 } + fadeIn(tween(210))) togetherWith fadeOut(tween(160))
-                    else fadeIn(tween(160)) togetherWith (slideOutVertically(tween(230)) { it / 4 } + fadeOut(tween(180)))
-                }, label = "hud-bottom") { showTime ->
-                    if (showTime) SatTimeTray(tokens, state.timeOffsetMin, now, tz, markers, isFa, compact, timeActions, onClose)
-                    else if (focused != null) {
-                        val span = stringResource(if (focused.satellite.isTrain) R.string.sat_two_days else R.string.sat_three_days)
-                        Crossfade(focused.satellite.id, focusModifier, animationSpec = tween(if (reduce) 120 else 160), label = "satellite-focus") { id ->
-                            var presented by remember(id) { mutableStateOf(focused) }
-                            SideEffect { if (id == focused.satellite.id) presented = focused }
-                            SatFocusCard(presented, tokens, isFa, compact, width >= 412.dp, simulated, !status.isOnline, nextFocused,
-                                now + state.timeOffsetMin * MINUTE, span, firstRun, { onPanel(SatPanel.Fleet) }, onDetail,
-                                { onPanel(SatPanel.Passes) }, onCycle,
-                                Modifier.onSizeChanged { focusHeight = with(density) { it.height.toDp() } })
-                        }
-                    }
-                }
-            }
-            if (state.legend && panel == SatPanel.None) SatLegendPanel(tokens, isFa,
-                Modifier.align(Alignment.BottomStart).padding(start = padding, bottom = bottom + 8.dp).width(172.dp))
-
-            when (panel) {
-                SatPanel.DataStatus -> SatDataStatusPopover(status, tokens, tz, onClose, { onLive(); onClose() },
-                    Modifier.align(Alignment.TopStart).padding(start = padding, end = padding, top = top))
-                SatPanel.Layers -> SatLayersPopover(tokens, state.mapTheme, state.legend, onLighting, onLegend,
-                    Modifier.align(Alignment.TopEnd).padding(end = 66.dp, top = (railTop + 91.dp).coerceAtMost((height - bottom - 106.dp).coerceAtLeast(top))))
-                else -> Unit
-            }
-        }
-        if (modal) sheet(panel, width >= 600.dp)
-    }
-}
-
-@Composable
-private fun SatelliteStarfield(tokens: ZigSatTokens) {
-    Canvas(Modifier.fillMaxSize()) {
-        drawRect(tokens.canvas)
-        if (tokens.isDark) drawRect(Brush.radialGradient(listOf(tokens.starlink.copy(alpha = .065f), Color.Transparent), center, size.maxDimension * .66f))
-        repeat(66) { i ->
-            val x = (((i * 97 + 53) % 229) / 229f) * size.width
-            val y = (((i * i * 31 + i * 47 + 23) % 307) / 307f) * size.height
-            drawCircle(tokens.stars.copy(alpha = if (i % 11 == 0) .42f else .16f), (if (i % 11 == 0) 1.dp else .55.dp).toPx(), Offset(x, y))
         }
     }
 }
@@ -626,5 +498,5 @@ private fun earthOverlayStyle(tokens: ZigSatTokens, themeMode: ThemeMode): Satel
     trainChainColor = tokens.starlink.copy(alpha = .54f), trainLeaderColor = Color.White, trainMemberColor = tokens.starlink.copy(alpha = .75f),
     nakedEyeMarkerColor = tokens.nakedEye, defaultMarkerColor = tokens.telescopic,
     popoverContainerColor = tokens.popoverFill, popoverBorderColor = tokens.popoverBorder,
-    popoverShape = squircleShape(SatRadius.popover),
+    popoverShape = SatShapes.of(SatRadius.popover),
 )

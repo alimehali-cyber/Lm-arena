@@ -199,7 +199,8 @@ class SpatialUiTest {
         val aether = source("com/alijafari/red/astronomy/ui/aether/AetherSatellitesScreen.kt")
 
         assertTrue(stage.contains("SatelliteEarth3D("))
-        assertTrue(stage.contains("satelliteViewport("))
+        val globe = source("com/alijafari/red/astronomy/ui/components/SatelliteEarth3D.kt")
+        assertTrue("the native globe consumes the shared measured frame", globe.contains("frameAtDistance("))
         assertFalse("the globe is not framed by an aspect-ratio card", components.contains(".aspectRatio(1.16f)"))
         listOf(iss, spatial, aether).forEach { screen ->
             assertTrue(screen.contains("SatellitesStage("))

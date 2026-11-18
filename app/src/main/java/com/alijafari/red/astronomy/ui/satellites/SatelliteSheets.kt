@@ -47,56 +47,14 @@ import com.alijafari.red.astronomy.ui.screens.MapTheme
 import com.alijafari.red.astronomy.ui.theme.LocalAppFontFamily
 import com.alijafari.red.astronomy.ui.theme.RedShapes
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
-import com.alijafari.red.astronomy.ui.theme.squircleShape
 import java.util.Calendar
 import java.util.TimeZone
 
-/** In-place modal surface; no platform dialog, window blur, or elevation. Drag its handle for detents. */
-@Composable
-internal fun SatBottomSheet(
-    tokens: ZigSatTokens,
-    title: String,
-    tag: String,
-    onDismiss: () -> Unit,
-    half: Boolean = false,
-    side: Boolean = false,
-    initialFull: Boolean = false,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val reduce = LocalSatReduceMotion.current
-        var expanded by remember(tag) { mutableStateOf(initialFull || !half) }
-        val close by rememberUpdatedState(onDismiss)
-        val shape = if (side) squircleShape(SatRadius.sheet) else squircleShape(topStart = 28.dp, topEnd = 28.dp)
-        val targetHeight = maxHeight * if (expanded || side) .85f else .50f
-        val height by animateDpAsState(targetHeight, tween(if (reduce) 0 else 240), label = "sheet-detent")
-        Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = .40f)).pointerInput(Unit) {
-            detectTapGestures { close() }
-        })
-        Column(Modifier.align(if (side) Alignment.CenterEnd else Alignment.BottomCenter)
-            .then(if (side) Modifier.padding(end = 12.dp).width(380.dp) else Modifier.fillMaxWidth())
-            .height(height).testTag(tag).semantics { paneTitle = title; isTraversalGroup = true }
-            .satMaterial(tokens, SatSlot.Sheet, shape, backing = tokens.card)
-            .pointerInput(Unit) { detectTapGestures { /* Do not send taps on sheet chrome to the scrim. */ } }
-            .navigationBarsPadding().imePadding().padding(horizontal = 20.dp)) {
-            val handleDescription = stringResource(if (!half || side) R.string.sat_close else if (expanded) R.string.sat_collapse else R.string.sat_expand)
-            Box(Modifier.fillMaxWidth().height(48.dp)
-                .clickable(role = Role.Button) { if (half && !side) expanded = !expanded else onDismiss() }
-                .semantics { contentDescription = handleDescription }
-                .pointerInput(half, side) {
-                    var travel = 0f
-                    detectVerticalDragGestures(onDragStart = { travel = 0f }, onDragEnd = {
-                        if (travel < -24.dp.toPx() && half && !side) expanded = true
-                        if (travel > 24.dp.toPx()) {
-                            if (expanded && half && !side) expanded = false else close()
-                        }
-                    }) { change, delta -> change.consume(); travel += delta }
-                }, contentAlignment = Alignment.Center) {
-                Box(Modifier.size(36.dp, 4.dp).background(tokens.inkTertiary.copy(alpha = .6f), CircleShape))
-            }
-            Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(bottom = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
-        }
+/** Panel chrome and detents are owned by SatelliteHud, never a second window or scrim. */
+@Composable internal fun SheetBody(tag:String,title:String,header:@Composable ()->Unit,content:@Composable ColumnScope.()->Unit) {
+    Column(Modifier.fillMaxSize().testTag(tag).semantics { paneTitle=title }) {
+        header()
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom=16.dp),verticalArrangement=Arrangement.spacedBy(8.dp),content=content)
     }
 }
 
@@ -115,9 +73,9 @@ fun SatSheetTitle(title: String, subtitle: String?, tokens: ZigSatTokens, traili
 fun SatDialogButton(label: String, tokens: ZigSatTokens, onClick: () -> Unit, primary: Boolean = false,
     destructive: Boolean = false, modifier: Modifier = Modifier, testTag: String? = null, enabled: Boolean = true) {
     val ink = if (primary) Color.White else if (destructive) tokens.accentInk else tokens.inkPrimary
-    Box(modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).clip(RedShapes.capsule)
+    Box(modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).clip(SatShapes.capsule)
         .background(if (primary && enabled) tokens.selectedChip else tokens.cardAlt)
-        .border(1.dp, if (destructive) tokens.accentInk.copy(alpha = .45f) else tokens.border, RedShapes.capsule)
+        .border(1.dp, if (destructive) tokens.accentInk.copy(alpha = .45f) else tokens.border, SatShapes.capsule)
         .clickable(role = Role.Button, enabled = enabled, onClick = onClick)
         .then(if (testTag == null) Modifier else Modifier.testTag(testTag)).padding(horizontal = 8.dp, vertical = 5.dp),
         contentAlignment = Alignment.Center) {
@@ -127,18 +85,19 @@ fun SatDialogButton(label: String, tokens: ZigSatTokens, onClick: () -> Unit, pr
 
 @Composable
 internal fun SatDataStatusPopover(data: SatStatusData, tokens: ZigSatTokens, tz: TimeZone,
-    onClose: () -> Unit, onReturnToLive: () -> Unit, modifier: Modifier = Modifier) {
+    onClose: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.widthIn(max = 330.dp).fillMaxWidth().testTag("data_status_popover")
-        .satMaterial(tokens, SatSlot.Popover, squircleShape(16.dp))
+        .satMaterial(tokens, SatSlot.Popover, SatShapes.of(16.dp))
         .pointerInput(Unit) { detectTapGestures {} }.padding(13.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SatSheetTitle(stringResource(R.string.sat_status), null, tokens,
             trailing = { ZigSatIconButton(Icons.Filled.Close, stringResource(R.string.sat_close), tokens, onClose) })
         val source = stringResource(when (data.tleSource) {
             TleDataSource.LIVE_NETWORK -> R.string.sat_source_live
             TleDataSource.MEMORY_CACHE, TleDataSource.PERSISTED_CACHE -> R.string.sat_source_cache
-            else -> R.string.sat_source_bundled
+            TleDataSource.HARDCODED_FALLBACK -> R.string.sat_source_bundled
+            null -> R.string.sat_unknown
         })
-        StatusRow(stringResource(R.string.sat_source), "${SatFmt.digits("SGP4", data.isFa)} · $source", tokens)
+        StatusRow(stringResource(R.string.sat_source), source, tokens)
         StatusRow(stringResource(R.string.sat_epoch), data.tleEpochMillis?.let { SatFmt.dateTime(it, data.isFa, tz) }
             ?: stringResource(R.string.sat_unknown), tokens)
         StatusRow(stringResource(R.string.sat_age), data.tleAgeDays?.let {
@@ -146,8 +105,7 @@ internal fun SatDataStatusPopover(data: SatStatusData, tokens: ZigSatTokens, tz:
         } ?: stringResource(R.string.sat_unknown), tokens)
         StatusRow(stringResource(R.string.sat_connection), stringResource(if (data.isOnline) R.string.sat_online else R.string.sat_offline), tokens)
         if ((data.tleAgeDays ?: 0.0) > 7.0) SatText(stringResource(R.string.sat_stale), tokens.accentInk)
-        if (!data.isLive) SatDialogButton(stringResource(R.string.sat_return_live), tokens, onReturnToLive,
-            primary = true, modifier = Modifier.fillMaxWidth())
+        StatusRow(stringResource(R.string.sat_last_fix), data.lastFixMs?.let { SatFmt.dateTime(it,data.isFa,tz) } ?: stringResource(R.string.sat_unknown),tokens)
     }
 }
 
@@ -160,95 +118,6 @@ private fun StatusRow(label: String, value: String, tokens: ZigSatTokens) {
 }
 
 @Composable
-internal fun SatLayersPopover(tokens: ZigSatTokens, lighting: MapTheme, legend: Boolean, onLighting: (MapTheme) -> Unit,
-    onLegend: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.width(224.dp).testTag("map_theme_selector").satMaterial(tokens, SatSlot.Popover, squircleShape(16.dp))
-        .pointerInput(Unit) { detectTapGestures {} }.padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        SatText(stringResource(R.string.sat_lighting), tokens.inkPrimary, size = 13, strong = true)
-        Row(Modifier.background(tokens.cardAlt, CircleShape), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            MapTheme.entries.forEach { mode ->
-                val (label, icon) = when (mode) {
-                    MapTheme.AUTO -> R.string.sat_auto to Icons.Filled.BrightnessAuto
-                    MapTheme.DARK -> R.string.sat_dark to Icons.Filled.DarkMode
-                    MapTheme.LIGHT -> R.string.sat_light to Icons.Filled.LightMode
-                }
-                Column(Modifier.weight(1f).heightIn(min = 48.dp).clip(CircleShape)
-                    .background(if (lighting == mode) tokens.selectedChip else Color.Transparent)
-                    .clickable(role = Role.Button) { onLighting(mode) }.padding(vertical = 5.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    val color = if (lighting == mode) Color.White else tokens.inkPrimary
-                    Icon(icon, null, Modifier.size(14.dp), color)
-                    SatText(stringResource(label), color, size = 11)
-                }
-            }
-        }
-        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-            val label = stringResource(R.string.sat_legend)
-            SatText(label, tokens.inkPrimary, Modifier.weight(1f), strong = true)
-            Switch(legend, onLegend, colors = SwitchDefaults.colors(checkedTrackColor = tokens.selectedChip),
-                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics { contentDescription = label })
-        }
-    }
-}
-
-@Composable
-internal fun SatFleetSheet(fleet: List<SatTokenUi>, category: SatelliteCategory, tokens: ZigSatTokens, isFa: Boolean,
-    onScope: (SatelliteCategory) -> Unit, onPick: (SatTokenUi) -> Unit, onDismiss: () -> Unit) {
-    var showSearch by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf("") }
-    val title = stringResource(R.string.sat_fleet)
-    SatBottomSheet(tokens, title, "fleet_sheet", onDismiss, half = true) {
-        SatSheetTitle("$title · ${SatFmt.int(fleet.size, isFa)}", null, tokens, trailing = {
-            ZigSatIconButton(Icons.Filled.Search, stringResource(R.string.sat_search), tokens, {
-                showSearch = !showSearch
-                if (!showSearch) query = ""
-            }, testTag = "fleet_search")
-        })
-        val above = fleet.count { it.elevationDeg > 0 }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            val segments = fleet.size.coerceIn(4, 10)
-            val filled = kotlin.math.ceil(segments * above.toDouble() / fleet.size.coerceAtLeast(1)).toInt()
-            repeat(segments) { index ->
-                ZigStatusDot(if (index < filled) tokens.nakedEye else tokens.border, false, 5.dp)
-            }
-            SatText(stringResource(R.string.sat_above, SatFmt.int(above, isFa)), tokens.inkSecondary)
-        }
-        if (showSearch) OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth().testTag("fleet_search_field"),
-            singleLine = true, label = { Text(stringResource(R.string.sat_search), fontFamily = LocalAppFontFamily.current) },
-            textStyle = RedTypographyTokens.bodySecondary.copy(fontFamily = LocalAppFontFamily.current))
-        SatScopeRow(category, tokens, isFa, onScope)
-        val filtered = fleet.filter { it.shortName.contains(query, ignoreCase = true) || it.fullName.contains(query, ignoreCase = true) }
-            .sortedByDescending { it.elevationDeg }
-        if (filtered.isEmpty()) SatText(stringResource(R.string.sat_no_fleet), tokens.inkSecondary)
-        filtered.forEach { row -> key(row.id) {
-            val shape = squircleShape(16.dp)
-            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(shape)
-                .background(if (row.isSelected) tokens.selectedFill else tokens.cardAlt)
-                .border(if (row.isSelected) 2.dp else 1.dp, if (row.isSelected) tokens.live else tokens.border, shape)
-                .clickable(role = Role.Button) { onPick(row) }.testTag("fleet_sat_${row.id}")
-                .padding(horizontal = 10.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box {
-                    SatAvatar(row.satellite, tokens, 32.dp)
-                    Box(Modifier.align(Alignment.BottomEnd).size(7.dp).background(tokens.cardAlt, CircleShape)
-                        .then(if (row.isNakedEye) Modifier.background(tokens.nakedEye, CircleShape) else Modifier.border(1.dp, tokens.inkSecondary, CircleShape)))
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(row.shortName, color = tokens.inkPrimary, style = RedTypographyTokens.badge.copy(fontWeight = FontWeight.SemiBold),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (row.fullName != row.shortName) SatText(row.fullName, tokens.inkSecondary, size = 10)
-                    SatText(SatFmt.degrees(row.elevationDeg, isFa, signed = true),
-                        if (row.elevationDeg >= 0) tokens.inkPrimary else tokens.inkTertiary, size = 11)
-                }
-                val label = if (row.isTrain) stringResource(R.string.sat_train_short, SatFmt.int(row.trainCount, isFa)) else
-                    stringResource(if (row.isNakedEye) R.string.sat_legend_naked else R.string.sat_legend_scope)
-                SatText(label, tokens.inkPrimary, Modifier.background(tokens.border, CircleShape).padding(horizontal = 6.dp, vertical = 4.dp), size = 10)
-            }
-        } }
-    }
-}
-
-@Composable
 internal fun SatAlertsSheet(tokens: ZigSatTokens, isFa: Boolean, config: SatAlertsConfig,
     nextAlertSummary: (Set<String>, Int) -> String?, onDismiss: () -> Unit, onSave: (SatAlertsConfig) -> Unit) {
     var enabled by remember { mutableStateOf(config.enabled) }
@@ -257,11 +126,12 @@ internal fun SatAlertsSheet(tokens: ZigSatTokens, isFa: Boolean, config: SatAler
     val title = stringResource(R.string.sat_alerts)
     val rolling = stringResource(R.string.sat_rolling)
     val choices = SatelliteCatalog.satellites.map { it.id to shortNameOf(it, isFa) } + ("starlink_train" to stringResource(R.string.sat_trains))
-    SatBottomSheet(tokens, title, "alerts_sheet", onDismiss) {
+    SheetBody("alerts_sheet", title, header = {
         SatSheetTitle(title, rolling, tokens, trailing = {
             Switch(enabled, { enabled = it }, colors = SwitchDefaults.colors(checkedTrackColor = tokens.selectedChip),
                 modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).testTag("alerts_master_switch").semantics { contentDescription = title })
         })
+    }) {
         SatText(stringResource(R.string.sat_lead), tokens.inkSecondary, strong = true)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             reminderLeads.forEach { minutes -> ZigSatChip(satLeadLabel(minutes, isFa), lead == minutes, tokens,
@@ -295,14 +165,11 @@ internal fun SatAlertsSheet(tokens: ZigSatTokens, isFa: Boolean, config: SatAler
 @Composable
 internal fun SatGuideSheet(tokens: ZigSatTokens, isFa: Boolean, onDismiss: () -> Unit) {
     val title = stringResource(R.string.sat_guide)
-    SatBottomSheet(tokens, title, "guide_sheet", onDismiss) {
-        SatSheetTitle(title, null, tokens)
+    SheetBody("guide_sheet",title,header={ SatSheetTitle(title,null,tokens) }) {
         GuideRow(Icons.Filled.Swipe, stringResource(R.string.sat_gesture_title), stringResource(R.string.sat_gesture_body), tokens)
         GuideRow(Icons.Filled.DarkMode, stringResource(R.string.sat_lighting), stringResource(R.string.sat_lighting_body), tokens)
         GuideRow(Icons.Filled.TouchApp, stringResource(R.string.sat_focus_title), stringResource(R.string.sat_focus_body), tokens)
         GuideRow(Icons.Filled.Schedule, stringResource(R.string.sat_scrub_title), stringResource(R.string.sat_scrub_body), tokens)
-        SatText(stringResource(R.string.sat_legend), tokens.inkSecondary, strong = true)
-        SatLegendPanel(tokens, isFa, Modifier.fillMaxWidth())
         SatDialogButton(stringResource(R.string.sat_got_it), tokens, onDismiss, primary = true, modifier = Modifier.fillMaxWidth())
     }
 }
@@ -310,7 +177,7 @@ internal fun SatGuideSheet(tokens: ZigSatTokens, isFa: Boolean, onDismiss: () ->
 @Composable
 private fun GuideRow(icon: ImageVector, title: String, body: String, tokens: ZigSatTokens) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.size(32.dp).background(tokens.live.copy(alpha = .12f), CircleShape), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(32.dp).background(tokens.live.copy(alpha = .12f), SatShapes.capsule), contentAlignment = Alignment.Center) {
             Icon(icon, null, Modifier.size(18.dp), tint = tokens.accentInk)
         }
         Column {
@@ -349,7 +216,7 @@ internal fun SatReminderPopover(tokens: ZigSatTokens, isFa: Boolean, target: Sat
         }
     } }
     Popup(position, onDismissRequest = onClose, properties = PopupProperties(focusable = true)) {
-        Column(Modifier.width(232.dp).testTag("reminder_popover").satMaterial(tokens, SatSlot.Popover, squircleShape(20.dp))
+        Column(Modifier.width(232.dp).testTag("reminder_popover").satMaterial(tokens, SatSlot.Popover, SatShapes.of(20.dp))
             .padding(horizontal = 9.dp, vertical = 5.dp)) {
             reminderLeads.forEach { minutes ->
                 val time = target.pass.pass.startTimeMs - minutes * 60_000L
@@ -382,7 +249,7 @@ internal fun SatReminderPopover(tokens: ZigSatTokens, isFa: Boolean, target: Sat
 
 @Composable
 internal fun SatSnackbar(message: String, tokens: ZigSatTokens, undo: (() -> Unit)?, modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth().satMaterial(tokens, SatSlot.Popover, squircleShape(16.dp)).padding(start = 12.dp, end = 6.dp),
+    Row(modifier.fillMaxWidth().satMaterial(tokens, SatSlot.Popover, SatShapes.of(16.dp)).padding(start = 12.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SatText(message, tokens.inkPrimary, Modifier.weight(1f).padding(vertical = 8.dp))
         if (undo != null) Box(Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).clickable(onClick = undo), contentAlignment = Alignment.Center) {

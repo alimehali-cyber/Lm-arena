@@ -64,8 +64,8 @@ class Part6ScreenChromeTest {
         val lab = source("com/alijafari/red/astronomy/ui/screens/LabScreen.kt")
         assertTrue("the Lab list starts below the clock", lab.contains(".statusBarsPadding()"))
 
-        val stage = source("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
-        assertTrue("so does the satellite index", stage.contains(".statusBarsPadding()"))
+        val hud = source("com/alijafari/red/astronomy/ui/satellites/SatelliteHud.kt")
+        assertTrue("the shared satellite HUD carries the inset", hud.contains(".statusBarsPadding()"))
     }
 
     @Test
@@ -87,10 +87,8 @@ class Part6ScreenChromeTest {
         assertTrue("Detail uses floating back rather than an app bar", detail.contains("detail_floating_back"))
         assertFalse("and the band with it", detail.contains("topBar = {"))
         assertTrue("its own status-bar inset instead", detail.contains(".statusBarsPadding()"))
-        assertTrue(
-            "the offline state is still reported",
-            detail.contains("CloudOff") || detail.contains("WifiOff")
-        )
+        val status = source("com/alijafari/red/astronomy/ui/satellites/SatelliteComponents.kt")
+        assertTrue("offline status is centralized in the HUD pill", status.contains("Icons.Filled.WifiOff"))
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -110,10 +108,9 @@ class Part6ScreenChromeTest {
         )
         assertTrue("Lab's tool cards use it", lab.contains("RedSurface("))
         assertTrue("the satellite cards use it", iss.contains("SatellitesStage("))
-        assertTrue(
-            "and the stage renders every card through the one surface",
-            source("com/alijafari/red/astronomy/ui/satellites/SatelliteDesign.kt").contains("RedSurface(")
-        )
+        val satMaterial = source("com/alijafari/red/astronomy/ui/satellites/SatMaterials.kt")
+        assertTrue("the Default satellite slot has a flat clipped background", satMaterial.contains("clip(shape).background(backing)"))
+        assertTrue("Default is flat", satMaterial.contains("tokens.skin == SatSkin.DEFAULT"))
         assertTrue("Home's cards use it", home.contains("private fun MoonCard("))
         assertTrue("including the eclipse card", home.contains("private fun EclipseCard("))
         assertTrue(
@@ -123,9 +120,9 @@ class Part6ScreenChromeTest {
     }
 
     @Test
-    fun nothingSamplesWhatIsBehindIt() {
-        // The whole point of the flat surface: a card's fill and its ink are known before it is painted,
-        // so nothing in the app reads the pixels underneath it — and no dependency exists to let it.
+    fun globalSurfacesDoNotUseTheRemovedLiquidGlassSystem() {
+        // The old global liquid-glass system remains absent. The new satellite-specific Spatial and
+        // Aether materials may sample their own backdrop; Default remains flat.
         listOf(
             "com/alijafari/red/astronomy/MainActivity.kt" to activity,
             "com/alijafari/red/astronomy/ui/screens/HomeScreen.kt" to home,

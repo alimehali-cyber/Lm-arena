@@ -8,7 +8,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** AndroidX BidiFormatter uses a platform SpannableStringBuilder. Test the real implementation. */
+/** Exercises the public formatter and Android ICU in the JVM Android environment. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class SatSignedTextTest {
@@ -21,7 +21,7 @@ class SatSignedTextTest {
         assertFalse("negative never uses a hyphen", negative.contains('-'))
         assertTrue("positive carries an explicit plus", positive.contains('+'))
         // The isolate pair is what stops a sign jumping to the other side in RTL.
-        assertTrue("the number is isolated", negative.contains('\u2068') && negative.contains('\u2069'))
+        assertTrue("the number is isolated LTR", negative.contains('\u2066') && negative.contains('\u2069'))
         assertFalse("no ASCII plus-before-minus anywhere", negative.contains("+-"))
     }
 
@@ -31,5 +31,14 @@ class SatSignedTextTest {
         assertTrue("persian digits", fa.any { it in '\u06F0'..'\u06F9' })
         assertTrue("arabic decimal separator", fa.contains('\u066B'))
         assertFalse("no latin digits", fa.any { it in '0'..'9' })
+        assertFalse("angles never carry an explicit plus", SatFmt.degrees(68.0, true).contains('+'))
+    }
+
+    @Test
+    fun persianLaunchDatesAreSolarFirstAndDoNotConfuseIdentifiersWithDates() {
+        val formatted = requireNotNull(SatFmt.launchDate("April 29, 2021 (Tianhe Module)", true))
+        assertTrue(formatted.contains('·'))
+        assertFalse(formatted.any { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' })
+        assertTrue(SatFmt.launchDate("2026-034", true) == null)
     }
 }

@@ -441,6 +441,7 @@ class EarthCameraController(
         private set
 
     internal var onInvalidateRender: (() -> Unit)? = null
+    internal var onUserGestureEnd: (() -> Unit)? = null
     internal var onUserGestureStart: (() -> Unit)? = null
 
     private fun publishAndInvalidate() {
@@ -842,6 +843,7 @@ private class EarthSurface(
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                controller.onUserGestureEnd?.invoke()
                 isDraggingGlobe = false
                 capturedGesture = false
                 parent?.requestDisallowInterceptTouchEvent(false)
@@ -851,6 +853,7 @@ private class EarthSurface(
                 if (scroll != 0f) {
                     controller.onUserGestureStart?.invoke()
                     controller.zoomBy(exp(scroll * 0.12f))
+                    controller.onUserGestureEnd?.invoke()
                     return true
                 }
             }
@@ -864,6 +867,7 @@ private class EarthSurface(
             if (scroll != 0f) {
                 controller.onUserGestureStart?.invoke()
                 controller.zoomBy(exp(scroll * 0.12f))
+                    controller.onUserGestureEnd?.invoke()
                 return true
             }
         }
@@ -1240,6 +1244,7 @@ private class EarthScene(private val context: Context) {
         uniform1f(surfaceProgram, "uNightEnabled", if (options.showNightLights) 1f else 0f)
         uniform1f(surfaceProgram, "uExposure", options.exposureEV)
         uniform1f(surfaceProgram, "uSaturation", options.saturation)
+        uniform1f(surfaceProgram, "uTrackerFloor", if(options.fullViewportGestures) 1f else 0f)
         drawMesh(surfaceProgram)
     }
 
@@ -1442,6 +1447,7 @@ private class EarthScene(private val context: Context) {
             uniform float uAmbient;
             uniform float uNightEnabled;
             uniform float uExposure;
+            uniform float uTrackerFloor;
             uniform float uSaturation;
             varying vec2 vUv;
             varying vec3 vNormal;
@@ -1461,6 +1467,7 @@ private class EarthScene(private val context: Context) {
                 vec3 city = texture2D(uNightMap, vUv).rgb;
                 vec3 lit = surface * (uAmbient + (1.0 - uAmbient) * max(ndl, 0.0) * 1.10);
                 lit = mix(lit, surface * (uAmbient + 0.94 * max(ndl, 0.0)), day);
+                lit = max(lit, vec3(16.0,22.0,38.0) / 255.0 * (1.0-day) * uTrackerFloor);
                 lit += city * (1.0 - day) * uNightEnabled * 1.30;
                 float luminance = dot(lit, vec3(0.2126, 0.7152, 0.0722));
                 lit = mix(vec3(luminance), lit, uSaturation);
