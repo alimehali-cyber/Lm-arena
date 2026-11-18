@@ -270,8 +270,8 @@ internal fun SatAlertsSheet(tokens: ZigSatTokens, isFa: Boolean, config: SatAler
         }
         choices.chunked(2).forEach { pair -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             pair.forEach { (id, name) -> ZigSatChip(name, id in ids, tokens, { ids = if (id in ids) ids - id else ids + id },
-                modifier = Modifier.weight(1f), testTag = "alert_sat_$id", leading = if (id !in ids) null else {
-                    Icon(Icons.Filled.Check, null, Modifier.size(13.dp), tint = Color.White)
+                modifier = Modifier.weight(1f), testTag = "alert_sat_$id", leading = {
+                    if (id in ids) Icon(Icons.Filled.Check, null, Modifier.size(13.dp), tint = Color.White)
                 }) }
             if (pair.size == 1) Spacer(Modifier.weight(1f))
         } }

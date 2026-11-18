@@ -164,7 +164,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
         if (timeOffsetMinutes != 0) delay(140)
         val snapshot = withContext(Dispatchers.Default) {
             StarlinkTrainManager.selectRealtimeOverheadStarlinks(tleRepo.getStarlinkTles(), location.latitude,
-                location.longitude, currentSimulationMs, maxOverhead = StarlinkTrainManager.DEFAULT_REALTIME_OVERHEAD_LIMIT)
+                location.longitude, nowMs = currentSimulationMs, maxOverhead = StarlinkTrainManager.DEFAULT_REALTIME_OVERHEAD_LIMIT)
         }
         activeTrains = snapshot.activeTrains
         overheadStarlinks = snapshot.overheadStarlinks

@@ -33,6 +33,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -143,7 +144,7 @@ internal fun SatelliteDetailContent(
     var showMaximum by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var pending by remember { mutableStateOf<SatReminderTarget?>(null) }
     var heroBell by remember { mutableStateOf(IntRect.Zero) }
-    BackHandler(enabled = pending == null, onBack = onBack)
+    if (!LocalInspectionMode.current) BackHandler(enabled = pending == null, onBack = onBack)
     val dayCount = if (satelliteItem.isTrain) 2 else 7
     val firstNight = SatNights.nightKey(simNow, tz)
     val days = remember(firstNight, tz, dayCount) {

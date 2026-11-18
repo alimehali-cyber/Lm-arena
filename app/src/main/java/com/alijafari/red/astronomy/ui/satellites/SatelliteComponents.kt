@@ -683,7 +683,9 @@ fun SatSkyArc(pass: ISSEngine.ISSPass, tokens: ZigSatTokens, isFa: Boolean, heig
                 listOfNotNull(entry, exit).filter { it > 0f && it < 1f }.forEach { drawCircle(tokens.umbra, 3.dp.toPx(), point(it)) }
                 drawCircle(color, 3.8.dp.toPx(), apex)
                 drawCircle(tokens.inkSecondary, 2.dp.toPx(), point(0f)); drawCircle(tokens.inkSecondary, 2.dp.toPx(), point(1f))
-                if (train) for (i in 1..7) drawCircle(color, 2.dp.toPx(), point(i / 8f))
+                if (train) {
+                    for (i in 1..7) drawCircle(color, 2.dp.toPx(), point(i / 8f))
+                }
                 if (nowMs in pass.startTimeMs..pass.endTimeMs) {
                     drawCircle(tokens.inkPrimary, 4.5.dp.toPx(), point(fraction(nowMs)))
                     drawCircle(color, 2.5.dp.toPx(), point(fraction(nowMs)))
