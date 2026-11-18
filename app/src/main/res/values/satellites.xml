@@ -134,4 +134,24 @@
     <string name="sat_detail_passes">Passes · next %1$s days</string>
     <string name="sat_detail_expand">Expand all %1$s</string>
     <string name="sat_detail_back">Back</string>
+    <plurals name="sat_spoken_hours">
+        <item quantity="one">%1$s hour</item>
+        <item quantity="other">%1$s hours</item>
+    </plurals>
+    <plurals name="sat_spoken_minutes">
+        <item quantity="one">%1$s minute</item>
+        <item quantity="other">%1$s minutes</item>
+    </plurals>
+    <string name="sat_detail_ar">Spot in AR Sky</string>
+    <string name="sat_telemetry">Live orbital telemetry</string>
+    <string name="sat_telemetry_reduce">Hide additional telemetry</string>
+    <string name="sat_telemetry_more">Show additional telemetry</string>
+    <string name="sat_velocity">Velocity</string>
+    <string name="sat_speed_hour">km/h</string>
+    <string name="sat_azimuth">Azimuth</string>
+    <string name="sat_range">Range</string>
+    <string name="sat_subpoint">Sub-point</string>
+    <string name="sat_illumination">Illumination</string>
+    <string name="sat_detection_yes">Naked-eye visible</string>
+    <string name="sat_detection_no">Not visible</string>
 </resources>

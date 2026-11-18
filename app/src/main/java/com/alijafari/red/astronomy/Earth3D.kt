@@ -602,6 +602,7 @@ private class EarthSurface(
     private val scene = EarthScene(context.applicationContext)
     private var glThread: EarthGlThread? = null
     private var currentStyle: EarthStyle = EarthStyle()
+    private var hasStyle = false
     private var released = false
     private var paused = false
     private var autoLoopPosted = false
@@ -687,9 +688,10 @@ private class EarthSurface(
 
     fun setStyle(style: EarthStyle) {
         val sanitized = style.sanitized()
-        val prevDistance = currentStyle.cameraDistance
+        val prevDistance = if (!hasStyle && sanitized.fullViewportGestures) sanitized.cameraDistance else currentStyle.cameraDistance
         val changed = sanitized != currentStyle
         currentStyle = sanitized
+        hasStyle = true
         controller.syncStyleCameraDistance(prevDistance, sanitized.cameraDistance)
         scene.style = sanitized
         controller.syncViewportProjection(sanitized.viewportProjection)
@@ -809,7 +811,7 @@ private class EarthSurface(
                     val totalDx = event.x - downX
                     val totalDy = event.y - downY
                     if (!isDraggingGlobe && hypot(totalDx, totalDy) > touchSlop) {
-                        if (!capturedGesture && abs(totalDy) > abs(totalDx) * 1.15f) {
+                        if (!currentStyle.fullViewportGestures && !capturedGesture && abs(totalDy) > abs(totalDx) * 1.15f) {
                             // Vertical swipe started outside the globe disc: hand off to page scroll.
                             parent?.requestDisallowInterceptTouchEvent(false)
                             return false

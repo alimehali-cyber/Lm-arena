@@ -134,4 +134,24 @@
     <string name="sat_detail_passes">گذرها · %1$s روز آینده</string>
     <string name="sat_detail_expand">نمایش همهٔ %1$s گذر</string>
     <string name="sat_detail_back">بازگشت</string>
+    <plurals name="sat_spoken_hours">
+        <item quantity="one">%1$s ساعت</item>
+        <item quantity="other">%1$s ساعت</item>
+    </plurals>
+    <plurals name="sat_spoken_minutes">
+        <item quantity="one">%1$s دقیقه</item>
+        <item quantity="other">%1$s دقیقه</item>
+    </plurals>
+    <string name="sat_detail_ar">یافتن در آسمان واقعیت افزوده</string>
+    <string name="sat_telemetry">داده‌های زندهٔ مدار</string>
+    <string name="sat_telemetry_reduce">پنهان‌کردن داده‌های بیشتر</string>
+    <string name="sat_telemetry_more">نمایش داده‌های بیشتر</string>
+    <string name="sat_velocity">سرعت مداری</string>
+    <string name="sat_speed_hour">کیلومتر/ساعت</string>
+    <string name="sat_azimuth">سمت</string>
+    <string name="sat_range">فاصله</string>
+    <string name="sat_subpoint">نقطهٔ زیر ماهواره</string>
+    <string name="sat_illumination">روشنایی</string>
+    <string name="sat_detection_yes">قابل رؤیت با چشم</string>
+    <string name="sat_detection_no">قابل رؤیت نیست</string>
 </resources>

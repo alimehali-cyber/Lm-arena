@@ -50,6 +50,7 @@ import com.alijafari.red.astronomy.ui.components.SatelliteEarthOverlayStyle
 import com.alijafari.red.astronomy.ui.components.satelliteViewport
 import com.alijafari.red.astronomy.ui.screens.MapTheme
 import com.alijafari.red.astronomy.ui.screens.SatelliteDetailScreen
+import com.alijafari.red.astronomy.ui.screens.ar.ArScreenSupport
 import com.alijafari.red.astronomy.ui.theme.squircleShape
 import com.alijafari.red.astronomy.util.formatTleStalenessBadge
 import com.alijafari.red.astronomy.util.rememberIsNetworkOnline
@@ -80,6 +81,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     val isOnline by rememberIsNetworkOnline(context)
     val tokens = remember(skin, uiState.themeMode) { zigSatTokens(skin, uiState.themeMode) }
     val tz = remember(location.timezoneId) { TimeEngine.resolveTimeZone(location.timezoneId) }
+    val nights = remember(location.latitude, location.longitude, tz) { SatObserverNights(location.latitude, location.longitude, tz) }
     val reduce = remember(context) {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }
@@ -258,7 +260,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
             val passes = targets.distinctBy { it.id }.flatMap { sat ->
                 ensureActive()
                 ISSEngine.predictPasses(location.latitude, location.longitude, passWindowKey,
-                    tle = SatelliteEngine.getEffectiveTle(sat), scanDays = if (sat.isTrain) 3 else 4,
+                    tle = SatelliteEngine.getEffectiveTle(sat), scanDays = if (sat.isTrain) 3 else 5,
                     visibleOnly = true, standardMag = sat.standardMagnitude).map { sat to it }
             }.sortedBy { it.second.startTimeMs }
             individuals to passes
@@ -293,11 +295,11 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
         }
         if (new.enabled) withNotificationPermission(persist) else persist()
     }
-    val basePasses = remember(allUpcomingPasses, alarms, config, isFa, tz) {
+    val basePasses = remember(allUpcomingPasses, alarms, config, isFa, nights) {
         allUpcomingPasses?.map { (sat, pass) ->
             val matching = alarms.filter { alarm -> (alarm.objectId == sat.id || sat.isTrain && alarm.objectId == "starlink_train") &&
                 abs(alarm.eventTimeMs - pass.startTimeMs) <= 30_000L }
-            SatPassUi(passKey(sat, pass), sat, shortNameOf(sat, isFa), pass, SatNights.nightKey(pass.startTimeMs, tz),
+            SatPassUi(passKey(sat, pass), sat, shortNameOf(sat, isFa), pass, nights.key(pass.maxTimeMs),
                 matching.firstOrNull { it.manualPass }?.leadMinutes, config.enabled && matching.any { !it.manualPass })
         }
     }
@@ -305,7 +307,10 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
         row.pass.endTimeMs > currentSimulationMs && row.pass.startTimeMs <= currentSimulationMs + (if (row.isTrain) 2L else 3L) * DAY
     } }
     val scopedPasses = remember(windowPasses, selectedCategory) { windowPasses?.filter { matchesScope(it.sat, selectedCategory) } }
-    val passesByNight = remember(scopedPasses, currentSimulationMs / MINUTE, isFa, tz) { SatNights.group(scopedPasses.orEmpty(), currentSimulationMs, tz, isFa) }
+    val currentNight = remember(nights, currentSimulationMs / MINUTE) { nights.key(currentSimulationMs) }
+    val passesByNight = remember(scopedPasses, currentNight, isFa, tz) {
+        SatNights.group(scopedPasses.orEmpty(), currentSimulationMs, tz, isFa, referenceNight = currentNight)
+    }
     val spotlight = remember(scopedPasses, currentSimulationMs, isFa, tz, timeOffsetMinutes) {
         SatNights.spotlight(scopedPasses.orEmpty(), currentSimulationMs, tz, isFa, timeOffsetMinutes != 0)
     }
@@ -358,8 +363,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     fun showOnAr(sat: SatelliteItem) {
         activeDetail = null
         screen.dismiss()
-        viewModel.selectTab(3)
-        viewModel.selectSatelliteById(sat.id)
+        viewModel.locateObjectInAR(ArScreenSupport.targetForSatellite(sat))
     }
     fun passActions(pass: SatPassUi) = SatPassActions(
         onOpenDetail = { detail(pass.sat, pass.pass, pass.key) },
@@ -449,7 +453,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                                         { focusItem(it.satellite) }, ::closePanel)
                                     SatPanel.Passes -> SatPassesSheet(tokens, isFa, selectedCategory, scopedPasses?.size, passesByNight,
                                         spotlight, currentSimulationMs, realTimeNowMs, side, ::closePanel, { screen.scope(SatelliteCategory.ALL) },
-                                        { selectedLiveState?.satellite?.let { detail(it) } }, ::passActions, sourceModifier)
+                                        { selectedLiveState?.satellite?.let { detail(it) } }, ::passActions, sourceModifier, tz)
                                     SatPanel.Alerts -> SatAlertsSheet(tokens, isFa, config, { ids, lead ->
                                         basePasses.orEmpty().firstOrNull { row -> monitored(row.sat, ids) && row.pass.startTimeMs - lead * MINUTE > realTimeNowMs }
                                             ?.let { row -> "${row.satName} · ${SatNights.title(row.nightKey, realTimeNowMs, tz, isFa)} " +
@@ -612,6 +616,6 @@ private fun earthOverlayStyle(tokens: ZigSatTokens, themeMode: ThemeMode): Satel
     selectedMarkerColor = tokens.selected, selectedGlowColor = tokens.selectedHalo.copy(alpha = .7f), starlinkColor = tokens.starlink,
     trainChainColor = tokens.starlink.copy(alpha = .54f), trainLeaderColor = Color.White, trainMemberColor = tokens.starlink.copy(alpha = .75f),
     nakedEyeMarkerColor = tokens.nakedEye, defaultMarkerColor = tokens.telescopic,
-    popoverContainerColor = tokens.popoverFill, popoverBorderColor = tokens.popoverBorder, popoverAccentColor = tokens.starlink,
+    popoverContainerColor = tokens.popoverFill, popoverBorderColor = tokens.popoverBorder,
     popoverShape = squircleShape(SatRadius.popover),
 )

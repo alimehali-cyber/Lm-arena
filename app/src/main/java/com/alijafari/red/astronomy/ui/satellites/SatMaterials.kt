@@ -11,7 +11,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.unit.dp
 
 /** All slots take the same content and geometry in each skin. Only their paint changes. */
-internal enum class SatSlot { StatusPill, RailButton, FocusCard, TimeTray, Sheet, Spotlight, PassCard, Popover }
+internal enum class SatSlot { StatusPill, RailButton, FocusCard, TimeTray, Sheet, Spotlight, PassCard, Popover, DetailHero }
 
 private interface SatMaterial {
     fun fill(tokens: ZigSatTokens, slot: SatSlot, base: Color, accent: Color?): Brush
@@ -22,7 +22,7 @@ private fun flat(color: Color): Brush = Brush.linearGradient(listOf(color, color
 
 private object DefaultSatMaterial : SatMaterial {
     override fun fill(tokens: ZigSatTokens, slot: SatSlot, base: Color, accent: Color?) =
-        flat(accent?.copy(alpha = 0.08f)?.compositeOver(base) ?: base)
+        flat(if (slot == SatSlot.Popover) base else accent?.copy(alpha = 0.08f)?.compositeOver(base) ?: base)
     override fun rim(tokens: ZigSatTokens, slot: SatSlot, accent: Color?) =
         flat(accent?.copy(alpha = if (slot == SatSlot.Popover) 1f else 0.4f) ?: tokens.border)
 }
@@ -37,9 +37,11 @@ private object SpatialSatMaterial : SatMaterial {
 }
 
 private object AetherSatMaterial : SatMaterial {
-    override fun fill(tokens: ZigSatTokens, slot: SatSlot, base: Color, accent: Color?) = Brush.verticalGradient(
-        listOf(tokens.timeAccent.copy(alpha = 0.12f).compositeOver(base), base, (accent ?: tokens.timeAccent).copy(alpha = 0.06f).compositeOver(base)),
-    )
+    override fun fill(tokens: ZigSatTokens, slot: SatSlot, base: Color, accent: Color?): Brush {
+        val tint = (accent ?: tokens.timeAccent).copy(alpha = if (slot == SatSlot.DetailHero) 0.22f else 0.12f)
+        return if (slot == SatSlot.DetailHero) Brush.linearGradient(listOf(tint.compositeOver(base), base, tint.copy(alpha = .10f).compositeOver(base)))
+        else Brush.verticalGradient(listOf(tint.compositeOver(base), base, tint.copy(alpha = .06f).compositeOver(base)))
+    }
     override fun rim(tokens: ZigSatTokens, slot: SatSlot, accent: Color?) = Brush.linearGradient(
         listOf((accent ?: tokens.timeAccent).copy(alpha = 0.52f), tokens.border, tokens.inkPrimary.copy(alpha = 0.22f)),
     )

@@ -22,17 +22,14 @@ import com.alijafari.red.astronomy.ui.satellites.SatSlot
 import com.alijafari.red.astronomy.ui.satellites.ZigSatTokens
 import com.alijafari.red.astronomy.ui.satellites.satMaterial
 import com.alijafari.red.astronomy.ui.satellites.shortNameOf
-import kotlin.math.roundToInt
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -133,9 +130,7 @@ data class SatelliteEarthOverlayStyle(
     val defaultMarkerColor: Color,
     val popoverContainerColor: Color,
     val popoverBorderColor: Color,
-    val popoverAccentColor: Color,
     val popoverShape: Shape,
-    val showPopoverLeadingIcon: Boolean = true,
 )
 
 /**
@@ -394,7 +389,8 @@ fun SatelliteEarth3D(
     val hitRadiusPx = with(density) { 22.dp.toPx() }
     var previousTap by remember { mutableStateOf<Offset?>(null) }
     var previousTapMs by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
-    var previousSatellite by remember { mutableStateOf<String?>(null) }
+    var tapCohort by remember { mutableStateOf(emptyList<String>()) }
+    var cohortIndex by remember { mutableIntStateOf(0) }
 
     Box(
         modifier = modifier
@@ -407,15 +403,23 @@ fun SatelliteEarth3D(
             style = earthStyle,
             controller = controller,
             onTap = { tapOffset ->
-                val hits = satelliteHits(tapOffset, allInteractiveMapStates, controller.snapshot,
-                    viewportSize.width.toFloat(), viewportSize.height.toFloat(), hitRadiusPx)
                 val now = SystemClock.uptimeMillis()
-                val cycling = now - previousTapMs <= 400L && previousTap?.let { (it - tapOffset).getDistance() <= hitRadiusPx } == true
-                val lastIndex = if (cycling) hits.indexOfFirst { it.satellite.id == previousSatellite } else -1
-                val hit = if (hits.isEmpty()) null else hits[(lastIndex + 1) % hits.size]
+                val cycling = tapCohort.isNotEmpty() && now - previousTapMs <= 400L &&
+                    previousTap?.let { (it - tapOffset).getDistance() <= hitRadiusPx } == true
+                // Retain the physical cohort selected by the first tap while the focus animation
+                // moves its markers. A tap on a different part of the globe always starts over.
+                val hit = if (cycling) {
+                    cohortIndex = (cohortIndex + 1) % tapCohort.size
+                    allInteractiveMapStates.firstOrNull { it.satellite.id == tapCohort[cohortIndex] }
+                } else {
+                    val hits = satelliteHits(tapOffset, allInteractiveMapStates, controller.snapshot,
+                        viewportSize.width.toFloat(), viewportSize.height.toFloat(), hitRadiusPx)
+                    tapCohort = hits.map { it.satellite.id }
+                    cohortIndex = 0
+                    hits.firstOrNull()
+                }
                 previousTapMs = now
                 previousTap = tapOffset
-                previousSatellite = hit?.satellite?.id
                 if (hit != null) {
                     onSelectSatellite(hit)
                     true
@@ -683,7 +687,8 @@ fun SatelliteEarth3D(
             // 2h. Static Catalog & Curated Fleet Satellite Markers (ISS, Tiangong, Hubble, leaders)
             for (liveState in liveSatelliteStates) {
                 val sat = liveState.satellite
-                if (mapOverheadStarlinkStates.any { it.satellite.id == sat.id } || sat.isTrain) continue
+                if (mapOverheadStarlinkStates.any { it.satellite.id == sat.id } ||
+                    sat.isTrain && trainPearlStatesByTrain.any { it.first.leaderItem.id == sat.id }) continue
                 val isSelected = sat.id == selectedSatelliteId
                 val proj = Earth3DMath.projectLatLon(
                     latDeg = liveState.topocentric.subLatDeg,

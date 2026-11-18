@@ -2,11 +2,14 @@ package com.alijafari.red.astronomy.ui.satellites
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.rotate
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -55,6 +58,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.font.FontWeight
@@ -92,9 +96,12 @@ internal fun SatStatusPill(data: SatStatusData, tokens: ZigSatTokens, onClick: (
     val stale = (data.tleAgeDays ?: 0.0) > 2.0
     val collapse = offline && stale && (LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale >= 1.3f)
     val statusColor = if (data.isLive) tokens.live else tokens.sim
+    val staleDescription = stringResource(R.string.sat_stale_tle)
     Box(Modifier.heightIn(min = 48.dp), contentAlignment = Alignment.CenterStart) {
-        Row(Modifier.heightIn(min = 36.dp).satMaterial(tokens, SatSlot.StatusPill, CircleShape, tokens.hudFill,
-            if (!data.isLive || tokens.glassy) statusColor else null), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.matchParentSize().padding(vertical = 6.dp)
+            .satMaterial(tokens, SatSlot.StatusPill, CircleShape, tokens.hudFill,
+                if (!data.isLive || tokens.glassy) statusColor else null))
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).testTag("satellite_status_chip")
                 .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -106,7 +113,7 @@ internal fun SatStatusPill(data: SatStatusData, tokens: ZigSatTokens, onClick: (
                 if (stale && !collapse) Icon(Icons.Filled.Schedule, stringResource(R.string.sat_stale_tle), Modifier.size(14.dp),
                     tint = if ((data.tleAgeDays ?: 0.0) > 7.0) tokens.accentInk else tokens.sim)
                 if (collapse) SatText(SatFmt.signed(1.0, 0, isFa = data.isFa), tokens.hudInk,
-                    Modifier.semantics { contentDescription = if (data.isFa) "دادهٔ مداری قدیمی" else "Aged orbital data" })
+                    Modifier.semantics { contentDescription = staleDescription })
             }
             if (!data.isLive) Box(Modifier.size(48.dp).clickable(role = Role.Button, onClick = onLive), contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.Replay, stringResource(R.string.sat_return_live), Modifier.size(18.dp), tint = tokens.hudInk)
@@ -166,6 +173,7 @@ internal fun SatFocusCard(
     val state = focus.topocentric
     Column(modifier.fillMaxWidth().testTag("sat_focus_card").satMaterial(tokens, SatSlot.FocusCard, squircleShape(SatRadius.card))
         .semantics {
+            isTraversalGroup = true
             customActions = listOf(CustomAccessibilityAction(previousLabel) { cycle(-1); true }, CustomAccessibilityAction(nextLabel) { cycle(1); true })
         }
         .pointerInput(rtl) {
@@ -204,8 +212,9 @@ internal fun SatFocusCard(
                 stringResource(if (state.isSunlit) R.string.sat_sunlit else R.string.sat_shadow), Modifier.size(16.dp),
                 tint = if (state.isSunlit) tokens.sim else tokens.umbra)
             val alt = SatFmt.kilometers(state.satAltKm, isFa)
-            SatMetric(alt, stringResource(R.string.sat_kilometers), stringResource(R.string.sat_altitude) + " $alt " +
-                stringResource(R.string.sat_kilometers_a11y), tokens, Modifier.weight(if (isFa) 1.25f else 1f), roll = true)
+            SatMetric(alt, stringResource(R.string.sat_kilometers), stringResource(R.string.sat_altitude),
+                tokens, Modifier.weight(if (isFa) 1.25f else 1f), roll = true,
+                spokenUnit = stringResource(R.string.sat_kilometers_a11y))
             SatMetric(SatFmt.degrees(state.elevationDeg, isFa, signed = true),
                 if (state.elevationDeg < 0.0) stringResource(R.string.sat_below) else "",
                 stringResource(R.string.sat_elevation), tokens, Modifier.weight(1f), muted = state.elevationDeg < 0.0)
@@ -225,7 +234,7 @@ internal fun SatFocusCard(
             Row(Modifier.fillMaxWidth().heightIn(min = 36.dp).background(tokens.cardAlt, CircleShape)
                 .border(1.dp, tokens.border, CircleShape).padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                ZigStatusDot(nextPass?.quality?.hue ?: tokens.telescopic, false, 6.dp)
+                ZigStatusDot(nextPass?.quality?.graphic(tokens) ?: tokens.telescopic, false, 6.dp)
                 val label = nextPass?.quality?.let { if (compact || LocalDensity.current.fontScale >= 1.3f) it.shortLabel(isFa) else it.label(isFa) }
                 SatText(if (label != null) "$title · $label" else title, tokens.inkPrimary, Modifier.weight(1f), strong = true)
                 Icon(Icons.Filled.KeyboardArrowUp, null, Modifier.size(16.dp), tint = tokens.inkSecondary)
@@ -237,22 +246,26 @@ internal fun SatFocusCard(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SatMetric(value: String, unit: String, label: String, tokens: ZigSatTokens, modifier: Modifier = Modifier,
-    muted: Boolean = false, roll: Boolean = false) {
+    muted: Boolean = false, roll: Boolean = false, spokenUnit: String = unit) {
     val ink = if (muted) tokens.inkSecondary else tokens.inkPrimary
     val reduce = LocalSatReduceMotion.current
     val fontScale = LocalDensity.current.fontScale
-    FlowRow(modifier.clearAndSetSemantics { contentDescription = "$label $value $unit" },
+    val matrix = tokens.glassy && fontScale < 1.3f && value.any(Char::isDigit)
+    val numeric = if (matrix) value.filter { it.isDigit() || it in "+−.٫٬,°" } else value
+    FlowRow(modifier.clearAndSetSemantics { contentDescription = "$label $value $spokenUnit" },
         horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        val matrix = tokens.glassy && fontScale < 1.3f && value.any(Char::isDigit)
-        val slotWidth = if (matrix) (if (roll) 32.dp else 30.dp) else Dp.Unspecified
-        Crossfade(targetState = value, modifier = if (matrix) Modifier.widthIn(min = slotWidth) else Modifier,
-            animationSpec = tween(120), label = "sat-number") { digits ->
-            val glyphs = digits.filter { it.isDigit() || it in "+−.٫٬,°" }
+        AnimatedContent(numeric, modifier = if (matrix) Modifier.widthIn(min = if (roll) 32.dp else 30.dp) else Modifier,
+            transitionSpec = {
+                if (roll && tokens.skin == SatSkin.AETHER && matrix && !reduce) {
+                    (slideInVertically(tween(120)) { it / 2 } + fadeIn(tween(120))) togetherWith
+                        (slideOutVertically(tween(120)) { -it / 2 } + fadeOut(tween(120)))
+                } else fadeIn(tween(120)) togetherWith fadeOut(tween(120))
+            }, label = "sat-number") { digits ->
             when {
                 !matrix -> SatText(digits, ink, size = 12, strong = true)
-                tokens.skin == SatSkin.SPATIAL -> DotMatrixText(glyphs, dotSize = 0.87.dp, dotGap = 0.57.dp,
+                tokens.skin == SatSkin.SPATIAL -> DotMatrixText(digits, dotSize = 0.87.dp, dotGap = 0.57.dp,
                     charGap = 1.dp, activeColor = ink, glowColor = if (reduce) null else tokens.timeAccent)
-                else -> AetherDotMatrixText(glyphs, dotSize = 0.87.dp, dotGap = 0.57.dp,
+                else -> AetherDotMatrixText(digits, dotSize = 0.87.dp, dotGap = 0.57.dp,
                     charGap = 1.dp, color = ink, glowColor = if (reduce) null else tokens.timeAccent)
             }
         }
@@ -361,8 +374,14 @@ private fun SatScrubber(tokens: ZigSatTokens, offset: Int, realNow: Long, tz: Ti
     val latestActions by rememberUpdatedState(actions)
     val androidView = LocalView.current
     val simClock = SatFmt.clock(realNow + offset * 60_000L, isFa, tz)
+    val spokenMinutes = abs(offset) % 60
+    val spokenHours = abs(offset) / 60
+    val interval = listOfNotNull(
+        if (spokenHours == 0) null else pluralStringResource(R.plurals.sat_spoken_hours, spokenHours, SatFmt.int(spokenHours, isFa)),
+        if (spokenMinutes == 0) null else pluralStringResource(R.plurals.sat_spoken_minutes, spokenMinutes, SatFmt.int(spokenMinutes, isFa)),
+    ).joinToString(" ")
     val spoken = if (offset == 0) stringResource(R.string.sat_live) else stringResource(
-        if (offset > 0) R.string.sat_spoken_plus else R.string.sat_spoken_minus, SatFmt.duration(abs(offset), isFa), simClock)
+        if (offset > 0) R.string.sat_spoken_plus else R.string.sat_spoken_minus, interval, simClock)
     val sliderLabel = stringResource(R.string.sat_slider)
     val prev = stringResource(R.string.sat_step_prev)
     val next = stringResource(R.string.sat_step_next)
@@ -432,7 +451,7 @@ private fun SatScrubber(tokens: ZigSatTokens, offset: Int, realNow: Long, tz: Ti
             }
             markers.forEach { mark ->
                 val at = x(mark.minute)
-                drawLine(mark.quality.hue, Offset(at, y - 14.dp.toPx()), Offset(at, y - 8.dp.toPx()), 2.dp.toPx(), StrokeCap.Round)
+                drawLine(mark.quality.graphic(tokens), Offset(at, y - 14.dp.toPx()), Offset(at, y - 8.dp.toPx()), 2.dp.toPx(), StrokeCap.Round)
             }
             val thumb = Offset(x(offset), y)
             if (tokens.glassy) drawCircle(tokens.timeAccent.copy(alpha = .17f), (if (dragging) 19.dp else 13.dp).toPx(), thumb)
@@ -795,7 +814,7 @@ private fun PassQuality(data: SatPassUi, tokens: ZigSatTokens, isFa: Boolean) {
             Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
                 Canvas(Modifier.matchParentSize().padding(3.dp)) {
                     drawCircle(tokens.border, style = Stroke(2.dp.toPx()))
-                    drawArc(data.quality.hue, -90f, score.coerceIn(0, 100) * 3.6f, false, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+                    drawArc(data.quality.graphic(tokens), -90f, score.coerceIn(0, 100) * 3.6f, false, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
                 }
                 SatText(SatFmt.int(score, isFa), tokens.inkPrimary, size = 10, strong = true)
             }
@@ -819,7 +838,7 @@ private fun PassQuality(data: SatPassUi, tokens: ZigSatTokens, isFa: Boolean) {
 internal fun SatPassesSheet(tokens: ZigSatTokens, isFa: Boolean, scope: SatelliteCategory, count: Int?,
     groups: List<SatNightGroup>, spotlight: SatSpotlightUi?, now: Long, realNow: Long, side: Boolean, onClose: () -> Unit,
     onClearScope: () -> Unit, onOpenSevenDay: () -> Unit, actionsFor: (SatPassUi) -> SatPassActions,
-    sourceModifier: @Composable (String) -> Modifier, tz: TimeZone = TimeZone.getDefault()) {
+    sourceModifier: @Composable (String) -> Modifier, tz: TimeZone) {
     val title = stringResource(R.string.sat_passes)
     val days = stringResource(if (count != null && groups.flatMap { it.passes }.let { it.isNotEmpty() && it.all { pass -> pass.isTrain } })
         R.string.sat_two_days else R.string.sat_three_days)

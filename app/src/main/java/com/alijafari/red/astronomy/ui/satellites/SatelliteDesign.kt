@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -143,7 +144,7 @@ data class ZigSatTokens(
         quality.hue.copy(alpha = if (isWine) 0.18f else if (isDark) 0.16f else 0.12f)
 
     fun qualityChipBorder(quality: SatQuality): Color =
-        quality.hue.copy(alpha = if (isDark) 0.55f else 0.45f)
+        quality.graphic(this).copy(alpha = if (isDark) 0.55f else 0.45f)
 
     val selectedFill: Color
         get() = selected.copy(alpha = if (isDark) 0.14f else 0.10f)
@@ -270,6 +271,8 @@ enum class SatQuality(
 
     fun label(isFa: Boolean): String = if (isFa) labelFa else labelEn
     fun shortLabel(isFa: Boolean): String = if (isFa) shortFa else shortEn
+    /** A darker stroke of the same hue is legible against light surfaces. */
+    fun graphic(tokens: ZigSatTokens): Color = if (tokens.isDark) hue else lerp(hue, Color.Black, .40f)
 }
 
 fun qualityForScore(score: Int): SatQuality = when {
@@ -398,8 +401,11 @@ object SatFmt {
         return "$FSI$embedded$unit$PDI"
     }
 
-    fun number(value: Double, decimals: Int, isFa: Boolean): String =
-        signed(value, decimals, isFa = isFa, forceSign = false).let { if (value < 0) it else decimal(String.format(Locale.US, "%.${decimals}f", value), isFa) }
+    fun number(value: Double, decimals: Int, isFa: Boolean): String = when {
+        !value.isFinite() -> "—"
+        value < 0 -> signed(value, decimals, isFa = isFa, forceSign = false)
+        else -> decimal(String.format(Locale.US, "%.${decimals}f", value), isFa)
+    }
 
     private fun decimal(raw: String, isFa: Boolean): String =
         if (isFa) digits(raw.replace('.', '\u066B').replace(',', '\u066C'), true) else raw
@@ -527,7 +533,7 @@ object SatFmt {
 
 object SatNights {
 
-    /** Observer-night key: a pass before local noon belongs to the previous evening's night. */
+    /** Calendar fallback for callers without an observer; production feeds use SatObserverNights. */
     fun nightKey(ms: Long, tz: TimeZone): Long {
         val cal = Calendar.getInstance(tz).apply { timeInMillis = ms }
         if (cal.get(Calendar.HOUR_OF_DAY) < 12) {
@@ -540,8 +546,7 @@ object SatNights {
         return cal.timeInMillis
     }
 
-    fun title(nightKeyMs: Long, nowMs: Long, tz: TimeZone, isFa: Boolean): String {
-        val todayKey = nightKey(nowMs, tz)
+    fun title(nightKeyMs: Long, nowMs: Long, tz: TimeZone, isFa: Boolean, todayKey: Long = nightKey(nowMs, tz)): String {
         val tomorrow = Calendar.getInstance(tz).apply { timeInMillis = todayKey; add(Calendar.DATE, 1) }.timeInMillis
         return when (nightKeyMs) {
             todayKey -> (if (isFa) "امشب" else "Tonight") + " · " + date(nightKeyMs, tz, isFa)
@@ -562,6 +567,7 @@ object SatNights {
         tz: TimeZone,
         isFa: Boolean,
         includeSolarHijri: Boolean = false,
+        referenceNight: Long = nightKey(nowMs, tz),
     ): List<SatNightGroup> {
         val byNight = LinkedHashMap<Long, MutableList<SatPassUi>>()
         for (p in passes.sortedBy { it.pass.startTimeMs }) {
@@ -572,7 +578,7 @@ object SatNights {
             val best = items.maxByOrNull { it.pass.visibilityScore }
             SatNightGroup(
                 nightKey = key,
-                title = title(key, nowMs, tz, isFa),
+                title = title(key, nowMs, tz, isFa, referenceNight),
                 subtitle = if (isFa || includeSolarHijri) SatFmt.secondaryDate(key, isFa, tz) else null,
                 best = best,
                 passes = items,
@@ -692,7 +698,7 @@ fun ZigSatChip(
                     if (selected) tokens.live else tokens.border,
                     RedShapes.capsule,
                 )
-                .padding(horizontal = 14.dp, vertical = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -704,7 +710,6 @@ fun ZigSatChip(
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 ),
                 color = if (selected) Color.White else tokens.inkSecondary,
-                maxLines = 1,
             )
             trailing?.invoke()
         }
@@ -806,7 +811,7 @@ fun ZigQualityChip(quality: SatQuality, score: Int, tokens: ZigSatTokens, isFa: 
             modifier = Modifier
                 .size(6.dp)
                 .clip(CircleShape)
-                .background(quality.hue),
+                .background(quality.graphic(tokens)),
         )
         Text(
             text = "${if (compact) quality.shortLabel(isFa) else quality.label(isFa)} · ${SatFmt.int(score, isFa)}",

@@ -108,27 +108,6 @@ class SatellitesRedesignTest {
     // ---------------------------------------------------------------------------------------------
 
     @Test
-    fun signedNumbersUseARealMinusAndAnExplicitPlus() {
-        val negative = SatFmt.signed(-3.4, 1, "", isFa = false)
-        val positive = SatFmt.signed(1.2, 1, "", isFa = false)
-
-        assertTrue("negative carries U+2212", negative.contains('\u2212'))
-        assertFalse("negative never uses a hyphen", negative.contains('-'))
-        assertTrue("positive carries an explicit plus", positive.contains('+'))
-        // The isolate pair is what stops a sign jumping to the other side in RTL.
-        assertTrue("the number is isolated", negative.contains('\u2068') && negative.contains('\u2069'))
-        assertFalse("no ASCII plus-before-minus anywhere", negative.contains("+-"))
-    }
-
-    @Test
-    fun persianNumbersUsePersianDigitsAndTheArabicDecimalSeparator() {
-        val fa = SatFmt.signed(-3.4, 1, "", isFa = true)
-        assertTrue("persian digits", fa.any { it in '\u06F0'..'\u06F9' })
-        assertTrue("arabic decimal separator", fa.contains('\u066B'))
-        assertFalse("no latin digits", fa.any { it in '0'..'9' })
-    }
-
-    @Test
     fun countdownSwitchesToSecondsBelowTenMinutes() {
         assertEquals("2h 14m", SatFmt.countdown(134 * 60_000L, isFa = false))
         assertEquals("9:59", SatFmt.countdown(599_000L, isFa = false))
@@ -151,23 +130,31 @@ class SatellitesRedesignTest {
     // ---------------------------------------------------------------------------------------------
 
     @Test
-    fun nightsAreObserverNightsFromNoonToNoon() {
-        val utc = TimeZone.getTimeZone("UTC")
-        fun keyOf(y: Int, m: Int, d: Int, h: Int): Long {
-            val cal = Calendar.getInstance(utc).apply {
-                set(y, m, d, h, 0, 0)
-                set(Calendar.MILLISECOND, 0)
-            }
-            return cal.timeInMillis
-        }
+    fun sunriseSeparatesAnEveningFromTheFollowingDay() {
+        val london = TimeZone.getTimeZone("Europe/London")
+        val nights = SatObserverNights(51.48, 0.0, london)
+        fun at(day: Int, hour: Int) = Calendar.getInstance(london).apply {
+            clear(); set(2025, Calendar.NOVEMBER, day, hour, 0)
+        }.timeInMillis
+        val evening = nights.key(at(17, 21))
+        val window = requireNotNull(nights.window(evening))
+        assertTrue(window.sunsetMs in at(17, 15)..at(17, 17))
+        assertTrue(window.sunriseMs in at(18, 7)..at(18, 8))
+        assertEquals(evening, nights.key(at(18, 2)))
+        assertNotEquals("after sunrise belongs to the new date, not last night", evening, nights.key(at(18, 9)))
+        assertEquals(evening, nights.key(window.sunriseMs - 1))
+        assertNotEquals(evening, nights.key(window.sunriseMs))
+    }
 
-        // 02:00 and 21:00 of the same calendar day belong to different observer nights.
-        val evening = SatNights.nightKey(keyOf(2026, 10, 17, 21), utc)
-        val afterMidnight = SatNights.nightKey(keyOf(2026, 10, 18, 2), utc)
-        assertEquals("evening and post-midnight share one night", evening, afterMidnight)
-
-        val nextEvening = SatNights.nightKey(keyOf(2026, 10, 18, 21), utc)
-        assertNotEquals(evening, nextEvening)
+    @Test
+    fun observerNightsRespectDaylightSavingAndPolarDay() {
+        val tz = TimeZone.getTimeZone("Europe/Oslo")
+        val nights = SatObserverNights(69.65, 18.96, tz)
+        fun noon(month: Int, day: Int) = Calendar.getInstance(tz).apply {
+            clear(); set(2026, month, day, 12, 0)
+        }.timeInMillis
+        assertEquals(23 * 3_600_000L, nights.plusDays(noon(Calendar.MARCH, 28), 1) - noon(Calendar.MARCH, 28))
+        assertNull(nights.window(noon(Calendar.JUNE, 21)))
     }
 
     @Test

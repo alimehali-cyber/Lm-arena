@@ -263,7 +263,8 @@ private data class ArSkyInputs(
     val observer: ArObserver,
     val stars: ArStarCatalog?,
     val figures: List<ArConstellation>,
-    val bortle: Int
+    val bortle: Int,
+    val focusedSatelliteId: String?,
 )
 
 private fun calibrationLabel(state: CalibrationState, isFa: Boolean): String = when (state) {
@@ -739,7 +740,8 @@ fun CompassARScreen(
         temperatureC = (atmosphereReading.temperatureC * 2.0).roundToInt() / 2.0
     )
     val latestSkyInputs by rememberUpdatedState(
-        ArSkyInputs(activeTimeMs, observerForSky, starCatalog, constellationFigures, uiState.bortleClass)
+        ArSkyInputs(activeTimeMs, observerForSky, starCatalog, constellationFigures, uiState.bortleClass,
+            uiState.selectedTargetObject?.id)
     )
     // One long-lived worker computes the sky from the latest inputs whenever they change. In-flight
     // work is never cancelled, so fast time-machine playback still advances the sky continuously.
@@ -755,7 +757,7 @@ fun CompassARScreen(
             val result = withContext(Dispatchers.Default) {
                 arBackground("AR sky computation") {
                     val obs = inputs.observer
-                    val sats = ArScreenSupport.satellites(inputs.timeMs, obs.latitudeDeg, obs.longitudeDeg, obs.heightM)
+                    val sats = ArScreenSupport.satellites(inputs.timeMs, obs.latitudeDeg, obs.longitudeDeg, obs.heightM, inputs.focusedSatelliteId)
                     val satMap = HashMap<String, Pair<Double, Double>>()
                     sats.forEach { s -> satMap[s.id] = s.azimuthDeg to s.altitudeDeg }
                     val builder = ArAssets.lightingBuilder()

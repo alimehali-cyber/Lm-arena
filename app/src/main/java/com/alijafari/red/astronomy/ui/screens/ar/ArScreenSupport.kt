@@ -78,7 +78,7 @@ object ArScreenSupport {
         )
 
     /** Satellite states (SGP4 with the best available TLE) for the AR sky. */
-    fun satellites(timeMs: Long, lat: Double, lon: Double, heightM: Double): List<ArSatelliteInfo> {
+    fun satellites(timeMs: Long, lat: Double, lon: Double, heightM: Double, focusedId: String? = null): List<ArSatelliteInfo> {
         val out = ArrayList<ArSatelliteInfo>(48)
         val seenNorads = HashSet<Int>()
 
@@ -148,7 +148,7 @@ object ArScreenSupport {
                                 magnitude = now.apparentMagnitude,
                                 tle = now.tleMetadata,
                                 trail = trail,
-                                dynamicCelestialObject = buildDynamicSatelliteCelestialObject(
+                                dynamicCelestialObject = targetForSatellite(
                                     sat = pearl,
                                     nameEnOverride = labelEn,
                                     nameFaOverride = labelFa,
@@ -180,7 +180,7 @@ object ArScreenSupport {
                             magnitude = now.apparentMagnitude,
                             tle = now.tleMetadata,
                             trail = trail,
-                            dynamicCelestialObject = buildDynamicSatelliteCelestialObject(
+                            dynamicCelestialObject = targetForSatellite(
                                 sat = sat,
                                 nameEnOverride = sat.nameEn,
                                 nameFaOverride = sat.nameFa,
@@ -196,14 +196,25 @@ object ArScreenSupport {
             }
         }
 
+        // A Passes → AR hand-off can select a satellite that is not in the live overhead shortlist.
+        val focused = focusedId?.removePrefix("sat_")?.toIntOrNull()?.let { norad ->
+            if (norad in seenNorads) null else SatelliteCatalog.getDynamicByIdOrNorad("sat_$norad")
+        }
+        if (focused != null) {
+            val now = SatelliteEngine.calculateSatelliteState(focused, timeMs, lat, lon, heightM)
+            val topo = now.topocentric
+            out.add(ArSatelliteInfo("sat_${focused.noradId}", focused.noradId, topo.azimuthDeg, topo.elevationDeg,
+                topo.rangeKm, topo.isSunlit, now.apparentMagnitude, now.tleMetadata, emptyList(),
+                targetForSatellite(focused, magnitude = now.apparentMagnitude), autoLabelInSky = true, labelPriority = 2.6))
+        }
         return out
     }
 
-    private fun buildDynamicSatelliteCelestialObject(
+    internal fun targetForSatellite(
         sat: SatelliteItem,
-        nameEnOverride: String,
-        nameFaOverride: String,
-        magnitude: Double
+        nameEnOverride: String = sat.nameEn,
+        nameFaOverride: String = sat.nameFa,
+        magnitude: Double = sat.standardMagnitude
     ): CelestialObject = CelestialObject(
         id = "sat_${sat.noradId}",
         type = ObjectType.SATELLITE,
