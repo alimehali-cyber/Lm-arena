@@ -91,7 +91,9 @@ jobs:
                   skipped_node = testcase.find("skipped")
                   if failure is not None:
                       failures += 1
-                      failed_cases.append((testcase.attrib.get("classname", ""), testcase.attrib.get("name", ""), failure.attrib.get("message", "")))
+                      frames = [line.strip() for line in (failure.text or "").splitlines() if "com.alijafari.red.astronomy" in line][:3]
+                      message = failure.attrib.get("message", "") + (" | " + " | ".join(frames) if frames else "")
+                      failed_cases.append((testcase.attrib.get("classname", ""), testcase.attrib.get("name", ""), message))
                   if error is not None:
                       errors += 1
                       failed_cases.append((testcase.attrib.get("classname", ""), testcase.attrib.get("name", ""), error.attrib.get("message", "")))

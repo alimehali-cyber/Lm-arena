@@ -8,7 +8,7 @@ The shared satellite stage now has a measured globe/HUD, focus and time controls
 
 | Evidence | Status |
 |---|---|
-| Standalone Android-free Kotlin core (geometry, projection/motion, search, rules, persistence codec, passes and numbers) | Passed before the most recent sandbox restart; rerun `tools/satellites/check-core.sh` with JDK and Kotlin compiler. |
+| Standalone Android-free Kotlin core (geometry, projection/motion, search, rules, persistence codec, passes and numbers) | `tools/satellites/check-core.sh` passed with Kotlin 2.2.10 and JDK 21 on 18 November 2026. |
 | Shape generator/manifest geometry | `python3 tools/satellites/build_shapes.py --check` passed for 11 plates. This is not a visual/reference verification; every `refVerified` flag is false. |
 | Media audit | `python3 tools/satellites/audit.py` passed for **0 images**; four Python structural-audit tests passed. No individual source or licence was verified. |
 | Resources | Previous XML/reference scan found no missing or duplicate strings, missing Persian satellite strings or placeholder mismatches. This is not a native-speaker review. |

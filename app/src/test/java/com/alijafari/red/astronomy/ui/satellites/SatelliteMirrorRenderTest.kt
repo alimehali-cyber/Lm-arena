@@ -1,5 +1,7 @@
 package com.alijafari.red.astronomy.ui.satellites
 
+import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -8,9 +10,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PixelMap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.LayoutDirection
@@ -45,8 +48,22 @@ class SatelliteMirrorRenderTest {
         detailedReasonsEn = emptyList(), detailedReasonsFa = emptyList(), isVisible = true,
     )
 
-    private fun pixels(tag: String): PixelMap =
-        compose.onNodeWithTag(tag, useUnmergedTree = true).captureToImage().toPixelMap()
+    /** Compose's PixelCopy capture waits for a real window frame and times out on Robolectric.
+     * Draw the Compose root into a software bitmap on the UI thread, then crop to the chart. */
+    @SuppressLint("VisibleForTests")
+    private fun pixels(tag: String): PixelMap {
+        val node = compose.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+        val view = (node.root as ViewRootForTest).view
+        val bounds = node.boundsInRoot
+        lateinit var image: Bitmap
+        compose.runOnIdle {
+            val root = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            view.draw(android.graphics.Canvas(root))
+            image = Bitmap.createBitmap(root, bounds.left.toInt(), bounds.top.toInt(),
+                bounds.width.toInt(), bounds.height.toInt())
+        }
+        return image.asImageBitmap().toPixelMap()
+    }
 
     private fun changedFraction(a: PixelMap, b: PixelMap): Float {
         assertEquals(a.width, b.width)

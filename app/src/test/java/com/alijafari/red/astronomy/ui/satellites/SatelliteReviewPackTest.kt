@@ -4,6 +4,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import com.alijafari.red.astronomy.domain.ThemeMode
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
+import com.github.takahirom.roborazzi.RoborazziOptions
+import com.github.takahirom.roborazzi.RoborazziTaskType
 import com.github.takahirom.roborazzi.captureRoboImage
 import java.io.File
 import org.junit.Assert.assertTrue
@@ -27,6 +30,7 @@ class SatelliteReviewPackTest {
         return filter.isNullOrEmpty() || value.lowercase() in filter
     }
 
+    @OptIn(ExperimentalRoborazziApi::class)
     @Test
     fun captureFixtureMatrix() {
         assumeTrue("Set SAT_REVIEW_CAPTURE=1 to generate the optional review pack", System.getenv("SAT_REVIEW_CAPTURE") == "1")
@@ -59,7 +63,9 @@ class SatelliteReviewPackTest {
             val folder = File(output, "${scenario.skin.name.lowercase()}/${scenario.theme.name.lowercase()}/${scenario.language}/scale-${(scenario.scale * 100).toInt()}")
             check(folder.mkdirs() || folder.isDirectory)
             val file = File(folder, "${scenario.width}x${scenario.height}-${scenario.page.name.lowercase()}.png")
-            compose.onNodeWithTag("review_case", useUnmergedTree = true).captureRoboImage(file.absolutePath)
+            compose.onNodeWithTag("review_case", useUnmergedTree = true).captureRoboImage(
+                file = file, roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record),
+            )
         }
         println("Captured ${scenarios.size} deterministic stub fixtures into ${output.absolutePath}")
     }
