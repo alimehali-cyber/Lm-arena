@@ -2,6 +2,8 @@
 
 The tab is an edge-to-edge Earth3D viewport with an inset-aware HUD, not a feed. `SatellitesStage` owns the clock, observer and repository integration; the non-scrolling `SatelliteHud` consumes the shared `SatellitesUiState`. `SatPanel` is a single destination. Time and Layers never install a full-screen scrim. Sheets have their own scroll areas. Location, camera orientation, scope and simulation offset are not reset on Detail Back.
 
+The globe projection reserves a top utility band and a lower focus/navigation band so primary controls and the Focus Card do not cover the Earth. Satellite search is always visible in Fleet; it matches localized names, NORAD numbers, designations, operators and category names, normalizing Persian/Arabic digits and letter variants. Category scope and the Fleet's above-horizon / naked-eye-capable filters persist across visits. Catalog categories distinguish ISS, Tiangong, Hubble, Starlink and Earth-observation missions. Satellite-specific marker silhouettes are used on the globe, Fleet, passes and Detail. Detail heroes bundle attributed source photography/renders; see [`THIRD_PARTY_LICENSES`](../THIRD_PARTY_LICENSES/README.md), including the Envisat image's ESA non-commercial informational-use restriction.
+
 ## Preview matrix
 
 Open [`SatellitePreviews.kt`](../app/src/debug/java/com/alijafari/red/astronomy/ui/satellites/SatellitePreviews.kt) with the **debug** build variant in Android Studio and choose **Split** or **Design**. It provides a 72-preview matrix (3 skins × 3 palettes × 2 languages × 4 states), plus two narrow Persian 130% cases. The Default entry points are below; Spatial and Aether use the same names prefixed by their skin:

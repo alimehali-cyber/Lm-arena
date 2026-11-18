@@ -57,6 +57,10 @@
     <string name="sat_stale">دقت پس از ۷ روز کاهش می‌یابد.</string>
     <string name="sat_stale_tle">دادهٔ مداری قدیمی</string>
     <string name="sat_above">%1$s بالای افق</string>
+    <string name="sat_clear_search">پاک‌کردن جست‌وجو</string>
+    <string name="sat_filter_above">بالای افق</string>
+    <string name="sat_filter_naked_eye">مناسب رصد با چشم</string>
+    <string name="sat_results_count">%1$s نتیجه</string>
     <string name="sat_search">جست‌وجوی ماهواره‌ها</string>
     <string name="sat_no_fleet">ماهواره‌ای یافت نشد.</string>
     <string name="sat_show_all">نمایش همهٔ ماهواره‌ها</string>

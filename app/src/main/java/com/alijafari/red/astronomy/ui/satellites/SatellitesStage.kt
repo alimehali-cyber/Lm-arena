@@ -90,13 +90,21 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     val legacy = remember(context) { context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE) }
     val screen = rememberSaveable(saver = SatellitesState.Saver) {
         val name = prefs.getString("satellite_map_theme", legacy.getString("satellite_map_theme", null))
-        SatellitesState(SatellitesUiState(mapTheme = MapTheme.entries.firstOrNull { it.name == name } ?: MapTheme.AUTO))
+        val savedScope = prefs.getString("satellite_scope", null)
+        SatellitesState(SatellitesUiState(
+            scope = SatelliteCategory.entries.firstOrNull { it.name == savedScope } ?: SatelliteCategory.ALL,
+            mapTheme = MapTheme.entries.firstOrNull { it.name == name } ?: MapTheme.AUTO,
+        ))
     }
     val state = screen.ui
     val mapTheme = state.mapTheme
     val selectedCategory = state.scope
     val selectedSatelliteId = state.focusId
     val timeOffsetMinutes = state.timeOffsetMin
+    fun setSatelliteScope(category: SatelliteCategory) {
+        screen.scope(category)
+        prefs.edit().putString("satellite_scope", category.name).apply()
+    }
     var config by remember(prefs, legacy) {
         val defaults = SatAlertsConfig()
         mutableStateOf(SatAlertsConfig(
@@ -450,10 +458,10 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                                 )
                             }, sheet = { panel, side ->
                                 when (panel) {
-                                    SatPanel.Fleet -> SatFleetSheet(fleet, selectedCategory, tokens, isFa, screen::scope,
+                                    SatPanel.Fleet -> SatFleetSheet(fleet, selectedCategory, tokens, isFa, ::setSatelliteScope,
                                         { focusItem(it.satellite) }, ::closePanel)
                                     SatPanel.Passes -> SatPassesSheet(tokens, isFa, selectedCategory, scopedPasses?.size, passesByNight,
-                                        spotlight, currentSimulationMs, realTimeNowMs, side, ::closePanel, { screen.scope(SatelliteCategory.ALL) },
+                                        spotlight, currentSimulationMs, realTimeNowMs, side, ::closePanel, { setSatelliteScope(SatelliteCategory.ALL) },
                                         { selectedLiveState?.satellite?.let { detail(it) } }, ::passActions, sourceModifier, tz, isOnline)
                                     SatPanel.Alerts -> SatAlertsSheet(tokens, isFa, config, { ids, lead ->
                                         alertPredictions.orEmpty().firstOrNull { (sat, pass) -> monitored(sat, ids) &&
@@ -503,17 +511,13 @@ internal fun SatelliteHud(
         val height = maxHeight
         val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        val top = topInset + 68.dp
+        val top = topInset + if (state.legend) 292.dp else 118.dp
         val navClearance = bottomInset + 84.dp
         val compact = width < 360.dp || height - topInset - bottomInset < 700.dp
         val padding = if (width >= 412.dp) 20.dp else 16.dp
         var focusHeight by remember { mutableStateOf(126.dp) }
         val bottom = navClearance + focusHeight + 3.dp
         val framing = with(density) { satelliteViewport(width.toPx(), height.toPx(), top.toPx(), (height - bottom).toPx()) }
-        val railHeight = 228.dp
-        val tightHeight = height - bottom < top + railHeight
-        val railTop = (height * framing.centerY - 90.dp).coerceIn(top,
-            (height - railHeight - if (tightHeight) bottomInset else bottom).coerceAtLeast(top))
         val isFa = status.isFa
         val panel = state.activePanel
         val simulated = state.timeOffsetMin != 0
@@ -535,13 +539,8 @@ internal fun SatelliteHud(
                 ZigSatIconButton(Icons.Filled.HelpOutline, stringResource(R.string.sat_help), tokens, { onPanel(SatPanel.Guide) },
                     hud = true, dot = if (firstRun) tokens.live else null, pulseDot = firstRun, testTag = "sat_guide")
             }
-            AnimatedVisibility(firstRun && panel == SatPanel.None,
-                Modifier.align(Alignment.TopEnd).padding(top = top, end = padding), enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
-                SatText(stringResource(R.string.sat_hint), tokens.inkPrimary,
-                    Modifier.satMaterial(tokens, SatSlot.Popover, androidx.compose.foundation.shape.CircleShape).padding(horizontal = 9.dp, vertical = 6.dp))
-            }
-            Column(Modifier.align(Alignment.TopEnd).padding(top = railTop, end = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(Modifier.align(Alignment.TopEnd).padding(top = topInset + 64.dp, end = padding),
+                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 ZigSatIconButton(Icons.Filled.SatelliteAlt, stringResource(R.string.sat_fleet), tokens, { onPanel(SatPanel.Fleet) },
                     visualSize = 44.dp, hud = true, testTag = "sat_fleet")
                 ZigSatIconButton(Icons.Filled.Schedule, stringResource(R.string.sat_time), tokens, { onPanel(SatPanel.Time) },
@@ -552,7 +551,7 @@ internal fun SatelliteHud(
                     visualSize = 44.dp, hud = true, enabled = !centered, testTag = "map_reset_view")
             }
             Box(Modifier.align(Alignment.BottomCenter).padding(start = padding,
-                end = if (tightHeight) 68.dp else padding, bottom = navClearance)) {
+                end = padding, bottom = navClearance)) {
                 AnimatedContent(targetState = panel == SatPanel.Time, transitionSpec = {
                     if (reduce) fadeIn(tween(120)) togetherWith fadeOut(tween(120))
                     else if (targetState) (slideInVertically(tween(240)) { it / 4 } + fadeIn(tween(210))) togetherWith fadeOut(tween(160))
@@ -573,13 +572,13 @@ internal fun SatelliteHud(
                 }
             }
             if (state.legend && panel == SatPanel.None) SatLegendPanel(tokens, isFa,
-                Modifier.align(Alignment.BottomStart).padding(start = padding, bottom = bottom + 8.dp).width(172.dp))
+                Modifier.align(Alignment.TopStart).padding(start = padding, top = topInset + 112.dp).width(172.dp))
 
             when (panel) {
                 SatPanel.DataStatus -> SatDataStatusPopover(status, tokens, tz, onClose, { onLive(); onClose() },
                     Modifier.align(Alignment.TopStart).padding(start = padding, end = padding, top = top))
                 SatPanel.Layers -> SatLayersPopover(tokens, state.mapTheme, state.legend, onLighting, onLegend,
-                    Modifier.align(Alignment.TopEnd).padding(end = 66.dp, top = (railTop + 91.dp).coerceAtMost((height - bottom - 106.dp).coerceAtLeast(top))))
+                    Modifier.align(Alignment.TopEnd).padding(end = padding, top = top.coerceAtMost((height - bottom - 106.dp).coerceAtLeast(top))))
                 else -> Unit
             }
         }
@@ -589,15 +588,8 @@ internal fun SatelliteHud(
 
 @Composable
 private fun SatelliteStarfield(tokens: ZigSatTokens) {
-    Canvas(Modifier.fillMaxSize()) {
-        drawRect(tokens.canvas)
-        if (tokens.isDark) drawRect(Brush.radialGradient(listOf(tokens.starlink.copy(alpha = .065f), Color.Transparent), center, size.maxDimension * .66f))
-        repeat(66) { i ->
-            val x = (((i * 97 + 53) % 229) / 229f) * size.width
-            val y = (((i * i * 31 + i * 47 + 23) % 307) / 307f) * size.height
-            drawCircle(tokens.stars.copy(alpha = if (i % 11 == 0) .42f else .16f), (if (i % 11 == 0) 1.dp else .55.dp).toPx(), Offset(x, y))
-        }
-    }
+    // No ornamental star texture: the globe is the focal surface, not a backdrop for decoration.
+    Canvas(Modifier.fillMaxSize()) { drawRect(tokens.canvas) }
 }
 
 internal fun matchesScope(sat: SatelliteItem, scope: SatelliteCategory): Boolean = when (scope) {
@@ -606,6 +598,8 @@ internal fun matchesScope(sat: SatelliteItem, scope: SatelliteCategory): Boolean
     SatelliteCategory.STARLINK -> sat.category == SatelliteCategory.STARLINK || sat.isTrain
     SatelliteCategory.HUBBLE -> sat.category == SatelliteCategory.HUBBLE
     SatelliteCategory.VISIBLE -> sat.isNakedEyeCandidate
+    SatelliteCategory.TIANGONG -> sat.category == SatelliteCategory.TIANGONG
+    SatelliteCategory.EARTH_OBSERVATION -> sat.category == SatelliteCategory.EARTH_OBSERVATION
 }
 
 internal fun monitored(sat: SatelliteItem, ids: Set<String>): Boolean = sat.id in ids || sat.isTrain && "starlink_train" in ids

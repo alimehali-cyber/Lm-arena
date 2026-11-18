@@ -85,3 +85,27 @@ B−V); visibility from Crumey (2014, MNRAS 442, 2600) contrast thresholds and C
 | `assets/earth_night_2k.jpg` | `2048×1024` | 138,850 | `earth_night_4096.jpg` (`d5cfb85a9aba6f42d637d88cef4171f610abc0fe`, Lanczos 2k) | `2912445dd071ef6796980cdce6fbecf0b0d7e911e47343d26c582ad9fdec9ef8` |
 | `assets/earth_clouds.jpg` | `2048×1024` | 490,238 | `earth_bump_roughness_clouds_4096.jpg` B channel (`155558847a495729e7d5200fb07c0e93ffdddbd1`, Lanczos 2k) | `6743d375184af6ff69bb5f75be1a2d2b969617ead89881260d5bb0b208435fcf` |
 | `assets/earth_bump_2k.jpg` | `2048×1024` | 244,187 | `earth_bump_roughness_clouds_4096.jpg` R channel (`155558847a495729e7d5200fb07c0e93ffdddbd1`, Lanczos 2k) | `4a40da0e5a992b83bc8d6055fd190f0b16cd9cb560e8adfcfa47dd86dfc32211` |
+
+
+## Satellite photography (Satellite detail screens)
+
+* **Envisat in the clean room at ESTEC** — ©ESA/A. Van Der Geest, ESA image ID 222355.
+  Source: `https://www.esa.int/ESA_Multimedia/Images/2012/03/Envisat_in_the_clean_room_at_ESTEC`
+* Licence: ESA Standard Licence (informational / educational use with visible credit; commercial use
+  requires separate written permission from ESA). The image is bundled as
+  `app/src/main/res/drawable-nodpi/satellite_envisat_estec.jpg`; it is displayed with its credit and
+  source link on Envisat's information page.
+* Additional locally bundled imagery is displayed in the detail hero with visible credit and an
+  active source link: ISS after STS-134 (NASA/JSC, public domain; Wikimedia Commons), Hubble during
+  Servicing Mission 4 (NASA; `https://esahubble.org/images/hubble_large_08_cc/`), Starlink test-stack
+  (Official SpaceX Photos, CC0; Wikimedia Commons), and Tiangong's 2022 configuration rendering
+  (Shujianyang, CC BY-SA 4.0; Wikimedia Commons). The Commons/ESA source pages are linked directly
+  from each photo credit.
+
+| Bundled image | Source / visible credit | Licence / sha256 |
+|---|---|---|
+| `satellite_envisat_estec.jpg` | ESA image 222355 · ©ESA/A. Van Der Geest | ESA Standard Licence; non-commercial informational/educational use only · `4bfcac7076324852afbfb34d70e39cc649ce8e26fccf84dbb53b29d57a2ba5f6` |
+| `satellite_hubble_sm4.jpg` | NASA · ESA/Hubble image `hubble_large_08_cc` | NASA image; source credit NASA · `7ca91d45aabd7c867cd16636a13318c11c8305b56415218b914d1878fe1c011c` |
+| `satellite_iss_sts134.jpg` | NASA/JSC · STS-134 | Public domain · `9d1d9d8e8ee9f95b04508d9b93c8f589076c68389f0a490a7a5f6bf7e8da276d` |
+| `satellite_starlink_stack.jpg` | Official SpaceX Photos | CC0 · `4247e3530ed5418ea51b95279fc065fee0caa1690ab2308e9302aa7a7a89b8f2` |
+| `satellite_tiangong_rendering.jpg` | Shujianyang · 1 Nov 2022 station configuration | CC BY-SA 4.0 · `66fc3c38b2123f294a79d96ec0a21f62538ee8c6ea52cc08fff113a5b9a41633` |

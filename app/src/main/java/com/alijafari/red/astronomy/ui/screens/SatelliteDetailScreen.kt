@@ -28,12 +28,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -42,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.astro_engine.*
 import com.alijafari.red.astronomy.data.catalog.CanonicalAstroCatalog
@@ -270,6 +274,7 @@ private fun DetailHero(
     var hasMore by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().satMaterial(tokens, SatSlot.DetailHero, squircleShape(SatRadius.card),
         accent = if (tokens.skin == SatSkin.AETHER) tokens.timeAccent else null)) {
+        SatellitePhotoPanel(satelliteItem, tokens, isFa)
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -320,17 +325,12 @@ private fun DetailHero(
                 Box(
                     modifier = Modifier
                         .size(48.dp)
-                        .clip(CircleShape)
-                        .background(tokens.live.copy(alpha = 0.16f))
-                        .border(1.dp, tokens.live.copy(alpha = 0.45f), CircleShape),
+                        .clip(squircleShape(16.dp))
+                        .background(tokens.live.copy(alpha = 0.12f))
+                        .border(1.dp, tokens.live.copy(alpha = 0.35f), squircleShape(16.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.SatelliteAlt,
-                        contentDescription = null,
-                        tint = tokens.accentInk,
-                        modifier = Modifier.size(24.dp),
-                    )
+                    SatelliteSilhouette(satelliteItem, tokens.accentInk, Modifier.size(38.dp))
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -512,6 +512,69 @@ private fun DetailTelemetryPanel(state: SatelliteLiveState, tokens: ZigSatTokens
                     }
                 }
             }
+        }
+    }
+}
+
+private data class SatellitePhoto(val url: String, val credit: String, val creditFa: String, val sourcePage: String, val localResourceId: Int? = null, val isRendering: Boolean = false)
+
+private fun satellitePhoto(item: SatelliteItem): SatellitePhoto? = when {
+    item.isTrain || item.category == SatelliteCategory.STARLINK -> SatellitePhoto(
+        "", "Official SpaceX Photos · CC0", "تصاویر رسمی اسپیس‌اکس · مالکیت عمومی",
+        "https://commons.wikimedia.org/wiki/File:Starlink_Mission_(47926144123).jpg",
+        localResourceId = R.drawable.satellite_starlink_stack)
+    item.id == "iss_zarya" -> SatellitePhoto(
+        "", "NASA/JSC · Public domain", "ناسا / مرکز فضایی جانسون · مالکیت عمومی",
+        "https://commons.wikimedia.org/wiki/File:STS-134_International_Space_Station_after_undocking.jpg",
+        localResourceId = R.drawable.satellite_iss_sts134)
+    item.id == "hubble" -> SatellitePhoto(
+        "", "NASA · Hubble Servicing Mission 4", "ناسا · مأموریت تعمیراتی چهارم هابل",
+        "https://esahubble.org/images/hubble_large_08_cc/",
+        localResourceId = R.drawable.satellite_hubble_sm4)
+    item.id.contains("envisat", true) -> SatellitePhoto(
+        "", "©ESA/A. Van Der Geest · ESA Standard Licence", "©ESA/A. Van Der Geest · مجوز استاندارد ESA",
+        "https://www.esa.int/ESA_Multimedia/Images/2012/03/Envisat_in_the_clean_room_at_ESTEC",
+        localResourceId = R.drawable.satellite_envisat_estec)
+    item.id == "tiangong" -> SatellitePhoto(
+        "", "Shujianyang · CC BY-SA 4.0 · mission rendering", "Shujianyang · مجوز CC BY-SA 4.0 · بازسازی مأموریت",
+        "https://commons.wikimedia.org/wiki/File:Tiangong_Space_Station_Rendering_2022.11.01.jpg",
+        localResourceId = R.drawable.satellite_tiangong_rendering, isRendering = true)
+    else -> null
+}
+
+@Composable
+private fun SatellitePhotoPanel(item: SatelliteItem, tokens: ZigSatTokens, isFa: Boolean) {
+    val photo = remember(item.id, item.isTrain, item.category) { satellitePhoto(item) } ?: return
+    val uriHandler = LocalUriHandler.current
+    val shape = squircleShape(topStart = SatRadius.card, topEnd = SatRadius.card)
+    Box(Modifier.fillMaxWidth().height(190.dp).clip(shape)
+        .background(Brush.linearGradient(listOf(tokens.cardAlt, tokens.canvas))), contentAlignment = Alignment.Center) {
+        SatelliteSilhouette(item, tokens.accentInk.copy(alpha = .85f), Modifier.size(104.dp))
+        AsyncImage(model = photo.localResourceId ?: photo.url, contentDescription = if (isFa) "تصویر مرتبط با ${fullNameOf(item, true)}" else "Satellite image for ${fullNameOf(item, false)}",
+            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        Box(Modifier.fillMaxWidth().height(58.dp).align(Alignment.BottomCenter)
+            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .78f))))
+            .padding(horizontal = 14.dp, vertical = 9.dp), contentAlignment = Alignment.BottomStart) {
+            val contextLabel = if (isFa) when {
+                item.isTrain || item.category == SatelliteCategory.STARLINK -> "انباشتهٔ ماهواره‌های استارلینک پیش از پرتاب"
+                item.id == "iss_zarya" -> "ایستگاه فضایی بین‌المللی از فضا · مأموریت STS-134"
+                item.id == "hubble" -> "تلسکوپ هابل هنگام مأموریت تعمیراتی چهارم"
+                item.id.contains("envisat", true) -> "ماهوارهٔ انویسات در اتاق پاک ESA"
+                photo.isRendering -> "بازسازی پیکربندی ایستگاه تیانگونگ"
+                else -> "تصویر مأموریت"
+            } else when {
+                item.isTrain || item.category == SatelliteCategory.STARLINK -> "Starlink spacecraft stack before deployment"
+                item.id == "iss_zarya" -> "International Space Station in orbit · STS-134"
+                item.id == "hubble" -> "Hubble during Servicing Mission 4"
+                item.id.contains("envisat", true) -> "Envisat flight model in ESA clean room"
+                photo.isRendering -> "Tiangong station configuration rendering"
+                else -> "Mission image"
+            }
+            Text("$contextLabel · ${if (isFa) photo.creditFa else photo.credit}",
+                Modifier.clickable { runCatching { uriHandler.openUri(photo.sourcePage) } },
+                color = Color.White.copy(alpha = .92f),
+                style = RedTypographyTokens.badge.copy(fontSize = 10.sp, fontWeight = FontWeight.Medium), maxLines = 2,
+                overflow = TextOverflow.Ellipsis)
         }
     }
 }

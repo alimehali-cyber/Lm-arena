@@ -57,6 +57,10 @@
     <string name="sat_stale">Accuracy reduced after 7 days.</string>
     <string name="sat_stale_tle">Aged orbital data</string>
     <string name="sat_above">%1$s above horizon</string>
+    <string name="sat_clear_search">Clear search</string>
+    <string name="sat_filter_above">Above horizon</string>
+    <string name="sat_filter_naked_eye">Naked-eye capable</string>
+    <string name="sat_results_count">%1$s results</string>
     <string name="sat_search">Search satellites</string>
     <string name="sat_no_fleet">No matching satellites.</string>
     <string name="sat_show_all">Show all satellites</string>

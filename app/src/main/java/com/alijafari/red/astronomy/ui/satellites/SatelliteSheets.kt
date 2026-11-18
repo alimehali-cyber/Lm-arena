@@ -19,6 +19,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -194,16 +196,46 @@ internal fun SatLayersPopover(tokens: ZigSatTokens, lighting: MapTheme, legend: 
 @Composable
 internal fun SatFleetSheet(fleet: List<SatTokenUi>, category: SatelliteCategory, tokens: ZigSatTokens, isFa: Boolean,
     onScope: (SatelliteCategory) -> Unit, onPick: (SatTokenUi) -> Unit, onDismiss: () -> Unit) {
-    var showSearch by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val filterPrefs = remember(context) { context.getSharedPreferences("astro_app_prefs", android.content.Context.MODE_PRIVATE) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var aboveHorizonOnly by rememberSaveable { mutableStateOf(filterPrefs.getBoolean("sat_filter_above_horizon", false)) }
+    var nakedEyeCapableOnly by rememberSaveable { mutableStateOf(filterPrefs.getBoolean("sat_filter_naked_eye", false)) }
     val title = stringResource(R.string.sat_fleet)
     SatBottomSheet(tokens, title, "fleet_sheet", onDismiss, half = true) {
-        SatSheetTitle("$title · ${SatFmt.int(fleet.size, isFa)}", null, tokens, trailing = {
-            ZigSatIconButton(Icons.Filled.Search, stringResource(R.string.sat_search), tokens, {
-                showSearch = !showSearch
-                if (!showSearch) query = ""
-            }, testTag = "fleet_search")
-        })
+        SatSheetTitle("$title · ${SatFmt.int(fleet.size, isFa)}", null, tokens)
+        OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth().testTag("fleet_search_field"),
+            singleLine = true, label = { Text(stringResource(R.string.sat_search), fontFamily = LocalAppFontFamily.current) },
+            textStyle = RedTypographyTokens.bodySecondary.copy(fontFamily = LocalAppFontFamily.current),
+            trailingIcon = { if (query.isNotEmpty()) Icon(Icons.Filled.Close, stringResource(R.string.sat_clear_search),
+                Modifier.size(48.dp).clickable { query = "" }.padding(15.dp), tint = tokens.inkSecondary) })
+        SatScopeRow(category, tokens, isFa, onScope)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ZigSatChip(stringResource(R.string.sat_filter_above), aboveHorizonOnly, tokens,
+                { aboveHorizonOnly = !aboveHorizonOnly; filterPrefs.edit().putBoolean("sat_filter_above_horizon", aboveHorizonOnly).apply() },
+                testTag = "filter_above_horizon")
+            ZigSatChip(stringResource(R.string.sat_filter_naked_eye), nakedEyeCapableOnly, tokens,
+                { nakedEyeCapableOnly = !nakedEyeCapableOnly; filterPrefs.edit().putBoolean("sat_filter_naked_eye", nakedEyeCapableOnly).apply() },
+                testTag = "filter_naked_eye")
+        }
+        fun normalizeSearchText(value: String): String = value.lowercase()
+            .replace('ي', 'ی').replace('ك', 'ک').replace(0x200C.toChar(), ' ')
+            .map { ch -> when (ch) {
+                in '۰'..'۹' -> ('0'.code + (ch.code - '۰'.code)).toChar()
+                in '٠'..'٩' -> ('0'.code + (ch.code - '٠'.code)).toChar()
+                else -> ch
+            } }.joinToString("")
+        val queryKey = normalizeSearchText(query.trim())
+        val filtered = fleet.asSequence()
+            .filter { row ->
+                queryKey.isBlank() || listOf(row.shortName, row.fullName, row.id, row.satellite.noradId.toString(),
+                    row.satellite.designation, row.satellite.operatorEn, row.satellite.operatorFa,
+                    row.satellite.category.labelEn, row.satellite.category.labelFa)
+                    .any { normalizeSearchText(it).contains(queryKey) }
+            }
+            .filter { !aboveHorizonOnly || it.elevationDeg > 0.0 }
+            .filter { !nakedEyeCapableOnly || it.isNakedEye }
+            .sortedByDescending { it.elevationDeg }.toList()
         val above = fleet.count { it.elevationDeg > 0 }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             val segments = fleet.size.coerceIn(4, 10)
@@ -212,13 +244,9 @@ internal fun SatFleetSheet(fleet: List<SatTokenUi>, category: SatelliteCategory,
                 ZigStatusDot(if (index < filled) tokens.nakedEye else tokens.border, false, 5.dp)
             }
             SatText(stringResource(R.string.sat_above, SatFmt.int(above, isFa)), tokens.inkSecondary)
+            Spacer(Modifier.weight(1f))
+            SatText(stringResource(R.string.sat_results_count, SatFmt.int(filtered.size, isFa)), tokens.inkTertiary, size = 10)
         }
-        if (showSearch) OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth().testTag("fleet_search_field"),
-            singleLine = true, label = { Text(stringResource(R.string.sat_search), fontFamily = LocalAppFontFamily.current) },
-            textStyle = RedTypographyTokens.bodySecondary.copy(fontFamily = LocalAppFontFamily.current))
-        SatScopeRow(category, tokens, isFa, onScope)
-        val filtered = fleet.filter { it.shortName.contains(query, ignoreCase = true) || it.fullName.contains(query, ignoreCase = true) }
-            .sortedByDescending { it.elevationDeg }
         if (filtered.isEmpty()) SatText(stringResource(R.string.sat_no_fleet), tokens.inkSecondary)
         filtered.forEach { row -> key(row.id) {
             val shape = squircleShape(16.dp)
@@ -240,9 +268,9 @@ internal fun SatFleetSheet(fleet: List<SatTokenUi>, category: SatelliteCategory,
                     SatText(SatFmt.degrees(row.elevationDeg, isFa, signed = true),
                         if (row.elevationDeg >= 0) tokens.inkPrimary else tokens.inkTertiary, size = 11)
                 }
-                val label = if (row.isTrain) stringResource(R.string.sat_train_short, SatFmt.int(row.trainCount, isFa)) else
-                    stringResource(if (row.isNakedEye) R.string.sat_legend_naked else R.string.sat_legend_scope)
-                SatText(label, tokens.inkPrimary, Modifier.background(tokens.border, CircleShape).padding(horizontal = 6.dp, vertical = 4.dp), size = 10)
+                val label = if (row.isTrain) stringResource(R.string.sat_train_short, SatFmt.int(row.trainCount, isFa))
+                    else SatFmt.categoryLabel(row.satellite.category, isFa)
+                SatText(label, tokens.inkPrimary, Modifier.background(tokens.border, squircleShape(10.dp)).padding(horizontal = 7.dp, vertical = 5.dp), size = 10)
             }
         } }
     }

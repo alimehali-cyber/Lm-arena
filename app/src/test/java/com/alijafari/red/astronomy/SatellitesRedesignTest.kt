@@ -252,6 +252,14 @@ class SatellitesRedesignTest {
             it.category == SatelliteCategory.ISS
         })
         assertTrue(satellites.filter { matchesScope(it, SatelliteCategory.VISIBLE) }.all { it.isNakedEyeCandidate })
+        val tiangong = satellites.single { it.id == "tiangong" }
+        val envisat = satellites.single { it.id == "envisat" }
+        assertEquals(SatelliteCategory.TIANGONG, tiangong.category)
+        assertEquals(SatelliteCategory.EARTH_OBSERVATION, envisat.category)
+        assertTrue(matchesScope(tiangong, SatelliteCategory.TIANGONG))
+        assertFalse(matchesScope(tiangong, SatelliteCategory.EARTH_OBSERVATION))
+        assertTrue(matchesScope(envisat, SatelliteCategory.EARTH_OBSERVATION))
+        assertFalse(matchesScope(envisat, SatelliteCategory.TIANGONG))
     }
 
     @Test

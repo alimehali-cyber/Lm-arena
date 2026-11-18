@@ -8,7 +8,9 @@ enum class SatelliteCategory(val labelEn: String, val labelFa: String) {
     ISS("ISS", "ایستگاه فضایی"),
     STARLINK("Starlink", "استارلینک"),
     HUBBLE("Hubble", "هابل"),
-    VISIBLE("Visible", "قابل مشاهده")
+    VISIBLE("Naked-eye candidates", "قابل مشاهده با چشم"),
+    TIANGONG("Tiangong", "تیانگونگ"),
+    EARTH_OBSERVATION("Earth observation", "سنجش از دور")
 }
 
 data class SatelliteItem(
@@ -93,7 +95,7 @@ object SatelliteCatalog {
             noradId = 48274,
             nameEn = "Tiangong Space Station (CSS)",
             nameFa = "ایستگاه فضایی تیانگونگ (چین)",
-            category = SatelliteCategory.VISIBLE,
+            category = SatelliteCategory.TIANGONG,
             designation = "2021-035A",
             defaultTle = TLEData(
                 name = "CSS (TIANGONG)",
@@ -169,7 +171,7 @@ object SatelliteCatalog {
             noradId = 27386,
             nameEn = "Envisat / Earth Observation Sat",
             nameFa = "ماهواره سنجش از دور انویسات",
-            category = SatelliteCategory.VISIBLE,
+            category = SatelliteCategory.EARTH_OBSERVATION,
             designation = "2002-009A",
             defaultTle = TLEData(
                 name = "ENVISAT",

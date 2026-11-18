@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.Dp
 import com.alijafari.red.astronomy.EarthViewportProjection
 import com.alijafari.red.astronomy.ui.satellites.SatSlot
+import com.alijafari.red.astronomy.ui.satellites.SatelliteSilhouette
 import com.alijafari.red.astronomy.ui.satellites.ZigSatTokens
 import com.alijafari.red.astronomy.ui.satellites.satMaterial
 import com.alijafari.red.astronomy.ui.satellites.shortNameOf
@@ -737,10 +738,11 @@ fun SatelliteEarth3D(
                     )
                 }
 
-                drawCircle(
-                    color = markerColor,
-                    radius = (if (isSelected) 5.5.dp else if (sat.isNakedEyeCandidate) 4.dp else 3.dp).toPx(),
+                drawSatelliteGlyph(
                     center = pos,
+                    satellite = sat,
+                    color = markerColor,
+                    radiusPx = (if (isSelected) 4.3.dp else if (sat.isNakedEyeCandidate) 3.6.dp else 3.dp).toPx(),
                 )
                 if (isSelected) {
                     drawCircle(
@@ -815,7 +817,7 @@ fun SatelliteEarth3D(
                         .clickable { onOpenSatelliteDetail(display.first.satellite) }.testTag("anchored_sat_label")
                         .padding(horizontal = 11.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Filled.SatelliteAlt, null, Modifier.size(14.dp), tint = Color.White)
+                        SatelliteSilhouette(display.first.satellite, Color.White, Modifier.size(18.dp))
                         Text(shortNameOf(display.first.satellite, isFa), Modifier.weight(1f), color = Color.White,
                             style = RedTypographyTokens.caption.copy(fontWeight = FontWeight.SemiBold),
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -953,6 +955,9 @@ private fun DrawScope.drawOrbitTrack3D(
     futurePath.reset()
     var pastOpen = false
     var futureOpen = false
+    var futureVisibleCount = 0
+    var arrowTail: Offset? = null
+    var arrowTip: Offset? = null
 
     for (pt in points) {
         val proj = Earth3DMath.projectLatLon(
@@ -983,9 +988,17 @@ private fun DrawScope.drawOrbitTrack3D(
                 if (!futureOpen) {
                     futurePath.moveTo(proj.screenX, proj.screenY)
                     futureOpen = true
+                    if (futureVisibleCount < 8) {
+                        futureVisibleCount = 0
+                        arrowTail = null
+                        arrowTip = null
+                    }
                 } else {
                     futurePath.lineTo(proj.screenX, proj.screenY)
                 }
+                futureVisibleCount++
+                if (futureVisibleCount == 4) arrowTail = Offset(proj.screenX, proj.screenY)
+                if (futureVisibleCount == 8) arrowTip = Offset(proj.screenX, proj.screenY)
             } else {
                 futureOpen = false
             }
@@ -1020,6 +1033,68 @@ private fun DrawScope.drawOrbitTrack3D(
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(9f, 7f)),
         ),
     )
+    if (arrowTail != null && arrowTip != null) drawDirectionArrow(arrowTail!!, arrowTip!!, trackColor)
+}
+
+private fun DrawScope.drawDirectionArrow(from: Offset, tip: Offset, color: Color) {
+    val dx = tip.x - from.x
+    val dy = tip.y - from.y
+    val length = hypot(dx, dy)
+    if (length < 2f) return
+    val ux = dx / length
+    val uy = dy / length
+    val head = 5.dp.toPx()
+    val wingA = Offset(tip.x - head * (ux * .82f - uy * .58f), tip.y - head * (uy * .82f + ux * .58f))
+    val wingB = Offset(tip.x - head * (ux * .82f + uy * .58f), tip.y - head * (uy * .82f - ux * .58f))
+    drawLine(color, tip, wingA, 1.6.dp.toPx(), StrokeCap.Round)
+    drawLine(color, tip, wingB, 1.6.dp.toPx(), StrokeCap.Round)
+}
+
+/** Draw distinct tiny spacecraft silhouettes in screen space. */
+private fun DrawScope.drawSatelliteGlyph(center: Offset, satellite: SatelliteItem, color: Color, radiusPx: Float) {
+    val u = radiusPx.coerceAtLeast(1f)
+    fun p(x: Float, y: Float) = Offset(center.x + x * u, center.y + y * u)
+    fun line(x1: Float, y1: Float, x2: Float, y2: Float, width: Float = .20f) =
+        drawLine(color, p(x1, y1), p(x2, y2), u * width, StrokeCap.Round)
+    fun panel(x1: Float, y1: Float, x2: Float, y2: Float) {
+        val left = minOf(x1, x2); val top = minOf(y1, y2)
+        val rectSize = Size(kotlin.math.abs(x2 - x1) * u, kotlin.math.abs(y2 - y1) * u)
+        drawRect(color.copy(alpha = .82f), p(left, top), rectSize)
+        line((x1 + x2) * .5f, y1, (x1 + x2) * .5f, y2, .07f)
+        line(x1, (y1 + y2) * .5f, x2, (y1 + y2) * .5f, .07f)
+    }
+    when {
+        satellite.category == SatelliteCategory.ISS || satellite.id == "iss_zarya" -> {
+            line(-1.8f, 0f, 1.8f, 0f, .28f)
+            panel(-1.65f, -.85f, -.72f, -.2f); panel(-1.65f, .2f, -.72f, .85f)
+            panel(.72f, -.85f, 1.65f, -.2f); panel(.72f, .2f, 1.65f, .85f)
+            drawRoundRect(color, p(-.35f, -.42f), Size(.7f * u, .84f * u), CornerRadius(.16f * u))
+        }
+        satellite.category == SatelliteCategory.HUBBLE || satellite.id.contains("hubble", true) -> {
+            panel(-1.8f, -.58f, -.95f, .58f); panel(.95f, -.58f, 1.8f, .58f)
+            line(-1f, 0f, 1f, 0f, .3f)
+            drawRoundRect(color, p(-.45f, -.65f), Size(.9f * u, 1.3f * u), CornerRadius(.18f * u))
+            drawCircle(color.copy(alpha = .65f), .3f * u, p(.72f, 0f))
+        }
+        satellite.id.contains("tiangong", true) -> {
+            panel(-1.8f, -.7f, -1.0f, .1f); panel(1.0f, -.7f, 1.8f, .1f)
+            line(-1.1f, -.3f, 1.1f, -.3f, .22f)
+            drawRoundRect(color, p(-.3f, -.9f), Size(.6f * u, 1.6f * u), CornerRadius(.16f * u))
+            drawRoundRect(color, p(-.85f, -.2f), Size(1.7f * u, .55f * u), CornerRadius(.15f * u))
+        }
+        satellite.category == SatelliteCategory.EARTH_OBSERVATION || satellite.id.contains("envisat", true) -> {
+            panel(.30f, -.72f, 1.8f, .72f)
+            line(.05f, 0f, .42f, 0f, .22f)
+            drawRect(color, p(-.72f, -.52f), Size(.78f * u, 1.04f * u))
+            line(-.55f, -.52f, -.55f, -.92f, .10f)
+        }
+        else -> {
+            // Starlink flatbus with a single broad solar-array wing; identical for the fleet.
+            panel(-1.8f, -.66f, -.18f, .66f)
+            line(-.22f, 0f, .20f, 0f, .22f)
+            drawRoundRect(color, p(.20f, -.48f), Size(1.05f * u, .96f * u), CornerRadius(.1f * u))
+        }
+    }
 }
 
 private fun DrawScope.drawNadirTether3D(
