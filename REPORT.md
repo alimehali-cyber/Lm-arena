@@ -12,8 +12,10 @@ The shared satellite stage now has a measured globe/HUD, focus and time controls
 | Shape generator/manifest geometry | `python3 tools/satellites/build_shapes.py --check` passed for 11 plates. This is not a visual/reference verification; every `refVerified` flag is false. |
 | Media audit | `python3 tools/satellites/audit.py` passed for **0 images**; four Python structural-audit tests passed. No individual source or licence was verified. |
 | Resources | Previous XML/reference scan found no missing or duplicate strings, missing Persian satellite strings or placeholder mismatches. This is not a native-speaker review. |
-| Android compilation and unit tests | Not yet verified locally: the Gradle bootstrap was blocked before Gradle started. Refer to the current branch's GitHub Actions result for subsequent build/test evidence. |
-| Screenshots or visual comparisons | **None produced or inspected.** The debug fixtures and optional review-pack generator are written but were not rendered locally; see `review/README.md`. |
+| Android compilation and unit tests | [GitHub Actions run 44355372155](https://github.com/alimehali-cyber/Lm-arena/actions/runs/44355372155) passed on commit `8d6afa3`: 939 tests, 0 failures/errors, 2 skipped. Local Gradle bootstrap remained blocked before Gradle started. |
+| Fixture geometry and chart mirroring | The same CI run passed the multi-size/scale/locale/skin fixture geometry test and an in-memory chart-path comparison. These do not exercise native GLES or constitute visual sign-off. |
+| Release APK | The same run built the signed release, checked its package/version and verified it was not debug-key signed, then uploaded `ZIG-real-app-apk`. It was not installed or run on a device. |
+| Screenshots or visual comparisons | **No review screenshots were saved or visually inspected.** The optional review-pack generator was not run; see `review/README.md`. |
 | GLES alignment, gestures, performance and accessibility | **Not tested on an emulator or device.** Use `DEVICE_CHECKLIST.md`. |
 | Licensed media, art recognition and Persian copy | **Not approved**; require individual source/rights review, visual reference review and native-speaker review. |
 
