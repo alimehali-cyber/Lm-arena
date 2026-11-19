@@ -187,4 +187,6 @@
     <string name="sat_outside_timeline">این گذر خارج از بازهٔ ۱۲ ساعت قبل و بعد است. برای استفاده از خط زمان به اکنون بازگردید.</string>
     <string name="sat_orbit_at_pass">نمایش مدار در اوج گذر</string>
     <string name="sat_ar_live_explanation">واقعیت افزوده آسمان اکنون را نشان می‌دهد، نه گذر آینده را. برای پیش‌نمایش گذر از نمودار آسمان استفاده کنید.</string>
+    <string name="sat_selected_pass">گذر انتخاب‌شده</string>
+    <string name="sat_score_explanation">امتیاز رؤیت از ۱۰۰ بر پایهٔ تاریکی آسمان، نور خورشید بر ماهواره و ارتفاع اوج است؛ وضعیت هوا را در نظر نمی‌گیرد.</string>
 </resources>

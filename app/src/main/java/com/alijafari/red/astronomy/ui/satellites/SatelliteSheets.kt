@@ -97,7 +97,7 @@ internal fun SatBottomSheet(
                 }, contentAlignment = Alignment.Center) {
                 Box(Modifier.size(36.dp, 4.dp).background(tokens.inkTertiary.copy(alpha = .6f), CircleShape))
             }
-            Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(bottom = 20.dp),
+            Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(top = 4.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
         }
     }

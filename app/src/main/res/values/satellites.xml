@@ -187,4 +187,6 @@
     <string name="sat_outside_timeline">This pass is outside the ±12 hour timeline. Return to now to use the timeline.</string>
     <string name="sat_orbit_at_pass">Show orbit at pass peak</string>
     <string name="sat_ar_live_explanation">AR shows the sky now, not a future pass. Use the sky chart to preview this pass.</string>
+    <string name="sat_selected_pass">Selected pass</string>
+    <string name="sat_score_explanation">Visibility score / 100 considers sky darkness, satellite sunlight and peak elevation; it does not include weather.</string>
 </resources>

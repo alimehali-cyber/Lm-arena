@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.Density
 import com.alijafari.red.astronomy.domain.ThemeMode
+import com.alijafari.red.astronomy.ui.satellites.SatPanel
 import com.alijafari.red.astronomy.ui.satellites.SatPreview
 import com.alijafari.red.astronomy.ui.satellites.SatSkin
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -87,6 +88,14 @@ class SatelliteHudRenderTest {
         compose.setContent { SatPreview(ThemeMode.DARK, skin = SatSkin.SPATIAL, preview = true) }
         compose.onNodeWithTag("sat_preview_time").assertIsDisplayed()
         compose.onNodeWithTag("sat_return_to_pass").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "en-rGB-ldltr-w390dp-h844dp-mdpi")
+    fun selectedAgendaSpotlightExposesTheSelectedPassState() {
+        compose.setContent { SatPreview(ThemeMode.DARK, panel = SatPanel.Passes, selectedAgendaPass = true) }
+        val spotlight = compose.onNodeWithTag("next_pass_spotlight", useUnmergedTree = true)
+        assertEquals("Selected pass", spotlight.fetchSemanticsNode().config[SemanticsProperties.StateDescription])
     }
 
 }

@@ -54,6 +54,7 @@ private annotation class SatLocales
 @SatLocales @Composable private fun DarkGlobe() = SatPreview(ThemeMode.DARK)
 @SatLocales @Composable private fun DarkTime() = SatPreview(ThemeMode.DARK, SatPanel.Time)
 @SatLocales @Composable private fun DarkPasses() = SatPreview(ThemeMode.DARK, SatPanel.Passes)
+@SatLocales @Composable private fun SelectedAgendaPass() = SatPreview(ThemeMode.DARK, SatPanel.Passes, selectedAgendaPass = true)
 @SatLocales @Composable private fun DarkDetail() = SatPreview(ThemeMode.DARK, detail = true)
 @SatLocales @Composable private fun PassDetails() = SatPreview(ThemeMode.DARK, detail = true, detailPass = true)
 @SatLocales @Composable private fun PassGlobePreview() = SatPreview(ThemeMode.DARK, preview = true)
@@ -116,7 +117,7 @@ private fun samplePass(minutes: Int, height: Double, score: Int) = ISSEngine.ISS
 /** Fixed inputs and the production Compose UI; only the unavailable EGL surface is substituted. */
 @Composable
 internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detail: Boolean = false, skin: SatSkin = SatSkin.DEFAULT,
-    preview: Boolean = false, detailPass: Boolean = false) {
+    preview: Boolean = false, detailPass: Boolean = false, selectedAgendaPass: Boolean = false) {
     val fa = LocalConfiguration.current.locales[0]?.language == "fa"
     val tokens = remember(skin, theme) { zigSatTokens(skin, theme) }
     val live = remember {
@@ -156,7 +157,8 @@ internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detai
                             globe = { projection, _, _ -> PreviewEarth(projection, tokens) },
                             sheet = { current, side -> if (current == SatPanel.Passes) SatPassesSheet(tokens, fa, state.scope, passes.size,
                                 SatNights.group(passes, now, tz, fa), SatNights.spotlight(passes, now, tz, fa), now, now,
-                                side, { state = state.copy(activePanel = SatPanel.None) }, {}, {}, { actions }, { Modifier }, tz) })
+                                side, { state = state.copy(activePanel = SatPanel.None) }, {}, {}, { actions }, { Modifier }, tz,
+                                selectedPassKey = if (selectedAgendaPass) passes.first().key else null) })
                         if (state.activePanel != SatPanel.Passes) {
                             val modifier = Modifier.align(Alignment.BottomCenter)
                             when (skin) {

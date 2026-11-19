@@ -438,6 +438,33 @@ class SatellitesRedesignTest {
     }
 
     @Test
+    fun globeShiftUsesOnlySpareSpaceAndKeepsTheProjectionSize() {
+        val width = 390f
+        val height = 844f
+        val top = 112f
+        val bottom = 609f
+        val shift = satelliteGlobeUpwardShift(width, top, bottom, 12f)
+        assertEquals(12f, shift, .001f)
+        val centered = satelliteViewport(width, height, top, bottom)
+        val raised = satelliteViewport(width, height, top - shift, bottom - shift)
+        assertEquals(centered.focalScale, raised.focalScale, .001f)
+        assertEquals(shift, (centered.centerY - raised.centerY) * height, .001f)
+        val radius = Earth3DMath.projectedGlobeRadiusPx(SATELLITE_EARTH_DEFAULT_DISTANCE, height, raised.focalScale)
+        assertTrue(raised.centerY * height - radius >= top)
+        assertTrue(raised.centerY * height + radius <= bottom)
+        assertEquals(0f, satelliteGlobeUpwardShift(width, 112f, 400f, 12f), .001f)
+    }
+
+    @Test
+    fun agendaHighlightsOnlyTheExactEventAndMarkerPopupIsNotRequested() {
+        assertTrue(stage.contains("anchoredSatLabelState = null"))
+        assertTrue(stage.contains("selectedPassKey = detailSource.takeIf"))
+        assertTrue(components.contains("selected = row.key == selectedPassKey"))
+        assertTrue(components.contains("selected = it.pass.key == selectedPassKey"))
+        assertTrue(components.contains("sat_score_explanation"))
+    }
+
+    @Test
     fun portraitViewportFitsBetweenTheHeaderAndCard() {
         val width = 390f
         val height = 844f

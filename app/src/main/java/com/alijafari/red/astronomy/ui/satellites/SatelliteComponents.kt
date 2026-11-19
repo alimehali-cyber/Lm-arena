@@ -563,12 +563,16 @@ fun SatSpotlightCard(
     nowMs: Long = System.currentTimeMillis(),
     realNowMs: Long = nowMs,
     tz: TimeZone = TimeZone.getDefault(),
+    selected: Boolean = false,
 ) {
     val pass = data.pass.pass
     val accent = if (data.pass.isTrain) tokens.starlink else tokens.timeAccent
     var bellAnchor by remember { mutableStateOf(IntRect.Zero) }
+    val selectedLabel = stringResource(R.string.sat_selected_pass)
+    val selectedStyle = if (selected) Modifier.border(1.5.dp, tokens.accentInk, squircleShape(SatRadius.sheet))
+        .semantics { stateDescription = selectedLabel } else Modifier
     ZigSatCard(
-        modifier = modifier.testTag("next_pass_spotlight"),
+        modifier = modifier.then(selectedStyle).testTag("next_pass_spotlight"),
         tokens = tokens,
         accent = accent,
         shape = squircleShape(SatRadius.sheet),
@@ -605,6 +609,7 @@ fun SatSpotlightCard(
                 overflow = TextOverflow.Ellipsis,
             )
 
+            if (selected) SatText(selectedLabel, tokens.accentInk, strong = true)
             if (data.pass.isTrain) {
                 val short = LocalConfiguration.current.screenWidthDp < 360 || LocalDensity.current.fontScale >= 1.3f
                 SatText(stringResource(if (short) R.string.sat_train_short else R.string.sat_train_long,
@@ -873,20 +878,27 @@ fun SatPassProgressBar(pass: ISSEngine.ISSPass, tokens: ZigSatTokens, nowMs: Lon
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun SatCompactPassCard(data: SatPassUi, tokens: ZigSatTokens, isFa: Boolean, actions: SatPassActions,
-    modifier: Modifier = Modifier, realNowMs: Long = System.currentTimeMillis(), tz: TimeZone = TimeZone.getDefault()) {
+    modifier: Modifier = Modifier, realNowMs: Long = System.currentTimeMillis(), tz: TimeZone = TimeZone.getDefault(),
+    selected: Boolean = false) {
     val pass = data.pass
     var bellAnchor by remember(data.key) { mutableStateOf(IntRect.Zero) }
     val clickLabel = stringResource(R.string.sat_details)
     val holdLabel = stringResource(R.string.sat_orbit_at_pass)
-    ZigSatCard(modifier.testTag("pass_card_${data.key}"), tokens, accent = if (data.isTrain) tokens.starlink else null,
+    val selectedLabel = stringResource(R.string.sat_selected_pass)
+    val selectedStyle = if (selected) Modifier.border(1.5.dp, tokens.accentInk, squircleShape(SatRadius.compactCard))
+        .semantics { stateDescription = selectedLabel } else Modifier
+    ZigSatCard(modifier.then(selectedStyle).testTag("pass_card_${data.key}"), tokens, accent = if (data.isTrain) tokens.starlink else null,
         shape = squircleShape(SatRadius.compactCard)) {
         Column(Modifier.fillMaxWidth().heightIn(min = 92.dp).combinedClickable(role = Role.Button,
             onClickLabel = clickLabel, onLongClickLabel = holdLabel, onClick = actions.onOpenDetail, onLongClick = actions.onShowOnGlobe)
             .padding(start = 12.dp, end = 9.dp, top = 10.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (data.isTrain) PearlGlyph(tokens.starlink) else SatelliteSilhouette(data.sat, tokens.inkSecondary, Modifier.size(18.dp))
-                Text(data.satName, Modifier.weight(1f), color = tokens.inkPrimary, style = RedTypographyTokens.badge.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Column(Modifier.weight(1f)) {
+                    Text(data.satName, color = tokens.inkPrimary, style = RedTypographyTokens.badge.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (selected) SatText(selectedLabel, tokens.accentInk, size = 11, strong = true)
+                }
                 PassQuality(data, tokens, isFa)
             }
             if (data.isTrain) SatText(stringResource(R.string.sat_train_short, SatFmt.int(data.sat.trainCount, isFa)), tokens.inkSecondary, size = 10)
@@ -920,36 +932,15 @@ fun SatCompactPassCard(data: SatPassUi, tokens: ZigSatTokens, isFa: Boolean, act
 @Composable
 private fun PassQuality(data: SatPassUi, tokens: ZigSatTokens, isFa: Boolean) {
     val score = data.pass.visibilityScore
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        if (tokens.skin == SatSkin.SPATIAL && LocalDensity.current.fontScale < 1.3f) {
-            Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
-                Canvas(Modifier.matchParentSize().padding(3.dp)) {
-                    drawCircle(tokens.border, style = Stroke(2.dp.toPx()))
-                    drawArc(data.quality.graphic(tokens), -90f, score.coerceIn(0, 100) * 3.6f, false, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
-                }
-                SatText(SatFmt.int(score, isFa), tokens.inkPrimary, size = 10, strong = true)
-            }
-        } else if (tokens.skin == SatSkin.AETHER && LocalDensity.current.fontScale < 1.3f) {
-            Canvas(Modifier.size(28.dp, 20.dp)) {
-                val path = Path()
-                val cycles = (2 + data.pass.maxElevationDeg / 25).coerceIn(2.0, 5.0)
-                repeat(41) { i ->
-                    val portion = i / 40f
-                    val y = center.y + kotlin.math.sin(portion * cycles * 2 * kotlin.math.PI).toFloat() * size.height * .30f
-                    if (i == 0) path.moveTo(0f, y) else path.lineTo(size.width * portion, y)
-                }
-                drawPath(path, tokens.timeAccent, style = Stroke(1.2.dp.toPx()))
-            }
-        }
-        ZigQualityChip(data.quality, score, tokens, isFa, full = tokens.skin == SatSkin.DEFAULT)
-    }
+    ZigQualityChip(data.quality, score, tokens, isFa, full = tokens.skin == SatSkin.DEFAULT)
 }
 
 @Composable
 internal fun SatPassesSheet(tokens: ZigSatTokens, isFa: Boolean, scope: SatelliteCategory, count: Int?,
     groups: List<SatNightGroup>, spotlight: SatSpotlightUi?, now: Long, realNow: Long, side: Boolean, onClose: () -> Unit,
     onClearScope: () -> Unit, onOpenSevenDay: () -> Unit, actionsFor: (SatPassUi) -> SatPassActions,
-    sourceModifier: @Composable (String) -> Modifier, tz: TimeZone, isOnline: Boolean = true) {
+    sourceModifier: @Composable (String) -> Modifier, tz: TimeZone, isOnline: Boolean = true,
+    selectedPassKey: String? = null) {
     val title = stringResource(R.string.sat_passes)
     val days = stringResource(if (count != null && groups.flatMap { it.passes }.let { it.isNotEmpty() && it.all { pass -> pass.isTrain } })
         R.string.sat_two_days else R.string.sat_three_days)
@@ -960,6 +951,7 @@ internal fun SatPassesSheet(tokens: ZigSatTokens, isFa: Boolean, scope: Satellit
             if (count != null) SatText(SatFmt.int(count, isFa), tokens.inkPrimary,
                 Modifier.background(tokens.cardAlt, CircleShape).border(1.dp, tokens.border, CircleShape).padding(horizontal = 11.dp, vertical = 6.dp), strong = true)
         })
+        if (count != null && count > 0) SatText(stringResource(R.string.sat_score_explanation), tokens.inkSecondary, size = 12)
         if (scope != SatelliteCategory.ALL) {
             ZigSatChip(SatFmt.categoryLabel(scope, isFa), false, tokens, onClearScope, trailing = {
                 Icon(Icons.Filled.Close, stringResource(R.string.sat_show_all), Modifier.size(14.dp), tint = tokens.inkPrimary)
@@ -974,17 +966,23 @@ internal fun SatPassesSheet(tokens: ZigSatTokens, isFa: Boolean, scope: Satellit
             ((it.pass.startTimeMs - now) / 60_000L).toInt().coerceAtLeast(0), false) }
         featured?.let {
             ZigMicroCaps(stringResource(if (spotlight == null) R.string.sat_next_label else R.string.sat_recommended), tokens, isFa = isFa)
-            SatSpotlightCard(it, tokens, isFa, actionsFor(it.pass), arcHeight = 96.dp, nowMs = now, realNowMs = realNow, tz = tz)
+            SatSpotlightCard(it, tokens, isFa, actionsFor(it.pass), arcHeight = 96.dp, nowMs = now, realNowMs = realNow, tz = tz,
+                selected = it.pass.key == selectedPassKey)
             if (groups.isNotEmpty()) ZigMicroCaps(stringResource(R.string.sat_all_upcoming), tokens, isFa = isFa)
         }
         when (count) {
             null -> SatPassSkeletons(tokens)
             0 -> SatPassEmpty(tokens, isFa, if (scope == SatelliteCategory.ALL) null else SatFmt.categoryLabel(scope, isFa), onClearScope, onOpenSevenDay)
             else -> groups.forEachIndexed { i, group -> key(group.nightKey) {
-                SatNightSection(group, overrides[group.nightKey] ?: (i == 0), if (group.nightKey in shown) Int.MAX_VALUE else 3,
-                    if (group.passes.all { it.isTrain }) 12 else 10, tokens, isFa, actionsFor,
-                    onToggle = { overrides = overrides + (group.nightKey to !(overrides[group.nightKey] ?: (i == 0))) },
-                    onMore = { shown = (shown + group.nightKey).distinct() }, realNow = realNow, sourceModifier = sourceModifier, tz = tz)
+                val selectedIndex = group.passes.indexOfFirst { it.key == selectedPassKey }
+                val initiallyOpen = i == 0 || selectedIndex >= 0
+                val defaultCap = if (group.passes.all { it.isTrain }) 12 else 10
+                val visibleCount = if (group.nightKey in shown) Int.MAX_VALUE else maxOf(3, selectedIndex + 1)
+                SatNightSection(group, overrides[group.nightKey] ?: initiallyOpen, visibleCount,
+                    maxOf(defaultCap, selectedIndex + 1), tokens, isFa, actionsFor,
+                    onToggle = { overrides = overrides + (group.nightKey to !(overrides[group.nightKey] ?: initiallyOpen)) },
+                    onMore = { shown = (shown + group.nightKey).distinct() }, realNow = realNow, sourceModifier = sourceModifier, tz = tz,
+                    selectedPassKey = selectedPassKey)
             } }
         }
     }
@@ -995,7 +993,7 @@ internal fun SatPassesSheet(tokens: ZigSatTokens, isFa: Boolean, scope: Satellit
 internal fun SatNightSection(group: SatNightGroup, expanded: Boolean, shown: Int, cap: Int,
     tokens: ZigSatTokens, isFa: Boolean, actionsFor: (SatPassUi) -> SatPassActions, onToggle: () -> Unit,
     onMore: () -> Unit, realNow: Long, sourceModifier: @Composable (String) -> Modifier = { Modifier },
-    tz: TimeZone = TimeZone.getDefault()) {
+    tz: TimeZone = TimeZone.getDefault(), selectedPassKey: String? = null) {
     val reduce = LocalSatReduceMotion.current
     val expandedLabel = stringResource(R.string.sat_expanded)
     val collapsedLabel = stringResource(R.string.sat_collapsed)
@@ -1007,6 +1005,9 @@ internal fun SatNightSection(group: SatNightGroup, expanded: Boolean, shown: Int
         Column(Modifier.weight(1f)) {
             SatText(group.title, tokens.inkPrimary, size = 13, strong = true)
             if (group.subtitle != null) SatText(group.subtitle, tokens.inkTertiary, size = 11)
+            if (!expanded && group.passes.any { it.key == selectedPassKey }) {
+                SatText(stringResource(R.string.sat_selected_pass), tokens.accentInk, size = 11, strong = true)
+            }
             if (!expanded && group.best != null) {
                 SatText(stringResource(R.string.sat_night_best, group.best.quality.label(isFa),
                     SatFmt.degrees(group.best.pass.maxElevationDeg, isFa)), tokens.inkSecondary, size = 11)
@@ -1021,7 +1022,8 @@ internal fun SatNightSection(group: SatNightGroup, expanded: Boolean, shown: Int
         Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val visible = group.passes.take(shown.coerceAtMost(cap))
             visible.forEach { row -> key(row.key) {
-                SatCompactPassCard(row, tokens, isFa, actionsFor(row), sourceModifier(row.key), realNow, tz)
+                SatCompactPassCard(row, tokens, isFa, actionsFor(row), sourceModifier(row.key), realNow, tz,
+                    selected = row.key == selectedPassKey)
             } }
             val more = minOf(cap, group.passes.size) - visible.size
             if (more > 0) SatDialogButton(stringResource(R.string.sat_more_passes, SatFmt.int(more, isFa)), tokens, onMore,
