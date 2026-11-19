@@ -356,16 +356,82 @@ object Earth3DMath {
         viewportHeight: Float,
         occluderRadius: Float = 1f,
     ): EarthProjectedPoint {
-        if (viewportWidth <= 0f || viewportHeight <= 0f) {
-            return EarthProjectedPoint(0f, 0f, 0f, 0f, 0f, visible = false, limbFade = 0f)
-        }
+        val buf = FloatArray(6)
+        val visible = projectLatLonInto(
+            latDeg = latDeg,
+            lonDeg = lonDeg,
+            radius = radius,
+            camera = camera,
+            viewportWidth = viewportWidth,
+            viewportHeight = viewportHeight,
+            out = buf,
+            occluderRadius = occluderRadius,
+        )
+        return EarthProjectedPoint(
+            screenX = buf[0],
+            screenY = buf[1],
+            worldX = buf[2],
+            worldY = buf[3],
+            worldZ = buf[4],
+            visible = visible,
+            limbFade = buf[5],
+        )
+    }
+
+    /**
+     * Allocation-free twin of [projectLatLon] for dense marker clouds (e.g. the whole Starlink
+     * constellation). Writes `[screenX, screenY, worldX, worldY, worldZ, limbFade]` into [out] and
+     * returns the same `visible` flag [projectLatLon] would report.
+     */
+    fun projectLatLonInto(
+        latDeg: Double,
+        lonDeg: Double,
+        radius: Float,
+        camera: EarthCameraSnapshot,
+        viewportWidth: Float,
+        viewportHeight: Float,
+        out: FloatArray,
+        occluderRadius: Float = 1f,
+    ): Boolean {
+        out[0] = 0f
+        out[1] = 0f
+        out[2] = 0f
+        out[3] = 0f
+        out[4] = 0f
+        out[5] = 0f
+        if (viewportWidth <= 0f || viewportHeight <= 0f) return false
         val lat = Math.toRadians(latDeg)
         val lon = Math.toRadians(lonDeg)
         val ring = cos(lat)
-        val mx = (radius * ring * sin(lon)).toFloat()
-        val my = (radius * sin(lat)).toFloat()
-        val mz = (radius * ring * cos(lon)).toFloat()
+        return projectModelPointInto(
+            mx = (radius * ring * sin(lon)).toFloat(),
+            my = (radius * sin(lat)).toFloat(),
+            mz = (radius * ring * cos(lon)).toFloat(),
+            radius = radius,
+            camera = camera,
+            viewportWidth = viewportWidth,
+            viewportHeight = viewportHeight,
+            out = out,
+            occluderRadius = occluderRadius,
+        )
+    }
 
+    /**
+     * Projects an already-built model-space point (see [latLonToModel]) at [radius] Earth radii.
+     * Lets dense marker clouds precompute their trigonometry once instead of per camera frame.
+     */
+    fun projectModelPointInto(
+        mx: Float,
+        my: Float,
+        mz: Float,
+        radius: Float,
+        camera: EarthCameraSnapshot,
+        viewportWidth: Float,
+        viewportHeight: Float,
+        out: FloatArray,
+        occluderRadius: Float = 1f,
+    ): Boolean {
+        if (viewportWidth <= 0f || viewportHeight <= 0f) return false
         val cy = cos(camera.yawRad)
         val sy = sin(camera.yawRad)
         val cp = cos(camera.pitchRad)
@@ -375,23 +441,23 @@ object Earth3DMath {
         val wx = x1
         val wy = my.let { it * cp - z1 * sp }
         val wz = my.let { it * sp + z1 * cp }
+        out[2] = wx
+        out[3] = wy
+        out[4] = wz
 
         val distance = camera.distance
         val depth = distance - wz
-        if (depth <= NEAR_PLANE) {
-            return EarthProjectedPoint(0f, 0f, wx, wy, wz, visible = false, limbFade = 0f)
-        }
+        if (depth <= NEAR_PLANE) return false
 
         val aspect = viewportWidth / viewportHeight
         val ndcX = (wx / (aspect * TAN_HALF_FOV_Y)) / depth
         val ndcY = (wy / TAN_HALF_FOV_Y) / depth
         val sx = (ndcX * camera.projection.focalScale * 0.5f + 0.5f) * viewportWidth
         val syPx = (camera.projection.centerY - ndcY * camera.projection.focalScale * 0.5f) * viewportHeight
+        out[0] = sx
+        out[1] = syPx
 
-        val occluded = isOccludedByEarth(wx, wy, wz, distance, occluderRadius)
-        if (occluded) {
-            return EarthProjectedPoint(sx, syPx, wx, wy, wz, visible = false, limbFade = 0f)
-        }
+        if (isOccludedByEarth(wx, wy, wz, distance, occluderRadius)) return false
 
         // Smooth fade for surface markers right at the horizon; elevated orbital markers stay crisp
         // right until the Earth limb occludes them.
@@ -401,15 +467,8 @@ object Earth3DMath {
         } else {
             1f
         }
-        return EarthProjectedPoint(
-            screenX = sx,
-            screenY = syPx,
-            worldX = wx,
-            worldY = wy,
-            worldZ = wz,
-            visible = limbFade > 0.001f,
-            limbFade = limbFade,
-        )
+        out[5] = limbFade
+        return limbFade > 0.001f
     }
 }
 

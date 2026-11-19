@@ -31,8 +31,14 @@ object StarlinkTrainManager {
     const val DEFAULT_TOP_VISIBLE_PASS_LIMIT = 18
     const val DEFAULT_REALTIME_OVERHEAD_LIMIT = 28
     const val REALTIME_SNAPSHOT_TTL_MS = 12_000L
+    const val CONSTELLATION_POSITION_TTL_MS = 3_000L
+    private const val CONSTELLATION_MIN_MEAN_MOTION = 14.0
+    private const val MAX_CONSTELLATION_EPOCH_MINUTES = 30.0 * 1440.0
 
     private const val WGS84_A_KM = 6378.137
+    private const val WGS84_F = 1.0 / 298.257223563
+    private const val WGS84_B_KM = WGS84_A_KM * (1.0 - WGS84_F)
+    private const val WGS84_EP2 = (WGS84_A_KM * WGS84_A_KM - WGS84_B_KM * WGS84_B_KM) / (WGS84_B_KM * WGS84_B_KM)
     private const val WGS84_E2 = 0.00669437999014
     private const val EARTH_SHADOW_RADIUS_SQ = 6371.0 * 6371.0
     private val SIN_40_SQ = sin(Math.toRadians(40.0)).let { it * it }
@@ -1157,10 +1163,102 @@ object StarlinkTrainManager {
         }
     }
 
+    /**
+     * One cheap sub-satellite fix for the whole constellation. The 3D globe paints these as tiny
+     * lit/shadow dots so every Starlink is visible on Earth — not only the ones above the observer —
+     * without paying for magnitude, verdict or observer-frame work per satellite.
+     */
+    data class StarlinkConstellationPoint(
+        val noradId: Int,
+        val subLatDeg: Double,
+        val subLonDeg: Double,
+        val altitudeKm: Double,
+        val isSunlit: Boolean
+    )
+
+    @Volatile
+    private var cachedConstellationKey: String? = null
+
+    @Volatile
+    private var cachedConstellationPoints: List<StarlinkConstellationPoint> = emptyList()
+
+    private val constellationLock = Any()
+
+    /**
+     * Bulk SGP4 sweep over the cached Starlink TLE set returning the sub-satellite point of every
+     * healthy shell member at [atMs]. Designed for [kotlinx.coroutines.Dispatchers.Default] and
+     * memoized per [bucketMs] window so a 1 Hz globe tick does not re-propagate ~8,000 satellites.
+     */
+    fun computeConstellationPoints(
+        starlinkTles: List<TLEData>,
+        atMs: Long,
+        bucketMs: Long = CONSTELLATION_POSITION_TTL_MS
+    ): List<StarlinkConstellationPoint> {
+        if (starlinkTles.isEmpty()) return emptyList()
+        val orbitals = getParsedOrbitals(starlinkTles)
+        if (orbitals.isEmpty()) return emptyList()
+
+        val bucket = if (bucketMs > 0L) atMs / bucketMs else atMs
+        val key = "${starlinkTles.size}:${orbitals.first().noradId}:${orbitals.last().noradId}:$bucketMs:$bucket"
+        val cached = cachedConstellationPoints
+        if (key == cachedConstellationKey && cached.isNotEmpty()) return cached
+
+        val frame = buildTimestampFrame(atMs)
+        val sgp4 = SGP4Propagator()
+        val points = ArrayList<StarlinkConstellationPoint>(orbitals.size)
+
+        for (orb in orbitals) {
+            // Keep operational / recently deployed LEO shells and drop decayed or malformed entries.
+            if (orb.meanMotion !in CONSTELLATION_MIN_MEAN_MOTION..MAX_TRAIN_MEAN_MOTION) continue
+            val tsinceMin = (frame.jd - orb.epochJd) * SGP4Propagator.MINUTES_PER_DAY
+            if (!tsinceMin.isFinite() || abs(tsinceMin) > MAX_CONSTELLATION_EPOCH_MINUTES) continue
+
+            val teme = sgp4.propagateMinutesSinceEpoch(orb.sgp4Tle, tsinceMin)
+            if (!teme.xKm.isFinite() || !teme.yKm.isFinite() || !teme.zKm.isFinite()) continue
+
+            val xEcef = teme.xKm * frame.cosGmst + teme.yKm * frame.sinGmst
+            val yEcef = -teme.xKm * frame.sinGmst + teme.yKm * frame.cosGmst
+            val zEcef = teme.zKm
+
+            // WGS-84 geodetic sub-satellite point (same reduction as ISSEngine.calculateTopocentricPos).
+            val p = sqrt(xEcef * xEcef + yEcef * yEcef)
+            val theta = atan2(zEcef * WGS84_A_KM, p * WGS84_B_KM)
+            val subLatRad = atan2(
+                zEcef + WGS84_EP2 * WGS84_B_KM * sin(theta).pow(3),
+                p - WGS84_E2 * WGS84_A_KM * cos(theta).pow(3)
+            )
+            val subLonRad = atan2(yEcef, xEcef)
+            val cosLat = cos(subLatRad)
+            val n = WGS84_A_KM / sqrt(1.0 - WGS84_E2 * sin(subLatRad) * sin(subLatRad))
+            val altKm = if (abs(cosLat) < 1e-9) 0.0 else (p / cosLat) - n
+            if (!altKm.isFinite() || altKm !in 100.0..2_000.0) continue
+
+            points.add(
+                StarlinkConstellationPoint(
+                    noradId = orb.noradId,
+                    subLatDeg = Math.toDegrees(subLatRad),
+                    subLonDeg = Math.toDegrees(subLonRad),
+                    altitudeKm = altKm,
+                    isSunlit = isSunlitFast(xEcef, yEcef, zEcef, frame.sunUnitX, frame.sunUnitY, frame.sunUnitZ)
+                )
+            )
+        }
+
+        synchronized(constellationLock) {
+            cachedConstellationKey = key
+            cachedConstellationPoints = points
+        }
+        return points
+    }
+
     fun invalidateCaches() {
         cachedParsedKey = null
         cachedParsedList = emptyList()
         cachedRealtimeSnapshot = null
+        synchronized(constellationLock) {
+            cachedConstellationKey = null
+            cachedConstellationPoints = emptyList()
+        }
     }
 
     fun cleanStarlinkNameEn(rawName: String, noradId: Int): String {

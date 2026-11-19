@@ -197,6 +197,23 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     }
     val filteredSatellites = remember(visibleSatellites, selectedCategory) { visibleSatellites.filter { matchesScope(it, selectedCategory) } }
     val showStarlinks = selectedCategory == SatelliteCategory.ALL || selectedCategory == SatelliteCategory.STARLINK || selectedCategory == SatelliteCategory.VISIBLE
+    // The observer shortlist above the horizon is not the constellation: the globe paints every
+    // Starlink in the shell, refreshed on a coarse bucket and propagated off the main thread. The
+    // naked-eye scope stays observation-only, so it keeps its curated candidates instead.
+    val showConstellation = selectedCategory == SatelliteCategory.ALL || selectedCategory == SatelliteCategory.STARLINK
+    var constellationPoints by remember { mutableStateOf<List<StarlinkTrainManager.StarlinkConstellationPoint>>(emptyList()) }
+    val constellationBucket = currentSimulationMs / StarlinkTrainManager.CONSTELLATION_POSITION_TTL_MS
+    LaunchedEffect(starlinkCacheVersion, constellationBucket, showConstellation) {
+        if (!showConstellation) {
+            constellationPoints = emptyList()
+            return@LaunchedEffect
+        }
+        // A fast time scrub settles first, so a full-shell SGP4 sweep never piles up per slider tick.
+        if (isPreview) delay(140)
+        constellationPoints = withContext(Dispatchers.Default) {
+            StarlinkTrainManager.computeConstellationPoints(tleRepo.getStarlinkTles(), currentSimulationMs)
+        }
+    }
     var retainedFocus by remember(navigation) { navigation::retainedFocus }
     val selectedSatItem = remember(selectedSatelliteId, visibleSatellites, activeTrains, retainedFocus) {
         visibleSatellites.firstOrNull { it.id == selectedSatelliteId }
@@ -529,6 +546,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                                     selectedSatItem = selectedSatItem, liveSatelliteStates = globeFleet,
                                     mapOverheadStarlinkStates = mapOverheadStarlinkStates, trainPearlStatesByTrain = trainPearlStatesByTrain,
                                     allInteractiveMapStates = allInteractiveMapStates,
+                                    constellationPoints = constellationPoints,
                                     // Selection remains visible as the renderer's marker; identity and actions live in the focus card.
                                     anchoredSatLabelState = null,
                                     overlayStyle = earthOverlayStyle(tokens, uiState.themeMode), focusTarget = earthFocusTarget,

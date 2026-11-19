@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -276,6 +277,8 @@ fun SatelliteEarth3D(
     ),
     tokens: ZigSatTokens,
     reduceMotion: Boolean = false,
+    // Sub-satellite fixes for the entire Starlink shell, painted regardless of the observer's horizon.
+    constellationPoints: List<StarlinkTrainManager.StarlinkConstellationPoint> = emptyList(),
     onGlobeGesture: () -> Unit = {},
     onCenteredChanged: (Boolean) -> Unit = {},
     popoverModifier: Modifier = Modifier,
@@ -375,6 +378,23 @@ fun SatelliteEarth3D(
         ).copy(viewportProjection = framing, fullViewportGestures = true)
     }
 
+    // Model-space vectors for the whole Starlink constellation, rebuilt only when the fixes change so
+    // a 60 FPS drag never pays for thousands of lat/lon trig pairs per frame.
+    val constellationModel = remember(constellationPoints) {
+        val model = FloatArray(constellationPoints.size * 3)
+        for (i in constellationPoints.indices) {
+            val point = constellationPoints[i]
+            val lat = Math.toRadians(point.subLatDeg)
+            val lon = Math.toRadians(point.subLonDeg)
+            val radius = Earth3DMath.altitudeKmToRadius(point.altitudeKm)
+            val ring = cos(lat) * radius
+            model[i * 3] = (ring * sin(lon)).toFloat()
+            model[i * 3 + 1] = (sin(lat) * radius).toFloat()
+            model[i * 3 + 2] = (ring * cos(lon)).toFloat()
+        }
+        model
+    }
+
     // Precompute smooth 3D orbital track for the selected satellite (refreshed every 15s or on scrub).
     val orbitBucket = currentSimulationMs / 15_000L
     val selectedOrbitTrack = remember(selectedSatItem?.id, selectedSatItem?.noradId, orbitBucket) {
@@ -457,7 +477,45 @@ fun SatelliteEarth3D(
                 )
             }
 
-            // 2b. Subtle 3D Lat/Lon Graticule & Equator on the visible hemisphere
+            // 2b. Whole Starlink constellation in 3D LEO. The observer only sees the shortlist above
+            // their horizon, so the rest of the shell is painted here as two batched point clouds
+            // (sunlit / in Earth's shadow). Featured satellites keep their dedicated marker passes.
+            if (constellationPoints.isNotEmpty()) {
+                val featuredNorads = HashSet<Int>(allInteractiveMapStates.size * 2)
+                for (state in allInteractiveMapStates) featuredNorads.add(state.satellite.noradId)
+                val probe = FloatArray(6)
+                val lit = ArrayList<Offset>(constellationPoints.size)
+                val shadowed = ArrayList<Offset>(constellationPoints.size)
+                for (i in constellationPoints.indices) {
+                    val point = constellationPoints[i]
+                    if (point.noradId in featuredNorads) continue
+                    val onScreen = Earth3DMath.projectModelPointInto(
+                        mx = constellationModel[i * 3],
+                        my = constellationModel[i * 3 + 1],
+                        mz = constellationModel[i * 3 + 2],
+                        radius = Earth3DMath.altitudeKmToRadius(point.altitudeKm),
+                        camera = cam,
+                        viewportWidth = w,
+                        viewportHeight = h,
+                        out = probe,
+                    )
+                    if (!onScreen) continue
+                    val x = probe[0]
+                    val y = probe[1]
+                    if (x !in -6f..(w + 6f) || y !in -6f..(h + 6f)) continue
+                    (if (point.isSunlit) lit else shadowed).add(Offset(x, y))
+                }
+                if (shadowed.isNotEmpty()) {
+                    drawPoints(shadowed, PointMode.Points, overlayStyle.starlinkColor.copy(alpha = 0.26f),
+                        strokeWidth = 1.9.dp.toPx(), cap = StrokeCap.Round)
+                }
+                if (lit.isNotEmpty()) {
+                    drawPoints(lit, PointMode.Points, overlayStyle.starlinkColor.copy(alpha = 0.58f),
+                        strokeWidth = 2.4.dp.toPx(), cap = StrokeCap.Round)
+                }
+            }
+
+            // 2c. Subtle 3D Lat/Lon Graticule & Equator on the visible hemisphere
             drawGraticule3D(
                 cam = cam,
                 w = w,
@@ -468,7 +526,7 @@ fun SatelliteEarth3D(
                 equatorPath = equatorPath,
             )
 
-            // 2c. Subtle night-side city light highlights for catalogued world/Iranian hubs
+            // 2d. Subtle night-side city light highlights for catalogued world/Iranian hubs
             drawNightCityAccents3D(
                 cam = cam,
                 w = w,
@@ -477,7 +535,7 @@ fun SatelliteEarth3D(
                 cityColor = overlayStyle.cityLightAccent,
             )
 
-            // 2d. Selected Satellite 3D LEO Orbital Track (past 45m + future 90m)
+            // 2e. Selected Satellite 3D LEO Orbital Track (past 45m + future 90m)
             if (selectedOrbitTrack.size >= 2) {
                 drawOrbitTrack3D(
                     points = selectedOrbitTrack,
@@ -492,7 +550,7 @@ fun SatelliteEarth3D(
                 )
             }
 
-            // 2e. User Location Pin & Localized City Label on Earth's surface
+            // 2f. User Location Pin & Localized City Label on Earth's surface
             val userProj = Earth3DMath.projectLatLon(
                 latDeg = userLocation.latitude,
                 lonDeg = userLocation.longitude,
@@ -551,7 +609,7 @@ fun SatelliteEarth3D(
                 }
             }
 
-            // 2f. Real-time Overhead Individual Starlinks in 3D LEO
+            // 2g. Real-time Overhead Individual Starlinks in 3D LEO
             for (ovState in mapOverheadStarlinkStates) {
                 val sat = ovState.satellite
                 val isSelected = sat.id == selectedSatelliteId
@@ -600,7 +658,7 @@ fun SatelliteEarth3D(
                 if (isSelected) drawCircle(Color.White, 2.dp.toPx(), pos)
             }
 
-            // 2g. Active Starlink "String of Pearls" Train Chains in 3D LEO
+            // 2h. Active Starlink "String of Pearls" Train Chains in 3D LEO
             for ((_, pearls) in trainPearlStatesByTrain) {
                 if (pearls.isEmpty()) continue
                 trainPath.reset()
@@ -685,7 +743,7 @@ fun SatelliteEarth3D(
                 }
             }
 
-            // 2h. Static Catalog & Curated Fleet Satellite Markers (ISS, Tiangong, Hubble, leaders)
+            // 2i. Static Catalog & Curated Fleet Satellite Markers (ISS, Tiangong, Hubble, leaders)
             for (liveState in liveSatelliteStates) {
                 val sat = liveState.satellite
                 if (mapOverheadStarlinkStates.any { it.satellite.id == sat.id } ||
