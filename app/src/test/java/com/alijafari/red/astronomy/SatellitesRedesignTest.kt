@@ -57,6 +57,23 @@ class SatellitesRedesignTest {
     private val sheets by lazy { source("com/alijafari/red/astronomy/ui/satellites/SatelliteSheets.kt") }
     private val detail by lazy { source("com/alijafari/red/astronomy/ui/screens/SatelliteDetailScreen.kt") }
 
+    @Test
+    fun searchNormalizesPersianArabicAndWesternForms() {
+        assertEquals("کیک 25544", normalizeSearchText("كيك ۲۵۵۴۴"))
+        assertEquals("123", normalizeSearchText("١٢٣"))
+        assertEquals("starlink 123", normalizeSearchText("Starlink ۱۲۳"))
+    }
+
+    @Test
+    fun sharedStageKeepsSearchAndPassRoutesExplicit() {
+        assertTrue(stage.contains("visibleSatellites.map { scopedById[it.id] ?: propagate(it) }"))
+        assertTrue(sheets.contains("searching || matchesScope(it.satellite, category)"))
+        assertTrue(sheets.contains("searching || !aboveHorizonOnly"))
+        assertTrue(stage.contains("detail(it.sat, it.pass, it.key)"))
+        assertTrue(components.contains("passesLoading -> stringResource(R.string.sat_checking_passes)"))
+        assertTrue(sheets.contains("onSave(SatAlertsConfig(enabled, lead, ids))"))
+    }
+
     private fun pass(
         startMs: Long,
         durationMin: Int = 6,
@@ -86,6 +103,53 @@ class SatellitesRedesignTest {
             detailedReasonsFa = emptyList(),
             isVisible = true,
         )
+    }
+
+    @Test
+    fun passGlobePreviewKeepsExactIdentityObserverAndFixedPeakTime() {
+        val sat = SatelliteCatalog.satellites.first { it.id == "hubble" }
+        val event = pass(2_000_000_000L)
+        val observer = com.alijafari.red.astronomy.domain.UserLocation(cityNameEn = "London", timezoneId = "Europe/London")
+        val entry = SatDetailEntry(sat, event, observer, SatPanel.Passes)
+        val navigation = SatelliteNavigationState()
+        val state = SatellitesState(SatellitesUiState())
+        val originalAgendaTime = 1_000_000_000L
+        navigation.detail = entry
+        navigation.beginGlobePreview(entry, originalAgendaTime)
+        state.panel(SatPanel.Passes)
+        state.select(entry.satelliteId)
+        assertEquals(SatPanel.Passes, state.ui.activePanel)
+        state.focus(entry.satelliteId)
+        state.previewAt(event.maxTimeMs)
+        assertNull(navigation.detail)
+        assertEquals("hubble_${event.startTimeMs}", navigation.globeReturn?.passId)
+        assertEquals("Europe/London", navigation.globeReturn?.timezoneId)
+        assertEquals(observer, navigation.previewObserver)
+        assertEquals("hubble", state.ui.focusId)
+        assertEquals(event.maxTimeMs, satelliteDisplayTime(state.ui, originalAgendaTime))
+        assertEquals(event.maxTimeMs, satelliteDisplayTime(state.ui, originalAgendaTime + 90_000L))
+        assertTrue(satelliteIsPreview(state.ui))
+        assertEquals(entry, navigation.returnToPass())
+        assertEquals(entry, navigation.detail)
+        assertEquals(SatPanel.Passes, navigation.detail?.origin)
+        assertEquals(originalAgendaTime, navigation.agendaReferenceMs)
+        assertTrue(satelliteIsPreview(state.ui)) // Back is not Return to now.
+        state.offset(0)
+        assertFalse(satelliteIsPreview(state.ui))
+    }
+
+    @Test
+    fun exactPreviewWorksEvenAtTheCurrentMinuteAndOutsideTimelineWindow() {
+        val state = SatellitesState(SatellitesUiState())
+        val now = 1_000_000L
+        state.previewAt(now)
+        assertTrue(satelliteIsPreview(state.ui))
+        state.previewAt(now + 3 * 24 * 60 * 60_000L)
+        assertEquals(now + 3 * 24 * 60 * 60_000L, satelliteDisplayTime(state.ui, now))
+        state.dismiss()
+        assertTrue(satelliteIsPreview(state.ui))
+        state.offset(0)
+        assertEquals(now, satelliteDisplayTime(state.ui, now))
     }
 
     private fun passUi(
@@ -303,6 +367,17 @@ class SatellitesRedesignTest {
         )
     }
 
+    @Test
+    fun passActionsUseTheEventAndReturnPathRatherThanTheFocusedObject() {
+        assertTrue(stage.contains("screen.previewAt(pass.maxTimeMs)"))
+        assertTrue(stage.contains("entry.observer.latitude, entry.observer.longitude, entry.observer.elevationMeters"))
+        assertTrue(stage.contains("showPassOnGlobe(SatDetailEntry(pass.sat, pass.pass, location, SatPanel.Passes))"))
+        assertTrue(stage.contains("navigation.returnToPass()"))
+        assertTrue(stage.contains("savedScreens.SaveableStateProvider(\"agenda\")"))
+        assertTrue(detail.contains("onShow(pass.pass)"))
+        assertTrue(stage.contains("viewModel.returnToLiveTime()"))
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Acceptance, asserted against the source
     // ---------------------------------------------------------------------------------------------
@@ -331,6 +406,8 @@ class SatellitesRedesignTest {
         state.panel(SatPanel.Layers)
         assertEquals(SatPanel.Layers, state.ui.activePanel)
         state.lighting(MapTheme.LIGHT)
+        assertEquals(SatPanel.Layers, state.ui.activePanel)
+        state.dismiss()
         assertEquals(SatPanel.None, state.ui.activePanel)
         assertEquals(MapTheme.LIGHT, state.ui.mapTheme)
         assertEquals(150, state.ui.timeOffsetMin)
@@ -378,10 +455,13 @@ class SatellitesRedesignTest {
         val pill = components.substringAfter("fun SatStatusPill").substringBefore("fun SatAvatar")
         assertFalse(pill.contains("satAltKm"))
         assertFalse(pill.contains("SatScrubber("))
-        assertTrue(components.substringAfter("fun SatFocusCard").substringBefore("fun SatMetric").contains("satAltKm"))
+        assertFalse(components.substringAfter("fun SatFocusCard").substringBefore("fun SatMetric").contains("satAltKm"))
+        assertTrue(components.substringAfter("fun SatFocusCard").substringBefore("fun SatMetric").contains("sat_below_your_horizon"))
         assertEquals(1, Regex("SatTimeTray\\(").findAll(stage).count())
         assertFalse(stage.contains("satellite_mini_dock"))
-        assertTrue(stage.contains("tokens.sim.copy(alpha = 0.35f)"))
+        assertFalse(stage.contains("tokens.sim.copy(alpha = 0.35f)"))
+        assertTrue(stage.contains("sat_tools_menu").not()) // menu is owned by the shared sheet components
+        assertTrue(sheets.contains("sat_tools_menu"))
     }
 
     @Test

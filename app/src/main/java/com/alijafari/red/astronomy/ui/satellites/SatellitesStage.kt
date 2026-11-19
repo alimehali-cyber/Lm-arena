@@ -11,13 +11,14 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -67,7 +68,6 @@ import kotlinx.coroutines.withContext
 private const val MINUTE = 60_000L
 private const val DAY = 24 * 60 * MINUTE
 
-private data class SatDetailEntry(val satellite: SatelliteItem, val pass: ISSEngine.ISSPass?)
 private data class SatFeedback(val label: String, val undo: (() -> Unit)? = null)
 
 /** The data/interaction owner for all three entry points. Renderers do not own navigation state. */
@@ -76,7 +76,13 @@ private data class SatFeedback(val label: String, val undo: (() -> Unit)? = null
 fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSkin) {
     val context = LocalContext.current
     val view = LocalView.current
-    val location = uiState.userLocation
+    val navigation = viewModel.satelliteNavigation
+    val location = navigation.previewObserver ?: uiState.userLocation
+    LaunchedEffect(uiState.userLocation) {
+        if (navigation.previewObserver != null && uiState.userLocation != navigation.locationAtPreview) {
+            navigation.previewObserver = null
+        }
+    }
     val isFa = uiState.language == AppLanguage.PERSIAN
     val isOnline by rememberIsNetworkOnline(context)
     val tokens = remember(skin, uiState.themeMode) { zigSatTokens(skin, uiState.themeMode) }
@@ -88,19 +94,20 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     val scope = rememberCoroutineScope()
     val prefs = remember(context) { context.getSharedPreferences("astro_app_prefs", Context.MODE_PRIVATE) }
     val legacy = remember(context) { context.getSharedPreferences("astro_prefs", Context.MODE_PRIVATE) }
-    val screen = rememberSaveable(saver = SatellitesState.Saver) {
+    val screen = remember(viewModel) {
+        viewModel.satellitesState ?: run {
         val name = prefs.getString("satellite_map_theme", legacy.getString("satellite_map_theme", null))
         val savedScope = prefs.getString("satellite_scope", null)
         SatellitesState(SatellitesUiState(
             scope = SatelliteCategory.entries.firstOrNull { it.name == savedScope } ?: SatelliteCategory.ALL,
             mapTheme = MapTheme.entries.firstOrNull { it.name == name } ?: MapTheme.AUTO,
-        ))
+        )).also { viewModel.satellitesState = it }
+        }
     }
     val state = screen.ui
     val mapTheme = state.mapTheme
     val selectedCategory = state.scope
     val selectedSatelliteId = state.focusId
-    val timeOffsetMinutes = state.timeOffsetMin
     fun setSatelliteScope(category: SatelliteCategory) {
         screen.scope(category)
         prefs.edit().putString("satellite_scope", category.name).apply()
@@ -146,11 +153,13 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
             realTimeNowMs = System.currentTimeMillis()
         }
     }
-    val currentSimulationMs = realTimeNowMs + timeOffsetMinutes * MINUTE
+    val currentSimulationMs = satelliteDisplayTime(state, realTimeNowMs)
+    val isPreview = satelliteIsPreview(state)
+    val timeOffsetMinutes = ((currentSimulationMs - realTimeNowMs) / MINUTE).toInt()
     var timeAnimation by remember { mutableStateOf<Job?>(null) }
     fun setTime(minutes: Int, animate: Boolean = false) {
         timeAnimation?.cancel()
-        if (!animate || reduce) screen.offset(minutes)
+        if (!animate || reduce || screen.ui.previewAtMs != null) screen.offset(minutes)
         else timeAnimation = scope.launch {
             Animatable(screen.ui.timeOffsetMin.toFloat()).animateTo(minutes.toFloat(), tween(400)) { screen.offset(value.roundToInt()) }
         }
@@ -171,7 +180,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     var topPassStarlinks by remember { mutableStateOf<List<SatelliteItem>>(emptyList()) }
     val realtimeBucketKey = currentSimulationMs / StarlinkTrainManager.REALTIME_SNAPSHOT_TTL_MS
     LaunchedEffect(starlinkCacheVersion, location, realtimeBucketKey) {
-        if (timeOffsetMinutes != 0) delay(140)
+        if (isPreview) delay(140)
         val snapshot = withContext(Dispatchers.Default) {
             StarlinkTrainManager.selectRealtimeOverheadStarlinks(tleRepo.getStarlinkTles(), location.latitude,
                 location.longitude, location.elevationMeters, nowMs = currentSimulationMs, maxOverhead = StarlinkTrainManager.DEFAULT_REALTIME_OVERHEAD_LIMIT)
@@ -187,7 +196,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     }
     val filteredSatellites = remember(visibleSatellites, selectedCategory) { visibleSatellites.filter { matchesScope(it, selectedCategory) } }
     val showStarlinks = selectedCategory == SatelliteCategory.ALL || selectedCategory == SatelliteCategory.STARLINK || selectedCategory == SatelliteCategory.VISIBLE
-    var retainedFocus by remember { mutableStateOf<SatelliteItem?>(null) }
+    var retainedFocus by remember(navigation) { navigation::retainedFocus }
     val selectedSatItem = remember(selectedSatelliteId, visibleSatellites, activeTrains, retainedFocus) {
         visibleSatellites.firstOrNull { it.id == selectedSatelliteId }
             ?: activeTrains.asSequence().flatMap { it.memberItems.asSequence() }.firstOrNull { it.id == selectedSatelliteId }
@@ -252,7 +261,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     // Keep train drift transparency in addition to the standard age bucket.
     val trainDrift = trainSelected && formatTleStalenessBadge(trainSelected, meta, cachedAge, isFa) != null
     val statusAge = if (trainDrift) maxOf(tleAge ?: 0.0, cachedAge ?: 0.0) else tleAge
-    val status = SatStatusData(timeOffsetMinutes == 0, timeOffsetMinutes, isOnline, statusAge,
+    val status = SatStatusData(!isPreview, timeOffsetMinutes, isOnline, statusAge,
         tleAge?.let { realTimeNowMs - (it * DAY).toLong() }, meta?.source, isFa)
 
     // Cache a superset of the ±12h scrub window and the three-day feed. Scrubbing only changes
@@ -313,26 +322,42 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     val windowPasses = remember(basePasses, currentSimulationMs) { basePasses?.filter { row ->
         row.pass.endTimeMs > currentSimulationMs && row.pass.startTimeMs <= currentSimulationMs + (if (row.isTrain) 2L else 3L) * DAY
     } }
-    val scopedPasses = remember(windowPasses, selectedCategory) { windowPasses?.filter { matchesScope(it.sat, selectedCategory) } }
-    val currentNight = remember(nights, currentSimulationMs / MINUTE) { nights.key(currentSimulationMs) }
-    val passesByNight = remember(scopedPasses, currentNight, isFa, tz) {
-        SatNights.group(scopedPasses.orEmpty(), currentSimulationMs, tz, isFa, referenceNight = currentNight)
+    // Returning from an event preview must not rebuild the agenda around the previewed time.
+    val agendaNow = navigation.agendaReferenceMs ?: currentSimulationMs
+    val agendaSource = navigation.agendaSnapshot ?: basePasses
+    val agendaPasses = remember(agendaSource, agendaNow, selectedCategory, alarms, config, realTimeNowMs / MINUTE) {
+        agendaSource?.asSequence()?.filter { row ->
+            matchesScope(row.sat, selectedCategory) && row.pass.endTimeMs > agendaNow &&
+                row.pass.startTimeMs <= agendaNow + (if (row.isTrain) 2L else 3L) * DAY
+        }?.map { row ->
+            val matching = alarms.filter { it.triggerTimeMs > realTimeNowMs && it.coversSatellitePass(row.sat, row.pass.startTimeMs) }
+            row.copy(reminderLeadMinutes = matching.firstOrNull { it.manualPass }?.leadMinutes,
+                isAutoCovered = config.enabled && matching.any { !it.manualPass })
+        }?.toList()
     }
-    val spotlight = remember(scopedPasses, currentSimulationMs, isFa, tz, timeOffsetMinutes) {
-        SatNights.spotlight(scopedPasses.orEmpty(), currentSimulationMs, tz, isFa, timeOffsetMinutes != 0)
+    val currentNight = remember(nights, agendaNow / MINUTE) { nights.key(agendaNow) }
+    val passesByNight = remember(agendaPasses, currentNight, isFa, tz, agendaNow) {
+        SatNights.group(agendaPasses.orEmpty(), agendaNow, tz, isFa, referenceNight = currentNight)
+    }
+    val spotlight = remember(agendaPasses, agendaNow, isFa, tz, isPreview) {
+        SatNights.spotlight(agendaPasses.orEmpty(), agendaNow, tz, isFa, isPreview)
     }
     val markers = remember(basePasses, selectedCategory, realTimeNowMs / MINUTE) { basePasses.orEmpty().asSequence()
         .filter { matchesScope(it.sat, selectedCategory) }
         .map { SatTimeMarker(((it.pass.maxTimeMs - realTimeNowMs) / 60_000.0).roundToInt(), it.quality) }
         .filter { it.minute in -720..720 }.distinctBy { it.minute }.toList() }
-    val fleet = remember(liveSatelliteStates, selectedSatelliteId, isFa) { liveSatelliteStates.map { live ->
+    val fleetStates = remember(visibleSatellites, liveSatelliteStates, currentSimulationMs, location, tleRefreshTick, state.activePanel) {
+        val scopedById = liveSatelliteStates.associateBy { it.satellite.id }
+        if (state.activePanel == SatPanel.Fleet) visibleSatellites.map { scopedById[it.id] ?: propagate(it) } else emptyList()
+    }
+    val fleet = remember(fleetStates, selectedSatelliteId, isFa) { fleetStates.map { live ->
         SatTokenUi(live.satellite.id, shortNameOf(live.satellite, isFa), fullNameOf(live.satellite, isFa), live.satellite.isTrain,
             live.satellite.trainCount, live.topocentric.elevationDeg, live.satellite.isNakedEyeCandidate,
             live.satellite.id == selectedSatelliteId, live.satellite)
     } }
     val nextFocused = windowPasses?.firstOrNull { it.sat.id == selectedLiveState?.satellite?.id }
 
-    var activeDetail by remember { mutableStateOf<SatDetailEntry?>(null) }
+    var activeDetail by remember(navigation) { navigation::detail }
     var detailSource by remember { mutableStateOf("focus") }
     var reminderTarget by remember { mutableStateOf<SatReminderTarget?>(null) }
     var feedback by remember { mutableStateOf<SatFeedback?>(null) }
@@ -367,32 +392,83 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     }
     fun detail(sat: SatelliteItem, pass: ISSEngine.ISSPass? = null, source: String = "focus") {
         detailSource = source
-        activeDetail = SatDetailEntry(sat, pass)
+        screen.select(sat.id)
+        retainedFocus = sat
+        activeDetail = SatDetailEntry(sat, pass, location, state.activePanel)
     }
-    fun showOnAr(sat: SatelliteItem) {
-        activeDetail = null
-        screen.dismiss()
+    fun showOnAr(sat: SatelliteItem, pass: ISSEngine.ISSPass? = null) {
+        // AR is a live sky, not a future pass simulation. Keep its origin for return.
+        val prior = activeDetail
+        val origin = prior?.origin ?: state.activePanel
+        if (pass != null) {
+            screen.select(sat.id)
+            retainedFocus = sat
+            activeDetail = SatDetailEntry(sat, pass, prior?.observer ?: location, origin)
+        }
+        if (origin == SatPanel.Passes) {
+            navigation.agendaReferenceMs = navigation.agendaReferenceMs ?: currentSimulationMs
+            navigation.agendaSnapshot = navigation.agendaSnapshot ?: basePasses
+        }
+        navigation.returnFromAr = true
+        viewModel.returnToLiveTime()
         viewModel.locateObjectInAR(ArScreenSupport.targetForSatellite(sat))
+    }
+    fun showPassOnGlobe(entry: SatDetailEntry) {
+        val pass = entry.pass ?: return
+        timeAnimation?.cancel()
+        if (entry.origin == SatPanel.Passes) navigation.agendaSnapshot = navigation.agendaSnapshot ?: basePasses
+        navigation.beginGlobePreview(entry, currentSimulationMs, uiState.userLocation)
+        screen.previewAt(pass.maxTimeMs)
+        // Propagate at the event instant, not the outgoing screen's current instant.
+        val atPass = SatelliteEngine.calculateSatelliteState(entry.satellite, pass.maxTimeMs,
+            entry.observer.latitude, entry.observer.longitude, entry.observer.elevationMeters)
+        focusSatellite(atPass)
+        anchorId = null
     }
     fun passActions(pass: SatPassUi) = SatPassActions(
         onOpenDetail = { detail(pass.sat, pass.pass, pass.key) },
-        onShowOnGlobe = { focusItem(pass.sat) },
-        onAr = { showOnAr(pass.sat) },
+        onShowOnGlobe = { showPassOnGlobe(SatDetailEntry(pass.sat, pass.pass, location, SatPanel.Passes)) },
+        onAr = { showOnAr(pass.sat, pass.pass) },
         onRemind = { bounds -> reminderTarget = SatReminderTarget(pass, bounds) },
     )
     fun closePanel() {
         reminderTarget = null
         anchorId = null
+        if (screen.ui.activePanel == SatPanel.Passes) {
+            navigation.agendaReferenceMs = null
+            navigation.agendaSnapshot = null
+        }
         screen.dismiss()
+    }
+    fun returnToPass() {
+        val entry = navigation.returnToPass() ?: return
+        detailSource = entry.passId ?: "focus"
+        screen.panel(entry.origin)
     }
     val activeModal = state.activePanel in setOf(SatPanel.Fleet, SatPanel.Passes, SatPanel.Alerts, SatPanel.Guide)
     SideEffect { viewModel.setSatellitesChromeOccluded(uiState.selectedTab == 1 && (activeModal || activeDetail != null)) }
     DisposableEffect(viewModel) { onDispose { viewModel.setSatellitesChromeOccluded(false) } }
-    BackHandler(uiState.selectedTab == 1 && activeDetail == null && (state.activePanel != SatPanel.None || anchorId != null)) { closePanel() }
-    val returnLive = { setTime(0, animate = true) }
+    BackHandler(uiState.selectedTab == 1 && activeDetail == null && (state.activePanel != SatPanel.None || anchorId != null || navigation.globeReturn != null)) {
+        if (state.activePanel != SatPanel.None) closePanel()
+        else if (navigation.globeReturn != null) { anchorId = null; returnToPass() }
+        else closePanel()
+    }
+    val returnLive = {
+        timeAnimation?.cancel()
+        screen.offset(0)
+        navigation.previewObserver = null
+        if (navigation.globeReturn == null && activeDetail == null) {
+            navigation.agendaReferenceMs = null
+            navigation.agendaSnapshot = null
+        }
+    }
     val timeActions = SatTimeActions({ setTime(it) }, returnLive,
-        { nextSatelliteTime(markers, screen.ui.timeOffsetMin)?.let { setTime(it, animate = true) } },
-        { delta -> setTime(screen.ui.timeOffsetMin + delta) })
+        { nextSatelliteTime(markers, timeOffsetMinutes)?.let { setTime(it, animate = true) } },
+        { delta ->
+            if (screen.ui.previewAtMs != null) screen.previewAt(currentSimulationMs + delta * MINUTE)
+            else setTime(screen.ui.timeOffsetMin + delta)
+        })
+    val savedScreens = rememberSaveableStateHolder()
 
     CompositionLocalProvider(LocalSatSkin provides skin, LocalZigSatTokens provides tokens, LocalSatReduceMotion provides reduce) {
         Box(Modifier.fillMaxSize().background(tokens.canvas)) {
@@ -400,7 +476,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                 val shared = this
                 val duration = if (reduce) 120 else 320
                 AnimatedContent(targetState = activeDetail, modifier = Modifier.fillMaxSize(),
-                    transitionSpec = { fadeIn(tween(duration)) togetherWith fadeOut(tween(duration)) }, label = "satellite-detail") { entry ->
+                    contentKey = { it?.satelliteId ?: "globe" }, transitionSpec = { fadeIn(tween(duration)) togetherWith fadeOut(tween(duration)) }, label = "satellite-detail") { entry ->
                     val visibility = this
                     val sourceModifier: @Composable (String) -> Modifier = { key ->
                         if (reduce || key != detailSource) Modifier else with(shared) {
@@ -409,19 +485,25 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                         }
                     }
                     if (entry != null) {
+                        savedScreens.SaveableStateProvider("detail-${entry.satelliteId}") {
                         SatelliteDetailScreen(
-                            satelliteItem = entry.satellite, userLocation = location, language = uiState.language,
-                            onBack = { activeDetail = null }, simulationTimestampMs = currentSimulationMs,
+                            satelliteItem = entry.satellite, userLocation = entry.observer, language = uiState.language,
+                            onBack = { activeDetail = null; screen.panel(entry.origin) }, simulationTimestampMs = currentSimulationMs,
                             skin = skin, themeMode = uiState.themeMode, preselectedPass = entry.pass,
-                            reminderAlarms = alarms, isSimulated = timeOffsetMinutes != 0,
+                            reminderAlarms = alarms, isSimulated = isPreview,
                             onRemoveReminder = ::removeReminder, onSetReminder = ::setReminder,
-                            onShowOnGlobe = { satellite -> activeDetail = null; focusItem(satellite) },
-                            onSpotInAr = ::showOnAr,
-                            modifier = sourceModifier(detailSource),
+                            onShowOnGlobe = { satellite, pass ->
+                                if (pass != null) showPassOnGlobe(entry.copy(satellite = satellite, pass = pass))
+                                else { activeDetail = null; focusItem(satellite) }
+                            },
+                            onSpotInAr = { satellite, pass -> showOnAr(satellite, pass) },
+                            modifier = sourceModifier(detailSource), isActive = uiState.selectedTab == 1,
                         )
+                        }
                     } else {
                         SatelliteHud(
-                            state = state, status = status, tokens = tokens, config = config, focused = selectedLiveState,
+                            state = state.copy(timeOffsetMin = timeOffsetMinutes), status = status, tokens = tokens, config = config, focused = selectedLiveState,
+                            displayTimeMs = currentSimulationMs, onReturnToPass = navigation.globeReturn?.let { { returnToPass() } },
                             nextFocused = nextFocused, now = realTimeNowMs, tz = tz, markers = markers, centered = centered,
                             firstRun = firstRun, timeActions = timeActions, onPanel = { panel ->
                                 reminderTarget = null
@@ -434,11 +516,14 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                                 earthFocusTarget = EarthFocusTarget(location.latitude, location.longitude,
                                     SATELLITE_EARTH_DEFAULT_DISTANCE, ++focusSequence, locate = true)
                             }, onCycle = ::cycle, onDetail = { selectedLiveState?.satellite?.let { detail(it) } },
+                            observerName = if (isFa) location.cityNameFa else location.cityNameEn,
+                            onObserver = { viewModel.setShowLocationSelector(true) },
+                            passesLoading = windowPasses == null, onNextPass = { nextFocused?.let { detail(it.sat, it.pass, it.key) } },
                             onLighting = { theme ->
                                 screen.lighting(theme)
                                 prefs.edit().putString("satellite_map_theme", theme.name).apply()
                                 legacy.edit().putString("satellite_map_theme", theme.name).apply()
-                            }, onLegend = { screen.legend(it); screen.dismiss() },
+                            }, onLegend = { screen.legend(it) },
                             focusModifier = sourceModifier("focus"),
                             globe = { framing, top, bottom ->
                                 SatelliteEarth3D(
@@ -460,9 +545,11 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                                 when (panel) {
                                     SatPanel.Fleet -> SatFleetSheet(fleet, selectedCategory, tokens, isFa, ::setSatelliteScope,
                                         { focusItem(it.satellite) }, ::closePanel)
-                                    SatPanel.Passes -> SatPassesSheet(tokens, isFa, selectedCategory, scopedPasses?.size, passesByNight,
-                                        spotlight, currentSimulationMs, realTimeNowMs, side, ::closePanel, { setSatelliteScope(SatelliteCategory.ALL) },
-                                        { selectedLiveState?.satellite?.let { detail(it) } }, ::passActions, sourceModifier, tz, isOnline)
+                                    SatPanel.Passes -> savedScreens.SaveableStateProvider("agenda") {
+                                        SatPassesSheet(tokens, isFa, selectedCategory, agendaPasses?.size, passesByNight,
+                                            spotlight, agendaNow, realTimeNowMs, side, ::closePanel, { setSatelliteScope(SatelliteCategory.ALL) },
+                                            { selectedLiveState?.satellite?.let { detail(it) } }, ::passActions, sourceModifier, tz, isOnline)
+                                    }
                                     SatPanel.Alerts -> SatAlertsSheet(tokens, isFa, config, { ids, lead ->
                                         alertPredictions.orEmpty().firstOrNull { (sat, pass) -> monitored(sat, ids) &&
                                             pass.startTimeMs - lead * MINUTE > realTimeNowMs &&
@@ -502,6 +589,9 @@ internal fun SatelliteHud(
     centered: Boolean, firstRun: Boolean, timeActions: SatTimeActions, onPanel: (SatPanel) -> Unit, onClose: () -> Unit,
     onLive: () -> Unit, onLocate: () -> Unit, onCycle: (Int) -> Unit, onDetail: () -> Unit,
     onLighting: (MapTheme) -> Unit, onLegend: (Boolean) -> Unit, focusModifier: Modifier = Modifier,
+    passesLoading: Boolean = false, onNextPass: () -> Unit = onDetail,
+    observerName: String = "", onObserver: () -> Unit = {},
+    displayTimeMs: Long = now + state.timeOffsetMin * MINUTE, onReturnToPass: (() -> Unit)? = null,
     globe: @Composable (EarthViewportProjection, Dp, Dp) -> Unit, sheet: @Composable (SatPanel, Boolean) -> Unit,
 ) {
     BoxWithConstraints(Modifier.fillMaxSize().clipToBounds().testTag("satellite_screen")) {
@@ -511,7 +601,7 @@ internal fun SatelliteHud(
         val height = maxHeight
         val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-        val top = topInset + if (state.legend) 292.dp else 118.dp
+        val top = topInset + if (state.legend) 292.dp else if (!status.isLive) 148.dp else 112.dp
         val navClearance = bottomInset + 84.dp
         val compact = width < 360.dp || height - topInset - bottomInset < 700.dp
         val padding = if (width >= 412.dp) 20.dp else 16.dp
@@ -520,35 +610,37 @@ internal fun SatelliteHud(
         val framing = with(density) { satelliteViewport(width.toPx(), height.toPx(), top.toPx(), (height - bottom).toPx()) }
         val isFa = status.isFa
         val panel = state.activePanel
-        val simulated = state.timeOffsetMin != 0
+        val simulated = !status.isLive
         val modal = panel == SatPanel.Fleet || panel == SatPanel.Passes || panel == SatPanel.Alerts || panel == SatPanel.Guide
         // Sheets block the globe and its HUD for touch *and* for accessibility. Time and Layers don't.
         Box(Modifier.matchParentSize().then(if (modal) Modifier.clearAndSetSemantics {} else Modifier)) {
             SatelliteStarfield(tokens)
             globe(framing, top, bottom)
-            if (simulated) Box(Modifier.matchParentSize().border(2.dp, tokens.sim.copy(alpha = 0.35f)))
 
-            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(start = padding, end = padding, top = 16.dp),
+            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().statusBarsPadding().padding(start = padding, end = padding, top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 SatStatusPill(status, tokens, { onPanel(SatPanel.DataStatus) }, onLive)
                 Spacer(Modifier.weight(1f))
-                val alerts = if (config.enabled) stringResource(R.string.sat_alerts_tooltip, satLeadLabel(config.leadMinutes, isFa),
-                    SatFmt.int(config.satelliteIds.size, isFa)) else stringResource(R.string.sat_alerts)
-                ZigSatIconButton(Icons.Filled.NotificationsNone, alerts, tokens, { onPanel(SatPanel.Alerts) },
-                    dot = if (config.enabled) tokens.live else null, hud = true, tooltip = alerts, testTag = "sat_alerts")
-                ZigSatIconButton(Icons.Filled.HelpOutline, stringResource(R.string.sat_help), tokens, { onPanel(SatPanel.Guide) },
-                    hud = true, dot = if (firstRun) tokens.live else null, pulseDot = firstRun, testTag = "sat_guide")
-            }
-            Row(Modifier.align(Alignment.TopEnd).padding(top = topInset + 64.dp, end = padding),
-                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                ZigSatIconButton(Icons.Filled.SatelliteAlt, stringResource(R.string.sat_fleet), tokens, { onPanel(SatPanel.Fleet) },
-                    visualSize = 44.dp, hud = true, testTag = "sat_fleet")
                 ZigSatIconButton(Icons.Filled.Schedule, stringResource(R.string.sat_time), tokens, { onPanel(SatPanel.Time) },
-                    visualSize = 44.dp, dot = if (simulated) tokens.sim else null, hud = true, active = panel == SatPanel.Time, testTag = "sat_time")
-                ZigSatIconButton(Icons.Filled.Layers, stringResource(R.string.sat_layers), tokens, { onPanel(SatPanel.Layers) },
-                    visualSize = 44.dp, hud = true, active = panel == SatPanel.Layers, testTag = "sat_layers")
+                    hud = true, active = panel == SatPanel.Time, testTag = "sat_time")
                 ZigSatIconButton(Icons.Filled.CenterFocusWeak, stringResource(R.string.sat_locate), tokens, onLocate,
-                    visualSize = 44.dp, hud = true, enabled = !centered, testTag = "map_reset_view")
+                    hud = true, enabled = !centered, testTag = "map_reset_view")
+                ZigSatIconButton(Icons.Filled.MoreHoriz, stringResource(R.string.sat_more_controls), tokens, { onPanel(SatPanel.Tools) },
+                    hud = true, active = panel == SatPanel.Tools, testTag = "sat_tools")
+            }
+            Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(start = padding, end = padding, top = topInset + 56.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    if (observerName.isNotBlank()) {
+                        Box(Modifier.heightIn(min = 48.dp).clickable(onClick = onObserver), contentAlignment = Alignment.CenterStart) {
+                            androidx.compose.material3.Text("$observerName ▾", color = tokens.hudInk,
+                                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        }
+                    }
+                    if (simulated) SatText(stringResource(R.string.sat_preview_at, SatFmt.dateTime(displayTimeMs, isFa, tz)), tokens.hudInk,
+                        Modifier.testTag("sat_preview_time"), strong = true)
+                }
+                if (onReturnToPass != null) SatDialogButton(stringResource(R.string.sat_return_to_pass), tokens, onReturnToPass, testTag = "sat_return_to_pass")
             }
             Box(Modifier.align(Alignment.BottomCenter).padding(start = padding,
                 end = padding, bottom = navClearance)) {
@@ -557,16 +649,17 @@ internal fun SatelliteHud(
                     else if (targetState) (slideInVertically(tween(240)) { it / 4 } + fadeIn(tween(210))) togetherWith fadeOut(tween(160))
                     else fadeIn(tween(160)) togetherWith (slideOutVertically(tween(230)) { it / 4 } + fadeOut(tween(180)))
                 }, label = "hud-bottom") { showTime ->
-                    if (showTime) SatTimeTray(tokens, state.timeOffsetMin, now, tz, markers, isFa, compact, timeActions, onClose)
+                    if (showTime) SatTimeTray(tokens, state.timeOffsetMin, now, tz, markers, isFa, compact, timeActions, onClose,
+                        displayTimeMs = displayTimeMs, isPreview = simulated, satelliteName = focused?.satellite?.let { shortNameOf(it, isFa) }.orEmpty())
                     else if (focused != null) {
                         val span = stringResource(if (focused.satellite.isTrain) R.string.sat_two_days else R.string.sat_three_days)
                         Crossfade(focused.satellite.id, focusModifier, animationSpec = tween(if (reduce) 120 else 160), label = "satellite-focus") { id ->
                             var presented by remember(id) { mutableStateOf(focused) }
                             SideEffect { if (id == focused.satellite.id) presented = focused }
                             SatFocusCard(presented, tokens, isFa, compact, width >= 412.dp, simulated, !status.isOnline, nextFocused,
-                                now + state.timeOffsetMin * MINUTE, span, firstRun, { onPanel(SatPanel.Fleet) }, onDetail,
+                                displayTimeMs, span, firstRun, { onPanel(SatPanel.Fleet) }, onDetail,
                                 { onPanel(SatPanel.Passes) }, onCycle,
-                                Modifier.onSizeChanged { focusHeight = with(density) { it.height.toDp() } })
+                                Modifier.onSizeChanged { focusHeight = with(density) { it.height.toDp() } }, passesLoading, onNextPass, !matchesScope(presented.satellite, state.scope))
                         }
                     }
                 }
@@ -575,6 +668,8 @@ internal fun SatelliteHud(
                 Modifier.align(Alignment.TopStart).padding(start = padding, top = topInset + 112.dp).width(172.dp))
 
             when (panel) {
+                SatPanel.Tools -> SatToolsPopover(tokens, onPanel,
+                    Modifier.align(Alignment.TopEnd).padding(end = padding, top = topInset + 56.dp))
                 SatPanel.DataStatus -> SatDataStatusPopover(status, tokens, tz, onClose, { onLive(); onClose() },
                     Modifier.align(Alignment.TopStart).padding(start = padding, end = padding, top = top))
                 SatPanel.Layers -> SatLayersPopover(tokens, state.mapTheme, state.legend, onLighting, onLegend,

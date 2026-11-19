@@ -55,6 +55,9 @@ private annotation class SatLocales
 @SatLocales @Composable private fun DarkTime() = SatPreview(ThemeMode.DARK, SatPanel.Time)
 @SatLocales @Composable private fun DarkPasses() = SatPreview(ThemeMode.DARK, SatPanel.Passes)
 @SatLocales @Composable private fun DarkDetail() = SatPreview(ThemeMode.DARK, detail = true)
+@SatLocales @Composable private fun PassDetails() = SatPreview(ThemeMode.DARK, detail = true, detailPass = true)
+@SatLocales @Composable private fun PassGlobePreview() = SatPreview(ThemeMode.DARK, preview = true)
+@SatLocales @Composable private fun DistantPassTimeline() = SatPreview(ThemeMode.DARK, SatPanel.Time, preview = true)
 @SatLocales @Composable private fun LightGlobe() = SatPreview(ThemeMode.LIGHT)
 @SatLocales @Composable private fun LightTime() = SatPreview(ThemeMode.LIGHT, SatPanel.Time)
 @SatLocales @Composable private fun LightPasses() = SatPreview(ThemeMode.LIGHT, SatPanel.Passes)
@@ -112,7 +115,8 @@ private fun samplePass(minutes: Int, height: Double, score: Int) = ISSEngine.ISS
 
 /** Fixed inputs and the production Compose UI; only the unavailable EGL surface is substituted. */
 @Composable
-internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detail: Boolean = false, skin: SatSkin = SatSkin.DEFAULT) {
+internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detail: Boolean = false, skin: SatSkin = SatSkin.DEFAULT,
+    preview: Boolean = false, detailPass: Boolean = false) {
     val fa = LocalConfiguration.current.locales[0]?.language == "fa"
     val tokens = remember(skin, theme) { zigSatTokens(skin, theme) }
     val live = remember {
@@ -131,19 +135,24 @@ internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detai
                 CompositionLocalProvider(LocalLayoutDirection provides if (fa) LayoutDirection.Rtl else LayoutDirection.Ltr,
                     LocalZigSatTokens provides tokens, LocalSatSkin provides skin, LocalSatReduceMotion provides true) {
                     if (detail) SatelliteDetailContent(live.satellite, live, location, fa, skin, theme, true, null,
-                        passes.map { it.pass }, null, emptyList(), now, now, false, {}, { _, _, _ -> }, null, {}, {})
+                        passes.map { it.pass }, if (detailPass) passes.first().pass else null, emptyList(), now, now, false, {}, { _, _, _ -> }, null, {}, {})
                     else Box(Modifier.fillMaxSize().background(tokens.canvas)) {
                         val actions = SatPassActions({}, {}, {}, {})
-                        var state by remember(panel) { mutableStateOf(SatellitesUiState(activePanel = panel, timeOffsetMin = if (panel == SatPanel.Time) 70 else 0)) }
-                        val offset = state.timeOffsetMin
+                        var state by remember(panel, preview) { mutableStateOf(SatellitesUiState(activePanel = panel,
+                            timeOffsetMin = if (panel == SatPanel.Time && !preview) 70 else 0,
+                            previewAtMs = if (preview) now + 2 * 24 * 60 * MINUTE else null)) }
+                        val displayTime = satelliteDisplayTime(state, now)
+                        val offset = ((displayTime - now) / MINUTE).toInt()
                         val markers = listOf(SatTimeMarker(137, SatQuality.EXCELLENT), SatTimeMarker(232, SatQuality.VERY_GOOD))
-                        val setOffset: (Int) -> Unit = { state = state.copy(timeOffsetMin = it.coerceIn(-720, 720)) }
-                        SatelliteHud(state, SatStatusData(offset == 0, offset, true, .8, now - 69_120_000L, TleDataSource.LIVE_NETWORK, fa),
+                        val setOffset: (Int) -> Unit = { state = state.copy(timeOffsetMin = it.coerceIn(-720, 720), previewAtMs = null) }
+                        SatelliteHud(state.copy(timeOffsetMin = offset), SatStatusData(!satelliteIsPreview(state), offset, true, .8, now - 69_120_000L, TleDataSource.LIVE_NETWORK, fa),
                             tokens, SatAlertsConfig(), live, passes.first(), now, tz, markers, false, false,
                             SatTimeActions(setOffset, { setOffset(0) }, { nextSatelliteTime(markers, offset)?.let(setOffset) }, { setOffset(offset + it) }),
                             onPanel = { state = state.copy(activePanel = if (state.activePanel == it) SatPanel.None else it) },
                             onClose = { state = state.copy(activePanel = SatPanel.None) }, onLive = { setOffset(0) },
                             onLocate = {}, onCycle = {}, onDetail = {}, onLighting = {}, onLegend = {},
+                            observerName = if (fa) location.cityNameFa else location.cityNameEn, onObserver = {},
+                            displayTimeMs = displayTime, onReturnToPass = if (preview) ({}) else null,
                             globe = { projection, _, _ -> PreviewEarth(projection, tokens) },
                             sheet = { current, side -> if (current == SatPanel.Passes) SatPassesSheet(tokens, fa, state.scope, passes.size,
                                 SatNights.group(passes, now, tz, fa), SatNights.spotlight(passes, now, tz, fa), now, now,

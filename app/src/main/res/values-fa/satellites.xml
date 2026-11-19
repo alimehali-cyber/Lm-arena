@@ -107,7 +107,7 @@
     <string name="sat_reminder_auto">خودکار</string>
     <string name="sat_undo">بازگردانی</string>
     <string name="sat_show_on_globe">نمایش روی کره</string>
-    <string name="sat_ar">یافتن در واقعیت افزوده</string>
+    <string name="sat_ar">یافتن در آسمان اکنون</string>
     <string name="sat_rise">طلوع</string>
     <string name="sat_max">اوج</string>
     <string name="sat_set">غروب</string>
@@ -146,8 +146,8 @@
         <item quantity="one">%1$s دقیقه</item>
         <item quantity="other">%1$s دقیقه</item>
     </plurals>
-    <string name="sat_detail_ar">یافتن در آسمان واقعیت افزوده</string>
-    <string name="sat_telemetry">داده‌های زندهٔ مدار</string>
+    <string name="sat_detail_ar">یافتن در آسمان اکنون</string>
+    <string name="sat_telemetry">داده‌های مدار</string>
     <string name="sat_telemetry_reduce">پنهان‌کردن داده‌های بیشتر</string>
     <string name="sat_telemetry_more">نمایش داده‌های بیشتر</string>
     <string name="sat_velocity">سرعت مداری</string>
@@ -161,4 +161,30 @@
     <string name="sat_speed_spoken">کیلومتر بر ثانیه</string>
     <string name="sat_passes_cached">آفلاین · بر پایهٔ داده‌های مداری ذخیره‌شده</string>
     <string name="sat_sky_description">مسیر در آسمان: طلوع از %1$s، اوج در ارتفاع %2$s، غروب در %3$s.</string>
+    <string name="sat_change_satellite">تغییر</string>
+    <string name="sat_above_your_horizon">بالای افق شما</string>
+    <string name="sat_below_your_horizon">زیر افق شما</string>
+    <string name="sat_checking_passes">در حال بررسی گذرهای پیش رو…</string>
+    <string name="sat_all_passes">همه گذرها</string>
+    <string name="sat_search_all_tracked">جست‌وجو در همه اجرام ردیابی‌شده؛ فیلترهای رصد موقتاً غیرفعال‌اند.</string>
+    <string name="sat_manual_reminders_remain">خاموش کردن پایش خودکار، یادآوری‌های جداگانه را حذف نمی‌کند.</string>
+    <string name="sat_expanded">بازشده</string>
+    <string name="sat_collapsed">بسته</string>
+    <string name="sat_next_agenda">بعدی: %1$s · %2$s</string>
+    <string name="sat_next_label">گذر بعدی</string>
+    <string name="sat_recommended">گذر پیشنهادی</string>
+    <string name="sat_condition_met">شرط برقرار است</string>
+    <string name="sat_condition_not_met">شرط برقرار نیست</string>
+    <string name="sat_preview_offset">پیش‌نمایش · %1$s</string>
+    <string name="sat_preview_at">پیش‌نمایش · %1$s</string>
+    <string name="sat_all_upcoming">همه گذرهای پیش رو</string>
+    <string name="sat_pinned_scope">سنجاق‌شده خارج از دستهٔ فعلی</string>
+    <string name="sat_preview_label">پیش‌نمایش</string>
+    <string name="sat_return_now">بازگشت به اکنون</string>
+    <string name="sat_now_button">اکنون</string>
+    <string name="sat_return_to_pass">بازگشت به گذر</string>
+    <string name="sat_more_controls">کنترل‌های بیشتر</string>
+    <string name="sat_outside_timeline">این گذر خارج از بازهٔ ۱۲ ساعت قبل و بعد است. برای استفاده از خط زمان به اکنون بازگردید.</string>
+    <string name="sat_orbit_at_pass">نمایش مدار در اوج گذر</string>
+    <string name="sat_ar_live_explanation">واقعیت افزوده آسمان اکنون را نشان می‌دهد، نه گذر آینده را. برای پیش‌نمایش گذر از نمودار آسمان استفاده کنید.</string>
 </resources>

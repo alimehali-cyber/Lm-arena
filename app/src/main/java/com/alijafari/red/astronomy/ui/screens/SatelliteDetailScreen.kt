@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +39,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -72,8 +75,9 @@ fun SatelliteDetailScreen(
     preselectedPass: ISSEngine.ISSPass? = null, reminderAlarms: List<ScheduledNotificationItem> = emptyList(),
     isSimulated: Boolean = false, onSetReminder: ((SatelliteItem, ISSEngine.ISSPass, Int) -> Unit)? = null,
     onRemoveReminder: ((SatelliteItem, ISSEngine.ISSPass) -> Unit)? = null,
-    onShowOnGlobe: ((SatelliteItem) -> Unit)? = null, onSpotInAr: ((SatelliteItem) -> Unit)? = null,
-    themeMode: ThemeMode = ThemeMode.DARK, modifier: Modifier = Modifier,
+    onShowOnGlobe: ((SatelliteItem, ISSEngine.ISSPass?) -> Unit)? = null,
+    onSpotInAr: ((SatelliteItem, ISSEngine.ISSPass?) -> Unit)? = null,
+    themeMode: ThemeMode = ThemeMode.DARK, modifier: Modifier = Modifier, isActive: Boolean = true,
 ) {
     val context = LocalContext.current
     val isOnline by rememberIsNetworkOnline(context)
@@ -106,7 +110,7 @@ fun SatelliteDetailScreen(
     val upcoming = predicted?.filter { it.endTimeMs > start && it.startTimeMs <= start + days * 86_400_000L }
     SatelliteDetailContent(satelliteItem, state, userLocation, isFa, skin, themeMode, isOnline, stale, upcoming,
         preselectedPass, reminderAlarms, start, System.currentTimeMillis(), isSimulated, onBack, onSetReminder,
-        onRemoveReminder, { onShowOnGlobe?.invoke(satelliteItem) }, { onSpotInAr?.invoke(satelliteItem) }, modifier)
+        onRemoveReminder, { pass -> onShowOnGlobe?.invoke(satelliteItem, pass) }, { pass -> onSpotInAr?.invoke(satelliteItem, pass) }, modifier, isActive)
 }
 
 /** Presentation-only body also used by the deterministic preview matrix. */
@@ -117,7 +121,8 @@ internal fun SatelliteDetailContent(
     themeMode: ThemeMode, isOnline: Boolean, stale: String?, predicted: List<ISSEngine.ISSPass>?, preselected: ISSEngine.ISSPass?,
     alarms: List<ScheduledNotificationItem>, simNow: Long, realNow: Long, isSimulated: Boolean, onBack: () -> Unit,
     onSetReminder: ((SatelliteItem, ISSEngine.ISSPass, Int) -> Unit)?, onRemoveReminder: ((SatelliteItem, ISSEngine.ISSPass) -> Unit)?,
-    onShow: () -> Unit, onAr: () -> Unit, modifier: Modifier = Modifier,
+    onShow: (ISSEngine.ISSPass?) -> Unit, onAr: (ISSEngine.ISSPass?) -> Unit, modifier: Modifier = Modifier,
+    isActive: Boolean = true,
 ) {
     val tokens = remember(skin, themeMode) { zigSatTokens(skin, themeMode) }
     val tz = remember(location.timezoneId) { TimeEngine.resolveTimeZone(location.timezoneId) }
@@ -146,11 +151,11 @@ internal fun SatelliteDetailContent(
     val thresholdPx = with(LocalDensity.current) { 120.dp.roundToPx() }
     val showsTitle by remember(thresholdPx) { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > thresholdPx } }
     val visibleGroup by remember(groups) { derivedStateOf { groups.getOrNull(listState.firstVisibleItemIndex - 6)?.nightKey } }
-    var expanded by remember { mutableStateOf<Map<Long, Boolean>>(emptyMap()) }
-    var showMaximum by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var expanded by rememberSaveable(stateSaver = SatNightOverridesSaver) { mutableStateOf(emptyMap<Long, Boolean>()) }
+    var showMaximum by rememberSaveable { mutableStateOf(emptyList<Long>()) }
     var pending by remember { mutableStateOf<SatReminderTarget?>(null) }
     var heroBell by remember { mutableStateOf(IntRect.Zero) }
-    if (!LocalInspectionMode.current) BackHandler(enabled = pending == null, onBack = onBack)
+    if (!LocalInspectionMode.current) BackHandler(enabled = isActive && pending == null, onBack = onBack)
     val dayCount = if (satelliteItem.isTrain) 2 else 7
     val days = remember(firstNight, nights, dayCount, groups) {
         (List(dayCount) { nights.plusDays(firstNight, it) } + groups.map { it.nightKey }).distinct().sorted()
@@ -161,7 +166,7 @@ internal fun SatelliteDetailContent(
     }
     fun scrollTo(index: Int) { scope.launch { if (reduce) listState.scrollToItem(index) else listState.animateScrollToItem(index) } }
     fun actions(pass: SatPassUi) = SatPassActions(
-        onOpenDetail = { selectedPass = pass.pass; scrollTo(1) }, onShowOnGlobe = onShow, onAr = onAr,
+        onOpenDetail = { selectedPass = pass.pass; scrollTo(1) }, onShowOnGlobe = { onShow(pass.pass) }, onAr = { onAr(pass.pass) },
         onRemind = { pending = SatReminderTarget(pass, it) }, isReminderEnabled = onSetReminder != null,
     )
     CompositionLocalProvider(LocalZigSatTokens provides tokens, LocalSatSkin provides skin) {
@@ -171,7 +176,8 @@ internal fun SatelliteDetailContent(
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item("hero") {
                     val next = passes?.firstOrNull { it.pass.startTimeMs > simNow } ?: spotlight?.pass
-                    DetailHero(satelliteItem, state, isFa, isOnline, stale, onAr, onShow,
+                    if (isSimulated) SatText(stringResource(R.string.sat_preview_at, SatFmt.dateTime(simNow, isFa, tz)), tokens.inkPrimary, strong = true)
+                    DetailHero(satelliteItem, state, isFa, isOnline, stale, { onAr(selectedPass) }, { onShow(selectedPass) },
                         { next?.let { pending = SatReminderTarget(it, heroBell) } },
                         next?.pass?.takeIf { it.startTimeMs > simNow }?.let {
                             val dir = SatFmt.compass(it.startAzimuthDeg, isFa)
@@ -187,6 +193,8 @@ internal fun SatelliteDetailContent(
                                 SatDialogButton(stringResource(R.string.sat_detail_back_to_next), tokens, { selectedPass = null })
                             }
                             SatText(SatFmt.secondaryDate(preview.pass.startTimeMs, isFa, tz), tokens.inkSecondary, size = 11)
+                            SatText(stringResource(R.string.sat_ar_live_explanation), tokens.inkSecondary)
+                            SatDialogButton(stringResource(R.string.sat_orbit_at_pass), tokens, { onShow(preview.pass) }, modifier = Modifier.fillMaxWidth())
                         }
                         if (shownSpotlight != null) {
                             SatSpotlightCard(shownSpotlight, tokens, isFa, actions(shownSpotlight.pass), arcHeight = 160.dp,
@@ -208,7 +216,7 @@ internal fun SatelliteDetailContent(
                     val n = passes?.size ?: 0
                     if (n > 0 && showMaximum.size < groups.size) SatDialogButton(stringResource(R.string.sat_detail_expand, SatFmt.int(n, isFa)), tokens, {
                         expanded = groups.associate { it.nightKey to true }
-                        showMaximum = groups.map { it.nightKey }.toSet()
+                        showMaximum = groups.map { it.nightKey }
                     })
                 }
                 item("day_strip") {
@@ -229,7 +237,7 @@ internal fun SatelliteDetailContent(
                     SatNightSection(g, isOpen, if (g.nightKey in showMaximum) Int.MAX_VALUE else 3,
                         if (g.nightKey in showMaximum) Int.MAX_VALUE else if (satelliteItem.isTrain) 12 else 10,
                         tokens, isFa, ::actions,
-                        { expanded = expanded + (g.nightKey to !isOpen) }, { showMaximum = showMaximum + g.nightKey }, realNow, tz = tz)
+                        { expanded = expanded + (g.nightKey to !isOpen) }, { showMaximum = (showMaximum + g.nightKey).distinct() }, realNow, tz = tz)
                 }
                 item("dossier") { DetailDossier(satelliteItem, tokens, isFa) }
             }
@@ -696,7 +704,9 @@ private fun DetailVisibilityPanel(
 
 @Composable
 private fun CheckRow(passed: Boolean, text: String, tokens: com.alijafari.red.astronomy.ui.satellites.ZigSatTokens) {
+    val result = stringResource(if (passed) R.string.sat_condition_met else R.string.sat_condition_not_met)
     Row(
+        modifier = Modifier.semantics(mergeDescendants = true) { stateDescription = result },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {

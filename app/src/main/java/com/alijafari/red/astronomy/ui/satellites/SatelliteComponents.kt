@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -108,7 +109,7 @@ internal fun SatStatusPill(data: SatStatusData, tokens: ZigSatTokens, onClick: (
                 .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 ZigStatusDot(statusColor, data.isLive)
-                Text(if (data.isLive) stringResource(R.string.sat_live) else SatFmt.offsetMinutes(data.offsetMinutes, data.isFa),
+                Text(if (data.isLive) stringResource(R.string.sat_live) else stringResource(R.string.sat_preview_label),
                     color = tokens.hudInk, softWrap = false,
                     style = RedTypographyTokens.badge.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold).tabular().satOptical())
                 if (offline) Icon(Icons.Filled.WifiOff, stringResource(R.string.sat_offline), Modifier.size(14.dp), tint = tokens.hudInk)
@@ -117,8 +118,13 @@ internal fun SatStatusPill(data: SatStatusData, tokens: ZigSatTokens, onClick: (
                 if (collapse) SatText(SatFmt.signed(1.0, 0, isFa = data.isFa), tokens.hudInk,
                     Modifier.semantics { contentDescription = staleDescription })
             }
-            if (!data.isLive) Box(Modifier.size(48.dp).clickable(role = Role.Button, onClick = onLive), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Replay, stringResource(R.string.sat_return_live), Modifier.size(18.dp), tint = tokens.hudInk)
+            if (!data.isLive) {
+                val returnLabel = stringResource(R.string.sat_return_now)
+                Box(Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .clickable(role = Role.Button, onClick = onLive).semantics { contentDescription = returnLabel }
+                    .padding(horizontal = 6.dp), contentAlignment = Alignment.Center) {
+                    SatText(stringResource(R.string.sat_now_button), tokens.hudInk, strong = true)
+                }
             }
         }
     }
@@ -232,6 +238,9 @@ internal fun SatFocusCard(
     onPasses: () -> Unit,
     onCycle: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    passesLoading: Boolean = false,
+    onNextPass: () -> Unit = onPasses,
+    pinnedOutsideScope: Boolean = false,
 ) {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val cycle by rememberUpdatedState(onCycle)
@@ -255,51 +264,30 @@ internal fun SatFocusCard(
             }) { change, drag -> change.consume(); travel += drag }
         }.padding(horizontal = 12.dp, vertical = 5.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f).heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onFleet),
+            Row(Modifier.weight(1f).heightIn(min = 48.dp).clickable(role = Role.Button, onClick = onDetails),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SatAvatar(focus.satellite, tokens)
                 Column(Modifier.weight(1f)) {
                     Text(shortNameOf(focus.satellite, isFa), color = tokens.inkPrimary,
                         style = RedTypographyTokens.sectionTitle.copy(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold).satOptical(),
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    SatText(stringResource(if (state.elevationDeg >= 0.0) R.string.sat_above_your_horizon else R.string.sat_below_your_horizon), tokens.inkSecondary)
+                    if (pinnedOutsideScope) SatText(stringResource(R.string.sat_pinned_scope), tokens.inkSecondary, size = 11)
                     if (offline) SatText(stringResource(R.string.sat_cached), tokens.inkSecondary, size = 10)
                 }
             }
-            if (hints) {
-                Icon((if (LocalLayoutDirection.current == LayoutDirection.Rtl) Icons.Filled.KeyboardArrowRight else Icons.Filled.KeyboardArrowLeft), null, Modifier.size(14.dp), tint = tokens.inkTertiary.copy(alpha = .58f))
-                Icon((if (LocalLayoutDirection.current == LayoutDirection.Rtl) Icons.Filled.KeyboardArrowLeft else Icons.Filled.KeyboardArrowRight), null, Modifier.size(14.dp), tint = tokens.inkTertiary.copy(alpha = .58f))
-            }
-            ZigSatIconButton(Icons.AutoMirrored.Filled.ArrowForward, stringResource(R.string.sat_details), tokens, onDetails,
-                active = true, visualSize = 44.dp, testTag = "dock_details")
-        }
-        Row(Modifier.fillMaxWidth().heightIn(min = 20.dp).then(if (!simulated) Modifier else Modifier.drawBehind {
-            drawLine(tokens.sim, Offset(0f, size.height - 1.dp.toPx()), Offset(size.width, size.height - 1.dp.toPx()), 1.dp.toPx())
-        }).padding(horizontal = 2.dp, vertical = 3.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(if (state.isSunlit) Icons.Filled.LightMode else Icons.Filled.DarkMode,
-                stringResource(if (state.isSunlit) R.string.sat_sunlit else R.string.sat_shadow), Modifier.size(16.dp),
-                tint = if (state.isSunlit) tokens.sim else tokens.umbra)
-            val alt = SatFmt.kilometers(state.satAltKm, isFa)
-            SatMetric(alt, stringResource(R.string.sat_kilometers), stringResource(R.string.sat_altitude),
-                tokens, Modifier.weight(if (isFa) 1.25f else 1f), roll = true,
-                spokenUnit = stringResource(R.string.sat_kilometers_a11y))
-            SatMetric(SatFmt.degrees(state.elevationDeg, isFa, signed = true),
-                if (state.elevationDeg < 0.0) stringResource(R.string.sat_below) else "",
-                stringResource(R.string.sat_elevation), tokens, Modifier.weight(1f), muted = state.elevationDeg < 0.0)
-            if (!compact) SatMetric(SatFmt.speed(state.velocityKmS, isFa), stringResource(R.string.sat_speed_unit),
-                stringResource(R.string.sat_speed), tokens, Modifier.weight(if (isFa) 1.65f else 1.15f),
-                spokenUnit = stringResource(R.string.sat_speed_spoken))
-            if (wide && !compact) SatMetric(SatFmt.magnitude(focus.apparentMagnitude, isFa), stringResource(R.string.sat_mag_short),
-                stringResource(R.string.sat_magnitude), tokens, Modifier.weight(.85f))
+            SatDialogButton(stringResource(R.string.sat_change_satellite), tokens, onFleet)
         }
         val pass = nextPass?.pass
         val title = when {
+            passesLoading -> stringResource(R.string.sat_checking_passes)
             pass == null -> stringResource(R.string.sat_no_visible, span)
             pass.startTimeMs <= nowMs -> stringResource(R.string.sat_in_progress, SatFmt.countdown(pass.endTimeMs - nowMs, isFa))
             else -> stringResource(R.string.sat_next_in, SatFmt.countdown(pass.startTimeMs - nowMs, isFa))
         }
-        Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("sat_focus_passes")
-            .clickable(role = Role.Button, onClick = onPasses), contentAlignment = Alignment.Center) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.weight(1f).heightIn(min = 48.dp).testTag("sat_focus_passes")
+            .clickable(role = Role.Button, onClick = if (pass != null) onNextPass else onPasses), contentAlignment = Alignment.Center) {
             Row(Modifier.fillMaxWidth().heightIn(min = 36.dp).background(tokens.cardAlt, CircleShape)
                 .border(1.dp, tokens.border, CircleShape).padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -308,6 +296,8 @@ internal fun SatFocusCard(
                 SatText(if (label != null) "$title · $label" else title, tokens.inkPrimary, Modifier.weight(1f), strong = true)
                 Icon(Icons.Filled.KeyboardArrowUp, null, Modifier.size(16.dp), tint = tokens.inkSecondary)
             }
+        }
+        SatDialogButton(stringResource(R.string.sat_all_passes), tokens, onPasses, testTag = "sat_all_passes")
         }
     }
 }
@@ -370,37 +360,42 @@ internal fun SatLegendPanel(tokens: ZigSatTokens, isFa: Boolean, modifier: Modif
 internal fun SatTimeTray(
     tokens: ZigSatTokens, offset: Int, realNow: Long, tz: TimeZone, markers: List<SatTimeMarker>, isFa: Boolean,
     compactHeight: Boolean, actions: SatTimeActions, onClose: () -> Unit, modifier: Modifier = Modifier,
+    displayTimeMs: Long = realNow + offset * 60_000L, isPreview: Boolean = offset != 0,
+    satelliteName: String = "",
 ) {
-    val clock = SatFmt.dateTime(realNow + offset * 60_000L, isFa, tz)
+    val clock = SatFmt.dateTime(displayTimeMs, isFa, tz)
     val available = nextSatelliteTime(markers, offset) != null
     Column(modifier.fillMaxWidth().testTag("satellite_time_scrubber_card")
         .satMaterial(tokens, SatSlot.TimeTray, squircleShape(SatRadius.card), accent = tokens.timeAccent)
         .padding(horizontal = 10.dp, vertical = 6.dp)) {
+        if (satelliteName.isNotBlank()) SatText(satelliteName, tokens.inkSecondary, Modifier.padding(start = 6.dp), strong = true)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             SatText(clock, tokens.inkPrimary, Modifier.weight(1f).padding(start = 6.dp), size = 13, strong = true)
-            Box(Modifier.widthIn(min = 92.dp).heightIn(min = 48.dp).then(if (offset == 0) Modifier else
+            Box(Modifier.widthIn(min = 92.dp).heightIn(min = 48.dp).then(if (!isPreview) Modifier else
                 Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.sat_return_live), onClick = actions.onLive)),
                 contentAlignment = Alignment.Center) {
                 Row(Modifier.background(tokens.hudFill, CircleShape).border(1.dp, tokens.border, CircleShape).padding(horizontal = 7.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                    ZigStatusDot(if (offset == 0) tokens.live else tokens.sim, offset == 0, 6.dp)
-                    SatText(if (offset == 0) stringResource(R.string.sat_live) else SatFmt.offsetMinutes(offset, isFa), tokens.inkPrimary, strong = true)
-                    if (offset != 0) Icon(Icons.Filled.Replay, null, Modifier.size(12.dp), tint = tokens.inkPrimary)
+                    ZigStatusDot(if (!isPreview) tokens.live else tokens.sim, !isPreview, 6.dp)
+                    SatText(if (!isPreview) stringResource(R.string.sat_live) else stringResource(R.string.sat_return_now), tokens.inkPrimary, strong = true)
+                    if (isPreview) Icon(Icons.Filled.Replay, null, Modifier.size(12.dp), tint = tokens.inkPrimary)
                 }
             }
             ZigSatIconButton(Icons.Filled.Close, stringResource(R.string.sat_close), tokens, onClose)
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        if (offset !in -720..720) {
+            SatText(stringResource(R.string.sat_outside_timeline), tokens.inkSecondary, Modifier.padding(8.dp))
+        } else Row(verticalAlignment = Alignment.CenterVertically) {
             SatStepButton((if (LocalLayoutDirection.current == LayoutDirection.Rtl) Icons.Filled.KeyboardArrowRight else Icons.Filled.KeyboardArrowLeft), stringResource(R.string.sat_step_prev),
                 stringResource(R.string.sat_hour_prev), tokens, { actions.onStep(-15) }, { actions.onStep(-60) })
-            SatScrubber(tokens, offset, realNow, tz, markers, isFa, actions, Modifier.weight(1f))
+            SatScrubber(tokens, offset, realNow, tz, markers, isFa, actions, Modifier.weight(1f), displayTimeMs, isPreview)
             SatStepButton((if (LocalLayoutDirection.current == LayoutDirection.Rtl) Icons.Filled.KeyboardArrowLeft else Icons.Filled.KeyboardArrowRight), stringResource(R.string.sat_step_next),
                 stringResource(R.string.sat_hour_next), tokens, { actions.onStep(15) }, { actions.onStep(60) })
             ZigSatIconButton(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Icons.Filled.SkipPrevious else Icons.Filled.SkipNext,
                 stringResource(if (available) R.string.sat_next_pass else R.string.sat_no_pass_range), tokens, actions.onNextPass, enabled = available,
                 tooltip = if (available) null else stringResource(R.string.sat_no_pass_range))
         }
-        if (!compactHeight) Row(Modifier.fillMaxWidth().padding(start = 48.dp, end = 96.dp, bottom = 3.dp),
+        if (!compactHeight && offset in -720..720) Row(Modifier.fillMaxWidth().padding(start = 48.dp, end = 96.dp, bottom = 3.dp),
             horizontalArrangement = Arrangement.SpaceBetween) {
             listOf(-12, -6, 0, 6, 12).forEach { hour ->
                 SatText(if (hour == 0) stringResource(R.string.sat_live) else SatFmt.signed(hour.toDouble(), 0, if (isFa) "س" else "h", isFa),
@@ -437,21 +432,25 @@ private fun SatStepButton(icon: ImageVector, description: String, longDescriptio
 
 @Composable
 private fun SatScrubber(tokens: ZigSatTokens, offset: Int, realNow: Long, tz: TimeZone, markers: List<SatTimeMarker>,
-    isFa: Boolean, actions: SatTimeActions, modifier: Modifier = Modifier) {
+    isFa: Boolean, actions: SatTimeActions, modifier: Modifier = Modifier,
+    displayTimeMs: Long = realNow + offset * 60_000L, isPreview: Boolean = offset != 0) {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     var dragging by remember { mutableStateOf(false) }
     val latestMarkers by rememberUpdatedState(markers)
     val latestActions by rememberUpdatedState(actions)
     val androidView = LocalView.current
-    val simClock = SatFmt.clock(realNow + offset * 60_000L, isFa, tz)
+    val simClock = SatFmt.clock(displayTimeMs, isFa, tz)
     val spokenMinutes = abs(offset) % 60
     val spokenHours = abs(offset) / 60
     val interval = listOfNotNull(
         if (spokenHours == 0) null else pluralStringResource(R.plurals.sat_spoken_hours, spokenHours, SatFmt.int(spokenHours, isFa)),
         if (spokenMinutes == 0) null else pluralStringResource(R.plurals.sat_spoken_minutes, spokenMinutes, SatFmt.int(spokenMinutes, isFa)),
     ).joinToString(" ")
-    val spoken = if (offset == 0) stringResource(R.string.sat_live) else stringResource(
-        if (offset > 0) R.string.sat_spoken_plus else R.string.sat_spoken_minus, interval, simClock)
+    val spoken = when {
+        !isPreview -> stringResource(R.string.sat_live)
+        offset == 0 -> stringResource(R.string.sat_preview_at, SatFmt.dateTime(displayTimeMs, isFa, tz))
+        else -> stringResource(if (offset > 0) R.string.sat_spoken_plus else R.string.sat_spoken_minus, interval, simClock)
+    }
     val sliderLabel = stringResource(R.string.sat_slider)
     val prev = stringResource(R.string.sat_step_prev)
     val next = stringResource(R.string.sat_step_next)
@@ -658,13 +657,14 @@ fun SatSpotlightCard(
             SatMetaLine(pass = pass, tokens = tokens, isFa = isFa)
 
             if (showActions) {
+                SatText(stringResource(R.string.sat_ar_live_explanation), tokens.inkSecondary)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     SatDialogButton("${stringResource(R.string.sat_remind)} ▾", tokens, { actions.onRemind(bellAnchor) },
                         enabled = actions.isReminderEnabled && (pass.startTimeMs - 10 * 60_000L > realNowMs ||
                             data.pass.reminderLeadMinutes != null && pass.startTimeMs > realNowMs),
                         modifier = Modifier.weight(1f).onGloballyPositioned { bellAnchor = it.anchorInWindow() })
                     SatDialogButton(stringResource(R.string.sat_ar), tokens, actions.onAr, modifier = Modifier.weight(1.2f))
-                    ZigSatIconButton(Icons.Filled.CenterFocusWeak, stringResource(R.string.sat_show_on_globe), tokens, actions.onShowOnGlobe)
+                    ZigSatIconButton(Icons.Filled.CenterFocusWeak, stringResource(R.string.sat_orbit_at_pass), tokens, actions.onShowOnGlobe)
                 }
             }
         }
@@ -877,7 +877,7 @@ fun SatCompactPassCard(data: SatPassUi, tokens: ZigSatTokens, isFa: Boolean, act
     val pass = data.pass
     var bellAnchor by remember(data.key) { mutableStateOf(IntRect.Zero) }
     val clickLabel = stringResource(R.string.sat_details)
-    val holdLabel = stringResource(R.string.sat_show_on_globe)
+    val holdLabel = stringResource(R.string.sat_orbit_at_pass)
     ZigSatCard(modifier.testTag("pass_card_${data.key}"), tokens, accent = if (data.isTrain) tokens.starlink else null,
         shape = squircleShape(SatRadius.compactCard)) {
         Column(Modifier.fillMaxWidth().heightIn(min = 92.dp).combinedClickable(role = Role.Button,
@@ -953,8 +953,8 @@ internal fun SatPassesSheet(tokens: ZigSatTokens, isFa: Boolean, scope: Satellit
     val title = stringResource(R.string.sat_passes)
     val days = stringResource(if (count != null && groups.flatMap { it.passes }.let { it.isNotEmpty() && it.all { pass -> pass.isTrain } })
         R.string.sat_two_days else R.string.sat_three_days)
-    var overrides by remember(scope) { mutableStateOf<Map<Long, Boolean>>(emptyMap()) }
-    var shown by remember(scope) { mutableStateOf<Set<Long>>(emptySet()) }
+    var overrides by rememberSaveable(scope, stateSaver = SatNightOverridesSaver) { mutableStateOf(emptyMap<Long, Boolean>()) }
+    var shown by rememberSaveable(scope) { mutableStateOf(emptyList<Long>()) }
     SatBottomSheet(tokens, title, "passes_sheet", onClose, half = true, side = side) {
         SatSheetTitle("$title · $days", null, tokens, trailing = {
             if (count != null) SatText(SatFmt.int(count, isFa), tokens.inkPrimary,
@@ -966,10 +966,16 @@ internal fun SatPassesSheet(tokens: ZigSatTokens, isFa: Boolean, scope: Satellit
             })
         }
         if (!isOnline && count != null) SatText(stringResource(R.string.sat_passes_cached), tokens.inkSecondary, size = 11)
-        spotlight?.let {
-            ZigMicroCaps(stringResource(if (it.isInProgress) R.string.sat_now else R.string.sat_soon), tokens, isFa = isFa)
+        val next = groups.asSequence().flatMap { it.passes.asSequence() }
+            .filter { it.pass.endTimeMs > now }.minByOrNull { it.pass.startTimeMs }
+        if (next != null) SatText(stringResource(R.string.sat_next_agenda,
+            next.satName, SatFmt.dateTime(next.pass.startTimeMs, isFa, tz)), tokens.inkPrimary, strong = true)
+        val featured = spotlight ?: next?.let { SatSpotlightUi(it, it.pass.startTimeMs <= now,
+            ((it.pass.startTimeMs - now) / 60_000L).toInt().coerceAtLeast(0), false) }
+        featured?.let {
+            ZigMicroCaps(stringResource(if (spotlight == null) R.string.sat_next_label else R.string.sat_recommended), tokens, isFa = isFa)
             SatSpotlightCard(it, tokens, isFa, actionsFor(it.pass), arcHeight = 96.dp, nowMs = now, realNowMs = realNow, tz = tz)
-            if (groups.isNotEmpty()) ZigMicroCaps(stringResource(R.string.sat_later), tokens, isFa = isFa)
+            if (groups.isNotEmpty()) ZigMicroCaps(stringResource(R.string.sat_all_upcoming), tokens, isFa = isFa)
         }
         when (count) {
             null -> SatPassSkeletons(tokens)
@@ -978,7 +984,7 @@ internal fun SatPassesSheet(tokens: ZigSatTokens, isFa: Boolean, scope: Satellit
                 SatNightSection(group, overrides[group.nightKey] ?: (i == 0), if (group.nightKey in shown) Int.MAX_VALUE else 3,
                     if (group.passes.all { it.isTrain }) 12 else 10, tokens, isFa, actionsFor,
                     onToggle = { overrides = overrides + (group.nightKey to !(overrides[group.nightKey] ?: (i == 0))) },
-                    onMore = { shown = shown + group.nightKey }, realNow = realNow, sourceModifier = sourceModifier, tz = tz)
+                    onMore = { shown = (shown + group.nightKey).distinct() }, realNow = realNow, sourceModifier = sourceModifier, tz = tz)
             } }
         }
     }
@@ -991,10 +997,12 @@ internal fun SatNightSection(group: SatNightGroup, expanded: Boolean, shown: Int
     onMore: () -> Unit, realNow: Long, sourceModifier: @Composable (String) -> Modifier = { Modifier },
     tz: TimeZone = TimeZone.getDefault()) {
     val reduce = LocalSatReduceMotion.current
+    val expandedLabel = stringResource(R.string.sat_expanded)
+    val collapsedLabel = stringResource(R.string.sat_collapsed)
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, tween(if (reduce) 0 else 220), label = "night-chevron")
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).testTag("night_group_${group.nightKey}")
         .satMaterial(tokens, SatSlot.PassCard, squircleShape(SatRadius.compactCard), tokens.cardAlt)
-        .clickable(role = Role.Button, onClick = onToggle).padding(horizontal = 12.dp, vertical = 7.dp),
+        .clickable(role = Role.Button, onClick = onToggle).semantics { stateDescription = if (expanded) expandedLabel else collapsedLabel }.padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.weight(1f)) {
             SatText(group.title, tokens.inkPrimary, size = 13, strong = true)

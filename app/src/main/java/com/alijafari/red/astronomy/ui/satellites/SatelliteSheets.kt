@@ -68,7 +68,7 @@ internal fun SatBottomSheet(
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val reduce = LocalSatReduceMotion.current
-        var expanded by remember(tag) { mutableStateOf(initialFull || !half) }
+        var expanded by rememberSaveable(tag) { mutableStateOf(initialFull || !half) }
         val close by rememberUpdatedState(onDismiss)
         val shape = if (side) squircleShape(SatRadius.sheet) else squircleShape(topStart = 28.dp, topEnd = 28.dp)
         val targetHeight = maxHeight * if (expanded || side) .85f else .50f
@@ -163,6 +163,17 @@ private fun StatusRow(label: String, value: String, tokens: ZigSatTokens) {
 }
 
 @Composable
+internal fun SatToolsPopover(tokens: ZigSatTokens, onPanel: (SatPanel) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.widthIn(min = 190.dp).testTag("sat_tools_menu")
+        .satMaterial(tokens, SatSlot.Popover, squircleShape(16.dp)).padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        SatDialogButton(stringResource(R.string.sat_layers), tokens, { onPanel(SatPanel.Layers) }, modifier = Modifier.fillMaxWidth())
+        SatDialogButton(stringResource(R.string.sat_alerts), tokens, { onPanel(SatPanel.Alerts) }, modifier = Modifier.fillMaxWidth())
+        SatDialogButton(stringResource(R.string.sat_help), tokens, { onPanel(SatPanel.Guide) }, modifier = Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
 internal fun SatLayersPopover(tokens: ZigSatTokens, lighting: MapTheme, legend: Boolean, onLighting: (MapTheme) -> Unit,
     onLegend: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.width(224.dp).testTag("map_theme_selector").satMaterial(tokens, SatSlot.Popover, squircleShape(16.dp))
@@ -194,6 +205,15 @@ internal fun SatLayersPopover(tokens: ZigSatTokens, lighting: MapTheme, legend: 
     }
 }
 
+internal fun normalizeSearchText(value: String): String = value.lowercase()
+    .replace('ي', 'ی').replace('ك', 'ک').replace(0x200C.toChar(), ' ')
+    .map { ch -> when (ch) {
+        in '۰'..'۹' -> ('0'.code + (ch.code - '۰'.code)).toChar()
+        in '٠'..'٩' -> ('0'.code + (ch.code - '٠'.code)).toChar()
+        else -> ch
+    } }.joinToString("")
+
+
 @Composable
 internal fun SatFleetSheet(fleet: List<SatTokenUi>, category: SatelliteCategory, tokens: ZigSatTokens, isFa: Boolean,
     onScope: (SatelliteCategory) -> Unit, onPick: (SatTokenUi) -> Unit, onDismiss: () -> Unit) {
@@ -219,24 +239,21 @@ internal fun SatFleetSheet(fleet: List<SatTokenUi>, category: SatelliteCategory,
                 { nakedEyeCapableOnly = !nakedEyeCapableOnly; filterPrefs.edit().putBoolean("sat_filter_naked_eye", nakedEyeCapableOnly).apply() },
                 testTag = "filter_naked_eye")
         }
-        fun normalizeSearchText(value: String): String = value.lowercase()
-            .replace('ي', 'ی').replace('ك', 'ک').replace(0x200C.toChar(), ' ')
-            .map { ch -> when (ch) {
-                in '۰'..'۹' -> ('0'.code + (ch.code - '۰'.code)).toChar()
-                in '٠'..'٩' -> ('0'.code + (ch.code - '٠'.code)).toChar()
-                else -> ch
-            } }.joinToString("")
         val queryKey = normalizeSearchText(query.trim())
+        val searching = queryKey.isNotBlank()
         val filtered = fleet.asSequence()
+            .filter { searching || matchesScope(it.satellite, category) }
             .filter { row ->
                 queryKey.isBlank() || listOf(row.shortName, row.fullName, row.id, row.satellite.noradId.toString(),
                     row.satellite.designation, row.satellite.operatorEn, row.satellite.operatorFa,
-                    row.satellite.category.labelEn, row.satellite.category.labelFa)
+                    row.satellite.category.labelEn, row.satellite.category.labelFa, row.satellite.nameEn, row.satellite.nameFa,
+                    row.satellite.missionPurposeEn, row.satellite.missionPurposeFa)
                     .any { normalizeSearchText(it).contains(queryKey) }
             }
-            .filter { !aboveHorizonOnly || it.elevationDeg > 0.0 }
-            .filter { !nakedEyeCapableOnly || it.isNakedEye }
-            .sortedByDescending { it.elevationDeg }.toList()
+            .filter { searching || !aboveHorizonOnly || it.elevationDeg > 0.0 }
+            .filter { searching || !nakedEyeCapableOnly || it.isNakedEye }
+            .sortedBy { it.fullName.lowercase() }.toList()
+        if (searching) SatText(stringResource(R.string.sat_search_all_tracked), tokens.inkSecondary)
         val above = fleet.count { it.elevationDeg > 0 }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             val segments = fleet.size.coerceIn(4, 10)
@@ -310,9 +327,10 @@ internal fun SatAlertsSheet(tokens: ZigSatTokens, isFa: Boolean, config: SatAler
         } }
         SatText(nextAlertSummary(ids, lead)?.let { stringResource(R.string.sat_next_alert, it) }
             ?: stringResource(R.string.sat_no_alert), tokens.inkSecondary)
-        SatDialogButton(stringResource(if (config.enabled) R.string.sat_save else R.string.sat_enable), tokens,
-            { onSave(SatAlertsConfig(if (config.enabled) enabled else true, lead, ids)) }, primary = true,
-            modifier = Modifier.fillMaxWidth(), testTag = "alerts_save", enabled = ids.isNotEmpty() || config.enabled && !enabled)
+        SatDialogButton(stringResource(R.string.sat_save), tokens,
+            { onSave(SatAlertsConfig(enabled, lead, ids)) }, primary = true,
+            modifier = Modifier.fillMaxWidth(), testTag = "alerts_save", enabled = !enabled || ids.isNotEmpty())
+        SatText(stringResource(R.string.sat_manual_reminders_remain), tokens.inkSecondary)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SatDialogButton(stringResource(R.string.sat_cancel), tokens, onDismiss, modifier = Modifier.weight(1f))
             if (config.enabled) SatDialogButton(stringResource(R.string.sat_disable), tokens,
@@ -380,6 +398,8 @@ internal fun SatReminderPopover(tokens: ZigSatTokens, isFa: Boolean, target: Sat
     Popup(position, onDismissRequest = onClose, properties = PopupProperties(focusable = true)) {
         Column(Modifier.width(232.dp).testTag("reminder_popover").satMaterial(tokens, SatSlot.Popover, squircleShape(20.dp))
             .padding(horizontal = 9.dp, vertical = 5.dp)) {
+            SatText("${target.pass.satName} · ${SatFmt.dateTime(target.pass.pass.startTimeMs, isFa, tz)}",
+                tokens.inkPrimary, Modifier.padding(horizontal = 6.dp, vertical = 8.dp), strong = true)
             reminderLeads.forEach { minutes ->
                 val time = target.pass.pass.startTimeMs - minutes * 60_000L
                 val clock = SatFmt.clock(time, isFa, tz)

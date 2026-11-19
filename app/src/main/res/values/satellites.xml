@@ -107,7 +107,7 @@
     <string name="sat_reminder_auto">auto</string>
     <string name="sat_undo">Undo</string>
     <string name="sat_show_on_globe">Show on globe</string>
-    <string name="sat_ar">Spot in AR</string>
+    <string name="sat_ar">Find in sky now</string>
     <string name="sat_rise">Rise</string>
     <string name="sat_max">Max</string>
     <string name="sat_set">Set</string>
@@ -146,8 +146,8 @@
         <item quantity="one">%1$s minute</item>
         <item quantity="other">%1$s minutes</item>
     </plurals>
-    <string name="sat_detail_ar">Spot in AR Sky</string>
-    <string name="sat_telemetry">Live orbital telemetry</string>
+    <string name="sat_detail_ar">Find in sky now</string>
+    <string name="sat_telemetry">Orbital telemetry</string>
     <string name="sat_telemetry_reduce">Hide additional telemetry</string>
     <string name="sat_telemetry_more">Show additional telemetry</string>
     <string name="sat_velocity">Velocity</string>
@@ -161,4 +161,30 @@
     <string name="sat_speed_spoken">kilometers per second</string>
     <string name="sat_passes_cached">Offline · based on cached orbital data</string>
     <string name="sat_sky_description">Sky path: rises %1$s, peaks at %2$s elevation, sets %3$s.</string>
+    <string name="sat_change_satellite">Change</string>
+    <string name="sat_above_your_horizon">Above your horizon</string>
+    <string name="sat_below_your_horizon">Below your horizon</string>
+    <string name="sat_checking_passes">Checking upcoming passes…</string>
+    <string name="sat_all_passes">All passes</string>
+    <string name="sat_search_all_tracked">Searching all tracked objects; observing filters are paused.</string>
+    <string name="sat_manual_reminders_remain">Turning off automatic monitoring does not remove individual reminders.</string>
+    <string name="sat_expanded">Expanded</string>
+    <string name="sat_collapsed">Collapsed</string>
+    <string name="sat_next_agenda">Next: %1$s · %2$s</string>
+    <string name="sat_next_label">Next pass</string>
+    <string name="sat_recommended">Recommended pass</string>
+    <string name="sat_condition_met">Condition met</string>
+    <string name="sat_condition_not_met">Condition not met</string>
+    <string name="sat_preview_offset">Preview · %1$s</string>
+    <string name="sat_preview_at">Preview · %1$s</string>
+    <string name="sat_all_upcoming">All upcoming passes</string>
+    <string name="sat_pinned_scope">Pinned outside current category</string>
+    <string name="sat_preview_label">Preview</string>
+    <string name="sat_return_now">Return to now</string>
+    <string name="sat_now_button">Now</string>
+    <string name="sat_return_to_pass">Back to pass</string>
+    <string name="sat_more_controls">More controls</string>
+    <string name="sat_outside_timeline">This pass is outside the ±12 hour timeline. Return to now to use the timeline.</string>
+    <string name="sat_orbit_at_pass">Show orbit at pass peak</string>
+    <string name="sat_ar_live_explanation">AR shows the sky now, not a future pass. Use the sky chart to preview this pass.</string>
 </resources>

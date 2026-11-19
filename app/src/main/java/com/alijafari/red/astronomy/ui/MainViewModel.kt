@@ -21,6 +21,8 @@ import com.alijafari.red.astronomy.ui.backdrop.AppBackdropMode
 import com.alijafari.red.astronomy.ui.backdrop.LiveSkyPolicy
 import com.alijafari.red.astronomy.ui.backdrop.SkyLiveClock
 import com.alijafari.red.astronomy.ui.monuments.MonumentId
+import com.alijafari.red.astronomy.ui.satellites.SatellitesState
+import com.alijafari.red.astronomy.ui.satellites.SatelliteNavigationState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -89,6 +91,8 @@ data class MainUiState(
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
+    internal var satellitesState: SatellitesState? = null
+    internal val satelliteNavigation = SatelliteNavigationState()
     private val _satellitesChromeOccluded = MutableStateFlow(false)
     val satellitesChromeOccluded: StateFlow<Boolean> = _satellitesChromeOccluded.asStateFlow()
     fun setSatellitesChromeOccluded(occluded: Boolean) { _satellitesChromeOccluded.value = occluded }

@@ -9,6 +9,7 @@ import android.os.SystemClock
 import android.view.View
 import android.view.ViewTreeObserver
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import com.alijafari.red.astronomy.ui.StartupTrace
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -210,6 +212,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             val baseContext = LocalContext.current
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            LaunchedEffect(uiState.selectedTab) {
+                if (uiState.selectedTab != 3) viewModel.satelliteNavigation.returnFromAr = false
+            }
+            BackHandler(uiState.selectedTab == 3 && viewModel.satelliteNavigation.returnFromAr) {
+                viewModel.satelliteNavigation.returnFromAr = false
+                viewModel.selectTab(1)
+            }
             val langCode = LocaleHelper.getLanguageCode(uiState.language)
             val localizedContext = remember(langCode) {
                 LocaleHelper.setLocale(baseContext, langCode)
@@ -417,6 +426,8 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
+                            // Preserve the satellite sheet and detail scroll positions across the AR tab.
+                            val satelliteTabState = rememberSaveableStateHolder()
                             // The screens, drawn over the backdrop.
                             Crossfade(
                                 targetState = Pair(uiState.selectedTab, uiState.uiStyle),
@@ -438,7 +449,8 @@ class MainActivity : ComponentActivity() {
                                             viewModel = viewModel
                                         )
                                     }
-                                    1 -> when (activeStyle) {
+                                    1 -> satelliteTabState.SaveableStateProvider("satellites-$activeStyle") {
+                                        when (activeStyle) {
                                         AppUiStyle.AETHER -> AetherSatellitesScreen(
                                             uiState = uiState,
                                             viewModel = viewModel
@@ -451,6 +463,7 @@ class MainActivity : ComponentActivity() {
                                             uiState = uiState,
                                             viewModel = viewModel
                                         )
+                                        }
                                     }
                                     3 -> CompassARScreen(
                                         uiState = uiState,

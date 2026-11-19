@@ -44,7 +44,7 @@ class SatelliteHudRenderTest {
         slider.assertIsDisplayed()
         assertEquals(0f, slider.fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo].current)
         compose.onNodeWithTag("sat_time").performClick()
-        compose.onNodeWithTag("sat_focus_passes").performClick()
+        compose.onNodeWithTag("sat_all_passes").performClick()
         compose.onNodeWithTag("passes_sheet").assertIsDisplayed()
         compose.onNodeWithTag("main_bottom_navigation_surface").assertDoesNotExist()
         compose.onRoot().captureRoboImage("build/outputs/satellite-previews/dark-en-passes.png")
@@ -69,4 +69,24 @@ class SatelliteHudRenderTest {
         assertFalse(speech.any { it in '0'..'9' })
         compose.onRoot().captureRoboImage("build/outputs/satellite-previews/wine-fa-time-130.png")
     }
+    @Test
+    @Config(qualifiers = "en-rGB-ldltr-w390dp-h844dp-mdpi")
+    fun passPreviewShowsReturnAndDoesNotPretendTheDistantTimeFitsTheTimeline() {
+        compose.setContent { SatPreview(ThemeMode.DARK, preview = true) }
+        compose.onNodeWithTag("sat_focus_card", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithTag("sat_preview_time").assertIsDisplayed()
+        compose.onNodeWithTag("sat_return_to_pass").assertIsDisplayed()
+        compose.onNodeWithTag("sat_time").performClick()
+        compose.onNodeWithTag("satellite_time_scrubber_card").assertIsDisplayed()
+        compose.onNodeWithTag("time_scrubber_slider").assertDoesNotExist()
+    }
+
+    @Test
+    @Config(qualifiers = "fa-rIR-ldrtl-w340dp-h730dp-mdpi")
+    fun persianPassPreviewRetainsTheReturnAction() {
+        compose.setContent { SatPreview(ThemeMode.DARK, skin = SatSkin.SPATIAL, preview = true) }
+        compose.onNodeWithTag("sat_preview_time").assertIsDisplayed()
+        compose.onNodeWithTag("sat_return_to_pass").assertIsDisplayed()
+    }
+
 }
