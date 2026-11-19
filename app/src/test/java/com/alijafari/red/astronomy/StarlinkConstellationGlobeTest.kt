@@ -77,7 +77,7 @@ class StarlinkConstellationGlobeTest {
             noradToken5 = norad.toString(),
             cospar8 = "26001A",
             raanDeg = plane * 30.0,
-            meanAnomalyDeg = (plane * 37) % 360,
+            meanAnomalyDeg = ((plane * 37) % 360).toDouble(),
         )
     }
 
