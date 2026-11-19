@@ -99,8 +99,13 @@ class SatGlobeFiltersTest {
             setOf(SatGlobeLayer.STARLINK_OVERHEAD, SatGlobeLayer.STARLINK_CONSTELLATION),
         )
         assertFalse(showsOnGlobe(starlink, withoutStarlinks))
-        assertFalse(withoutStarlinks.anyStarlink)
         assertTrue("trains are its own family", showsOnGlobe(train, withoutStarlinks))
+        assertTrue("the train family keeps the Starlink group alive", withoutStarlinks.anyStarlink)
+        val withoutAnyStarlink = SatGlobeFilters(
+            SatGlobeLayer.entries.filter { layer -> layer.name.startsWith("STARLINK") }.toSet(),
+        )
+        assertFalse(withoutAnyStarlink.anyStarlink)
+        assertFalse(showsOnGlobe(train, withoutAnyStarlink))
 
         val withoutTrains = SatGlobeFilters(setOf(SatGlobeLayer.STARLINK_TRAINS))
         assertFalse(showsOnGlobe(train, withoutTrains))
