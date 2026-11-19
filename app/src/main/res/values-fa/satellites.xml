@@ -10,6 +10,16 @@
     <string name="sat_fleet">ماهواره‌ها</string>
     <string name="sat_time">زمان</string>
     <string name="sat_layers">لایه‌ها</string>
+    <string name="sat_filters">فیلترها</string>
+    <string name="sat_filters_subtitle">نمایش روی کره</string>
+    <string name="sat_filter_starlink_all">کل منظومه استارلینک</string>
+    <string name="sat_filter_starlink_overhead">استارلینک‌های بالای سر من</string>
+    <string name="sat_filter_starlink_trains">قطارهای استارلینک</string>
+    <string name="sat_filter_iss">ایستگاه فضایی (ISS)</string>
+    <string name="sat_filter_tiangong">تیانگونگ</string>
+    <string name="sat_filter_hubble">هابل</string>
+    <string name="sat_filter_earth_observation">سنجش از دور</string>
+    <string name="sat_filters_show_all">نمایش همه</string>
     <string name="sat_locate">تمرکز بر موقعیت من</string>
     <string name="sat_details">جزئیات</string>
     <string name="sat_passes">گذرها</string>

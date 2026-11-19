@@ -205,6 +205,60 @@ internal fun SatLayersPopover(tokens: ZigSatTokens, lighting: MapTheme, legend: 
     }
 }
 
+/**
+ * Top-of-globe filters: one switch per object family the map can paint. A hidden layer only affects
+ * the globe; the Focus card, Fleet and the pass agenda keep the full scope. Rows are 44 dp with a
+ * 48 dp switch target so the list stays tappable at 130% font scale.
+ */
+@Composable
+internal fun SatFiltersPopover(
+    tokens: ZigSatTokens,
+    filters: SatGlobeFilters,
+    onToggle: (SatGlobeLayer) -> Unit,
+    onShowAll: () -> Unit,
+    modifier: Modifier = Modifier,
+    rowsMaxHeight: Dp = 288.dp,
+) {
+    val rows = listOf(
+        Triple(SatGlobeLayer.STARLINK_CONSTELLATION, R.string.sat_filter_starlink_all, tokens.starlink),
+        Triple(SatGlobeLayer.STARLINK_OVERHEAD, R.string.sat_filter_starlink_overhead, tokens.starlink),
+        Triple(SatGlobeLayer.STARLINK_TRAINS, R.string.sat_filter_starlink_trains, tokens.nakedEye),
+        Triple(SatGlobeLayer.ISS, R.string.sat_filter_iss, tokens.live),
+        Triple(SatGlobeLayer.TIANGONG, R.string.sat_filter_tiangong, tokens.telescopic),
+        Triple(SatGlobeLayer.HUBBLE, R.string.sat_filter_hubble, tokens.telescopic),
+        Triple(SatGlobeLayer.EARTH_OBSERVATION, R.string.sat_filter_earth_observation, tokens.sim),
+    )
+    Column(modifier.width(244.dp).testTag("sat_filters_menu")
+        .satMaterial(tokens, SatSlot.Popover, squircleShape(16.dp))
+        .pointerInput(Unit) { detectTapGestures {} }.padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        SatText(stringResource(R.string.sat_filters), tokens.inkPrimary, size = 13, strong = true)
+        SatText(stringResource(R.string.sat_filters_subtitle), tokens.inkSecondary, size = 10)
+        Column(Modifier.heightIn(max = rowsMaxHeight).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            rows.forEach { (layer, label, color) ->
+                val shown = filters.shows(layer)
+                val labelText = stringResource(label)
+                Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(squircleShape(12.dp))
+                    .clickable(role = Role.Checkbox) { onToggle(layer) }
+                    .testTag("globe_filter_" + layer.name.lowercase()),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.size(9.dp).background(if (shown) color else tokens.border, CircleShape))
+                    SatText(labelText, if (shown) tokens.inkPrimary else tokens.inkTertiary, Modifier.weight(1f), size = 12)
+                    Switch(shown, { onToggle(layer) }, colors = SwitchDefaults.colors(checkedTrackColor = tokens.selectedChip),
+                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                            .semantics { contentDescription = labelText })
+                }
+            }
+        }
+        if (filters.hidden.isNotEmpty()) {
+            SatDialogButton(stringResource(R.string.sat_filters_show_all), tokens, onShowAll,
+                modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
 internal fun normalizeSearchText(value: String): String = value.lowercase()
     .replace('ي', 'ی').replace('ك', 'ک').replace(0x200C.toChar(), ' ')
     .map { ch -> when (ch) {

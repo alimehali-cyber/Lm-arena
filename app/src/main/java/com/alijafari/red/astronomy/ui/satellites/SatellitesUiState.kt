@@ -15,7 +15,34 @@ import com.alijafari.red.astronomy.ui.screens.MapTheme
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-internal enum class SatPanel { None, Fleet, Time, Passes, Layers, Alerts, Guide, DataStatus, Tools }
+internal enum class SatPanel { None, Fleet, Time, Passes, Layers, Alerts, Guide, DataStatus, Tools, Filters }
+
+/** One family of objects the globe can paint; the Filters popover toggles them independently. */
+internal enum class SatGlobeLayer { STARLINK_CONSTELLATION, STARLINK_OVERHEAD, STARLINK_TRAINS, ISS, TIANGONG, HUBBLE, EARTH_OBSERVATION }
+
+/**
+ * The globe filter set. Everything is painted by default; [hidden] carries only the layers the user
+ * switched off, so an empty set means "show the whole sky". Persisted per device, never in the Bundle
+ * saver's positional slots other than the trailing token.
+ */
+@Immutable
+internal data class SatGlobeFilters(val hidden: Set<SatGlobeLayer> = emptySet()) {
+    fun shows(layer: SatGlobeLayer): Boolean = layer !in hidden
+    val anyStarlink: Boolean get() = shows(SatGlobeLayer.STARLINK_CONSTELLATION) ||
+        shows(SatGlobeLayer.STARLINK_OVERHEAD) || shows(SatGlobeLayer.STARLINK_TRAINS)
+    fun toggled(layer: SatGlobeLayer): SatGlobeFilters =
+        SatGlobeFilters(if (layer in hidden) hidden - layer else hidden + layer)
+    fun persisted(): Set<String> = hidden.mapTo(LinkedHashSet()) { it.name }
+
+    companion object {
+        val All = SatGlobeFilters()
+        fun fromPersisted(raw: Set<String>?): SatGlobeFilters = SatGlobeFilters(
+            raw.orEmpty().mapNotNullTo(LinkedHashSet()) { name ->
+                SatGlobeLayer.entries.firstOrNull { it.name == name }
+            }
+        )
+    }
+}
 
 @Immutable
 internal data class SatAlertsConfig(
@@ -34,6 +61,7 @@ internal data class SatellitesUiState(
     val mapTheme: MapTheme = MapTheme.AUTO,
     val activePanel: SatPanel = SatPanel.None,
     val legend: Boolean = false,
+    val globeFilters: SatGlobeFilters = SatGlobeFilters(),
     // A fixed instant is used for an event preview, including events beyond the scrubber range.
     val previewAtMs: Long? = null,
 )
@@ -53,11 +81,16 @@ internal class SatellitesState(initial: SatellitesUiState) {
     fun previewAt(timestampMs: Long) { ui = ui.copy(previewAtMs = timestampMs, timeOffsetMin = 0) }
     fun lighting(theme: MapTheme) { ui = ui.copy(mapTheme = theme) }
     fun legend(visible: Boolean) { ui = ui.copy(legend = visible) }
+    fun filters(value: SatGlobeFilters) { ui = ui.copy(globeFilters = value) }
+    fun toggleFilter(layer: SatGlobeLayer) = filters(ui.globeFilters.toggled(layer))
 
     companion object {
         val Saver = listSaver<SatellitesState, String>(
-            save = { listOf(it.ui.focusId, it.ui.scope.name, it.ui.timeOffsetMin.toString(), it.ui.mapTheme.name, it.ui.previewAtMs?.toString() ?: "") },
-            restore = { SatellitesState(SatellitesUiState(it[0], SatelliteCategory.valueOf(it[1]), it[2].toInt(), MapTheme.valueOf(it[3]), previewAtMs = it.getOrNull(4)?.toLongOrNull())) },
+            save = { listOf(it.ui.focusId, it.ui.scope.name, it.ui.timeOffsetMin.toString(), it.ui.mapTheme.name,
+                it.ui.previewAtMs?.toString() ?: "", it.ui.globeFilters.persisted().joinToString(",")) },
+            restore = { SatellitesState(SatellitesUiState(it[0], SatelliteCategory.valueOf(it[1]), it[2].toInt(),
+                MapTheme.valueOf(it[3]), previewAtMs = it.getOrNull(4)?.toLongOrNull(),
+                globeFilters = SatGlobeFilters.fromPersisted(it.getOrNull(5)?.split(",")?.filter { name -> name.isNotBlank() }?.toSet()))) },
         )
     }
 }

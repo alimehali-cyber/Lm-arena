@@ -102,6 +102,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
         SatellitesState(SatellitesUiState(
             scope = SatelliteCategory.entries.firstOrNull { it.name == savedScope } ?: SatelliteCategory.ALL,
             mapTheme = MapTheme.entries.firstOrNull { it.name == name } ?: MapTheme.AUTO,
+            globeFilters = SatGlobeFilters.fromPersisted(prefs.getStringSet("sat_globe_hidden_layers", null)),
         )).also { viewModel.satellitesState = it }
         }
     }
@@ -112,6 +113,16 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     fun setSatelliteScope(category: SatelliteCategory) {
         screen.scope(category)
         prefs.edit().putString("satellite_scope", category.name).apply()
+    }
+    val globeFilters = state.globeFilters
+    fun toggleGlobeFilter(layer: SatGlobeLayer) {
+        val next = state.globeFilters.toggled(layer)
+        screen.filters(next)
+        prefs.edit().putStringSet("sat_globe_hidden_layers", next.persisted()).apply()
+    }
+    fun showAllGlobeFilters() {
+        screen.filters(SatGlobeFilters.All)
+        prefs.edit().putStringSet("sat_globe_hidden_layers", emptySet()).apply()
     }
     var config by remember(prefs, legacy) {
         val defaults = SatAlertsConfig()
@@ -200,7 +211,8 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     // The observer shortlist above the horizon is not the constellation: the globe paints every
     // Starlink in the shell, refreshed on a coarse bucket and propagated off the main thread. The
     // naked-eye scope stays observation-only, so it keeps its curated candidates instead.
-    val showConstellation = selectedCategory == SatelliteCategory.ALL || selectedCategory == SatelliteCategory.STARLINK
+    val showConstellation = globeFilters.shows(SatGlobeLayer.STARLINK_CONSTELLATION) &&
+        (selectedCategory == SatelliteCategory.ALL || selectedCategory == SatelliteCategory.STARLINK)
     var constellationPoints by remember { mutableStateOf<List<StarlinkTrainManager.StarlinkConstellationPoint>>(emptyList()) }
     val constellationBucket = currentSimulationMs / StarlinkTrainManager.CONSTELLATION_POSITION_TTL_MS
     LaunchedEffect(starlinkCacheVersion, constellationBucket, showConstellation) {
@@ -239,6 +251,20 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     val globeFleet = remember(liveSatelliteStates, selectedLiveState) { (liveSatelliteStates + listOfNotNull(selectedLiveState)).distinctBy { it.satellite.id } }
     val allInteractiveMapStates = remember(globeFleet, trainPearlStatesByTrain, mapOverheadStarlinkStates) {
         (globeFleet + trainPearlStatesByTrain.flatMap { it.second } + mapOverheadStarlinkStates).distinctBy { it.satellite.id }
+    }
+    // Globe filters only prune what the map paints and what can be tapped on it: the Focus card, the
+    // Fleet sheet and the agenda keep the full scope, and the selected satellite is never hidden.
+    val globeFleetVisible = remember(globeFleet, globeFilters, selectedSatelliteId) {
+        globeFleet.filter { showsOnGlobe(it.satellite, globeFilters) || it.satellite.id == selectedSatelliteId }
+    }
+    val globeOverheadStates = remember(mapOverheadStarlinkStates, globeFilters) {
+        if (globeFilters.shows(SatGlobeLayer.STARLINK_OVERHEAD)) mapOverheadStarlinkStates else emptyList()
+    }
+    val globeTrainStates = remember(trainPearlStatesByTrain, globeFilters) {
+        if (globeFilters.shows(SatGlobeLayer.STARLINK_TRAINS)) trainPearlStatesByTrain else emptyList()
+    }
+    val globeInteractiveStates = remember(globeFleetVisible, globeTrainStates, globeOverheadStates) {
+        (globeFleetVisible + globeTrainStates.flatMap { it.second } + globeOverheadStates).distinctBy { it.satellite.id }
     }
     var focusSequence by remember { mutableLongStateOf(0L) }
     var earthFocusTarget by remember { mutableStateOf<EarthFocusTarget?>(null) }
@@ -538,14 +564,15 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                                 prefs.edit().putString("satellite_map_theme", theme.name).apply()
                                 legacy.edit().putString("satellite_map_theme", theme.name).apply()
                             }, onLegend = { screen.legend(it) },
+                            onToggleGlobeFilter = ::toggleGlobeFilter, onShowAllGlobeFilters = ::showAllGlobeFilters,
                             focusModifier = sourceModifier("focus"),
                             globe = { framing, top, bottom ->
                                 SatelliteEarth3D(
                                     currentSimulationMs = currentSimulationMs, userLocation = location, isFa = isFa,
                                     mapTheme = mapTheme, appThemeMode = uiState.themeMode, selectedSatelliteId = selectedSatelliteId,
-                                    selectedSatItem = selectedSatItem, liveSatelliteStates = globeFleet,
-                                    mapOverheadStarlinkStates = mapOverheadStarlinkStates, trainPearlStatesByTrain = trainPearlStatesByTrain,
-                                    allInteractiveMapStates = allInteractiveMapStates,
+                                    selectedSatItem = selectedSatItem, liveSatelliteStates = globeFleetVisible,
+                                    mapOverheadStarlinkStates = globeOverheadStates, trainPearlStatesByTrain = globeTrainStates,
+                                    allInteractiveMapStates = globeInteractiveStates,
                                     constellationPoints = constellationPoints,
                                     // Selection remains visible as the renderer's marker; identity and actions live in the focus card.
                                     anchoredSatLabelState = null,
@@ -608,6 +635,7 @@ internal fun SatelliteHud(
     centered: Boolean, firstRun: Boolean, timeActions: SatTimeActions, onPanel: (SatPanel) -> Unit, onClose: () -> Unit,
     onLive: () -> Unit, onLocate: () -> Unit, onCycle: (Int) -> Unit, onDetail: () -> Unit,
     onLighting: (MapTheme) -> Unit, onLegend: (Boolean) -> Unit, focusModifier: Modifier = Modifier,
+    onToggleGlobeFilter: (SatGlobeLayer) -> Unit = {}, onShowAllGlobeFilters: () -> Unit = {},
     passesLoading: Boolean = false, onNextPass: () -> Unit = onDetail,
     observerName: String = "", onObserver: () -> Unit = {},
     displayTimeMs: Long = now + state.timeOffsetMin * MINUTE, onReturnToPass: (() -> Unit)? = null,
@@ -664,6 +692,8 @@ internal fun SatelliteHud(
                     if (simulated) SatText(stringResource(R.string.sat_preview_at, SatFmt.dateTime(displayTimeMs, isFa, tz)), tokens.hudInk,
                         Modifier.testTag("sat_preview_time"), strong = true)
                 }
+                ZigSatIconButton(Icons.Filled.Tune, stringResource(R.string.sat_filters), tokens, { onPanel(SatPanel.Filters) },
+                    hud = true, active = panel == SatPanel.Filters, testTag = "sat_filters")
                 if (onReturnToPass != null) SatDialogButton(stringResource(R.string.sat_return_to_pass), tokens, onReturnToPass, testTag = "sat_return_to_pass")
             }
             Box(Modifier.align(Alignment.BottomCenter).padding(start = padding,
@@ -698,6 +728,9 @@ internal fun SatelliteHud(
                     Modifier.align(Alignment.TopStart).padding(start = padding, end = padding, top = top))
                 SatPanel.Layers -> SatLayersPopover(tokens, state.mapTheme, state.legend, onLighting, onLegend,
                     Modifier.align(Alignment.TopEnd).padding(end = padding, top = top.coerceAtMost((height - bottom - 106.dp).coerceAtLeast(top))))
+                SatPanel.Filters -> SatFiltersPopover(tokens, state.globeFilters, onToggleGlobeFilter, onShowAllGlobeFilters,
+                    rowsMaxHeight = (height - topInset - bottom - 200.dp).coerceIn(120.dp, 336.dp),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(end = padding, top = topInset + 104.dp))
                 else -> Unit
             }
         }
@@ -723,6 +756,18 @@ internal fun matchesScope(sat: SatelliteItem, scope: SatelliteCategory): Boolean
     SatelliteCategory.VISIBLE -> sat.isNakedEyeCandidate
     SatelliteCategory.TIANGONG -> sat.category == SatelliteCategory.TIANGONG
     SatelliteCategory.EARTH_OBSERVATION -> sat.category == SatelliteCategory.EARTH_OBSERVATION
+}
+
+/** Which satellite families the globe paints for the current filter set. */
+internal fun showsOnGlobe(sat: SatelliteItem, filters: SatGlobeFilters): Boolean = when {
+    sat.isTrain -> filters.shows(SatGlobeLayer.STARLINK_TRAINS)
+    sat.category == SatelliteCategory.STARLINK ->
+        filters.shows(SatGlobeLayer.STARLINK_OVERHEAD) || filters.shows(SatGlobeLayer.STARLINK_CONSTELLATION)
+    sat.category == SatelliteCategory.ISS -> filters.shows(SatGlobeLayer.ISS)
+    sat.category == SatelliteCategory.TIANGONG -> filters.shows(SatGlobeLayer.TIANGONG)
+    sat.category == SatelliteCategory.HUBBLE -> filters.shows(SatGlobeLayer.HUBBLE)
+    sat.category == SatelliteCategory.EARTH_OBSERVATION -> filters.shows(SatGlobeLayer.EARTH_OBSERVATION)
+    else -> true
 }
 
 internal fun monitored(sat: SatelliteItem, ids: Set<String>): Boolean = sat.id in ids || sat.isTrain && "starlink_train" in ids

@@ -10,6 +10,16 @@
     <string name="sat_fleet">Satellites</string>
     <string name="sat_time">Time</string>
     <string name="sat_layers">Layers</string>
+    <string name="sat_filters">Filters</string>
+    <string name="sat_filters_subtitle">Shown on the globe</string>
+    <string name="sat_filter_starlink_all">Starlink constellation</string>
+    <string name="sat_filter_starlink_overhead">Starlinks above me</string>
+    <string name="sat_filter_starlink_trains">Starlink trains</string>
+    <string name="sat_filter_iss">Space station (ISS)</string>
+    <string name="sat_filter_tiangong">Tiangong</string>
+    <string name="sat_filter_hubble">Hubble</string>
+    <string name="sat_filter_earth_observation">Earth observation</string>
+    <string name="sat_filters_show_all">Show everything</string>
     <string name="sat_locate">Center on my location</string>
     <string name="sat_details">Details</string>
     <string name="sat_passes">Passes</string>
