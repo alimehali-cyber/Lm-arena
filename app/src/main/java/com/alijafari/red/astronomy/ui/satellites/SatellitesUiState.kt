@@ -32,12 +32,12 @@ internal data class SatGlobeFilters(val hidden: Set<SatGlobeLayer> = emptySet())
         shows(SatGlobeLayer.STARLINK_OVERHEAD) || shows(SatGlobeLayer.STARLINK_TRAINS)
     fun toggled(layer: SatGlobeLayer): SatGlobeFilters =
         SatGlobeFilters(if (layer in hidden) hidden - layer else hidden + layer)
-    fun persisted(): Set<String> = hidden.mapTo(LinkedHashSet()) { it.name }
+    fun persisted(): Set<String> = hidden.mapTo(LinkedHashSet<String>()) { it.name }
 
     companion object {
         val All = SatGlobeFilters()
         fun fromPersisted(raw: Set<String>?): SatGlobeFilters = SatGlobeFilters(
-            raw.orEmpty().mapNotNullTo(LinkedHashSet()) { name ->
+            raw.orEmpty().mapNotNullTo(LinkedHashSet<String>()) { name ->
                 SatGlobeLayer.entries.firstOrNull { it.name == name }
             }
         )

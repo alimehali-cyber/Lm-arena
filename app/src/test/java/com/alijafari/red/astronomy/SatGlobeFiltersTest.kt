@@ -24,13 +24,13 @@ class SatGlobeFiltersTest {
 
     private fun readSource(relative: String): String {
         val candidates = listOf(File("src/main/java/$relative"), File("app/src/main/java/$relative"))
-        return candidates.map(::File).firstOrNull { it.isFile }?.readText()
+        return candidates.firstOrNull { it.isFile }?.readText()
             ?: error("Source not found: $relative")
     }
 
     private fun readRes(relative: String): String {
         val candidates = listOf(File("src/main/res/$relative"), File("app/src/main/res/$relative"))
-        return candidates.map(::File).firstOrNull { it.isFile }?.readText()
+        return candidates.firstOrNull { it.isFile }?.readText()
             ?: error("Resource not found: $relative")
     }
 
@@ -71,7 +71,8 @@ class SatGlobeFiltersTest {
         val state = SatellitesState(SatellitesUiState())
         state.toggleFilter(SatGlobeLayer.EARTH_OBSERVATION)
         assertFalse(state.ui.globeFilters.shows(SatGlobeLayer.EARTH_OBSERVATION))
-        val saved = with(SatellitesState.Saver) { SaverScope { true }.save(state) }
+        val scope = object : SaverScope { override fun canBeSaved(value: Any) = true }
+        val saved = with(SatellitesState.Saver) { scope.save(state) }
         assertNotNull(saved)
         val restored = SatellitesState.Saver.restore(saved!!)
         assertNotNull(restored)
@@ -80,8 +81,8 @@ class SatGlobeFiltersTest {
 
     @Test
     fun hiddenFamiliesLeaveTheGlobeButStayInTheLists() {
-        val iss = SatelliteCatalog.getById("iss_zarya")
-        val hubble = SatelliteCatalog.getById("hubble")
+        val iss = SatelliteCatalog.satellites.first { it.id == "iss_zarya" }
+        val hubble = SatelliteCatalog.satellites.first { it.id == "hubble" }
         val starlink = iss.copy(id = "starlink_61000", category = SatelliteCategory.STARLINK)
         val train = starlink.copy(id = "starlink_train", isTrain = true)
 

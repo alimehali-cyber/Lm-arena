@@ -172,7 +172,7 @@ class StarlinkConstellationGlobeTest {
     fun globeAndStageWireTheWholeConstellation() {
         fun readSource(relative: String): String {
             val candidates = listOf(File("src/main/java/$relative"), File("app/src/main/java/$relative"))
-            return candidates.map(::File).firstOrNull { it.isFile }?.readText()
+            return candidates.firstOrNull { it.isFile }?.readText()
                 ?: error("Source not found: $relative")
         }
 
