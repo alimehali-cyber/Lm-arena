@@ -36,11 +36,15 @@ internal data class SatGlobeFilters(val hidden: Set<SatGlobeLayer> = emptySet())
 
     companion object {
         val All = SatGlobeFilters()
-        fun fromPersisted(raw: Set<String>?): SatGlobeFilters = SatGlobeFilters(
-            raw.orEmpty().mapNotNullTo(LinkedHashSet<String>()) { name ->
-                SatGlobeLayer.entries.firstOrNull { it.name == name }
+
+        /** Rebuilds the set from persisted names, dropping anything this build no longer knows. */
+        fun fromPersisted(raw: Set<String>?): SatGlobeFilters {
+            val hidden = LinkedHashSet<SatGlobeLayer>()
+            for (name in raw.orEmpty()) {
+                SatGlobeLayer.entries.firstOrNull { layer -> layer.name == name }?.let { layer -> hidden.add(layer) }
             }
-        )
+            return SatGlobeFilters(hidden)
+        }
     }
 }
 
