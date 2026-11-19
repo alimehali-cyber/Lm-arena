@@ -68,7 +68,7 @@ internal fun SatBottomSheet(
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val reduce = LocalSatReduceMotion.current
-        var expanded by remember(tag) { mutableStateOf(initialFull || !half) }
+        var expanded by rememberSaveable(tag) { mutableStateOf(initialFull || !half) }
         val close by rememberUpdatedState(onDismiss)
         val shape = if (side) squircleShape(SatRadius.sheet) else squircleShape(topStart = 28.dp, topEnd = 28.dp)
         val targetHeight = maxHeight * if (expanded || side) .85f else .50f
@@ -164,9 +164,9 @@ private fun StatusRow(label: String, value: String, tokens: ZigSatTokens) {
 
 @Composable
 internal fun SatLayersPopover(tokens: ZigSatTokens, lighting: MapTheme, legend: Boolean, onLighting: (MapTheme) -> Unit,
-    onLegend: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    onLegend: (Boolean) -> Unit, grid: Boolean, orbit: Boolean, onGrid: (Boolean) -> Unit, onOrbit: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.width(224.dp).testTag("map_theme_selector").satMaterial(tokens, SatSlot.Popover, squircleShape(16.dp))
-        .pointerInput(Unit) { detectTapGestures {} }.padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        .verticalScroll(rememberScrollState()).pointerInput(Unit) { detectTapGestures {} }.padding(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         SatText(stringResource(R.string.sat_lighting), tokens.inkPrimary, size = 13, strong = true)
         Row(Modifier.background(tokens.cardAlt, CircleShape), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             MapTheme.entries.forEach { mode ->
@@ -183,6 +183,14 @@ internal fun SatLayersPopover(tokens: ZigSatTokens, lighting: MapTheme, legend: 
                     Icon(icon, null, Modifier.size(14.dp), color)
                     SatText(stringResource(label), color, size = 11)
                 }
+            }
+        }
+        listOf(Triple(R.string.sat_orbit_layer, orbit, onOrbit), Triple(R.string.sat_grid_layer, grid, onGrid)).forEach { (res, checked, change) ->
+            val label = stringResource(res)
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                SatText(label, tokens.inkPrimary, Modifier.weight(1f))
+                Switch(checked, change, modifier = Modifier.semantics { contentDescription = label },
+                    colors = SwitchDefaults.colors(checkedTrackColor = tokens.selectedChip))
             }
         }
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -203,14 +211,16 @@ internal fun SatFleetSheet(fleet: List<SatTokenUi>, category: SatelliteCategory,
     var aboveHorizonOnly by rememberSaveable { mutableStateOf(filterPrefs.getBoolean("sat_filter_above_horizon", false)) }
     var nakedEyeCapableOnly by rememberSaveable { mutableStateOf(filterPrefs.getBoolean("sat_filter_naked_eye", false)) }
     val title = stringResource(R.string.sat_fleet)
-    SatBottomSheet(tokens, title, "fleet_sheet", onDismiss, half = true) {
-        SatSheetTitle("$title · ${SatFmt.int(fleet.size, isFa)}", null, tokens)
+    SatBottomSheet(tokens, title, "fleet_sheet", onDismiss, half = true, initialFull = true) {
+        SatSheetTitle(title, null, tokens)
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth().testTag("fleet_search_field"),
             singleLine = true, label = { Text(stringResource(R.string.sat_search), fontFamily = LocalAppFontFamily.current) },
             textStyle = RedTypographyTokens.bodySecondary.copy(fontFamily = LocalAppFontFamily.current),
             trailingIcon = { if (query.isNotEmpty()) Icon(Icons.Filled.Close, stringResource(R.string.sat_clear_search),
                 Modifier.size(48.dp).clickable { query = "" }.padding(15.dp), tint = tokens.inkSecondary) })
+        ZigMicroCaps(stringResource(R.string.sat_scope_label), tokens, isFa = isFa)
         SatScopeRow(category, tokens, isFa, onScope)
+        ZigMicroCaps(stringResource(R.string.sat_list_only), tokens, isFa = isFa)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ZigSatChip(stringResource(R.string.sat_filter_above), aboveHorizonOnly, tokens,
                 { aboveHorizonOnly = !aboveHorizonOnly; filterPrefs.edit().putBoolean("sat_filter_above_horizon", aboveHorizonOnly).apply() },
@@ -239,16 +249,19 @@ internal fun SatFleetSheet(fleet: List<SatTokenUi>, category: SatelliteCategory,
             .sortedByDescending { it.elevationDeg }.toList()
         val above = fleet.count { it.elevationDeg > 0 }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            val segments = fleet.size.coerceIn(4, 10)
-            val filled = kotlin.math.ceil(segments * above.toDouble() / fleet.size.coerceAtLeast(1)).toInt()
-            repeat(segments) { index ->
-                ZigStatusDot(if (index < filled) tokens.nakedEye else tokens.border, false, 5.dp)
-            }
-            SatText(stringResource(R.string.sat_above, SatFmt.int(above, isFa)), tokens.inkSecondary)
+            SatText(stringResource(R.string.sat_in_scope, SatFmt.int(fleet.size, isFa), SatFmt.int(above, isFa)), tokens.inkSecondary)
             Spacer(Modifier.weight(1f))
             SatText(stringResource(R.string.sat_results_count, SatFmt.int(filtered.size, isFa)), tokens.inkTertiary, size = 10)
         }
-        if (filtered.isEmpty()) SatText(stringResource(R.string.sat_no_fleet), tokens.inkSecondary)
+        if (filtered.isEmpty()) {
+            val constrained = category != SatelliteCategory.ALL || aboveHorizonOnly || nakedEyeCapableOnly
+            SatText(stringResource(if (constrained && query.isNotBlank()) R.string.sat_recovery else R.string.sat_no_fleet), tokens.inkSecondary)
+            if (constrained) SatDialogButton(stringResource(if (query.isBlank()) R.string.sat_clear_filters else R.string.sat_search_all), tokens, {
+                aboveHorizonOnly = false; nakedEyeCapableOnly = false
+                filterPrefs.edit().putBoolean("sat_filter_above_horizon", false).putBoolean("sat_filter_naked_eye", false).apply()
+                onScope(SatelliteCategory.ALL)
+            })
+        }
         filtered.forEach { row -> key(row.id) {
             val shape = squircleShape(16.dp)
             Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(shape)
@@ -278,7 +291,7 @@ internal fun SatFleetSheet(fleet: List<SatTokenUi>, category: SatelliteCategory,
 }
 
 @Composable
-internal fun SatAlertsSheet(tokens: ZigSatTokens, isFa: Boolean, config: SatAlertsConfig,
+internal fun SatAlertsSheet(tokens: ZigSatTokens, isFa: Boolean, config: SatAlertsConfig, checking: Boolean,
     nextAlertSummary: (Set<String>, Int) -> String?, onDismiss: () -> Unit, onSave: (SatAlertsConfig) -> Unit) {
     var enabled by remember { mutableStateOf(config.enabled) }
     var lead by remember { mutableIntStateOf(config.leadMinutes) }
@@ -288,9 +301,11 @@ internal fun SatAlertsSheet(tokens: ZigSatTokens, isFa: Boolean, config: SatAler
     val choices = SatelliteCatalog.satellites.map { it.id to shortNameOf(it, isFa) } + ("starlink_train" to stringResource(R.string.sat_trains))
     SatBottomSheet(tokens, title, "alerts_sheet", onDismiss) {
         SatSheetTitle(title, rolling, tokens, trailing = {
+            if (config.enabled)
             Switch(enabled, { enabled = it }, colors = SwitchDefaults.colors(checkedTrackColor = tokens.selectedChip),
                 modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).testTag("alerts_master_switch").semantics { contentDescription = title })
         })
+        SatText(stringResource(R.string.sat_monitor_note), tokens.inkSecondary)
         SatText(stringResource(R.string.sat_lead), tokens.inkSecondary, strong = true)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             reminderLeads.forEach { minutes -> ZigSatChip(satLeadLabel(minutes, isFa), lead == minutes, tokens,
@@ -309,14 +324,13 @@ internal fun SatAlertsSheet(tokens: ZigSatTokens, isFa: Boolean, config: SatAler
             if (pair.size == 1) Spacer(Modifier.weight(1f))
         } }
         SatText(nextAlertSummary(ids, lead)?.let { stringResource(R.string.sat_next_alert, it) }
-            ?: stringResource(R.string.sat_no_alert), tokens.inkSecondary)
+            ?: stringResource(if (checking) R.string.sat_checking else R.string.sat_no_alert), tokens.inkSecondary)
         SatDialogButton(stringResource(if (config.enabled) R.string.sat_save else R.string.sat_enable), tokens,
             { onSave(SatAlertsConfig(if (config.enabled) enabled else true, lead, ids)) }, primary = true,
             modifier = Modifier.fillMaxWidth(), testTag = "alerts_save", enabled = ids.isNotEmpty() || config.enabled && !enabled)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SatDialogButton(stringResource(R.string.sat_cancel), tokens, onDismiss, modifier = Modifier.weight(1f))
-            if (config.enabled) SatDialogButton(stringResource(R.string.sat_disable), tokens,
-                { onSave(SatAlertsConfig(false, lead, ids)) }, destructive = true, modifier = Modifier.weight(1f))
+
         }
     }
 }
@@ -380,6 +394,8 @@ internal fun SatReminderPopover(tokens: ZigSatTokens, isFa: Boolean, target: Sat
     Popup(position, onDismissRequest = onClose, properties = PopupProperties(focusable = true)) {
         Column(Modifier.width(232.dp).testTag("reminder_popover").satMaterial(tokens, SatSlot.Popover, squircleShape(20.dp))
             .padding(horizontal = 9.dp, vertical = 5.dp)) {
+            SatText(stringResource(R.string.sat_reminder_for, target.pass.satName), tokens.inkPrimary, Modifier.padding(horizontal = 6.dp), size = 14, strong = true)
+            SatText(SatFmt.dateTime(target.pass.pass.startTimeMs, isFa, tz), tokens.inkSecondary, Modifier.padding(horizontal = 6.dp))
             reminderLeads.forEach { minutes ->
                 val time = target.pass.pass.startTimeMs - minutes * 60_000L
                 val clock = SatFmt.clock(time, isFa, tz)

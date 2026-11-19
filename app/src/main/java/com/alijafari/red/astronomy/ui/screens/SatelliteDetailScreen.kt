@@ -38,6 +38,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -73,7 +75,7 @@ fun SatelliteDetailScreen(
     isSimulated: Boolean = false, onSetReminder: ((SatelliteItem, ISSEngine.ISSPass, Int) -> Unit)? = null,
     onRemoveReminder: ((SatelliteItem, ISSEngine.ISSPass) -> Unit)? = null,
     onShowOnGlobe: ((SatelliteItem) -> Unit)? = null, onSpotInAr: ((SatelliteItem) -> Unit)? = null,
-    themeMode: ThemeMode = ThemeMode.DARK, modifier: Modifier = Modifier,
+    themeMode: ThemeMode = ThemeMode.DARK, modifier: Modifier = Modifier, mapTheme: MapTheme = MapTheme.AUTO,
 ) {
     val context = LocalContext.current
     val isOnline by rememberIsNetworkOnline(context)
@@ -106,7 +108,7 @@ fun SatelliteDetailScreen(
     val upcoming = predicted?.filter { it.endTimeMs > start && it.startTimeMs <= start + days * 86_400_000L }
     SatelliteDetailContent(satelliteItem, state, userLocation, isFa, skin, themeMode, isOnline, stale, upcoming,
         preselectedPass, reminderAlarms, start, System.currentTimeMillis(), isSimulated, onBack, onSetReminder,
-        onRemoveReminder, { onShowOnGlobe?.invoke(satelliteItem) }, { onSpotInAr?.invoke(satelliteItem) }, modifier)
+        onRemoveReminder, { onShowOnGlobe?.invoke(satelliteItem) }, { onSpotInAr?.invoke(satelliteItem) }, modifier, mapTheme)
 }
 
 /** Presentation-only body also used by the deterministic preview matrix. */
@@ -117,7 +119,7 @@ internal fun SatelliteDetailContent(
     themeMode: ThemeMode, isOnline: Boolean, stale: String?, predicted: List<ISSEngine.ISSPass>?, preselected: ISSEngine.ISSPass?,
     alarms: List<ScheduledNotificationItem>, simNow: Long, realNow: Long, isSimulated: Boolean, onBack: () -> Unit,
     onSetReminder: ((SatelliteItem, ISSEngine.ISSPass, Int) -> Unit)?, onRemoveReminder: ((SatelliteItem, ISSEngine.ISSPass) -> Unit)?,
-    onShow: () -> Unit, onAr: () -> Unit, modifier: Modifier = Modifier,
+    onShow: () -> Unit, onAr: () -> Unit, modifier: Modifier = Modifier, mapTheme: MapTheme = MapTheme.AUTO,
 ) {
     val tokens = remember(skin, themeMode) { zigSatTokens(skin, themeMode) }
     val tz = remember(location.timezoneId) { TimeEngine.resolveTimeZone(location.timezoneId) }
@@ -133,13 +135,13 @@ internal fun SatelliteDetailContent(
     val groups = remember(passes, firstNight, tz, isFa) {
         SatNights.group(passes.orEmpty(), simNow, tz, isFa, includeSolarHijri = true, referenceNight = firstNight)
     }
-    val spotlight = SatNights.spotlight(passes.orEmpty(), simNow, tz, isFa, simulated = isSimulated)
     var selectedPass by remember(preselected) { mutableStateOf(preselected) }
     val preview = selectedPass?.let(::passUi)
-    val shownSpotlight = preview?.let {
+    val shownSpotlight = passes?.firstOrNull()?.let {
         val active = simNow in it.pass.startTimeMs until it.pass.endTimeMs
         SatSpotlightUi(it, active, 0, isSimulated && active)
-    } ?: spotlight
+    }
+    val back: () -> Unit = { if (preselected == null && selectedPass != null) selectedPass = null else onBack() }
     val listState = rememberLazyListState()
     val dayState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -150,7 +152,7 @@ internal fun SatelliteDetailContent(
     var showMaximum by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var pending by remember { mutableStateOf<SatReminderTarget?>(null) }
     var heroBell by remember { mutableStateOf(IntRect.Zero) }
-    if (!LocalInspectionMode.current) BackHandler(enabled = pending == null, onBack = onBack)
+    if (!LocalInspectionMode.current) BackHandler(enabled = pending == null, onBack = back)
     val dayCount = if (satelliteItem.isTrain) 2 else 7
     val days = remember(firstNight, nights, dayCount, groups) {
         (List(dayCount) { nights.plusDays(firstNight, it) } + groups.map { it.nightKey }).distinct().sorted()
@@ -161,47 +163,39 @@ internal fun SatelliteDetailContent(
     }
     fun scrollTo(index: Int) { scope.launch { if (reduce) listState.scrollToItem(index) else listState.animateScrollToItem(index) } }
     fun actions(pass: SatPassUi) = SatPassActions(
-        onOpenDetail = { selectedPass = pass.pass; scrollTo(1) }, onShowOnGlobe = onShow, onAr = onAr,
+        onOpenDetail = { selectedPass = pass.pass }, onShowOnGlobe = onShow, onAr = onAr,
         onRemind = { pending = SatReminderTarget(pass, it) }, isReminderEnabled = onSetReminder != null,
     )
     CompositionLocalProvider(LocalZigSatTokens provides tokens, LocalSatSkin provides skin) {
-        Box(modifier.fillMaxSize().background(tokens.canvas).testTag("satellite_detail_screen")) {
+        if (preview != null) SightingGuide(preview, location, isFa, tz, tokens, mapTheme, realNow, isOnline,
+            back, actions(preview), modifier) else Box(modifier.fillMaxSize().background(tokens.canvas).testTag("satellite_detail_screen")) {
             LazyColumn(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(), state = listState,
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 74.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 item("hero") {
-                    val next = passes?.firstOrNull { it.pass.startTimeMs > simNow } ?: spotlight?.pass
+                    val next = passes?.firstOrNull { it.pass.startTimeMs > simNow }
+                    if (isSimulated) SatText(stringResource(R.string.sat_globe_time, SatFmt.dateTime(simNow, isFa, tz)), tokens.accentInk, size = 14, strong = true)
                     DetailHero(satelliteItem, state, isFa, isOnline, stale, onAr, onShow,
                         { next?.let { pending = SatReminderTarget(it, heroBell) } },
                         next?.pass?.takeIf { it.startTimeMs > simNow }?.let {
                             val dir = SatFmt.compass(it.startAzimuthDeg, isFa)
                             stringResource(R.string.sat_detail_rises, dir, SatFmt.countdown(it.startTimeMs - simNow, isFa))
                         }, Modifier.onGloballyPositioned { heroBell = it.anchorInWindow() },
-                        onSetReminder != null && next != null && next.pass.startTimeMs > realNow)
+                        onSetReminder != null && next != null && (next.pass.startTimeMs - 600_000 > realNow || next.reminderLeadMinutes != null && next.pass.startTimeMs > realNow))
                 }
                 item("next_pass") {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (preview != null) {
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                SatText(stringResource(R.string.sat_detail_preview, SatFmt.dateTime(preview.pass.startTimeMs, isFa, tz)), tokens.inkPrimary)
-                                SatDialogButton(stringResource(R.string.sat_detail_back_to_next), tokens, { selectedPass = null })
-                            }
-                            SatText(SatFmt.secondaryDate(preview.pass.startTimeMs, isFa, tz), tokens.inkSecondary, size = 11)
-                        }
                         if (shownSpotlight != null) {
                             SatSpotlightCard(shownSpotlight, tokens, isFa, actions(shownSpotlight.pass), arcHeight = 160.dp,
-                                showActions = false, nowMs = simNow, realNowMs = realNow, tz = tz)
-                            var anchor by remember { mutableStateOf(IntRect.Zero) }
-                            SatDialogButton(stringResource(R.string.sat_detail_schedule), tokens,
-                                { pending = SatReminderTarget(shownSpotlight.pass, anchor) }, primary = true,
-                                enabled = onSetReminder != null && shownSpotlight.pass.pass.startTimeMs > realNow,
-                                modifier = Modifier.fillMaxWidth().onGloballyPositioned { anchor = it.anchorInWindow() })
+                                showActions = false, heading = stringResource(R.string.sat_next_pass), nowMs = simNow, realNowMs = realNow, tz = tz)
+                            SatDialogButton(stringResource(R.string.sat_peek_profile), tokens,
+                                { selectedPass = shownSpotlight.pass.pass }, primary = true, modifier = Modifier.fillMaxWidth())
                         } else if (predicted == null) SatPassSkeletons(tokens)
                         else SatText(stringResource(R.string.sat_detail_empty), tokens.inkSecondary)
                     }
                 }
-                item("telemetry") { DetailTelemetryPanel(state, tokens, isFa, stale, isOnline) }
                 item("visibility") { DetailVisibilityPanel(state, tokens, isFa, location, simNow) }
+                item("telemetry") { DetailTelemetryPanel(state, tokens, isFa, stale, isOnline, isSimulated) }
                 item("passes_header") {
                     SatSheetTitle(stringResource(R.string.sat_detail_passes, SatFmt.int(dayCount, isFa)),
                         passes?.size?.let { stringResource(R.string.sat_pass_count, SatFmt.int(it, isFa)) }, tokens)
@@ -465,12 +459,12 @@ private fun DetailHero(
 }
 
 @Composable
-private fun DetailTelemetryPanel(state: SatelliteLiveState, tokens: ZigSatTokens, isFa: Boolean, staleBadgeText: String?, isOnline: Boolean) {
+private fun DetailTelemetryPanel(state: SatelliteLiveState, tokens: ZigSatTokens, isFa: Boolean, staleBadgeText: String?, isOnline: Boolean, simulated: Boolean) {
     var expanded by remember { mutableStateOf(false) }
     val topo = state.topocentric
     ZigSatCard(tokens = tokens, shape = squircleShape(SatRadius.card)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SatText(stringResource(R.string.sat_telemetry), tokens.inkPrimary, size = 18, strong = true)
+            SatText(stringResource(if (simulated) R.string.sat_simulation_readings else R.string.sat_telemetry), tokens.inkPrimary, size = 18, strong = true)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TelemetryHeroTile(stringResource(R.string.sat_altitude), SatFmt.kilometers(topo.satAltKm, isFa),
                     stringResource(R.string.sat_kilometers), tokens, Modifier.weight(1f))
@@ -696,7 +690,8 @@ private fun DetailVisibilityPanel(
 
 @Composable
 private fun CheckRow(passed: Boolean, text: String, tokens: com.alijafari.red.astronomy.ui.satellites.ZigSatTokens) {
-    Row(
+    val spoken = stringResource(if (passed) R.string.sat_met else R.string.sat_not_met, text)
+    Row(modifier = Modifier.clearAndSetSemantics { contentDescription = spoken },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {

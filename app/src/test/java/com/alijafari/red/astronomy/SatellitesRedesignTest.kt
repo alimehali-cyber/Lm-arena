@@ -233,6 +233,20 @@ class SatellitesRedesignTest {
     }
 
     @Test
+    fun plannerFiltersUseTheObserverNightAndNeverRecommendAnExcludedTrain() {
+        val ordinary = passUi(1_800_000_000_000L, score = 60)
+        val train = ordinary.copy(key = "train", sat = ordinary.sat.copy(isTrain = true),
+            pass = ordinary.pass.copy(visibilityScore = 90))
+        val tonight = SatNightGroup(1L, "Tonight", null, train, listOf(ordinary, train))
+        val tomorrow = tonight.copy(nightKey = 2L, passes = listOf(train))
+        val nights = listOf(tonight, tomorrow)
+        assertEquals(listOf(ordinary), plannerNights(nights, 1L, true).single().passes)
+        assertEquals(ordinary, plannerNights(nights, null, true).single().best)
+        assertTrue(plannerNights(nights, 2L, true).isEmpty())
+        assertEquals(nights, plannerNights(nights, null, false))
+    }
+
+    @Test
     fun passKeysAreStableAcrossRecomputation() {
         val sat = SatelliteCatalog.satellites.first { it.id == "iss_zarya" }
         val a = pass(1_800_000_000_000L)

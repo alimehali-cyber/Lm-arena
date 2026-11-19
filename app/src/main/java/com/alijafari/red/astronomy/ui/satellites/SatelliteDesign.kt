@@ -41,6 +41,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -697,7 +699,7 @@ fun ZigSatChip(
 ) {
     val tagged = if (testTag != null) modifier.testTag(testTag) else modifier
     Box(
-        modifier = tagged
+        modifier = tagged.semantics { this.selected = selected }
             .sizeIn(minWidth = SatGrid.minTouchTarget, minHeight = SatGrid.minTouchTarget)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -978,3 +980,10 @@ fun ZigMicroCapsWithCount(caps: String, count: Int, tokens: ZigSatTokens, isFa: 
         )
     }
 }
+
+/** Filtering a night also updates its best-pass summary; a collapsed row must not describe a hidden pass. */
+internal fun plannerNights(groups: List<SatNightGroup>, onlyNight: Long?, excludeStarlink: Boolean): List<SatNightGroup> =
+    groups.filter { onlyNight == null || it.nightKey == onlyNight }.mapNotNull { night ->
+        val rows = night.passes.filterNot { excludeStarlink && (it.isTrain || it.sat.category == SatelliteCategory.STARLINK) }
+        if (rows.isEmpty()) null else night.copy(passes = rows, best = rows.maxByOrNull { it.pass.visibilityScore })
+    }

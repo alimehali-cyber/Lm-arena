@@ -276,6 +276,8 @@ fun SatelliteEarth3D(
     ),
     tokens: ZigSatTokens,
     reduceMotion: Boolean = false,
+    drawGrid: Boolean = true,
+    drawOrbit: Boolean = true,
     onGlobeGesture: () -> Unit = {},
     onCenteredChanged: (Boolean) -> Unit = {},
     popoverModifier: Modifier = Modifier,
@@ -377,8 +379,8 @@ fun SatelliteEarth3D(
 
     // Precompute smooth 3D orbital track for the selected satellite (refreshed every 15s or on scrub).
     val orbitBucket = currentSimulationMs / 15_000L
-    val selectedOrbitTrack = remember(selectedSatItem?.id, selectedSatItem?.noradId, orbitBucket) {
-        selectedSatItem?.let { sat ->
+    val selectedOrbitTrack = remember(drawOrbit, selectedSatItem?.id, selectedSatItem?.noradId, orbitBucket) {
+        selectedSatItem?.takeIf { drawOrbit }?.let { sat ->
             SatelliteEngine.calculateOrbitTrack3D(
                 satellite = sat,
                 currentTimestampMs = currentSimulationMs,
@@ -458,7 +460,7 @@ fun SatelliteEarth3D(
             }
 
             // 2b. Subtle 3D Lat/Lon Graticule & Equator on the visible hemisphere
-            drawGraticule3D(
+            if (drawGrid) drawGraticule3D(
                 cam = cam,
                 w = w,
                 h = h,
@@ -596,6 +598,7 @@ fun SatelliteEarth3D(
                     color = dotColor,
                     radius = (if (isSelected) 5.5.dp else 2.8.dp).toPx(),
                     center = pos,
+                    style = if (isSelected || ovState.topocentric.isSunlit) androidx.compose.ui.graphics.drawscope.Fill else Stroke(1.2.dp.toPx()),
                 )
                 if (isSelected) drawCircle(Color.White, 2.dp.toPx(), pos)
             }
@@ -1030,7 +1033,7 @@ private fun DrawScope.drawOrbitTrack3D(
         style = Stroke(
             width = 2.4f,
             cap = StrokeCap.Round,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(9f, 7f)),
+
         ),
     )
     if (arrowTail != null && arrowTip != null) drawDirectionArrow(arrowTail!!, arrowTip!!, trackColor)
