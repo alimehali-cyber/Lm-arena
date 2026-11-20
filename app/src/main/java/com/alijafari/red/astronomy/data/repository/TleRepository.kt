@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -39,6 +41,26 @@ const val STARLINK_GP_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=s
 private const val STATIONS_GP_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle"
 private const val VISUAL_GP_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle"
 private const val ISS_DIRECT_CATNR_URL = "https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=tle"
+
+/**
+ * What the Starlink catalogue is doing right now, so the globe can say why it is empty instead of
+ * looking like a filter bug. A fresh install starts at [UNKNOWN] and has to download the catalogue.
+ */
+enum class StarlinkSyncStatus { UNKNOWN, SYNCING, READY, FAILED }
+
+/**
+ * @param tleCount how many Starlink elements are usable right now (memory or disk).
+ * @param attemptedAtMs wall clock of the last download attempt, successful or not.
+ * @param syncedAtMs wall clock of the last successful download.
+ * @param failureReason short technical reason ("HTTP 403", "timeout") for the troubleshooting line.
+ */
+data class StarlinkSyncSnapshot(
+    val status: StarlinkSyncStatus = StarlinkSyncStatus.UNKNOWN,
+    val tleCount: Int = 0,
+    val attemptedAtMs: Long = 0L,
+    val syncedAtMs: Long = 0L,
+    val failureReason: String? = null,
+)
 
 /**
  * Repository responsible for fetching, validating, deduplicating, persisting, and caching
@@ -81,6 +103,20 @@ class TleRepository internal constructor(
 
     private val _starlinkVersion = MutableStateFlow(0L)
     val starlinkVersion: StateFlow<Long> = _starlinkVersion.asStateFlow()
+
+    private val _starlinkSync = MutableStateFlow(StarlinkSyncSnapshot())
+    val starlinkSync: StateFlow<StarlinkSyncSnapshot> = _starlinkSync.asStateFlow()
+
+    /**
+     * One Starlink download at a time. The launch workers and the satellites tab all decide to fetch
+     * on a cache-less install, and CelesTrak answers that burst with 403 (and a longer ban), so the
+     * second caller waits here and then finds the cooldown instead of firing again.
+     */
+    private val starlinkNetworkMutex = Mutex()
+
+    /** The last technical reason a feed refused or failed, surfaced in the UI when nothing arrived. */
+    @Volatile
+    private var lastFeedFailure: String? = null
 
     private val repoScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -171,6 +207,11 @@ class TleRepository internal constructor(
                     StarlinkTrainManager.detectActiveTrains(parsed.values.toList(), clockMs())
                     starlinkDiskCacheLoaded = true
                     _starlinkVersion.value = _starlinkVersion.value + 1L
+                    _starlinkSync.value = StarlinkSyncSnapshot(
+                        status = StarlinkSyncStatus.READY, tleCount = parsed.size,
+                        attemptedAtMs = _starlinkSync.value.attemptedAtMs,
+                        syncedAtMs = getLastStarlinkSyncMs(), failureReason = null,
+                    )
                     Log.i(TAG, "Loaded ${parsed.size} Starlink TLEs from persistent disk cache (${cacheFile.name})")
                     true
                 } else {
@@ -187,14 +228,44 @@ class TleRepository internal constructor(
     /**
      * Enforces the strict 2-hour CelesTrak rate-limit cooldown when a valid current-schema disk cache exists.
      * Bypasses the cooldown whenever `starlink_cache_schema_version != STARLINK_CACHE_SCHEMA_VERSION`.
+     *
+     * With no cache at all — a fresh install, or app data just cleared — nothing was ever synced, so
+     * there is no cooldown to honour and every caller (two launch workers plus the satellites tab)
+     * would otherwise fetch at once. That burst is answered with HTTP 403, which is why a cache-less
+     * install is spaced by a growing retry gap instead: 5 minutes, doubling to an hour.
      */
     fun shouldFetchStarlinkFromNetwork(nowMs: Long = clockMs()): Boolean {
         if (getStoredStarlinkSchemaVersion() != STARLINK_CACHE_SCHEMA_VERSION) return true
         val cacheFile = getStarlinkCacheFile()
-        if (!cacheFile.exists() || cacheFile.length() == 0L) return true
         val lastSync = getLastStarlinkSyncMs()
-        if (lastSync <= 0L) return true
-        return (nowMs - lastSync) >= STARLINK_SYNC_COOLDOWN_MS
+        if (cacheFile.exists() && cacheFile.length() > 0L && lastSync > 0L) {
+            return (nowMs - lastSync) >= STARLINK_SYNC_COOLDOWN_MS
+        }
+        val lastAttempt = prefs.getLong(KEY_LAST_STARLINK_ATTEMPT_MS, 0L)
+        if (lastAttempt <= 0L) return true
+        return (nowMs - lastAttempt) >= starlinkRetryGapMs()
+    }
+
+    /**
+     * How long to wait before the next download attempt while the catalogue is still missing.
+     * Starts at five minutes and doubles per consecutive failure, capped at an hour.
+     */
+    fun starlinkRetryGapMs(failStreak: Int = prefs.getInt(KEY_STARLINK_FAIL_STREAK, 0)): Long {
+        var gap = STARLINK_RETRY_BASE_MS
+        repeat((failStreak - 1).coerceIn(0, 8)) { gap = (gap * 2).coerceAtMost(STARLINK_RETRY_MAX_MS) }
+        return gap.coerceAtMost(STARLINK_RETRY_MAX_MS)
+    }
+
+    /** True when there is nothing to paint or predict with: no memory cache, no disk cache. */
+    fun isStarlinkCatalogMissing(): Boolean = getStarlinkTles().isEmpty()
+
+    /**
+     * A manual "try again" from the screen. Skips the retry spacing but never overlaps another
+     * download, so a held-in finger cannot turn into another 403.
+     */
+    suspend fun forceRefreshStarlink(): Boolean = withContext(Dispatchers.IO) {
+        ensureStarlinkDiskCacheLoaded()
+        syncStarlinkFeedsInternal(force = true)
     }
 
     private fun loadFromDatabase() {
@@ -450,7 +521,42 @@ class TleRepository internal constructor(
         anyUpdated
     }
 
-    private fun syncStarlinkFeedsInternal(): Boolean {
+    /**
+     * Single-flight entry point: serializes downloads, spaces the failed ones, and records what the
+     * screen should say. Returns true only when new Starlink elements were merged and persisted.
+     */
+    private suspend fun syncStarlinkFeedsInternal(force: Boolean = false): Boolean =
+        starlinkNetworkMutex.withLock {
+            if (!force && !shouldFetchStarlinkFromNetwork()) {
+                Log.i(TAG, "Skipping Starlink CelesTrak fetch: a sync just ran (${starlinkTles.size} cached TLEs active)")
+                return@withLock false
+            }
+            val attemptAt = clockMs()
+            prefs.edit().putLong(KEY_LAST_STARLINK_ATTEMPT_MS, attemptAt).apply()
+            lastFeedFailure = null
+            _starlinkSync.value = _starlinkSync.value.copy(
+                status = StarlinkSyncStatus.SYNCING, attemptedAtMs = attemptAt, tleCount = starlinkTles.size,
+            )
+            val synced = syncStarlinkFeedsLocked()
+            if (synced) {
+                _starlinkSync.value = StarlinkSyncSnapshot(
+                    status = StarlinkSyncStatus.READY, tleCount = starlinkTles.size,
+                    attemptedAtMs = attemptAt, syncedAtMs = getLastStarlinkSyncMs(), failureReason = null,
+                )
+            } else {
+                val streak = prefs.getInt(KEY_STARLINK_FAIL_STREAK, 0) + 1
+                prefs.edit().putInt(KEY_STARLINK_FAIL_STREAK, streak).apply()
+                val reason = lastFeedFailure ?: "no data"
+                Log.w(TAG, "Starlink catalogue download failed ($reason); attempt $streak, next try in ${starlinkRetryGapMs(streak) / 60_000} min")
+                _starlinkSync.value = StarlinkSyncSnapshot(
+                    status = StarlinkSyncStatus.FAILED, tleCount = starlinkTles.size,
+                    attemptedAtMs = attemptAt, syncedAtMs = getLastStarlinkSyncMs(), failureReason = reason,
+                )
+            }
+            synced
+        }
+
+    private fun syncStarlinkFeedsLocked(): Boolean {
         // Seed merged map with existing cached TLEs so partial feed failures never lose existing data
         val merged = LinkedHashMap<Int, TLEData>(starlinkTles.size.coerceAtLeast(1024))
         for ((id, tle) in starlinkTles) {
@@ -492,6 +598,7 @@ class TleRepository internal constructor(
                 }
             }
         } catch (e: Exception) {
+            lastFeedFailure = e.message?.take(80) ?: "sup-gp"
             Log.w(TAG, "STARLINK_SUP_GP fetch failed (continuing with remaining feeds): ${e.message}")
         }
 
@@ -509,6 +616,7 @@ class TleRepository internal constructor(
                 }
             }
         } catch (e: Exception) {
+            lastFeedFailure = e.message?.take(80) ?: "last-30-days"
             Log.w(TAG, "STARLINK_LAST_30_DAYS fetch failed (continuing with remaining feeds): ${e.message}")
         }
 
@@ -524,6 +632,7 @@ class TleRepository internal constructor(
                 }
             }
         } catch (e: Exception) {
+            lastFeedFailure = e.message?.take(80) ?: "starlink-gp"
             Log.w(TAG, "STARLINK_GP full catalog fetch failed (preserving SUP_GP + LAST_30_DAYS + cached TLEs): ${e.message}")
         }
 
@@ -537,6 +646,7 @@ class TleRepository internal constructor(
             prefs.edit()
                 .putLong(KEY_LAST_STARLINK_SYNC_MS, syncTime)
                 .putInt(KEY_STARLINK_CACHE_SCHEMA_VERSION, STARLINK_CACHE_SCHEMA_VERSION)
+                .putInt(KEY_STARLINK_FAIL_STREAK, 0)
                 .apply()
 
             starlinkTles.clear()
@@ -562,11 +672,15 @@ class TleRepository internal constructor(
 
         client.newCall(reqBuilder.build()).execute().use { response ->
             if (!response.isSuccessful) {
+                lastFeedFailure = "HTTP ${response.code}"
                 Log.w(TAG, "HTTP ${response.code} while fetching TLEs from $url")
                 return null
             }
-            val bytes = response.body?.bytes() ?: return null
-            if (bytes.isEmpty()) return null
+            val bytes = response.body?.bytes()
+            if (bytes == null || bytes.isEmpty()) {
+                lastFeedFailure = "empty response"
+                return null
+            }
 
             val isGzipped = response.header("Content-Encoding")?.equals("gzip", ignoreCase = true) == true ||
                 (bytes.size >= 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte())
@@ -607,10 +721,16 @@ class TleRepository internal constructor(
         private const val TAG = "TleRepository"
         private const val STARLINK_CACHE_SCHEMA_VERSION = 4
 
+        /** First retry of a missing catalogue, doubling per failure up to an hour. */
+        private const val STARLINK_RETRY_BASE_MS = 5 * 60 * 1000L
+        private const val STARLINK_RETRY_MAX_MS = 60 * 60 * 1000L
+
         const val STARLINK_CACHE_FILE_NAME = "starlink_merged_cache.tle"
         const val STARLINK_PREFS_NAME = "zig_starlink_tle_prefs"
         const val KEY_LAST_STARLINK_SYNC_MS = "last_starlink_sync_ms"
         const val KEY_STARLINK_CACHE_SCHEMA_VERSION = "starlink_cache_schema_version"
+        const val KEY_LAST_STARLINK_ATTEMPT_MS = "last_starlink_attempt_ms"
+        const val KEY_STARLINK_FAIL_STREAK = "starlink_fail_streak"
         const val STARLINK_SYNC_COOLDOWN_MS = 2 * 60 * 60 * 1000L // 2 hours
 
         private val DEB_TOKEN_REGEX = Regex("(^|[^A-Z0-9])DEB($|[^A-Z0-9])")

@@ -25,7 +25,15 @@ class TleSyncWorker(
                 com.alijafari.red.astronomy.notification.AstroNotificationManager.refreshSatellitePassSchedulesIfEnabled(applicationContext)
             }
             Log.d(TAG, "TLE synchronization complete. Updated: $updated")
-            Result.success()
+            // An empty catalogue is not "done": a fresh install that could not download has nothing
+            // to show on the globe, so ask WorkManager to back off and try again instead of waiting
+            // six hours for the periodic run.
+            if (!updated && repository.isStarlinkCatalogMissing() && runAttemptCount < MAX_RETRIES) {
+                Log.w(TAG, "No Starlink catalogue yet; retrying with backoff")
+                Result.retry()
+            } else {
+                Result.success()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error syncing TLE data: ${e.message}", e)
             if (runAttemptCount < 3) {
@@ -38,6 +46,7 @@ class TleSyncWorker(
 
     companion object {
         private const val TAG = "TleSyncWorker"
+        private const val MAX_RETRIES = 3
         const val PERIODIC_WORK_NAME = "periodic_tle_sync_work"
         const val ONE_TIME_WORK_NAME = "immediate_tle_sync_work"
 
@@ -72,6 +81,7 @@ class TleSyncWorker(
 
             val oneTimeRequest = OneTimeWorkRequestBuilder<TleSyncWorker>()
                 .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.MINUTES)
                 .build()
 
             WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(

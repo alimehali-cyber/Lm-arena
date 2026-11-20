@@ -408,6 +408,30 @@ internal fun satPassScopeChoices(isFa: Boolean): List<Pair<String, String>> {
     }
 }
 
+/**
+ * The one state the globe cannot draw by itself: there is no Starlink catalogue yet. A fresh install
+ * (or cleared app data) has to download it, and the download can fail, so say which it is and offer
+ * the retry instead of leaving an empty sky that looks like a bug.
+ */
+@Composable
+internal fun SatStarlinkNotice(
+    message: String,
+    action: String?,
+    busy: Boolean,
+    tokens: ZigSatTokens,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier.fillMaxWidth().testTag("sat_starlink_notice")
+        .satMaterial(tokens, SatSlot.FocusCard, squircleShape(SatRadius.card))
+        .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ZigStatusDot(if (busy) tokens.timeAccent else tokens.accentInk, busy, 6.dp)
+        SatText(message, tokens.inkPrimary, Modifier.weight(1f), size = 11, strong = !busy)
+        if (action != null) SatDialogButton(action, tokens, onRetry, testTag = "sat_starlink_retry")
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SatMetric(value: String, unit: String, label: String, tokens: ZigSatTokens, modifier: Modifier = Modifier,

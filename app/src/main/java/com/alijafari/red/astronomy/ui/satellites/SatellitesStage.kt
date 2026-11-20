@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import com.alijafari.red.astronomy.EarthViewportProjection
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.astro_engine.*
+import com.alijafari.red.astronomy.data.repository.StarlinkSyncStatus
 import com.alijafari.red.astronomy.data.repository.TleRepository
 import com.alijafari.red.astronomy.domain.AppLanguage
 import com.alijafari.red.astronomy.domain.ThemeMode
@@ -198,6 +199,18 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
         withContext(Dispatchers.IO) { tleRepo.ensureStarlinkDiskCacheLoaded() }
         if (!wasOnline && isOnline && withContext(Dispatchers.IO) { tleRepo.refreshTles() }) tleRefreshTick++
         wasOnline = isOnline
+    }
+    val starlinkSync by tleRepo.starlinkSync.collectAsState()
+    val starlinkTleCount = remember(starlinkCacheVersion) { tleRepo.getStarlinkTles().size }
+    // A fresh install has no Starlink catalogue until it downloads one, and the launch workers are
+    // best-effort (WorkManager may hold them for hours). While this screen is open and the sky is
+    // empty, keep asking; the repository spaces the attempts, so this can never become a storm.
+    LaunchedEffect(starlinkTleCount, isOnline) {
+        if (!isOnline || starlinkTleCount > 0) return@LaunchedEffect
+        while (true) {
+            delay(60_000L)
+            withContext(Dispatchers.IO) { tleRepo.refreshTles(refreshStaticCatalog = false) }
+        }
     }
     var activeTrains by remember { mutableStateOf<List<StarlinkTrainManager.StarlinkTrain>>(emptyList()) }
     var overheadStarlinks by remember { mutableStateOf<List<SatelliteItem>>(emptyList()) }
@@ -425,6 +438,21 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
             ?: stringResource(R.string.sat_pass_scope_all)
         else -> stringResource(R.string.sat_pass_scope_count, SatFmt.int(state.passScope.size, isFa))
     }
+    // An empty sky needs an explanation: the Starlink catalogue is downloaded once and can fail.
+    val starlinkNotice = when {
+        starlinkTleCount > 0 -> null
+        !isOnline -> SatStarlinkNoticeUi(stringResource(R.string.sat_starlink_offline), null, false)
+        starlinkSync.status != StarlinkSyncStatus.FAILED ->
+            SatStarlinkNoticeUi(stringResource(R.string.sat_starlink_downloading), null, true)
+        else -> SatStarlinkNoticeUi(
+            stringResource(R.string.sat_starlink_failed, starlinkSync.failureReason ?: "—"),
+            stringResource(R.string.sat_starlink_retry), false,
+        )
+    }
+    val retryStarlink = {
+        scope.launch { withContext(Dispatchers.IO) { tleRepo.forceRefreshStarlink() } }
+        Unit
+    }
 
     var activeDetail by remember(navigation) { navigation::detail }
     var detailSource by rememberSaveable { mutableStateOf("focus") }
@@ -591,6 +619,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                             onTogglePassScope = ::togglePassScope,
                             onOpenAnyPass = { passCardNext?.let { detail(it.sat, it.pass, it.key) } },
                             onMorePasses = { screen.panel(SatPanel.Passes) },
+                            starlinkNotice = starlinkNotice, onRetryStarlink = retryStarlink,
                             onLighting = { theme ->
                                 screen.lighting(theme)
                                 prefs.edit().putString("satellite_map_theme", theme.name).apply()
@@ -673,6 +702,7 @@ internal fun SatelliteHud(
     passScopeLabel: String = "", passScopeChoices: List<Pair<String, String>> = emptyList(),
     passScopeIds: Set<String> = emptySet(), onTogglePassScope: (String) -> Unit = {},
     onOpenAnyPass: () -> Unit = {}, onMorePasses: () -> Unit = { onPanel(SatPanel.Passes) },
+    starlinkNotice: SatStarlinkNoticeUi? = null, onRetryStarlink: () -> Unit = {},
     observerName: String = "", onObserver: () -> Unit = {},
     displayTimeMs: Long = now + state.timeOffsetMin * MINUTE, onReturnToPass: (() -> Unit)? = null,
     globe: @Composable (EarthViewportProjection, Dp, Dp) -> Unit, sheet: @Composable (SatPanel, Boolean) -> Unit,
@@ -745,6 +775,9 @@ internal fun SatelliteHud(
                         displayTimeMs = displayTimeMs, isPreview = simulated, satelliteName = focused?.satellite?.let { shortNameOf(it, isFa) }.orEmpty())
                     else Column(Modifier.fillMaxWidth().onSizeChanged { readoutHeight = with(density) { it.height.toDp() } },
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        starlinkNotice?.let { notice ->
+                            SatStarlinkNotice(notice.message, notice.action, notice.busy, tokens, onRetryStarlink)
+                        }
                         if (focused != null) {
                             val span = stringResource(R.string.sat_seven_days)
                             Crossfade(focused.satellite.id, focusModifier, animationSpec = tween(if (reduce) 120 else 160), label = "satellite-focus") { id ->

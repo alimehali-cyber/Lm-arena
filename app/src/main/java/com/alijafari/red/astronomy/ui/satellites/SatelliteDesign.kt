@@ -316,6 +316,10 @@ data class SatStatusData(
     val isFa: Boolean,
 )
 
+/** What the globe says when the Starlink catalogue itself is missing, not just filtered away. */
+@Immutable
+data class SatStarlinkNoticeUi(val message: String, val action: String?, val busy: Boolean)
+
 @Immutable
 data class SatTokenUi(
     val id: String,

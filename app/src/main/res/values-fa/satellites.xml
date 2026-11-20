@@ -83,6 +83,10 @@
     <string name="sat_pass_scope_row">فقط این ماهواره‌ها</string>
     <string name="sat_starlink_family">استارلینک‌ها</string>
     <string name="sat_more_passes_button">گذرهای بیشتر</string>
+    <string name="sat_starlink_downloading">کاتالوگ استارلینک در حال دانلود است…</string>
+    <string name="sat_starlink_failed">کاتالوگ استارلینک دانلود نشد (%1$s).</string>
+    <string name="sat_starlink_offline">برای دیدن استارلینک‌ها به اینترنت وصل شو.</string>
+    <string name="sat_starlink_retry">تلاش دوباره</string>
     <string name="sat_now">اکنون</string>
     <string name="sat_soon">به‌زودی</string>
     <string name="sat_later">بعدتر</string>

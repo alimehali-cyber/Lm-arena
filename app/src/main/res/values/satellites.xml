@@ -83,6 +83,10 @@
     <string name="sat_pass_scope_row">Only these satellites</string>
     <string name="sat_starlink_family">Starlinks</string>
     <string name="sat_more_passes_button">More passes</string>
+    <string name="sat_starlink_downloading">Downloading the Starlink catalogue…</string>
+    <string name="sat_starlink_failed">The Starlink catalogue did not download (%1$s).</string>
+    <string name="sat_starlink_offline">Connect to the internet to see the Starlinks.</string>
+    <string name="sat_starlink_retry">Try again</string>
     <string name="sat_now">Now</string>
     <string name="sat_soon">Soon</string>
     <string name="sat_later">Later</string>

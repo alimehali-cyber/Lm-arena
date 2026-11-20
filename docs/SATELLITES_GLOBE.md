@@ -20,6 +20,14 @@ The passes card is configurable. Its scope chip opens one toggle per family — 
 
 The upper card reads the same week for the satellite under the lens, so the two readouts never disagree about whether a pass exists. `nextPassInScope` is what the lower card reads: passes whose end is still in the future, filtered by the scope and ordered by start time. It is strictly *next*, not *best* — the agenda still scores, spotlights and groups. Predictions cover a full week: `AGENDA_WINDOW_DAYS = 7` and `AGENDA_SCAN_DAYS = 8` (the sweep starts half a day before now), while the individually tracked Starlink shortlist keeps a five-day scan so the SGP4 sweep stays affordable. Every night is its own collapsible group with a pass count, a best-of-the-night line and a `show more` cap, so a week of passes stays a list of headers, not a wall of cards.
 
+## When the catalogue has not arrived
+
+The Starlink shell is not in the APK: it is downloaded (three CelesTrak feeds, ~10k elements) and kept in `starlink_merged_cache.tle` beside the prefs. A fresh install, or app data just cleared, therefore starts with an empty sky until that download succeeds — and CelesTrak can refuse it (HTTP 403) or be unreachable, which previously looked exactly like a filter bug and stayed that way for six hours.
+
+`TleRepository` now treats the download as a state machine (`StarlinkSyncStatus` + `StarlinkSyncSnapshot`: syncing, ready, failed, with the technical reason). Two invariants keep it recoverable: only one download may run at a time (`starlinkNetworkMutex`), because the two launch workers and the tab all decide to fetch at the same moment and that burst is what earns the 403 and extends the ban; and a cache-less install is spaced by a growing retry gap (five minutes, doubling to an hour) instead of the two-hour cooldown that only exists once something has succeeded. The satellites screen keeps asking every minute while it is open and the sky is empty, offers a `Try again` that skips the spacing but never overlaps a download, and `TleSyncWorker` returns `Result.retry()` rather than success when nothing arrived.
+
+So an empty globe says which of three things it is: the catalogue is downloading, it failed (with the reason, e.g. `HTTP 403`), or the device is offline. Card A, the passes card and the agenda keep working from whatever is cached — the four curated satellites have bundled fallback elements.
+
 ## Preview matrix
 
 Open [`SatellitePreviews.kt`](../app/src/debug/java/com/alijafari/red/astronomy/ui/satellites/SatellitePreviews.kt) with the **debug** build variant in Android Studio and choose **Split** or **Design**. It provides a 72-preview matrix (3 skins × 3 palettes × 2 languages × 4 states), plus two narrow Persian 130% cases. The Default entry points are below; Spatial and Aether use the same names prefixed by their skin:
@@ -41,6 +49,7 @@ Each reference preview has variants for English LTR and Persian RTL at 390 × 84
 - `SatReminderPersistenceTest`: one manual lead replaces rolling coverage, and turning monitoring off preserves manual alarms.
 - `Earth3DTest` and `StarlinkPipelineTest`: projection and occlusion, and preservation of the existing Earth and orbit data paths.
 - `SatGlobeFiltersTest`: filter semantics and toggling, device and Bundle persistence, unknown-layer tolerance, the globe/show mapping per family, and the button, popover and bilingual strings being wired.
+- `StarlinkRecoveryTest`: a refused catalogue is named and the next attempt spaced, a tap always retries, the launch burst collapses into one download, and a success restores the two-hour cooldown.
 - `StarlinkConstellationGlobeTest`: the bulk shell sweep returns every satellite regardless of the observer, memoizes per bucket, drops decayed entries, keeps the allocation-free projection equal to `projectLatLon`, and guards the stage/globe wiring.
 - On-device review: verify pinch and double-tap outside the HUD, tap overlapping markers twice, cycle three satellites with Focus Card swipes, scrub while watching the Earth and dismiss without returning to Live, and verify a scheduled reminder after leaving and re-entering the tab. Repeat on a narrow Persian screen at 130% font scale and with device animations disabled.
 
