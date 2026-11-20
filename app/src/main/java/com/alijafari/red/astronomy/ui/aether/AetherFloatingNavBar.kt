@@ -15,11 +15,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
@@ -29,6 +26,7 @@ import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.SatelliteAlt
 import androidx.compose.material.icons.outlined.Science
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,9 +49,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
-import com.alijafari.red.astronomy.ui.theme.RedShapes
-import com.alijafari.red.astronomy.ui.theme.RedSpacing
+import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
+import com.alijafari.red.astronomy.ui.theme.squircleShape
+
+/** Three quarters of the old 62 dp dock, so the settings bubble has room beside it. */
+private val AETHER_NAV_HEIGHT = 46.dp
 
 private data class AetherDockTab(
     val index: Int,
@@ -64,10 +65,11 @@ private data class AetherDockTab(
 )
 
 /**
- * Floating Aether Telemetry Capsule Dock (`100.dp` corner geometry):
- * Frameless optical capsule (`FrostedGlassFill` `#14FFFFFF`) with razor-thin `1.dp`
- * directional specular rim border, deep crimson jewel active lens, glowing 6.dp LED dot,
- * bouncy spring physics, and `HapticFeedbackType.TextHandleMove` feedback.
+ * Floating Aether Telemetry Capsule Dock: a squircle pill, three quarters of the old bar's height,
+ * that takes three quarters of the width on the leading side so the settings bubble has the space
+ * it leaves. Frameless optical capsule (`FrostedGlassFill` `#14FFFFFF`) with razor-thin `1.dp`
+ * directional specular rim border, deep crimson jewel active lens, bouncy spring physics, and
+ * `HapticFeedbackType.TextHandleMove` feedback.
  */
 @Composable
 fun AetherFloatingNavBar(
@@ -86,28 +88,24 @@ fun AetherFloatingNavBar(
         )
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
-            .testTag("floating_bottom_bar")
-    ) {
+    // A pillar: half the bar's height at each end, drawn with the app's squircle rules.
+    val shape = squircleShape(RedCornerRadius.pill)
+    Box(modifier.testTag("floating_bottom_bar")) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(62.dp)
+                .height(AETHER_NAV_HEIGHT)
                 .shadow(
                     elevation = 24.dp,
-                    shape = RedShapes.capsule,
+                    shape = shape,
                     ambientColor = palette.crimsonGlow.copy(alpha = 0.28f),
                     spotColor = palette.crimsonGlow.copy(alpha = 0.28f)
                 )
-                .clip(RedShapes.capsule)
+                .clip(shape)
                 .background(palette.frostedOpticalVeil)
                 .background(palette.frostedGlassFill)
-                .specularRimBorder(shape = RedShapes.capsule)
-                .padding(horizontal = 6.dp, vertical = 6.dp),
+                .specularRimBorder(shape = shape)
+                .padding(horizontal = 8.dp, vertical = 3.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -127,106 +125,102 @@ fun AetherFloatingNavBar(
                     ),
                     label = "AetherDockTabScale"
                 )
+                val pill = squircleShape(RedCornerRadius.pill)
 
-                if (isSelected) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1.22f)
-                            .fillMaxHeight()
-                            .graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
+                // Icon over label in both states: the dock is a quarter narrower, and a horizontal
+                // jewel lens cannot hold a Persian satellite label at this width.
+                Column(
+                    modifier = Modifier
+                        .weight(if (isSelected) 1.08f else 0.97f)
+                        .fillMaxHeight()
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .clip(pill)
+                        .then(
+                            if (isSelected) {
+                                Modifier
+                                    .background(
+                                        Brush.radialGradient(
+                                            colors = listOf(AetherCrimsonCoreMid, palette.crimsonGlow),
+                                            radius = 220f
+                                        )
+                                    )
+                                    .specularRimBorder(shape = pill)
+                            } else {
+                                Modifier
                             }
-                            .clip(RedShapes.capsule)
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        AetherCrimsonCoreMid,
-                                        palette.crimsonGlow
-                                    ),
-                                    radius = 220f
-                                )
-                            )
-                            .specularRimBorder(shape = RedShapes.capsule)
-                            .clickable(
-                                interactionSource = interactionSource,
-                                indication = null
-                            ) {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onTabSelected(tab.index)
-                            }
-                            .padding(horizontal = 10.dp)
-                            .testTag(tab.tag),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(AetherGlowWhite)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Icon(
-                            imageVector = tab.selectedIcon,
-                            contentDescription = stringResource(tab.labelRes),
-                            tint = Color.White,
-                            modifier = Modifier.size(17.dp)
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = stringResource(tab.labelRes),
-                            style = RedTypographyTokens.caption.copy(
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 11.5.sp,
-                                letterSpacing = (-0.2).sp
-                            ),
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .weight(0.92f)
-                            .fillMaxHeight()
-                            .graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
-                            }
-                            .clip(RedShapes.capsule)
-                            .clickable(
-                                interactionSource = interactionSource,
-                                indication = null
-                            ) {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onTabSelected(tab.index)
-                            }
-                            .testTag(tab.tag),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = tab.unselectedIcon,
-                            contentDescription = stringResource(tab.labelRes),
-                            tint = palette.textSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = stringResource(tab.labelRes),
-                            style = RedTypographyTokens.caption.copy(
-                                fontWeight = FontWeight.Light,
-                                fontSize = 10.sp
-                            ),
-                            color = palette.mutedTelemetry,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null
+                        ) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onTabSelected(tab.index)
+                        }
+                        .padding(vertical = 4.dp, horizontal = 2.dp)
+                        .testTag(tab.tag),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                        contentDescription = stringResource(tab.labelRes),
+                        tint = if (isSelected) Color.White else palette.textSecondary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.height(1.dp))
+                    Text(
+                        text = stringResource(tab.labelRes),
+                        style = RedTypographyTokens.caption.copy(
+                            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Light,
+                            fontSize = 9.5.sp,
+                            letterSpacing = (-0.2).sp
+                        ),
+                        color = if (isSelected) Color.White else palette.mutedTelemetry,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
+    }
+}
+
+/**
+ * Settings, in the space the dock leaves on the trailing side: same frosted capsule, same crimson
+ * rim, so the dock and it read as one piece of chrome. It appears wherever the dock appears.
+ */
+@Composable
+fun AetherSettingsBubble(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val palette = AetherTheme.palette
+    val shape = squircleShape(RedCornerRadius.pill)
+    Box(
+        modifier = modifier
+            .size(AETHER_NAV_HEIGHT)
+            .testTag("bottom_settings_button")
+            .shadow(
+                elevation = 24.dp,
+                shape = shape,
+                ambientColor = palette.crimsonGlow.copy(alpha = 0.28f),
+                spotColor = palette.crimsonGlow.copy(alpha = 0.28f)
+            )
+            .clip(shape)
+            .background(palette.frostedOpticalVeil)
+            .background(palette.frostedGlassFill)
+            .specularRimBorder(shape = shape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Settings,
+            contentDescription = stringResource(R.string.settings),
+            tint = palette.textSecondary,
+            modifier = Modifier.size(17.dp)
+        )
     }
 }

@@ -61,6 +61,7 @@ import com.alijafari.red.astronomy.ui.home.HomeWarmupDeadline
 import com.alijafari.red.astronomy.ui.home.shouldGateLaunchForHomeWarmup
 import com.alijafari.red.astronomy.ui.aether.AetherAmbientBackground
 import com.alijafari.red.astronomy.ui.aether.AetherFloatingNavBar
+import com.alijafari.red.astronomy.ui.aether.AetherSettingsBubble
 import com.alijafari.red.astronomy.ui.aether.AetherHomeScreen
 import com.alijafari.red.astronomy.ui.aether.AetherLabScreen
 import com.alijafari.red.astronomy.ui.aether.AetherSatellitesScreen
@@ -68,6 +69,7 @@ import com.alijafari.red.astronomy.ui.aether.AetherSettingsModal
 import com.alijafari.red.astronomy.ui.aether.AetherThemeProvider
 import com.alijafari.red.astronomy.ui.spatial.SpatialAtmosphereBackground
 import com.alijafari.red.astronomy.ui.spatial.SpatialFloatingNavBar
+import com.alijafari.red.astronomy.ui.spatial.SpatialSettingsBubble
 import com.alijafari.red.astronomy.ui.spatial.SpatialHomeScreen
 import com.alijafari.red.astronomy.ui.spatial.SpatialLabScreen
 import com.alijafari.red.astronomy.ui.spatial.SpatialSatellitesScreen
@@ -91,6 +93,7 @@ import com.alijafari.red.astronomy.ui.monuments.MonumentScreen
 import com.alijafari.red.astronomy.ui.splash.SplashArtLoader
 import com.alijafari.red.astronomy.ui.screens.*
 import com.alijafari.red.astronomy.ui.theme.REDTheme
+import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.util.LocaleHelper
 
 import com.alijafari.red.astronomy.data.repository.TleRepository
@@ -495,28 +498,47 @@ class MainActivity : ComponentActivity() {
                     // Hidden while an immersive screen (the Gravity Sandbox) owns the display.
                     val satellitesChromeOccluded by viewModel.satellitesChromeOccluded.collectAsStateWithLifecycle()
                     if (!com.zig.gravity.ui.ImmersiveScreenState.active && !(uiState.selectedTab == 1 && satellitesChromeOccluded)) {
-                        when (uiState.uiStyle) {
-                            AppUiStyle.AETHER -> AetherFloatingNavBar(
-                                selectedTab = uiState.selectedTab,
-                                onTabSelected = { viewModel.selectTab(it) },
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .splashReveal(splashState, SplashRevealRole.NavigationBar)
+                        // The dock is three quarters of the width and sits on the leading side — the
+                        // right in Persian, the left in English — with the settings bubble in the
+                        // space it leaves on the trailing side. They always travel together.
+                        val chromeModifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
+                            .splashReveal(splashState, SplashRevealRole.NavigationBar)
+                        Row(
+                            modifier = chromeModifier,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val navModifier = Modifier.fillMaxWidth(
+                                com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_WIDTH_FRACTION
                             )
-                            AppUiStyle.SPATIAL -> SpatialFloatingNavBar(
-                                selectedTab = uiState.selectedTab,
-                                onTabSelected = { viewModel.selectTab(it) },
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .splashReveal(splashState, SplashRevealRole.NavigationBar)
-                            )
-                            AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
-                                selectedTab = uiState.selectedTab,
-                                onTabSelected = { viewModel.selectTab(it) },
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .splashReveal(splashState, SplashRevealRole.NavigationBar)
-                            )
+                            when (uiState.uiStyle) {
+                                AppUiStyle.AETHER -> AetherFloatingNavBar(
+                                    selectedTab = uiState.selectedTab,
+                                    onTabSelected = { viewModel.selectTab(it) },
+                                    modifier = navModifier
+                                )
+                                AppUiStyle.SPATIAL -> SpatialFloatingNavBar(
+                                    selectedTab = uiState.selectedTab,
+                                    onTabSelected = { viewModel.selectTab(it) },
+                                    modifier = navModifier
+                                )
+                                AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components.FloatingBottomBar(
+                                    selectedTab = uiState.selectedTab,
+                                    onTabSelected = { viewModel.selectTab(it) },
+                                    modifier = navModifier
+                                )
+                            }
+                            val openSettings = { viewModel.setShowSettingsDialog(true) }
+                            when (uiState.uiStyle) {
+                                AppUiStyle.AETHER -> AetherSettingsBubble(onClick = openSettings)
+                                AppUiStyle.SPATIAL -> SpatialSettingsBubble(onClick = openSettings)
+                                AppUiStyle.DEFAULT -> com.alijafari.red.astronomy.ui.components
+                                    .FloatingSettingsBubble(onClick = openSettings)
+                            }
                         }
                     }
 

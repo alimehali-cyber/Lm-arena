@@ -110,6 +110,39 @@ class SatGlobeFiltersTest {
         val withoutTrains = SatGlobeFilters(setOf(SatGlobeLayer.STARLINK_TRAINS))
         assertFalse(showsOnGlobe(train, withoutTrains))
         assertTrue(showsOnGlobe(starlink, withoutTrains))
+
+        // "Starlinks above me" is the only switch that gives an individual Starlink a marker of its
+        // own. With it off the satellite is not hidden — it is one more element of the shell, and the
+        // shell's switch decides whether the cloud is painted.
+        val withoutOverhead = SatGlobeFilters(setOf(SatGlobeLayer.STARLINK_OVERHEAD))
+        assertFalse("an above-you Starlink is a plain shell dot without its own layer",
+            showsOnGlobe(starlink, withoutOverhead))
+        assertTrue("the shell switch still paints it", withoutOverhead.shows(SatGlobeLayer.STARLINK_CONSTELLATION))
+        assertTrue("trains keep their own family", showsOnGlobe(train, withoutOverhead))
+    }
+
+    @Test
+    fun theShellNeverDropsASatelliteThatHasNoMarker() {
+        val stage = readSource("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
+        val earth = readSource("com/alijafari/red/astronomy/ui/components/SatelliteEarth3D.kt")
+        assertTrue("the shell must see the filtered list, or every hidden marker leaves a hole",
+            stage.contains("allInteractiveMapStates = globeInteractiveStates"))
+        val shell = earth.substringAfter("// 2b. Whole Starlink constellation").substringBefore("// 2c.")
+        assertTrue("a Starlink with a marker is left to that marker", shell.contains("if (point.noradId in featuredNorads) continue"))
+    }
+
+    @Test
+    fun aboveYouStarlinksWearTheirSilhouetteInsteadOfABiggerDot() {
+        val earth = readSource("com/alijafari/red/astronomy/ui/components/SatelliteEarth3D.kt")
+        val overheadLoop = earth.substringAfter("// 2g. Real-time overhead Starlinks")
+            .substringBefore("// 2h. Active Starlink")
+        assertTrue("the overhead layer draws the spacecraft glyph", overheadLoop.contains("drawSatelliteGlyph("))
+        assertTrue(overheadLoop.contains("satellite = sat"))
+        assertFalse("it is no longer a bold dot", overheadLoop.contains("2.8.dp"))
+        assertFalse(overheadLoop.contains("5.5.dp"))
+        // Every other Starlink is left to the shell point cloud.
+        val shell = earth.substringAfter("// 2b. Whole Starlink constellation").substringBefore("// 2c.")
+        assertTrue(shell.contains("constellationPoints"))
     }
 
     @Test

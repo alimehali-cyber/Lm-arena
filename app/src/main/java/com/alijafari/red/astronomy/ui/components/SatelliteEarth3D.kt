@@ -609,7 +609,9 @@ fun SatelliteEarth3D(
                 }
             }
 
-            // 2g. Real-time Overhead Individual Starlinks in 3D LEO
+            // 2g. Real-time overhead Starlinks in 3D LEO. These are the only Starlinks the globe
+            // draws one by one, so they wear the spacecraft silhouette: "above me" is identity, not
+            // a bigger blob. Every other Starlink stays a dot in the shell point cloud (2b).
             for (ovState in mapOverheadStarlinkStates) {
                 val sat = ovState.satellite
                 val isSelected = sat.id == selectedSatelliteId
@@ -645,15 +647,16 @@ fun SatelliteEarth3D(
                         center = pos,
                     )
                 }
-                val dotColor = when {
+                val glyphColor = when {
                     isSelected -> overlayStyle.selectedMarkerColor
                     ovState.topocentric.isSunlit -> overlayStyle.starlinkColor
-                    else -> overlayStyle.starlinkColor.copy(alpha = 0.48f)
+                    else -> overlayStyle.starlinkColor.copy(alpha = 0.55f)
                 }
-                drawCircle(
-                    color = dotColor,
-                    radius = (if (isSelected) 5.5.dp else 2.8.dp).toPx(),
+                drawSatelliteGlyph(
                     center = pos,
+                    satellite = sat,
+                    color = glyphColor,
+                    radiusPx = (if (isSelected) 4.3.dp else 3.dp).toPx(),
                 )
                 if (isSelected) drawCircle(Color.White, 2.dp.toPx(), pos)
             }

@@ -665,12 +665,6 @@ private fun AetherSkyHeroSection(
                     onClick = onOpenSearch,
                     modifier = Modifier.testTag("top_search_button")
                 )
-                AetherOpticalIconLens(
-                    icon = Icons.Outlined.Settings,
-                    contentDescription = stringResource(R.string.settings),
-                    onClick = { viewModel.setShowSettingsDialog(true) },
-                    modifier = Modifier.testTag("top_settings_button")
-                )
             }
         }
 

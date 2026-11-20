@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -30,6 +29,7 @@ import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.SatelliteAlt
 import androidx.compose.material.icons.outlined.Science
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,9 +56,11 @@ import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedShapes
-import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import com.alijafari.red.astronomy.ui.theme.RedTypographyTokens
 import com.alijafari.red.astronomy.ui.theme.squircleShape
+
+/** Three quarters of the old 64 dp dock, so the settings bubble has room beside it. */
+private val SPATIAL_NAV_HEIGHT = 48.dp
 
 private data class SpatialNavTab(
     val index: Int,
@@ -91,7 +93,8 @@ fun SpatialFloatingNavBar(
         )
     }
 
-    val dockShape = squircleShape(RedCornerRadius.window)
+    // A pill: half the bar's height at each end, drawn with the app's squircle rules.
+    val dockShape = squircleShape(RedCornerRadius.pill)
     val rimBrush = remember(palette) {
         Brush.verticalGradient(
             listOf(
@@ -102,17 +105,11 @@ fun SpatialFloatingNavBar(
         )
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
-            .testTag("main_bottom_navigation")
-    ) {
+    Box(modifier.testTag("main_bottom_navigation")) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
+                .height(SPATIAL_NAV_HEIGHT)
                 .testTag("main_bottom_navigation_surface")
                 .shadow(
                     elevation = 20.dp,
@@ -142,8 +139,8 @@ fun SpatialFloatingNavBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
-                    .padding(horizontal = RedSpacing.xs, vertical = 4.dp),
+                    .height(SPATIAL_NAV_HEIGHT)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -238,7 +235,7 @@ private fun SpatialNavTabPill(
                 indication = null,
                 onClick = onClick
             )
-            .padding(vertical = 7.dp, horizontal = 4.dp)
+            .padding(vertical = 3.dp, horizontal = 2.dp)
             .testTag(tab.testTag),
         contentAlignment = Alignment.Center
     ) {
@@ -250,30 +247,66 @@ private fun SpatialNavTabPill(
                 imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
                 contentDescription = stringResource(tab.labelRes),
                 tint = contentTint,
-                modifier = Modifier.size(21.dp)
+                modifier = Modifier.size(16.dp)
             )
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(1.dp))
             Text(
                 text = stringResource(tab.labelRes),
                 style = RedTypographyTokens.caption.copy(
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    fontSize = 11.sp
+                    fontSize = 9.sp
                 ),
                 color = contentTint,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             if (isSelected) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(1.dp))
                 Box(
                     modifier = Modifier
-                        .size(4.dp)
+                        .size(3.dp)
                         .clip(CircleShape)
                         .background(palette.accentInk)
                 )
-            } else {
-                Spacer(modifier = Modifier.height(6.dp))
             }
         }
+    }
+}
+
+/**
+ * Settings, in the space the dock leaves on the trailing side: same frosted glass capsule and rim, so
+ * the dock and it read as one piece of chrome. It appears wherever the dock appears.
+ */
+@Composable
+fun SpatialSettingsBubble(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val palette = SpatialTheme.palette
+    val shape = squircleShape(RedCornerRadius.pill)
+    val rim = remember(palette) {
+        Brush.verticalGradient(
+            listOf(palette.rimTopHighlight, palette.rimSideBorder, palette.rimBottomReflection)
+        )
+    }
+    Box(
+        modifier = modifier
+            .size(SPATIAL_NAV_HEIGHT)
+            .testTag("bottom_settings_button")
+            .shadow(elevation = 20.dp, shape = shape, ambientColor = palette.ambientDropShadow,
+                spotColor = palette.ambientDropShadow)
+            .clip(shape)
+            .background(palette.glassBackingVeil)
+            .background(palette.glassElevatedFill)
+            .border(BorderStroke(1.dp, rim), shape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Settings,
+            contentDescription = stringResource(R.string.settings),
+            tint = palette.textSecondary,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }

@@ -2,7 +2,12 @@ package com.alijafari.red.astronomy.ui.satellites
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -37,13 +42,18 @@ import com.alijafari.red.astronomy.astro_engine.TleDataSource
 import com.alijafari.red.astronomy.domain.ThemeMode
 import com.alijafari.red.astronomy.domain.UserLocation
 import com.alijafari.red.astronomy.ui.aether.AetherFloatingNavBar
+import com.alijafari.red.astronomy.ui.aether.AetherSettingsBubble
 import com.alijafari.red.astronomy.ui.aether.AetherThemeProvider
+import com.alijafari.red.astronomy.ui.components.BOTTOM_NAV_WIDTH_FRACTION
 import com.alijafari.red.astronomy.ui.components.FloatingBottomBar
+import com.alijafari.red.astronomy.ui.components.FloatingSettingsBubble
 import com.alijafari.red.astronomy.ui.components.SATELLITE_EARTH_DEFAULT_DISTANCE
 import com.alijafari.red.astronomy.ui.screens.SatelliteDetailContent
 import com.alijafari.red.astronomy.ui.spatial.SpatialFloatingNavBar
+import com.alijafari.red.astronomy.ui.spatial.SpatialSettingsBubble
 import com.alijafari.red.astronomy.ui.spatial.SpatialThemeProvider
 import com.alijafari.red.astronomy.ui.theme.REDTheme
+import com.alijafari.red.astronomy.ui.theme.RedSpacing
 import java.util.Calendar
 import java.util.TimeZone
 import kotlin.math.roundToInt
@@ -168,11 +178,24 @@ internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detai
                                 actionsFor = { actions }, sourceModifier = { Modifier }, tz = tz,
                                 selectedPassKey = if (selectedAgendaPass) passes.first().key else null) })
                         if (state.activePanel != SatPanel.Passes) {
-                            val modifier = Modifier.align(Alignment.BottomCenter)
-                            when (skin) {
-                                SatSkin.DEFAULT -> FloatingBottomBar(1, {}, modifier)
-                                SatSkin.SPATIAL -> SpatialFloatingNavBar(1, {}, modifier)
-                                SatSkin.AETHER -> AetherFloatingNavBar(1, {}, modifier)
+                            Row(
+                                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                                    .navigationBarsPadding()
+                                    .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                val navModifier = Modifier.fillMaxWidth(BOTTOM_NAV_WIDTH_FRACTION)
+                                when (skin) {
+                                    SatSkin.DEFAULT -> FloatingBottomBar(1, {}, navModifier)
+                                    SatSkin.SPATIAL -> SpatialFloatingNavBar(1, {}, navModifier)
+                                    SatSkin.AETHER -> AetherFloatingNavBar(1, {}, navModifier)
+                                }
+                                when (skin) {
+                                    SatSkin.DEFAULT -> FloatingSettingsBubble({})
+                                    SatSkin.SPATIAL -> SpatialSettingsBubble({})
+                                    SatSkin.AETHER -> AetherSettingsBubble({})
+                                }
                             }
                         }
                     }

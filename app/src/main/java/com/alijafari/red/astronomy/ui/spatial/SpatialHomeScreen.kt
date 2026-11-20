@@ -678,20 +678,6 @@ private fun SpatialHomeSkyHero(
                         )
                     }
 
-                    IconButton(
-                        onClick = { viewModel.setShowSettingsDialog(true) },
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .testTag("top_settings_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Settings,
-                            contentDescription = stringResource(R.string.settings),
-                            tint = Color.White,
-                            modifier = Modifier.size(RedIconSize.sm)
-                        )
-                    }
                 }
             }
         }

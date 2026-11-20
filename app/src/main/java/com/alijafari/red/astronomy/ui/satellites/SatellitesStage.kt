@@ -680,7 +680,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                     onClose = { reminderTarget = null })
             }
             AnimatedVisibility(feedback != null, Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = if (activeModal || activeDetail != null) 12.dp else 88.dp),
+                .padding(horizontal = 16.dp, vertical = if (activeModal || activeDetail != null) 12.dp else 72.dp),
                 enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
                 feedback?.let { SatSnackbar(it.label, tokens, it.undo) }
             }
@@ -715,7 +715,8 @@ internal fun SatelliteHud(
         val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         val top = topInset + if (state.legend) 292.dp else if (!status.isLive) 148.dp else 112.dp
-        val navClearance = bottomInset + 84.dp
+        // The dock is a quarter shorter than it was: 48 dp of pill plus its 8 dp margins.
+        val navClearance = bottomInset + 68.dp
         val compact = width < 360.dp || height - topInset - bottomInset < 700.dp
         val padding = if (width >= 412.dp) 20.dp else 16.dp
         // Both cards below the globe are measured together, so the framing never assumes a height.
@@ -839,11 +840,18 @@ internal fun matchesScope(sat: SatelliteItem, scope: SatelliteCategory): Boolean
     SatelliteCategory.EARTH_OBSERVATION -> sat.category == SatelliteCategory.EARTH_OBSERVATION
 }
 
-/** Which satellite families the globe paints for the current filter set. */
+/**
+ * Which satellite families the globe paints one by one for the current filter set.
+ *
+ * An individual Starlink is only ever painted as itself while "Starlinks above me" is on — that is
+ * the layer that gives it a marker. With it off, the satellite is not hidden: it is simply one more
+ * element of the shell, drawn by the constellation point cloud like every other Starlink, and the
+ * shell's own switch decides whether the cloud is painted at all. The selected satellite is always
+ * kept, whichever switches are off.
+ */
 internal fun showsOnGlobe(sat: SatelliteItem, filters: SatGlobeFilters): Boolean = when {
     sat.isTrain -> filters.shows(SatGlobeLayer.STARLINK_TRAINS)
-    sat.category == SatelliteCategory.STARLINK ->
-        filters.shows(SatGlobeLayer.STARLINK_OVERHEAD) || filters.shows(SatGlobeLayer.STARLINK_CONSTELLATION)
+    sat.category == SatelliteCategory.STARLINK -> filters.shows(SatGlobeLayer.STARLINK_OVERHEAD)
     sat.category == SatelliteCategory.ISS -> filters.shows(SatGlobeLayer.ISS)
     sat.category == SatelliteCategory.TIANGONG -> filters.shows(SatGlobeLayer.TIANGONG)
     sat.category == SatelliteCategory.HUBBLE -> filters.shows(SatGlobeLayer.HUBBLE)

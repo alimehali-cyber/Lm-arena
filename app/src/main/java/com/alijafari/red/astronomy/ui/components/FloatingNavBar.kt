@@ -4,8 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -22,11 +21,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alijafari.red.astronomy.R
@@ -34,6 +33,17 @@ import com.alijafari.red.astronomy.ui.theme.*
 import com.alijafari.red.astronomy.ui.theme.RedCornerRadius
 import com.alijafari.red.astronomy.ui.theme.RedSurface
 import com.alijafari.red.astronomy.ui.theme.squircleShape
+
+/**
+ * The dock is three quarters of the available width and three quarters of the old height, on the
+ * leading side — the right in Persian, the left in English — so the settings bubble has the space it
+ * leaves instead of the bar spanning the whole screen.
+ */
+const val BOTTOM_NAV_WIDTH_FRACTION = 0.75f
+val BOTTOM_NAV_HEIGHT: Dp = 48.dp
+
+/** The one silhouette every skin's dock wears: a squircle pill, ends fully rounded. */
+internal fun bottomNavShape() = squircleShape(RedCornerRadius.pill)
 
 data class NavItem(
     val titleRes: Int,
@@ -56,31 +66,24 @@ fun FloatingBottomBar(
         NavItem(R.string.nav_lab, Icons.Outlined.Science, Icons.Outlined.Science, 0, "nav_item_lab")
     )
 
-    // The floating platter wears the same 34 dp window radius as every other container in the app.
-    val navShape = squircleShape(RedCornerRadius.window)
+    // A pill: the ends are the full half-height of the bar, drawn with the app's squircle rules.
+    val navShape = bottomNavShape()
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = RedSpacing.lg, vertical = RedSpacing.sm)
-            .testTag("main_bottom_navigation")
-    ) {
-        // One floating platter across the entire bottom navigation
+    Box(modifier.testTag("main_bottom_navigation")) {
         RedSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
+                .height(BOTTOM_NAV_HEIGHT)
                 .testTag("main_bottom_navigation_surface"),
             shape = navShape,
             color = RedTheme.colors.surfaceElevated,
-            border = androidx.compose.foundation.BorderStroke(1.dp, RedTheme.colors.border),
+            border = BorderStroke(1.dp, RedTheme.colors.border),
             elevation = RedElevation.floating,
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = RedSpacing.xs, vertical = 4.dp),
+                    .padding(horizontal = 10.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -101,12 +104,6 @@ fun FloatingBottomBar(
                         label = "NavColor"
                     )
 
-                    val activeProgress by animateFloatAsState(
-                        targetValue = if (isSelected) 1f else 0f,
-                        animationSpec = spring(dampingRatio = 0.8f, stiffness = 380f),
-                        label = "NavActiveIndicatorProgress"
-                    )
-
                     val pillShape = squircleShape(20.dp)
 
                     Box(
@@ -120,7 +117,7 @@ fun FloatingBottomBar(
                                 interactionSource = interactionSource,
                                 indication = null
                             ) { onTabSelected(item.targetTabIndex) }
-                            .padding(vertical = 4.dp)
+                            .padding(vertical = 2.dp)
                             .testTag(item.testTag)
                     ) {
                         Column(
@@ -131,7 +128,7 @@ fun FloatingBottomBar(
                                 imageVector = if (isSelected) item.selectedIcon else item.unselectedIcon,
                                 contentDescription = stringResource(item.titleRes),
                                 tint = activeColor,
-                                modifier = Modifier.size(RedIconSize.md)
+                                modifier = Modifier.size(RedIconSize.sm)
                             )
 
                             Spacer(modifier = Modifier.height(2.dp))
@@ -152,4 +149,33 @@ fun FloatingBottomBar(
     }
 }
 
-
+/**
+ * Settings, in the space the dock leaves on the trailing side. It wears the dock's own material and
+ * silhouette so the pair reads as one piece of chrome, and it appears wherever the dock appears.
+ */
+@Composable
+fun FloatingSettingsBubble(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = bottomNavShape()
+    RedSurface(
+        modifier = modifier
+            .size(BOTTOM_NAV_HEIGHT)
+            .testTag("bottom_settings_button"),
+        shape = shape,
+        color = RedTheme.colors.surfaceElevated,
+        border = BorderStroke(1.dp, RedTheme.colors.border),
+        elevation = RedElevation.floating,
+        onClick = onClick,
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Outlined.Settings,
+                contentDescription = stringResource(R.string.settings),
+                tint = RedTheme.colors.textPrimary,
+                modifier = Modifier.size(RedIconSize.sm)
+            )
+        }
+    }
+}
