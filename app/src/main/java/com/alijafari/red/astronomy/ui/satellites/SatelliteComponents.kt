@@ -31,6 +31,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -352,11 +353,15 @@ internal fun SatNextPassCard(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ZigStatusDot(next?.quality?.graphic(tokens) ?: tokens.telescopic, false, 7.dp)
                 Column(Modifier.weight(1f)) {
-                    Text(next?.let { SatFmt.digits(it.satName, isFa) } ?: stringResource(R.string.sat_next_label),
-                        color = if (pass == null) tokens.inkSecondary else tokens.inkPrimary,
-                        style = RedTypographyTokens.badge.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold).satOptical(),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    SatText(summary, tokens.inkSecondary, size = 11, strong = pass != null)
+                    if (next == null) {
+                        // Nothing to name yet: one honest sentence instead of a placeholder satellite.
+                        SatText(summary, tokens.inkSecondary, size = 12)
+                    } else {
+                        Text(SatFmt.digits(next.satName, isFa), color = tokens.inkPrimary,
+                            style = RedTypographyTokens.badge.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold).satOptical(),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        SatText(summary, tokens.inkSecondary, size = 11, strong = true)
+                    }
                 }
                 val quality = next?.quality?.let { if (compact) it.shortLabel(isFa) else it.label(isFa) }
                 if (quality != null) SatText(quality, tokens.accentInk, size = 11, strong = true)
@@ -365,7 +370,11 @@ internal fun SatNextPassCard(
             SatDialogButton(stringResource(R.string.sat_more_passes_button), tokens, onMorePasses, testTag = "sat_all_passes")
         }
         if (scopeOpen) {
-            SatPassScopePicker(scopeChoices, scopeIds, tokens, onToggleScope, Modifier.padding(bottom = 4.dp))
+            // The card is part of the globe's measured readout, so the picker scrolls inside a fixed
+            // band instead of pushing the card (and the globe framing) around as chips wrap.
+            Box(Modifier.fillMaxWidth().heightIn(max = 132.dp).verticalScroll(rememberScrollState())) {
+                SatPassScopePicker(scopeChoices, scopeIds, tokens, onToggleScope, Modifier.padding(bottom = 4.dp))
+            }
         }
     }
 }

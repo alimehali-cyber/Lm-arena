@@ -374,9 +374,6 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                 matching.firstOrNull { it.manualPass }?.leadMinutes, config.enabled && matching.any { !it.manualPass })
         }
     }
-    val windowPasses = remember(basePasses, currentSimulationMs) { basePasses?.filter { row ->
-        row.pass.endTimeMs > currentSimulationMs && row.pass.startTimeMs <= currentSimulationMs + (if (row.isTrain) 2L else 3L) * DAY
-    } }
     // Returning from an event preview must not rebuild the agenda around the previewed time.
     val agendaNow = navigation.agendaReferenceMs ?: currentSimulationMs
     val agendaSource = navigation.agendaSnapshot ?: basePasses
@@ -410,7 +407,11 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
             live.satellite.trainCount, live.topocentric.elevationDeg, live.satellite.isNakedEyeCandidate,
             live.satellite.id == selectedSatelliteId, live.satellite)
     } }
-    val nextFocused = windowPasses?.firstOrNull { it.sat.id == selectedLiveState?.satellite?.id }
+    // The card above carries the focused satellite's next pass across the same week the agenda lists,
+    // so the two cards can never disagree about whether a pass exists.
+    val nextFocused = remember(basePasses, selectedLiveState, currentSimulationMs) {
+        basePasses?.firstOrNull { it.sat.id == selectedLiveState?.satellite?.id && it.pass.endTimeMs > currentSimulationMs }
+    }
 
     // The passes card answers "what is next over me", so it takes the soonest pass in the scope
     // instead of the selected satellite's own pass, which the card above already carries.
@@ -584,7 +585,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                             }, onCycle = ::cycle, onDetail = { selectedLiveState?.satellite?.let { detail(it) } },
                             observerName = if (isFa) location.cityNameFa else location.cityNameEn,
                             onObserver = { viewModel.setShowLocationSelector(true) },
-                            passesLoading = windowPasses == null, onNextPass = { nextFocused?.let { detail(it.sat, it.pass, it.key) } },
+                            passesLoading = basePasses == null, onNextPass = { nextFocused?.let { detail(it.sat, it.pass, it.key) } },
                             nextAnyPass = passCardNext, anyPassesLoading = allUpcomingPasses == null,
                             passScopeLabel = passScopeLabel, passScopeChoices = passScopeChoices, passScopeIds = state.passScope,
                             onTogglePassScope = ::togglePassScope,
@@ -745,7 +746,7 @@ internal fun SatelliteHud(
                     else Column(Modifier.fillMaxWidth().onSizeChanged { readoutHeight = with(density) { it.height.toDp() } },
                         verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (focused != null) {
-                            val span = stringResource(if (focused.satellite.isTrain) R.string.sat_two_days else R.string.sat_three_days)
+                            val span = stringResource(R.string.sat_seven_days)
                             Crossfade(focused.satellite.id, focusModifier, animationSpec = tween(if (reduce) 120 else 160), label = "satellite-focus") { id ->
                                 var presented by remember(id) { mutableStateOf(focused) }
                                 SideEffect { if (id == focused.satellite.id) presented = focused }
