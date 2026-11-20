@@ -352,7 +352,7 @@ internal fun SatNextPassCard(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ZigStatusDot(next?.quality?.graphic(tokens) ?: tokens.telescopic, false, 7.dp)
                 Column(Modifier.weight(1f)) {
-                    Text(pass?.let { SatFmt.digits(it.satName, isFa) } ?: stringResource(R.string.sat_next_label),
+                    Text(next?.let { SatFmt.digits(it.satName, isFa) } ?: stringResource(R.string.sat_next_label),
                         color = if (pass == null) tokens.inkSecondary else tokens.inkPrimary,
                         style = RedTypographyTokens.badge.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold).satOptical(),
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
