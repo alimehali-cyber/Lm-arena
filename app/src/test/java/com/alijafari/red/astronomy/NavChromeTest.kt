@@ -12,10 +12,12 @@ import org.junit.Test
  */
 class NavChromeTest {
 
-    private fun source(relative: String): String {
-        val candidates = listOf(File("src/main/java/$relative"), File("app/src/main/java/$relative"))
+    private fun file(sourceSet: String, relative: String): String {
+        val candidates = listOf(File("$sourceSet/java/$relative"), File("app/$sourceSet/java/$relative"))
         return candidates.firstOrNull { it.isFile }?.readText() ?: error("Source not found: $relative")
     }
+
+    private fun source(relative: String): String = file("src/main", relative)
 
     private val defaultBar by lazy { source("com/alijafari/red/astronomy/ui/components/FloatingNavBar.kt") }
     private val spatialBar by lazy { source("com/alijafari/red/astronomy/ui/spatial/SpatialFloatingNavBar.kt") }
@@ -75,8 +77,7 @@ class NavChromeTest {
     fun theHudClearsTheShorterDockAndThePreviewsShowTheSameChrome() {
         val stage = source("com/alijafari/red/astronomy/ui/satellites/SatellitesStage.kt")
         assertTrue("the cards clear the 48 dp pill, not the old 64 dp bar", stage.contains("bottomInset + 68.dp"))
-        val previews = File("app/src/debug/java/com/alijafari/red/astronomy/ui/satellites/SatellitePreviews.kt")
-            .takeIf { it.isFile }?.readText().orEmpty()
+        val previews = file("src/debug", "com/alijafari/red/astronomy/ui/satellites/SatellitePreviews.kt")
         assertTrue(previews.contains("BOTTOM_NAV_WIDTH_FRACTION"))
         assertTrue(previews.contains("FloatingSettingsBubble("))
         assertTrue(previews.contains("AetherSettingsBubble("))
