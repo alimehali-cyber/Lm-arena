@@ -223,6 +223,7 @@ class StarlinkRecoveryTest {
             assertTrue("missing English $key", english.contains("name=\"$key\""))
             assertTrue("missing Persian $key", persian.contains("name=\"$key\""))
         }
-        assertTrue("the technical reason keeps its placeholder", persian.contains("<string name=\"sat_starlink_failed\">%1\$s"))
+        assertTrue("the technical reason keeps its placeholder",
+            Regex("<string name=\"sat_starlink_failed\">[^<]*%1\\\$s").containsMatchIn(persian))
     }
 }

@@ -235,10 +235,12 @@ class TleRepository internal constructor(
      * install is spaced by a growing retry gap instead: 5 minutes, doubling to an hour.
      */
     fun shouldFetchStarlinkFromNetwork(nowMs: Long = clockMs()): Boolean {
-        if (getStoredStarlinkSchemaVersion() != STARLINK_CACHE_SCHEMA_VERSION) return true
         val cacheFile = getStarlinkCacheFile()
+        val hasCacheFile = cacheFile.exists() && cacheFile.length() > 0L
+        // An older cache stays usable; it only skips the cooldown, because it must be re-synced.
+        if (hasCacheFile && getStoredStarlinkSchemaVersion() != STARLINK_CACHE_SCHEMA_VERSION) return true
         val lastSync = getLastStarlinkSyncMs()
-        if (cacheFile.exists() && cacheFile.length() > 0L && lastSync > 0L) {
+        if (hasCacheFile && lastSync > 0L) {
             return (nowMs - lastSync) >= STARLINK_SYNC_COOLDOWN_MS
         }
         val lastAttempt = prefs.getLong(KEY_LAST_STARLINK_ATTEMPT_MS, 0L)
