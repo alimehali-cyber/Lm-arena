@@ -382,9 +382,9 @@ private fun DetailHero(
                 )
                 Text(
                     text = if (state.isNakedEyeVisible) {
-                        if (isFa) "قابل مشاهده با چشم" else "Naked eye visible"
+                        if (isFa) "با چشم دیده می‌شود" else "Naked eye visible"
                     } else {
-                        if (isFa) "قابل مشاهده نیست" else "Not visible"
+                        if (isFa) "با چشم دیده نمی‌شود" else "Not visible"
                     },
                     style = RedTypographyTokens.badge.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
                     color = tokens.inkPrimary,
@@ -564,7 +564,7 @@ private fun SatellitePhotoPanel(item: SatelliteItem, tokens: ZigSatTokens, isFa:
             .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .78f))))
             .padding(horizontal = 14.dp, vertical = 9.dp), contentAlignment = Alignment.BottomStart) {
             val contextLabel = if (isFa) when {
-                item.isTrain || item.category == SatelliteCategory.STARLINK -> "انباشتهٔ ماهواره‌های استارلینک پیش از پرتاب"
+                item.isTrain || item.category == SatelliteCategory.STARLINK -> "ردیف استارلینک‌ها پیش از پرتاب"
                 item.id == "iss_zarya" -> "ایستگاه فضایی بین‌المللی از فضا · مأموریت STS-134"
                 item.id == "hubble" -> "تلسکوپ هابل هنگام مأموریت تعمیراتی چهارم"
                 item.id.contains("envisat", true) -> "ماهوارهٔ انویسات در اتاق پاک ESA"
@@ -651,7 +651,7 @@ private fun DetailVisibilityPanel(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = if (isFa) "ارزیابی رؤیت با چشم غیرمسلح" else "Naked-eye visibility assessment",
+                text = if (isFa) "آیا با چشم دیده می‌شود؟" else "Naked-eye visibility assessment",
                 style = RedTypographyTokens.sectionTitle.copy(fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
                 color = tokens.inkPrimary,
             )
@@ -682,7 +682,7 @@ private fun DetailVisibilityPanel(
             CheckRow(
                 passed = darkEnough,
                 text = if (isFa) {
-                    "آسمان به اندازه کافی تاریک (${twilight.nameFa})"
+                    "آسمان به‌قدر کافی تاریک است (${twilight.nameFa})"
                 } else {
                     "Sky dark enough (${twilight.nameEn})"
                 },
@@ -690,7 +690,7 @@ private fun DetailVisibilityPanel(
             )
             CheckRow(
                 passed = aboveHorizon,
-                text = if (isFa) "بالای افق ناظر" else "Above the observer's horizon",
+                text = if (isFa) "بالای افق تو" else "Above the observer's horizon",
                 tokens = tokens,
             )
             Text(
@@ -799,7 +799,7 @@ private fun DetailDossier(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = if (isFa) "شناسنامه ماموریت" else "Mission dossier",
+                    text = if (isFa) "شناسنامهٔ مأموریت" else "Mission dossier",
                     style = RedTypographyTokens.sectionTitle.copy(fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
                     color = tokens.inkPrimary,
                     modifier = Modifier.weight(1f),
@@ -830,13 +830,13 @@ private fun DetailDossier(
 
                 val purpose = if (isFa) satelliteItem.missionPurposeFa else satelliteItem.missionPurposeEn
                 if (purpose.isNotBlank()) {
-                    ZigMicroCaps(text = if (isFa) "هدف ماموریت" else "Mission purpose", tokens = tokens, isFa = isFa)
+                    ZigMicroCaps(text = if (isFa) "هدف مأموریت" else "Mission purpose", tokens = tokens, isFa = isFa)
                     Text(text = SatFmt.digits(purpose, isFa), style = RedTypographyTokens.bodySecondary, color = tokens.inkSecondary)
                 }
 
                 val significance = if (isFa) satelliteItem.scientificSignificanceFa else satelliteItem.scientificSignificanceEn
                 if (significance.isNotBlank()) {
-                    ZigMicroCaps(text = if (isFa) "اهمیت علمی و تاریخی" else "Scientific & historical significance", tokens = tokens, isFa = isFa)
+                    ZigMicroCaps(text = if (isFa) "جایگاه علمی و تاریخی" else "Scientific & historical significance", tokens = tokens, isFa = isFa)
                     Text(
                         text = SatFmt.digits(significance, isFa),
                         style = RedTypographyTokens.bodySecondary,
@@ -863,7 +863,7 @@ private fun DetailDossier(
 
                 val facts = if (isFa) satelliteItem.verifiedFactsFa else satelliteItem.verifiedFactsEn
                 if (facts.isNotEmpty()) {
-                    ZigMicroCaps(text = if (isFa) "حقایق تاییدشده" else "Verified key facts", tokens = tokens, isFa = isFa)
+                    ZigMicroCaps(text = if (isFa) "حقایق تأییدشده" else "Verified key facts", tokens = tokens, isFa = isFa)
                     facts.take(3).forEach { fact ->
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),

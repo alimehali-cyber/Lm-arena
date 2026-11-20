@@ -276,11 +276,11 @@ enum class SatQuality(
     val shortFa: String,
     val hue: Color,
 ) {
-    OUTSTANDING(0, "Outstanding", "فوق‌العاده", "Best", "بهترین", Color(0xFF2DC653)),
+    OUTSTANDING(0, "Outstanding", "بی‌نقص", "Best", "بهترین", Color(0xFF2DC653)),
     EXCELLENT(1, "Excellent", "عالی", "Best", "بهترین", Color(0xFF38B000)),
-    VERY_GOOD(2, "Very good", "بسیار خوب", "Great", "خوب", Color(0xFF70E000)),
+    VERY_GOOD(2, "Very good", "خیلی خوب", "Great", "خوب", Color(0xFF70E000)),
     GOOD(3, "Good", "خوب", "Good", "خوب", Color(0xFF9EF01A)),
-    MARGINAL(4, "Marginal", "حاشیه‌ای", "Fair", "متوسط", Color(0xFFFFB703)),
+    MARGINAL(4, "Marginal", "کم‌رنگ", "Fair", "متوسط", Color(0xFFFFB703)),
     POOR(5, "Poor", "ضعیف", "Poor", "ضعیف", Color(0xFFFF8C00));
 
     fun label(isFa: Boolean): String = if (isFa) labelFa else labelEn

@@ -474,23 +474,23 @@ object StarlinkTrainManager {
             standardMagnitude = 1.6,
             isNakedEyeCandidate = true,
             descriptionEn = "Active SpaceX deployment train ($displayGroup) of $memberCount Starlink satellites flying in a $spanFormatted string-of-pearls arc.",
-            descriptionFa = "قطار فعال استقرار اسپیس‌ایکس ($displayGroupFa) شامل $memberCountFa ماهواره استارلینک در کمان متراکم ${spanFormatted.toPersianDigits()}.",
+            descriptionFa = "قطار فعال اسپیس‌ایکس ($displayGroupFa): $memberCountFa استارلینک که پشت سر هم، در کمانی به اندازهٔ ${spanFormatted.toPersianDigits()} حرکت می‌کنند.",
             launchDate = "Recent deployment ($displayGroup)",
             operatorEn = "SpaceX",
             operatorFa = "اسپیس‌ایکس (SpaceX)",
             missionPurposeEn = "Low-Earth-orbit deployment formation prior to ion-thruster orbit raising.",
-            missionPurposeFa = "آرایش خطی استقرار در مدار پایین زمین پیش از صعود با پیشران یونی.",
+            missionPurposeFa = "صف‌بستن ماهواره‌ها در مدار پایین، پیش از آنکه با پیشران یونی بالاتر بروند.",
             scientificSignificanceEn = "Observable as a bright 'string of pearls' gliding in unison shortly after dusk or before dawn.",
-            scientificSignificanceFa = "قابل مشاهده به صورت «رشته مروارید» درخشان پس از غروب یا پیش از طلوع خورشید.",
+            scientificSignificanceFa = "پس از غروب یا پیش از طلوع، مثل رشته‌ای از مروارید درخشان یک‌جا در آسمان می‌لغزند.",
             verifiedFactsEn = listOf(
                 "Cluster spans $spanFormatted along orbital plane ${String.format(Locale.US, "%.1f°", medianRaan)} RAAN at ~${avgAltKm.roundToInt()} km altitude.",
                 "Ordered from leading satellite (${cleanStarlinkNameEn(leaderOrb.tle.name, leaderOrb.noradId)}) to trailing pearl.",
                 "Brightest in the first days after launch while solar arrays fly in low-drag 'open-book' attitude."
             ),
             verifiedFactsFa = listOf(
-                "گستردگی زاویه‌ای خوشه تنها ${spanFormatted.toPersianDigits()} در ارتفاع حدود ${avgAltKm.roundToInt().toString().toPersianDigits()} کیلومتر است.",
-                "مرتب‌شده از ماهواره پیشرو تا آخرین مروارید دنباله‌رو در جهت حرکت مداری.",
-                "در روزهای نخست پس از پرتاب به دلیل حالت کم‌پسا بیشترین درخشندگی را دارد."
+                "کل خوشه فقط ${spanFormatted.toPersianDigits()} از آسمان را می‌گیرد و در ارتفاع حدود ${avgAltKm.roundToInt().toString().toPersianDigits()} کیلومتری پرواز می‌کند.",
+                "از ماهوارهٔ پیشرو تا آخرین مروارید، به ترتیب حرکت مداری چیده شده‌اند.",
+                "روزهای اول بعد از پرتاب درخشان‌ترین‌اند، چون پنل‌های خورشیدی در حالت کم‌پسا باز می‌شوند."
             )
         )
 
@@ -515,12 +515,12 @@ object StarlinkTrainManager {
                 standardMagnitude = 1.8,
                 isNakedEyeCandidate = true,
                 descriptionEn = "Member #$rank of $memberCount in active Starlink Train $displayGroup ($spanFormatted arc).",
-                descriptionFa = "عضو شماره ${rank.toString().toPersianDigits()} از $memberCountFa در قطار استارلینک $displayGroupFa.",
+                descriptionFa = "عضو شمارهٔ ${rank.toString().toPersianDigits()} از $memberCountFa، در قطار استارلینک $displayGroupFa.",
                 launchDate = "Recent deployment ($displayGroup)",
                 operatorEn = "SpaceX",
                 operatorFa = "اسپیس‌ایکس (SpaceX)",
                 missionPurposeEn = "Low-Earth-orbit broadband constellation deployment.",
-                missionPurposeFa = "منظومه اینترنت پهن‌باند مدار پایین زمین."
+                missionPurposeFa = "بخشی از منظومهٔ اینترنت پهن‌باند اسپیس‌ایکس در مدار پایین زمین."
             )
         }
 
@@ -1318,14 +1318,14 @@ object StarlinkTrainManager {
             standardMagnitude = stdMag,
             isNakedEyeCandidate = true,
             descriptionEn = "$nameEn orbiting in SpaceX's low-Earth-orbit constellation at ~${altKm} km (${String.format(Locale.US, "%.1f°", orb.inclinationDeg)} inclination).",
-            descriptionFa = "$nameFa در منظومه مدار پایین زمین اسپیس‌ایکس در ارتفاع حدود ${altKm.toString().toPersianDigits()} کیلومتری.",
+            descriptionFa = "$nameFa در ارتفاع حدود ${altKm.toString().toPersianDigits()} کیلومتری، عضوی از منظومهٔ مدار پایین اسپیس‌ایکس.",
             launchDate = formatCosparLaunchDisplay(orb.cosparLaunch5),
             operatorEn = "SpaceX",
             operatorFa = "اسپیس‌ایکس (SpaceX)",
             missionPurposeEn = "Global low-latency broadband and direct-to-cell LEO satellite.",
-            missionPurposeFa = "ماهواره اینترنت پهن‌باند کم‌تاخیر در مدار نزدیک زمین.",
+            missionPurposeFa = "اینترنت پهن‌باند کم‌تأخیر، از مدار نزدیک زمین.",
             scientificSignificanceEn = "Uses autonomous Hall-effect ion propulsion and optical inter-satellite laser mesh links.",
-            scientificSignificanceFa = "مجهز به پیشران یونی اثر هال و ارتباط لیزری مستقیم بین‌ماهواره‌ای."
+            scientificSignificanceFa = "پیشران یونی اثر هال دارد و با لیزر، مستقیم با ماهواره‌های همسایه حرف می‌زند."
         )
     }
 

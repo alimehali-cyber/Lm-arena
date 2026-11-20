@@ -331,9 +331,9 @@ object SatelliteEngine {
                 apparentMagnitude = 14.5,
                 isNakedEyeVisible = false,
                 visibilityVerdictEn = "NO",
-                visibilityVerdictFa = "خیر (نیاز به تلسکوپ)",
+                visibilityVerdictFa = "نه، تلسکوپ لازم است",
                 reasonEn = "JWST is at Sun-Earth L2 Point (~1.5M km) and magnitude +14.5.",
-                reasonFa = "جیمز وب در نقطه L2 زمین-خورشید (فاصله ۱.۵ میلیون کیلومتری) و قدر ۱۴.۵ قرار دارد."
+                reasonFa = "جیمز وب در نقطهٔ L2 زمین و خورشید است، حدود ۱٫۵ میلیون کیلومتر آن‌طرف‌تر، با قدر ۱۴٫۵."
             )
         }
 
@@ -360,34 +360,34 @@ object SatelliteEngine {
 
         if (isNakedEye) {
             verdictEn = "YES (Naked-Eye Visible)"
-            verdictFa = "بله (قابل مشاهده با چشم)"
+            verdictFa = "بله، با چشم دیده می‌شود"
             reasonEn = "Pass meets geometry: sunlit satellite in dark sky at ${String.format(Locale.US, "%.1f", topo.elevationDeg)}° elevation."
-            reasonFa = "گذر دارای شرایط ایده‌آل است: ماهواره درخشان در تاریکی شب در ارتفاع ${String.format(Locale.US, "%.1f", topo.elevationDeg)} درجه."
+            reasonFa = "شرایط ایدئال است: ماهواره‌ای درخشان در تاریکی شب، تا ارتفاع ${String.format(Locale.US, "%.1f", topo.elevationDeg)} درجه."
         } else if (!isAboveHorizon) {
             verdictEn = "NO (Below Horizon)"
-            verdictFa = "خیر (زیر افق)"
+            verdictFa = "نه، زیر افق است"
             reasonEn = "Satellite is below local horizon (${String.format(Locale.US, "%.1f", topo.elevationDeg)}°)."
-            reasonFa = "ماهواره در حال حاضر زیر افق محلی قرار دارد (${String.format(Locale.US, "%.1f", topo.elevationDeg)} درجه)."
+            reasonFa = "الان زیر افق توست (${String.format(Locale.US, "%.1f", topo.elevationDeg)} درجه)."
         } else if (!isNightOrTwilight) {
             verdictEn = "NO (Daylight Sky)"
-            verdictFa = "خیر (روشنایی روز)"
+            verdictFa = "نه، آسمان روشن است"
             reasonEn = "Sky is too bright (Sun altitude ${String.format(Locale.US, "%.1f", sunAlt)}°)."
-            reasonFa = "آسمان روز روشن است (ارتفاع خورشید ${String.format(Locale.US, "%.1f", sunAlt)} درجه)."
+            reasonFa = "آسمان هنوز روشن است؛ خورشید ${String.format(Locale.US, "%.1f", sunAlt)} درجه بالاست."
         } else if (!isSunlit) {
             verdictEn = "NO (In Earth Shadow)"
-            verdictFa = "خیر (در سایه زمین)"
+            verdictFa = "نه، در سایهٔ زمین است"
             reasonEn = "Satellite is currently eclipsed in Earth's shadow cone."
-            reasonFa = "ماهواره در مخروط سایه زمین قرار داشته و تاریک است."
+            reasonFa = "ماهواره در سایهٔ زمین است و خورشید به آن نمی‌رسد."
         } else if (mag > 4.5) {
             verdictEn = "Visibility Uncertain (Too Faint)"
-            verdictFa = "وضعیت نامشخص (بسیار کم‌نور)"
+            verdictFa = "شاید، خیلی کم‌نور است"
             reasonEn = "Magnitude +${String.format(Locale.US, "%.1f", mag)} is too dim for casual naked-eye observation."
-            reasonFa = "درخشندگی ماهواره (قدر ${String.format(Locale.US, "%.1f", mag)}+) برای مشاهده با چشم غیرمسلح بسیار کم است."
+            reasonFa = "قدرش ${String.format(Locale.US, "%.1f", mag)}+ است؛ برای چشم غیرمسلح زیادی کم‌نور است."
         } else {
             verdictEn = "Visibility Uncertain"
-            verdictFa = "وضعیت نامشخص"
+            verdictFa = "شاید، لب مرز است"
             reasonEn = "Viewing geometry is marginal."
-            reasonFa = "شرایط هندسی مشاهده حاشیه‌ای است."
+            reasonFa = "هندسهٔ دید لب مرز است؛ باید شانس بیاوری."
         }
 
         return SatelliteLiveState(
