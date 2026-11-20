@@ -130,7 +130,7 @@ class SatPassCardsTest {
         assertNotNull(restored)
         assertEquals(setOf("hubble"), restored!!.ui.passScope)
         assertEquals("the globe filters keep their own slot", state.ui.globeFilters, restored.ui.globeFilters)
-        assertEquals("focus, scope, offset, theme, preview, globe filters, pass scope", 7, saved.size)
+        assertEquals("focus, scope, offset, theme, preview, globe filters, pass scope", 7, (saved as List<*>).size)
     }
 
     @Test
