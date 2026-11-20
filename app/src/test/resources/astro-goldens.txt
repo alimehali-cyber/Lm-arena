@@ -1,5 +1,5 @@
 # Astronomy bit-identity baseline (see AstroBitIdentityTest).
-# Recorded from commit 0f3ee8b533082908fcc6651631f647937ab71257.
+# Recorded from commit 0aec93d610a1fd15f777ed4790c43a75caae6f45.
 lunarSolar.moon.0=560ab88fb8db47971dacca78ef37dea8b2766d90ae8bd746b8ba1cf83d0f36ca
 lunarSolar.sun.0=e01a55ab97a9030c29cd9953d11596eb8743e889b35c49a1c2a2fd4f485f48cc
 lunarSolar.moon.1=c483e4a3ae40e396c1ad94bcb8b63c0da585e3197f0b26ac38040d1fa3212ca8
@@ -199,6 +199,6 @@ catalog.objects.4=39dbf4135117b90e195931d55ed6b9c3efd5645009fe72f9256b09a791039a
 catalog.objects.4.count=628
 catalog.objects.5=bcde4c77ff69ec161fc59d3348a80ea31e190dcc985f686811ab8e333a13c6be
 catalog.objects.5.count=628
-catalog.canonical.list=880a438e408378e73a2ca0edf91e390093db27abaae439b0fb428a62d4b27048
-catalog.lookup=c0a1aaac93ae67b9143c1b6582732bd7e80ad1e07fe7e438f6a83cfb89bbd493
+catalog.canonical.list=4c8f063c208a380a0f0d150e57b33a9a61f204ccc176e67010ddc69413ae18ba
+catalog.lookup=e96b0fe5fd77cb38b4c2b4498b38c2437892c24aba478cf0819bc7c96dccd004
 catalog.lookup.count=4622
