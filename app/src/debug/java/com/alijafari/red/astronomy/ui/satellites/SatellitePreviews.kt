@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.imageResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -154,10 +155,17 @@ internal fun SatPreview(theme: ThemeMode, panel: SatPanel = SatPanel.None, detai
                             onLocate = {}, onCycle = {}, onDetail = {}, onLighting = {}, onLegend = {},
                             observerName = if (fa) location.cityNameFa else location.cityNameEn, onObserver = {},
                             displayTimeMs = displayTime, onReturnToPass = if (preview) ({}) else null,
+                            nextAnyPass = passes.first(), anyPassesLoading = false,
+                            passScopeLabel = stringResource(R.string.sat_pass_scope_all),
+                            passScopeChoices = satPassScopeChoices(fa), passScopeIds = emptySet(),
+                            onTogglePassScope = {}, onOpenAnyPass = {},
                             globe = { projection, _, _ -> PreviewEarth(projection, tokens) },
-                            sheet = { current, side -> if (current == SatPanel.Passes) SatPassesSheet(tokens, fa, state.scope, passes.size,
-                                SatNights.group(passes, now, tz, fa), SatNights.spotlight(passes, now, tz, fa), now, now,
-                                side, { state = state.copy(activePanel = SatPanel.None) }, {}, {}, { actions }, { Modifier }, tz,
+                            sheet = { current, side -> if (current == SatPanel.Passes) SatPassesSheet(tokens, fa,
+                                scopeIds = emptySet(), scopeChoices = satPassScopeChoices(fa), onToggleScope = {},
+                                count = passes.size, groups = SatNights.group(passes, now, tz, fa),
+                                spotlight = SatNights.spotlight(passes, now, tz, fa), now = now, realNow = now,
+                                side = side, onClose = { state = state.copy(activePanel = SatPanel.None) },
+                                actionsFor = { actions }, sourceModifier = { Modifier }, tz = tz,
                                 selectedPassKey = if (selectedAgendaPass) passes.first().key else null) })
                         if (state.activePanel != SatPanel.Passes) {
                             val modifier = Modifier.align(Alignment.BottomCenter)

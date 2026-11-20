@@ -69,6 +69,13 @@ import kotlinx.coroutines.withContext
 private const val MINUTE = 60_000L
 private const val DAY = 24 * 60 * MINUTE
 
+/** The agenda lists a full week, so predictions start a half-day early and scan past day seven. */
+private const val AGENDA_WINDOW_DAYS = 7L
+private const val AGENDA_SCAN_DAYS = 8
+// Individually tracked Starlinks are a rotating shortlist, not the fleet: five days of passes for
+// them keeps the sweep affordable while the named satellites still cover the whole week.
+private const val INDIVIDUAL_SCAN_DAYS = 5
+
 private data class SatFeedback(val label: String, val undo: (() -> Unit)? = null)
 
 /** The data/interaction owner for all three entry points. Renderers do not own navigation state. */
@@ -103,6 +110,7 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
             scope = SatelliteCategory.entries.firstOrNull { it.name == savedScope } ?: SatelliteCategory.ALL,
             mapTheme = MapTheme.entries.firstOrNull { it.name == name } ?: MapTheme.AUTO,
             globeFilters = SatGlobeFilters.fromPersisted(prefs.getStringSet("sat_globe_hidden_layers", null)),
+            passScope = prefs.getStringSet("sat_pass_card_scope", null)?.filter { it.isNotBlank() }?.toSet().orEmpty(),
         )).also { viewModel.satellitesState = it }
         }
     }
@@ -123,6 +131,10 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     fun showAllGlobeFilters() {
         screen.filters(SatGlobeFilters.All)
         prefs.edit().putStringSet("sat_globe_hidden_layers", emptySet()).apply()
+    }
+    fun togglePassScope(id: String) {
+        screen.togglePassScope(id)
+        prefs.edit().putStringSet("sat_pass_card_scope", screen.ui.passScope).apply()
     }
     var config by remember(prefs, legacy) {
         val defaults = SatAlertsConfig()
@@ -319,8 +331,9 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
             val targets = SatelliteCatalog.satellites + trains.map { it.leaderItem } + individuals
             val passes = targets.distinctBy { it.id }.flatMap { sat ->
                 ensureActive()
+                val scanDays = if (sat.category == SatelliteCategory.STARLINK && !sat.isTrain) INDIVIDUAL_SCAN_DAYS else AGENDA_SCAN_DAYS
                 ISSEngine.predictPasses(location.latitude, location.longitude, passWindowKey,
-                    tle = SatelliteEngine.getEffectiveTle(sat), scanDays = if (sat.isTrain) 3 else 5,
+                    tle = SatelliteEngine.getEffectiveTle(sat), scanDays = scanDays,
                     visibleOnly = true, standardMag = sat.standardMagnitude).map { sat to it }
             }.sortedBy { it.second.startTimeMs }
             individuals to passes
@@ -367,10 +380,10 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
     // Returning from an event preview must not rebuild the agenda around the previewed time.
     val agendaNow = navigation.agendaReferenceMs ?: currentSimulationMs
     val agendaSource = navigation.agendaSnapshot ?: basePasses
-    val agendaPasses = remember(agendaSource, agendaNow, selectedCategory, alarms, config, realTimeNowMs / MINUTE) {
+    val agendaPasses = remember(agendaSource, agendaNow, state.passScope, alarms, config, realTimeNowMs / MINUTE) {
         agendaSource?.asSequence()?.filter { row ->
-            matchesScope(row.sat, selectedCategory) && row.pass.endTimeMs > agendaNow &&
-                row.pass.startTimeMs <= agendaNow + (if (row.isTrain) 2L else 3L) * DAY
+            passScopeMatches(row.sat, state.passScope) && row.pass.endTimeMs > agendaNow &&
+                row.pass.startTimeMs <= agendaNow + AGENDA_WINDOW_DAYS * DAY
         }?.map { row ->
             val matching = alarms.filter { it.triggerTimeMs > realTimeNowMs && it.coversSatellitePass(row.sat, row.pass.startTimeMs) }
             row.copy(reminderLeadMinutes = matching.firstOrNull { it.manualPass }?.leadMinutes,
@@ -398,6 +411,19 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
             live.satellite.id == selectedSatelliteId, live.satellite)
     } }
     val nextFocused = windowPasses?.firstOrNull { it.sat.id == selectedLiveState?.satellite?.id }
+
+    // The passes card answers "what is next over me", so it takes the soonest pass in the scope
+    // instead of the selected satellite's own pass, which the card above already carries.
+    val passCardNext = remember(basePasses, state.passScope, currentSimulationMs) {
+        basePasses?.let { nextPassInScope(it, state.passScope, currentSimulationMs) }
+    }
+    val passScopeChoices = satPassScopeChoices(isFa)
+    val passScopeLabel = when {
+        state.passScope.isEmpty() -> stringResource(R.string.sat_pass_scope_all)
+        state.passScope.size == 1 -> passScopeChoices.firstOrNull { it.first in state.passScope }?.second
+            ?: stringResource(R.string.sat_pass_scope_all)
+        else -> stringResource(R.string.sat_pass_scope_count, SatFmt.int(state.passScope.size, isFa))
+    }
 
     var activeDetail by remember(navigation) { navigation::detail }
     var detailSource by rememberSaveable { mutableStateOf("focus") }
@@ -559,6 +585,11 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                             observerName = if (isFa) location.cityNameFa else location.cityNameEn,
                             onObserver = { viewModel.setShowLocationSelector(true) },
                             passesLoading = windowPasses == null, onNextPass = { nextFocused?.let { detail(it.sat, it.pass, it.key) } },
+                            nextAnyPass = passCardNext, anyPassesLoading = allUpcomingPasses == null,
+                            passScopeLabel = passScopeLabel, passScopeChoices = passScopeChoices, passScopeIds = state.passScope,
+                            onTogglePassScope = ::togglePassScope,
+                            onOpenAnyPass = { passCardNext?.let { detail(it.sat, it.pass, it.key) } },
+                            onMorePasses = { screen.panel(SatPanel.Passes) },
                             onLighting = { theme ->
                                 screen.lighting(theme)
                                 prefs.edit().putString("satellite_map_theme", theme.name).apply()
@@ -589,9 +620,9 @@ fun SatellitesStage(uiState: MainUiState, viewModel: MainViewModel, skin: SatSki
                                     SatPanel.Fleet -> SatFleetSheet(fleet, selectedCategory, tokens, isFa, ::setSatelliteScope,
                                         { focusItem(it.satellite) }, ::closePanel)
                                     SatPanel.Passes -> savedScreens.SaveableStateProvider("agenda") {
-                                        SatPassesSheet(tokens, isFa, selectedCategory, agendaPasses?.size, passesByNight,
-                                            spotlight, agendaNow, realTimeNowMs, side, ::closePanel, { setSatelliteScope(SatelliteCategory.ALL) },
-                                            { selectedLiveState?.satellite?.let { detail(it) } }, ::passActions, sourceModifier, tz, isOnline,
+                                        SatPassesSheet(tokens, isFa, state.passScope, passScopeChoices, ::togglePassScope,
+                                            agendaPasses?.size, passesByNight, spotlight, agendaNow, realTimeNowMs, side, ::closePanel,
+                                            ::passActions, sourceModifier, tz, isOnline,
                                             selectedPassKey = detailSource.takeIf { key ->
                                                 agendaPasses?.any { it.key == key && it.sat.id == selectedSatelliteId } == true
                                             })
@@ -637,6 +668,10 @@ internal fun SatelliteHud(
     onLighting: (MapTheme) -> Unit, onLegend: (Boolean) -> Unit, focusModifier: Modifier = Modifier,
     onToggleGlobeFilter: (SatGlobeLayer) -> Unit = {}, onShowAllGlobeFilters: () -> Unit = {},
     passesLoading: Boolean = false, onNextPass: () -> Unit = onDetail,
+    nextAnyPass: SatPassUi? = null, anyPassesLoading: Boolean = false,
+    passScopeLabel: String = "", passScopeChoices: List<Pair<String, String>> = emptyList(),
+    passScopeIds: Set<String> = emptySet(), onTogglePassScope: (String) -> Unit = {},
+    onOpenAnyPass: () -> Unit = {}, onMorePasses: () -> Unit = { onPanel(SatPanel.Passes) },
     observerName: String = "", onObserver: () -> Unit = {},
     displayTimeMs: Long = now + state.timeOffsetMin * MINUTE, onReturnToPass: (() -> Unit)? = null,
     globe: @Composable (EarthViewportProjection, Dp, Dp) -> Unit, sheet: @Composable (SatPanel, Boolean) -> Unit,
@@ -652,8 +687,10 @@ internal fun SatelliteHud(
         val navClearance = bottomInset + 84.dp
         val compact = width < 360.dp || height - topInset - bottomInset < 700.dp
         val padding = if (width >= 412.dp) 20.dp else 16.dp
-        var focusHeight by remember { mutableStateOf(126.dp) }
-        val bottom = navClearance + focusHeight + 3.dp
+        // Both cards below the globe are measured together, so the framing never assumes a height.
+        var readoutHeight by remember { mutableStateOf(224.dp) }
+        var passScopeOpen by rememberSaveable { mutableStateOf(false) }
+        val bottom = navClearance + readoutHeight + 3.dp
         val framing = with(density) {
             val topPx = top.toPx()
             val bottomPx = (height - bottom).toPx()
@@ -705,16 +742,26 @@ internal fun SatelliteHud(
                 }, label = "hud-bottom") { showTime ->
                     if (showTime) SatTimeTray(tokens, state.timeOffsetMin, now, tz, markers, isFa, compact, timeActions, onClose,
                         displayTimeMs = displayTimeMs, isPreview = simulated, satelliteName = focused?.satellite?.let { shortNameOf(it, isFa) }.orEmpty())
-                    else if (focused != null) {
-                        val span = stringResource(if (focused.satellite.isTrain) R.string.sat_two_days else R.string.sat_three_days)
-                        Crossfade(focused.satellite.id, focusModifier, animationSpec = tween(if (reduce) 120 else 160), label = "satellite-focus") { id ->
-                            var presented by remember(id) { mutableStateOf(focused) }
-                            SideEffect { if (id == focused.satellite.id) presented = focused }
-                            SatFocusCard(presented, tokens, isFa, compact, width >= 412.dp, simulated, !status.isOnline, nextFocused,
-                                displayTimeMs, span, firstRun, { onPanel(SatPanel.Fleet) }, onDetail,
-                                { onPanel(SatPanel.Passes) }, onCycle,
-                                Modifier.onSizeChanged { focusHeight = with(density) { it.height.toDp() } }, passesLoading, onNextPass, !matchesScope(presented.satellite, state.scope))
+                    else Column(Modifier.fillMaxWidth().onSizeChanged { readoutHeight = with(density) { it.height.toDp() } },
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (focused != null) {
+                            val span = stringResource(if (focused.satellite.isTrain) R.string.sat_two_days else R.string.sat_three_days)
+                            Crossfade(focused.satellite.id, focusModifier, animationSpec = tween(if (reduce) 120 else 160), label = "satellite-focus") { id ->
+                                var presented by remember(id) { mutableStateOf(focused) }
+                                SideEffect { if (id == focused.satellite.id) presented = focused }
+                                SatFocusCard(presented, tokens, isFa, compact, width >= 412.dp, simulated, !status.isOnline, nextFocused,
+                                    displayTimeMs, span, firstRun, { onPanel(SatPanel.Fleet) }, onDetail,
+                                    { onPanel(SatPanel.Passes) }, onCycle,
+                                    Modifier, passesLoading, onNextPass, !matchesScope(presented.satellite, state.scope))
+                            }
                         }
+                        // The second card is only ever about passes: the next one over the observer,
+                        // narrowed by the scope picker, and the way into the seven-day agenda.
+                        SatNextPassCard(next = nextAnyPass, scopeLabel = passScopeLabel, scopeChoices = passScopeChoices,
+                            scopeIds = passScopeIds, scopeOpen = passScopeOpen, loading = anyPassesLoading,
+                            nowMs = displayTimeMs, tz = tz, isFa = isFa, compact = compact, tokens = tokens,
+                            onToggleScopeOpen = { passScopeOpen = !passScopeOpen },
+                            onToggleScope = onTogglePassScope, onOpenPass = onOpenAnyPass, onMorePasses = onMorePasses)
                     }
                 }
             }

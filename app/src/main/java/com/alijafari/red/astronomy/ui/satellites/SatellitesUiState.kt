@@ -66,6 +66,8 @@ internal data class SatellitesUiState(
     val activePanel: SatPanel = SatPanel.None,
     val legend: Boolean = false,
     val globeFilters: SatGlobeFilters = SatGlobeFilters(),
+    // The pass card and the passes sheet follow this set of satellite ids; empty means all of them.
+    val passScope: Set<String> = emptySet(),
     // A fixed instant is used for an event preview, including events beyond the scrubber range.
     val previewAtMs: Long? = null,
 )
@@ -88,13 +90,25 @@ internal class SatellitesState(initial: SatellitesUiState) {
     fun filters(value: SatGlobeFilters) { ui = ui.copy(globeFilters = value) }
     fun toggleFilter(layer: SatGlobeLayer) = filters(ui.globeFilters.toggled(layer))
 
+    /** An empty id clears the scope back to "every satellite". */
+    fun togglePassScope(id: String) {
+        val ids = ui.passScope
+        ui = ui.copy(passScope = when {
+            id.isEmpty() -> emptySet()
+            id in ids -> ids - id
+            else -> ids + id
+        })
+    }
+
     companion object {
         val Saver = listSaver<SatellitesState, String>(
             save = { listOf(it.ui.focusId, it.ui.scope.name, it.ui.timeOffsetMin.toString(), it.ui.mapTheme.name,
-                it.ui.previewAtMs?.toString() ?: "", it.ui.globeFilters.persisted().joinToString(",")) },
+                it.ui.previewAtMs?.toString() ?: "", it.ui.globeFilters.persisted().joinToString(","),
+                it.ui.passScope.sorted().joinToString(",")) },
             restore = { SatellitesState(SatellitesUiState(it[0], SatelliteCategory.valueOf(it[1]), it[2].toInt(),
                 MapTheme.valueOf(it[3]), previewAtMs = it.getOrNull(4)?.toLongOrNull(),
-                globeFilters = SatGlobeFilters.fromPersisted(it.getOrNull(5)?.split(",")?.filter { name -> name.isNotBlank() }?.toSet()))) },
+                globeFilters = SatGlobeFilters.fromPersisted(it.getOrNull(5)?.split(",")?.filter { name -> name.isNotBlank() }?.toSet()),
+                passScope = it.getOrNull(6)?.split(",")?.filter { id -> id.isNotBlank() }?.toSet().orEmpty())) },
         )
     }
 }
@@ -143,6 +157,25 @@ internal val SatNightOverridesSaver = Saver<Map<Long, Boolean>, ArrayList<String
     save = { map -> ArrayList(map.map { (night, expanded) -> "$night:${if (expanded) 1 else 0}" }) },
     restore = { rows -> rows.associate { row -> row.substringBefore(':').toLong() to (row.substringAfter(':') == "1") } },
 )
+
+/**
+ * One id that stands for the whole Starlink family inside a pass scope: ticking «استارلینک‌ها» must
+ * cover the train and every individually tracked satellite, not just the train's leader.
+ */
+internal const val STARLINK_SCOPE_ID = "starlink_train"
+
+/** Which satellites the pass card and the passes sheet are allowed to show. Empty means all. */
+internal fun passScopeMatches(sat: SatelliteItem, ids: Set<String>): Boolean =
+    ids.isEmpty() || sat.id in ids || (STARLINK_SCOPE_ID in ids && sat.category == SatelliteCategory.STARLINK)
+
+/**
+ * The pass the dedicated card shows: the soonest one that has not finished yet, whoever flies it.
+ * This is deliberately "next", not "best" — the agenda still scores and spotlights passes.
+ */
+internal fun nextPassInScope(passes: List<SatPassUi>, ids: Set<String>, nowMs: Long): SatPassUi? =
+    passes.asSequence()
+        .filter { passScopeMatches(it.sat, ids) && it.pass.endTimeMs > nowMs }
+        .minByOrNull { it.pass.startTimeMs }
 
 internal fun satelliteDisplayTime(state: SatellitesUiState, nowMs: Long): Long =
     state.previewAtMs ?: (nowMs + state.timeOffsetMin * 60_000L)

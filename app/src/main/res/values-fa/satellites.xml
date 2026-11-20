@@ -74,7 +74,15 @@
     <string name="sat_search">جست‌وجوی ماهواره‌ها</string>
     <string name="sat_no_fleet">چیزی پیدا نشد. کمی فیلترها را باز کن.</string>
     <string name="sat_show_all">همهٔ ماهواره‌ها را نشان بده</string>
-    <string name="sat_seven_day">۷ روز پیش رو، در جزئیات</string>
+    <string name="sat_seven_days">۷ روز</string>
+    <string name="sat_pass_card_title">گذر بعدی بالای سرت</string>
+    <string name="sat_pass_card_empty">در ۷ روز آینده گذر دیدنی‌ای نیست.</string>
+    <string name="sat_pass_in">%1$s دیگر</string>
+    <string name="sat_pass_scope_all">همهٔ ماهواره‌ها</string>
+    <string name="sat_pass_scope_count">%1$s ماهواره</string>
+    <string name="sat_pass_scope_row">فقط این ماهواره‌ها</string>
+    <string name="sat_starlink_family">استارلینک‌ها</string>
+    <string name="sat_more_passes_button">گذرهای بیشتر</string>
     <string name="sat_now">اکنون</string>
     <string name="sat_soon">به‌زودی</string>
     <string name="sat_later">بعدتر</string>
@@ -175,7 +183,6 @@
     <string name="sat_above_your_horizon">بالای افق تو</string>
     <string name="sat_below_your_horizon">زیر افق تو</string>
     <string name="sat_checking_passes">دارم گذرهای پیش رو را حساب می‌کنم…</string>
-    <string name="sat_all_passes">همه گذرها</string>
     <string name="sat_search_all_tracked">حالا بین همهٔ اجرام ردیابی‌شده می‌گردی؛ فیلترهای رصد موقتاً کنار رفته‌اند.</string>
     <string name="sat_manual_reminders_remain">پایش خودکار خاموش شود، ولی یادآوری‌هایی که خودت گذاشتی سر جایشان می‌مانند.</string>
     <string name="sat_expanded">بازشده</string>

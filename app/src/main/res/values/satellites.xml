@@ -74,7 +74,15 @@
     <string name="sat_search">Search satellites</string>
     <string name="sat_no_fleet">No matching satellites.</string>
     <string name="sat_show_all">Show all satellites</string>
-    <string name="sat_seven_day">Check 7-day view in Details</string>
+    <string name="sat_seven_days">7 days</string>
+    <string name="sat_pass_card_title">Next pass over you</string>
+    <string name="sat_pass_card_empty">No visible pass in the next 7 days.</string>
+    <string name="sat_pass_in">in %1$s</string>
+    <string name="sat_pass_scope_all">All satellites</string>
+    <string name="sat_pass_scope_count">%1$s satellites</string>
+    <string name="sat_pass_scope_row">Only these satellites</string>
+    <string name="sat_starlink_family">Starlinks</string>
+    <string name="sat_more_passes_button">More passes</string>
     <string name="sat_now">Now</string>
     <string name="sat_soon">Soon</string>
     <string name="sat_later">Later</string>
@@ -175,7 +183,6 @@
     <string name="sat_above_your_horizon">Above your horizon</string>
     <string name="sat_below_your_horizon">Below your horizon</string>
     <string name="sat_checking_passes">Checking upcoming passes…</string>
-    <string name="sat_all_passes">All passes</string>
     <string name="sat_search_all_tracked">Searching all tracked objects; observing filters are paused.</string>
     <string name="sat_manual_reminders_remain">Turning off automatic monitoring does not remove individual reminders.</string>
     <string name="sat_expanded">Expanded</string>
