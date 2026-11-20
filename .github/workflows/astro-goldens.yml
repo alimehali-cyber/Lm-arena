@@ -2,12 +2,11 @@ name: Astronomy bit-identity baseline
 
 # Records the SHA-256 fingerprints AstroBitIdentityTest compares against, from the engine code of the
 # commit that triggered the run, and commits them to app/src/test/resources/astro-goldens.txt.
-# Re-recording an existing baseline requires an explicit workflow_dispatch input; ordinary runs never
-# overwrite it. Runs on workflow changes or when manually dispatched.
+# Re-recording an existing baseline requires an explicit request: a workflow_dispatch run with
+# `rebaseline: true`, or a push whose commit message starts with `test(astro): rebaseline`. Ordinary
+# pushes skip the job below and never overwrite the baseline.
 on:
   push:
-    paths:
-      - ".github/workflows/astro-goldens.yml"
   workflow_dispatch:
     inputs:
       rebaseline:
@@ -21,6 +20,11 @@ permissions:
 
 jobs:
   record:
+    # A push only earns a recorder run when its commit message asks for one; everything else is a
+    # skipped job, not a wasted checkout.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.event.head_commit.message, 'test(astro): rebaseline')
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
